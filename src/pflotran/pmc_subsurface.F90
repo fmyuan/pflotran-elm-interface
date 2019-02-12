@@ -83,6 +83,40 @@ end subroutine PMCSubsurfaceInit
 
 subroutine PMCSubsurfaceSetupSolvers(this)
   ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/22/18
+  ! 
+  use Option_module
+  use Timestepper_BE_class
+  use Timestepper_TS_class
+
+  implicit none
+
+  class(pmc_subsurface_type) :: this
+
+  type(option_type), pointer :: option
+
+  option => this%option
+
+  if (associated(this%timestepper)) then
+    select type(ts => this%timestepper)
+      class is(timestepper_TS_type)
+        call PMCSubsurfaceSetupSolvers_TS(this)
+      class is(timestepper_BE_type)
+        call PMCSubsurfaceSetupSolvers_TimestepperBE(this)
+      class default
+        option%io_buffer = &
+          'Unknown timestepper found in PMCSubsurfaceSetupSolvers '
+        call printErrMsg(option)
+    end select
+  endif
+
+end subroutine PMCSubsurfaceSetupSolvers
+
+! ************************************************************************** !
+
+subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
+  ! 
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   ! 
@@ -117,6 +151,7 @@ subroutine PMCSubsurfaceSetupSolvers(this)
   type(option_type), pointer :: option
   SNESLineSearch :: linesearch  
   character(len=MAXSTRINGLENGTH) :: string  
+  PetscBool :: add_pre_check
   PetscErrorCode :: ierr
 
 #ifdef DEBUG
@@ -124,355 +159,438 @@ subroutine PMCSubsurfaceSetupSolvers(this)
 #endif
 
   option => this%option
-  
-  if (associated(this%timestepper)) then
-    select type(ts => this%timestepper)
-      class is(timestepper_BE_type)
-        solver => ts%solver
-        call SolverCreateSNES(solver,option%mycomm)
-        call SNESGetLineSearch(ts%solver%snes,linesearch, &
-                               ierr);CHKERRQ(ierr)
-      
-        select type(pm => this%pm_ptr%pm)
+  solver => this%timestepper%solver
+
+  call SolverCreateSNES(solver,option%mycomm)
+  call SNESGetLineSearch(this%timestepper%solver%snes,linesearch, &
+                         ierr);CHKERRQ(ierr)
+  ! set solver pointer within pm for convergence purposes
+  call this%pm_ptr%pm%SetSolver(solver)
+  select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
-          class is(pm_subsurface_flow_type)
-            call printMsg(option,"  Beginning setup of FLOW SNES ")
-            if (solver%J_mat_type == MATAIJ .and. &
-                option%iflowmode /= RICHARDS_MODE) then
-              option%io_buffer = 'AIJ matrix not supported for current &
-                &mode: '// option%flowmode
-              call printErrMsg(option)
-            endif
-            if (OptionPrintToScreen(option)) then
-              write(*,'(" number of dofs = ",i3,", number of &
-                        &phases = ",i3,i2)') option%nflowdof,option%nphase
-              select case(option%iflowmode)
-                case(FLASH2_MODE)
-                  write(*,'(" mode = FLASH2: p, T, s/X")')
-                case(MPH_MODE)
-                  write(*,'(" mode = MPH: p, T, s/X")')
-                case(IMS_MODE)
-                  write(*,'(" mode = IMS: p, T, s")')
-                case(MIS_MODE)
-                  write(*,'(" mode = MIS: p, Xs")')
-                case(TH_MODE)
-                  write(*,'(" mode = TH: p, T")')
-                case(RICHARDS_MODE)
-                  write(*,'(" mode = Richards: p")')
-                case(G_MODE) 
-                  write(*,'(" mode = General: p, sg/X, T")')
-                case(WF_MODE) 
-                  write(*,'(" mode = WIPP Flow: p, sg")')
-                case(TOIL_IMS_MODE)   
-              end select
-            endif
+    class is(pm_subsurface_flow_type)
+      call printMsg(option,"  Beginning setup of FLOW SNES ")
+      if (solver%J_mat_type == MATAIJ .and. &
+          option%iflowmode /= RICHARDS_MODE) then
 
-            call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
-            call SolverCheckCommandLine(solver)
-
-            if (solver%Jpre_mat_type == '') then
-              if (solver%J_mat_type /= MATMFFD) then
-                solver%Jpre_mat_type = solver%J_mat_type
-              else
-                solver%Jpre_mat_type = MATBAIJ
-              endif
-            endif
-
-            call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                              NFLOWDOF, &
-                                              solver%Jpre_mat_type, &
-                                              solver%Jpre, &
-                                              option)
-
-            call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
-
-            if (solver%J_mat_type /= MATMFFD) then
-              solver%J = solver%Jpre
-            endif
-
-            if (solver%use_galerkin_mg) then
-              call DiscretizationCreateInterpolation( &
-                             pm%realization%discretization,NFLOWDOF, &
-                             solver%interpolation, &
-                             solver%galerkin_mg_levels_x, &
-                             solver%galerkin_mg_levels_y, &
-                             solver%galerkin_mg_levels_z, &
-                             option)
-            endif
-    
-            if (solver%J_mat_type == MATMFFD) then
-              call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
-            endif
-
-            ! by default turn off line search
-            call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-            call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                                        ierr);CHKERRQ(ierr)
-            ! Have PETSc do a SNES_View() at the end of each solve if 
-            ! verbosity > 0.
-            if (option%verbosity >= 2) then
-              string = '-flow_snes_view'
-              call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
-                                            ierr);CHKERRQ(ierr)
-            endif
-
-            ! If we are using a structured grid, set the corresponding flow 
-            ! DA as the DA for the PCEXOTIC preconditioner, in case we 
-            ! choose to use it. The PCSetDA() call is ignored if the 
-            ! PCEXOTIC preconditioner is no used.  We need to put this call 
-            ! after SolverCreateSNES() so that KSPSetFromOptions() will 
-            ! already have been called.  I also note that this 
-            ! preconditioner is intended only for the flow 
-            ! solver.  --RTM
-            if (pm%realization%discretization%itype == STRUCTURED_GRID) then
-              call PCSetDM(solver%pc, &
-                           pm%realization%discretization%dm_nflowdof%dm, &
-                           ierr);CHKERRQ(ierr)
-            endif
-
-            ! shell for custom convergence test.  The default SNES convergence
-            ! test is call within this function.
-            ts%convergence_context => ConvergenceContextCreate(solver,option, &
-                                                   pm%realization%patch%grid)
-            call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                                        ts%convergence_context, &
-                                        PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-            if (pm%check_post_convergence) then
-              call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                              PMCheckUpdatePost, &
-                                              this%pm_ptr%pm, &
-#else
-                                              PMCheckUpdatePostPtr, &
-                                              this%pm_ptr, &
-#endif
-                                              ierr);CHKERRQ(ierr)
-              !geh: it is possible that the other side has not been set
-              pm%check_post_convergence = PETSC_TRUE
-            endif
-            select type(pm)
-            !-------------------------------------
-              !TODO(geh): Can't these be consolidated?
-              class is(pm_richards_type)
-                if (Initialized(pm%pressure_dampening_factor) .or. &
-                    Initialized(pm%saturation_change_limit)) then
-                  call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                                 PMCheckUpdatePre, &
-                                                 this%pm_ptr%pm, &
-#else
-                                                 PMCheckUpdatePrePtr, &
-                                                 this%pm_ptr, &
-#endif
-                                                 ierr);CHKERRQ(ierr)
-                endif   
-            !-------------------------------------
-              class is(pm_general_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_wippflo_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_toil_ims_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_towg_type)
-                call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                               PMCheckUpdatePre, &
-                                               this%pm_ptr%pm, &
-#else
-                                               PMCheckUpdatePrePtr, &
-                                               this%pm_ptr, &
-#endif
-                                               ierr);CHKERRQ(ierr)
-            !-------------------------------------
-              class is(pm_th_type)
-                if (Initialized(pm%pressure_dampening_factor) .or. &
-                    Initialized(pm%pressure_change_limit) .or. &
-                    Initialized(pm%temperature_change_limit)) then
-                  call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                                 PMCheckUpdatePre, &
-                                                 this%pm_ptr%pm, &
-#else
-                                                 PMCheckUpdatePrePtr, &
-                                                 this%pm_ptr, &
-#endif
-                                                 ierr);CHKERRQ(ierr)
-                endif
-            end select
-            call printMsg(option,"  Finished setting up FLOW SNES ")
-  ! ----- subsurface reactive transport                
-          class is(pm_rt_type)
-            call printMsg(option,"  Beginning setup of TRAN SNES ")
-            call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
-            call SolverCheckCommandLine(solver)
-    
-            if (option%transport%reactive_transport_coupling == &
-                GLOBAL_IMPLICIT) then
-              if (solver%Jpre_mat_type == '') then
-                if (solver%J_mat_type /= MATMFFD) then
-                  solver%Jpre_mat_type = solver%J_mat_type
-                else
-                  solver%Jpre_mat_type = MATBAIJ
-                endif
-              endif
-              call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                                NTRANDOF, &
-                                                solver%Jpre_mat_type, &
-                                                solver%Jpre,option)
-            else
-              solver%J_mat_type = MATAIJ
-              solver%Jpre_mat_type = MATAIJ
-
-              call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                                ONEDOF, &
-                                                solver%Jpre_mat_type, &
-                                                solver%Jpre,option)
-            endif
-
-            if (solver%J_mat_type /= MATMFFD) then
-              solver%J = solver%Jpre
-            endif
-    
-            call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
-    
-            if (solver%use_galerkin_mg) then
-              call DiscretizationCreateInterpolation( &
-                             pm%realization%discretization,NTRANDOF, &
-                             solver%interpolation, &
-                             solver%galerkin_mg_levels_x, &
-                             solver%galerkin_mg_levels_y, &
-                             solver%galerkin_mg_levels_z, &
-                             option)
-            endif
-
-            if (option%transport%reactive_transport_coupling == &
-                GLOBAL_IMPLICIT) then
-
-              if (solver%J_mat_type == MATMFFD) then
-                call MatCreateSNESMF(solver%snes,solver%J, &
-                                      ierr);CHKERRQ(ierr)
-              endif
-      
-              ! this could be changed in the future if there is a way to 
-              ! ensure that the linesearch update does not perturb 
-              ! concentrations negative.
-              call SNESGetLineSearch(solver%snes, linesearch, &
-                                     ierr);CHKERRQ(ierr)
-              call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                                          ierr);CHKERRQ(ierr)
-      
-              if (option%use_mc) then
-                call SNESLineSearchSetPostCheck(linesearch, &
-                                            SecondaryRTUpdateIterate, &
-                                            pm%realization,ierr);CHKERRQ(ierr)
-              endif
-      
-              ! Have PETSc do a SNES_View() at the end of each solve if 
-              ! verbosity > 0.
-              if (option%verbosity >= 2) then
-                string = '-tran_snes_view'
-                call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                              string, ierr);CHKERRQ(ierr)
-              endif
-
-            endif
-
-            if (option%transport%reactive_transport_coupling == &
-                GLOBAL_IMPLICIT) then
-              ! shell for custom convergence test.  The default SNES 
-              ! convergence test is call within this function. 
-              ts%convergence_context => &
-                ConvergenceContextCreate(solver,option, &
-                                         pm%realization%patch%grid)
-              call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                                        ts%convergence_context, &
-                                        PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-            endif
-            if (pm%print_EKG .or. option%use_mc .or. &
-                pm%check_post_convergence) then
-              call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                              PMCheckUpdatePost, &
-                                              this%pm_ptr%pm, &
-#else
-                                              PMCheckUpdatePostPtr, &
-                                              this%pm_ptr, &
-#endif
-                                              ierr);CHKERRQ(ierr)
-              if (pm%print_EKG) then
-                pm%check_post_convergence = PETSC_TRUE
-              endif
-            endif
-            if (pm%realization%reaction%check_update) then
-              call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                             PMCheckUpdatePre, &
-                                             this%pm_ptr%pm, &
-#else
-                                             PMCheckUpdatePrePtr, &
-                                             this%pm_ptr, &
-#endif
-                                             ierr);CHKERRQ(ierr)
-            endif          
-            call printMsg(option,"  Finished setting up TRAN SNES ")        
+        option%io_buffer = 'AIJ matrix not supported for current &
+          &mode: '// option%flowmode
+        call printErrMsg(option)
+      endif
+      if (OptionPrintToScreen(option)) then
+        write(*,'(" number of dofs = ",i3,", number of &
+                  &phases = ",i3,i2)') option%nflowdof,option%nphase
+        select case(option%iflowmode)
+          case(FLASH2_MODE)
+            write(*,'(" mode = FLASH2: p, T, s/X")')
+          case(MPH_MODE)
+            write(*,'(" mode = MPH: p, T, s/X")')
+          case(IMS_MODE)
+            write(*,'(" mode = IMS: p, T, s")')
+          case(MIS_MODE)
+            write(*,'(" mode = MIS: p, Xs")')
+          case(TH_MODE)
+            write(*,'(" mode = TH: p, T")')
+          case(RICHARDS_MODE,RICHARDS_TS_MODE)
+            write(*,'(" mode = Richards: p")')
+          case(G_MODE) 
+            write(*,'(" mode = General: p, sg/X, T")')
+          case(WF_MODE) 
+            write(*,'(" mode = WIPP Flow: p, sg")')
+          case(TOIL_IMS_MODE)   
         end select
-        call SNESSetFunction(ts%solver%snes, &
-                             this%pm_ptr%pm%residual_vec, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                             PMResidual, &
-                             this%pm_ptr%pm, &
-#else
-                             PMResidualPtr, &
-                             this%pm_ptr, &
-#endif
-                             ierr);CHKERRQ(ierr)
-        call SNESSetJacobian(ts%solver%snes, &
-                             solver%J, &
-                             solver%Jpre, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                             PMJacobian, &
-                             this%pm_ptr%pm, &
-#else
-                             PMJacobianPtr, &
-                             this%pm_ptr, &
-#endif
-                             ierr);CHKERRQ(ierr)
-        call SolverSetSNESOptions(solver,option)
-        option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
-        call printMsg(option)
-        option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
-        call printMsg(option)
-    end select
-  endif ! associated(pmc%timestepper)        
+      endif
 
-end subroutine PMCSubsurfaceSetupSolvers
+      call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
+      call SolverCheckCommandLine(solver)
+
+      if (solver%Jpre_mat_type == '') then
+        if (solver%J_mat_type /= MATMFFD) then
+          solver%Jpre_mat_type = solver%J_mat_type
+        else
+          solver%Jpre_mat_type = MATBAIJ
+        endif
+      endif
+
+     if (associated(solver%cprstash)) then
+        call CPRWorkersCreate(pm, solver, option)
+      endif
+
+      call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                        NFLOWDOF, &
+                                        solver%Jpre_mat_type, &
+                                        solver%Jpre, &
+                                        option)
+
+      call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
+
+      if (solver%J_mat_type /= MATMFFD) then
+        solver%J = solver%Jpre
+      endif
+
+      if (solver%use_galerkin_mg) then
+        call DiscretizationCreateInterpolation( &
+                       pm%realization%discretization,NFLOWDOF, &
+                       solver%interpolation, &
+                       solver%galerkin_mg_levels_x, &
+                       solver%galerkin_mg_levels_y, &
+                       solver%galerkin_mg_levels_z, &
+                       option)
+      endif
+    
+      if (solver%J_mat_type == MATMFFD) then
+        call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
+      endif
+
+      ! by default turn off line search
+      call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
+      call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
+                                  ierr);CHKERRQ(ierr)
+      ! Have PETSc do a SNES_View() at the end of each solve if 
+      ! verbosity > 0.
+      if (option%verbosity >= 2) then
+        string = '-flow_snes_view'
+        call PetscOptionsInsertString(PETSC_NULL_OPTIONS,string, &
+                                      ierr);CHKERRQ(ierr)
+      endif
+
+      ! If we are using a structured grid, set the corresponding flow 
+      ! DA as the DA for the PCEXOTIC preconditioner, in case we 
+      ! choose to use it. The PCSetDA() call is ignored if the 
+      ! PCEXOTIC preconditioner is no used.  We need to put this call 
+      ! after SolverCreateSNES() so that KSPSetFromOptions() will 
+      ! already have been called.  I also note that this 
+      ! preconditioner is intended only for the flow 
+      ! solver.  --RTM
+      if (pm%realization%discretization%itype == STRUCTURED_GRID) then
+        call PCSetDM(solver%pc, &
+                     pm%realization%discretization%dm_nflowdof%dm, &
+                     ierr);CHKERRQ(ierr)
+      endif
+
+      call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                  PMCheckConvergence, &
+                                  this%pm_ptr%pm, &
+#else
+                                        PMCheckConvergencePtr, &
+                                        this%pm_ptr, &
+#endif
+                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+      if (pm%check_post_convergence) then
+        call SNESLineSearchSetPostCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                        PMCheckUpdatePost, &
+                                        this%pm_ptr%pm, &
+#else
+                                        PMCheckUpdatePostPtr, &
+                                        this%pm_ptr, &
+#endif
+                                        ierr);CHKERRQ(ierr)
+        !geh: it is possible that the other side has not been set
+        pm%check_post_convergence = PETSC_TRUE
+      endif
+
+      add_pre_check = PETSC_FALSE
+      select type(pm)
+        class is(pm_richards_type)
+          if (Initialized(pm%pressure_dampening_factor) .or. &
+              Initialized(pm%saturation_change_limit)) then
+              add_pre_check = PETSC_TRUE
+          endif
+        class is(pm_general_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_wippflo_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_toil_ims_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_towg_type)
+              add_pre_check = PETSC_TRUE
+        class is(pm_th_type)
+          if (Initialized(pm%pressure_dampening_factor) .or. &
+              Initialized(pm%pressure_change_limit) .or. &
+              Initialized(pm%temperature_change_limit)) then
+              add_pre_check = PETSC_TRUE
+          endif
+      end select
+
+        if (add_pre_check) then
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+            call SNESLineSearchSetPreCheck(linesearch, &
+                                           PMCheckUpdatePre, &
+                                           this%pm_ptr%pm, &
+                                           ierr);CHKERRQ(ierr)
+#else
+            call SNESLineSearchSetPreCheck(linesearch, &
+                                           PMCheckUpdatePrePtr, &
+                                           this%pm_ptr, &
+                                           ierr);CHKERRQ(ierr)
+#endif
+        endif
+
+      call printMsg(option,"  Finished setting up FLOW SNES ")
+
+  ! ----- subsurface reactive transport
+    class is(pm_rt_type)
+      call printMsg(option,"  Beginning setup of TRAN SNES ")
+      call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
+      call SolverCheckCommandLine(solver)
+    
+      if (option%transport%reactive_transport_coupling == &
+          GLOBAL_IMPLICIT) then
+        if (solver%Jpre_mat_type == '') then
+          if (solver%J_mat_type /= MATMFFD) then
+            solver%Jpre_mat_type = solver%J_mat_type
+          else
+            solver%Jpre_mat_type = MATBAIJ
+          endif
+        endif
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          NTRANDOF, &
+                                          solver%Jpre_mat_type, &
+                                          solver%Jpre,option)
+      else
+        solver%J_mat_type = MATAIJ
+        solver%Jpre_mat_type = MATAIJ
+
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          ONEDOF, &
+                                          solver%Jpre_mat_type, &
+                                          solver%Jpre,option)
+      endif
+
+      if (solver%J_mat_type /= MATMFFD) then
+        solver%J = solver%Jpre
+      endif
+    
+      call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
+    
+      if (solver%use_galerkin_mg) then
+        call DiscretizationCreateInterpolation( &
+                       pm%realization%discretization,NTRANDOF, &
+                       solver%interpolation, &
+                       solver%galerkin_mg_levels_x, &
+                       solver%galerkin_mg_levels_y, &
+                       solver%galerkin_mg_levels_z, &
+                       option)
+      endif
+
+      if (option%transport%reactive_transport_coupling == &
+          GLOBAL_IMPLICIT) then
+
+        if (solver%J_mat_type == MATMFFD) then
+          call MatCreateSNESMF(solver%snes,solver%J, &
+                                ierr);CHKERRQ(ierr)
+        endif
+      
+        ! this could be changed in the future if there is a way to 
+        ! ensure that the linesearch update does not perturb 
+        ! concentrations negative.
+        call SNESGetLineSearch(solver%snes, linesearch, &
+                               ierr);CHKERRQ(ierr)
+        call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
+                                    ierr);CHKERRQ(ierr)
+      
+        if (option%use_mc) then
+          call SNESLineSearchSetPostCheck(linesearch, &
+                                      SecondaryRTUpdateIterate, &
+                                      pm%realization,ierr);CHKERRQ(ierr)
+        endif
+      
+        ! Have PETSc do a SNES_View() at the end of each solve if 
+        ! verbosity > 0.
+        if (option%verbosity >= 2) then
+          string = '-tran_snes_view'
+          call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
+                                        string, ierr);CHKERRQ(ierr)
+        endif
+
+      endif
+
+      if (option%transport%reactive_transport_coupling == &
+          GLOBAL_IMPLICIT) then
+        call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                  PMCheckConvergence, &
+                                  this%pm_ptr%pm, &
+#else
+                                  PMCheckConvergencePtr, &
+                                  this%pm_ptr, &
+#endif
+                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+      endif
+      if (pm%print_EKG .or. option%use_mc .or. &
+          pm%check_post_convergence) then
+        call SNESLineSearchSetPostCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                        PMCheckUpdatePost, &
+                                        this%pm_ptr%pm, &
+#else
+                                        PMCheckUpdatePostPtr, &
+                                        this%pm_ptr, &
+#endif
+                                        ierr);CHKERRQ(ierr)
+        if (pm%print_EKG) then
+          pm%check_post_convergence = PETSC_TRUE
+        endif
+      endif
+      if (pm%realization%reaction%check_update) then
+        call SNESLineSearchSetPreCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                       PMCheckUpdatePre, &
+                                       this%pm_ptr%pm, &
+#else
+                                       PMCheckUpdatePrePtr, &
+                                       this%pm_ptr, &
+#endif
+                                       ierr);CHKERRQ(ierr)
+      endif
+      call printMsg(option,"  Finished setting up TRAN SNES ")
+  end select
+  call SNESSetFunction(this%timestepper%solver%snes, &
+                       this%pm_ptr%pm%residual_vec, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                       PMResidual, &
+                       this%pm_ptr%pm, &
+#else
+                       PMResidualPtr, &
+                       this%pm_ptr, &
+#endif
+                       ierr);CHKERRQ(ierr)
+  call SNESSetJacobian(this%timestepper%solver%snes, &
+                       solver%J, &
+                       solver%Jpre, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                       PMJacobian, &
+                       this%pm_ptr%pm, &
+#else
+                       PMJacobianPtr, &
+                       this%pm_ptr, &
+#endif
+                             ierr);CHKERRQ(ierr)
+  call SolverSetSNESOptions(solver,option)
+
+end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE
+
+! ************************************************************************** !
+
+subroutine PMCSubsurfaceSetupSolvers_TS(this)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/20/2018
+  ! 
+#include "petsc/finclude/petscts.h"
+#include "petsc/finclude/petscsnes.h"
+  use petscts
+  use petscsnes
+  use Convergence_module
+  use Discretization_module
+  use Option_module
+  use PMC_Base_class
+  use PM_Base_Pointer_module
+  use PM_Base_class
+  use PM_Subsurface_Flow_class
+  use PM_Richards_class
+  use Solver_module
+  use Timestepper_Base_class
+  use Timestepper_TS_class
+
+  implicit none
+
+  class(pmc_subsurface_type) :: this
+
+  type(solver_type), pointer :: solver
+  type(option_type), pointer :: option
+  SNESLineSearch :: linesearch  
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: add_pre_check
+  SNES :: snes
+  PetscErrorCode :: ierr
+
+  option => this%option
+
+  select type(ts => this%timestepper)
+    class is(timestepper_TS_type)
+      solver => ts%solver
+    class default
+      call printErrMsg(option,"Attempting to set up PETSc TS when" // &
+       " timestepper is not of TS type")
+  end select
+
+  call SolverCreateTS(solver,option%mycomm)
+
+  call TSSetEquationType(solver%ts,TS_EQ_IMPLICIT, &
+                        ierr);CHKERRQ(ierr)
+
+  call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
+
+  ! set solver pointer within pm for convergence purposes
+  call this%pm_ptr%pm%SetSolver(solver)
+
+  select type(pm => this%pm_ptr%pm)
+
+    class is (pm_subsurface_flow_type)
+      call printMsg(option,"  Beginning setup of FLOW SNES ")
+
+      select case(option%iflowmode)
+        case(RICHARDS_TS_MODE)
+        case default
+          option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
+          call printErrMsg(option)
+        end select
+
+        if (OptionPrintToScreen(option)) then
+          write(*,'(" number of dofs = ",i3,", number of &
+                    &phases = ",i3,i2)') option%nflowdof,option%nphase
+          select case(option%iflowmode)
+            case(RICHARDS_TS_MODE)
+              write(*,'(" mode = Richards: p")')
+          end select
+        endif
+
+        call TSSetOptionsPrefix(solver%ts, "flow_",ierr);CHKERRQ(ierr)
+        call TSSetFromOptions(solver%ts,ierr);CHKERRQ(ierr)
+
+        call SolverCheckCommandLine(solver)
+
+        solver%Jpre_mat_type = MATBAIJ
+
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          NFLOWDOF, &
+                                          solver%Jpre_mat_type, &
+                                          solver%Jpre, &
+                                          option)
+
+        call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
+
+        if (solver%J_mat_type /= MATMFFD) then
+          solver%J = solver%Jpre
+        endif
+
+      call TSSetIFunction(solver%ts, &
+                          this%pm_ptr%pm%residual_vec, &
+                          PMIFunctionPtr, &
+                          this%pm_ptr, &
+                          ierr);CHKERRQ(ierr)
+
+      call TSSetIJacobian(solver%ts, &
+                          solver%J, &
+                          solver%Jpre, &
+                          PMIJacobianPtr, &
+                          this%pm_ptr, &
+                          ierr);CHKERRQ(ierr)
+
+      call TSGetSNES(solver%ts,snes,ierr); CHKERRQ(ierr)
+
+      call SNESSetConvergenceTest(snes, &
+                                  PMCheckConvergencePtr, &
+                                  this%pm_ptr, &
+                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+
+      call printMsg(option,"  Finished setting up FLOW SNES ")
+  end select
+
+end subroutine PMCSubsurfaceSetupSolvers_TS
 
 ! ************************************************************************** !
 
@@ -899,7 +1017,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-  use Discretization_module, only : DiscretizationLocalToLocal
+  use Discretization_module, only : DiscretizationLocalToGlobal
   use Field_module
   use Grid_module
   use Option_module
@@ -918,6 +1036,7 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   type(field_type), pointer :: subsurf_field
 
   PetscScalar, pointer :: sim_por_p(:)
+  PetscScalar, pointer :: work_loc_p(:)
   class(material_auxvar_type), pointer :: subsurf_material_auxvars(:)
 
   PetscInt :: local_id
@@ -925,6 +1044,10 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
   PetscErrorCode :: ierr
   PetscViewer :: viewer
+
+#ifdef GEOMECH_DEBUG
+  print *, 'PMCSubsurfaceGetAuxDataFromGeomech()'
+#endif
 
   if (associated(this%sim_aux)) then
     select type (pmc => this)
@@ -934,43 +1057,35 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
         subsurf_field => pmc%realization%field
         subsurf_material_auxvars => pmc%realization%patch%aux%Material%auxvars
 
-        if (pmc%timestepper%steps == 0) return
-
         if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
 
-          call VecGetArrayF90(pmc%sim_aux%subsurf_por, sim_por_p,  &
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
+                              ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(subsurf_field%work_loc,work_loc_p,  &
                               ierr);CHKERRQ(ierr)
 
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
-            subsurf_material_auxvars(ghosted_id)%porosity = sim_por_p(local_id)
+            work_loc_p(ghosted_id) = sim_por_p(local_id)
           enddo
-
-          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, sim_por_p,  &
+            
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,sim_por_p,  &
                                   ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(subsurf_field%work_loc,work_loc_p,  &
+                              ierr);CHKERRQ(ierr)
 
-!          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
-!                                     'por_before.bin',FILE_MODE_WRITE,viewer, &
-!                                     ierr);CHKERRQ(ierr)
-          call MaterialGetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
-                                       subsurf_field%work_loc, &
-                                       POROSITY,ZERO_INTEGER)
-
-!          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
-!          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-
-          call DiscretizationLocalToLocal(pmc%realization%discretization, &
+          call DiscretizationLocalToGlobal(pmc%realization%discretization, &
                                           subsurf_field%work_loc, &
-                                          subsurf_field%work_loc,ONEDOF)
-!          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
-!                                     'por_after.bin',FILE_MODE_WRITE,viewer, &
-!                                     ierr);CHKERRQ(ierr)
-!          call VecView(subsurf_field%work_loc,viewer,ierr);CHKERRQ(ierr)
-!          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+                                          subsurf_field%porosity_geomech_store, &
+                                          ONEDOF)
+#ifdef GEOMECH_DEBUG
+          call PetscViewerASCIIOpen(pmc%realization%option%mycomm, &
+                                    'porosity_geomech_store.out', &
+                                    viewer,ierr);CHKERRQ(ierr)
+          call VecView(subsurf_field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
+          call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
 
-          call MaterialSetAuxVarVecLoc(pmc%realization%patch%aux%Material, &
-                                       subsurf_field%work_loc, &
-                                       POROSITY,ZERO_INTEGER)
 
         endif
     end select
@@ -1009,7 +1124,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   PetscScalar, pointer :: temp_p(:)
   PetscScalar, pointer :: sub_por_loc_p(:)
   PetscScalar, pointer :: sim_por0_p(:)
-
+  PetscScalar, pointer :: sim_perm0_p(:) !DANNY - added this 11/7/16
+  
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: pres_dof
@@ -1019,6 +1135,11 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 
   PetscErrorCode :: ierr
 
+#ifdef GEOMECH_DEBUG
+  print *, 'PMCSubsurfaceSetAuxDataForGeomech()'
+#endif
+
+
   select case(this%option%iflowmode)
     case (TH_MODE)
       pres_dof = TH_PRESSURE_DOF
@@ -1026,7 +1147,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
     case (MPH_MODE)
       pres_dof = MPH_PRESSURE_DOF
       temp_dof = MPH_TEMPERATURE_DOF
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       pres_dof = RICHARDS_PRESSURE_DOF
     case default
       this%option%io_buffer = 'PMCSubsurfaceSetAuxDataForGeomech() not ' // &
@@ -1056,7 +1177,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           ghosted_id = subsurf_grid%nL2G(local_id)
           pres_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                       pres_dof)
-          if (this%option%iflowmode == RICHARDS_MODE) then
+          if (this%option%iflowmode == RICHARDS_MODE .or. &
+              this%option%iflowmode == RICHARDS_TS_MODE) then
             temp_p(local_id) = this%option%reference_temperature
           else
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
@@ -1075,11 +1197,19 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           material_auxvars => pmc%realization%patch%aux%Material%auxvars
           call VecGetArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
                               ierr);CHKERRQ(ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
+                              ierr);CHKERRQ(ierr)
+
+          ghosted_id = subsurf_grid%nL2G(1)
+          
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
-            sim_por0_p(local_id) = material_auxvars(ghosted_id)%porosity
+            sim_por0_p(local_id) = material_auxvars(ghosted_id)%porosity ! Set here.  
+            sim_perm0_p(local_id) = material_auxvars(ghosted_id)%permeability(perm_xx_index) ! assuming isotropic perm
           enddo
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
+                                  ierr);CHKERRQ(ierr)
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0, sim_perm0_p,  &
                                   ierr);CHKERRQ(ierr)
         endif
     end select
@@ -1115,6 +1245,60 @@ recursive subroutine PMCSubsurfaceFinalizeRun(this)
   nullify(this%realization)
   
 end subroutine PMCSubsurfaceFinalizeRun
+
+! ************************************************************************** !
+
+subroutine CPRWorkersCreate(pm, solver, option)
+  ! 
+  ! create all the worker/storage matrices/vectors that will be needed for the
+  ! cpr preconditioner
+  !
+  ! Author: Daniel Stone
+  ! Date: Oct 2017 - March 2018
+  ! 
+
+  use PM_Subsurface_Flow_class
+  use Solver_module
+  use Option_module
+  use Discretization_module
+  
+  implicit none
+
+  class(pm_subsurface_flow_type) :: pm
+  class(solver_type) :: solver
+  class(option_type) :: option
+  MatType :: cpr_ap_mat_type
+
+
+
+  cpr_ap_mat_type =  MATAIJ
+  call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                    ONEDOF, &
+                                    cpr_ap_mat_type, &
+                                    solver%cprstash%Ap, &
+                                    option)
+
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%T1r, &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%r2, &
+                                  GLOBAL, option)
+
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  ONEDOF, solver%cprstash%s,  &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  ONEDOF, solver%cprstash%z, &
+                                  GLOBAL, option)
+
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%factors1vec, &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%factors2vec, &
+                                  GLOBAL, option)
+end subroutine CPRWorkersCreate
 
 ! ************************************************************************** !
 
@@ -1171,5 +1355,7 @@ recursive subroutine PMCSubsurfaceDestroy(this)
   call PMCSubsurfaceStrip(this)
   
 end subroutine PMCSubsurfaceDestroy
+
+! ************************************************************************** !
   
 end module PMC_Subsurface_class

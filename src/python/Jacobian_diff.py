@@ -21,12 +21,17 @@ except:
   print(string)
   exit(2)
 
-file1.readline()
-file1.readline()
-file2.readline()
-file2.readline()
+try:
+  tol = float(sys.argv[3])
+except:
+  string = 'File "%s" not found.\n' % filename2
+  print('Using default tolerance of 1.e-2.')
+  tol = 1.e-2
 
-tol = 1.e-2
+file1.readline()
+file1.readline()
+file2.readline()
+file2.readline()
 
 row_count = 0
 for line1 in file1:
@@ -41,12 +46,22 @@ for line1 in file1:
   increment2 = True
   while icount1 < len(row1) and icount2 < len(row2):
     if increment1:
-      w1 = row1[icount1].split(',')
-      i1 = int(w1[0])
+      if (len(row1[icount1]) > 1):
+        w1 = row1[icount1].split(',')
+        i1 = int(w1[0])
+      else:
+        i1 = 999
     if increment2:
-      w2 = row2[icount2].split(',')
-      i2 = int(w2[0])
-    if i1 < i2:
+      if (len(row2[icount2]) > 1):
+        w2 = row2[icount2].split(',')
+        i2 = int(w2[0])
+      else:
+        i2 = 999
+    if i1 == 999 and i2 == 999:
+      icount1 = 999
+      icount2 = 999
+      # skip line
+    elif i1 < i2:
       increment1 = True
       increment2 = False
       icount1 += 1

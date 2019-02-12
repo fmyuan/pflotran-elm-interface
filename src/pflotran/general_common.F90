@@ -24,7 +24,7 @@ module General_Common_module
 #define AIR_SRCSINK
 #define ENERGY_SRCSINK
   
-!#define DEBUG_GENERAL_FILEOUTPUT
+#define DEBUG_GENERAL_FILEOUTPUT
 !#define DEBUG_FLUXES  
 
 ! Cutoff parameters
@@ -424,9 +424,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                        gen_auxvar_dn,global_auxvar_dn, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
-                       area, dist, general_parameter, &
+                       area, dist, upwind_direction_, &
+                       general_parameter, &
                        option,v_darcy,Res,Jup,Jdn, &
                        analytical_derivatives, &
+                       update_upwind_direction_, &
+                       count_upwind_direction_flip_, &
                        debug_connection)
   ! 
   ! Computes the internal flux terms for the residual
@@ -439,6 +442,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Connection_module
   use Fracture_module
   use Klinkenberg_module
+  use Upwind_Direction_module
   
   implicit none
   
@@ -449,6 +453,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
@@ -456,6 +461,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   PetscBool :: analytical_derivatives
+  PetscBool :: update_upwind_direction_
+  PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
 
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -491,6 +498,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: ddelta_pressure_dTup, ddelta_pressure_dTdn
   
   PetscReal :: up_scale, dn_scale
+  PetscBool :: upwind
   PetscReal :: tot_mole_flux_ddel_pressure
   PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
   PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
@@ -605,7 +613,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     endif
     up_scale = 0.d0
     dn_scale = 0.d0
-    if (delta_pressure >= 0.d0) then
+    upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                             .not.analytical_derivatives, &
+                             count_upwind_direction_flip_, &
+                             liq_upwind_flip_count_by_res, &
+                             liq_upwind_flip_count_by_jac)
+    if (upwind) then
       up_scale = 1.d0
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
@@ -1049,7 +1062,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     endif
     up_scale = 0.d0
     dn_scale = 0.d0
-    if (delta_pressure >= 0.d0) then
+    upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                             .not.analytical_derivatives, &
+                             count_upwind_direction_flip_, &
+                             gas_upwind_flip_count_by_res, &
+                             gas_upwind_flip_count_by_jac)
+    if (upwind) then
       up_scale = 1.d0
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
@@ -2417,9 +2435,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          gen_auxvar_dn,global_auxvar_dn, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
-                         area,dist,general_parameter, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
                          option,v_darcy,Res,J, &
                          analytical_derivatives, &
+                         update_upwind_direction_, &
+                         count_upwind_direction_flip_, &
                          debug_connection)
   ! 
   ! Computes the boundary flux terms for the residual
@@ -2431,6 +2452,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Material_Aux_class
   use Fracture_module
   use Klinkenberg_module
+  use Upwind_Direction_module
   
   implicit none
   
@@ -2443,12 +2465,15 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   class(material_auxvar_type) :: material_auxvar_dn
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: J(3,3)
   PetscBool :: analytical_derivatives
+  PetscBool :: update_upwind_direction_
+  PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
   
   PetscInt :: wat_comp_id, air_comp_id, energy_id
@@ -2473,6 +2498,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: tempreal
   PetscReal :: delta_X_whatever
   PetscReal :: wat_mole_flux, air_mole_flux
+  PetscBool :: upwind
 
   ! Darcy flux
   PetscReal :: ddelta_pressure_dpup, ddelta_pressure_dpdn
@@ -2626,7 +2652,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           endif
         endif
         dn_scale = 0.d0
-        if (delta_pressure >= 0.d0) then
+        upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                 .not.analytical_derivatives, &
+                                 count_upwind_direction_flip_, &
+                                 liq_bc_upwind_flip_count_by_res, &
+                                 liq_bc_upwind_flip_count_by_jac)
+        if (upwind) then
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
@@ -2962,7 +2993,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! don't expect the derivative to match precisely at delta_pressure = 0
         ! due to potential switch in direction for numerically perturbed
         ! residual
-        if (delta_pressure >= 0.d0) then
+        upwind = UpwindDirection(upwind_direction_(iphase),delta_pressure, &
+                                 .not.analytical_derivatives, &
+                                 count_upwind_direction_flip_, &
+                                 gas_bc_upwind_flip_count_by_res, &
+                                 gas_bc_upwind_flip_count_by_jac)
+        if (upwind) then
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
@@ -3791,7 +3827,7 @@ end subroutine GeneralBCFlux
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvar,global_auxvar,ss_flow_vol_flux, &
                           scale,Res,J,analytical_derivatives,debug_cell)
   ! 
@@ -3802,16 +3838,13 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   ! 
 
   use Option_module
-  
   use EOS_Water_module
   use EOS_Gas_module
 
   implicit none
 
   type(option_type) :: option
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type
-  type(general_auxvar_type) :: gen_auxvar
+  type(general_auxvar_type) :: gen_auxvar,gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale
@@ -3819,16 +3852,17 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: J(option%nflowdof,option%nflowdof)  
   PetscBool :: analytical_derivatives  
   PetscBool :: debug_cell
-      
+  
+  PetscReal :: qsrc(3)
+  PetscInt :: flow_src_sink_type
   PetscReal :: qsrc_mol
   PetscReal :: enthalpy, internal_energy
-  PetscReal :: cell_pressure, dummy_pressure
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscReal :: Jl(option%nflowdof,option%nflowdof)  
   PetscReal :: Jg(option%nflowdof,option%nflowdof)  
   PetscReal :: Je(option%nflowdof,option%nflowdof)  
   PetscReal :: dden_bool
-  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT, dum1, dum2, dum3
+  PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscErrorCode :: ierr
 
   wat_comp_id = option%water_id
@@ -3837,6 +3871,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   
   Res = 0.d0
   J = 0.d0
+  
   
 #ifdef WATER_SRCSINK
   qsrc_mol = 0.d0
@@ -3885,6 +3920,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
     J = J + Jl
   endif
 #endif
+
 #ifdef AIR_SRCSINK
   qsrc_mol = 0.d0
   dden_bool = 0.d0
@@ -3933,20 +3969,22 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
     J = J + Jg
   endif
 #endif
-  if (dabs(qsrc(TWO_INTEGER)) < 1.d-40 .and. &
-      qsrc(ONE_INTEGER) < 0.d0) then ! extraction only
+
+  
+  if (dabs(qsrc(air_comp_id)) < 1.d-40 .and. &
+      qsrc(wat_comp_id) < 0.d0) then ! extraction only
     ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
     ! remove/add the equivalent mole fraction of air in the liquid phase.
-    qsrc_mol = Res(wat_comp_id)*gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER)
-    Res(TWO_INTEGER) = qsrc_mol
-    ss_flow_vol_flux(air_comp_id) = qsrc_mol/gen_auxvar%den(TWO_INTEGER)
+    qsrc_mol = Res(wat_comp_id)*gen_auxvar%xmol(air_comp_id,wat_comp_id)
+    Res(air_comp_id) = qsrc_mol
+    ss_flow_vol_flux(air_comp_id) = qsrc_mol/gen_auxvar%den(air_comp_id)
     if (analytical_derivatives) then
       !Jg = 0.d0
       select case(global_auxvar%istate)
         case(LIQUID_STATE)
           ! derivative wrt liquid pressure
           ! derivative wrt air mole fraction
-          Jg(2,2) = Jg(2,2) + Res(ONE_INTEGER)
+          Jg(2,2) = Jg(2,2) + Res(wat_comp_id)
           ! derivative wrt temperature
         case(GAS_STATE)
           ! derivative wrt gas pressure
@@ -3956,75 +3994,61 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
           ! derivative wrt gas pressure
           Jg(2,1) = Jg(2,1) + &
                     dden_bool * qsrc(wat_comp_id) * gen_auxvar%d%denl_pl * &
-                    gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER) + &
-                    Res(ONE_INTEGER) * gen_auxvar%d%xmol_p(2,1)
+                    gen_auxvar%xmol(air_comp_id,wat_comp_id) + &
+                    Res(wat_comp_id) * gen_auxvar%d%xmol_p(2,1)
           ! derivative wrt gas saturation
           ! derivative wrt temperature
           Jg(2,3) = Jg(2,3) + &
                     dden_bool * qsrc(wat_comp_id) * gen_auxvar%d%denl_T * &
-                    gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER) + &
-                    Res(ONE_INTEGER) * gen_auxvar%d%xmol_T(2,1)
+                    gen_auxvar%xmol(air_comp_id,wat_comp_id) + &
+                    Res(wat_comp_id) * gen_auxvar%d%xmol_T(2,1)
       end select
       J = J + Jg
     endif
   endif
+  
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
-    if (dabs(qsrc(THREE_INTEGER)) < 1.d-40) then
-      cell_pressure = &
-        maxval(gen_auxvar%pres(option%liquid_phase:option%gas_phase))
-      if (dabs(qsrc(ONE_INTEGER)) > 0.d0) then
+    if (dabs(qsrc(energy_id)) < 1.d-40) then
+      if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
         if (associated(gen_auxvar%d)) then
-          call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy, &
-                                hw_dp,hw_dT,ierr)
-          hw_dp = hw_dp * 1.d-6
-          hw_dT = hw_dT * 1.d-6
-        else
-          call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy,ierr)
+          hw_dp = gen_auxvar_ss%d%Hl_pl
+          hw_dT = gen_auxvar_ss%d%Hl_T
         endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+        enthalpy = gen_auxvar_ss%h(wat_comp_id)
         ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(option%energy_id) = Res(option%energy_id) + Res(ONE_INTEGER) * &
-                                                        enthalpy
+        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
-          Je(3,1) = Jl(1,1) * enthalpy + &
-                    Res(ONE_INTEGER) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + &
-                    Res(ONE_INTEGER) * hw_dT
+          Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
+          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT
         endif
         J = J + Je
       endif
-      if (dabs(qsrc(TWO_INTEGER)) > 0.d0) then
+      
+      if (dabs(qsrc(air_comp_id)) > 1.d-40) then
         ! this is pure air, we use the enthalpy of air, NOT the air/water
         ! mixture in gas
-        ! air enthalpy is only a function of temperature and the 
-        dummy_pressure = 0.d0
+        ! air enthalpy is only a function of temperature
         if (associated(gen_auxvar%d)) then
-          call EOSGasEnergy(gen_auxvar%temp,dummy_pressure,enthalpy, &
-                            ha_dT,ha_dp,dum1,dum2,dum3,ierr)
-          ha_dp = ha_dp * 1.d-6
-          ha_dT = ha_dT * 1.d-6
-        else
-          call EOSGasEnergy(gen_auxvar%temp,dummy_pressure, &
-                            enthalpy,internal_energy,ierr)
+          ha_dp = gen_auxvar_ss%d%Ha_pg
+          ha_dT = gen_auxvar_ss%d%Ha_T
         endif
-        enthalpy = enthalpy * 1.d-6 ! J/kmol -> MJ/kmol                                  
+        
+        internal_energy = gen_auxvar_ss%u(air_comp_id)
+        enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
         ! enthalpy units: MJ/kmol                       ! air component mass
-        Res(option%energy_id) = Res(option%energy_id) + Res(TWO_INTEGER) * &
-                                                        enthalpy
+        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
         if (analytical_derivatives) then
           Je = 0.d0
-          Je(3,1) = Jg(2,1) * enthalpy + &
-                    Res(TWO_INTEGER) * ha_dp
+          Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
           Je(3,2) = Jg(2,2) * enthalpy
-          Je(3,3) = Jg(2,3) * enthalpy + &
-                    Res(TWO_INTEGER) * ha_dT
-        endif
+          Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
+        endif 
         J = J + Je
       endif
     else
-      Res(option%energy_id) = qsrc(THREE_INTEGER)*scale ! MJ/s
+      Res(energy_id) = qsrc(energy_id)*scale ! MJ/s
       ! no derivative
     endif
   endif
@@ -4062,8 +4086,7 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
 
 !geh:print *, 'GeneralAccumDerivative'
 
-  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER), &
-                           global_auxvar, &
+  call GeneralAccumulation(gen_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,soil_heat_capacity,option, &
                            res,jac,general_analytical_derivatives, &
                            PETSC_FALSE)
@@ -4072,10 +4095,9 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     J = jac
   else
     do idof = 1, option%nflowdof
-      call GeneralAccumulation(gen_auxvar(idof), &
-                               global_auxvar, &
-                               material_auxvar,soil_heat_capacity, &
-                               option,res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+      call GeneralAccumulation(gen_auxvar(idof),global_auxvar, &
+                               material_auxvar,soil_heat_capacity,option, &
+                               res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
       do irow = 1, option%nflowdof
         J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
       enddo !irow
@@ -4108,7 +4130,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                                  gen_auxvar_dn,global_auxvar_dn, &
                                  material_auxvar_dn, &
                                  thermal_conductivity_dn, &
-                                 area, dist, &
+                                 area, dist, upwind_direction_, &
                                  general_parameter, &
                                  option,Jup,Jdn)
   ! 
@@ -4120,6 +4142,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   ! 
   use Option_module
   use Material_Aux_class
+  use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
   
@@ -4131,6 +4154,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -4153,9 +4177,14 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                    gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                    material_auxvar_dn, &
                    thermal_conductivity_dn, &
-                   area,dist,general_parameter, &
+                   area,dist,upwind_direction_, &
+                   general_parameter, &
                    option,v_darcy,res,Janal_up,Janal_dn,&
-                   general_analytical_derivatives,PETSC_FALSE)
+                   general_analytical_derivatives, &
+                   PETSC_FALSE, & ! update the upwind direction
+                   ! avoid double counting upwind direction flip
+                   PETSC_FALSE, & ! count upwind direction flip
+                   PETSC_FALSE)
  
   if (general_analytical_derivatives) then
     Jup = Janal_up
@@ -4169,9 +4198,13 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                        gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
-                       area,dist,general_parameter, &
+                       area,dist,upwind_direction_, &
+                       general_parameter, &
                        option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE,PETSC_FALSE)
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
       do irow = 1, option%nflowdof
         Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
   !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
@@ -4186,9 +4219,13 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                        gen_auxvar_dn(idof),global_auxvar_dn, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
-                       area,dist,general_parameter, &
+                       area,dist,upwind_direction_, &
+                       general_parameter, &
                        option,v_darcy,res_pert,Jdummy,Jdummy, &
-                       PETSC_FALSE,PETSC_FALSE)
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
   !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
@@ -4226,7 +4263,8 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    gen_auxvar_dn,global_auxvar_dn, &
                                    material_auxvar_dn, &
                                    thermal_conductivity_dn, &
-                                   area,dist,general_parameter, &
+                                   area,dist,upwind_direction_, &
+                                   general_parameter, &
                                    option,Jdn)
   ! 
   ! Computes the derivatives of the boundary flux terms
@@ -4238,6 +4276,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   use Option_module 
   use Material_Aux_class
+  use Upwind_Direction_module, only : count_upwind_direction_flip
   
   implicit none
 
@@ -4251,6 +4290,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: area
   PetscReal :: dist(-1:3)
+  PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
@@ -4268,9 +4308,14 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      gen_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                      material_auxvar_dn, &
                      thermal_conductivity_dn, &
-                     area,dist,general_parameter, &
+                     area,dist,upwind_direction_, &
+                     general_parameter, &
                      option,v_darcy,res,Jdum, &
-                     general_analytical_derivatives,PETSC_FALSE)
+                     general_analytical_derivatives, &
+                     PETSC_FALSE, & ! update the upwind direction
+                     ! avoid double counting upwind direction flip
+                     PETSC_FALSE, & ! count upwind direction flip
+                     PETSC_FALSE)
 
   if (general_analytical_derivatives) then
     Jdn = Jdum
@@ -4282,9 +4327,13 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          gen_auxvar_dn(idof),global_auxvar_dn, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
-                         area,dist,general_parameter, &
+                         area,dist,upwind_direction_, &
+                         general_parameter, &
                          option,v_darcy,res_pert,Jdum, &
-                         PETSC_FALSE,PETSC_FALSE)   
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
       do irow = 1, option%nflowdof
         Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
       enddo !irow
@@ -4311,7 +4360,7 @@ end subroutine GeneralBCFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
+subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
                                     gen_auxvars,global_auxvar,scale,Jac)
   ! 
   ! Computes the source/sink terms for the residual
@@ -4321,24 +4370,29 @@ subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   ! 
 
   use Option_module
+  use Coupler_module
 
   implicit none
 
   type(option_type) :: option
-  PetscReal :: qsrc(:)
-  PetscInt :: flow_src_sink_type
-  type(general_auxvar_type) :: gen_auxvars(0:)
+  type(coupler_type), pointer :: source_sink
+  type(general_auxvar_type) :: gen_auxvars(0:), gen_auxvar_ss
   type(global_auxvar_type) :: global_auxvar
   PetscReal :: scale
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   
+  PetscReal :: qsrc(3)
+  PetscInt :: flow_src_sink_type
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
-  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)
+  
+  qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
+  flow_src_sink_type = source_sink%flow_condition%general%rate%itype
 
   option%iflag = -3
-  call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+  call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                       gen_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
                       scale,res,Jdum,general_analytical_derivatives, &
                       PETSC_FALSE)
@@ -4348,9 +4402,9 @@ subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   else                      
     ! downgradient derivatives
     do idof = 1, option%nflowdof
-      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+      call GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
                           gen_auxvars(idof),global_auxvar,dummy_real, &
-                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)            
+                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)  
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvars(idof)%pert
       enddo !irow

@@ -14,11 +14,9 @@ module HDF5_module
 
   PetscBool, public :: trick_hdf5 = PETSC_FALSE
 
-#if defined(SCORPIO)
-  include "scorpiof.h"  
+#if !defined(PETSC_HAVE_HDF5)
+#error "PETSc must be configured with HDF5 to run PFLOTRAN"
 #endif
-
-#if defined(PETSC_HAVE_HDF5)
   PetscMPIInt :: hdf5_err
   PetscMPIInt :: io_rank
       
@@ -29,14 +27,10 @@ module HDF5_module
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
-#endif
-      
-#if defined(PETSC_HAVE_HDF5)
   public :: HDF5WriteStructDataSetFromVec, &
             HDF5WriteDataSetFromVec, &
             HDF5ReadDataSetInVec, &
             HDF5WriteStructuredDataSet
-#endif            
 
   public :: HDF5ReadRegionFromFile, &
             HDF5ReadCellIndexedIntegerArray, &
@@ -45,8 +39,6 @@ module HDF5_module
             HDF5ReadRegionDefinedByVertex
 
 contains
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -67,19 +59,6 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
   use Utility_module, only : DeallocateArray
   
   implicit none
-
-#if defined(SCORPIO)
-  type(option_type) :: option
-  integer(HID_T) :: file_id
-  character(len=MAXWORDLENGTH) :: dataset_name
-  PetscInt :: local_size
-  PetscInt, pointer :: integer_array(:)
-  
-  option%io_buffer = 'HDF5ReadIntegerArraySplit() not yet setup for SCORPIO'
-  call printErrMsg(option)
-
-#else
-! SCORPIO is not defined
 
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: dataset_name
@@ -176,9 +155,6 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
 
   call PetscLogEventEnd(logging%event_read_int_array_hdf5,ierr);CHKERRQ(ierr)
 
-#endif
-! SCORPIO
-
 end subroutine HDF5ReadIntegerArraySplit
 
 ! ************************************************************************** !
@@ -207,21 +183,6 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
   PetscInt :: nx_global, ny_global, nz_global
   PetscInt :: istart_local, jstart_local, kstart_local
 
-#if defined(SCORPIO_WRITE)    
-  integer :: file_id
-  integer :: data_type
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: prop_id
-  integer :: dims(3),mem_dims(3)
-  integer :: start(3), length(3), stride(3)
-  integer :: nlmax ! Sarat added nlmax 
-  integer :: rank_mpi,file_space_rank_mpi
-  integer :: i, j, k, count, id
-  integer :: ny_local_X_nz_local
-  integer :: num_to_write_mpi
-#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: file_space_id
@@ -234,122 +195,13 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
   integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscInt :: ny_local_X_nz_local
   PetscMPIInt :: num_to_write_mpi
-#endif
   PetscMPIInt, parameter :: ON=1, OFF=0
   PetscMPIInt :: hdf5_flag
 
   integer, pointer :: int_array_i4(:)
   PetscReal, pointer :: double_array(:)
-  character(len=128) :: fscorpio_string
 
   name = trim(name) // CHAR(0)
-
-#if defined(SCORPIO_WRITE)
-
-  !geh: kludge to get scorpio to write name properly without garbage appended.
-! fscorpio_string(1:len_trim(name)) = name
-
-  fscorpio_string = trim(name)
-
-  fscorpio_string = trim(fscorpio_string) // CHAR(0)
-
-!  write(option%io_buffer,'(" Writing dataset block: ", a, " type - ", i, ".")') trim(name), data_type
-!  call printMsg(option)
-!  write(option%io_buffer,'(" HDF_NATIVE_INTEGER is ", i, " and H5T_NATIVE_DOUBLE is ", i, " and H5T_NATIVE_INTEGER is ", i, ".")') HDF_NATIVE_INTEGER, H5T_NATIVE_DOUBLE, H5T_NATIVE_INTEGER
-!  call printMsg(option)
-
-  call PetscLogEventBegin(logging%event_write_struct_dataset_hdf5, &
-                          ierr);CHKERRQ(ierr)
-  
-  ny_local_X_nz_local = ny_local*nz_local
-  num_to_write_mpi = nx_local*ny_local_X_nz_local
-  
-  ! file space which is a 3D block
-  rank_mpi = 3
-
-  dims(1) = nx_global
-  dims(2) = ny_global
-  dims(3) = nz_global
-
-  !write(option%io_buffer,'(" Writing dataset block with dimensions: ", i,i,i, ".")') dims(1), dims(2), dims(3)
-  !call printMsg(option)
-
-  ! create the hyperslab
-  start(1) = istart_local
-  start(2) = jstart_local
-  start(3) = kstart_local
-  length(1) =  nx_local
-  length(2) =  ny_local
-  length(3) =  nz_local
-
-  ! Sarat added this to eliminate grid%nlmax dependency in the non-INVERT case
-  ! below
-  nlmax = nx_local * ny_local * nz_local
-
-  if (num_to_write_mpi == 0) length(1) = 1
-  stride = 1
-
-    ! write the data
-  if (num_to_write_mpi > 0) then
-    if (data_type == H5T_NATIVE_DOUBLE) then
-      allocate(double_array(nx_local*ny_local*nz_local))
-      count = 0
-      do k=1,nz_local
-        do j=1,ny_local
-          do i=1,nx_local
-            id = k+(j-1)*nz_local+(i-1)*ny_local_X_nz_local
-            count = count+1
-            double_array(id) = array(count)
-          enddo
-        enddo
-      enddo
-      call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-       !write(option%io_buffer, &
-       !   '(a," Writing double dataset1: dimensions: ",i9,i9,i9, " Data type and ndims: ",i9, i9)') & 
-       !trim(name), dims(1), dims(2), dims(3), SCORPIO_DOUBLE, rank_mpi
-       !call printMsg(option)   
-
-       call fscorpio_write_dataset_block(double_array, SCORPIO_DOUBLE, rank_mpi, &
-              dims, length, start, file_id, trim(fscorpio_string), &
-              option%iowrite_group_id, ierr)
-      !call h5dwrite_f(data_set_id,data_type,double_array,dims, &
-                      !hdf5_err,memory_space_id,file_space_id,prop_id)  
-      call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-      call DeallocateArray(double_array)
-    else if (data_type == HDF_NATIVE_INTEGER) then
-      allocate(int_array_i4(nx_local*ny_local*nz_local))
-      count = 0
-      do k=1,nz_local
-        do j=1,ny_local
-          do i=1,nx_local
-            id = k+(j-1)*nz_local+(i-1)*ny_local_X_nz_local
-            count = count+1
-            int_array_i4(id) = int(array(count))
-          enddo
-        enddo
-      enddo
-      call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-       !write(option%io_buffer, &
-       !   '(a," Writing integer dataset1: dimensions: ",i9,i9,i9, " Data type and ndims: ",i9, i9)') & 
-       !trim(name), dims(1), dims(2), dims(3), SCORPIO_INTEGER, rank_mpi
-       !call printMsg(option)   
-      call fscorpio_write_dataset_block(int_array_i4, SCORPIO_INTEGER, rank_mpi, &
-              dims, length, start, file_id, trim(fscorpio_string), &
-              option%iowrite_group_id, ierr)
-      !!call h5dwrite_f(data_set_id,data_type,int_array_i4,dims, &
-      !                hdf5_err,memory_space_id,file_space_id,prop_id)
-      call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-      call DeallocateArray(int_array_i4)
-    endif
-  endif
-
-  call PetscLogEventEnd(logging%event_write_struct_dataset_hdf5, &
-                        ierr);CHKERRQ(ierr)
-
-#else
-! SCORPIO_WRITE is not defined  
-
-! Default HDF5 Write
 
   call PetscLogEventBegin(logging%event_write_struct_dataset_hdf5, &
                           ierr);CHKERRQ(ierr)
@@ -457,9 +309,6 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
   call PetscLogEventEnd(logging%event_write_struct_dataset_hdf5, &
                         ierr);CHKERRQ(ierr)
                           
-#endif
-! SCORPIO_WRITE vs previous
-
 end subroutine HDF5WriteStructuredDataSet
 
 ! ************************************************************************** !
@@ -467,8 +316,6 @@ end subroutine HDF5WriteStructuredDataSet
 subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
                            indices)
   ! 
-  ! End of Default HDF5 Write
-  ! GEH - Structured Grid Dependence - End
   ! Reads cell indices from an hdf5 dataset
   ! 
   ! Author: Glenn Hammond
@@ -482,105 +329,6 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   use Utility_module, only : DeallocateArray
   
   implicit none
-
-#if defined(SCORPIO)
-
-  type(grid_type) :: grid
-  type(option_type) :: option
-  character(len=MAXWORDLENGTH) :: dataset_name
-  PetscInt :: dataset_size
-  PetscInt, pointer :: indices(:)
-  PetscInt :: num_indices
-    
-#if defined(SCORPIO)    
-  integer :: file_id
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: prop_id
-  integer :: dims(3)
-  integer :: offset(3), length(3), stride(3), globaldims(3)
-  integer :: num_data_in_file
-#else
-  integer(HID_T) :: file_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: memory_space_id
-  integer(HID_T) :: data_set_id
-  integer(HID_T) :: prop_id
-  integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: offset(3), length(3), stride(3), globaldims(3)
-  integer(HSIZE_T) :: num_data_in_file
-#endif
- 
-  PetscMPIInt :: rank_mpi
-  ! seeting to MPIInt to ensure i4
-  integer, allocatable :: indices_i4(:)
-  
-  PetscInt :: istart, iend
-
-  call PetscLogEventBegin(logging%event_read_indices_hdf5,ierr);CHKERRQ(ierr)
-                        
-  istart = 0  ! this will be zero-based
-  iend = 0
-  
-  ! first determine upper and lower bound on PETSc global array
-  call MPI_Scan(grid%nlmax,iend,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                option%mycomm,ierr)
-  istart = iend - grid%nlmax
-  
-  ! should be a rank=1 data space
-  call fscorpio_get_dataset_size( num_data_in_file, file_id, dataset_name, &
-          option%ioread_group_id, ierr)
-  globaldims(1) = num_data_in_file 
-!???? get size of dataset  call h5sget_simple_extent_npoints_f(file_space_id,num_data_in_file,hdf5_err)
-  !if (dataset_size > 0 .and. num_data_in_file /= dataset_size) then
-  !  write(option%io_buffer, &
-  !        '(a," data space dimension (",i9,") does not match the dimensions",&
-  !         &" of the domain (",i9,").")') trim(dataset_name), &
-  !         num_data_in_file,dataset_size
-  !  call printErrMsg(option)   
-  !else
-  !  dataset_size = num_data_in_file
-  !endif  
-  
-  dataset_size = int(num_data_in_file)
-
-  if (istart < num_data_in_file) then
-  
-    allocate(indices_i4(-1:iend-istart))
-    allocate(indices(-1:iend-istart))
-    indices_i4(-1) = istart
-    indices_i4(0) = iend
-  
-    rank_mpi = 1
-    offset = 0
-    length = 0
-    stride = 1
-  
-    dims = 0
-    dims(1) = iend-istart
-    memory_space_id = -1
-
-    ! offset is zero-based
-    offset(1) = istart
-    length(1) = iend-istart
-    call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-                               
-    call fscorpio_read_dataset(indices_i4(1:iend-istart), SCORPIO_INTEGER, rank_mpi, globaldims, dims, & 
-            file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
-    !call h5dread_f(data_set_id,HDF_NATIVE_INTEGER,indices_i4(1:iend-istart), &
-                   !dims,hdf5_err,memory_space_id,file_space_id,prop_id)                     
-    call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-    indices(-1:iend-istart) = indices_i4(-1:iend-istart)                
-    deallocate(indices_i4)
-  endif
-  
-  call PetscLogEventEnd(logging%event_read_indices_hdf5,ierr);CHKERRQ(ierr)
-
-#else
-! SCORPIO is not defined
-
-! Default HDF5 Mechanism 
 
   type(grid_type) :: grid
   type(option_type) :: option
@@ -686,10 +434,6 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   call h5dclose_f(data_set_id,hdf5_err)
 
   call PetscLogEventEnd(logging%event_read_indices_hdf5,ierr);CHKERRQ(ierr)
-! End of Default HDF5 Mechanism  
-  
-#endif
-! SCORPIO
   
 end subroutine HDF5ReadIndices
 
@@ -715,122 +459,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   
   implicit none
 
-#if defined(SCORPIO)
- 
-  type(discretization_type) :: discretization
-  type(grid_type) :: grid
-  type(option_type) :: option
-  character(len=MAXWORDLENGTH) :: dataset_name
-  PetscInt :: dataset_size
-  integer(HID_T) :: file_id
-  PetscInt, pointer :: indices(:)
-  PetscInt :: num_indices
-  Vec :: global_vec
-  integer :: data_type 
-  
-  integer :: file_space_id
-  integer :: memory_space_id
-  integer :: data_set_id
-  integer :: prop_id
-  integer :: dims(3), globaldims(3)
-  integer :: offset(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi
-  integer :: num_data_in_file
-  Vec :: natural_vec
-  PetscInt :: i, istart, iend
-  PetscReal, allocatable :: real_buffer(:)
-  integer, allocatable :: integer_buffer_i4(:)
-  PetscInt, allocatable :: indices0(:)
-  
-  call PetscLogEventBegin(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-                          
-  istart = 0
-  iend = 0
-  
-  ! should be a rank=1 data space
-
-  call fscorpio_get_dataset_size( num_data_in_file, file_id, dataset_name, &
-          option%ioread_group_id, ierr)
-  globaldims(1) = num_data_in_file
-!???? get size   call h5sget_simple_extent_npoints_f(file_space_id,num_data_in_file,hdf5_err)
-
-  !if (dataset_size > 0 .and. num_data_in_file /= dataset_size) then
-  !  write(option%io_buffer, &
-  !        '(a," data space dimension (",i9,") does not match the dimensions",&
-  !         &" of the domain (",i9,").")') trim(dataset_name), &
-  !         num_data_in_file,grid%nmax
-  !  call printErrMsg(option)   
-  !endif
-
-  rank_mpi = 1
-  offset = 0
-  length = 0
-  stride = 1
-  
-  call DiscretizationCreateVector(discretization,ONEDOF, &
-                                  natural_vec,NATURAL,option)
-  call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
-
-  ! must initialize here to avoid error below when closing memory space
-  memory_space_id = -1
-
-  if (associated(indices)) then
-
-    istart = indices(-1)
-    iend = indices(0)
-
-    dims = 0
-    dims(1) = iend-istart
-
-    ! offset is zero-based
-    offset(1) = istart
-    length(1) = iend-istart
-    allocate(real_buffer(iend-istart))
-    if (data_type == H5T_NATIVE_DOUBLE) then
-      call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-    
-      call fscorpio_read_dataset(real_buffer, SCORPIO_DOUBLE, rank_mpi, globaldims, dims, & 
-            file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
-      !call h5dread_f(data_set_id,H5T_NATIVE_DOUBLE,real_buffer,dims, &
-                     !hdf5_err,memory_space_id,file_space_id,prop_id)
-      call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-    else if (data_type == HDF_NATIVE_INTEGER) then
-      allocate(integer_buffer_i4(iend-istart))
-      call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-
-      call fscorpio_read_dataset(integer_buffer_i4, SCORPIO_INTEGER, rank_mpi, globaldims, dims, & 
-            file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
-      !call h5dread_f(data_set_id,HDF_NATIVE_INTEGER,integer_buffer_i4,dims, &
-                     !hdf5_err,memory_space_id,file_space_id,prop_id)
-      call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-      do i=1,iend-istart
-        real_buffer(i) = real(integer_buffer_i4(i))
-      enddo
-      deallocate(integer_buffer_i4)
-    endif
-    ! must convert indices to zero based for VecSetValues
-    allocate(indices0(iend-istart))
-    indices0 = indices(1:iend-istart)-1
-    call VecSetValues(natural_vec,iend-istart,indices0, &
-                      real_buffer,INSERT_VALUES,ierr);CHKERRQ(ierr)
-    deallocate(indices0)
-    deallocate(real_buffer)
-
-  endif
-
-  call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
-  call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
-  call DiscretizationNaturalToGlobal(discretization,natural_vec,global_vec, &
-                                     ONEDOF)
-  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
-  
-  call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-
-#else
-! SCORPIO is not defined
-
-! Default HDF5 Mechanism 
- 
   type(discretization_type) :: discretization
   type(grid_type) :: grid
   type(option_type) :: option
@@ -961,14 +589,8 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
-! End of Default HDF5 Mechanism
-
-#endif
-! SCORPIO
 
 end subroutine HDF5ReadArray
-
-#endif
 
 ! ************************************************************************** !
 
@@ -986,9 +608,7 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   ! Date: 10/21/2015
   !
 
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
   use Option_module
   use Grid_module
@@ -1008,20 +628,11 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   character(len=MAXSTRINGLENGTH) :: string
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
-#endif
 
   PetscBool :: grp_exists
-
-#if !defined(PETSC_HAVE_HDF5)
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
 
   ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
@@ -1036,15 +647,10 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
 
   ! Open the Regions group
   string = 'Regions'
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 
   ! Open the Regions group
-  string = trim(region%name)
-  call h5gopen_f(grp_id,string,grp_id2,hdf5_err)
-  if (hdf5_err /= 0) then
-    option%io_buffer = 'HDF5 group "' // trim(region%name) // '" not found.'
-    call printErrMsg(option)
-  endif
+  call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
 
   ! Querry region definition
   string = "Cell Ids"
@@ -1060,7 +666,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   call h5gclose_f(grp_id,hdf5_err)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
-#endif
 
 end subroutine HDF5QueryRegionDefinition
 
@@ -1068,7 +673,6 @@ end subroutine HDF5QueryRegionDefinition
 
 subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   ! 
-  ! PETSC_HAVE_HDF5
   ! Reads a region from an hdf5 file
   ! 
   ! Author: Glenn Hammond
@@ -1077,9 +681,7 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   
   use Realization_Subsurface_class
   use Option_module
@@ -1100,21 +702,12 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
 
   character(len=MAXSTRINGLENGTH) :: string 
 
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
-#endif
 
   PetscInt :: num_integers
   PetscBool :: grp_exists
-
-#if !defined(PETSC_HAVE_HDF5)
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
 
   call PetscLogEventBegin(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
                           
@@ -1133,17 +726,13 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   string = 'Regions' 
   option%io_buffer = 'Opening group: ' // trim(string)
   call printMsg(option)  
-  call h5gopen_f(file_id,string,grp_id,hdf5_err)
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 
   ! Open the Regions group
   string = trim(region%name)
   option%io_buffer = 'Opening group: ' // trim(string)
   call printMsg(option)  
-  call h5gopen_f(grp_id,string,grp_id2,hdf5_err)
-  if (hdf5_err /= 0) then
-    option%io_buffer = 'HDF5 group "' // trim(region%name) // '" not found.'
-    call printErrMsg(option)
-  endif
+  call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
 
   ! Read Cell Ids
   string = "Cell Ids"
@@ -1186,9 +775,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif
-!PETSC_HAVE_HDF5
-
   call PetscLogEventEnd(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
 
 end subroutine HDF5ReadRegionFromFile
@@ -1205,9 +791,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
   use Realization_Subsurface_class
   use Option_module
@@ -1239,7 +823,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: string2
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: data_set_id
@@ -1248,16 +831,8 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: length(2), offset(2)
   integer(SIZE_T) :: string_size
-#endif
   integer :: ndims_h5
 
-
-#if !defined(PETSC_HAVE_HDF5)
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted unstructured grids.")')
-  call printErrMsg(option)
-#else
   ! Initialize FORTRAN predefined datatypes
   call h5open_f(hdf5_err)
 
@@ -1373,9 +948,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif
-! if defined(PETSC_HAVE_HDF5)
-
 end subroutine HDF5ReadRegionDefinedByVertex
 
 ! ************************************************************************** !
@@ -1393,9 +965,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   
   use Realization_Subsurface_class
   use Discretization_module
@@ -1423,25 +993,15 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
 
   character(len=MAXSTRINGLENGTH) :: string 
 
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: prop_id
-#endif
 
   PetscLogDouble :: tstart, tend
   
   PetscInt, pointer :: indices(:)
   PetscInt, allocatable :: integer_array(:)
   
-#if !defined(PETSC_HAVE_HDF5)
-  option => realization%option
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
-
   nullify(indices)
 
   option => realization%option
@@ -1453,66 +1013,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call PetscLogEventBegin(logging%event_cell_indx_int_read_hdf5, &
                           ierr);CHKERRQ(ierr)
   
-#if defined(SCORPIO)
-  if (mod(option%myrank,option%hdf5_read_group_size) == 0) then  
-     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-     call printMsg(option) 
-  end if   
-  filename = trim(filename) //CHAR(0)
-  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, &
-          file_id, ierr)
-
-  ! Read Cell Ids
-  call PetscTime(tstart,ierr);CHKERRQ(ierr)
-
-  !if group_name exists
-  if (len_trim(group_name) > 1) then
-    string = trim(group_name) // "/Cell Ids" // CHAR(0)
-  else
-    string = "/Cell Ids" // CHAR(0)
-  endif  
-    
-  call HDF5ReadIndices(grid,option,file_id,string,grid%nmax,indices)
-  call PetscTime(tend,ierr);CHKERRQ(ierr)
-  write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
-  call printMsg(option)
-
-  call PetscTime(tstart,ierr);CHKERRQ(ierr)
-  string = ''
-  if (append_realization_id) then
-    write(string,'(i6)') option%id
-  endif
-
-  string = trim(dataset_name) // adjustl(trim(string))
-  !if group_name exists
-  if (len_trim(group_name) > 1) then
-    string = trim(group_name) // '/' // trim(string) // CHAR(0)
-  else
-    string = trim(string) // CHAR(0)
-  endif  
-
-  option%io_buffer = 'Reading dataset: ' // trim(string)
-  call printMsg(option)   
-
-  call HDF5ReadArray(discretization,grid,option,file_id,string,grid%nmax, &
-                     indices,global_vec,HDF_NATIVE_INTEGER)
-  
-  call PetscTime(tend,ierr);CHKERRQ(ierr)
-  write(option%io_buffer,'(f6.2," Seconds to read integer array.")') &
-    tend-tstart
-  call printMsg(option)  
-
-  call DeallocateArray(indices)
-
-  if (mod(option%myrank,option%hdf5_read_group_size) == 0) then  
-    option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-    call printMsg(option)   
-    call fscorpio_close_file(file_id, option%ioread_group_id, ierr)
-  endif
-
-#else
-! if SCORPIO is not defined
-
  ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
@@ -1531,7 +1031,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
     call printMsg(option)   
-    call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option)
   else
     grp_id = file_id
   endif
@@ -1584,11 +1084,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call printMsg(option)   
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
-#endif  
-! if SCORPIO is not defined
-
-#endif
-! PETSC_HAVE_HDF5
 
   call PetscLogEventEnd(logging%event_cell_indx_int_read_hdf5, &
                         ierr);CHKERRQ(ierr)
@@ -1609,9 +1104,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   
   use Realization_Subsurface_class
   use Discretization_module
@@ -1639,25 +1132,15 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
   character(len=MAXSTRINGLENGTH) :: string 
 
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: prop_id
-#endif
 
   PetscLogDouble :: tstart, tend
   
   PetscInt, pointer :: indices(:)
   PetscReal, allocatable :: real_array(:)
   
-#if !defined(PETSC_HAVE_HDF5)
-  option => realization%option
-  call printMsg(option,'')
-  write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                           &"read HDF5 formatted structured grids.")')
-  call printErrMsg(option)
-#else
-
   nullify(indices)
 
   option => realization%option
@@ -1668,68 +1151,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
   call PetscLogEventBegin(logging%event_cell_indx_real_read_hdf5, &
                           ierr);CHKERRQ(ierr)
-
-#if defined(SCORPIO)
-  if (mod(option%myrank,option%hdf5_read_group_size) == 0) then  
-     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-     call printMsg(option) 
-  end if   
-  filename = trim(filename) //CHAR(0)
-  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, &
-          file_id, ierr)
-
-
-! only new approach (old approach is removed)
-  ! Read Cell Ids
-  call PetscTime(tstart,ierr);CHKERRQ(ierr)
-
-  !if group_name exists
-  if (len_trim(group_name) > 1) then
-    string = trim(group_name) // "/Cell Ids" // CHAR(0)
-  else
-    string = "/Cell Ids" // CHAR(0)
-  endif  
-    
-  call HDF5ReadIndices(grid,option,file_id,string,grid%nmax,indices)
-  call PetscTime(tend,ierr);CHKERRQ(ierr)
-  write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
-  call printMsg(option)
-
-  call PetscTime(tstart,ierr);CHKERRQ(ierr)
-  string = ''
-  if (append_realization_id) then
-    write(string,'(i6)') option%id
-  endif
-
-  string = trim(dataset_name) // adjustl(trim(string))
-  !if group_name exists
-  if (len_trim(group_name) > 1) then
-    string = trim(group_name) // '/' // trim(string) // CHAR(0)
-  else
-    string = trim(string) // CHAR(0)
-  endif  
-
-  option%io_buffer = 'Reading dataset: ' // trim(string)
-  call printMsg(option)   
-
-  call HDF5ReadArray(discretization,grid,option,file_id,string,grid%nmax, &
-                     indices,global_vec,H5T_NATIVE_DOUBLE)
-  
-  call PetscTime(tend,ierr);CHKERRQ(ierr)
-  write(option%io_buffer,'(f6.2," Seconds to read real array.")') &
-    tend-tstart
-  call printMsg(option)  
-
-  call DeallocateArray(indices)
-
-  if (mod(option%myrank,option%hdf5_read_group_size) == 0) then  
-    option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-    call printMsg(option)   
-    call fscorpio_close_file(file_id, option%ioread_group_id, ierr)
-  endif
-
-#else
-! if SCORPIO is not defined
 
   ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
@@ -1749,7 +1170,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
     call printMsg(option)   
-    call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
+    call HDF5GroupOpen(file_id,group_name,grp_id,option)
   else
     grp_id = file_id
   endif
@@ -1801,18 +1222,10 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
-#endif  
-! if SCORPIO is not defined
-
-#endif
-! PETSC_HAVE_HDF5
-
   call PetscLogEventEnd(logging%event_cell_indx_real_read_hdf5, &
                         ierr);CHKERRQ(ierr)
                           
 end subroutine HDF5ReadCellIndexedRealArray
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -2151,8 +1564,6 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   call h5sclose_f(file_space_id,hdf5_err)
 
 end subroutine HDF5ReadDataSetInVec
-
-#endif
 
 end module HDF5_module
 

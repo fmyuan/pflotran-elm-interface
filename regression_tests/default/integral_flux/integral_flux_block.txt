@@ -1,0 +1,87 @@
+# polygon
+INTEGRAL_FLUX X
+  ! - x 2 x 1
+  ! 2 m^2 \perp X
+#  NAME X
+  POLYGON
+    1. 0. 0.
+    1. 2. 1.
+  /
+END
+
+INTEGRAL_FLUX
+  ! 1 x - x 1 
+  ! 1 m^2 \perp Y
+  NAME Y
+  POLYGON
+    0. 1. 0.
+    1. 1. 1.
+  /
+END
+
+INTEGRAL_FLUX
+  ! 2 x 2 x - with the connection between 1 and 5 carved out: 3 total
+  ! 3 m^2 \perp Z
+  NAME Z3
+  POLYGON
+    1. 0. 1.
+    2. 0. 1.
+    2. 2. 1.
+    0. 2. 1.
+    0. 1. 1.
+    1. 1. 1.
+  /
+END
+
+INTEGRAL_FLUX
+  ! 2 x 1 x - top
+  ! 2 m^2 \perp Z
+  NAME top
+  POLYGON
+    0. 0. 2.
+    2. 1. 2.
+  /
+END
+
+INTEGRAL_FLUX
+  ! - x 2 x 2 east
+  ! 4 m^2 \perp Z
+  NAME east
+  POLYGON
+    2. 0. 0.
+    2. 2. 2.
+  /
+END
+
+# plane
+INTEGRAL_FLUX
+  ! 4 m^2 \perp X
+  NAME X_at_1
+  PLANE
+    1. 0. 0.
+    1. 1. 0.
+    1. 0. 1.
+  /
+END
+
+INTEGRAL_FLUX
+  NAME entire_top
+  ! 4 m^2 \perp Z
+  PLANE
+    0. 0. 2.
+    1. 0. 2.
+    0. 1. 2.
+  /
+END
+
+# coordinates and directions
+INTEGRAL_FLUX
+  ! 1 m^2 \perp X, Y, Z = 3 m^2 total
+  NAME top_north_east_corner
+  COORDINATES_AND_DIRECTIONS
+    2. 1.5 1.5 1. 0. 0.  ! east face of cell 8
+    1.5 2. 1.5 0. 1. 0.  ! north face of cell 8
+    1.5 1.5 2. 0. 0. 1.  ! top face of cell 8
+  /
+END
+

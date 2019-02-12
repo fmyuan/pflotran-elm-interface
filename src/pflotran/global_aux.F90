@@ -99,6 +99,8 @@ subroutine GlobalAuxVarInit(auxvar,option)
   
   type(global_auxvar_type) :: auxvar
   type(option_type) :: option
+
+  PetscInt :: nphase
   
   auxvar%istate = 0
   auxvar%temp = 0.d0
@@ -123,35 +125,37 @@ subroutine GlobalAuxVarInit(auxvar,option)
   nullify(auxvar%mass_balance_delta)
   nullify(auxvar%dphi)
 
+  nphase = max(option%nphase,option%transport%nphase)
+
   if (option%nflowdof > 0) then
-    allocate(auxvar%den(option%nphase))
+    allocate(auxvar%den(nphase))
     auxvar%den = 0.d0
   endif
-  allocate(auxvar%pres(option%nphase))
+  allocate(auxvar%pres(nphase))
   auxvar%pres = 0.d0
-  allocate(auxvar%sat(option%nphase))
+  allocate(auxvar%sat(nphase))
   auxvar%sat = 0.d0
-  allocate(auxvar%den_kg(option%nphase))
+  allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
 
   ! need these for reactive transport only if if flow if computed
   if (option%nflowdof > 0 .and. option%ntrandof > 0) then
-    allocate(auxvar%sat_store(option%nphase,TWO_INTEGER))
+    allocate(auxvar%sat_store(nphase,TWO_INTEGER))
     auxvar%sat_store = 0.d0
-    allocate(auxvar%den_kg_store(option%nphase,TWO_INTEGER))
+    allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
     auxvar%den_kg_store = 0.d0
   endif
  
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
 !      if (option%ntrandof > 0) then
-!        allocate(auxvar%den_store(option%nphase,TWO_INTEGER))
+!        allocate(auxvar%den_store(nphase,TWO_INTEGER))
 !        auxvar%den_store = 0.d0
 !      endif
     case(IMS_MODE, MPH_MODE, FLASH2_MODE)
-      allocate(auxvar%xmass(option%nphase))
+      allocate(auxvar%xmass(nphase))
       auxvar%xmass = 1.d0
-      allocate(auxvar%pres_store(option%nphase,TWO_INTEGER))
+      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
       auxvar%pres_store = option%reference_pressure
       allocate(auxvar%temp_store(TWO_INTEGER))
       auxvar%temp_store = 0.d0
@@ -159,7 +163,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       auxvar%fugacoeff = 1.d0
       allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
       auxvar%fugacoeff_store = 1.d0    
-      allocate(auxvar%den_store(option%nphase,TWO_INTEGER))
+      allocate(auxvar%den_store(nphase,TWO_INTEGER))
       auxvar%den_store = 0.d0
       allocate(auxvar%m_nacl(TWO_INTEGER))
       auxvar%m_nacl = option%m_nacl
@@ -168,9 +172,9 @@ subroutine GlobalAuxVarInit(auxvar,option)
       allocate(auxvar%reaction_rate_store(option%nflowspec))
       auxvar%reaction_rate_store = 0.d0
     case(TH_MODE)
-    ! allocate(auxvar%xmass(option%nphase))
+    ! allocate(auxvar%xmass(nphase))
     ! auxvar%xmass = 1.d0
-      allocate(auxvar%pres_store(option%nphase,TWO_INTEGER))
+      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
       auxvar%pres_store = 0.d0
       allocate(auxvar%temp_store(TWO_INTEGER))
       auxvar%temp_store = 0.d0
@@ -178,7 +182,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
     ! auxvar%fugacoeff = 1.d0
     ! allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
     ! auxvar%fugacoeff_store = 1.d0    
-      allocate(auxvar%den_store(option%nphase,TWO_INTEGER))
+      allocate(auxvar%den_store(nphase,TWO_INTEGER))
       auxvar%den_store = 0.d0
     ! allocate(auxvar%m_nacl(TWO_INTEGER))
     ! auxvar%m_nacl = option%m_nacl
@@ -190,17 +194,17 @@ subroutine GlobalAuxVarInit(auxvar,option)
       nullify(auxvar%reaction_rate_store)  
     case (G_MODE)
       if (option%ntrandof > 0) then
-        allocate(auxvar%pres_store(option%nphase,TWO_INTEGER))
+        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
         auxvar%pres_store = 0.d0
         allocate(auxvar%temp_store(TWO_INTEGER))
         auxvar%temp_store = 0.d0
 !geh: these are allocated above        
-!geh        allocate(auxvar%den_kg_store(option%nphase,TWO_INTEGER))
+!geh        allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
 !geh        auxvar%den_kg_store = 0.d0
       endif
     case (WF_MODE)
       if (option%ntrandof > 0) then
-        allocate(auxvar%pres_store(option%nphase,TWO_INTEGER))
+        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
         auxvar%pres_store = 0.d0
       endif
     case default
@@ -212,9 +216,9 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
   
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
-    allocate(auxvar%mass_balance(option%nflowspec,option%nphase))
+    allocate(auxvar%mass_balance(option%nflowspec,nphase))
     auxvar%mass_balance = 0.d0
-    allocate(auxvar%mass_balance_delta(option%nflowspec,option%nphase))
+    allocate(auxvar%mass_balance_delta(option%nflowspec,nphase))
     auxvar%mass_balance_delta = 0.d0
   endif
   

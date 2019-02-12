@@ -2496,7 +2496,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr

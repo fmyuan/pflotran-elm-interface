@@ -628,18 +628,39 @@ END                       \bluecomment{! converted to SI}
 
 \begin{semiverbatim}
 
-UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr  \bluecomment{! 1 m/yr Darcy}
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d0 0.d0 0.d0 m/yr
+END
 \end{semiverbatim}
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\section{Description of Input Deck: Adding a Flow Solution}
+\subsection{Running calcite_tran_only.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_tran_only
+> python conc_at_25y_tran_only.py
+> python pH_tran_only.py
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Description of Input Deck: Adding a flow solution}
 
 \subsection{Input File Modifications}
 
-\begin{frame}[fragile]\frametitle{Input File Modifications}
+\begin{frame}[fragile]\frametitle{Adding a flow solution}
 
+Input File Modifications
 \begin{itemize}
 \item Modify cards:
   \begin{itemize}
@@ -836,12 +857,29 @@ END}
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\section{Description of Input Deck: Switch to Infiltration}
+\subsection{Running calcite_flow_and_tran.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_flow_and_tran
+> python conc_at_25y_flow_and_tran.py
+> python pH_flow_and_tran.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Description of Input Deck: Switch to infiltration}
 
 \subsection{Input File Modifications}
 
-\begin{frame}[fragile]\frametitle{Input File Modifications}
+\begin{frame}[fragile]\frametitle{Switch to Infiltration: Calcite Leaching}
 
+Input File Modifications
 \begin{itemize}
 %\item Add cards:
 %  \begin{itemize}
@@ -1024,6 +1062,22 @@ BOUNDARY_CONDITION inlet
   TRANSPORT_CONDITION inlet_conc
   REGION \magentacomment{top}
 END
+\end{semiverbatim}
+
+\end{frame}
+
+
+%-----------------------------------------------------------------------------
+\subsection{Running calcite_vsat_flow_and_tran.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_Calcite
+> pflotran -input_prefix calcite_vsat_flow_and_tran
+> python pH_vsat.py
 \end{semiverbatim}
 
 \end{frame}

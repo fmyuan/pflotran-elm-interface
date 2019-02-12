@@ -6,6 +6,7 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TOIL_IMS
       OPTIONS
+       MAXIMUM_PRESSURE_CHANGE 5.D4
        !ISOTHERMAL
        !TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5 1.d0
       /
@@ -108,34 +109,26 @@ MATERIAL_PROPERTY formation
 /
 
 #=========================== saturation functions =============================
-!SATURATION_FUNCTION sf2
 CHARACTERISTIC_CURVES ch1
-  SATURATION_FUNCTION VAN_GENUCHTEN
-    M 0.5d0
-    ALPHA 5.792e-05
-    !ALPHA 5.105e-04 
-    LIQUID_RESIDUAL_SATURATION 0.2d0
-    MAX_CAPILLARY_PRESSURE 5.d5
-    !SMOOTH !when using smoothing option
+  CAP_PRESSURE_FUNCTION_OW VAN_GENUCHTEN
+   WATER_CONNATE_SATURATION 0.0
+   WATER_RESIDUAL_SATURATION 0.20  
+   M 0.5d0
+   ALPHA 5.792e-05
+   MAX_CAPILLARY_PRESSURE 5.d5
+   !SMOOTH !when using smoothing option   
   /
-
-  PERMEABILITY_FUNCTION MOD_BC_LIQ
-    M 2.0d0
-    LIQUID_RESIDUAL_SATURATION 0.2d0 
-    OIL_RESIDUAL_SATURATION 0.2d0
-    GAS_RESIDUAL_SATURATION 0.0d0
-    LIQUID_MAX_REL_PERM 1.0d0 !if not included defaulted to 1
-    !SMOOTH !when using smoothing option
-  /
-  PERMEABILITY_FUNCTION MOD_BC_OIL
-    M 2.0d0
-    LIQUID_RESIDUAL_SATURATION 0.2d0 
-    OIL_RESIDUAL_SATURATION 0.2d0
-    GAS_RESIDUAL_SATURATION 0.0d0
-    OIL_MAX_REL_PERM 1.0d0 !if not included defaulted to 1
-    !SMOOTH !when using smoothing option
-  /
-
+  PERMEABILITY_FUNCTION_WAT MOD_BROOKS_COREY
+   M 2.0d0
+   WATER_CONNATE_SATURATION 0.0
+   WATER_RESIDUAL_SATURATION 0.20
+   MAX_REL_PERM 1.0d0 !default is 1 anyway - only testing purpose here
+  END
+  PERMEABILITY_FUNCTION_OW MOD_BROOKS_COREY
+   M 2.0d0
+   OIL_RESIDUAL_SATURATION 0.2d0
+   MAX_REL_PERM 1.0d0 !default is 1 anyway - only testing purpose here
+  END  
 /
 
 #=========================== EOSs =============================================

@@ -6,6 +6,7 @@ module Immis_module
   use Global_Aux_module
 
   use PFLOTRAN_Constants_module
+  use Utility_module, only : Equal
 
   implicit none
   
@@ -1162,7 +1163,7 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
     case(MASS_RATE_SS)
       msrc(1) =  msrc(1) / FMWH2O
       msrc(2) =  msrc(2) / FMWCO2
-      if (msrc(1) /= 0.d0) then ! H2O injection
+      if (.not. Equal(msrc(1),0.d0)) then ! H2O injection
         call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr)
         call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
@@ -1695,7 +1696,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
-  Vec, intent(out) :: r
+  Vec, intent(inout) :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr

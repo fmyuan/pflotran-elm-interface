@@ -120,6 +120,39 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Running regional_doublet.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+This problem takes a while to run, so let's get it started first.
+Homogeneous permeability field version:
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ > pflotran -input_prefix regional_doublet
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+This problem takes a while to run, so let's get it started first.
+Stochastic permeability field version:
+
+\begin{semiverbatim}
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/regional_doublet/
+ > pflotran -input_prefix stochastic_regional_doublet
+  -realization_id 5
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of 3D Regional Flow and Transport Model}
 
 \subsection{3D Regional Flow and Transport Model}
@@ -667,14 +700,14 @@ FLOW_CONDITION injection
   TYPE                           \bluecomment{! volumetric flow}
     RATE SCALED_VOLUMETRIC_RATE  \bluecomment{!   rate scaled by}
   /                              \bluecomment{!   f(permeability)}
-  RATE 1.d5 m^3/day  \bluecomment{! flow rate 10,000 [m^3/day]}
+  RATE 1.d5 m^3/day  \bluecomment{! flow rate 100,000 [m^3/day]}
 END
 
 FLOW_CONDITION extraction
   TYPE
     RATE SCALED_VOLUMETRIC_RATE
   /
-  RATE -1.d5 m^3/day  \bluecomment{! flow rate -10,000 [m^3/day]}
+  RATE -1.d5 m^3/day  \bluecomment{! flow rate -100,000 [m^3/day]}
 END                   \bluecomment{! negative rate = extraction}
 
 \end{semiverbatim}
@@ -918,12 +951,11 @@ END
 \begin{frame}[fragile]\frametitle{OUTPUT}
 
 \begin{itemize}
-\item Print entire solution in Tecplot block datapacking and PFLOTRAN HDF5 format compatible with Visit
-\item Print solution at observation points every time step
-\item Include velocities when entire solution is printed
-\item Make a snapshot file every 0.25 years between 0 and 2 years to see fluctuation in river stage
-\item Make a snapshot file every year of the simulation
-\item Specifically, we want to see the liquid pressure, saturation, and material IDs
+\item Print entire solution (a snapshot) in ASCII Tecplot block formatted datapacking and binary PFLOTRAN HDF5 format compatible with ParaView and VisIt
+\item Specifically, we want to see the liquid pressure, saturation, material IDs, and liquid phase velocities
+\item Print a snapshot every 0.25 years between 0 and 2 years to see fluctuation in river stage
+\item Print a snapshot every year of the simulation
+\item Print the solution at observation points for every time step
 \end{itemize}
 
 \end{frame}
@@ -984,6 +1016,8 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
     /
+    ...
+  /
   CHECKPOINT               \bluecomment{! write a checkpoint file}
     PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
     PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
@@ -996,4 +1030,25 @@ END                         \bluecomment{! file \redcomment{restart.chk}}
 
 \end{frame}
 
+
+%-----------------------------------------------------------------------------
+\section{How To Run the Python Script}
+
+\begin{frame}[fragile]\frametitle{How To Run the Python Script to Plot}
+
+When the simulation is finished running, you can plot the results using
+the python script called regional\_doublet\_center\_obs.py
+
+To run the python script:
+
+\begin{semiverbatim}
+
+ > python regional_doublet_center_obs.py
+
+\end{semiverbatim}
+
+\end{frame}
+
 \end{document}
+
+

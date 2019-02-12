@@ -1,3 +1,0 @@
-1                                  #number of survey times to simulate
-3600 	   e4d.srv e4d_smesh.sig     #pflotran output time, e4d survey to simulate, default conductivity file
-

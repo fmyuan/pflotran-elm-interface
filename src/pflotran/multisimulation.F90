@@ -126,6 +126,15 @@ subroutine MultiSimulationInitialize(multisimulation,option)
     call printWrnMsg(option)
     multisimulation%num_realizations = 1
   endif
+  if (multisimulation%num_groups > multisimulation%num_realizations) then
+    write(string,*) multisimulation%num_realizations
+    option%io_buffer = 'Number of stochastic realizations (' // adjustl(string)
+    write(string,*) multisimulation%num_groups
+    option%io_buffer = trim(option%io_buffer) // ') must be equal to &
+         &or greater than number of processor groups (' // adjustl(string)
+    option%io_buffer = trim(option%io_buffer) // ').'
+    call printErrMsg(option)
+  endif
   
   call OptionCreateProcessorGroups(option,multisimulation%num_groups)
   
@@ -146,6 +155,8 @@ subroutine MultiSimulationInitialize(multisimulation,option)
                                      multisimulation%num_local_realizations + 1
   allocate(multisimulation%realization_ids( &
                                   multisimulation%num_local_realizations))
+print *, 'here'
+  print *, size(multisimulation%realization_ids)
   multisimulation%realization_ids = 0
   do i = 1, multisimulation%num_local_realizations
     multisimulation%realization_ids(i) = offset + i
@@ -177,33 +188,14 @@ subroutine MultiSimulationIncrement(multisimulation,option)
   
   if (.not.associated(multisimulation)) return
   
-!#define RESTART_MULTISIMULATION  
-#if defined(RESTART_MULTISIMULATION)
-  ! code for restarting multisimulation runs; may no longer need this.
-  do
-#endif
+  call OptionInitRealization(option)
 
-    call OptionInitRealization(option)
-
-    multisimulation%cur_realization = multisimulation%cur_realization + 1
-    ! Set group prefix based on id
-    option%id = &
-      multisimulation%realization_ids(multisimulation%cur_realization)
-    write(string,'(i6)') option%id
-    option%group_prefix = 'R' // trim(adjustl(string))  
-
-#if defined(RESTART_MULTISIMULATION)
-    string = 'restart' // trim(adjustl(option%group_prefix)) // '.chk.info'
-    open(unit=86,file=string,status="old",iostat=status)
-    ! if file found, cycle
-    if (status == 0) then
-      close(86)
-      cycle
-    else
-      exit
-    endif
-  enddo
-#endif
+  multisimulation%cur_realization = multisimulation%cur_realization + 1
+  ! Set group prefix based on id
+  option%id = &
+    multisimulation%realization_ids(multisimulation%cur_realization)
+  write(string,'(i6)') option%id
+  option%group_prefix = 'R' // trim(adjustl(string))  
 
 end subroutine MultiSimulationIncrement
 

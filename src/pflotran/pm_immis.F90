@@ -56,6 +56,7 @@ function PMImmisCreate()
 
   call PMSubsurfaceFlowCreate(immis_pm)
   immis_pm%name = 'Immisible Flow'
+  immis_pm%header = 'IMMISCIBLE FLOW'
 
   PMImmisCreate => immis_pm
   
@@ -102,7 +103,8 @@ subroutine PMImmisRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -130,11 +132,6 @@ subroutine PMImmisInitializeTimestep(this)
   class(pm_immis_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)         
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," IMMISCIBLE FLOW ",61("="))')
-  endif
-  
   call ImmisInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)         
   
@@ -175,7 +172,8 @@ end subroutine PMImmisPostSolve
 ! ************************************************************************** !
 
 subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                 num_newton_iterations,tfac, &
+                                 time_step_max_growth_factor)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -190,6 +188,7 @@ subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -224,7 +223,7 @@ subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.

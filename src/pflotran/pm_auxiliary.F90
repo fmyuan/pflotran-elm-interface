@@ -21,6 +21,7 @@ module PM_Auxiliary_class
   contains
     procedure, public :: Setup => PMAuxiliarySetup
     procedure, public :: InitializeRun => PMAuxiliaryInitializeRun
+    procedure, public :: FinalizeRun => PMAuxiliaryFinalizeRun
     procedure, public :: InputRecord => PMAuxiliaryInputRecord
     procedure, public :: Destroy => PMAuxiliaryDestroy
   end type pm_auxiliary_type
@@ -95,6 +96,8 @@ subroutine PMAuxiliaryInit(this)
   this%name = ''
   
   call PMBaseInit(this)
+  ! restart not currently supported for auxiliary pm's, and not needed.
+  this%skip_restart = PETSC_TRUE
   
 end subroutine PMAuxiliaryInit
 
@@ -188,9 +191,9 @@ subroutine PMAuxiliaryRead(input, option, this)
           case('SPECIES')
             i = i + 1
             if (i > 6) then
-              option%io_buffer = 'Email pflotran-dev@googlegroups.com and ask &
-                &for the maximum number of salinity species to be increased.'
-              call printErrMsg(option)
+              option%io_buffer = 'Number of salinity species exceeded.'
+              call PrintErrMsgToDev('ask for the maximum number of salinity &
+                                    &species to be increased',option)
             endif
             call InputReadWord(input,option,this%salinity% &
                                  species_names(i),PETSC_TRUE)
@@ -238,9 +241,10 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
     case('EVOLVING_STRATA')
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
+      this%header = 'AUXILIARY EVOLVING STRATA'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
-      this%name = 'auxiliary salinity'
+      this%header = 'AUXILIARY SALINITY'
     case default
       this%option%io_buffer = 'Function pointer "' // trim(string) // '" not &
         &found among available functions in PMAuxiliarySetFunctionPointer.'
@@ -295,6 +299,28 @@ end subroutine PMAuxiliaryInitializeRun
 
 ! ************************************************************************** !
 
+recursive subroutine PMAuxiliaryFinalizeRun(this)
+  ! 
+  ! Finalizes the run
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/22/18
+  ! 
+
+  implicit none
+
+  class(pm_auxiliary_type) :: this
+
+  ! do something here
+
+  if (associated(this%next)) then
+    call this%next%FinalizeRun()
+  endif
+
+end subroutine PMAuxiliaryFinalizeRun
+
+! ************************************************************************** !
+
 subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   ! 
   ! Initializes auxiliary process model
@@ -311,6 +337,8 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   PetscErrorCode :: ierr
 
   PetscInt :: ndof
+
+  call PMBasePrintHeader(this)
 
   ierr = 0
   call InitSubsurfAssignMatIDsToRegns(this%realization)
@@ -343,6 +371,8 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscInt, parameter :: iphase = 1
     
+  call PMBasePrintHeader(this)
+
   ierr = 0
   do j = 1, 2
     if (j == 1) then
@@ -394,7 +424,6 @@ subroutine PMAuxiliaryInputRecord(this)
   write(id,'(a)') this%name
 
 end subroutine PMAuxiliaryInputRecord
-
 
 ! ************************************************************************** !
 

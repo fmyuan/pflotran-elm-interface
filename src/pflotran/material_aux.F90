@@ -18,6 +18,15 @@ module Material_Aux_class
   
   PetscInt, parameter, public :: POROSITY_CURRENT = 0
   PetscInt, parameter, public :: POROSITY_MINERAL = 1
+
+  ! Tensor to scalar conversion models
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_QUADRATIC = 2
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_ELLIPTIC = 3
+
+  ! flag to determine which model to use for tensor to scalar conversion 
+  ! of permeability
+  PetscInt :: perm_tens_to_scal_model = TENSOR_TO_SCALAR_LINEAR
   
 !  PetscInt, public :: soil_thermal_conductivity_index
 !  PetscInt, public :: soil_heat_capacity_index
@@ -37,6 +46,7 @@ module Material_Aux_class
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
     type(fracture_auxvar_type), pointer :: fracture
+    PetscReal, pointer :: geomechanics_subsurface_prop(:)
     PetscInt :: creep_closure_id
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
@@ -51,7 +61,7 @@ module Material_Aux_class
     PetscReal :: properties(4)
     PetscReal :: vector(3) ! < 0. 0. 0. >
   end type fracture_auxvar_type
-  
+ 
   type, public :: material_parameter_type
     PetscReal, pointer :: soil_residual_saturation(:,:)
     PetscReal, pointer :: soil_heat_capacity(:) ! MJ/kg rock-K
@@ -89,8 +99,10 @@ module Material_Aux_class
   public :: MaterialCompressSoilDummy, &
             MaterialCompressSoilPtr, &
             MaterialCompressSoil, &
-            MaterialCompressSoilBragflo, &
+            MaterialCompressSoilBRAGFLO, &
+            MaterialCompressSoilPoroExp, &
             MaterialCompressSoilLeijnse, &
+            MaterialCompressSoilLinear, &
             MaterialCompressSoilQuadratic
   
   public :: MaterialAuxCreate, &
@@ -101,7 +113,8 @@ module Material_Aux_class
             MaterialAuxVarSetValue, &
             MaterialAuxIndexToPropertyName, &
             MaterialAuxDestroy, &
-            MaterialAuxVarFractureStrip
+            MaterialAuxVarFractureStrip, &
+            MaterialAuxSetPermTensorModel
   
 contains
 
@@ -178,6 +191,8 @@ subroutine MaterialAuxVarInit(auxvar,option)
   else
     nullify(auxvar%soil_properties)
   endif
+
+  nullify(auxvar%geomechanics_subsurface_prop)
   
 end subroutine MaterialAuxVarInit
 
@@ -213,7 +228,36 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%soil_properties = auxvar%soil_properties
   endif
   auxvar2%creep_closure_id = auxvar%creep_closure_id
+  
 end subroutine MaterialAuxVarCopy
+
+! ************************************************************************** !
+
+subroutine MaterialAuxSetPermTensorModel(model,option)
+
+  use Option_module
+
+  implicit none
+
+  PetscInt :: model
+  type(option_type) :: option
+
+  !! simple if longwinded little safety measure here, the calling routine
+  !! should also check that model is a sane number but in principle this
+  !! routine should protect itself too. 
+  !! Please note that if you add a new model type above then you MUST add
+  !! it to this little list here too. 
+  if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
+      model == TENSOR_TO_SCALAR_QUADRATIC .OR. &
+      model == TENSOR_TO_SCALAR_QUADRATIC) then
+    perm_tens_to_scal_model = model
+  else
+    option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
+                         model type is not recognized.'
+    call printErrMsg(option)
+  endif
+
+end subroutine MaterialAuxSetPermTensorModel
 
 ! ************************************************************************** !
 
@@ -227,7 +271,6 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   ! Date: 01/09/14
   ! 
 
-  use Option_module
   use Utility_module, only : Equal
 
   implicit none
@@ -252,9 +295,45 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
     return
   endif
 #endif
-  scalar_permeability = kx*dabs(dist(1))+ky*dabs(dist(2))+kz*dabs(dist(3))
+
+  select case(perm_tens_to_scal_model)
+    case(TENSOR_TO_SCALAR_LINEAR)
+      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_QUADRATIC)
+      scalar_permeability = DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+    case default
+      ! as default, just do linear 
+      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+  end select
 
 end subroutine MaterialDiagPermTensorToScalar
+
+! ************************************************************************** !
+
+function DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+  implicit none
+  PetscReal :: DiagPermTensorToScalar_Linear
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: kx,ky,kz
+
+  DiagPermTensorToScalar_Linear = kx*dabs(dist(1))+ky*dabs(dist(2))+&
+                                  kz*dabs(dist(3))
+
+end function DiagPermTensorToScalar_Linear
+
+! ************************************************************************** !
+
+function DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+  implicit none
+  PetscReal :: DiagPermTensorToScalar_Quadratic
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: kx,ky,kz
+
+  DiagPermTensorToScalar_Quadratic = kx*dabs(dist(1))**2.0 + &
+                                     ky*dabs(dist(2))**2.0 + &
+                                     kz*dabs(dist(3))**2.0
+
+end function DiagPermTensorToScalar_Quadratic
 
 ! ************************************************************************** !
 
@@ -408,6 +487,7 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
   
   PetscReal :: compressibility
   
+
   ! convert to pore compressiblity by dividing by base porosity
   compressibility = auxvar%soil_properties(soil_compressibility_index) / &
                     auxvar%porosity_base
@@ -417,6 +497,66 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
   dcompressed_porosity_dp = compressibility * compressed_porosity
   
 end subroutine MaterialCompressSoilBRAGFLO
+
+! ************************************************************************** !
+
+subroutine MaterialCompressSoilLinear(auxvar,pressure, &
+                                      compressed_porosity, &
+                                      dcompressed_porosity_dp)
+  ! 
+  ! Calculates soil matrix compression for standard constant 
+  ! aquifer compressibility
+  !
+  ! variable 'alpha' is Freeze and Cherry, 1982
+  ! 
+  ! Author: Danny Birdsell and Satish Karra
+  ! Date: 07/26/2016
+  ! 
+
+  implicit none
+
+  class(material_auxvar_type), intent(in) :: auxvar
+  PetscReal, intent(in) :: pressure
+  PetscReal, intent(out) :: compressed_porosity
+  PetscReal, intent(out) :: dcompressed_porosity_dp
+  
+  PetscReal :: compressibility
+  
+  compressibility = auxvar%soil_properties(soil_compressibility_index)
+  compressed_porosity = auxvar%porosity_base + compressibility * &
+            (pressure - auxvar%soil_properties(soil_reference_pressure_index)) 
+  dcompressed_porosity_dp = compressibility
+
+end subroutine MaterialCompressSoilLinear
+
+! ************************************************************************** !
+
+subroutine MaterialCompressSoilPoroExp(auxvar,pressure, &
+                                       compressed_porosity, &
+                                       dcompressed_porosity_dp)
+  ! 
+  ! Calculates soil matrix compression based on Eq. 9.6.9 of BRAGFLO
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/14/14
+  ! 
+
+  implicit none
+
+  class(material_auxvar_type), intent(in) :: auxvar
+  PetscReal, intent(in) :: pressure
+  PetscReal, intent(out) :: compressed_porosity
+  PetscReal, intent(out) :: dcompressed_porosity_dp
+  
+  PetscReal :: compressibility
+  
+  compressibility = auxvar%soil_properties(soil_compressibility_index)
+  compressed_porosity = auxvar%porosity_base * &
+    exp(compressibility * &
+        (pressure - auxvar%soil_properties(soil_reference_pressure_index)))
+  dcompressed_porosity_dp = compressibility * compressed_porosity
+  
+end subroutine MaterialCompressSoilPoroExp
 
 ! ************************************************************************** !
 
@@ -526,6 +666,9 @@ subroutine MaterialAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%sat_func_prop)
   call DeallocateArray(auxvar%soil_properties)
   call MaterialAuxVarFractureStrip(auxvar%fracture)
+  if (associated(auxvar%geomechanics_subsurface_prop)) then
+    call DeallocateArray(auxvar%geomechanics_subsurface_prop)
+  endif
   
 end subroutine MaterialAuxVarStrip
 
@@ -561,6 +704,7 @@ subroutine MaterialAuxDestroy(aux)
     call DeallocateArray(aux%material_parameter%soil_heat_capacity)
     call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
   endif
+  deallocate(aux%material_parameter)
   nullify(aux%material_parameter)
   
   deallocate(aux)

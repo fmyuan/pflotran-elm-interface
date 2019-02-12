@@ -25,8 +25,8 @@ module PM_RT_class
     PetscReal :: tran_weight_t1
     PetscBool :: check_post_convergence
     ! these govern the size of subsequent time steps
-    PetscReal :: max_concentration_change
-    PetscReal :: max_volfrac_change
+    PetscReal, pointer :: max_concentration_change(:)
+    PetscReal, pointer :: max_volfrac_change(:)
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
     PetscBool :: temperature_dependent_diffusion
@@ -35,7 +35,7 @@ module PM_RT_class
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: Read => PMRTRead
-    procedure, public :: PMRTSetRealization
+    procedure, public :: SetRealization => PMRTSetRealization
     procedure, public :: InitializeRun => PMRTInitializeRun
     procedure, public :: FinalizeRun => PMRTFinalizeRun
     procedure, public :: InitializeTimestep => PMRTInitializeTimestep
@@ -48,6 +48,7 @@ module PM_RT_class
     procedure, public :: AcceptSolution => PMRTAcceptSolution
     procedure, public :: CheckUpdatePre => PMRTCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMRTCheckUpdatePost
+    procedure, public :: CheckConvergence => PMRTCheckConvergence
     procedure, public :: TimeCut => PMRTTimeCut
     procedure, public :: UpdateSolution => PMRTUpdateSolution1
     procedure, public :: UpdateAuxVars => PMRTUpdateAuxVars
@@ -102,8 +103,8 @@ function PMRTCreate()
   rt_pm%tran_weight_t0 = 0.d0
   rt_pm%tran_weight_t1 = 0.d0
   rt_pm%check_post_convergence = PETSC_FALSE
-  rt_pm%max_concentration_change = 0.d0
-  rt_pm%max_volfrac_change = 0.d0
+  nullify(rt_pm%max_concentration_change)
+  nullify(rt_pm%max_volfrac_change)
   rt_pm%volfrac_change_governor = 1.d0
   rt_pm%cfl_governor = UNINITIALIZED_DOUBLE
   rt_pm%temperature_dependent_diffusion = PETSC_FALSE
@@ -112,6 +113,7 @@ function PMRTCreate()
 
   call PMBaseInit(rt_pm)
   rt_pm%name = 'Reactive Transport'
+  rt_pm%header = 'REACTIVE TRANSPORT'
   
   PMRTCreate => rt_pm
   
@@ -137,9 +139,10 @@ subroutine PMRTRead(this,input)
   class(pm_rt_type) :: this
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
+  PetscBool :: found
 
   option => this%option
   
@@ -152,29 +155,44 @@ subroutine PMRTRead(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(word)
+    call StringToUpper(keyword)
     
-    select case(trim(word))
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+    if (found) cycle
+
+    select case(trim(keyword))
       case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
       case('MAX_VOLUME_FRACTION_CHANGE')
         call InputReadDouble(input,option,this%volfrac_change_governor)
         call InputDefaultMsg(input,option,'maximum volume fraction change')
       case('ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,rt_itol_rel_update)
-        call InputDefaultMsg(input,option,'rt_itol_rel_update')
+        call InputErrorMsg(input,option,'rt_itol_rel_update', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
         this%check_post_convergence = PETSC_TRUE
+      case('MINIMUM_SATURATION')
+        call InputReadDouble(input,option,rt_min_saturation)
+        call InputErrorMsg(input,option,'min_saturation', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
+      case('INCLUDE_GAS_PHASE')
+        option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
+                           &has been deprecated.'
+        call printErrMsg(option)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
-    case('MAX_CFL')
-      call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL', &
-                         'SUBSURFACE_TRANSPORT OPTIONS')
+      case('MAX_CFL')
+        call InputReadDouble(input,option,this%cfl_governor)
+        call InputErrorMsg(input,option,'MAX_CFL', &
+                           'SUBSURFACE_TRANSPORT OPTIONS')
+      case('MULTIPLE_CONTINUUM')
+        option%use_mc = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
   
@@ -240,6 +258,11 @@ subroutine PMRTSetup(this)
     endif
   endif
   
+  allocate(this%max_concentration_change( &
+           this%realization%reaction%ncomp))
+  allocate(this%max_volfrac_change( &
+           this%realization%reaction%mineral%nkinmnrl))
+
 end subroutine PMRTSetup
 
 ! ************************************************************************** !
@@ -319,11 +342,13 @@ recursive subroutine PMRTInitializeRun(this)
   endif
   
   ! restart
-  if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_transport) then
-    call RTClearActivityCoefficients(this%realization)
-    call CondControlAssignTranInitCond(this%realization)  
-  endif
+  !geh: the below equilibrates the original (non-restarted) chemistry 
+  !     with restarted flow state variables. but we should not need it
+  !     with the skip restart refactor - 12/13/18
+!  if (this%option%restart_flag .and. this%skip_restart) then
+!    call RTClearActivityCoefficients(this%realization)
+!    call CondControlAssignTranInitCond(this%realization)  
+!  endif
   
   ! update boundary concentrations so that activity coefficients can be 
   ! calculated at first time step
@@ -362,6 +387,7 @@ subroutine PMRTInitializeTimestep(this)
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_TIMESTEP
   use Global_module
   use Material_module
+  use Option_module
 
   implicit none
   
@@ -371,13 +397,11 @@ subroutine PMRTInitializeTimestep(this)
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%InitializeTimestep()')
 #endif
-  
+
   this%option%tran_dt = this%option%dt
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," REACTIVE TRANSPORT ",58("="))')
-  endif
-  
+  call PMBasePrintHeader(this)
+
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
@@ -526,24 +550,26 @@ subroutine PMRTFinalizeTimestep(this)
   if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
             &" [mol/s]")') &
-      this%max_concentration_change, &
-      this%max_concentration_change/this%option%tran_dt
+      maxval(this%max_concentration_change), &
+      maxval(this%max_concentration_change)/this%option%tran_dt
     if (this%realization%reaction%mineral%nkinmnrl > 0) then
       write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
             &" [1/s]")') &
-        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+        maxval(this%max_volfrac_change), &
+        maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
   if (this%option%print_file_flag) then  
     write(this%option%fid_out,&
             '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
             &" [mol/s]")') &
-      this%max_concentration_change, &
-      this%max_concentration_change/this%option%tran_dt
+      maxval(this%max_concentration_change), &
+      maxval(this%max_concentration_change)/this%option%tran_dt
     if (this%realization%reaction%mineral%nkinmnrl > 0) then
       write(this%option%fid_out, &
         '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
-        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+        maxval(this%max_volfrac_change), &
+        maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
   
@@ -576,7 +602,8 @@ end function PMRTAcceptSolution
 ! ************************************************************************** !
 
 subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                              num_newton_iterations,tfac)
+                              num_newton_iterations,tfac, &
+                              time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -590,6 +617,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
   PetscInt :: ifac
@@ -607,7 +635,8 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
         fac = 0.33d0
         uvf = 0.d0
       else
-        uvf = this%volfrac_change_governor/(this%max_volfrac_change+pert)
+        uvf = this%volfrac_change_governor/ &
+              (maxval(this%max_volfrac_change)+pert)
       endif
       dtt = fac * dt * (1.d0 + uvf)
     else
@@ -615,7 +644,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       dt_tfac = tfac(ifac) * dt
 
       fac = 0.5d0
-      uvf= this%volfrac_change_governor/(this%max_volfrac_change+pert)
+      uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
       dt_vf = fac * dt * (1.d0 + uvf)
 
       dtt = min(dt_tfac,dt_vf)
@@ -634,7 +663,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     endif
   endif
 
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: see comment above under flow stepper
   dtt = max(dtt,dt_min)
@@ -814,11 +843,10 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             'converge based on the infinity norm of the update vector. ' // &
             'In this case, it is recommended that you use the ' // &
             'LOG_FORMULATION for chemistry or truncate concentrations ' // &
-            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block). ' // &
-            'If that does not work, please send your input deck to ' // &
-            'pflotran-dev@googlegroups.com.'
+            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block).'
           this%realization%option%io_buffer = string
-          call printErrMsg(this%realization%option)
+          call PrintErrMsgToDev('send your input deck if that does not work', &
+                                this%realization%option)
         endif
         ! scale by 0.99 to make the update slightly smaller than the min_ratio
         dC_p = dC_p*min_ratio*0.99d0
@@ -955,6 +983,32 @@ end subroutine PMRTCheckUpdatePost
 
 ! ************************************************************************** !
 
+subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+  use Convergence_module
+
+  implicit none
+
+  class(pm_rt_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       this%realization%patch%grid, &
+                       this%option,this%solver,ierr)
+
+end subroutine PMRTCheckConvergence
+
+! ************************************************************************** !
+
 subroutine PMRTTimeCut(this)
   ! 
   ! Author: Glenn Hammond
@@ -1021,8 +1075,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   
   ! begin from RealizationUpdate()
   call TranConditionUpdate(this%realization%transport_conditions, &
-                           this%realization%option, &
-                           this%realization%option%time)
+                           this%realization%option)
   if (associated(this%realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(this%realization)
   endif  
@@ -1111,7 +1164,7 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
 #endif
 
 #ifndef SIMPLIFY 
-  call RTComputeMassBalance(this%realization,mass_balance_array)
+  call RTComputeMassBalance(this%realization,-999,mass_balance_array)
 #endif
 
 end subroutine PMRTComputeMassBalance
@@ -1457,16 +1510,6 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   ! Date: 07/30/15
   ! 
 
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_rt_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
-
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
@@ -1488,23 +1531,12 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_rt_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1648,7 +1680,6 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
     call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
 
    endif
-#endif
 
 end subroutine PMRTCheckpointHDF5
 
@@ -1661,16 +1692,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   ! Author: Gautam Bisht
   ! Date: 07/30/15
   ! 
-
-#if  !defined(PETSC_HAVE_HDF5)
-  implicit none
-  class(pm_rt_type) :: this
-  integer :: pm_grp_id
-  type(option_type) :: option
-  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
-        'write HDF5 formatted checkpoint file. Darn.'
-  stop
-#else
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
@@ -1694,23 +1715,12 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   implicit none
 
   class(pm_rt_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1876,8 +1886,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   deallocate(stride)
   deallocate(int_array)
 
-#endif
-
 end subroutine PMRTRestartHDF5
 
 ! ************************************************************************** !
@@ -1915,10 +1923,14 @@ subroutine PMRTDestroy(this)
   ! 
 
   use Reactive_Transport_module, only : RTDestroy
+  use Utility_module, only : DeallocateArray
 
   implicit none
   
   class(pm_rt_type) :: this
+
+  call DeallocateArray(this%max_concentration_change)
+  call DeallocateArray(this%max_volfrac_change)
 
   call RTDestroy(this%realization)
   ! destroyed in realization

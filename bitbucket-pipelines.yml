@@ -1,8 +1,11 @@
 #
 pipelines:
-  default:
-    - step:
-        script:
-          - ./.bitbucket-pipeline/install-linux.sh
-          - ./.bitbucket-pipeline/pflotran-build.sh
-          - ./.bitbucket-pipeline/pflotran-test.sh
+  branches:
+    master:
+      - step:
+          script:
+            - ./.bitbucket-pipeline/install-linux.sh
+            - ./.bitbucket-pipeline/pflotran-build.sh
+            - ./.bitbucket-pipeline/pflotran-test.sh
+            - ./.bitbucket-pipeline/pflotran-interface-build.sh
+            - ./.bitbucket-pipeline/pflotran-interface-test.sh

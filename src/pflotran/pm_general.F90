@@ -52,6 +52,8 @@ function PMGeneralCreate()
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                GAS_SATURATION
+  use Upwind_Direction_module
+
   implicit none
   
   class(pm_general_type), pointer :: PMGeneralCreate
@@ -75,6 +77,11 @@ function PMGeneralCreate()
   
   call PMSubsurfaceFlowCreate(general_pm)
   general_pm%name = 'General Multiphase Flow'
+  general_pm%header = 'GENERAL MULTIPHASE FLOW'
+
+  ! turn off default upwinding which is set to PETSC_TRUE in
+  !  upwind_direction.F90
+  fix_upwind_direction = PETSC_FALSE
 
   PMGeneralCreate => general_pm
   
@@ -122,7 +129,8 @@ subroutine PMGeneralRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
+    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
@@ -219,7 +227,7 @@ subroutine PMGeneralRead(this,input)
     end select
     
   enddo  
-  
+
   if (general_isothermal .and. &
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
     option%io_buffer = 'Isothermal GENERAL mode may only be run with ' // &
@@ -278,6 +286,7 @@ subroutine PMGeneralInitializeTimestep(this)
   use Global_module
   use Variables_module, only : TORTUOSITY
   use Material_module, only : MaterialAuxVarCommunicate
+  use Option_module
   
   implicit none
   
@@ -290,10 +299,6 @@ subroutine PMGeneralInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," GENERAL FLOW ",64("="))')
-  endif
-  
   call GeneralInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
   
@@ -330,7 +335,8 @@ end subroutine PMGeneralPostSolve
 ! ************************************************************************** !
 
 subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                   num_newton_iterations,tfac, &
+                                   time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -350,6 +356,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscInt :: ifac
@@ -374,6 +381,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 
@@ -642,9 +650,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             temp_real = dabs(temp_real / del_liquid_pressure)
           else
             option%io_buffer = 'Something is seriously wrong in ' // &
-              'GeneralCheckUpdatePre(liquid<min).  Contact Glenn through ' // &
-              'pflotran-dev@googlegroups.com.'
-            call printErrMsg(option)
+              'GeneralCheckUpdatePre(liquid<min).'
+            call PrintErrMsgToDev('',option)
           endif
 #ifdef DEBUG_GENERAL_INFO
           if (cell_locator(0) < max_cell_id) then
@@ -828,9 +835,8 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
           if (temp_real <= 0.d0) then
             ! add info on pressures here
             option%io_buffer = 'Something is seriously wrong in ' // &
-              'GeneralCheckUpdatePre(gas<=air).  Contact Glenn through ' // &
-              'pflotran-dev@googlegroups.com.'
-            call printErrMsg(option)
+              'GeneralCheckUpdatePre(gas<=air).'
+            call PrintErrMsgToDev('',option)
           endif
 #ifdef DEBUG_GENERAL_INFO
           if (cell_locator(0) < max_cell_id) then

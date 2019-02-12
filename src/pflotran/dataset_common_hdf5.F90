@@ -26,13 +26,12 @@ module Dataset_Common_HDF5_class
             DatasetCommonHDF5ReadSelectCase, &
             DatasetCommonHDF5Load, &
             DatasetCommonHDF5IsCellIndexed, &
+            DatasetCommonHDF5GetNameInfo, & 
             DatasetCommonHDF5Print, &
             DatasetCommonHDF5Strip, &
             DatasetCommonHDF5Destroy
   
-#if defined(PETSC_HAVE_HDF5)   
   public :: DatasetCommonHDF5ReadTimes
-#endif  
 
 contains
 
@@ -152,12 +151,6 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
 
-#if !defined(PETSC_HAVE_HDF5)
-  option%io_buffer = 'HDF5 formatted datasets not supported &
-    &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
-  call printErrMsg(option)
-#endif
-
   input%ierr = 0
   do
   
@@ -215,8 +208,7 @@ subroutine DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
       call InputReadWord(input,option,this%hdf5_dataset_name,PETSC_TRUE)
       call InputErrorMsg(input,option,'hdf5_dataset_name','DATASET')
     case('FILENAME') 
-      call InputReadNChars(input,option,this%filename, &
-                            MAXSTRINGLENGTH,PETSC_TRUE)
+      call InputReadFilename(input,option,this%filename)
       call InputErrorMsg(input,option,'name','DATASET')
     case('REALIZATION_DEPENDENT')
       this%realization_dependent = PETSC_TRUE
@@ -228,8 +220,6 @@ subroutine DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
   end select  
   
 end subroutine DatasetCommonHDF5ReadSelectCase
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -307,8 +297,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     if (h5fopen_err == 0) then
       option%io_buffer = 'Opening hdf5 group: ' // trim(dataset_name)
       call printMsg(option)
-      call h5gopen_f(file_id,dataset_name,grp_id,hdf5_err)
-
+      call HDF5GroupOpen(file_id,dataset_name,grp_id,option)
       attribute_name = "Time Units"
       call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
       if (attribute_exists) then
@@ -415,7 +404,6 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr);CHKERRQ(ierr)
   
 end subroutine DatasetCommonHDF5ReadTimes
-#endif
 
 ! ************************************************************************** !
 
@@ -427,9 +415,7 @@ function DatasetCommonHDF5Load(this,option)
   ! Date: 05/03/13
   ! 
   
-#if defined(PETSC_HAVE_HDF5)    
   use hdf5, only : H5T_NATIVE_DOUBLE
-#endif
   use Option_module
   use Time_Storage_module
 
@@ -445,10 +431,8 @@ function DatasetCommonHDF5Load(this,option)
   DatasetCommonHDF5Load = PETSC_FALSE
   
   if (.not.associated(this%time_storage)) then
-#if defined(PETSC_HAVE_HDF5)    
     call DatasetCommonHDF5ReadTimes(this%filename,this%hdf5_dataset_name, &
                                     this%time_storage,option)
-#endif
     ! if no times are read, this%time_storage will be null coming out of
     ! DatasetCommonHDF5ReadTimes()
   endif
@@ -504,13 +488,9 @@ function DatasetCommonHDF5IsCellIndexed(dataset,option)
   
   PetscBool :: DatasetCommonHDF5IsCellIndexed
   
-#if defined(PETSC_HAVE_HDF5)
-
   DatasetCommonHDF5IsCellIndexed = &
     .not.HDF5GroupExists(dataset%filename,dataset%hdf5_dataset_name,option)
 
-#endif
- 
 end function DatasetCommonHDF5IsCellIndexed
 
 ! ************************************************************************** !
@@ -549,6 +529,32 @@ function DatasetCommonHDF5GetPointer(dataset_list, dataset_name, &
   end select
 
 end function DatasetCommonHDF5GetPointer
+
+! ************************************************************************** !
+
+function DatasetCommonHDF5GetNameInfo(this)
+  ! 
+  ! Returns naming information for dataset
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/20/18
+  ! 
+  implicit none
+
+  class(dataset_common_hdf5_type) :: this
+
+  character(len=MAXSTRINGLENGTH) :: DatasetCommonHDF5GetNameInfo
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  string = DatasetBaseGetNameInfo(this)
+  if (len_trim(this%hdf5_dataset_name) > 0) then
+    string = trim(string) // ' HDF5_DATASET_NAME: "' // &
+             trim(this%hdf5_dataset_name) // '"'
+  endif
+  DatasetCommonHDF5GetNameInfo = string
+
+end function DatasetCommonHDF5GetNameInfo
 
 ! ************************************************************************** !
 

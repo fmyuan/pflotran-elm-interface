@@ -1,6 +1,9 @@
 module Geomechanics_Grid_module
 
 #include "petsc/finclude/petscvec.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscvec
   use Geomechanics_Grid_Aux_module
   use Grid_Unstructured_Cell_module
@@ -9,10 +12,6 @@ module Geomechanics_Grid_module
   implicit none
 
   private 
-
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
 
   !  PetscInt, parameter :: HEX_TYPE          = 1
   !  PetscInt, parameter :: TET_TYPE          = 2
@@ -1186,8 +1185,8 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
       vertex_ids_geomech(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
         max_size_old = max_size
-        call reallocateIntArray(cell_ids_flow, max_size_old)
-        call reallocateIntArray(vertex_ids_geomech, max_size)
+        call ReallocateArray(cell_ids_flow, max_size_old)
+        call ReallocateArray(vertex_ids_geomech, max_size)
       endif
     enddo
 

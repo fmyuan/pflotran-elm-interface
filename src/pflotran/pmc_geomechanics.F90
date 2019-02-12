@@ -165,14 +165,15 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
   call printMsg(option)
 
-  ! shell for custom convergence test.  The default SNES convergence test
-  ! is call within this function.
-  ts_steady%convergence_context => &
-             ConvergenceContextCreate(solver,option, &
-                                      this%subsurf_realization%patch%grid)
-  call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
-                              ts_steady%convergence_context, &
-                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)            
+  call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                              PMCheckConvergence, &
+                              this%pm_ptr%pm, &
+#else
+                              PMCheckConvergencePtr, &
+                              this%pm_ptr, &
+#endif
+                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
   call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
@@ -315,7 +316,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
   ! 
   ! This routine updates data in simulation_aux that is required by other
   ! process models.
-  ! 
+  !
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/01/14
   ! 
@@ -324,6 +325,7 @@ subroutine PMCGeomechanicsSetAuxData(this)
   use petscvec
   use Option_module
   use Grid_module
+  use Geomechanics_Subsurface_Properties_module
 
   implicit none
 
@@ -334,13 +336,29 @@ subroutine PMCGeomechanicsSetAuxData(this)
   PetscInt :: local_id
   PetscScalar, pointer :: por0_p(:)
   PetscScalar, pointer :: por_p(:)
+  PetscScalar, pointer :: perm0_p(:)
+  PetscScalar, pointer :: perm_p(:)
   PetscScalar, pointer :: strain_p(:)
+  PetscScalar, pointer :: stress_p(:)
+  PetscScalar, pointer :: press_p(:)
+  PetscReal :: local_stress(6), local_strain(6), local_pressure
   PetscErrorCode :: ierr
   PetscReal :: trace_epsilon
   PetscReal :: por_new
+  PetscReal :: perm_new
+  PetscInt :: i
+  Vec :: geomech_vec
+  Vec :: subsurf_vec
+  PetscScalar, pointer :: subsurf_vec_p(:)
+  PetscViewer :: viewer
+
+#if GEOMECH_DEBUG
+print *, 'PMCGeomechSetAuxData'
+#endif
+
 
   ! If at initialization stage, do nothing
-  if (this%timestepper%steps == 0) return
+!  if (this%timestepper%steps == 0) return
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)
@@ -348,50 +366,147 @@ subroutine PMCGeomechanicsSetAuxData(this)
 
         grid => pmc%subsurf_realization%patch%grid
 
-        ! Save strain dataset in sim_aux%subsurf_strain
+        ! Find the number of geomech grid nodes for each flow cell
+        call VecDuplicate(pmc%geomech_realization%geomech_field%strain, &
+                          geomech_vec,ierr);CHKERRQ(ierr)
+        call VecSet(geomech_vec,1.d0,ierr);CHKERRQ(ierr)
+
+        call VecDuplicate(pmc%sim_aux%subsurf_strain, &
+                          subsurf_vec,ierr);CHKERRQ(ierr)
+        call VecSet(subsurf_vec,0.d0,ierr);CHKERRQ(ierr)
+
+        call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
+                             geomech_vec,subsurf_vec, &
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+        call VecScatterEnd(pmc%sim_aux%geomechanics_to_subsurf, &
+                             geomech_vec,subsurf_vec, &
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_vec_adjacency_count.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(subsurf_vec,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+
+       ! Save strain dataset in sim_aux%subsurf_strain
+        call VecSet(pmc%sim_aux%subsurf_strain,0.d0,ierr);CHKERRQ(ierr)
         call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
                              pmc%geomech_realization%geomech_field%strain, &
                              pmc%sim_aux%subsurf_strain, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
         call VecScatterEnd(pmc%sim_aux%geomechanics_to_subsurf, &
                            pmc%geomech_realization%geomech_field%strain, &
                            pmc%sim_aux%subsurf_strain, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-                             
+                           ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_strain_vector_before_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_strain,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+                            
         ! Save stress dataset in sim_aux%subsurf_stress
+        call VecSet(pmc%sim_aux%subsurf_stress,0.d0,ierr);CHKERRQ(ierr)
         call VecScatterBegin(pmc%sim_aux%geomechanics_to_subsurf, &
                              pmc%geomech_realization%geomech_field%stress, &
                              pmc%sim_aux%subsurf_stress, &
-                             INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                             ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
         call VecScatterEnd(pmc%sim_aux%geomechanics_to_subsurf, &
                            pmc%geomech_realization%geomech_field%stress, &
                            pmc%sim_aux%subsurf_stress, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                           ADD_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_stress_vector_before_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_stress,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+
+        ! Calculate the average stress and strain
+        call VecPointwiseDivide(pmc%sim_aux%subsurf_strain, &
+                                pmc%sim_aux%subsurf_strain, &
+                                subsurf_vec,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_strain_vector_after_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_strain,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+ 
+        call VecPointwiseDivide(pmc%sim_aux%subsurf_stress, &
+                                pmc%sim_aux%subsurf_stress, &
+                                subsurf_vec,ierr);CHKERRQ(ierr)
+
+#if GEOMECH_DEBUG
+  call PetscViewerASCIIOpen(this%option%mycomm,'subsurf_stress_vector_after_averaging.out',viewer,ierr);CHKERRQ(ierr)
+  call VecView(pmc%sim_aux%subsurf_stress,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
+#endif
+ 
 
         ! Update porosity dataset in sim_aux%subsurf_por
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por0, por0_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_por, por_p,  &
+        call VecGetArrayF90(pmc%sim_aux%subsurf_por,por_p,  &
                             ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(pmc%sim_aux%subsurf_strain, strain_p,  &
+        ! Perm
+        call VecGetArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
                             ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
+                            ierr);CHKERRQ(ierr)   
+        ! Strain
+        call VecGetArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
+                            ierr);CHKERRQ(ierr)
+        ! Stress
+        call VecGetArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+                            ierr);CHKERRQ(ierr)
+        ! Flow
+        call VecGetArrayF90(pmc%subsurf_realization%field%flow_xx, &
+                            press_p,ierr);CHKERRQ(ierr)
 
         do local_id = 1, grid%nlmax
-          trace_epsilon = strain_p((local_id - 1)*SIX_INTEGER + ONE_INTEGER) + &
-                          strain_p((local_id - 1)*SIX_INTEGER + TWO_INTEGER) + &
-                          strain_p((local_id - 1)*SIX_INTEGER + THREE_INTEGER)
-          por_new = por0_p(local_id)/(1.d0 + (1.d0 - por0_p(local_id))*trace_epsilon)
+          do i = 1, SIX_INTEGER                
+            local_stress(i) = stress_p((local_id - 1)*SIX_INTEGER + i)
+            local_strain(i) = strain_p((local_id - 1)*SIX_INTEGER + i)
+          enddo
+            local_pressure = press_p(local_id)
+          ! Update porosity based on stress/strain
+          call GeomechanicsSubsurfacePropsPoroEvaluate( &
+                 grid, &
+                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                 por0_p(local_id),local_stress,local_strain,local_pressure, &
+                 por_new)
           por_p(local_id) = por_new
+          ! Update permeability based on stress/strain
+          call GeomechanicsSubsurfacePropsPermEvaluate( &
+                 grid, &
+                 pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
+                 perm0_p(local_id),local_stress,local_strain,local_pressure, &
+                 perm_new)
+          perm_p(local_id) = perm_new
         enddo
 
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, por0_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0,por0_p,  &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain, strain_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_strain,strain_p,  &
                                 ierr);CHKERRQ(ierr)
-        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, por_p,  &
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_por,por_p,  &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_stress,stress_p, &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%subsurf_realization%field%flow_xx, &
+                                press_p,ierr);CHKERRQ(ierr)
+
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm0,perm0_p,  &
+                                ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_perm,perm_p,  &
                                 ierr);CHKERRQ(ierr)
 
-      endif
+        call VecDestroy(geomech_vec,ierr);CHKERRQ(ierr)
+        call VecDestroy(subsurf_vec,ierr);CHKERRQ(ierr)
+
+    endif
 
   end select
 
@@ -419,6 +534,10 @@ subroutine PMCGeomechanicsGetAuxData(this)
   class(pmc_geomechanics_type) :: this
 
   PetscErrorCode :: ierr
+
+#if GEOMECH_DEBUG
+print *, 'PMCGeomechanicsGetAuxData'
+#endif
 
   select type(pmc => this)
     class is(pmc_geomechanics_type)

@@ -17,7 +17,7 @@ module PM_TOWG_class
     PetscInt, pointer :: max_change_isubvar(:)
     ! A) and B) could be moved to pm_subsurface
     !A) used for truncation within CheckUpdatePre
-    PetscReal :: trunc_max_pressure_change = 5.d4
+    PetscReal :: trunc_max_pressure_change = 5.d10
     PetscInt ::  max_it_before_damping = UNINITIALIZED_INTEGER
     PetscReal :: damping_factor = 0.6d0
     !B) used for convergence criteria within CheckUpdatePost
@@ -70,7 +70,7 @@ function PMTOWGCreate(miscibility_model,option)
   use Variables_module, only : OIL_PRESSURE, GAS_PRESSURE, &
                                OIL_SATURATION, GAS_SATURATION, &
                                OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &  
-                               TEMPERATURE, SOLVENT_SATURATION
+                               TEMPERATURE, SOLVENT_SATURATION,BUBBLE_POINT
   implicit none
   
   class(pm_towg_type), pointer :: PMTOWGCreate
@@ -87,38 +87,31 @@ function PMTOWGCreate(miscibility_model,option)
   allocate(towg_pm)
 
   select case(trim(miscibility_model))
-    case('TOWG_IMMISCIBLE','TODD_LONGOSTAFF','TOWG_MISCIBLE')
+    case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE')
       allocate(towg_pm%max_change_ivar(4))
       towg_pm%max_change_ivar = [OIL_PRESSURE, OIL_SATURATION, &
                                  GAS_SATURATION,TEMPERATURE]
       allocate(towg_pm%max_change_isubvar(4))
       towg_pm%max_change_isubvar = [0,0,0,0]
     case('BLACK_OIL')
-      allocate(towg_pm%max_change_ivar(7))
-      towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
-                                 OIL_SATURATION, GAS_SATURATION, &
-                                 OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
-                                 TEMPERATURE]
-      allocate(towg_pm%max_change_isubvar(8))
-                                           !2 = gas in xmol(gas_c,oil_phase)
-      towg_pm%max_change_isubvar = [0,0,0,0,2,1,0]
-                                             !1 = gas in xmol(gas_c,gas_phase)
+      allocate(towg_pm%max_change_ivar(5))
+      towg_pm%max_change_ivar = [OIL_PRESSURE, OIL_SATURATION, &
+                                 GAS_SATURATION,TEMPERATURE,BUBBLE_POINT]
+      allocate(towg_pm%max_change_isubvar(5))
+      towg_pm%max_change_isubvar = [0,0,0,0,0]
     case('SOLVENT_TL')
-      allocate(towg_pm%max_change_ivar(8))
-      towg_pm%max_change_ivar = [OIL_PRESSURE, GAS_PRESSURE, &
-                                 OIL_SATURATION, GAS_SATURATION, &
-                                 OIL_MOLE_FRACTION, GAS_MOLE_FRACTION, &
-                                 TEMPERATURE, SOLVENT_SATURATION]
-      allocate(towg_pm%max_change_isubvar(8))
-                                           !2 = gas in xmol(gas_c,oil_phase)
-      towg_pm%max_change_isubvar = [0,0,0,0,2,1,0,0]
-                                             !1 = gas in xmol(gas_c,gas_phase)
+      allocate(towg_pm%max_change_ivar(6))
+      towg_pm%max_change_ivar = [OIL_PRESSURE, OIL_SATURATION, &
+                                 GAS_SATURATION,SOLVENT_SATURATION,TEMPERATURE,BUBBLE_POINT]
+      allocate(towg_pm%max_change_isubvar(6))
+      towg_pm%max_change_isubvar = [0,0,0,0,0,0]
     case default
       call InputKeywordUnrecognized(miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
   end select
 
-  towg_pm%trunc_max_pressure_change = 5.d4
+  !towg_pm%trunc_max_pressure_change = 5.d4
+  towg_pm%trunc_max_pressure_change = 5.d10
   towg_pm%max_it_before_damping = UNINITIALIZED_INTEGER
   towg_pm%damping_factor = 0.6d0
   towg_pm%itol_rel_update = UNINITIALIZED_DOUBLE
@@ -132,18 +125,22 @@ function PMTOWGCreate(miscibility_model,option)
       towg_miscibility_model = TOWG_IMMISCIBLE
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
-    case('TODD_LONGOSTAFF','TOWG_MISCIBLE')
+      option%iflow_sub_mode = TOWG_IMMISCIBLE
+    case('TODD_LONGSTAFF','TOWG_MISCIBLE')
       towg_miscibility_model = TOWG_TODD_LONGSTAFF
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_TODD_LONGSTAFF
     case('BLACK_OIL')
       towg_miscibility_model = TOWG_BLACK_OIL
       towg_energy_dof = TOWG_3CMPS_ENERGY_DOF
       towg_energy_eq_idx = TOWG_3CMPS_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_BLACK_OIL
     case('SOLVENT_TL')
       towg_miscibility_model = TOWG_SOLVENT_TL
       towg_energy_dof = TOWG_SOLV_TL_ENERGY_DOF
       towg_energy_eq_idx = TOWG_SOLV_TL_ENERGY_EQ_IDX
+      option%iflow_sub_mode = TOWG_SOLVENT_TL
     case default
       call InputKeywordUnrecognized(miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
@@ -165,6 +162,7 @@ function PMTOWGCreate(miscibility_model,option)
 
   call PMSubsurfaceFlowCreate(towg_pm)
   towg_pm%name = 'TOWG Flow'
+  towg_pm%header = 'TOWG FLOW'
 
   PMTOWGCreate => towg_pm
   
@@ -215,27 +213,16 @@ subroutine PMTOWGRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
+    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
-      !case('MISCIBILITY_MODEL')
-      !  ! read a word, add a new select case, and detect the case
-      !  call InputReadWord(input,option,word,PETSC_TRUE)
-      !  call InputErrorMsg(input,option,'MODEL type','MISCIBILITY_MODEL')  
-      !  call StringToUpper(word)
-      !  select case(trim(word)) 
-      !    case('IMMISICIBLE')
-      !      towg_miscibility_model = TOWG_IMMISCIBLE
-      !    case('TODD_LONGOSTAFF','MISCIBLE')
-      !      towg_miscibility_model = TOWG_TODD_LONGSTAFF
-      !    case('BLACK_OIL')
-      !      towg_miscibility_model = TOWG_BLACK_OIL
-      !    case('SOLVENT_TL')
-      !      towg_miscibility_model = TOWG_SOLVENT_TL
-      !    case default
-      !      call InputKeywordUnrecognized(keyword,'MISCIBILITY_MODEL',option)
-      !  end select 
+      case('TL_OMEGA')
+        call InputReadDouble(input,option,val_tl_omega)
+        call InputDefaultMsg(input,option,'towg tl_omega')
+      case('FMIS' )
+        call FMISOWGRead(input,option)
       case('ITOL_SCALED_RESIDUAL')
         call InputReadDouble(input,option,this%itol_scaled_res)
         call InputDefaultMsg(input,option,'towg itol_scaled_res')
@@ -387,10 +374,6 @@ subroutine PMTOWGInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TOWG FLOW ",64("="))')
-  endif
-  
   call TOWGInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
   
@@ -562,7 +545,8 @@ end subroutine PMTOWGMaxChange
 ! ************************************************************************** !
 
 subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                num_newton_iterations,tfac, &
+                                time_step_max_growth_factor)
   ! 
   ! Author: Paolo Orsini
   ! Date: 12/30/16
@@ -571,7 +555,6 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Realization_Base_class, only : RealizationGetVariable
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
   use Field_module
-  use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
 
   implicit none
@@ -582,6 +565,7 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscInt :: ifac
@@ -606,6 +590,7 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 
@@ -669,9 +654,6 @@ subroutine PMTOWGCheckpointBinary(this,viewer)
   class(pm_towg_type) :: this
   PetscViewer :: viewer
   
-  !call GlobalGetAuxVarVecLoc(this%realization, &
-  !                           this%realization%field%iphas_loc, &
-  !                           STATE,ZERO_INTEGER)
   call PMSubsurfaceFlowCheckpointBinary(this,viewer)
   
 end subroutine PMTOWGCheckpointBinary
@@ -698,9 +680,6 @@ subroutine PMTOWGRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call PMSubsurfaceFlowRestartBinary(this,viewer)
-  call GlobalSetAuxVarVecLoc(this%realization, &
-                             this%realization%field%iphas_loc, &
-                             STATE,ZERO_INTEGER)
   
 end subroutine PMTOWGRestartBinary
 
@@ -735,7 +714,57 @@ subroutine PMTOWGDestroy(this)
   
 end subroutine PMTOWGDestroy
 
+subroutine FMISOWGRead(input,option)
+
+!------------------------------------------------------------------------------
+! Read in the parameters describing required fs->fm conversion in TL4P
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : May 2018
+!------------------------------------------------------------------------------
+
+  use Option_module
+  use Input_Aux_module
+  use PM_TOWG_Aux_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  PetscReal:: fmis_av
+  PetscReal,parameter:: eps=0.001
+
+  character(len=MAXSTRINGLENGTH) :: error_string='FMIS'
+
+!--Basic read operations-------------------------------------------------------
+
+  call InputReadDouble(input,option,fmis_sl)
+  call InputErrorMsg(input,option,'Lower saturation point',error_string)
+  call InputReadDouble(input,option,fmis_su)
+  call InputErrorMsg(input,option,'Upper saturation point',error_string)
+
+!--Order, separation and range checks------------------------------------------
+
+  if(      fmis_sl==1.0d0 ) then
+    fmis_is_zero =.true.
+  else if( fmis_su==0.0d0 ) then
+    fmis_is_unity=.true.
+  else
+    if( fmis_su<=fmis_sl ) then
+      option%io_buffer = 'Second FMIS value must exceed first'
+      call printErrMsg(option)
+      fmis_av=0.5*(fmis_sl+fmis_su)
+      fmis_sl=fmis_av-0.5*eps
+      fmis_su=fmis_av+0.5*eps
+    endif
+  endif
+
+  fmis_sl=max(fmis_sl,0.0d0)
+  fmis_su=min(fmis_su,1.0d0)
+
+end subroutine FMISOWGRead
+
 ! ************************************************************************** !
 
 end module PM_TOWG_class
-

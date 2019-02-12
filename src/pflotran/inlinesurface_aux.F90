@@ -45,14 +45,13 @@ contains
     ! Date: 09/2015
     ! 
     use Option_module
+    use Utility_module, only : InitToNan
     implicit none
     type(inlinesurface_auxvar_type) :: auxvar
     type(option_type)               :: option
     PetscReal      :: NaN
 
-    NaN = 0.d0
-    NaN = 1.d0/NaN
-    NaN = 0.d0*NaN
+    NaN = InitToNan()
     auxvar%half_cell_height    = NaN
     auxvar%surface_water_depth = NaN
     auxvar%Mannings_coeff      = NaN

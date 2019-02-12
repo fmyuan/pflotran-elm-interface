@@ -27,6 +27,7 @@ f = plt.figure(figsize=(10,6))
 f.suptitle("Copper Leaching",fontsize=14)
 ax = f.gca(projection='3d')
 
+ax.set_title('Jurbanite')
 ax.set_xlabel('X [m]')
 ax.set_ylabel('Y [m]')
 ax.set_zlabel('Volume Fraction')

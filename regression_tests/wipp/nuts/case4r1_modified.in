@@ -27,7 +27,10 @@ REGRESSION
 END
 
 #=========================== flow =============================================
-UNIFORM_VELOCITY 1.d-7 0.d0 0.d0 ! m/s
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d-7 0.d0 0.d0 m/s
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -41,7 +44,7 @@ CHEMISTRY
   /
   DATABASE ../../../database/hanford.dat
   OUTPUT
-    all
+    ALL
     TOTAL
   /
 END
@@ -108,7 +111,7 @@ REGION reservoir
 END
 
 REGION inlet
-  FACE west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 20.d0 20.d0
@@ -116,7 +119,7 @@ REGION inlet
 END
 
 REGION outlet
-  FACE east
+  FACE EAST
   COORDINATES
     120.d0 0.d0 0.d0
     120.d0 20.d0 20.d0

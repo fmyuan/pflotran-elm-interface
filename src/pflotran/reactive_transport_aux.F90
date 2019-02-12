@@ -14,7 +14,8 @@ module Reactive_Transport_Aux_module
 
   PetscReal, public :: rt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
- 
+  PetscReal, public :: rt_min_saturation = 0.d0
+
   type, public :: reactive_transport_auxvar_type
     ! molality
     PetscReal, pointer :: pri_molal(:)     ! mol/kg water
@@ -73,6 +74,7 @@ module Reactive_Transport_Aux_module
   end type reactive_transport_auxvar_type
 
   type, public :: reactive_transport_param_type
+    PetscInt :: nphase
     PetscInt :: ncomp
     PetscInt :: naqcomp
     PetscInt :: nimcomp
@@ -87,7 +89,7 @@ module Reactive_Transport_Aux_module
     PetscInt, pointer :: pri_spec_to_coll_spec(:)
     PetscInt, pointer :: coll_spec_to_pri_spec(:)
     PetscReal, pointer :: diffusion_coefficient(:,:)
-    PetscReal, pointer :: diffusion_activation_energy(:)
+    PetscReal, pointer :: diffusion_activation_energy(:,:)
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -145,7 +147,7 @@ contains
 
 ! ************************************************************************** !
 
-function RTAuxCreate(option,naqcomp)
+function RTAuxCreate(naqcomp,nphase)
   ! 
   ! Allocate and initialize auxiliary object
   ! 
@@ -159,8 +161,8 @@ function RTAuxCreate(option,naqcomp)
 
   implicit none
   
-  type(option_type) :: option
   PetscInt :: naqcomp
+  PetscInt :: nphase
   type(reactive_transport_type), pointer :: RTAuxCreate
   
   type(reactive_transport_type), pointer :: aux
@@ -178,12 +180,13 @@ function RTAuxCreate(option,naqcomp)
   aux%inactive_cells_exist = PETSC_FALSE
 
   allocate(aux%rt_parameter)
-  allocate(aux%rt_parameter%diffusion_coefficient(naqcomp,option%nphase))
-  allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp))
+  aux%rt_parameter%naqcomp = naqcomp
+  aux%rt_parameter%nphase = nphase
+  allocate(aux%rt_parameter%diffusion_coefficient(naqcomp,nphase))
+  allocate(aux%rt_parameter%diffusion_activation_energy(naqcomp,nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
   aux%rt_parameter%diffusion_activation_energy = 0.d0
   aux%rt_parameter%ncomp = 0
-  aux%rt_parameter%naqcomp = 0
   aux%rt_parameter%nimcomp = 0
   aux%rt_parameter%ngas = 0
   aux%rt_parameter%ncoll = 0
@@ -237,11 +240,11 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   allocate(auxvar%pri_molal(reaction%naqcomp))
   auxvar%pri_molal = 0.d0
 
-  allocate(auxvar%total(reaction%naqcomp,option%nphase))
+  allocate(auxvar%total(reaction%naqcomp,reaction%nphase))
   auxvar%total = 0.d0
   auxvar%aqueous => MatrixBlockAuxVarCreate(option)
   call MatrixBlockAuxVarInit(auxvar%aqueous,reaction%naqcomp, &
-                             reaction%naqcomp,option%nphase,option)
+                             reaction%naqcomp,reaction%nphase,option)
   
   if (reaction%neqcplx > 0) then
     allocate(auxvar%sec_molal(reaction%neqcplx))
@@ -350,9 +353,9 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   auxvar%ln_act_h2o = 0.d0
   
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
-    allocate(auxvar%mass_balance(reaction%ncomp,option%nphase))
+    allocate(auxvar%mass_balance(reaction%ncomp,reaction%nphase))
     auxvar%mass_balance = 0.d0
-    allocate(auxvar%mass_balance_delta(reaction%ncomp,option%nphase))
+    allocate(auxvar%mass_balance_delta(reaction%ncomp,reaction%nphase))
     auxvar%mass_balance_delta = 0.d0
   else
     nullify(auxvar%mass_balance)

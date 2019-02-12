@@ -3,9 +3,6 @@ module Realization_Surface_class
   use Realization_Base_class
   
   use Condition_module
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
   use Debug_module
   use Discretization_module
   use Input_Aux_module
@@ -26,6 +23,9 @@ private
 
 
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
 
   PetscReal, parameter :: eps       = 1.D-8
 
@@ -34,9 +34,6 @@ private
     type(surface_field_type), pointer :: surf_field
     type(region_list_type), pointer :: surf_regions
     type(condition_list_type),pointer :: surf_flow_conditions
-#ifdef WELL_CLASS
-    type(well_spec_list_type), pointer :: surf_well_specs
-#endif
     type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
@@ -109,7 +106,6 @@ function RealizSurfCreate(option)
   allocate(surf_realization)
   call RealizationBaseInit(surf_realization,option)
   surf_realization%option => option
-  nullify(surf_realization%input)
 
   surf_realization%surf_field => SurfaceFieldCreate()
   !geh: debug, output_option, patch_list already allocated in 
@@ -126,10 +122,7 @@ function RealizSurfCreate(option)
   
   allocate(surf_realization%surf_flow_conditions)
   call FlowConditionInitList(surf_realization%surf_flow_conditions)
-#ifdef WELL_CLASS
-  allocate(surf_realization%surf_well_specs)
-  call WellSpecInitList(surf_realization%surf_well_specs)
-#endif
+
   allocate(surf_realization%surf_transport_conditions)
   call TranConditionInitList(surf_realization%surf_transport_conditions)
   
@@ -210,9 +203,6 @@ subroutine RealizSurfProcessCouplers(surf_realization)
     if (.not.associated(cur_patch)) exit
     call PatchProcessCouplers(cur_patch,surf_realization%surf_flow_conditions, &
                               surf_realization%surf_transport_conditions, &
-#ifdef WELL_CLASS
-                              surf_realization%surf_well_specs, & 
-#endif
                               surf_realization%option)
     cur_patch => cur_patch%next
   enddo
@@ -430,6 +420,7 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   ! set up internal connectivity, distance, etc.
   call GridComputeInternalConnect(grid,option,discretization%dm_1dof%ugdm) 
   call GridComputeAreas(grid,surf_field%area,option)
+  call GridPrintExtents(grid,option)
 
   ! Allocate vectors to hold flowrate quantities
   if (surf_realization%output_option%print_hdf5_mass_flowrate.or. &
@@ -637,8 +628,7 @@ subroutine RealizSurfInitAllCouplerAuxVars(surf_realization)
   type(patch_type), pointer :: cur_patch
 
   call FlowConditionUpdate(surf_realization%surf_flow_conditions, &
-                           surf_realization%option, &
-                           surf_realization%option%time)
+                           surf_realization%option)
 
   cur_patch => surf_realization%patch_list%first
   do
@@ -699,18 +689,20 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   use Option_module
   use Patch_module
   use Region_module
+  use DM_Kludge_module, only : dm_ptr_type
 
   implicit none
 
   class(realization_subsurface_type), pointer :: realization
   class(realization_surface_type), pointer :: surf_realization
 
-  type(option_type), pointer :: option
+  type(option_type), pointer           :: option
   type(grid_unstructured_type),pointer :: subsurf_grid
   type(grid_unstructured_type),pointer :: surf_grid
-  type(patch_type), pointer :: cur_patch 
-  type(region_type), pointer :: cur_region, top_region
-  type(region_type), pointer :: patch_region
+  type(patch_type), pointer            :: cur_patch 
+  type(region_type), pointer           :: cur_region, top_region
+  type(region_type), pointer           :: patch_region
+  type(dm_ptr_type), pointer :: dm_ptr
 
   Mat :: Mat_vert_to_face_subsurf
   Mat :: Mat_vert_to_face_subsurf_transp
@@ -718,6 +710,8 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   Mat :: Mat_vert_to_face_surf_transp
   Mat :: prod
   Vec :: subsurf_petsc_ids, surf_petsc_ids
+  Vec :: subsurf_nat_ids, surf_nat_ids
+  Vec :: corr_subsurf_nat_ids, corr_surf_nat_ids
 
   PetscViewer :: viewer
 
@@ -734,6 +728,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   PetscInt :: ivertex, vertex_id_local
   PetscReal :: real_array4(4)
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
 
   PetscErrorCode :: ierr
   PetscBool :: found
@@ -795,10 +790,15 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
 
   call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
                     subsurf_petsc_ids,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
+                    subsurf_nat_ids,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
+                    corr_surf_nat_ids,ierr);CHKERRQ(ierr)
   call MatZeroEntries(Mat_vert_to_face_subsurf,ierr);CHKERRQ(ierr)
   real_array4 = 1.d0
 
   call VecGetArrayF90(subsurf_petsc_ids,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(subsurf_nat_ids,vec_ptr2,ierr);CHKERRQ(ierr)
 
   offset=0
   call MPI_Exscan(top_region%num_cells,offset, &
@@ -809,6 +809,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
     vec_ptr(ii) = subsurf_grid%cell_ids_petsc(local_id)
     iface    = top_region%faces(ii)
     cell_type = subsurf_grid%cell_type(local_id)
+    vec_ptr2(ii) = subsurf_grid%cell_ids_natural(local_id)
     !nfaces = UCellGetNFaces(cell_type,option)
 
     call UCellGetNFaceVertsandVerts(option,cell_type,iface,nvertices, &
@@ -835,6 +836,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   enddo
 
   call VecRestoreArrayF90(subsurf_petsc_ids,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(subsurf_nat_ids,vec_ptr2,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(Mat_vert_to_face_subsurf,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
@@ -893,15 +895,22 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
 
   call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
                     surf_petsc_ids,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
+                    surf_nat_ids,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
+                    corr_subsurf_nat_ids,ierr);CHKERRQ(ierr)
   offset=0
   call MPI_Exscan(surf_grid%nlmax,offset, &
                   ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  CHKERRQ(ierr)
 
   call VecGetArrayF90(surf_petsc_ids,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surf_nat_ids,vec_ptr2,ierr);CHKERRQ(ierr)
 
   do local_id = 1, surf_grid%nlmax
     cell_type = surf_grid%cell_type(local_id)
     vec_ptr(local_id) = surf_grid%cell_ids_petsc(local_id)
+    vec_ptr2(local_id)= surf_grid%cell_ids_natural(local_id)
     
     int_array4_0 = 0
     nvertices = surf_grid%cell_vertices(0,local_id)
@@ -921,6 +930,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   enddo
 
   call VecRestoreArrayF90(surf_petsc_ids,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_nat_ids,vec_ptr2,ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(Mat_vert_to_face_surf,MAT_FINAL_ASSEMBLY, &
                         ierr);CHKERRQ(ierr)
@@ -982,6 +992,36 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   call RealizSurfMapSurfSubsurfGrid(realization, surf_realization, prod, THREE_DIM_GRID, &
                                         subsurf_petsc_ids)
 
+  ! For each control volume in surface mesh, get the corresponding natural ids of
+  ! subsurface control volume
+  dm_ptr => DiscretizationGetDMPtrFromIndex(realization%discretization,ONEDOF)
+  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       subsurf_nat_ids, corr_subsurf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       subsurf_nat_ids, corr_subsurf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+  dm_ptr => DiscretizationGetDMPtrFromIndex(surf_realization%discretization,ONEDOF)
+  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       surf_nat_ids, corr_surf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       surf_nat_ids, corr_surf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+  ! Save the natural ids
+  allocate(surf_grid%nat_ids_of_other_grid(surf_grid%nlmax))
+  allocate(subsurf_grid%nat_ids_of_other_grid(top_region%num_cells))
+
+  call VecGetArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
+  call VecGetArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
+  surf_grid%nat_ids_of_other_grid = int(vec_ptr)
+  subsurf_grid%nat_ids_of_other_grid = int(vec_ptr2)
+  call VecRestoreArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
+  call VecRestoreArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
+
+  ! Free up the memory
   call MatDestroy(prod,ierr);CHKERRQ(ierr)
 
   call MatDestroy(Mat_vert_to_face_subsurf,ierr);CHKERRQ(ierr)
@@ -1255,9 +1295,7 @@ subroutine RealizSurfDestroy(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(surf_realization%surf_well_specs)
-#endif
+
   call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
@@ -1304,9 +1342,7 @@ subroutine RealizSurfStrip(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(surf_realization%surf_well_specs)
-#endif
+
   call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
@@ -1344,8 +1380,7 @@ subroutine RealizSurfUpdate(surf_realization)
 
   ! must update conditions first
   call FlowConditionUpdate(surf_realization%surf_flow_conditions, &
-                           surf_realization%option, &
-                           surf_realization%option%time)
+                           surf_realization%option)
 
   call RealizSurfAllCouplerAuxVars(surf_realization,force_update_flag)
 

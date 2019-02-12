@@ -1,6 +1,7 @@
 module co2eos_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use Utility_module, only : Equal
 
   private
 
@@ -1399,7 +1400,7 @@ subroutine TSAT(PX,TX00,TS)
       PetscReal :: PX,TX00,TX0,TS,PS,DT,TSD,PSD
       
       TX0=TX00
-      if (TX0.NE.0.) GOTO 2
+      if (.not. Equal(TX0,0.d0)) GOTO 2
 !
 !-----COME HERE TO OBTAIN ROUGH STARTING VALUE FOR ITERATION.
       TX0=4606./(24.02-LOG(PX)) - 273.15

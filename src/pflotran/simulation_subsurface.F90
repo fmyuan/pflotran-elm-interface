@@ -141,6 +141,8 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'multi-phase'
     case(RICHARDS_MODE)
       write(id,'(a)') 'richards'
+    case(RICHARDS_TS_MODE)
+      write(id,'(a)') 'richards_ts'
     case(IMS_MODE)
       write(id,'(a)') 'immiscible'
     case(FLASH2_MODE)
@@ -283,13 +285,15 @@ subroutine SubsurfaceSimulationJumpStart(this)
     return
   endif
 
-  ! increment plot number so that 000 is always the initial condition, and nothing else
+  ! increment plot number so that 000 is always the initial condition, 
+  !and nothing else
   if (output_option%plot_number == 0) output_option%plot_number = 1
 
   if (associated(flow_timestepper)) then
     if (.not.associated(flow_timestepper%cur_waypoint)) then
       option%io_buffer = &
-        'Null flow waypoint list; final time likely equal to start time.'
+        'Null flow waypoint list; final time likely equal to start time.&
+        &time or simulation time needs to be extended on a restart.'
       call printMsg(option)
       option%status = FAIL
       return
@@ -300,8 +304,8 @@ subroutine SubsurfaceSimulationJumpStart(this)
   if (associated(tran_timestepper)) then
     if (.not.associated(tran_timestepper%cur_waypoint)) then
       option%io_buffer = &
-        'Null transport waypoint list; final time likely equal to start ' // &
-        'time or simulation time needs to be extended on a restart.'
+        'Null transport waypoint list; final time likely equal to start &
+        &time or simulation time needs to be extended on a restart.'
       call printMsg(option)
       option%status = FAIL
       return

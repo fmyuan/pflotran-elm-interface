@@ -14,23 +14,27 @@ module Richards_Aux_module
 
   PetscReal, public :: richards_itol_scaled_res = 1.d-5
   PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
-
+  PetscInt, public :: richards_ni_count
+  PetscInt, public :: richards_ts_cut_count
+  PetscInt, public :: richards_ts_count
+  
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
-#ifdef USE_ANISOTROPIC_MOBILITY
-    PetscReal :: kvr_x
-    PetscReal :: kvr_y
-    PetscReal :: kvr_z
-    PetscReal :: dkvr_x_dp
-    PetscReal :: dkvr_y_dp
-    PetscReal :: dkvr_z_dp
-#else
     PetscReal :: kvr
     PetscReal :: dkvr_dp
-#endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
+#endif
+
+    PetscReal :: d2sat_dp2
+    PetscReal :: d2den_dp2
+    PetscReal :: mass
+    PetscReal :: dpres_dtime
+    PetscReal :: dmass_dtime
 
     ! OLD-VAR-NAMES            = NEW-VAR
     ! ------------------------------------------------
@@ -61,7 +65,8 @@ module Richards_Aux_module
 
   public :: RichardsAuxCreate, RichardsAuxDestroy, &
             RichardsAuxVarCompute, RichardsAuxVarInit, &
-            RichardsAuxVarCopy
+            RichardsAuxVarCopy, &
+            RichardsAuxVarCompute2ndOrderDeriv
 
 contains
 
@@ -125,20 +130,17 @@ subroutine RichardsAuxVarInit(auxvar,option)
   
   auxvar%pc = 0.d0
 
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar%kvr_x = 0.d0
-  auxvar%kvr_y = 0.d0
-  auxvar%kvr_z = 0.d0
-  auxvar%dkvr_x_dp = 0.d0
-  auxvar%dkvr_y_dp = 0.d0
-  auxvar%dkvr_z_dp = 0.d0
-#else
   auxvar%kvr = 0.d0
   auxvar%dkvr_dp = 0.d0
-#endif
 
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
+
+  auxvar%d2sat_dp2 = 0.d0
+  auxvar%d2den_dp2 = 0.d0
+  auxvar%mass = 0.d0
+  auxvar%dpres_dtime = 0.d0
+  auxvar%dmass_dtime = 0.0d0
 
   if (option%surf_flow_on) then
     allocate(auxvar%vars_for_sflow(11))
@@ -146,8 +148,12 @@ subroutine RichardsAuxVarInit(auxvar,option)
   else
     nullify(auxvar%vars_for_sflow)
   endif
-  
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar%bc_alpha  = 0.0d0
+  auxvar%bc_lambda  = 0.0d0
+#endif 
+  
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
@@ -169,30 +175,32 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
 
   auxvar2%pc = auxvar%pc
 
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar2%kvr_x = auxvar%kvr_x 
-  auxvar2%kvr_y = auxvar%kvr_y 
-  auxvar2%kvr_z = auxvar%kvr_z 
-  auxvar2%dkvr_x_dp = auxvar%dkvr_x_dp 
-  auxvar2%dkvr_y_dp = auxvar%dkvr_y_dp 
-  auxvar2%dkvr_z_dp = auxvar%dkvr_z_dp 
-#else
   auxvar2%kvr = auxvar%kvr
   auxvar2%dkvr_dp = auxvar%dkvr_dp
-#endif
 
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
+  auxvar2%d2sat_dp2 = auxvar%d2sat_dp2
+  auxvar2%d2den_dp2 = auxvar%d2den_dp2
+  auxvar2%mass = auxvar%mass
+  auxvar2%dpres_dtime = auxvar%dpres_dtime
+  auxvar2%dmass_dtime = auxvar%dmass_dtime
+
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar2%bc_alpha  = auxvar%bc_alpha
+  auxvar2%bc_lambda = auxvar%bc_lambda
+#endif
 
 end subroutine RichardsAuxVarCopy
 
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-                                 characteristic_curves,option)
+                                 characteristic_curves,natural_id,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -207,6 +215,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   
   use EOS_Water_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
   use Material_Aux_class
   
   implicit none
@@ -217,6 +226,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  PetscInt :: natural_id
   
   PetscInt :: i
   PetscBool :: saturated
@@ -235,26 +245,57 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den = 0.d0
   global_auxvar%den_kg = 0.d0
   
-#ifdef USE_ANISOTROPIC_MOBILITY
-  auxvar%kvr_x = 0.d0
-  auxvar%kvr_y = 0.d0
-  auxvar%kvr_z = 0.d0
-#else
   auxvar%kvr = 0.d0
-#endif
 
   kr = 0.d0
  
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%reference_temperature
  
-  auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
+  ! For a very large negative liquid pressure (e.g. -1.d18), the capillary 
+  ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below 
+  ! and flipping the cell to saturated, when it is really far from saturated.
+  ! The large negative liquid pressure is then passed to the EOS causing it 
+  ! to blow up.  Therefore, we truncate to the max capillary pressure here.
+  auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
+                  characteristic_curves%saturation_function%pcmax)
   
 !***************  Liquid phase properties **************************
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
+
   if (auxvar%pc > 0.d0) then
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if (auxvar%bc_alpha > 0.d0) then
+      select type(sf => characteristic_curves%saturation_function)
+        class is(sat_func_VG_type)
+          sf%m     = auxvar%bc_lambda
+          sf%alpha = auxvar%bc_alpha
+        class is(sat_func_BC_type)
+            sf%lambda = auxvar%bc_lambda
+            sf%alpha  = auxvar%bc_alpha
+        class default
+          option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
+            'sat_func_VG_type and sat_func_BC_type'
+          call printErrMsg(option)
+      end select
+
+      select type(rpf => characteristic_curves%liq_rel_perm_function)
+        class is(rpf_Mualem_VG_liq_type)
+          rpf%m = auxvar%bc_lambda
+        class is(rpf_Burdine_BC_liq_type)
+          rpf%lambda = auxvar%bc_lambda
+        class is(rpf_Mualem_BC_liq_type)
+          rpf%lambda = auxvar%bc_lambda
+        class is(rpf_Burdine_VG_liq_type)
+          rpf%m = auxvar%bc_lambda
+        class default
+          option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
+          call printErrMsg(option)
+      end select
+    endif
+#endif
     saturated = PETSC_FALSE
     call characteristic_curves%saturation_function% &
                                Saturation(auxvar%pc,global_auxvar%sat(1), &
@@ -286,6 +327,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                          dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                          'Error in RichardsAuxVarCompute->EOSWaterDensity')
+    endif
     ! may need to compute dpsat_dt to pass to VISW
     call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
     !geh: 0.d0 passed in for derivative of pressure w/respect to temp
@@ -295,6 +340,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     aux(1) = global_auxvar%m_nacl(1)
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+    if (ierr /= 0) then
+      call printMsgByCell(option,natural_id, &
+                          'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
+    endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
                               visl,dvis_dt,dvis_dp,ierr) 
   endif
@@ -312,6 +361,71 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
   
 end subroutine RichardsAuxVarCompute
+
+! ************************************************************************** !
+subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,option)
+
+  ! Computes 2nd order derivatives auxiliary variables for each grid cell
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 07/02/18
+  ! 
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  use Option_module
+  use Global_Aux_module
+  
+  use EOS_Water_module
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module
+  use Material_Aux_class
+  
+  implicit none
+
+  type(option_type) :: option
+  class(characteristic_curves_type) :: characteristic_curves
+  type(richards_auxvar_type) :: auxvar
+
+  PetscReal, parameter :: dp = 1.d-4
+  PetscReal :: d2s_dp2
+  PetscReal :: d2den_dp2
+  PetscReal :: pw1,pw2
+  PetscReal :: dw_dp_1,dw_dp_2
+  PetscReal :: dw_kg,dw_mol,dw_dt
+  PetscBool :: saturated
+  PetscErrorCode :: ierr
+
+  auxvar%d2sat_dp2 = 0.d0
+  d2s_dp2 = 0.d0
+  d2den_dp2 = 0.d0
+
+  pw1 = option%reference_pressure
+  saturated = PETSC_FALSE
+
+  if (auxvar%pc > 0.d0) then
+    call characteristic_curves%saturation_function% &
+                               D2SatDP2(auxvar%pc, &
+                                          d2s_dp2,option)
+    saturated = PETSC_FALSE
+    if (auxvar%dsat_dp < 1.d-40) saturated = PETSC_TRUE
+  else
+    saturated = PETSC_TRUE
+  endif
+
+  if (saturated) then
+    pw2 = pw1 + dp
+    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
+                         dw_dp_1,dw_dt,ierr)
+    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
+                         dw_dp_2,dw_dt,ierr)
+    d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
+  endif
+
+  auxvar%d2sat_dp2 = d2s_dp2
+  auxvar%d2den_dp2 = d2den_dp2
+
+end subroutine RichardsAuxVarCompute2ndOrderDeriv
 
 ! ************************************************************************** !
 

@@ -148,6 +148,8 @@ include_directories("${PROJECT_BINARY_DIR}")
 #link_directories("${PROJECT_BINARY_DIR}/lib")
 
 set(UTIL_SOURCES
+	appleyard.F90
+	generic.F90
 	input_aux.F90
 	logging.F90
 	matrix_block_aux.F90
@@ -160,7 +162,11 @@ set(UTIL_SOURCES
 	string.F90
 	units.F90
 	utility.F90
+	toil_ims_derivs.F90
 	variables.F90
+	derivative_tests.F90
+	derivatives_utilities.F90
+	grid_grdecl_util.F90
 )
 
 set(EOS_SOURCES
@@ -170,6 +176,7 @@ set(EOS_SOURCES
 	eos_database.F90
 	eos_gas.F90
 	eos_oil.F90
+	eos_slv.F90
 	gas_eos_mod.F90
 )
 
@@ -199,6 +206,7 @@ set(MODE_AUX_SOURCES
 	pm_mphase.F90
 	pm_miscible.F90
 	pm_richards.F90
+	pm_richards_ts.F90
 	pm_rt.F90
 	pm_subsurface_flow.F90
 	pm_surface_flow.F90
@@ -289,12 +297,17 @@ set(GRID_SOURCES
 	grid_unstructured_aux.F90
 	grid_unstructured.F90
 	grid_unstructured_polyhedra.F90
+	grid_grdecl.F90
 )
 
-set(REALATIONS_SOURCES
+set(RELATIONS_SOURCES
 	saturation.F90
 	saturation_function.F90
 	characteristic_curves.F90
+	characteristic_curves_base.F90
+	characteristic_curves_common.F90
+	characteristic_curves_owg.F90
+	characteristic_curves_wipp.F90
 	mphase_pckr_mod.F90
 )
 
@@ -334,11 +347,13 @@ set(IO_SOURCES
 	output_surface.F90
 	output_tecplot.F90
 	output_vtk.F90
+	output_eclipse.F90
 )
 
 set(MISC_SOURCES
 	block_solve.F90
 	block_tridiag.F90
+	characteristic_curves_table.F90
 	checkpoint.F90
 	condition.F90
 	condition_control.F90
@@ -349,11 +364,6 @@ set(MISC_SOURCES
 	data_mediator_vec.F90
 	data_mediator_base.F90
 	debug.F90
-	e4d_mat_inv.F90
-	e4d_run.F90
-	e4d_setup.F90
-	e4d_vars.F90
-	factory_hydrogeophysics.F90
 	factory_pflotran.F90
 	factory_subsurface.F90
 	field.F90
@@ -372,7 +382,6 @@ set(MISC_SOURCES
 	patch.F90
 	pmc_auxiliary.F90
 	pmc_base.F90
-	pmc_hydrogeophysics.F90
 	pmc_subsurface.F90
 	pmc_third_party.F90
 	realization_base.F90
@@ -383,29 +392,22 @@ set(MISC_SOURCES
 	secondary_continuum.F90
 	simulation_aux.F90
 	simulation_base.F90
-	simulation_hydrogeophysics.F90
 	simulation_subsurface.F90
 	solver.F90
 	spline.F90
 	strata.F90
 	timestepper_base.F90
 	timestepper_BE.F90
+	timestepper_TS.F90
 	transport.F90
-	uniform_velocity.F90
 	waypoint.F90
 	wipp.F90
-	wrapper_hydrogeophysics.F90
 )
 
 set(WELL_SOURCES
-	well_spec_base.F90
-	well_base.F90
-	well_flow.F90
-	well_flow_energy.F90
-	well_water_injector.F90
-	well_oil_producer.F90
-	well_toil_ims.F90
-	well.F90
+	well_data.F90
+	well_type.F90
+	well_solver.F90
 )
 
 set(SURFACE_SOURCES
@@ -448,12 +450,19 @@ set(GEOMECH_SOURCES
 	geomechanics_region.F90
 	geomechanics_regression.F90
 	geomechanics_strata.F90
+        geomechanics_subsurface_properties.F90
 	output_geomechanics.F90
 	pm_geomechanics_force.F90
 	pmc_geomechanics.F90
 	simulation_geomechanics.F90
 	shape_function.F90
 	timestepper_steady.F90
+)
+
+set(SOLVER_SOURCES
+	solver.F90
+	solver_cpr.F90
+	preconditioner_cpr.F90
 )
 
 set (PFLOTRAN_SOURCES
@@ -464,7 +473,7 @@ set (PFLOTRAN_SOURCES
     ${SHARD_MODE_AUX_SOURCES}
     ${CHEM_SOURCES}
     ${GRID_SOURCES}
-    ${REALATIONS_SOURCES}
+    ${RELATIONS_SOURCES}
     ${PROPERTIES_SOURCES}
     ${DATASET_SOURCES}
     ${SRCSINK_SOURCES}
@@ -473,6 +482,7 @@ set (PFLOTRAN_SOURCES
     ${WELL_SOURCES}
     ${SURFACE_SOURCES}
     ${GEOMECH_SOURCES}
+    ${SOLVER_SOURCES}
     pflotran.F90
 )
 

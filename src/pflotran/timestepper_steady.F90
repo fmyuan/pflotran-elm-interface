@@ -19,7 +19,6 @@ module Timestepper_Steady_class
  !   PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
 
  !   type(solver_type), pointer :: solver
- !   type(convergence_context_type), pointer :: convergence_context
   
   contains
 
@@ -31,7 +30,8 @@ module Timestepper_Steady_class
   end type timestepper_steady_type
 
   public :: TimestepperSteadyCreate, &
-            TimestepperSteadyCreateFromBE
+            TimestepperSteadyCreateFromBE, &
+            TimestepperSteadyCreateFromBase
 
 contains
 
@@ -62,7 +62,68 @@ end function TimestepperSteadyCreate
 
 ! ************************************************************************** !
 
-subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
+function TimestepperSteadyCreateFromBase(timestepper_base)
+  ! 
+  ! This routine creates timestepper for steady solve
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 06/29/18
+  ! 
+
+  implicit none
+
+  class(timestepper_base_type) :: timestepper_base
+
+  class(timestepper_steady_type), pointer :: TimestepperSteadyCreateFromBase
+
+  class(timestepper_steady_type), pointer :: stepper
+
+  allocate(stepper)
+
+  stepper%name = timestepper_base%name
+  stepper%steps = timestepper_base%steps
+  stepper%num_constant_time_steps = timestepper_base%num_constant_time_steps
+
+  stepper%max_time_step = timestepper_base%max_time_step
+  stepper%max_time_step_cuts = timestepper_base%max_time_step_cuts
+  stepper%constant_time_step_threshold = timestepper_base%constant_time_step_threshold
+
+  stepper%cumulative_time_step_cuts = timestepper_base%cumulative_time_step_cuts
+  stepper%cumulative_solver_time = timestepper_base%cumulative_solver_time
+
+  stepper%dt = timestepper_base%dt
+  stepper%prev_dt = timestepper_base%prev_dt
+  stepper%dt_init = timestepper_base%dt_init
+  stepper%dt_max = timestepper_base%dt_max
+  stepper%revert_dt = timestepper_base%revert_dt
+  stepper%num_contig_revert_due_to_sync = timestepper_base%num_contig_revert_due_to_sync
+
+  stepper%init_to_steady_state = timestepper_base%init_to_steady_state
+  stepper%run_as_steady_state = timestepper_base%run_as_steady_state
+  stepper%steady_state_rel_tol = timestepper_base%steady_state_rel_tol
+
+  stepper%time_step_cut_flag = timestepper_base%time_step_cut_flag
+
+  stepper%start_time = timestepper_base%start_time
+  stepper%start_time_step = timestepper_base%start_time_step
+  stepper%time_step_tolerance = timestepper_base%time_step_tolerance
+  stepper%target_time = timestepper_base%target_time
+
+  stepper%cur_waypoint => timestepper_base%cur_waypoint
+  stepper%prev_waypoint => timestepper_base%prev_waypoint
+
+  stepper%solver => timestepper_base%solver
+  ! decouple the solver pointer or the upcoming TimestepperDestroy will 
+  ! destory it
+  nullify(timestepper_base%solver)
+
+  TimestepperSteadyCreateFromBase => stepper
+
+end function TimestepperSteadyCreateFromBase
+
+! ************************************************************************** !
+
+function TimestepperSteadyCreateFromBE(timestepper_BE)
   ! 
   ! This routine creates timestepper for steady solve
   ! 
@@ -72,9 +133,12 @@ subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
 
   implicit none
 
-  class(timestepper_BE_type), pointer :: timestepper_BE
+  class(timestepper_BE_type) :: timestepper_BE
+
+  class(timestepper_steady_type), pointer :: TimestepperSteadyCreateFromBE
 
   class(timestepper_steady_type), pointer :: stepper
+  PetscInt :: i
 
   allocate(stepper)
   
@@ -118,27 +182,19 @@ subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
 
   stepper%iaccel = timestepper_BE%iaccel
   stepper%ntfac = timestepper_BE%ntfac
-  allocate(stepper%tfac(13))
-  stepper%tfac(1) = timestepper_BE%tfac(1)  
-  stepper%tfac(2) = timestepper_BE%tfac(2)  
-  stepper%tfac(3) = timestepper_BE%tfac(3)  
-  stepper%tfac(4) = timestepper_BE%tfac(4)  
-  stepper%tfac(5) = timestepper_BE%tfac(5)  
-  stepper%tfac(6) = timestepper_BE%tfac(6)  
-  stepper%tfac(7) = timestepper_BE%tfac(7)  
-  stepper%tfac(8) = timestepper_BE%tfac(8)  
-  stepper%tfac(9) = timestepper_BE%tfac(9)  
-  stepper%tfac(10) = timestepper_BE%tfac(10)  
-  stepper%tfac(11) = timestepper_BE%tfac(11)  
-  stepper%tfac(12) = timestepper_BE%tfac(12)  
-  stepper%tfac(13) = timestepper_BE%tfac(13)  
-  
+  allocate(stepper%tfac(timestepper_BE%ntfac))
+  do i = 1, timestepper_BE%ntfac
+    stepper%tfac(i) = timestepper_BE%tfac(i)
+  enddo
+
   stepper%solver => timestepper_BE%solver
-  stepper%convergence_context => timestepper_BE%convergence_context
+  ! decouple the solver pointer or the upcoming TimestepperDestroy will 
+  ! destory it
+  nullify(timestepper_BE%solver)
 
-  timestepper_BE => stepper
+  TimestepperSteadyCreateFromBE => stepper
 
-end subroutine TimestepperSteadyCreateFromBE
+end function TimestepperSteadyCreateFromBE
 
 ! ************************************************************************** !
 

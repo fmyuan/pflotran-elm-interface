@@ -1,0 +1,53 @@
+\subsection{TIME}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{TIME}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Defines temporal extent and discretization of simulation
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Specify final time
+  \item Specify time step size for a span of simulation
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|FINAL_TIME|
+  \item[] \verb|INITIAL_TIMESTEP_SIZE|
+  \item[] \verb|MINIMUM_TIMESTEP_SIZE|
+  \item[] \verb|MAXIMUM_TIMESTEP_SIZE|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{TIME Example: Mimimum Requirements}
+
+\begin{semiverbatim}
+TIME
+  FINAL_TIME 10.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{TIME Example: Complex Time Stepping}
+
+\begin{semiverbatim}
+TIME
+  FINAL_TIME 2000.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d0 d
+  MAXIMUM_TIMESTEP_SIZE 100.d0 d AT 100.0 d
+  MAXIMUM_TIMESTEP_SIZE 0.1d0 d AT 1300.0 d
+  MAXIMUM_TIMESTEP_SIZE 0.02d0 d AT 1300.105d0 d
+  MAXIMUM_TIMESTEP_SIZE 100.d0 d AT 1300.2d0 d
+  MAXIMUM_TIMESTEP_SIZE 0.1d0 d AT 1400.0 d
+  MAXIMUM_TIMESTEP_SIZE 0.02d0 d AT 1400.06d0 d
+  MAXIMUM_TIMESTEP_SIZE 100.d0 d AT 1400.1d0 d
+END
+\end{semiverbatim}
+
+\end{frame}

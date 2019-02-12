@@ -21,6 +21,7 @@ module PM_Geomechanics_Force_class
     procedure, public :: InitializeRun => PMGeomechForceInitializeRun
     procedure, public :: FinalizeRun => PMGeomechForceFinalizeRun
     procedure, public :: InitializeTimestep => PMGeomechForceInitializeTimestep
+    procedure, public :: CheckConvergence => PMGeomechCheckConvergence
     procedure, public :: Residual => PMGeomechForceResidual
     procedure, public :: Jacobian => PMGeomechForceJacobian
     procedure, public :: PreSolve => PMGeomechForcePreSolve
@@ -59,6 +60,7 @@ function PMGeomechForceCreate()
   nullify(geomech_force_pm%comm1)
 
   call PMBaseInit(geomech_force_pm)
+  geomech_force_pm%header = 'GEOMECHANICS'
 
   PMGeomechForceCreate => geomech_force_pm
 
@@ -183,10 +185,7 @@ subroutine PMGeomechForceInitializeTimestep(this)
   call printMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," GEOMECHANICS ",62("="))')
-  endif
-  
+  call PMBasePrintHeader(this)
   call GeomechanicsForceInitialGuess(this%geomech_realization)
   
 end subroutine PMGeomechForceInitializeTimestep
@@ -276,7 +275,10 @@ subroutine PMGeomechForceUpdateSolution(this)
   use Geomechanics_Force_module, only : GeomechUpdateSolution, &
                                         GeomechStoreInitialDisp, &
                                         GeomechForceUpdateAuxVars
-  use Condition_module
+  use Geomechanics_Condition_module
+  use Geomechanics_Realization_class, only : &
+                                 GeomechRealizUpdateAllCouplerAuxVars
+
 
   implicit none
 
@@ -289,7 +291,12 @@ subroutine PMGeomechForceUpdateSolution(this)
 #endif
 
   ! begin from RealizationUpdate()
+  call GeomechConditionUpdate(this%geomech_realization%geomech_conditions, &
+                              this%geomech_realization%option)
+
   call GeomechUpdateSolution(this%geomech_realization)
+  call GeomechRealizUpdateAllCouplerAuxVars(this%geomech_realization, &
+                                            force_update_flag)
   if (this%option%geomech_initial) then
     call GeomechStoreInitialDisp(this%geomech_realization)
     this%option%geomech_initial = PETSC_FALSE
@@ -297,6 +304,37 @@ subroutine PMGeomechForceUpdateSolution(this)
   call GeomechForceUpdateAuxVars(this%geomech_realization)
 
 end subroutine PMGeomechForceUpdateSolution
+
+! ************************************************************************** !
+
+subroutine PMGeomechCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                     reason,ierr)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+  use Convergence_module
+  use Grid_module
+
+  implicit none
+
+  class(pm_geomech_force_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  type(grid_type), pointer :: grid
+
+  nullify(grid)
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       grid,this%option,this%solver,ierr)
+
+end subroutine PMGeomechCheckConvergence
 
 ! ************************************************************************** !
 

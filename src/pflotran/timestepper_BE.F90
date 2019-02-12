@@ -27,9 +27,6 @@ module Timestepper_BE_class
     PetscReal, pointer :: tfac(:)
     PetscInt :: ntfac             ! size of tfac
             
-    type(solver_type), pointer :: solver
-    type(convergence_context_type), pointer :: convergence_context
-  
   contains
     
     procedure, public :: ReadInput => TimestepperBERead
@@ -39,10 +36,8 @@ module Timestepper_BE_class
     procedure, public :: UpdateDT => TimestepperBEUpdateDT
     procedure, public :: CheckpointBinary => TimestepperBECheckpointBinary
     procedure, public :: RestartBinary => TimestepperBERestartBinary
-#if defined(PETSC_HAVE_HDF5)
     procedure, public :: CheckpointHDF5 => TimestepperBECheckpointHDF5
     procedure, public :: RestartHDF5 => TimestepperBERestartHDF5
-#endif
     procedure, public :: Reset => TimestepperBEReset
     procedure, public :: PrintInfo => TimestepperBEPrintInfo
     procedure, public :: InputRecord => TimestepperBEInputRecord
@@ -135,7 +130,6 @@ subroutine TimestepperBEInit(this)
   this%tfac(13) = 1.0d0
   
   nullify(this%solver)
-  nullify(this%convergence_context)
   
 end subroutine TimestepperBEInit
 
@@ -244,7 +238,8 @@ subroutine TimestepperBEUpdateDT(this,process_model)
                                       this%dt_max, &
                                       this%iaccel, &
                                       this%num_newton_iterations, &
-                                      this%tfac)
+                                      this%tfac, &
+                                      this%time_step_max_growth_factor)
     
   endif
 
@@ -264,7 +259,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   use petscsnes
   use PM_Base_class
   use Option_module
-  use Output_module, only : Output
+  use Output_module, only : Output, OutputFindNaNOrInfInVec
   use Output_EKG_module, only : IUNIT_EKG
   
   implicit none
@@ -283,7 +278,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscLogDouble :: log_end_time
   PetscInt :: num_newton_iterations
   PetscInt :: num_linear_iterations
-  PetscInt :: num_linear_iterations2
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_wasted_linear_iterations
@@ -293,7 +287,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
-  
+
   solver => this%solver
   option => process_model%option
   
@@ -378,19 +372,27 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       this%dt = this%time_step_reduction_factor * this%dt  
       
-      write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
+      write(option%io_buffer,'(''-> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-           &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
+           &   1pe12.5)')  snes_reason,icut, &
+           this%cumulative_time_step_cuts+icut, &
            option%time/tconv, &
            this%dt/tconv
       call printMsg(option)
-      if (snes_reason == SNES_DIVERGED_LINEAR_SOLVE) then
-        call KSPGetIterationNumber(solver%ksp,num_linear_iterations2, &
-                                   ierr);CHKERRQ(ierr)
-        sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
-          num_linear_iterations2
-        sum_linear_iterations = sum_linear_iterations + num_linear_iterations2
-        call SolverLinearPrintFailedReason(solver,option)
+      if (snes_reason < SNES_CONVERGED_ITERATING) then
+        call SolverNewtonPrintFailedReason(solver,option)
+        if (solver%verbose_logging) then
+          select case(snes_reason)
+            case(SNES_DIVERGED_FNORM_NAN)
+              ! attempt to find cells with NaNs.
+              call SNESGetFunction(solver%snes,residual_vec, &
+                                   PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
+                                 ierr);CHKERRQ(ierr)
+              call OutputFindNaNOrInfInVec(residual_vec, &
+                                           process_model%realization_base% &
+                                             discretization%grid,option)
+          end select
+        endif
       endif
 
       this%target_time = this%target_time + this%dt
@@ -417,7 +419,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTIOn, &
+  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
@@ -626,8 +628,7 @@ end subroutine TimestepperBERestartBinary
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
-subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
+subroutine TimestepperBECheckpointHDF5(this, h5_chk_grp_id, option)
   !
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -643,24 +644,14 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   implicit none
   
   class(timestepper_BE_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-  integer :: timestepper_grp_id
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
   integer(HID_T) :: timestepper_grp_id
-  integer(HID_T) :: h5_chk_grp_id
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -672,7 +663,6 @@ subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
   PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  h5_chk_grp_id = chk_grp_id
   call h5gcreate_f(h5_chk_grp_id, string, timestepper_grp_id, &
                    hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
 
@@ -769,7 +759,7 @@ end subroutine TimestepperBECheckpointHDF5
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
+subroutine TimestepperBERestartHDF5(this, h5_chk_grp_id, option)
   !
   ! Restarts parameters/variables associated with
   ! a time stepper.
@@ -779,30 +769,21 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointReadIntDatasetHDF5
   use Checkpoint_module, only : CheckPointReadRealDatasetHDF5
 
   implicit none
   
   class(timestepper_BE_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-  integer :: timestepper_grp_id
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
   integer(HID_T) :: timestepper_grp_id
-  integer(HID_T) :: h5_chk_grp_id
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -814,8 +795,7 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   PetscMPIInt :: hdf5_err
 
   string = "Timestepper"
-  h5_chk_grp_id = chk_grp_id
-  call h5gopen_f(h5_chk_grp_id, string, timestepper_grp_id, hdf5_err)
+  call HDF5GroupOpen(h5_chk_grp_id,string,timestepper_grp_id,option)
 
   allocate(start(1))
   allocate(dims(1))
@@ -906,7 +886,6 @@ subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
   deallocate(real_array)
 
 end subroutine TimestepperBERestartHDF5
-#endif
 
 ! ************************************************************************** !
 
@@ -968,12 +947,38 @@ subroutine TimestepperBEPrintInfo(this,option)
   ! Date: 12/04/14
   ! 
   use Option_module
+  use String_module
 
   implicit none
 
   class(timestepper_BE_type) :: this
   type(option_type) :: option
-  
+
+  PetscInt :: fids(2)
+  PetscInt :: i
+  character(len=MAXSTRINGLENGTH), allocatable :: strings(:)
+
+  fids = OptionGetFIDs(option)
+  call StringWriteToUnits(fids,' ')
+  call StringWriteToUnits(fids,trim(this%name) // ' Time Stepper')
+
+  ! have to allocate since ntfac can be infinite
+  allocate(strings(this%ntfac+20))
+  strings = '' 
+  strings(1) = 'acceleration: ' // &
+                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+  if (this%iaccel > 0) then
+    strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
+  endif
+  strings(3) = 'number of ramp entries: ' // StringWrite(this%iaccel)
+  do i = 1, this%ntfac
+    strings(i+3) = 'ramp entry #' // trim(StringWrite(i)) // ': ' // &
+                   StringWriteF(this%tfac(i))
+  enddo
+  call StringsCenter(strings,30,':')
+  call StringWriteToUnits(fids,strings)
+  deallocate(strings)
+
   call TimestepperBasePrintInfo(this,option)
   call SolverPrintNewtonInfo(this%solver,this%name,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
@@ -1066,7 +1071,6 @@ subroutine TimestepperBEStrip(this)
   
   call TimestepperBaseStrip(this)
   call SolverDestroy(this%solver)
-  call ConvergenceContextDestroy(this%convergence_context)
 
   if (associated(this%tfac)) deallocate(this%tfac)
   nullify(this%tfac)

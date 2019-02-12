@@ -29,6 +29,7 @@ import textwrap
 import time
 import traceback
 import difflib
+from collections import OrderedDict
 
 if sys.version_info[0] == 2:
     from ConfigParser import SafeConfigParser as config_parser
@@ -904,9 +905,9 @@ class RegressionTest(object):
         elif (tolerance_type == self._RELATIVE or
               tolerance_type == self._PERCENT):
             if previous != 0:
-                delta = abs(previous - current) / previous
+                delta = abs((previous - current) / previous)
             elif current != 0:
-                delta = abs(previous - current) / current
+                delta = abs((previous - current) / current)
             else:
                 # both are zero
                 delta = 0.0
@@ -1199,8 +1200,12 @@ class RegressionTestManager(object):
         self._file_status = TestStatus()
         self._config_filename = None
         self._default_test_criteria = {}
-        self._available_tests = {}
-        self._available_suites = {}
+        #geh: use OrderedDict to ensure that the order of tests is preserved
+        #     as specified in config file
+        #self._available_tests = {}
+        #self._available_suites = {}
+        self._available_tests = OrderedDict()
+        self._available_suites = OrderedDict()
         self._tests = []
         self._txtwrap = textwrap.TextWrapper(width=78, subsequent_indent=4*" ")
         self._pprint = pprint.PrettyPrinter(indent=2)

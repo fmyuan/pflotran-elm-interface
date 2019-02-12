@@ -1,18 +1,31 @@
 module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
+
+  use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
   implicit none
 
   private
 
 #include "petsc/finclude/petscsys.h"
-  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
-  ! COMPATIBILITY ISSUES - geh.
+#define VMAJOR 3
+#define VMINOR 10
+#define VSUBMINOR 2
+#if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
+     (PETSC_VERSION_MAJOR == VMAJOR &&                  \
+      (PETSC_VERSION_MINOR < VMINOR ||                  \
+       (PETSC_VERSION_MINOR == VMINOR &&                \
+        (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
+#error "Please use PETSc version 3.10.2: 'git checkout v3.10.2' in $PETSC_DIR"
+#endif
+  ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
+  ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
   PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 1
   
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
+  PetscInt, parameter, public :: STDOUT_UNIT = stdout
   PetscInt, parameter, public :: OUT_UNIT = 15
   PetscInt, parameter, public :: OUTPUT_UNIT = 16
   PetscInt, parameter, public :: IN_UNIT = 17
@@ -21,6 +34,13 @@ module PFLOTRAN_Constants_module
   ! for embedded input files.
   PetscInt, parameter, public :: MAX_IN_UNIT = 25
   PetscInt, parameter, public :: IUNIT_TEMP = 86
+  ! Unit numbers for reading and writing reservoir engineering format files
+  PetscInt, parameter, public :: UNIT_GRDECL_READ = 50
+  PetscInt, parameter, public :: UNIT_SPEC_WRITE  = 51
+  PetscInt, parameter, public :: UNIT_SUMM_WRITE  = 52
+  PetscInt, parameter, public :: UNIT_GRID_WRITE  = 53
+  PetscInt, parameter, public :: UNIT_INIT_WRITE  = 54
+  PetscInt, parameter, public :: UNIT_REST_WRITE  = 55
   ! EKG_UNIT = 87
   PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
@@ -36,6 +56,9 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
+  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
+!geh: for bragflo year
+!  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.24224537d0
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
 #if defined(MATCH_TOUGH2)
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
@@ -50,6 +73,7 @@ module PFLOTRAN_Constants_module
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
+!to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
@@ -78,6 +102,8 @@ module PFLOTRAN_Constants_module
   PetscMPIInt, parameter, public :: FIVE_INTEGER_MPI = FIVE_INTEGER
   PetscMPIInt, parameter, public :: SIX_INTEGER_MPI = SIX_INTEGER
   PetscMPIInt, parameter, public :: SEVEN_INTEGER_MPI = SEVEN_INTEGER
+  PetscMPIInt, parameter, public :: TEN_INTEGER_MPI = TEN_INTEGER
+  PetscMPIInt, parameter, public :: ELEVEN_INTEGER_MPI = ELEVEN_INTEGER
   PetscMPIInt, parameter, public :: TWELVE_INTEGER_MPI = TWELVE_INTEGER
   PetscMPIInt, parameter, public :: MAXSTRINGLENGTH_MPI = MAXSTRINGLENGTH
   
@@ -126,7 +152,14 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOIL_IMS_MODE = 8
   PetscInt, parameter, public :: TOWG_MODE = 9
   PetscInt, parameter, public :: WF_MODE = 10
-  
+  PetscInt, parameter, public :: RICHARDS_TS_MODE = 11
+
+  ! flow sub-modes
+  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
+  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
+  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
+  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
+
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
   
@@ -149,7 +182,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
   PetscInt, parameter, public :: HET_MASS_RATE_SS = 17
-  PetscInt, parameter, public :: HET_DIRICHLET = 18
+  PetscInt, parameter, public :: HET_DIRICHLET_BC = 18
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
@@ -167,6 +200,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
+  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
   
   PetscInt, parameter, public :: WELL_SS = 100
   
@@ -210,6 +245,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
   PetscInt, parameter, public :: OIL_PHASE = 3
+  PetscInt, parameter, public :: SOLVENT_PHASE = 4
+
+  PetscInt, parameter, public :: MAX_PHASE = 4
   
   ! approaches to coupling reactive transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
@@ -271,9 +309,8 @@ module PFLOTRAN_Constants_module
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
   PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
-  PetscInt, parameter, public :: SUBSURF_TO_HYDROGEOPHY = 3
-  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 4
-  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 5
+  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
+  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 4
   
   ! Ice/water/vapor partitioning model
   PetscInt, parameter, public :: PAINTER_EXPLICIT = 1

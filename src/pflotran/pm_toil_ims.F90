@@ -58,10 +58,6 @@ function PMTOilImsCreate()
   class(pm_toil_ims_type), pointer :: PMToilImsCreate
 
   class(pm_toil_ims_type), pointer :: toil_ims_pm
-  
-!#ifdef PM_TOIL_IMS_DEBUG  
-  print *, 'PMTOilImsCreate()'
-!#endif  
 
   allocate(toil_ims_pm)
 
@@ -73,6 +69,7 @@ function PMTOilImsCreate()
   
   call PMSubsurfaceFlowCreate(toil_ims_pm)
   toil_ims_pm%name = 'TOilIms Flow'
+  toil_ims_pm%header = 'TOIL_IMS FLOW'
 
   call TOilImsDefaultSetup()
 
@@ -123,7 +120,8 @@ subroutine PMTOilImsRead(this,input)
     call StringToUpper(keyword)   
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found,option)    
+    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)    
     if (found) cycle
           
     select case(trim(keyword))
@@ -256,10 +254,6 @@ subroutine PMTOilImsInitializeTimestep(this)
                                  this%realization%field%work_loc,TORTUOSITY, &
                                  ZERO_INTEGER)
                                  
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TOIL_IMS FLOW ",64("="))')
-  endif
-  
   call TOilImsInitializeTimestep(this%realization)
 
   call PMSubsurfaceFlowInitializeTimestepB(this)                                 
@@ -323,7 +317,8 @@ end subroutine PMTOilImsUpdateSolution
 ! ************************************************************************** !
 
 subroutine PMTOilImsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                   num_newton_iterations,tfac, &
+                                   time_step_max_growth_factor)
   ! 
   ! Author: Paolo Orsini
   ! Date: 11/09/15
@@ -343,6 +338,7 @@ subroutine PMTOilImsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscInt :: ifac
@@ -365,6 +361,7 @@ subroutine PMTOilImsUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
 
@@ -473,6 +470,8 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Field_module
   use Option_module
   use Patch_module
+  use AuxVars_TOilIms_module
+  use Appleyard_module
 
   implicit none
   
@@ -510,6 +509,18 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   SNES :: snes
   PetscInt :: newton_iteration
 
+  PetscReal :: slc, soc, ds_out_l, ds_out_o, del_sat_cand, sat_fac, &
+               geo_pen_limit, gp_high, gp_low
+  PetscReal :: saturation0_oil, del_saturation_oil, saturation0_liq, del_saturation_liq
+  PetscInt :: lid, oid
+
+  geo_pen_limit = 0.2d0 !! 20%
+  gp_high = 1.d0 + geo_pen_limit
+  gp_low = 1.d0 - geo_pen_limit
+
+  lid = LIQUID_PHASE
+  oid = TOIL_IMS_OIL_PHASE
+
   
   grid => this%realization%patch%grid
   option => this%realization%option
@@ -539,8 +550,33 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       ! we use 1.d-6 since cancelation can occur with smaller values
       ! this threshold is imposed in the initial condition
       dX_p(saturation_index) = X_p(saturation_index)
+    elseif ( (X_p(saturation_index) - dX_p(saturation_index)) > 1.d0 ) then
+      dX_p(saturation_index) = X_p(saturation_index) - 1.d0
     end if
   enddo
+  
+  !! loop for geometric penalty
+  if (toil_GP) then
+    do local_id = 1, grid%nlmax
+
+      ghosted_id = grid%nL2G(local_id)
+      offset = (local_id-1)*option%nflowdof
+      saturation_index = offset + TOIL_IMS_SATURATION_DOF
+      saturation0 = X_p(saturation_index)
+
+      del_saturation = dX_p(saturation_index)
+      saturation1 = saturation0 - del_saturation
+      !! geometric penalty:
+      sat_fac = abs(del_saturation/saturation0)
+      if (sat_fac > geo_pen_limit) then
+         dX_p(saturation_index) =&
+                      geo_pen_limit*saturation0*abs(del_saturation)/del_saturation
+      endif
+      
+
+    enddo
+  endif
+  
 
   scale = initial_scale
   if (toil_ims_max_it_before_damping > 0 .and. &
@@ -571,6 +607,19 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     del_saturation = dX_p(saturation_index)
     saturation0 = X_p(saturation_index)
     saturation1 = saturation0 - del_saturation
+
+
+#if 0
+    !! appleyard for scaling
+    del_sat_cand = del_saturation
+    call TOilAppleyard(saturation0, del_sat_cand, ghosted_id, this%realization, lid, oid)
+    if (del_saturation /= del_sat_cand) then
+       temp_real = dabs(del_sat_cand/del_saturation)
+       temp_scale = min(temp_scale,temp_real)
+    endif
+#endif
+
+
 #ifdef LIMIT_MAX_PRESSURE_CHANGE
     if (dabs(del_pressure) > toil_ims_max_pressure_change) then
       temp_real = dabs(toil_ims_max_pressure_change/del_pressure)
@@ -608,13 +657,29 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     dX_p = scale*dX_p
   endif
 
+#if 0
+  ! post scaling appleyard chopping
+  if (toil_appleyard) then
+    do local_id = 1, grid%nlmax
+
+      ghosted_id = grid%nL2G(local_id)
+      offset = (local_id-1)*option%nflowdof
+      saturation_index = offset + TOIL_IMS_SATURATION_DOF
+      del_saturation = dX_p(saturation_index)
+      saturation0 = X_p(saturation_index)
+
+      call TOilAppleyard(saturation0, dX_p(saturation_index), ghosted_id, this%realization, lid, oid)
+
+    enddo
+  endif
+#endif
+
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMTOilImsCheckUpdatePre
 
 ! ************************************************************************** !
-
 ! ************************************************************************** !
 
 !subroutine PMTOilImsCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &

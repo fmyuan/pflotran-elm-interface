@@ -121,7 +121,7 @@ REGION all
 END
 
 REGION top
-  FACE top
+  FACE TOP
   COORDINATES
     0.d0 0.d0 5.d0
     5.d0 5.d0 5.d0
@@ -133,7 +133,7 @@ REGION obs_pt
 /
 
 REGION east
-  FACE east
+  FACE EAST
   COORDINATES
     5.d0 0.d0 0.d0
     5.d0 5.d0 5.d0
@@ -141,7 +141,7 @@ REGION east
 END
 
 REGION south
-  FACE south
+  FACE SOUTH
   COORDINATES
     0.d0 0.d0 0.d0
     5.d0 0.d0 5.d0
@@ -149,7 +149,7 @@ REGION south
 END
 
 REGION bottom
-  FACE bottom
+  FACE BOTTOM
   COORDINATES
     0.d0 0.d0 0.d0
     5.d0 5.d0 0.d0

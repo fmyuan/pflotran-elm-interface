@@ -30,7 +30,7 @@ plt.ylabel('Saturation [-]')
 #plt.grid(True)
 
 data = pft.Dataset(filenames[0],1,3)
-plt.plot(data.get_array('x'),data.get_array('y'),label='(0.5 0.5 5.0)')
+plt.plot(data.get_array('x'),data.get_array('y'),label='(0.5 0.5 4.95)')
 
 #'best'         : 0, (only implemented for axis legends)
 #'upper right'  : 1,

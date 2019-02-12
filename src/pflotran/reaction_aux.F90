@@ -12,6 +12,7 @@ module Reaction_Aux_module
 #endif
 
   use PFLOTRAN_Constants_module
+  use Generic_module
   use petscsys
 
   implicit none
@@ -181,6 +182,8 @@ module Reaction_Aux_module
     type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn_list
     type(kd_rxn_type), pointer :: kd_rxn_list
     type(aq_species_type), pointer :: redox_species_list
+    type(generic_parameter_type), pointer :: aq_diffusion_coefficients
+    type(generic_parameter_type), pointer :: gas_diffusion_coefficients
     PetscInt :: act_coef_update_frequency
     PetscInt :: act_coef_update_algorithm
     PetscBool :: checkpoint_activity_coefs
@@ -203,6 +206,9 @@ module Reaction_Aux_module
     type(solid_solution_type), pointer :: solid_solution_list
 #endif    
     
+    ! phases
+    PetscInt :: nphase
+
     ! compressed arrays for efficient computation
     ! primary aqueous complexes
     PetscInt :: ncomp
@@ -459,6 +465,8 @@ function ReactionCreate()
   nullify(reaction%general_rxn_list)
   nullify(reaction%kd_rxn_list)
   nullify(reaction%redox_species_list)
+  nullify(reaction%aq_diffusion_coefficients)
+  nullify(reaction%gas_diffusion_coefficients)
   
   nullify(reaction%sec_cont_kd_rxn_list)
   
@@ -486,6 +494,7 @@ function ReactionCreate()
   nullify(reaction%total_sorb_mobile_print)
   nullify(reaction%colloid_print)
   
+  reaction%nphase = 0
   reaction%ncomp = 0
   reaction%naqcomp = 0
   reaction%ncoll = 0
@@ -1804,6 +1813,7 @@ subroutine AqueousSpeciesListDestroy(aq_species_list)
   ! Date: 09/03/10
   ! 
 
+  !TODO(geh): make these destructors recursive
   implicit none
     
   type(aq_species_type), pointer :: aq_species_list  
@@ -2158,6 +2168,9 @@ subroutine ReactionDestroy(reaction,option)
   if (associated(reaction%redox_species_list)) &
     call AqueousSpeciesListDestroy(reaction%redox_species_list)
   nullify(reaction%redox_species_list)
+
+  call GenericParameterDestroy(reaction%aq_diffusion_coefficients)
+  call GenericParameterDestroy(reaction%gas_diffusion_coefficients)
   
   call DeallocateArray(reaction%primary_species_names)
   call DeallocateArray(reaction%secondary_species_names)

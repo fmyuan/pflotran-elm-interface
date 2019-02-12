@@ -116,16 +116,14 @@ subroutine SimulationBaseInitializeRun(this)
   use petscsys
   use Logging_module
   use Option_module
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
   implicit none
   
 
   class(simulation_base_type) :: this
 
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -141,13 +139,7 @@ subroutine SimulationBaseInitializeRun(this)
       if (index(this%option%restart_filename,'.chk') > 0) then
         call this%process_model_coupler_list%RestartBinary(viewer)
       elseif (index(this%option%restart_filename,'.h5') > 0) then
-#if !defined(PETSC_HAVE_HDF5)
-         this%option%io_buffer = 'HDF5 formatted restart not supported &
-              &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
-         call printErrMsg(this%option)
-#else
-        call this%process_model_coupler_list%RestartHDF5(chk_grp_id)
-#endif
+        call this%process_model_coupler_list%RestartHDF5(h5_chk_grp_id)
       else
         this%option%io_buffer = 'Unknown restart filename format. ' // &
         'Only *.chk and *.h5 supported.'

@@ -42,7 +42,6 @@ program pflotran
   use Multi_Simulation_module
   use Factory_PFLOTRAN_module
   use Factory_Subsurface_module
-  use Factory_Hydrogeophysics_module
   use PFLOTRAN_Constants_module
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
   

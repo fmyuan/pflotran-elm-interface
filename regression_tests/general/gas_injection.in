@@ -195,6 +195,13 @@ REGION bottom_pt
   COORDINATE 4.5d0 0.5d0 0.d0
 /
 
+REGION well_2
+  COORDINATES
+    4.5d0 0.5d0 0.d0
+    4.5d0 0.5d0 4.d0
+  /
+/
+
 #=========================== observation points ===============================
 OBSERVATION
   REGION bottom_pt
@@ -260,7 +267,12 @@ BOUNDARY_CONDITION bottom
   REGION bottom
 /
 
-SOURCE_SINK well
+SOURCE_SINK well_2
+  FLOW_CONDITION injection
+  REGION well_2
+/
+
+SOURCE_SINK well_1
   FLOW_CONDITION injection
   REGION bottom_pt
 /

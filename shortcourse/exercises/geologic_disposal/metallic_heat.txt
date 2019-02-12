@@ -1,0 +1,85 @@
+# This file is part of the following SAND report described in gdsa.in:
+# SAND2017-9343 O
+#
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+
+#500-1000 W bin DSNF decayed to t0 = 2038 
+#Wilson 2016, "Decay Heat of Selected DOE Defense Waste Materials,"
+#FCRD-UFD-2016-000636
+    TIME_UNITS y
+    DATA_UNITS W
+# time energy (W/canister)
+0.000E+00	4.981E+02
+1.000E-01	4.975E+02
+2.000E-01	4.968E+02
+3.000E-01	4.962E+02
+4.000E-01	4.956E+02
+5.000E-01	4.950E+02
+6.000E-01	4.944E+02
+7.000E-01	4.938E+02
+8.000E-01	4.931E+02
+9.000E-01	4.925E+02
+1.000E+00	4.919E+02
+2.000E+00	4.859E+02
+3.000E+00	4.799E+02
+4.000E+00	4.741E+02
+5.000E+00	4.685E+02
+6.000E+00	4.629E+02
+7.000E+00	4.575E+02
+8.000E+00	4.521E+02
+9.000E+00	4.469E+02
+1.000E+01	4.418E+02
+2.000E+01	3.961E+02
+3.000E+01	3.591E+02
+4.000E+01	3.289E+02
+5.000E+01	3.042E+02
+6.000E+01	2.840E+02
+7.000E+01	2.674E+02
+8.000E+01	2.536E+02
+9.000E+01	2.421E+02
+1.000E+02	2.324E+02
+1.250E+02	2.140E+02
+1.500E+02	2.012E+02
+1.750E+02	1.916E+02
+2.000E+02	1.839E+02
+2.250E+02	1.776E+02
+2.500E+02	1.721E+02
+3.000E+02	1.626E+02
+3.500E+02	1.546E+02
+4.000E+02	1.474E+02
+4.500E+02	1.411E+02
+5.000E+02	1.353E+02
+6.000E+02	1.251E+02
+7.000E+02	1.165E+02
+8.000E+02	1.092E+02
+9.000E+02	1.030E+02
+1.000E+03	9.762E+01
+1.250E+03	8.718E+01
+1.500E+03	7.985E+01
+1.750E+03	7.461E+01
+2.000E+03	7.077E+01
+2.250E+03	6.788E+01
+2.500E+03	6.563E+01
+3.000E+03	6.230E+01
+4.000E+03	5.778E+01
+5.000E+03	5.428E+01
+6.000E+03	5.119E+01
+7.000E+03	4.837E+01
+8.000E+03	4.578E+01
+9.000E+03	4.338E+01
+1.000E+04	4.117E+01
+2.000E+04	2.598E+01
+5.000E+04	9.668E+00
+1.000E+05	2.798E+00
+2.000E+05	8.947E-01
+5.000E+05	6.059E-01
+1.000E+06	3.739E-01
+    /
+

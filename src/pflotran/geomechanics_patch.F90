@@ -42,7 +42,8 @@ module Geomechanics_Patch_module
             GeomechPatchProcessGeomechCouplers, &
             GeomechPatchInitAllCouplerAuxVars, &
             GeomechPatchGetDataset, &
-            GeomechanicsPatchDestroy
+            GeomechanicsPatchDestroy, &
+            GeomechPatchUpdateAllCouplerAuxVars
 
 contains
 

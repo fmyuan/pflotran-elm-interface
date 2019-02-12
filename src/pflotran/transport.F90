@@ -13,9 +13,6 @@ module Transport_module
   
   private 
 
-! Cutoff parameters
-  PetscReal, parameter :: eps       = 1.D-8
-  
   public :: TDispersion, &
             TDispersionBC, &
             TFlux, &
@@ -59,7 +56,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
                       global_auxvar_dn,material_auxvar_dn, &
                       cell_centered_velocity_dn,dispersivity_dn,dist, &
                       rt_parameter,option,qdarcy, &
-                      harmonic_dispersion_over_dist)
+                      harmonic_tran_coefs_over_dist)
   ! 
   ! Computes a single coefficient representing:
   !   (saturation * porosity * 
@@ -84,10 +81,10 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: dist(-1:3)
   PetscReal :: qdarcy(*)
   type(reactive_transport_param_type) :: rt_parameter
-  PetscReal :: harmonic_dispersion_over_dist(rt_parameter%naqcomp, &
-                                             option%nphase)
+  PetscReal :: harmonic_tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                             rt_parameter%nphase)
   
-  PetscInt :: iphase, max_phase
+  PetscInt :: iphase, nphase
   PetscReal :: dist_up, dist_dn
   PetscReal :: sat_up, sat_dn
   PetscReal :: velocity_dn(3), velocity_up(3)
@@ -106,31 +103,30 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
 
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
-  harmonic_dispersion_over_dist(:,:) = 0.d0    
+  harmonic_tran_coefs_over_dist(:,:) = 0.d0    
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up, &
                                     dist_dn,distance_gravity, &
                                     upwind_weight)
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
     ! skip phase if it does not exist on either side of the connection
-    if (sat_up < eps .or. sat_dn < eps) cycle 
+    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
           t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
           molecular_diffusion_up(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:) / &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
           molecular_diffusion_dn(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:) / &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_dn%temp + 273.15d0)))
         case(GAS_PHASE)
@@ -215,7 +211,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
           material_auxvar_dn%tortuosity * molecular_diffusion_dn(:), &
           1.d-40)
     ! harmonic average of hydrodynamic dispersion divided by distance
-    harmonic_dispersion_over_dist(:,iphase) = &
+    harmonic_tran_coefs_over_dist(:,iphase) = &
       (hydrodynamic_dispersion_up(:)*hydrodynamic_dispersion_dn(:))/ &
       (hydrodynamic_dispersion_up(:)*dist_dn + &
        hydrodynamic_dispersion_dn(:)*dist_up)
@@ -231,7 +227,7 @@ subroutine TDispersionBC(ibndtype, &
                           cell_centered_velocity_dn,dispersivity_dn, &
                           dist_dn, &
                           rt_parameter,option,qdarcy, &
-                          harmonic_dispersion_over_dist)
+                          tran_coefs_over_dist)
   ! 
   ! Computes a single coefficient representing:
   !   (saturation * porosity * 
@@ -256,10 +252,10 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: dist_dn(-1:3)
   PetscReal :: qdarcy(*)
   type(reactive_transport_param_type) :: rt_parameter
-  PetscReal :: harmonic_dispersion_over_dist(rt_parameter%naqcomp, &
-                                             option%nphase)
+  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                             rt_parameter%nphase)
   
-  PetscInt :: iphase, max_phase
+  PetscInt :: iphase, nphase
   PetscReal :: spD
   PetscReal :: sat_up, sat_dn
   PetscReal :: velocity_dn(3)
@@ -274,23 +270,22 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: hydrodynamic_dispersion(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
 
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
-  harmonic_dispersion_over_dist(:,:) = 0.d0    
+  tran_coefs_over_dist(:,:) = 0.d0    
 
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     ! we use upwind saturation as that is the saturation at the boundary face
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
-    if (sat_up < eps .or. sat_dn < eps) cycle 
+    if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
     if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
           t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
           molecular_diffusion(:) = &
             rt_parameter%diffusion_coefficient(:,iphase) * &
-            exp(rt_parameter%diffusion_activation_energy(:) / &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
         case(GAS_PHASE)
@@ -347,7 +342,7 @@ subroutine TDispersionBC(ibndtype, &
               1.d-40)
         ! hydrodynamic dispersion divided by distance
         ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-        harmonic_dispersion_over_dist(:,iphase) =  &
+        tran_coefs_over_dist(:,iphase) =  &
           hydrodynamic_dispersion(:)/dist_dn(0)
       case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC)
     end select
@@ -376,8 +371,8 @@ subroutine TFlux(rt_parameter, &
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
   type(option_type) :: option
-  PetscReal :: coef_up(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_dn(rt_parameter%naqcomp,option%nphase) 
+  PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase) 
   PetscReal :: Res(rt_parameter%ncomp)
   
   PetscInt :: iphase
@@ -451,10 +446,10 @@ subroutine TFlux_CD(rt_parameter, &
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
   type(option_type) :: option
-  PetscReal :: coef_11(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_12(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_21(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_22(rt_parameter%naqcomp,option%nphase) 
+  PetscReal :: coef_11(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_12(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_21(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_22(rt_parameter%naqcomp,rt_parameter%nphase) 
   PetscReal :: Res_1(rt_parameter%ncomp)
   PetscReal :: Res_2(rt_parameter%ncomp)
   
@@ -537,8 +532,8 @@ subroutine TFluxDerivative(rt_parameter, &
   type(option_type) :: option
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
-  PetscReal :: coef_up(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_dn(rt_parameter%naqcomp,option%nphase) 
+  PetscReal :: coef_up(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_dn(rt_parameter%naqcomp,rt_parameter%nphase) 
   PetscReal :: J_up(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_dn(rt_parameter%ncomp,rt_parameter%ncomp)
   
@@ -548,12 +543,11 @@ subroutine TFluxDerivative(rt_parameter, &
   PetscInt :: idof
   PetscInt :: istart
   PetscInt :: iendaq
-  PetscInt :: max_phase
+  PetscInt :: nphase
   PetscInt :: irow
   PetscInt :: neg999
  
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
   ! units = (m^3 water/sec)*(kg water/L water)*(1000L water/m^3 water)
   !       = kg water/sec
@@ -561,7 +555,7 @@ subroutine TFluxDerivative(rt_parameter, &
   iendaq = rt_parameter%naqcomp
   J_up = 0.d0
   J_dn = 0.d0
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     if (associated(rt_auxvar_dn%aqueous%dtotal)) then
       do irow = istart, iendaq
         J_up(irow,istart:iendaq) = &
@@ -635,10 +629,10 @@ subroutine TFluxDerivative_CD(rt_parameter, &
   type(option_type) :: option
   type(reactive_transport_auxvar_type) :: rt_auxvar_up, rt_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
-  PetscReal :: coef_11(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_12(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_21(rt_parameter%naqcomp,option%nphase) 
-  PetscReal :: coef_22(rt_parameter%naqcomp,option%nphase) 
+  PetscReal :: coef_11(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_12(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_21(rt_parameter%naqcomp,rt_parameter%nphase) 
+  PetscReal :: coef_22(rt_parameter%naqcomp,rt_parameter%nphase) 
   PetscReal :: J_11(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_12(rt_parameter%ncomp,rt_parameter%ncomp), &
                J_21(rt_parameter%ncomp,rt_parameter%ncomp), &
@@ -649,13 +643,12 @@ subroutine TFluxDerivative_CD(rt_parameter, &
   PetscInt :: idof
   PetscInt :: istart
   PetscInt :: iendaq
-  PetscInt :: max_phase
+  PetscInt :: nphase
   PetscInt :: irow
   PetscInt :: icomp
   PetscInt :: neg999
   
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
   
   ! units = (m^3 water/sec)*(kg water/L water)*(1000L water/m^3 water) = kg water/sec
   istart = 1
@@ -664,7 +657,7 @@ subroutine TFluxDerivative_CD(rt_parameter, &
   J_12 = 0.d0
   J_21 = 0.d0
   J_22 = 0.d0
-  do iphase = 1, max_phase
+  do iphase = 1, nphase
     if (associated(rt_auxvar_dn%aqueous%dtotal)) then
       do irow = istart, iendaq
         J_11(irow,istart:iendaq) = &
@@ -745,8 +738,10 @@ end subroutine TFluxDerivative_CD
 
 ! ************************************************************************** !
 
-subroutine TFluxCoef(rt_parameter,option,area,velocity, &
-                     harmonic_dispersion_over_dist, &
+subroutine TFluxCoef(rt_parameter, &
+                     global_auxvar_up,global_auxvar_dn, &
+                     option,area,velocity, &
+                     tran_coefs_over_dist, &
                      fraction_upwind,T_up,T_dn)
   ! 
   ! Computes flux coefficients for transport matrix
@@ -760,45 +755,52 @@ subroutine TFluxCoef(rt_parameter,option,area,velocity, &
   implicit none
   
   type(reactive_transport_param_type) :: rt_parameter  
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
   ! this is the harmonic mean of saturation * porosity * (mechanical 
   !   dispersion + tortuosity * molecular_diffusion) / distance
-  PetscReal :: harmonic_dispersion_over_dist(rt_parameter%naqcomp, &
-                                             option%nphase)
+  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                    rt_parameter%nphase)
   PetscReal :: fraction_upwind
-  PetscReal :: T_up(rt_parameter%naqcomp,option%nphase)
-  PetscReal :: T_dn(rt_parameter%naqcomp,option%nphase)
+  PetscReal :: T_up(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: T_dn(rt_parameter%naqcomp,rt_parameter%nphase)
 
-  PetscInt :: iphase, max_phase
+  PetscInt :: iphase, nphase
   PetscReal :: coef_up(rt_parameter%naqcomp)
   PetscReal :: coef_dn(rt_parameter%naqcomp)
   PetscReal :: q
   
-  max_phase = 1
-  if (rt_parameter%ngas > 0) max_phase = 2
+  nphase = rt_parameter%nphase
+
+  T_up(:,:) = 0.d0
+  T_dn(:,:) = 0.d0
   
-  do iphase = 1, max_phase
+  ! as long as gas phase chemistry is a function of aqueous, skip both phases
+  if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation .or. &
+      global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) return
+
+  do iphase = 1, nphase
     q = velocity(iphase)
 
     if (option%use_upwinding) then
       ! upstream weighting
       ! units = (m^3 water/m^2 bulk/sec)
       if (q > 0.d0) then
-        coef_up(:) =  harmonic_dispersion_over_dist(:,iphase)+q
-        coef_dn(:) = -harmonic_dispersion_over_dist(:,iphase)
+        coef_up(:) =  tran_coefs_over_dist(:,iphase)+q
+        coef_dn(:) = -tran_coefs_over_dist(:,iphase)
       else
-        coef_up(:) =  harmonic_dispersion_over_dist(:,iphase)
-        coef_dn(:) = -harmonic_dispersion_over_dist(:,iphase)+q
+        coef_up(:) =  tran_coefs_over_dist(:,iphase)
+        coef_dn(:) = -tran_coefs_over_dist(:,iphase)+q
       endif
     else
       ! central difference, currently assuming uniform grid spacing
       ! units = (m^3 water/m^2 bulk/sec)
       ! 
-      coef_up(:) =  harmonic_dispersion_over_dist(:,iphase) + &
+      coef_up(:) =  tran_coefs_over_dist(:,iphase) + &
                     (1.d0-fraction_upwind)*q
-      coef_dn(:) = -harmonic_dispersion_over_dist(:,iphase) + &
+      coef_dn(:) = -tran_coefs_over_dist(:,iphase) + &
                     fraction_upwind*q
     endif  
   
@@ -812,8 +814,10 @@ end subroutine TFluxCoef
 
 ! ************************************************************************** !
 
-subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
-                        harmonic_dispersion_over_dist, &
+subroutine TFluxCoef_CD(rt_parameter, &
+                        global_auxvar_up,global_auxvar_dn, &
+                        option,area,velocity, &
+                        tran_coefs_over_dist, &
                         fraction_upwind,T_11,T_12,T_21,T_22)
   ! 
   ! Computes flux coefficients for transport matrix
@@ -827,23 +831,25 @@ subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
   implicit none
   
   type(reactive_transport_param_type) :: rt_parameter  
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
   type(option_type) :: option
   PetscReal :: area
   PetscReal :: velocity(*)
   ! this is the harmonic mean of saturation * porosity * (mechanical 
   !   dispersion + tortuosity * molecular_diffusion) / distance
-  PetscReal :: harmonic_dispersion_over_dist(rt_parameter%naqcomp,option%nphase)
+  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                    rt_parameter%nphase)
   PetscReal :: fraction_upwind
-  PetscReal :: T_11(rt_parameter%naqcomp,option%nphase)
-  PetscReal :: T_12(rt_parameter%naqcomp,option%nphase)
-  PetscReal :: T_21(rt_parameter%naqcomp,option%nphase)
-  PetscReal :: T_22(rt_parameter%naqcomp,option%nphase)
+  PetscReal :: T_11(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: T_12(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: T_21(rt_parameter%naqcomp,rt_parameter%nphase)
+  PetscReal :: T_22(rt_parameter%naqcomp,rt_parameter%nphase)
 
   PetscInt :: iphase
   PetscReal :: coef_up(rt_parameter%naqcomp), coef_dn(rt_parameter%naqcomp)
   PetscReal :: tempreal
-  PetscReal :: advection_upwind(option%nphase)
-  PetscReal :: advection_downwind(option%nphase)
+  PetscReal :: advection_upwind(rt_parameter%nphase)
+  PetscReal :: advection_downwind(rt_parameter%nphase)
   PetscReal :: q
   
   ! T_11 = diagonal term for upwind cell (row)
@@ -851,11 +857,19 @@ subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
   ! T_21 = off diagonal term for downwind cell (row)
   ! T_22 = diagonal term for downwind cell (row)
 
+  T_11(:,:) = 0.d0
+  T_12(:,:) = 0.d0
+  T_21(:,:) = 0.d0
+  T_22(:,:) = 0.d0
+
+  if (global_auxvar_up%sat(LIQUID_PHASE) < rt_min_saturation .or. &
+      global_auxvar_dn%sat(LIQUID_PHASE) < rt_min_saturation) return
+
   ! Advection
   if (option%use_upwinding) then
     ! upstream weighting
     ! units = (m^3 water/m^2 bulk/sec)
-    do iphase = 1, option%nphase
+    do iphase = 1, rt_parameter%nphase
       if (velocity(iphase) > 0.d0) then
         advection_upwind(iphase) = velocity(iphase)
         advection_downwind(iphase) = 0.d0
@@ -866,21 +880,21 @@ subroutine TFluxCoef_CD(rt_parameter,option,area,velocity, &
     enddo
   else
     ! central difference
-    do iphase = 1, option%nphase
+    do iphase = 1, rt_parameter%nphase
       advection_upwind(iphase) = (1.d0-fraction_upwind)*velocity(iphase)
       advection_downwind(iphase) = fraction_upwind*velocity(iphase)
     enddo
   endif
     
   tempreal = area*1000.d0
-  do iphase = 1, option%nphase
-    T_11(:,iphase) = (harmonic_dispersion_over_dist(:,iphase) + &
+  do iphase = 1, rt_parameter%nphase
+    T_11(:,iphase) = (tran_coefs_over_dist(:,iphase) + &
                       advection_upwind(iphase))*tempreal
-    T_12(:,iphase) = (-harmonic_dispersion_over_dist(:,iphase) + &
+    T_12(:,iphase) = (-tran_coefs_over_dist(:,iphase) + &
                       advection_downwind(iphase))*tempreal
-!    T_21(:,iphase) = -(harmonic_dispersion_over_dist(:,iphase) + &
+!    T_21(:,iphase) = -(tran_coefs_over_dist(:,iphase) + &
 !                       advection_upwind(iphase))*tempreal
-!    T_22(:,iphase) = (harmonic_dispersion_over_dist(:,iphase) - &
+!    T_22(:,iphase) = (tran_coefs_over_dist(:,iphase) - &
 !                       advection_downwind(iphase))*tempreal
     T_21(:,iphase) = -T_11(:,iphase)
     T_22(:,iphase) = -T_12(:,iphase)
@@ -890,7 +904,8 @@ end subroutine TFluxCoef_CD
 
 ! ************************************************************************** !
 
-subroutine TSrcSinkCoef(option,qsrc,tran_src_sink_type,T_in,T_out)
+subroutine TSrcSinkCoef(rt_parameter,global_auxvar,qsrc, &
+                        tran_src_sink_type,T_in,T_out)
   ! 
   ! Computes src/sink coefficients for transport matrix
   ! Here qsrc [m^3/sec] provided by flow.
@@ -903,7 +918,8 @@ subroutine TSrcSinkCoef(option,qsrc,tran_src_sink_type,T_in,T_out)
 
   implicit none
 
-  type(option_type) :: option
+  type(reactive_transport_param_type) :: rt_parameter
+  type(global_auxvar_type) :: global_auxvar
   PetscReal :: qsrc(2)
   PetscInt :: tran_src_sink_type
   PetscReal :: T_in(2) ! coefficient that scales concentration at cell
@@ -913,6 +929,8 @@ subroutine TSrcSinkCoef(option,qsrc,tran_src_sink_type,T_in,T_out)
       
   T_in = 0.d0 
   T_out = 0.d0
+
+  if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
      
   select case(tran_src_sink_type)
     case(EQUILIBRIUM_SS)
@@ -928,7 +946,7 @@ subroutine TSrcSinkCoef(option,qsrc,tran_src_sink_type,T_in,T_out)
       T_out = -1.d0
     case default
       ! qsrc always in m^3/sec
-      do iphase = 1, option%nphase
+      do iphase = 1, rt_parameter%nphase
         if (qsrc(iphase) > 0.d0) then ! injection
           T_in(iphase) = 0.d0
           T_out(iphase) = -1.d0*qsrc(iphase)*1000.d0 ! m^3/sec * 1000 L/m^3 -> L/s
@@ -985,7 +1003,7 @@ subroutine TFluxTVD(rt_parameter,velocity,area,dist, &
   
   ! flux should be in mol/sec
   
-  do iphase = 1, option%nphase
+  do iphase = 1, rt_parameter%nphase
     nu = velocity(iphase)*option%tran_dt/dist(0)
     ! L/sec = m/sec * m^2 * 1000 [L/m^3]
     velocity_area = velocity(iphase)*area*1000.d0

@@ -46,8 +46,8 @@ CHEMISTRY
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
-    All
-    pH
+    ALL
+    PH
     TOTAL
   /
 END
@@ -69,7 +69,10 @@ GRID
 END
 
 #=========================== flow =============================================
-UNIFORM_VELOCITY 7.9274479960d-9 0.d0 0.d0
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 7.9274479960d-9 0.d0 0.d0
+END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

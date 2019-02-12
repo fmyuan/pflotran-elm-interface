@@ -132,6 +132,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -176,6 +177,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToLower(discretization%ctype)
+        if( discretization%ctype=='grdecl' ) then
+          call SetIsGrdecl()
+          discretization%ctype='unstructured_explicit'
+        endif
         select case(trim(discretization%ctype))
           case('structured')
             discretization%itype = STRUCTURED_GRID
@@ -208,8 +213,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
                 unstructured_grid_ctype = 'polyhedra unstructured'
             end select
-            call InputReadNChars(input,option,discretization%filename, &
-                                 MAXSTRINGLENGTH,PETSC_TRUE)
+            call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
             call InputKeywordUnrecognized(word,'discretization type',option)
@@ -236,7 +240,9 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                              discretization%origin_global(Z_DIRECTION))
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
-           'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME')
+           'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD','DOMAIN_FILENAME', &
+           'UPWIND_FRACTION_METHOD','PERM_TENSOR_TO_SCALAR_MODEL', &
+           '2ND_ORDER_BOUNDARY_CONDITION')
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
@@ -257,30 +263,20 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
           if (index(discretization%filename,'.h5') > 0) then
-#if !defined(PETSC_HAVE_HDF5)
-            option%io_buffer = 'PFLOTRAN must be built with HDF5 ' // &
-              'support to read unstructured grid .h5 files'
-            call printErrMsg(option)
-#else
-
-#ifdef SCORPIO
-            call UGridReadHDF5PIOLib(un_str_grid,discretization%filename,option)
-#else
             call UGridReadHDF5(un_str_grid,discretization%filename,option)
-#endif
-! #ifdef SCORPIO
-
-#endif
-!#if !defined(PETSC_HAVE_HDF5)
-
           else
             call UGridRead(un_str_grid,discretization%filename,option)
           endif
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          call UGridExplicitRead(un_str_grid, &
-                                 discretization%filename,option)
+          if (GetIsGrdecl()) then
+            call UGrdEclExplicitRead(un_str_grid, &
+                                     discretization%filename,option)
+          else
+            call UGridExplicitRead(un_str_grid, &
+                                   discretization%filename,option)
+          endif
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
@@ -328,6 +324,7 @@ subroutine DiscretizationRead(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Material_Aux_class
 
   implicit none
 
@@ -346,10 +343,14 @@ subroutine DiscretizationRead(discretization,input,option)
   PetscInt :: nx, ny, nz
   PetscInt :: i
   PetscReal :: tempreal
+  PetscBool :: bounds_read
+  PetscBool :: dxyz_read
 
   nx = 0
   ny = 0
   nz = 0
+  bounds_read = PETSC_FALSE
+  dxyz_read = PETSC_FALSE
 
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
@@ -368,6 +369,7 @@ subroutine DiscretizationRead(discretization,input,option)
     select case(trim(word))
       case('TYPE','NXYZ','ORIGIN','FILE')
       case('DXYZ')
+        dxyz_read = PETSC_TRUE
         select case(discretization%itype)
           case(STRUCTURED_GRID)
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
@@ -383,6 +385,7 @@ subroutine DiscretizationRead(discretization,input,option)
           call printErrMsg(option)
         endif
       case('BOUNDS')
+        bounds_read = PETSC_TRUE
         select case(discretization%itype)
           case(STRUCTURED_GRID)
             grid => discretization%grid
@@ -513,6 +516,52 @@ subroutine DiscretizationRead(discretization,input,option)
                                &unstructured grids.'
             call printErrMsg(option)
         end select
+      case('UPWIND_FRACTION_METHOD')
+        if (discretization%itype == STRUCTURED_GRID) then
+          option%io_buffer = 'UPWIND_FRACTION_METHOD not supported for &
+            &structured grids.'
+          call printErrMsg(option)
+        endif
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
+        call StringToUpper(word)
+        select case(word)
+          case('FACE_CENTER_PROJECTION')
+            discretization%grid%unstructured_grid%upwind_fraction_method = &
+              UGRID_UPWIND_FRACTION_PT_PROJ
+          case('CELL_VOLUME')
+            discretization%grid%unstructured_grid%upwind_fraction_method = &
+              UGRID_UPWIND_FRACTION_CELL_VOL
+          case('ABSOLUTE_DISTANCE')
+            discretization%grid%unstructured_grid%upwind_fraction_method = &
+              UGRID_UPWIND_FRACTION_ABS_DIST
+          case default
+            call InputKeywordUnrecognized(word,'GRID,UPWIND_FRACTION_METHOD', &
+                                          option)
+        end select
+
+      case('PERM_TENSOR_TO_SCALAR_MODEL')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
+        call StringToUpper(word)
+        select case(word)
+          case('LINEAR')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
+          case('QUADRATIC')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,&
+                                              option)
+          case default
+            call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
+                                          option)
+        end select
+
+      case('2ND_ORDER_BOUNDARY_CONDITION')
+        if (discretization%itype /= STRUCTURED_GRID) then
+          option%io_buffer = '2ND_ORDER_BOUNDARY_CONDITION only supported &
+            &for structured grids.'
+          call PrintErrMsg(option)
+        endif
+        discretization%grid%structured_grid%second_order_bc = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,'GRID',option)
     end select 
@@ -524,6 +573,12 @@ subroutine DiscretizationRead(discretization,input,option)
         option%gravity(Z_DIRECTION) = -1.d0*option%gravity(Z_DIRECTION)
       endif
   end select
+
+  if (bounds_read .and. dxyz_read) then
+    option%io_buffer = 'Only BOUNDS or DXYZ may be set in the GRID &
+                       &block, not both.'
+    call printErrMsg(option)
+  endif
   
 end subroutine DiscretizationRead
 
@@ -1644,8 +1699,9 @@ subroutine DiscretizationDestroy(discretization)
   nullify(discretization%dm_n_stress_strain_dof)
 
 
-  if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) &
-    call VecScatterDestroy(discretization%tvd_ghost_scatter)
+  if (discretization%tvd_ghost_scatter /= PETSC_NULL_VECSCATTER) then
+    call VecScatterDestroy(discretization%tvd_ghost_scatter,ierr);CHKERRQ(ierr)
+  endif
   
   call GridDestroy(discretization%grid)
   

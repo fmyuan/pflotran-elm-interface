@@ -44,7 +44,7 @@ CHEMISTRY
   Tracer
   Tracer2
   /
-  REDOX_SPECIES
+  DECOUPLED_EQUILIBRIUM_REACTIONS
     NO3-
   /
   SECONDARY_SPECIES
@@ -218,8 +218,8 @@ CHEMISTRY
   ACTIVITY_COEFFICIENTS NEWTON_ITERATION
   MOLAL
   OUTPUT
-    All
-    pH
+    ALL
+    PH
     TOTAL
     TOTAL_SORBED
     KD
@@ -666,7 +666,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ./543.h5
+  FILE ./543.h5
 END
 
 END_SUBSURFACE

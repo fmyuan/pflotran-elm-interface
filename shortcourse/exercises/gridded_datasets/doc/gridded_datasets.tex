@@ -122,12 +122,14 @@
 %-----------------------------------------------------------------------------
 \section{Location of Example}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{LOCATION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Location}
 
 Location of this example problem:
 
 \begin{semiverbatim}
-\$PFLOTRAN_DIR/shortcourse/exercises/gridded_datasets
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/gridded_datasets
+> ls
 
 2D_steady_pressure_BC_1st_2nd_kind.in
 create_dataset.py
@@ -138,18 +140,21 @@ create_dataset.py
 %-----------------------------------------------------------------------------
 \section{The Test Problem Description}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
-This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
+This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st (Dirichlet) and 2nd (Neumann) kind).
   \begin{itemize}
     \item Domain: 2x1x1 m rectangular slab
     \item Grid cells: 20x10x1 hexahedral cells; dimensions 0.1x0.1x1 m
-    \item Singular material composition of:
+    \item Single material:
     \begin{itemize}
-      \item k = 1 $\times$ 10$^{-14}$ m2
-      \item $\rho_{f}$ = 1000 kg/m3
-      \item $\mu$ = 1 mPa-s
+      \item k = 1 $\times$ 10$^{-14}$ m$^{2}$
       \item $\phi$ = 0.50
+    \end{itemize}
+    \item Constant fluid properties:
+    \begin{itemize}
+      \item $\rho_{f}$ = 1000 kg/m$^{3}$
+      \item $\mu_{f}$ = 1 mPa-s
     \end{itemize}
     \item Initial Conditions:
     \begin{itemize}
@@ -161,25 +166,18 @@ This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 This is one of PFLOTRAN's QA tests (2D Steady Flow, BCs of 1st 2nd kind).
-  \begin{itemize}
-    \item Boundary Conditions:
-    \begin{itemize}
-      \item $p(x,0) = p_0 {x \over L} $  \hspace{0.25in} y=0 \hspace{0.15in} face
-      \item $p(x,L) = p_0 {{x+2L} \over L} $  \hspace{0.25in} y=L \hspace{0.15in} face
-      \item $p(2L,y) = p_0 {{2y+2L} \over L} $  \hspace{0.25in} x=2L \hspace{0.15in} face
-      \item $q(0,y) = {{-k}\over{\mu}}{p_0 \over L} = -10^{-5} $  \hspace{0.25in} x=0 \hspace{0.15in} face
-    \end{itemize}
-  \item L = 1 m and P0 = 1 MPa  
-  \item How do we apply these more complex boundary conditions?
-  \end{itemize}
+
+\includegraphics[width=1.2\textheight]{./BC_schematic.png}
+
+L = 1 m
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 The steady-state solution is governed by the LaPlace equation:
 \Large 
@@ -196,36 +194,43 @@ $p(x,y) = {p_0 \over L} (x+2y)$
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{PROBLEM DESCRIPTION}
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
 
 \includegraphics[width=0.75\textheight]{./visit_figure.png}
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\begin{frame}[fragile,containsverbatim]\frametitle{Problem Description}
+
+\includegraphics[width=1.2\textheight]{./BC_schematic.png}
+
+How do we apply these more complex boundary conditions? 
+
+With a gridded dataset!
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \subsection{GRIDDED DATASET}
 
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 To apply the boundary conditions, we use a gridded dataset.
-
-\begin{semiverbatim}
-\$PFLOTRAN_DIR/shortcourse/exercises/gridded_datasets
-
-create_dataset.py
-\end{semiverbatim}
 
 The datasets are HDF5 files, and they can be created with a python script.
 To create the dataset, run the python script:
 
 \begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/gridded_datasets
 > python create_dataset.py
 \end{semiverbatim}
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 The script will create a file called:
 
@@ -246,7 +251,7 @@ gridded dataset.
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 Open up the dataset.h5 file:
 
@@ -254,20 +259,21 @@ Open up the dataset.h5 file:
 > hdfview dataset.h5
 \end{semiverbatim}
 
-The values are applied at the cell face nodes (not at cell face centers).
+The values are calculated at the cell face nodes (not at cell face centers).
 Therefore, there are $nx + 1$ and $ny + 1$ values.
+PFLOTRAN interpolates to find the values at the face centers.
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{GRIDDED DATASET}
+\begin{frame}[fragile,containsverbatim]\frametitle{Creating and Using a Gridded Dataset}
 
 Open up the create\_dataset.py file:
 
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{INPUT FILE}
+\begin{frame}[fragile,containsverbatim]\frametitle{DATASET}
 
 After you've created the gridded dataset,
 how do you use the gridded dataset in the simulation? 
@@ -275,7 +281,7 @@ how do you use the gridded dataset in the simulation?
 \begin{semiverbatim}
 DATASET pressure_bc_north
   HDF5_DATASET_NAME x_line_node_centered_north
-  FILENAME ../dataset.h5
+  FILENAME ./dataset.h5
 END
 \end{semiverbatim}
 
@@ -284,10 +290,10 @@ There should be a DATASET block for each dataset group.
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\begin{frame}[fragile,containsverbatim]\frametitle{INPUT FILE}
+\begin{frame}[fragile,containsverbatim]\frametitle{FLOW\_CONDITION}
 
-After declaring the dataset using the DATASET block, you can use it to
-define a boundary condition:
+After declaring the dataset using the DATASET block, you can use it in
+the FLOW\_CONDITION block.
 
 \begin{semiverbatim}
 FLOW_CONDITION north_face
@@ -303,8 +309,27 @@ BOUNDARY_CONDITION north_face
 END
 \end{semiverbatim}
 
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{Command Line}
+
+\begin{semiverbatim}
+
+ > cd \$PFLOTRAN_DIR
+ > cd shortcourse/exercises/gridded_datasets/
+ > pflotran -input_prefix 2D_steady_pressure_BC_1st_2nd_kind
+
+\end{semiverbatim}
+
+The output is in VTK format. You can use Paraview to visualize it.
+
+\begin{semiverbatim}
+> paraview
+\end{semiverbatim}
 
 \end{frame}
+
 
 
 

@@ -53,7 +53,8 @@ CHEMISTRY
   LOG_FORMULATION
 #  ACTIVITY_COEFFICIENTS OFF
   OUTPUT
-    all
+    ALL
+    PH
     TOTAL
     TOTAL_SORBED
   /
@@ -108,7 +109,7 @@ REGION all
 END
 
 REGION west
-  FACE west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
@@ -116,7 +117,7 @@ REGION west
 END
 
 REGION east
-  FACE east
+  FACE EAST
   COORDINATES
     1.d0 0.d0 0.d0
     1.d0 1.d0 1.d0

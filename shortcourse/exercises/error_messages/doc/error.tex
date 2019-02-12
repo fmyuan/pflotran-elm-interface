@@ -38,6 +38,26 @@
 %\frame{\titlepage}
 
 %-----------------------------------------------------------------------------
+\section{Location of Example}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{LOCATION}
+
+Location of example problems:
+
+\begin{semiverbatim}
+> cd \$PFLOTRAN_DIR
+> cd shortcourse/exercises/error_messages
+> ls
+calcite_file_not_found.in
+calcite_mineral_constraint.in
+calcite_missing_end.in
+calcite_missing_param.in
+calcite_petsc.in
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Common Errors}
 
 \subsection{Common Errors}
@@ -64,14 +84,14 @@ The examples in ``error\_messages'' demonstrate some common input deck errors, t
 Most input errors result in tidy error messages, such as:
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_parameter.in
+> pflotran -input_prefix calcite_missing_parameter
 ... \gehcomment{returns screen output that ends with:}
   ERROR: Non-initialized porosity.
 
   ERROR: Material property errors found in RichardsSetup.
 
   Stopping!
-\$
+>
 \end{semiverbatim}
 
 \end{frame}
@@ -97,9 +117,8 @@ END
 
 MATERIAL_PROPERTY soil1
   ID 1
-  POROSITY 0.25d0 \bluecomment{! must be specified by user}
-  TORTUOSITY 1.d0 \bluecomment{! is set to 1 by default}
-  PERMEABILITY    \bluecomment{! must be specified by user}
+  \magentacomment{POROSITY 0.25d0} \bluecomment{! must be specified by user}
+  PERMEABILITY
     PERM_ISO 1.d-12
   /
   CHARACTERISTIC_CURVES default
@@ -114,12 +133,12 @@ END
 Another tidy error message.
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_file_not_found.in
+> pflotran -input_prefix calcite_file_not_found
 ... \gehcomment{returns screen output that ends with:}
   ERROR: File: "../../../database/hanord.dat" not found.
 
   Stopping!
-\$
+>
 \end{semiverbatim}
 
 \end{frame}
@@ -135,7 +154,7 @@ DATABASE ../../../database/hanord.dat
 \begin{frame}[fragile,containsverbatim]\frametitle{File not found}
 \redcomment{Fixed.}
 \begin{semiverbatim}
-DATABASE ../../../database/han\redcomment{f}ord.dat \bluecomment{! had a typo!}
+DATABASE ../../../database/han\magentacomment{f}ord.dat \bluecomment{! had a typo!}
 \end{semiverbatim}
 
 \end{frame}
@@ -147,14 +166,14 @@ DATABASE ../../../database/han\redcomment{f}ord.dat \bluecomment{! had a typo!}
 One last example of a very tidy error message:
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_mineral_constraint.in
+> pflotran -input_prefix calcite_mineral_constraint
 ... \gehcomment{returns screen output ending with:}
   ERROR: Two aqueous species (HCO3- and Ca++) are
   constrained by the same mineral (Calcite) in 
   CONSTRAINT "initial".
 
   Stopping!
-\$
+>
 \end{semiverbatim}
 
 \end{frame}
@@ -185,7 +204,7 @@ END
 CONSTRAINT initial
   CONCENTRATIONS
     H+     1.d-8      F
-    HCO3-  1.d-3      G  CO2(g) \bluecomment{! Here is a fix.}
+    HCO3-  1.d-3      \magentacomment{G  CO2(g)} \bluecomment{! Here is a fix.}
     Ca++   5.d-4      M  Calcite
   /
   MINERALS
@@ -207,12 +226,12 @@ END
 \end{itemize}
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_end.in
+> pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
   ERROR:  Keyword "TIME" not recognized in OUTPUT.
 
   Stopping!
-\$
+>
 \end{semiverbatim}
 
 \end{frame}
@@ -243,7 +262,7 @@ OUTPUT
   TIMES y 5. 10. 15. 20.
   FORMAT TECPLOT POINT
   VELOCITY_AT_CENTER
-END \bluecomment{! this \greencomment{END} was missing}
+\magentacomment{END} \bluecomment{! this \greencomment{END} was missing}
 
 TIME
   FINAL_TIME 25.d0 y
@@ -258,14 +277,14 @@ END
 \redcomment{You fix that and run it again:}
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_end.in
+> pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
   ERROR: Number of concentration constraints exceeds 
   number of primary chemical components in constraint:
   initial
 
   Stopping!
-\$
+>
 \end{semiverbatim}
 
 \end{frame}
@@ -297,7 +316,7 @@ CONSTRAINT initial
     H+     1.d-8      F
     HCO3-  1.d-3      G  CO2(g)
     Ca++   5.d-4      M  Calcite
-  / \bluecomment{! this \greencomment{/} was missing}
+  \magentacomment{/} \bluecomment{! this \greencomment{/} was missing}
   MINERALS
     Calcite 1.d-5 1.d0
   /
@@ -310,12 +329,12 @@ END
 \redcomment{This file requires one last fix:}
 \begin{semiverbatim}
 
-\$ pflotran -pflotranin calcite_missing_end.in
+> pflotran -input_prefix calcite_missing_end
 ... \gehcomment{returns screen output that ends with:}
   ERROR: Species not found in database.
 
   Stopping!
-\$
+>
 \end{semiverbatim}
 
 \end{frame}
@@ -364,7 +383,7 @@ CHEMISTRY
     CaCO3(aq)
     CaHCO3+
     CaOH+
-  / \bluecomment{! this \greencomment{/} was missing}
+  \magentacomment{/} \bluecomment{! this \greencomment{/} was missing}
   GAS_SPECIES
     CO2(g)
   /
@@ -380,27 +399,27 @@ CHEMISTRY
 \subsection{PETSc}
 
 \begin{frame}[fragile,containsverbatim]\frametitle{PETSc Errors}
-For best effect run with many cores, and one little error will give you lots and lots of PETSc output. (This is only one core.)
 \begin{semiverbatim}
-\$ mpirun -n 1 pflotran -pflotranin calcite_petsc.in
+> mpirun -n 2 pflotran -input_prefix calcite_petsc
 ... \gehcomment{returns screen output ending with:} \small
-{[}0{]}PETSC ERROR: --------------------- Error Message --------------------------------------------------------------
-{[}0{]}PETSC ERROR: Argument out of range
-{[}0{]}PETSC ERROR: Negative index -1 at 0 location
-{[}0{]}PETSC ERROR: See http://www.mcs.anl.gov/petsc/documentation/faq.html for trouble shooting.
-{[}0{]}PETSC ERROR: Petsc Development GIT revision: v3.7.5-3166-g8f6b994  GIT Date: 2017-02-21 14:33:01 -0600
-{[}0{]}PETSC ERROR: pflotran on a gnu-c-debug named cameo by ergiamb Thu May  4 16:03:13 2017
-{[}0{]}PETSC ERROR: Configure options --PETSC_ARCH=gnu-c-debug --with-cc=gcc --with-fc=gfortran --with-cxx=g++ --with-clanguage=c --with-shared-libraries=0 --with-debugging=yes --download-hdf5=yes --with-valgrind=1 --download-parmetis=yes --download-metis=yes --with-c2html=0 --download-mpich=yes --download-fblaslapack=yes
-{[}0{]}PETSC ERROR: #1 VecScatterCheckIndices_Private() line 36 in /home/ergiamb/software/petsc/src/vec/vec/utils/vscat.c
-{[}0{]}PETSC ERROR: #2 VecScatterCreate() line 1177 in /home/ergiamb/software/petsc/src/vec/vec/utils/vscat.c
-application called MPI_Abort(MPI_COMM_WORLD, 63) - process 0 \normalsize
-\$
+[0]PETSC ERROR: --------------------- Error Message --------------------------------------------------------------
+[0]PETSC ERROR: Argument out of range
+[0]PETSC ERROR: Partition in z direction is too fine! 1 2
+[0]PETSC ERROR: See http://www.mcs.anl.gov/petsc/documentation/faq.html for trouble shooting.
+[0]PETSC ERROR: Petsc Development GIT revision: v3.7.5-3166-g8f6b994  GIT Date: 2017-02-21 14:33:01 -0600
+[0]PETSC ERROR: pflotran on a intel-c-opt named cameo by ergiamb Thu Apr 12 11:26:25 2018
+[0]PETSC ERROR: Configure options --PETSC_ARCH=intel-c-opt --with-cc=icc --with-fc=ifort --with-cxx=icpc --with-clanguage=c --with-shared-libraries=0 --with-debugging=0 --download-hdf5=yes --with-valgrind=1 --download-parmetis=yes --download-metis=yes --download-hypre=yes --with-c2html=0 --download-mpich=http://www.mpich.org/static/downloads/3.2/mpich-3.2.tar.gz --with-blaslapack-dir=/opt/intel/mkl FFLAGS="-diag-disable 5462"
+[0]PETSC ERROR: #1 DMSetUp_DA_3D() line 296 in /home/ergiamb/software/petsc/src/dm/impls/da/da3.c
+[0]PETSC ERROR: #2 DMSetUp_DA() line 25 in /home/ergiamb/software/petsc/src/dm/impls/da/dareg.c
+[0]PETSC ERROR: #3 DMSetUp() line 716 in /home/ergiamb/software/petsc/src/dm/interface/dm.c
+application called MPI_Abort(MPI_COMM_WORLD, 63) - process 0
+>
 \end{semiverbatim}
 
 \end{frame}
 
 \begin{frame}[fragile]\frametitle{PETSc Errors}
-\redcomment{What's the fix?}
+\redcomment{This PETSC error has a fix, but...}
 \Large
 \begin{center}
 Whether you can debug your PETSc error or not, please send your input deck to \bluecomment{pflotran-dev@googlegroups.com}

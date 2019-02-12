@@ -1184,10 +1184,7 @@ implicit none
 
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (liquid_saturation == 1.d0) then
-        liquid_relative_perm = 1.d0
-        dkr_ds_liq = 0.d0
-      else
+      if (liquid_saturation < 1.d0) then
         m = saturation_function%m
         one_over_m = 1.d0/m
         liq_sat_one_over_m = liquid_saturation**one_over_m
@@ -1197,9 +1194,12 @@ implicit none
                      2.d0*liquid_saturation**(one_over_m - 0.5d0)* &
                      (1.d0 - liq_sat_one_over_m)**(m - 1.d0)* &
                      (1.d0 - (1.d0 - liq_sat_one_over_m)**m)
+      else
+        liquid_relative_perm = 1.d0
+        dkr_ds_liq = 0.d0        
       endif
-        dkr_pl = dkr_ds_liq*dsl_pl
-        dkr_temp = dkr_ds_liq*dsl_temp
+      dkr_pl = dkr_ds_liq*dsl_pl
+      dkr_temp = dkr_ds_liq*dsl_temp
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
       call printErrMsg(option)
@@ -1256,13 +1256,13 @@ subroutine ComputeInvVGAndDerivative(alpha,lambda,sat,Sinv,dSinv_dsat)
   PetscReal :: sat, Sinv, dSinv_dsat
   
   gamma = 1.d0/(1.d0 - lambda)
-  if (sat == 1.d0) then
-    Sinv = 0.d0
-    dSinv_dsat = 0.d0
-  else
+  if (sat < 1.0d0) then
     Sinv = 1.d0/alpha*((sat)**(-1.d0/lambda) - 1.d0)**(1.d0/gamma)
     dSinv_dsat = 1.d0/alpha*1.d0/gamma*((sat**(-1.d0/lambda) - 1.d0)**(1.d0/gamma - &
-      1.d0))*(-1.d0/lambda)*(sat**(-1.d0/lambda - 1.d0))
+         1.d0))*(-1.d0/lambda)*(sat**(-1.d0/lambda - 1.d0))
+  else
+    Sinv = 0.d0
+    dSinv_dsat = 0.d0    
   endif
   
 end subroutine ComputeInvVGAndDerivative
@@ -1486,12 +1486,12 @@ subroutine CalcPhasePartitionIceDeriv(alpha,lambda,Pcgl,T,s_g,s_i,s_l, &
   call ComputeVGAndDerivative(alpha,lambda,Pcgl,sat,dsat)
   G = dsat_dpc*dsat_inv
   dS_dpl = dsat*(-1.d0)
-  if (G == 1.d0) then
-    dsi_dpl = 0.d0
-    dsl_dpl = (1.d0 - s_i)*dS_dpl
-  else
+  if (G < 1.d0) then
     dsi_dpl = (1.d0 - s_i)/(G/(1.d0 - G) + sat)*dS_dpl
     dsl_dpl = dsi_dpl*G/(1.d0 - G)
+  else
+    dsi_dpl = 0.d0
+    dsl_dpl = (1.d0 - s_i)*dS_dpl    
   endif
   dsg_dpl = -dsi_dpl - dsl_dpl
 
@@ -1624,10 +1624,7 @@ implicit none
   ! Calculate relative permeability
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (s_l == 1.d0) then
-        kr = 1.d0
-        dkr_dsl = 0.d0
-      else
+      if (s_l < 1.d0) then
         m = saturation_function%m
         one_over_m = 1.d0/m
         liq_sat_one_over_m = s_l**one_over_m
@@ -1636,9 +1633,12 @@ implicit none
                   2.d0*s_l**(one_over_m - 0.5d0)* &
                   (1.d0 - liq_sat_one_over_m)**(m - 1.d0)* &
                   (1.d0 - (1.d0 - liq_sat_one_over_m)**m)
+      else
+        kr = 1.d0
+        dkr_dsl = 0.d0
       endif
-        dkr_dpl = dkr_dsl*dsl_dpl
-        dkr_dT = dkr_dsl*dsl_dT
+      dkr_dpl = dkr_dsl*dsl_dpl
+      dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
       call printErrMsg(option)
@@ -1755,10 +1755,7 @@ implicit none
   ! Calculate relative permeability
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (s_l == 1.d0) then
-        kr = 1.d0
-        dkr_dsl = 0.d0
-      else
+      if (s_l < 1.d0) then
         m = saturation_function%m
         one_over_m = 1.d0/m
         liq_sat_one_over_m = s_l**one_over_m
@@ -1767,9 +1764,12 @@ implicit none
                   2.d0*s_l**(one_over_m - 0.5d0)* &
                   (1.d0 - liq_sat_one_over_m)**(m - 1.d0)* &
                   (1.d0 - (1.d0 - liq_sat_one_over_m)**m)
+      else
+        kr = 1.d0
+        dkr_dsl = 0.d0        
       endif
-        dkr_dpl = dkr_dsl*dsl_dpl
-        dkr_dT = dkr_dsl*dsl_dT
+      dkr_dpl = dkr_dsl*dsl_dpl
+      dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
       call printErrMsg(option)
@@ -1889,10 +1889,7 @@ implicit none
   ! Calculate relative permeability
   select case(saturation_function%permeability_function_itype)
     case(MUALEM)
-      if (s_l == 1.d0) then
-        kr = 1.d0
-        dkr_dsl = 0.d0
-      else
+      if (s_l < 1.d0) then
         m = saturation_function%m
         one_over_m = 1.d0/m
         liq_sat_one_over_m = s_l**one_over_m
@@ -1901,9 +1898,12 @@ implicit none
                   2.d0*s_l**(one_over_m - 0.5d0)* &
                   (1.d0 - liq_sat_one_over_m)**(m - 1.d0)* &
                   (1.d0 - (1.d0 - liq_sat_one_over_m)**m)
+      else
+        kr = 1.d0
+        dkr_dsl = 0.d0        
       endif
-        dkr_dpl = dkr_dsl*dsl_dpl
-        dkr_dT = dkr_dsl*dsl_dT
+      dkr_dpl = dkr_dsl*dsl_dpl
+      dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
       call printErrMsg(option)

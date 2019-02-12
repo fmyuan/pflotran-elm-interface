@@ -10,9 +10,13 @@ module String_module
 
   private
 
-  PetscInt, parameter, public :: STRING_IS_INTEGER = 1
-  PetscInt, parameter, public :: STRING_IS_DOUBLE = 2
-  PetscInt, parameter, public :: STRING_IS_WORD = 3
+  PetscInt, parameter, public :: STRING_IS_AN_INTEGER = 1
+  PetscInt, parameter, public :: STRING_IS_A_DOUBLE = 2
+  PetscInt, parameter, public :: STRING_IS_A_WORD = 3
+
+  PetscInt, parameter, public :: STRING_YES = 1
+  PetscInt, parameter, public :: STRING_NO = 0
+  PetscInt, parameter, public :: STRING_OTHER = UNINITIALIZED_INTEGER
 
   public :: StringCompare, &
             StringCompareIgnoreCase, &
@@ -21,6 +25,7 @@ module String_module
             StringReadQuotedWord, &
             StringStartsWithAlpha, &
             StringStartsWith, &
+            StringEndsWith, &
             StringAdjustl, &
             StringNull, &
             StringFindEntryInList, &
@@ -28,7 +33,32 @@ module String_module
             StringSwapChar, &
             StringFormatInt, &
             StringFormatDouble, &
-            StringIntegerDoubleOrWord
+            StringIntegerDoubleOrWord, &
+            StringYesNoOther, &
+            StringsCenter, &
+            StringCenter, &
+            StringWrite, &
+            StringWriteF, &
+            StringWriteToUnit, &
+            StringWriteToUnits, &
+            String1Or2
+
+  interface StringWrite
+    module procedure StringWriteI
+    module procedure StringWriteES1
+    module procedure StringWriteES2
+    module procedure StringWriteString
+  end interface
+
+  interface StringWriteF
+    module procedure StringWriteF1
+    module procedure StringWriteF2
+  end interface
+
+  interface StringWriteToUnits
+    module procedure StringWriteStringToUnits
+    module procedure StringWriteStringsToUnits
+  end interface
   
   interface StringCompare
     module procedure StringCompare1
@@ -362,6 +392,44 @@ end function StringStartsWith
 
 ! ************************************************************************** !
 
+function StringEndsWith(string,string2)
+  ! 
+  ! Determines whether a string ends with characters identical to another 
+  ! string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/12
+  ! 
+      
+  implicit none
+
+  character(len=*) :: string
+  character(len=*) :: string2
+
+  PetscBool :: StringEndsWith
+  
+  PetscInt :: search_length, i, i1, i2, len1, len2
+
+  len1 = len_trim(string)
+  len2 = len_trim(string2)
+  search_length = min(len1,len2)
+  
+  do i = 1, search_length
+    ! search backward
+    i1 = len1+1-i
+    i2 = len2+1-i
+    if (string(i1:i1) /= string2(i2:i2)) then
+      StringEndsWith = PETSC_FALSE
+      return
+    endif
+  enddo
+  
+  StringEndsWith = PETSC_TRUE
+
+end function StringEndsWith
+
+! ************************************************************************** !
+
 subroutine StringAdjustl(string)
   ! 
   ! Left adjusts a string by removing leading spaces and tabs.
@@ -500,7 +568,9 @@ function StringSplit(string,chars)
   
   ! determine how many delimiting block in string
   length = len_trim(string)
-  length_chars = len_trim(chars)
+  ! do not use len_trim for chars.  All characters including the blank and 
+  ! trailing blanks (spaces) should be accounted for.
+  length_chars = len(chars)
   icount = 0
   last_index = 1
   iend = length-length_chars+1
@@ -599,9 +669,9 @@ end function StringFormatDouble
 
 ! ************************************************************************** !
 
-function StringIntegerDoubleOrWord(string)
+function StringIntegerDoubleOrWord(string_in)
   ! 
-  ! Writes a double or real to a string
+  ! Returns whether a value read from a string is a double, integer, or word
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/13/12
@@ -609,14 +679,17 @@ function StringIntegerDoubleOrWord(string)
 
   implicit none
   
-  character(len=*) :: string
+  character(len=*) :: string_in
 
   PetscInt :: StringIntegerDoubleOrWord
 
+  character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: d
   PetscInt :: i
   PetscBool :: double_syntax_found
   PetscErrorCode :: ierr
+
+  string = trim(string_in)
 
   StringIntegerDoubleOrWord = -999
   ierr = 0
@@ -628,20 +701,340 @@ function StringIntegerDoubleOrWord(string)
     ! the Intel compiler does not alway catch the misread of a double to an 
     ! integer
     if (double_syntax_found) then
-      StringIntegerDoubleOrWord = STRING_IS_DOUBLE
+      StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
       return
     endif
-    StringIntegerDoubleOrWord = STRING_IS_INTEGER
+    StringIntegerDoubleOrWord = STRING_IS_AN_INTEGER
     return
   endif
   ierr = 0
   read(string,*,iostat=ierr) d
   if (ierr == 0) then
-    StringIntegerDoubleOrWord = STRING_IS_DOUBLE
+    StringIntegerDoubleOrWord = STRING_IS_A_DOUBLE
     return
   endif
-  if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_WORD
+  if (len_trim(string) > 0) StringIntegerDoubleOrWord = STRING_IS_A_WORD
   
 end function StringIntegerDoubleOrWord
+
+! ************************************************************************** !
+
+function StringYesNoOther(string)
+  ! 
+  ! Returns PETSC_TRUE if a string is blank
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/07/10
+  ! 
+      
+  implicit none
+
+  character(len=*) :: string
+
+  character(len=MAXSTRINGLENGTH) :: string2
+
+  PetscInt :: StringYesNoOther
+
+  string2 = adjustl(string)
+  call StringToUpper(string2)
+
+  StringYesNoOther = STRING_OTHER
+  if (len_trim(string2) == 3 .and. StringStartsWith(string2,'YES')) then
+    StringYesNoOther = STRING_YES
+  elseif (len_trim(string2) == 2 .and. StringStartsWith(string2,'NO')) then
+    StringYesNoOther = STRING_NO
+  elseif (len_trim(string2) == 2 .and. StringStartsWith(string2,'ON')) then
+    StringYesNoOther = STRING_YES
+  elseif (len_trim(string2) == 3 .and. StringStartsWith(string2,'OFF')) then
+    StringYesNoOther = STRING_NO
+  endif
+
+end function StringYesNoOther
+
+! ************************************************************************** !
+
+subroutine StringsCenter(strings,center_column,center_characters)
+  ! 
+  ! Writes strings centered on center_characters within width
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/03/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: strings(:)
+  PetscInt :: center_column
+  character(len=*) :: center_characters
+ 
+  PetscInt :: i
+ 
+  do i=1, size(strings)
+    strings(i) = StringCenter(strings(i),center_column,center_characters)
+  enddo
+ 
+end subroutine StringsCenter
+
+! ************************************************************************** !
+
+function StringCenter(string,center_column,center_characters)
+  ! 
+  ! Writes a string centered on center_characters within width
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/03/18
+  ! 
+
+  implicit none
+ 
+  character(len=*) :: string
+  PetscInt :: center_column
+  character(len=*) :: center_characters
+
+  character(len=MAXSTRINGLENGTH) :: StringCenter
+
+  PetscInt :: icol
+  character(len=center_column) :: buffer
+ 
+  if (len_trim(center_characters) > 0) then
+    icol = center_column - index(string,center_characters)
+    if (icol > 0) then
+      buffer(1:icol) = ''
+      string = buffer(1:icol) // string
+    endif
+  else if (len(center_characters) > 0) then
+    string = center_characters // string
+  endif
+
+  StringCenter = string
+ 
+end function StringCenter
+
+! ************************************************************************** !
+
+function StringWriteI(i)
+  ! 
+  ! Writes an integer to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteI
+
+  PetscInt :: i
+
+  write(StringWriteI,*) i
+  StringWriteI = adjustl(StringWriteI)
+ 
+end function StringWriteI
+
+! ************************************************************************** !
+
+function StringWriteES1(es)
+  ! 
+  ! Writes a double precision number in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteES1
+
+  PetscReal :: es
+  
+  StringWriteES1 = StringWrite('(es13.6)',es)
+ 
+end function StringWriteES1
+
+! ************************************************************************** !
+
+function StringWriteES2(format_string,es)
+  ! 
+  ! Writes a double precision number in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteES2
+
+  character(len=*) format_string
+  PetscReal :: es
+
+  write(StringWriteES2,format_string) es
+  StringWriteES2 = adjustl(StringWriteES2)
+ 
+end function StringWriteES2
+
+! ************************************************************************** !
+
+function StringWriteF1(f)
+  ! 
+  ! Writes a double precision number in floating point notaton to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteF1
+
+  PetscReal :: f
+
+  StringWriteF1 = StringWriteF('(f20.4)',f)
+ 
+end function StringWriteF1
+
+! ************************************************************************** !
+
+function StringWriteF2(format_string,f)
+  ! 
+  ! Writes a double precision number in floating point notaton to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteF2
+
+  character(len=*) format_string
+  PetscReal :: f
+
+  write(StringWriteF2,format_string) f
+  StringWriteF2 = adjustl(StringWriteF2)
+ 
+end function StringWriteF2
+
+! ************************************************************************** !
+
+function StringWriteString(s)
+  ! 
+  ! Writes a double precision number in floating point notaton to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteString
+
+  character(len=*) :: s
+
+  StringWriteString = adjustl(s)
+ 
+end function StringWriteString
+
+! ************************************************************************** !
+
+subroutine StringWriteToUnit(fid,string)
+  ! 
+  ! Writes a string to a file unit (which could be the screen). ! This 
+  ! routine WILL NOT SKIP empty lines.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscInt :: fid
+  character(len=*) :: string
+
+  write(fid,'(a)') trim(string)
+ 
+end subroutine StringWriteToUnit
+
+! ************************************************************************** !
+
+subroutine StringWriteStringToUnits(fids,string)
+  ! 
+  ! Writes a SINGLE string to multiple file units (one of which could
+  ! be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscInt :: fids(:)
+  character(len=*) :: string
+
+  PetscInt :: i
+
+  do i = 1, size(fids)
+    if (fids(i) > 0) call StringWriteToUnit(fids(i),string)
+  enddo
+ 
+end subroutine StringWriteStringToUnits
+
+! ************************************************************************** !
+
+subroutine StringWriteStringsToUnits(fids,strings)
+  ! 
+  ! Writes MULTIPLE strings to multiple file units (one of which could
+  ! be the screen).  This routine WILL SKIP empty lines.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscInt :: fids(:)
+  character(len=*) :: strings(:)
+
+  PetscInt :: ifile, istring
+
+  do istring = 1, size(strings)
+    if (len_trim(strings(istring)) > 0) then
+      do ifile = 1, size(fids)
+        if (fids(ifile) > 0) then
+          call StringWriteToUnit(fids(ifile),strings(istring))
+        endif
+      enddo
+    endif
+  enddo
+ 
+end subroutine StringWriteStringsToUnits
+
+! ************************************************************************** !
+
+function String1Or2(bool,string1,string2)
+  ! 
+  ! Writes a string to multipel file units (one of which could be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  PetscBool :: bool
+  character(len=*) :: string1
+  character(len=*) :: string2
+
+  character(len=MAXSTRINGLENGTH) :: String1Or2
+
+  if (bool) then
+    String1Or2 = string1
+  else
+    String1Or2 = string2
+  endif
+
+end function String1Or2
+
+! ************************************************************************** !
 
 end module String_module

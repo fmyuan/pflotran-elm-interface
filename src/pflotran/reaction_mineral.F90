@@ -1,10 +1,10 @@
 module Reaction_Mineral_module
 
+  use petscsys  
   use Reaction_Mineral_Aux_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
-  
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -34,8 +34,6 @@ subroutine MineralRead(mineral,input,option)
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -83,8 +81,6 @@ subroutine MineralReadKinetics(mineral,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/16/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
@@ -423,8 +419,6 @@ subroutine MineralReadFromDatabase(mineral,num_dbase_temperatures,input, &
   ! Author: Glenn Hammond
   ! Date: 10/16/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
@@ -469,6 +463,7 @@ subroutine MineralReadFromDatabase(mineral,num_dbase_temperatures,input, &
                               spec_name(ispec),PETSC_TRUE)
     call InputErrorMsg(input,option,'MINERAL species name','DATABASE')            
   enddo
+  !note: logKs read are pK so that K is in the denominator (i.e. Q/K)
   do itemp = 1, num_dbase_temperatures
     call InputReadDouble(input,option,mineral%dbaserxn%logK(itemp))
     call InputErrorMsg(input,option,'MINERAL logKs','DATABASE')   
@@ -490,18 +485,18 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
   ! Date: 01/07/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
   use Utility_module  
+  use Units_module
   
   implicit none
   
   type(mineral_type), pointer :: mineral
   character(len=MAXWORDLENGTH) :: constraint_name
   type(mineral_constraint_type), pointer :: constraint
+  type(mineral_rxn_type), pointer :: mineral_rxn
   type(option_type) :: option
   
   PetscBool :: found
@@ -510,10 +505,15 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
   character(len=MAXWORDLENGTH) :: mineral_name(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_vol_frac_string(mineral%nkinmnrl)
   character(len=MAXWORDLENGTH) :: constraint_area_string(mineral%nkinmnrl)
+  character(len=MAXWORDLENGTH) :: constraint_area_units(mineral%nkinmnrl)
   PetscReal :: constraint_vol_frac(mineral%nkinmnrl)
   PetscReal :: constraint_area(mineral%nkinmnrl)
   PetscBool :: external_vol_frac_dataset(mineral%nkinmnrl)
   PetscBool :: external_area_dataset(mineral%nkinmnrl)
+  character(len=MAXWORDLENGTH) :: units
+  character(len=MAXWORDLENGTH) :: internal_units
+  PetscBool :: per_unit_mass
+  PetscReal :: tempreal
   
   if (.not.associated(constraint)) return
 
@@ -548,6 +548,8 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
         constraint%constraint_vol_frac_string(imnrl)
       constraint_area_string(jmnrl) = &
         constraint%constraint_area_string(imnrl)
+      constraint_area_units(jmnrl) = &
+        constraint%constraint_area_units(imnrl)
       external_vol_frac_dataset(jmnrl) = &
         constraint%external_vol_frac_dataset(imnrl)
       external_area_dataset(jmnrl) = &
@@ -559,9 +561,55 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
   constraint%constraint_area = constraint_area
   constraint%constraint_vol_frac_string = constraint_vol_frac_string
   constraint%constraint_area_string = constraint_area_string
+  constraint%constraint_area_units = constraint_area_units
   constraint%external_vol_frac_dataset = external_vol_frac_dataset
   constraint%external_area_dataset = external_area_dataset
   
+  ! set up constraint specific surface area conversion factor
+  do imnrl = 1, mineral%nkinmnrl
+    units = constraint%constraint_area_units(imnrl)
+    per_unit_mass = StringEndsWith(units,'g')
+    internal_units = 'm^2/m^3'
+    if (per_unit_mass) then
+      internal_units = 'm^2/kg'
+    endif
+    tempreal = UnitsConvertToInternal(units,internal_units,option)
+    if (per_unit_mass) then
+      mineral_rxn => GetMineralFromName(constraint%names(imnrl),mineral)
+      if (mineral_rxn%molar_weight < 1.d-16 .or. &
+          Equal(mineral_rxn%molar_weight,500.d0)) then
+        option%io_buffer = 'Zero or undefined molar weight for mineral "' // & 
+          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          &surface area per mass mineral in constraint "' // &
+          trim(constraint_name) // '".'
+        call printErrMsg(option)
+      endif
+      if (mineral_rxn%molar_volume < 1.d-16 .or. &
+          Equal(mineral_rxn%molar_volume,500.d0)) then
+        option%io_buffer = 'Zeroor undefined molar volume for mineral "' // & 
+          trim(mineral_rxn%name) // '" prevents specifying mineral specific &
+          &surface area per mass mineral in constraint "' // &
+          trim(constraint_name) // '".'
+        call printErrMsg(option)
+      endif
+      ! m^2/m^3 = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
+      tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
+                 mineral_rxn%molar_volume
+      constraint%area_per_unit_mass(imnrl) = PETSC_TRUE
+    endif
+    constraint%constraint_area_conv_factor(imnrl) = tempreal
+    constraint%constraint_area_units(imnrl) = internal_units
+    if (Initialized(constraint%constraint_vol_frac(imnrl))) then
+      if (per_unit_mass) then
+        tempreal = tempreal * constraint%constraint_vol_frac(imnrl)
+      endif
+    endif  
+    if (Initialized(constraint%constraint_area(imnrl))) then
+      constraint%constraint_area(imnrl) = tempreal * &
+        constraint%constraint_area(imnrl)
+    endif
+  enddo
+
 end subroutine MineralProcessConstraint
 
 ! ************************************************************************** !
@@ -1016,8 +1064,6 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 08/29/11
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -1187,8 +1233,6 @@ function RMineralSaturationIndex(imnrl,rt_auxvar,global_auxvar,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 08/29/11
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none

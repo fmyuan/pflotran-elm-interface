@@ -85,6 +85,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   PetscErrorCode :: ierr
 
   option => simulation%option
+  nullify(timestepper)
   
   nullify(prev_pm)
   cur_pm => simulation%process_model_list
@@ -113,8 +114,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     geomech_realization => simulation%geomech_realization
     subsurf_realization => simulation%realization
     subsurf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
-    geomech_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
-    call GeomechicsInitReadRequiredCards(geomech_realization)
+    input => InputCreate(IN_UNIT,option%input_filename,option)
+    call GeomechicsInitReadRequiredCards(geomech_realization,input)
     pmc_geomech => PMCGeomechanicsCreate()
     pmc_geomech%name = 'PMCGeomech'
     simulation%geomech_process_model_coupler => pmc_geomech
@@ -131,15 +132,17 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     string = trim(pmc_geomech%name) // 'Geomechanics'
     call LoggingCreateStage(string,pmc_geomech%stage)
 
-    input => InputCreate(IN_UNIT,option%input_filename,option)    
     string = 'GEOMECHANICS'
     call InputFindStringInFile(input,option,string)
     call InputFindStringErrorMsg(input,option,string)  
-    geomech_realization%output_option => OutputOptionDuplicate(simulation%output_option)
+    geomech_realization%output_option => &
+      OutputOptionDuplicate(simulation%output_option)
     nullify(geomech_realization%output_option%output_snap_variable_list)
     nullify(geomech_realization%output_option%output_obs_variable_list)    
-    geomech_realization%output_option%output_snap_variable_list => OutputVariableListCreate()
-    geomech_realization%output_option%output_obs_variable_list => OutputVariableListCreate()
+    geomech_realization%output_option%output_snap_variable_list => &
+      OutputVariableListCreate()
+    geomech_realization%output_option%output_obs_variable_list => &
+      OutputVariableListCreate()
     call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
     pm_geomech%output_option => geomech_realization%output_option
 
@@ -174,6 +177,9 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! initialize geomech realization
     call GeomechInitSetupRealization(simulation)
 
+    if (associated(timestepper)) then
+      call pm_geomech%SetSolver(timestepper%solver)
+    endif
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
     call pm_geomech%Setup()
 
@@ -249,7 +255,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   endif    
 
   call GeomechanicsJumpStart(simulation)
-  call InputDestroy(geomech_realization%input)
+  call InputDestroy(input)
   
 end subroutine GeomechanicsInitializePostPETSc
 
@@ -331,7 +337,7 @@ end subroutine GeomechanicsJumpStart
 
 ! ************************************************************************** !
 
-subroutine GeomechicsInitReadRequiredCards(geomech_realization)
+subroutine GeomechicsInitReadRequiredCards(geomech_realization,input)
   ! 
   ! Reads the required input file cards
   ! related to geomechanics
@@ -352,15 +358,13 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization)
   implicit none
   
   class(realization_geomech_type) :: geomech_realization
-  type(geomech_discretization_type), pointer :: geomech_discretization
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  
-  type(option_type), pointer :: option
   type(input_type), pointer :: input
+
+  type(geomech_discretization_type), pointer :: geomech_discretization
+  character(len=MAXSTRINGLENGTH) :: string
+  type(option_type), pointer :: option
   
   option         => geomech_realization%option  
-  input          => geomech_realization%input
   
 ! Read in select required cards
 !.........................................................................
@@ -434,10 +438,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
         select case(trim(word))
           case ('UNSTRUCTURED')
             geomech_discretization%itype = UNSTRUCTURED_GRID
-            call InputReadNChars(input,option, &
-                                 geomech_discretization%filename, &
-                                 MAXSTRINGLENGTH, &
-                                 PETSC_TRUE)
+            call InputReadFilename(input,option,geomech_discretization%filename)
             call InputErrorMsg(input,option,'keyword','filename')
 
             geomech_discretization%grid  => GMGridCreate()
@@ -695,10 +696,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           if (InputCheckExit(input,option)) exit
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','MAPPING_FILE')
-          call InputReadNChars(input,option, &
-                               grid%mapping_filename, &
-                               MAXSTRINGLENGTH, &
-                               PETSC_TRUE)
+          call InputReadFilename(input,option,grid%mapping_filename)
           call InputErrorMsg(input,option,'keyword','mapping_file')
           call GeomechSubsurfMapFromFilename(grid,grid%mapping_filename, &
                                              option)
@@ -1033,6 +1031,9 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   PetscErrorCode :: ierr
   
   option => realization%option
+
+print *, 'GeomechInitSetupSolvers cannot be removed.'
+stop
   
   call printMsg(option,"  Beginning setup of GEOMECH SNES ")
     
@@ -1092,8 +1093,6 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! is call within this function.
   !TODO(geh): free this convergence context somewhere!
   option%io_buffer = 'DEALLOCATE GEOMECH CONVERGENCE CONTEXT somewhere!!!'
-  convergence_context => ConvergenceContextCreate(solver,option, &
-                                                  realization%patch%grid)
   call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
                               convergence_context, &
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)                                                  

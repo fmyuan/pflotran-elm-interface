@@ -7,7 +7,8 @@ module Timestepper_Surface_class
   use Waypoint_module
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -15,7 +16,6 @@ module Timestepper_Surface_class
   type, public, extends(timestepper_base_type) :: timestepper_surface_type
     PetscReal :: dt_max_allowable
     PetscReal :: surf_subsurf_coupling_flow_dt
-    type(solver_type), pointer :: solver
   contains
     procedure, public :: CheckpointBinary => TimestepperSurfaceCheckpointBinary
     procedure, public :: Init => TimestepperSurfaceInit
@@ -160,7 +160,7 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time,option,stop_flag, &
     dt = max_time - target_time
     target_time = target_time + dt
 
-    if (max_time == cur_waypoint%time) then
+    if (Equal(max_time,cur_waypoint%time)) then
       if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
       if (cur_waypoint%print_checkpoint) checkpoint_flag = PETSC_TRUE
     endif
@@ -237,6 +237,9 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTimeStep(solver%ts,option%surf_flow_dt,ierr);CHKERRQ(ierr)
+#if (PETSC_VERSION_MINOR >= 8)
+  call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
+#endif
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)

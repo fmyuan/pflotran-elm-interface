@@ -46,6 +46,7 @@ function PMSurfaceFlowCreate()
   allocate(surface_flow_pm)
   call PMSurfaceCreate(surface_flow_pm)
   surface_flow_pm%name = 'Surface Flow'
+  surface_flow_pm%header = 'SURFACE FLOW'
 
   PMSurfaceFlowCreate => surface_flow_pm
 
@@ -116,9 +117,7 @@ subroutine PMSurfaceFlowPreSolve(this)
 
   class(pm_surface_flow_type) :: this
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE FLOW ",64("="))')
-  endif
+  call PMBasePrintheader(this)
 
 end subroutine PMSurfaceFlowPreSolve
 
@@ -174,7 +173,8 @@ end subroutine PMSurfaceFlowRHSFunction
 ! ************************************************************************** !
 
 subroutine PMSurfaceFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                       num_newton_iterations,tfac, &
+                                       time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
@@ -192,6 +192,7 @@ subroutine PMSurfaceFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
 
   PetscReal :: dt_max_glb
   PetscErrorCode :: ierr
@@ -200,7 +201,8 @@ subroutine PMSurfaceFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call SurfaceFlowComputeMaxDt(this%surf_realization,dt_max_loc)
   call MPI_Allreduce(dt_max_loc,dt_max_glb,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                      MPI_MIN,this%option%mycomm,ierr)
-  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max)
+  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max, &
+           time_step_max_growth_factor*dt)
 
 end subroutine PMSurfaceFlowUpdateTimestep
 

@@ -25,11 +25,11 @@ REGRESSION
   /
 END
 
-#=========================== flow mode ========================================
-# Uniform velocity (see below). No flow mode specified.
-
 #=========================== useful tranport parameters ==================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0 m/yr
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -44,7 +44,7 @@ CHEMISTRY
   DATABASE ./ABC_database.dat
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
-    all
+    ALL
     TOTAL
   /
 END
@@ -96,12 +96,12 @@ REGION all
 END
 
 REGION bottom
-  FACE bottom
+  FACE BOTTOM
   BLOCK 1 2 1 2 1 1
 END
 
 REGION top
-  FACE top
+  FACE TOP
   BLOCK 1 2 1 2 1 10
 END
 

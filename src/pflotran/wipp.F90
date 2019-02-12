@@ -282,9 +282,12 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
   endif
 
 
-       ! convert bulk compressibility to pore compressibility
-  Ci = auxvar%soil_properties(soil_compressibility_index) / &
-       auxvar%porosity_base
+  Ci = auxvar%soil_properties(soil_compressibility_index)
+  if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
+    ! convert bulk compressibility to pore compressibility
+    Ci = auxvar%soil_properties(soil_compressibility_index) / &
+         auxvar%porosity_base
+  endif
 !  P0 = auxvar%soil_properties(soil_reference_pressure_index)
   P0 = auxvar%fracture%initial_pressure
   Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
@@ -296,13 +299,6 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
     compressed_porosity = phi0
     return
   endif
-
-  if (.not.associated(MaterialCompressSoilPtr, &
-                      MaterialCompressSoilBRAGFLO)) then
-    option%io_buffer = 'WIPP Fracture Function must be used with ' // &
-      'BRAGFLO soil compressibility function.'
-    call printErrMsg(option)
-  endif
   
   if (pressure < Pi) then
 !    call MaterialCompressSoil(auxvar,pressure, compressed_porosity, &
@@ -313,6 +309,7 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
       2.d0/(Pa-Pi)*log(phia/phi0)
     compressed_porosity = phi0 * exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0)/(2.d0*(Pa-Pi)))
+    compressed_porosity=min(compressed_porosity, phia)
     !mathematica solution
     dcompressed_porosity_dp = exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0) / (2.d0*(Pa-Pi))) * &
@@ -363,8 +360,12 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
     return
   endif
 
-  Ci = auxvar%soil_properties(soil_compressibility_index) / &
-       auxvar%porosity_base
+  Ci = auxvar%soil_properties(soil_compressibility_index)
+  if (associated(MaterialCompressSoilPtr,MaterialCompressSoilBRAGFLO)) then
+    ! convert bulk compressibility to pore compressibility
+    Ci = auxvar%soil_properties(soil_compressibility_index) / &
+         auxvar%porosity_base
+  endif
   P0 = auxvar%fracture%initial_pressure
   Pi = auxvar%fracture%properties(frac_init_pres_index) + P0
 
@@ -432,6 +433,10 @@ module Creep_Closure_module
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: num_times
     PetscInt :: num_values_per_time
+    PetscReal :: shutdown_pressure
+    PetscReal :: time_closeoff
+    PetscReal :: time_datamax
+    PetscReal :: porosity_minimum
     class(lookup_table_general_type), pointer :: lookup_table
     
     class(creep_closure_type), pointer :: next
@@ -487,6 +492,10 @@ function CreepClosureCreate()
   CreepClosureCreate%name = ''
   CreepClosureCreate%num_times = UNINITIALIZED_INTEGER
   CreepClosureCreate%num_values_per_time = UNINITIALIZED_INTEGER
+  CreepClosureCreate%shutdown_pressure = 5.d7 ! set to BRAGFLO default
+  CreepClosureCreate%porosity_minimum = 1.d-2 
+  CreepClosureCreate%time_closeoff = 1.d20 ! s
+  CreepClosureCreate%time_datamax =  1.d20 ! s
   nullify(CreepClosureCreate%lookup_table)
   nullify(CreepClosureCreate%next)
   
@@ -535,9 +544,14 @@ subroutine CreepClosureRead(this,input,option)
       
     select case(trim(keyword))
       case('FILENAME') 
-        call InputReadNChars(input,option,filename,MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadFilename(input,option,filename)
         call InputErrorMsg(input,option,'FILENAME',error_string)
-      
+      case('SHUTDOWN_PRESSURE')
+        call InputReadDouble(input,option,this%shutdown_pressure)
+        call InputErrorMsg(input,option,'shutdown pressure',error_string)
+      case('TIME_CLOSEOFF')
+        call InputReadDouble(input,option,this%time_closeoff)
+        call InputErrorMsg(input,option,'time closeoff',error_string)
      case default
         call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
     end select
@@ -626,7 +640,11 @@ subroutine CreepClosureRead(this,input,option)
                        'NUM_VALUES_PER_TIME.'
     call printErrMsg(option)
   endif
-  
+
+  ! set limits
+  this%time_datamax = maxval(this%lookup_table%axis1%values)
+  this%porosity_minimum = minval(this%lookup_table%data)
+
 end subroutine CreepClosureRead
 
 
@@ -1017,10 +1035,14 @@ subroutine KlinkenbergScale(this,liquid_permeability,gas_pressure, &
   
   PetscInt :: i
   
-  do i = 1, 3
-    permeability_scale(i) = (1.d0 + &
+  if (gas_pressure > 0.d0) then
+    do i = 1, 3
+      permeability_scale(i) = (1.d0 + &
                     this%b * (liquid_permeability(i)**this%a) / gas_pressure)
-  enddo
+    enddo
+  else
+    permeability_scale = 1.d0
+  endif
   
 end subroutine KlinkenbergScale
 
@@ -1241,3 +1263,654 @@ subroutine WippDestroy2(wipp)
 end subroutine WippDestroy2
 
 end module WIPP_module
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+module WIPP_Characteristic_Curve_module
+  
+  use PFLOTRAN_Constants_module
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
+  implicit none
+  
+  private
+
+  public :: WIPPCCVerify, &
+            WIPPCharacteristicCurves
+
+contains
+
+! ************************************************************************** !
+  
+subroutine WIPPCCVerify(saturation_func, &
+                        liq_rel_perm_func, &
+                        gas_rel_perm_func, &
+                        option)
+
+  ! Author: Glenn Hammond
+  ! Date: 12/18/17
+
+  use Option_module
+  use Characteristic_Curves_Base_module
+  use Characteristic_Curves_WIPP_module
+  use Utility_module
+
+  implicit none
+
+  PetscReal :: saturation(2)
+  class(sat_func_base_type) :: saturation_func
+  class(rel_perm_func_base_type) :: liq_rel_perm_func
+  class(rel_perm_func_base_type) :: gas_rel_perm_func
+  PetscReal :: capillary_pressure
+  PetscReal :: liq_rel_perm
+  PetscReal :: gas_rel_perm
+  type(option_type) :: option
+
+  PetscReal :: sswr
+  PetscReal :: lswr
+  PetscReal :: gswr
+  PetscReal :: ssgr
+  PetscReal :: lsgr
+  PetscReal :: gsgr
+  PetscReal :: slamda
+  PetscReal :: llamda
+  PetscReal :: glamda
+
+  character(len=MAXWORDLENGTH) :: stype
+  character(len=MAXWORDLENGTH) :: ltype
+  character(len=MAXWORDLENGTH) :: gtype
+
+  sswr = UNINITIALIZED_DOUBLE
+  lswr = UNINITIALIZED_DOUBLE
+  gswr = UNINITIALIZED_DOUBLE
+  ssgr = UNINITIALIZED_DOUBLE
+  lsgr = UNINITIALIZED_DOUBLE
+  gsgr = UNINITIALIZED_DOUBLE
+  slamda = UNINITIALIZED_DOUBLE
+  llamda = UNINITIALIZED_DOUBLE
+  glamda = UNINITIALIZED_DOUBLE
+
+  select type(sat_func => saturation_func)
+    class is (sat_func_KRP1_type)
+      sswr = sat_func%Sr
+      ssgr = sat_func%Srg
+      slamda = sat_func%m
+      stype = ' sat_func_KRP1_type'
+    class is (sat_func_KRP4_type)
+      sswr = sat_func%Sr
+      ssgr = sat_func%Srg
+      slamda = sat_func%lambda
+      stype = ' sat_func_KRP4_type'
+    class is (sat_func_KRP11_type)
+      sswr = sat_func%Sr
+!      ssgr = sat_func%Srg
+!      slamda = sat_func%lambda
+      stype = ' sat_func_KRP11_type'
+    class is (sat_func_KRP12_type)
+      sswr = sat_func%Sr
+!      ssgr = sat_func%Srg
+      slamda = sat_func%lambda
+      stype = ' sat_func_KRP12_type'
+  end select
+
+  select type(liq_rpf => liq_rel_perm_func)
+    class is(rpf_KRP1_liq_type)
+      lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
+      llamda = liq_rpf%m
+      ltype = ' rpf_KRP1_liq_type'
+    class is(rpf_KRP4_liq_type)
+      lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
+      llamda = liq_rpf%lambda
+      ltype = ' rpf_KRP4_liq_type'
+    class is(rpf_KRP11_liq_type)
+      lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
+!      llamda = liq_rpf%lambda
+      ltype = ' rpf_KRP11_liq_type'
+    class is(rpf_KRP12_liq_type)
+      lswr = liq_rpf%Sr
+      lsgr = liq_rpf%Srg
+      llamda = liq_rpf%lambda
+      ltype = ' rpf_KRP12_liq_type'
+  end select
+
+  select type(gas_rpf => gas_rel_perm_func)
+    class is(rpf_KRP1_gas_type)
+      gswr = gas_rpf%Sr
+      gsgr = gas_rpf%Srg
+      glamda = gas_rpf%m
+      gtype = ' rpf_KRP1_gas_type'
+    class is(rpf_KRP4_gas_type)
+      gswr = gas_rpf%Sr
+      gsgr = gas_rpf%Srg
+      glamda = gas_rpf%lambda
+      gtype = ' rpf_KRP4_gas_type'
+    class is(rpf_KRP11_gas_type)
+      gswr = gas_rpf%Sr
+      gsgr = gas_rpf%Srg
+!      glamda = gas_rpf%lambda
+      gtype = ' rpf_KRP11_gas_type'
+    class is(rpf_KRP12_gas_type)
+      gswr = gas_rpf%Sr
+      gsgr = gas_rpf%Srg
+      glamda = gas_rpf%lambda
+      gtype = ' rpf_KRP12_gas_type'
+  end select
+
+  if (.not.Equal(sswr,lswr) .or. .not.Equal(lswr,gswr)) then
+    print *, 'sswr: ', sswr, stype
+    print *, 'lswr: ', lswr, ltype
+    print *, 'gswr: ', gswr, gtype
+    option%io_buffer = 'Unequal liquid residual saturations.'
+    call printErrMsg(option)
+  endif
+ 
+  if ((Initialized(ssgr) .and. .not.Equal(ssgr,lsgr)) .or. &
+      .not.Equal(lsgr,gsgr)) then
+    print *, 'ssgr: ', ssgr, stype
+    print *, 'lsgr: ', lsgr, ltype
+    print *, 'gsgr: ', gsgr, gtype
+    option%io_buffer = 'Unequal gas residual saturations.'
+    call printErrMsg(option)
+  endif
+ 
+  if ((Initialized(slamda) .and. .not.Equal(slamda,llamda)) .or. &
+      .not.Equal(llamda,glamda)) then
+    print *, 'slamda: ', slamda, stype
+    print *, 'llamda: ', llamda, ltype
+    print *, 'glamda: ', glamda, gtype
+    option%io_buffer = 'Unequal lambdas.'
+    call printErrMsg(option)
+  endif
+ 
+end subroutine WIPPCCVerify
+
+! ************************************************************************** !
+  
+subroutine WIPPCharacteristicCurves(saturation, &
+                                    permeability, &
+                                    saturation_func, &
+                                    liq_rel_perm_func, &
+                                    gas_rel_perm_func, &
+                                    capillary_pressure, &
+                                    liq_rel_perm, &
+                                    gas_rel_perm, &
+                                    option)
+  ! Author: Glenn Hammond
+  ! Date: 12/18/17
+
+  use Option_module
+  use Characteristic_Curves_Base_module
+  use Characteristic_Curves_WIPP_module
+
+  implicit none
+
+  PetscReal :: saturation(:)
+  PetscReal :: permeability
+  class(sat_func_base_type) :: saturation_func
+  class(rel_perm_func_base_type) :: liq_rel_perm_func
+  class(rel_perm_func_base_type) :: gas_rel_perm_func
+  PetscReal :: capillary_pressure
+  PetscReal :: liq_rel_perm
+  PetscReal :: gas_rel_perm
+  type(option_type) :: option
+
+  PetscReal, parameter :: tolc = 1.d-2 ! read from input file below perms
+  PetscReal, parameter :: soceffmin = 1.d-3 ! read from input file below perms
+  PetscReal, parameter :: socmin = 1.5d-2 ! read from input file chemistry
+  PetscReal, parameter :: check_tolerance = 1.d-4
+  PetscReal :: sw
+  PetscReal :: swr
+  PetscReal :: sg
+  PetscReal :: sgr
+  PetscReal :: se
+  PetscReal :: semin
+  PetscReal :: seg
+  PetscReal :: seg2
+  PetscReal :: sevgp
+  PetscReal :: krw
+  PetscReal :: krnw
+  PetscReal :: xlamse
+  PetscReal :: pc
+  PetscReal :: pcnew
+  PetscReal :: pcmax
+  PetscReal :: pcfix
+  PetscReal :: ptc
+  PetscReal :: tol
+  PetscReal :: soczro
+  PetscReal :: pcta
+  PetscReal :: pctexp
+  PetscReal :: permbx
+  PetscReal :: seterm
+  PetscReal :: seterm2
+  PetscReal :: xlamda
+  PetscReal :: xlam1
+  PetscReal :: xlam2
+  PetscReal :: xlam3
+  PetscReal :: xlam4
+  PetscReal :: xlam5
+  PetscReal :: xlam6
+  PetscReal :: xlam7
+  PetscReal :: xlmseg
+
+  PetscReal :: pc_check
+  PetscReal :: krl_check
+  PetscReal :: krg_check
+  PetscReal :: tempreal
+
+  character(len=MAXWORDLENGTH) :: stype
+  character(len=MAXWORDLENGTH) :: ltype
+  character(len=MAXWORDLENGTH) :: gtype
+
+  PetscBool :: error
+
+  PetscInt :: kpc
+  PetscInt :: krp
+
+  sw = saturation(LIQUID_PHASE)
+  sg = saturation(GAS_PHASE)
+
+  kpc = 0
+  krp = 0
+  pcta = 0.d0
+  pctexp = 0.d0
+  pcmax = 0.d0
+  select type(sat_func => saturation_func)
+    class is (sat_func_WIPP_type)
+      kpc = sat_func%kpc
+      pcta = sat_func%pct_a
+      pctexp = sat_func%pct_exp
+      pcmax = sat_func%pcmax
+  end select
+
+  select type(liq_rpf => liq_rel_perm_func)
+    class is(rpf_KRP1_liq_type)
+      krp = 1
+      xlamda = liq_rpf%m / (1.d0-liq_rpf%m)
+    class is(rpf_KRP4_liq_type)
+      krp = 4
+      xlamda = liq_rpf%lambda
+    class is(rpf_KRP11_liq_type)
+      krp = 11
+      xlamda = 0.d0
+    class is(rpf_KRP12_liq_type)
+      krp = 12
+      xlamda = liq_rpf%lambda
+  end select
+
+  select type(gas_rpf => gas_rel_perm_func)
+    class is(rpf_KRP1_gas_type)
+      krp = 1
+      sgr = gas_rpf%Srg
+    class is(rpf_KRP4_gas_type)
+      krp = 4
+      sgr = gas_rpf%Srg
+    class is(rpf_KRP11_gas_type)
+      krp = 11
+      sgr = gas_rpf%Srg
+    class is(rpf_KRP12_gas_type)
+      krp = 12
+      sgr = gas_rpf%Srg
+  end select
+  swr = liq_rel_perm_func%Sr
+
+  permbx = permeability
+
+  seterm = 1.d0/(1.d0-swr)
+  seterm2 = 1.d0/(1.d0-sgr-swr)
+  if (xlamda > 0.d0) then
+    xlam1 = 1.d0/xlamda
+    xlam2 = (2.d0 + 3.d0*xlamda)/xlamda
+    xlam3 = (2.d0 + xlamda)/xlamda
+    xlam4 = xlamda/(1.d0+xlamda)
+    xlam5 = 1.d0/xlam4
+    xlam6 = -1.d0*xlam5
+    xlam7 = 1.d0-xlam4
+  else
+    xlam1 = 0.d0
+    xlam2 = 0.d0
+    xlam3 = 0.d0
+    xlam4 = 0.d0
+    xlam5 = 0.d0
+    xlam6 = 0.d0
+    xlam7 = 0.d0
+  endif
+
+  pcfix = 0.d0
+  ptc = 1.d0
+  ptc = ptc/0.d0
+  ptc = ptc*0.d0
+
+! copy
+!------- Empirical correlation relating threshold capillary pressure
+!-------   to permeability.
+!
+      IF (PERMBX .GT. 0.D0) THEN
+         PTC = PCTA*PERMBX**PCTEXP
+      ELSE
+         PTC = 0.D0
+      END IF
+
+! copy
+!------- vG/P modified model pressure constant -- assumes Pc equal
+!------- to 2nd modified Brooks-Corey at Se2=0.5
+!
+      IF (KRP .EQ. 1 ) THEN
+         SEVGP = 0.5D0
+         PTC   = PTC*2.D0**(1.D0/XLAMDA)* &
+           (SEVGP**XLAM6-1.0D0)**(XLAM4-1.0D0)
+      END IF
+
+!copy
+!------- Compute the minimum "effective" brine saturation, SEMIN, at
+!-------   which to evaluate the characteristic curve.  This is the
+!-------   saturation corresponding to PCMAX.
+!------- Used only for KPC = 2:  Fixed upper limit on Pc.
+!-------               KPC = 3:  Variable upper limit on Pc.
+!
+      IF (KPC .EQ. 2 .OR. KPC .EQ. 3) THEN
+!
+         IF (PTC .LE. 0.D0) THEN
+!
+!------- If PTC = 0, set SEMIN to a value < 0.0 (use -1.0), which forces
+!-------   RELPERM to use PCNEW = PTC = 0.
+!
+            SEMIN = -1.D0
+!
+         ELSE
+!
+!------- PTC > 0.
+!
+! BADAY 5/12/17 - corrected OR to AND such that ELSE IF is executed 
+!-------   when KRP = 8
+            IF (KRP .GT. 1 .AND. KRP .LT. 5) THEN
+!
+!------- One of 3 Brooks-Corey relative permeability models.
+!
+               SEMIN = (PTC/PCMAX)**XLAMDA
+!
+            ELSE IF (KRP .EQ. 1 .OR. KRP .EQ. 8) THEN
+!
+!------- One of 2 van Genuchten/Parker relative permeability models.
+!
+               SEMIN = (1.D0+(PCMAX/PTC)**(XLAMDA + &
+                 1.0D0))**(-XLAM4)
+!
+            END IF
+         END IF
+      END IF
+!
+!------- If using the variable upper limit Pc model, compute PCFIX and
+!-------   adjust SEMIN if necessary.  PCFIX is the maximum value of
+!-------   capillary pressure allowed; it may be less than PCMAX, but
+!-------   never greater than PCMAX.  A minimum brine saturation at
+!-------   which Pc may be calculated, SBMIN, is input.  In addition, a
+!-------   minimum effective saturation, SEMIN, is calculated as the
+!-------   value of SE that gives PCMAX.  If SBMIN results in Pc being
+!-------   greater than PCMAX, then SEMIN is used.
+!-------     If SE > SEMIN, then Pc from SBMIN (< PCMAX) is used.
+!-------     If SE < SEMIN, then Pc from SEMIN (= PCMAX) is used;
+!-------        (otherwise, Pc from SBMIN > PCMAX, which is not allowed,
+!-------        so SEMIN has to be adjusted upward).
+!
+      IF (KPC .EQ. 2) THEN
+         PCFIX = PCMAX
+#if 0
+      ELSE IF (KPC .EQ. 3) THEN
+         IF (SBMIN .LT. SEMIN) THEN
+            PCFIX = PCMAX
+         ELSE
+            SEMIN = SBMIN
+            IF (KRP .GT. 1 .AND. KRP .LT. 5) THEN
+               PCFIX = PTC/(SBMIN**XLAM1)
+            ELSE IF (KRP .EQ. 1 .OR. KRP .EQ. 8) THEN
+               SBXL1      = SBMIN**XLAM6 - 1.0D0
+               PCFIX = PTC*SBXL1**XLAM7
+            END IF
+         END IF
+      ELSE IF (KPC .EQ. 5) THEN
+         PCFIX = PCMAX
+#endif
+      END IF
+
+
+      IF (KRP .EQ. 1) THEN
+!
+!------- Modified van Genuchten/Parker model (SGR>=0)
+!
+         IF (SG .LE. SGR) THEN
+            SE     = (SW-SWR)*SETERM
+            SE     = MIN(SE,1.0D0)
+            KRNW   = 0.0D0
+            XLAMSE = (1.0D0-SE**XLAM5)**XLAM4
+            KRW    = SQRT(SE)*(1.0D0-XLAMSE)**2
+            SEG    = (SW-SWR)*SETERM2
+            SEG    = MIN(SEG,1.0D0)
+            PCNEW  = PTC*(SEG**XLAM6-1.0D0)**XLAM7
+         ELSE IF (SW .GT. SWR) THEN
+            SE     = (SW-SWR)*SETERM
+            SE     = MIN(SE,1.0D0)
+            XLAMSE = (1.0D0-SE**XLAM5)**XLAM4
+            KRW    = SQRT(SE)*(1.0D0-XLAMSE)**2
+            SEG    = (SW-SWR)*SETERM2
+            SEG    = MIN(SEG,1.0D0)
+            XLMSEG = (1.0D0-SEG**XLAM5)**XLAM4
+            KRNW   = SQRT(1.0D0-SEG)*XLMSEG**2
+            PCNEW  = PTC*(SEG**XLAM6-1.0D0)**XLAM7
+         ELSE
+            KRW   = 0.0D0
+            KRNW  = 1.0D0
+            PCNEW = 0.0D0
+         END IF
+      ELSE IF (KRP .EQ. 4) THEN
+!
+!
+!------- Brooks-Corey model; modified non-wetting phase,
+!-------   original wetting phase
+!
+         IF (SG .LE. SGR) THEN
+            SE    = (SW-SWR)*SETERM
+            KRNW  = 0.0D0
+            KRW   = SE**XLAM2
+            SEG   = (SW-SWR)*SETERM2
+            PCNEW = PTC/(SEG**XLAM1)
+!           PCNEW = PT/(SE**XLAM1)
+         ELSE IF (SW .GT. SWR) THEN
+            SE    = (SW-SWR)*SETERM
+            KRW   = SE**XLAM2
+            SEG   = (SW-SWR)*SETERM2
+            KRNW  = (1.0D0-SEG)**2*(1.0D0-SEG**XLAM3)
+            PCNEW = PTC/(SEG**XLAM1)
+!           PCNEW = PT/(SE**XLAM1)
+         ELSE
+            KRW   = 0.0D0
+            KRNW  = 1.0D0
+            PCNEW = 0.0D0
+         END IF
+!*** For v6.0 modified from version 5.0
+!*** Begin Change ***
+      ELSE IF (KRP .EQ. 11) THEN
+!
+!------- KRW=KRNW=1, with end smoothing and no capillary pressure.
+!
+         TOL = TOLC*(1-SWR-SGR)
+         PCNEW = 0.0D0
+         IF (SW .LE. SWR) THEN
+            KRW   = 0.0D0
+            KRNW  = 1.0D0
+         ELSE IF (SG .LE. SGR) THEN
+            KRW   = 1.0D0
+            KRNW  = 0.0D0
+         ELSE IF (SW .LE. SWR+TOL) THEN
+            KRW   = (SW-SWR)/TOL
+            KRNW  = 1.0D0
+         ELSE IF (SG .LE. SGR+TOL) THEN
+            KRW   = 1.0D0
+            KRNW  = (SG-SGR)/TOL
+         ELSE
+            KRW   = 1.0D0
+            KRNW  = 1.0D0
+         END IF
+      ELSE IF (KRP .EQ. 12) THEN
+!
+!------- Modified Brooks-Corey model (SGR>=0,SWR=0 for Capillary Pressure)
+!
+         SOCZRO    = SOCMIN-SOCEFFMIN
+         IF (SG .LE. SGR) THEN
+            SE     = (SW-SWR)*SETERM
+            SE     = MAX(MIN(SE,1.0D0),0.0D0)
+            KRW    = SE**XLAM2
+            KRNW   = 0.0D0
+            SEG2   = (SW-SOCZRO)/(1.0D0-SOCZRO)
+            SEG2   = MAX(MIN(SEG2,1.0D0),SOCEFFMIN)
+            PCNEW  = PTC/(SEG2**XLAM1)
+         ELSE IF (SW .GT. SWR) THEN
+            SE     = (SW-SWR)*SETERM
+            SE     = MAX(MIN(SE,1.0D0),0.0D0)
+            KRW    = SE**XLAM2
+            SEG    = (SW-SWR)*SETERM2
+            SEG    = MAX(MIN(SEG,1.0D0),0.0D0)
+            KRNW   = (1.0D0-SEG)**2*(1.0D0-SEG**XLAM3)
+            SEG2   = (SW-SOCZRO)/(1.0D0-SOCZRO)
+            SEG2   = MAX(MIN(SEG2,1.0D0),SOCEFFMIN)
+            PCNEW  = PTC/(SEG2**XLAM1)
+         ELSE
+            KRW    = 0.0D0
+            KRNW   = 1.0D0
+            SEG2   = (SW-SOCZRO)/(1.0D0-SOCZRO)
+            SEG2   = MAX(MIN(SEG2,1.0D0),SOCEFFMIN)
+            PCNEW  = PTC/(SEG2**XLAM1)
+         END IF
+!*** End Change ***
+!
+!
+      END IF
+
+!-----------------------------------------------------------------------
+!------- Modify capillary pressures as required by selected model.
+!-----------------------------------------------------------------------
+!
+!
+      IF (KPC .EQ. 1) THEN
+!
+!
+!------- No special treatment
+!
+         PC = PCNEW
+!
+!
+!
+      ELSE IF (KPC .EQ. 2) THEN
+!
+!
+!------- Fixed upper limit
+!
+         IF (KRP .EQ. 1 .OR. KRP .EQ. 3 .OR. KRP .EQ. 4 .OR. &
+            KRP .EQ. 6) THEN
+!
+!------- For models using nonzero residual gas satn to get Pc.
+!
+            SEG = (SW-SWR)*SETERM2
+            IF (SEG .GT. SEMIN) THEN
+               PC = PCNEW
+            ELSE
+               PC = PCFIX
+            END IF
+!
+! BADAY 5/12/17 - revised to set PC=PCNEW for KRP=5 to
+!------- force equal treatment of capillary pressure
+!------- for KPC=1 and KPC=2
+         ELSE IF (KRP .EQ. 5) THEN
+            PC = PCNEW
+!
+         ELSE
+!
+!------- For models using zero residual gas satn to get Pc.
+!
+            SE = (SW-SWR)*SETERM
+            IF (SE .GT. SEMIN) THEN
+               PC = PCNEW
+            ELSE
+               PC = PCFIX
+            END IF
+         END IF
+!
+!
+!
+      END IF
+
+
+  capillary_pressure = pc
+  liq_rel_perm = krw
+  gas_rel_perm = krnw
+
+  select type(sf => saturation_func)
+    class is(sat_func_WIPP_type)
+      sf%pct = sf%pct_a * permeability ** sf%pct_exp
+      option%pct_updated = PETSC_TRUE
+    class default
+      option%pct_updated = PETSC_FALSE
+  end select
+  call saturation_func%CapillaryPressure(saturation(LIQUID_PHASE),&
+                                             pc_check,tempreal,option)
+  call liq_rel_perm_func% &
+          RelativePermeability(saturation(LIQUID_PHASE),krl_check,tempreal, &
+                               option)
+  call gas_rel_perm_func% &
+          RelativePermeability(saturation(LIQUID_PHASE),krg_check,tempreal, &
+                               option)
+
+  error = PETSC_FALSE
+  if (capillary_pressure > 0.d0) then
+    tempreal = (capillary_pressure-pc_check)/capillary_pressure
+    if (dabs(tempreal) > check_tolerance .and. dabs(tempreal) < 1.d0) then
+      write(*,'("Outside(pc) : ",3es19.10e3)') &
+               capillary_pressure, pc_check, &
+               (capillary_pressure-pc_check)/capillary_pressure
+      if (pc_check > 1.d-99) then
+        error = PETSC_TRUE
+        print *, 'Outside bounds capillary pressure.'
+      endif
+    endif 
+  endif
+  if (liq_rel_perm > 0.d0) then
+    tempreal = (liq_rel_perm-krl_check)/liq_rel_perm
+    if (dabs(tempreal) > check_tolerance .and. dabs(tempreal) < 1.d0) then
+      write(*,'("Outside(krl): ",3es19.10e3)') &
+               liq_rel_perm, krl_check, &
+               (liq_rel_perm-krl_check)/liq_rel_perm
+      if (krl_check > 1.d-99) then
+        error = PETSC_TRUE
+        print *, 'Outside bounds liquid relative permeability.'
+      endif
+    endif 
+  endif
+  if (gas_rel_perm > 0.d0) then
+    tempreal = (gas_rel_perm-krg_check)/gas_rel_perm
+    if (dabs(tempreal) > check_tolerance .and. dabs(tempreal) < 1.d0) then
+      write(*,'("Outside(krg): ",3es19.10e3)') &
+               gas_rel_perm, krg_check, &
+               (gas_rel_perm-krg_check)/gas_rel_perm
+      if (krg_check > 1.d-99) then
+        error = PETSC_TRUE
+        print *, 'Outside bounds gas relative permeability.'
+      endif
+    endif 
+  endif
+
+  if (error) then
+    write(*,'(" kpc, krp: ",i4,i4)') kpc, krp
+    write(*,'(" lambda,swr,sgr,pcmax: ",8es13.5e3)') xlamda, swr, sgr, pcmax 
+    write(*,'(" satl,satg,perm: ",2es23.15e3,es13.5)') saturation(:), &
+      permeability
+!    stop
+  endif
+
+end subroutine WIPPCharacteristicCurves
+
+end module WIPP_Characteristic_Curve_module

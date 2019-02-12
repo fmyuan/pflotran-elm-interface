@@ -28,10 +28,10 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE WIPP_FLOW
       OPTIONS
-        FIX_UPWIND_DIRECTION
         MAX_PRESSURE_CHANGE 1.d20
         MAX_SATURATION_CHANGE 1.d20
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
+        NO_GAS_GENERATION
       /
     /
   /
@@ -43,7 +43,7 @@ SUBSURFACE
 
 !=========================== regression =======================================
 REGRESSION
-  CELLS_PER_PROCESS 19
+  CELLS_PER_PROCESS 5
   CELLS
     1
     2
@@ -101,7 +101,7 @@ CHARACTERISTIC_CURVES sf1
   /
   PERMEABILITY_FUNCTION BRAGFLO_KRP9_GAS
     LIQUID_RESIDUAL_SATURATION 0.d0
-    GAS_RESIDUAL_SATURATION 0.1d0
+    ! GAS_RESIDUAL_SATURATION 0.1d0
   /
 END
 
@@ -636,7 +636,7 @@ NEWTON_SOLVER FLOW
 !  RTOL 1.d-08
 !  ATOL 1.d-08
 !  STOL 1.d-30       ! Turn off STOL criteria
-  MAXIT 20          ! Maximum newton iteration number
+  MAXIMUM_NUMBER_OF_ITERATIONS 20          ! Maximum newton iteration number
 END
 
 LINEAR_SOLVER FLOW

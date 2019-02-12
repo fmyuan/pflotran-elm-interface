@@ -152,11 +152,9 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   data_mediator%dataset%global_size = discretization%grid%nmax
   
   if (.not.associated(data_mediator%dataset%time_storage)) then
-#if defined(PETSC_HAVE_HDF5)    
     call DatasetCommonHDF5ReadTimes(data_mediator%dataset%filename, &
                                     data_mediator%dataset%hdf5_dataset_name, &
                                     data_mediator%dataset%time_storage,option)
-#endif
     ! if time interpolation methods not set in hdf5 file, set to default of STEP
     if (data_mediator%dataset%time_storage%time_interpolation_method == &
         INTERPOLATION_NULL) then

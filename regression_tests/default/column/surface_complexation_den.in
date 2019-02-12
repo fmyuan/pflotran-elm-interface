@@ -28,9 +28,12 @@ END
 # Uniform velocity (see below). No flow mode specified.
 
 #=========================== useful tranport parameters =======================
-UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d0 0.d0 0.d0 m/yr
+END
 
-REFERENCE_DENSITY 1000.d0
+REFERENCE_LIQUID_DENSITY 1000.d0
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -51,7 +54,7 @@ CHEMISTRY
   Tracer
   Tracer2
   /
-  REDOX_SPECIES
+  DECOUPLED_EQUILIBRIUM_REACTIONS
     NO3-
   /
   SECONDARY_SPECIES
@@ -229,8 +232,8 @@ noskip
   ACTIVITY_COEFFICIENTS NEWTON_ITERATION
   MOLAL
   OUTPUT
-    All
-    pH
+    ALL
+    PH
     TOTAL
     TOTAL_SORBED
     KD
@@ -305,7 +308,7 @@ REGION middle
 END
 
 REGION west
-  FACE west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
@@ -313,7 +316,7 @@ REGION west
 END
 
 REGION east
-  FACE east
+  FACE EAST
   COORDINATES
     100.d0 0.d0 0.d0
     100.d0 1.d0 1.d0

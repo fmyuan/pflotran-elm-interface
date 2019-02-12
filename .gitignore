@@ -44,6 +44,9 @@ src/pims/pims.xcodeproj/*.pbxuser
 src/pims/pims.xcodeproj/*.mode1
 shortcourse/exercises/sx-115/doc/sx115.pdf
 src/pflotran/*xcode/*
+src/clm-pflotran/pflotran_interface
+src/clm-pflotran/libpflotran.a
+src/clm-pflotran/*.testlog
 *.toc
 *.aux
 *.log
@@ -82,3 +85,14 @@ src/pflotran/pflotran_source_files.txt
 regression_tests/*
 tpls/*
 src/pflotran/unittests/*
+
+src/clm-pflotran/*.F90
+!src/clm-pflotran/clm_pflotran_interface_data.F90
+!src/clm-pflotran/mapping.F90
+!src/clm-pflotran/pflotran_interface_main.F90
+!src/clm-pflotran/pflotran_model.F90
+
+*.gcov 
+*.gcda 
+*.gcno
+

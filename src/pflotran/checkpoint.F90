@@ -48,7 +48,6 @@ module Checkpoint_module
             CheckPointReadCompatibilityBinary, &
             CheckpointFlowProcessModelBinary, &
             RestartFlowProcessModelBinary, &
-#if defined(PETSC_HAVE_HDF5)
             RestartFlowProcessModelHDF5, &
             CheckpointOpenFileForWriteHDF5, &
             CheckPointWriteCompatibilityHDF5, &
@@ -59,7 +58,6 @@ module Checkpoint_module
             CheckPointReadIntDatasetHDF5, &
             CheckpointOpenFileForReadHDF5, &
             CheckPointReadCompatibilityHDF5, &
-#endif
             CheckpointPeriodicTimeWaypoints, &
             CheckpointInputRecord, &
             CheckpointRead
@@ -382,7 +380,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that indicates what phases are present, as well as the 'var' vector 
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
@@ -479,7 +477,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
@@ -539,7 +537,6 @@ end subroutine RestartFlowProcessModelBinary
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
 subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
                                           id_stamp)
   !
@@ -561,24 +558,12 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO_WRITE)
-  integer, intent(out) :: file_id
-  integer :: prop_id
-  integer,intent(out) :: grp_id
-#else
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
-#endif
 
   filename = CheckpointFilename(append_name, option)
   filename = trim(filename) // '.h5'
-
-#if defined(SCORPIO_WRITE)
-    filename = trim(filename) // CHAR(0)
-    call scorpio_open_file(filename, option%iowrite_group_id, &
-                              SCORPIO_FILE_CREATE, file_id, ierr)
-#else
 
     ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -590,8 +575,6 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   call h5fcreate_f(filename, H5F_ACC_TRUNC_F, file_id, hdf5_err, &
                    H5P_DEFAULT_F, prop_id)
   call h5pclose_f(prop_id, hdf5_err)
-
-#endif
 
   string = "Checkpoint"
   call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
@@ -613,6 +596,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   !
   use Option_module
   use hdf5
+  use HDF5_Aux_module
 
   implicit none
 
@@ -623,21 +607,9 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO)
-  integer, intent(out) :: file_id
-  integer :: prop_id
-  integer,intent(out) :: grp_id
-#else
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T), intent(out) :: grp_id
-#endif
-
-#if defined(SCORPIO)
-  write(option%io_buffer, &
-        '("Checkpoint from HDF5 not supported for SCORPIO. Darn.")')
-  call printErrMsg(option)
-#else
 
   ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -647,11 +619,15 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   call h5pset_fapl_mpio_f(prop_id, option%mycomm, MPI_INFO_NULL, hdf5_err)
 #endif
   call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, hdf5_err, prop_id)
+  if (hdf5_err < 0) then
+    option%io_buffer = 'HDF5 restart file "' // trim(filename) // &
+                       '" not found.'
+    call printErrMsg(option)
+  endif
   call h5pclose_f(prop_id, hdf5_err)
 
   string = "Checkpoint"
-  call h5gopen_f(file_id, string, grp_id, hdf5_err)
-#endif
+  call HDF5GroupOpen(file_id,string,grp_id,option)
 
 end subroutine CheckpointOpenFileForReadHDF5
 
@@ -672,14 +648,6 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -687,7 +655,6 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -765,14 +732,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -780,7 +739,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -854,14 +812,6 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   implicit none
 
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -869,7 +819,6 @@ subroutine CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, 
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -936,15 +885,6 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   
   implicit none
 
-
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  PetscMPIInt :: dataset_rank
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   character(len=MAXSTRINGLENGTH) :: dataset_name
   PetscMPIInt :: dataset_rank
@@ -952,7 +892,6 @@ subroutine CheckPointReadRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
 
   integer(HID_T) :: data_set_id
@@ -1016,21 +955,12 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
 
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
-
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1080,21 +1010,12 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
 
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HID_T) :: chk_grp_id
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
   type(option_type) :: option
-
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1161,11 +1082,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use HDF5_module, only : HDF5WriteDataSetFromVec
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
@@ -1185,7 +1102,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   global_vec = PETSC_NULL_VEC
 
   if (option%nflowdof > 0) then
-     call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
+    call DiscretizationCreateVector(realization%discretization, NFLOWDOF, &
                                     natural_vec, NATURAL, option)
 
     call DiscretizationGlobalToNatural(discretization, field%flow_xx, &
@@ -1198,14 +1115,14 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
 
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     global_vec, GLOBAL,option)
-     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
+    call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
 
     ! If we are running with multiple phases, we need to dump the vector
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
@@ -1301,11 +1218,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use HDF5_module, only : HDF5ReadDataSetInVec
   implicit none
 
-#if defined(SCORPIO_WRITE)
-  integer :: pm_grp_id
-#else
   integer(HID_T) :: pm_grp_id
-#endif
   class(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
@@ -1350,7 +1263,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
@@ -1430,7 +1343,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   endif
 
 end subroutine RestartFlowProcessModelHDF5
-#endif
 
 ! ************************************************************************** !
 
@@ -1520,7 +1432,10 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
                                                   option)
         checkpoint_option%tconv = 1.d0/units_conversion
         checkpoint_option%tunit = trim(word)
-!geh: this needs to be tested.
+!geh: this needs to be tested to verify that the upper version replicates
+!     the lower, and then the lower can be removed. Why use the upper version?
+!     It allows the times to wrap to lower lines using line continuation '\'
+!TODO(anyone)
 #if 0
         temp_string = 'CHECKPOINT,TIMES'
         nullify(temp_real_array)

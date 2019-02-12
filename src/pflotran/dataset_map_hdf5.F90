@@ -188,20 +188,16 @@ subroutine DatasetMapHDF5Load(this,option)
   type(option_type) :: option
   
   if (DatasetCommonHDF5Load(this,option)) then
-#if defined(PETSC_HAVE_HDF5)    
     if (.not.associated(this%mapping)) then
       call DatasetMapHDF5ReadMap(this,option)
     endif
     call DatasetMapHDF5ReadData(this,option)
-#endif    
 !    call this%Reorder(option)
     call DatasetBaseReorder(this,option)
   endif
   call DatasetBaseInterpolateTime(this)
     
 end subroutine DatasetMapHDF5Load
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -265,7 +261,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
   call printMsg(option)  
-  call h5gopen_f(file_id,this%hdf5_dataset_name,grp_id,hdf5_err)
+  call HDF5GroupOpen(file_id,this%hdf5_dataset_name,grp_id,option)
 
   time_dim = -1
   num_times = 1
@@ -469,7 +465,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   ! a "data" dataset and optionally a "time" dataset.
   option%io_buffer = 'Opening group: ' // trim(this%h5_dataset_map_name)
   call printMsg(option)  
-  call h5gopen_f(file_id,this%h5_dataset_map_name,grp_id,hdf5_err)
+  call HDF5GroupOpen(file_id,this%h5_dataset_map_name,grp_id,option)
   
   ! Open the "data" dataset
   dataset_name = 'Data'
@@ -560,7 +556,6 @@ subroutine DatasetMapHDF5ReadMap(this,option)
                         ierr);CHKERRQ(ierr)
   
 end subroutine DatasetMapHDF5ReadMap
-#endif
 
 ! ************************************************************************** !
 

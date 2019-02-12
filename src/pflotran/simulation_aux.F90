@@ -23,6 +23,8 @@ module Simulation_Aux_module
     Vec :: subsurf_por
     Vec :: subsurf_strain
     Vec :: subsurf_stress
+    Vec :: subsurf_perm0 
+    Vec :: subsurf_perm
 
     ! Size of surface cells of subsurface domain
     Vec :: subsurf_pres_top_bc
@@ -39,7 +41,6 @@ module Simulation_Aux_module
 
     VecScatter :: surf_to_subsurf
     VecScatter :: subsurf_to_surf
-    VecScatter :: subsurf_to_hydrogeophyics
     VecScatter :: geomechanics_to_subsurf
     VecScatter :: subsurf_to_geomechanics
 
@@ -80,6 +81,8 @@ function SimAuxCreate()
   aux%subsurf_den = PETSC_NULL_VEC
   aux%subsurf_por0 = PETSC_NULL_VEC
   aux%subsurf_por = PETSC_NULL_VEC
+  aux%subsurf_perm0 = PETSC_NULL_VEC
+  aux%subsurf_perm = PETSC_NULL_VEC
   aux%subsurf_strain = PETSC_NULL_VEC
   aux%subsurf_stress = PETSC_NULL_VEC
   aux%subsurf_pres_top_bc = PETSC_NULL_VEC
@@ -94,7 +97,6 @@ function SimAuxCreate()
 
   aux%surf_to_subsurf = PETSC_NULL_VECSCATTER
   aux%subsurf_to_surf = PETSC_NULL_VECSCATTER
-  aux%subsurf_to_hydrogeophyics = PETSC_NULL_VECSCATTER
   aux%subsurf_to_geomechanics = PETSC_NULL_VECSCATTER
   aux%geomechanics_to_subsurf = PETSC_NULL_VECSCATTER
 
@@ -125,9 +127,6 @@ subroutine SimAuxCopyVecScatter(aux, vscat, vscat_index)
       call VecScatterCopy(vscat, aux%surf_to_subsurf, ierr);CHKERRQ(ierr)
     case(SUBSURF_TO_SURF)
       call VecScatterCopy(vscat, aux%subsurf_to_surf, ierr);CHKERRQ(ierr)
-    case(SUBSURF_TO_HYDROGEOPHY)
-      call VecScatterCopy(vscat, aux%subsurf_to_hydrogeophyics,  &
-                          ierr);CHKERRQ(ierr)
     case(SUBSURF_TO_GEOMECHANICS)
       call VecScatterCopy(vscat, aux%subsurf_to_geomechanics,  &
                           ierr);CHKERRQ(ierr)
@@ -161,7 +160,9 @@ subroutine SimAuxCopySubsurfVec(aux, subsurf_vec)
   call VecDuplicate(subsurf_vec,aux%subsurf_den,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por0,ierr);CHKERRQ(ierr)
   call VecDuplicate(subsurf_vec,aux%subsurf_por,ierr);CHKERRQ(ierr)
-
+  call VecDuplicate(subsurf_vec,aux%subsurf_perm0,ierr);CHKERRQ(ierr) !DANNY
+  call VecDuplicate(subsurf_vec,aux%subsurf_perm,ierr);CHKERRQ(ierr)
+  
 end subroutine SimAuxCopySubsurfVec
 
 ! ************************************************************************** !
@@ -278,6 +279,12 @@ subroutine SimAuxDestroy(aux)
   if (aux%subsurf_por /= PETSC_NULL_VEC) then
     call VecDestroy(aux%subsurf_por,ierr);CHKERRQ(ierr)
   endif
+  if (aux%subsurf_perm0 /= PETSC_NULL_VEC) then !DANNY
+    call VecDestroy(aux%subsurf_perm0,ierr);CHKERRQ(ierr)
+  endif
+  if (aux%subsurf_perm /= PETSC_NULL_VEC) then
+    call VecDestroy(aux%subsurf_perm,ierr);CHKERRQ(ierr)
+  endif
   if (aux%subsurf_stress /= PETSC_NULL_VEC) then
     call VecDestroy(aux%subsurf_stress,ierr);CHKERRQ(ierr)
   endif
@@ -316,9 +323,6 @@ subroutine SimAuxDestroy(aux)
   endif
   if (aux%subsurf_to_surf /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(aux%subsurf_to_surf,ierr);CHKERRQ(ierr)
-  endif
-  if (aux%subsurf_to_hydrogeophyics /= PETSC_NULL_VECSCATTER) then
-    call VecScatterDestroy(aux%subsurf_to_hydrogeophyics,ierr);CHKERRQ(ierr)
   endif
   if (aux%subsurf_to_geomechanics /= PETSC_NULL_VECSCATTER) then
     call VecScatterDestroy(aux%subsurf_to_geomechanics, ierr);CHKERRQ(ierr)

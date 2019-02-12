@@ -8,6 +8,10 @@ module Debug_module
   
   private
   
+  PetscInt, parameter, public :: DEBUG_ASCII_FORMAT = 1
+  PetscInt, parameter, public :: DEBUG_BINARY_FORMAT = 2
+  PetscInt, parameter, public :: DEBUG_MATLAB_FORMAT = 3
+  PetscInt, parameter, public :: DEBUG_NATIVE_FORMAT = 4
 
   type, public :: debug_type
     PetscBool :: vecview_residual
@@ -16,7 +20,8 @@ module Debug_module
     PetscBool :: matview_Jacobian_detailed
     PetscBool :: norm_Jacobian
 
-    PetscBool :: binary_format
+    PetscInt  :: output_format
+    PetscBool :: verbose_filename
 
     PetscBool :: print_numerical_derivatives
 
@@ -26,7 +31,12 @@ module Debug_module
     PetscBool :: print_waypoints
   end type debug_type
 
-  public :: DebugCreate, DebugRead, DebugCreateViewer, DebugDestroy
+  public :: DebugCreate, &
+            DebugRead, &
+            DebugCreateViewer, &
+            DebugWriteFilename, &
+            DebugViewerDestroy, &
+            DebugDestroy
   
 contains
 
@@ -54,7 +64,8 @@ function DebugCreate()
   debug%matview_Jacobian_detailed = PETSC_FALSE
   debug%norm_Jacobian = PETSC_FALSE
 
-  debug%binary_format = PETSC_FALSE
+  debug%output_format = DEBUG_ASCII_FORMAT
+  debug%verbose_filename = PETSC_FALSE
   
   debug%print_numerical_derivatives = PETSC_FALSE
   
@@ -79,6 +90,7 @@ subroutine DebugRead(debug,input,option)
 
   use Option_module
   use Input_Aux_module
+  use String_module
   
   implicit none
     
@@ -97,6 +109,7 @@ subroutine DebugRead(debug,input,option)
 
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','DEBUG')   
+    call StringToUpper(keyword)
       
     select case(trim(keyword))
     
@@ -121,7 +134,13 @@ subroutine DebugRead(debug,input,option)
       case('WAYPOINTS')
         debug%print_waypoints = PETSC_TRUE
       case('BINARY_FORMAT')
-        debug%binary_format = PETSC_TRUE
+        debug%output_format = DEBUG_BINARY_FORMAT
+      case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
+        debug%verbose_filename = PETSC_TRUE
+      case('MATLAB_FORMAT')
+        debug%output_format = DEBUG_MATLAB_FORMAT
+      case('NATIVE_FORMAT','PARALLEL_FORMAT')
+        debug%output_format = DEBUG_NATIVE_FORMAT
       case default
         call InputKeywordUnrecognized(keyword,'DEBUG',option)
     end select 
@@ -154,18 +173,99 @@ subroutine DebugCreateViewer(debug,viewer_name_prefix,option,viewer)
   character(len=MAXWORDLENGTH) :: viewer_name
   PetscErrorCode :: ierr
 
-  if (debug%binary_format) then
-    viewer_name = trim(adjustl(viewer_name_prefix)) // '.bin'
-    call PetscViewerBinaryOpen(option%mycomm,viewer_name, &
-                               FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
-  else
-    viewer_name = trim(viewer_name_prefix) // '.out'
-    call PetscViewerASCIIOpen(option%mycomm,viewer_name,viewer, &
-                              ierr);CHKERRQ(ierr)
-  endif
 
+  select case(debug%output_format)
+    case(DEBUG_ASCII_FORMAT)
+      viewer_name = trim(viewer_name_prefix) // '.out'
+      call PetscViewerASCIIOpen(option%mycomm,viewer_name,viewer, &
+                                ierr);CHKERRQ(ierr)
+    case(DEBUG_BINARY_FORMAT)
+      viewer_name = trim(adjustl(viewer_name_prefix)) // '.bin'
+      call PetscViewerBinaryOpen(option%mycomm,viewer_name, &
+                                 FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
+    case(DEBUG_MATLAB_FORMAT)
+      viewer_name = trim(viewer_name_prefix) // '.mat'
+      call PetscViewerASCIIOpen(option%mycomm,viewer_name, &
+                                 viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerPushFormat(viewer,PETSC_VIEWER_ASCII_MATLAB, &
+                                 ierr);CHKERRQ(ierr)
+    case(DEBUG_NATIVE_FORMAT)
+      viewer_name = trim(viewer_name_prefix) // '.bin'
+      call PetscViewerBinaryOpen(option%mycomm,viewer_name, &
+                                 FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerPushFormat(viewer,PETSC_VIEWER_NATIVE, &
+                                 ierr);CHKERRQ(ierr)
+  end select
 
 end subroutine DebugCreateViewer
+
+! ************************************************************************** !
+
+subroutine DebugWriteFilename(debug,filename,prefix,suffix,ts,ts_cut,ni)
+  ! 
+  ! Appends timestep, timestep cut, and Newton iteration counts to a 
+  ! filename.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/23/18
+  ! 
+
+  implicit none
+
+  type(debug_type) :: debug
+  character(len=*) :: filename
+  character(len=*) :: prefix
+  character(len=*) :: suffix
+  PetscInt :: ts
+  PetscInt :: ts_cut
+  PetscInt :: ni
+
+  character(len=MAXWORDLENGTH) :: word
+ 
+  filename = adjustl(prefix)
+  if (debug%verbose_filename) then
+    write(word,*) ts
+    filename = trim(filename) // '_ts' // adjustl(word)
+    write(word,*) ts_cut
+    filename = trim(filename) // '_tc' // adjustl(word)
+    write(word,*) ni
+    filename = trim(filename) // '_ni' // adjustl(word)
+  endif
+  if (len_trim(suffix) > 0) then
+    filename = trim(filename) // '.' // adjustl(suffix)
+  endif
+ 
+end subroutine DebugWriteFilename
+
+! ************************************************************************** !
+
+subroutine DebugViewerDestroy(debug,viewer)
+  !
+  ! Deallocates PETSc Viewer
+  !
+  ! Author: Heeho Park
+  ! Date: 11/08/18
+  !
+  implicit none
+
+  type(debug_type) :: debug
+  PetscViewer :: viewer
+  PetscErrorCode :: ierr
+  
+  !geh: must use an 'or' operation since new formats greater than
+  !     DEBUG_NATIVE_FORMAT may not require PopFormat()
+  if (debug%output_format == DEBUG_MATLAB_FORMAT .or. &
+      debug%output_format == DEBUG_NATIVE_FORMAT) then
+  !  DEBUG_ASCII_FORMAT = 1
+  !  DEBUG_BINARY_FORMAT = 2 
+  !  DEBUG_MATLAB_FORMAT = 3  popformat required
+  !  DEBUG_NATIVE_FORMAT = 4  popformat required
+    call PetscViewerPopFormat(viewer,ierr);CHKERRQ(ierr)
+  endif
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  
+
+end subroutine DebugViewerDestroy
 
 ! ************************************************************************** !
 

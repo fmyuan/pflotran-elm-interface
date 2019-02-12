@@ -12,14 +12,11 @@ module Output_module
   use Output_Observation_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
-
-#if defined(SCORPIO_WRITE)
-  include "scorpiof.h"
-#endif
 
   PetscInt, parameter :: TECPLOT_INTEGER = 0
   PetscInt, parameter :: TECPLOT_REAL = 1
@@ -42,7 +39,8 @@ module Output_module
             OutputVariableRead, &
             OutputFileRead, &
             OutputInputRecord, &
-            OutputEnsureVariablesExist
+            OutputEnsureVariablesExist, &
+            OutputFindNaNOrInfInVec
 
 contains
 
@@ -73,7 +71,8 @@ end subroutine OutputInit
 
 ! ************************************************************************** !
 
-subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
+subroutine OutputFileRead(input,realization,output_option, &
+                          waypoint_list,block_name)
   ! 
   ! Reads the *_FILE block within the OUTPUT block.
   ! 
@@ -95,12 +94,12 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
 
   implicit none
 
+  type(input_type), pointer :: input
   class(realization_subsurface_type), pointer :: realization
   type(output_option_type), pointer :: output_option
   type(waypoint_list_type), pointer :: waypoint_list
   character(len=*) :: block_name
   
-  type(input_type), pointer :: input
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -113,16 +112,15 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
   character(len=MAXWORDLENGTH) :: units, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion
-  PetscInt :: k
+  PetscReal :: units_conversion,deltat
+  PetscInt :: k,deltas
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
 
   option => realization%option
-  input => realization%input
   patch => realization%patch
   if (associated(patch)) grid => patch%grid
 
@@ -142,6 +140,8 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
+    case('ECLIPSE_FILE')
+      output_option%write_ecl = PETSC_TRUE
   end select
 
   do
@@ -176,7 +176,18 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-        
+
+      case('WRITE_MASS_RATES')
+        select case(trim(block_name))
+          case('MASS_BALANCE_FILE')
+            output_option%write_masses = PETSC_TRUE
+        end select
+
+      case('FORMATTED')
+        select case(trim(block_name))
+          case('ECLIPSE_FILE')
+            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
+        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
@@ -357,6 +368,46 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
             call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
         end select
 
+      case('PERIOD_SUM','PERIOD_RST')
+        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
+        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
+        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'periodic time increment type',string)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('TIME')
+            deltat = -1.0
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
+            call InputReadDouble(input,option,temp_real)
+            call InputErrorMsg(input,option,'time increment',string)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'time increment units',string)
+            internal_units = 'sec'
+            units_conversion = UnitsConvertToInternal(word, &
+                 internal_units,option)
+            deltat = temp_real*units_conversion
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltat = deltat
+              output_option%eclipse_options%write_ecl_sum_deltas = -1
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltat = deltat
+              output_option%eclipse_options%write_ecl_rst_deltas = -1
+            endif
+          case('TIMESTEP')
+            deltas = -1
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
+              call InputReadInt(input,option,deltas)
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltas = deltas
+              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltas = deltas
+              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
+            endif
+        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -557,7 +608,7 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
   endif
 
   if(output_option%aveg_output_variable_list%nvars>0) then
-    if(output_option%periodic_snap_output_time_incr==0.d0) then
+    if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
       option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without &
                          &PERIODIC TIME being set.'
       call printErrMsg(option)
@@ -577,7 +628,7 @@ subroutine OutputFileRead(realization,output_option,waypoint_list,block_name)
       output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
       output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
       if(aveg_mass_flowrate.or.aveg_energy_flowrate) then
-        if(output_option%periodic_snap_output_time_incr==0.d0) then
+        if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
           option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/&
                              &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE &
                              &defined without PERIODIC TIME being set.'
@@ -821,6 +872,69 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      OIL_ENERGY,temp_int)
 
+      case ('SOLVENT_PRESSURE')
+        name = 'Solvent Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     SOLVENT_PRESSURE)
+      case ('SOLVENT_SATURATION')
+        name = 'Solvent Saturation'
+        units = ''
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_SATURATION,units, &
+                                     SOLVENT_SATURATION)
+      case ('SOLVENT_DENSITY')
+        name = 'Solvent Density'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          if (StringCompareIgnoreCase(word,'MOLAR')) then
+            units = 'kmol/m^3'
+            temp_int = SOLVENT_DENSITY_MOL
+          else
+            call InputErrorMsg(input,option,'optional keyword', &
+                               'VARIABLES,SOLVENT_DENSITY')
+          endif
+        else
+          units = 'kg/m^3'
+          temp_int = SOLVENT_DENSITY
+        endif
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     temp_int)
+      case ('SOLVENT_MOBILITY')
+        name = 'Solvent Mobility'
+        units = '1/Pa-s'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SOLVENT_MOBILITY)
+      case ('SOLVENT_ENERGY')
+        name = 'Solvent Energy'
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
+            units = 'MJ/m^3'
+            temp_int = ONE_INTEGER
+          else
+            input%ierr = 1
+            call InputErrorMsg(input,option,'optional keyword', &
+                               'VARIABLES,SOLVENT_ENERGY')
+          endif
+        else
+          units = 'MJ/kmol'
+          temp_int = ZERO_INTEGER
+        endif
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SOLVENT_ENERGY,temp_int)
+
+      case ('BUBBLE_POINT')
+        name = 'Bubble Point'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     BUBBLE_POINT)
+
       case ('ICE_SATURATION')
         name = 'Ice Saturation'
         units = ''
@@ -973,6 +1087,36 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      PERMEABILITY_Z)
+      case ('GAS_PERMEABILITY','GAS_PERMEABILITY_X')
+        units = 'm^2'
+        name = 'Gas Permeability X'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     GAS_PERMEABILITY)
+      case ('GAS_PERMEABILITY_Y')
+        units = 'm^2'
+        name = 'Gas Permeability Y'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     GAS_PERMEABILITY_Y)
+      case ('GAS_PERMEABILITY_Z')
+        units = 'm^2'
+        name = 'Gas Permeability Z'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     GAS_PERMEABILITY_Z)
+      case ('LIQUID_RELATIVE_PERMEABILITY')
+        units = '-'
+        name = 'Liquid Relative Permeability'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     LIQUID_REL_PERM)
+      case ('GAS_RELATIVE_PERMEABILITY')
+        units = '-'
+        name = 'Gas Relative Permeability'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     GAS_REL_PERM)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1032,6 +1176,10 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
+      case('NO_FLOW_VARIABLES')
+        output_variable_list%flow_vars = PETSC_FALSE
+      case('NO_ENERGY_VARIABLES')
+        output_variable_list%energy_vars = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
@@ -1106,11 +1254,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       endif      
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
-#ifdef SCORPIO_WRITE
-      if (option%myrank == 0) write (*,'(" Parallel IO Write method is used in &
-        &writing the output, HDF5_WRITE_GROUP_SIZE = ",i5)') &
-        option%hdf5_write_group_size
-#endif
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
       call printMsg(option)
@@ -1201,12 +1344,19 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
     call OutputMassBalance(realization_base)
   endif
 
+  !  Output Eclipse files for this step if required
+  if( realization_base%output_option%write_ecl ) then
+    call OutputEclipseFiles(realization_base)
+  endif
+
+  ! Output single-line report for this step if required
+  if (option%linerept) then
+    option%print_to_screen = PETSC_FALSE
+    call OutputLineRept(realization_base,option)
+  endif
+
   ! Output temporally average variables 
   call OutputAvegVars(realization_base)
-
-#ifdef WELL_CLASS
-  call OutputWell(realization_base)
-#endif
 
   if (snapshot_plot_flag) then
     realization_base%output_option%plot_number = &
@@ -1552,18 +1702,6 @@ subroutine OutputMAD(realization_base)
   use Variables_module
   use Output_Common_module, only : OutputGetVariableArray
  
-#if !defined(PETSC_HAVE_HDF5)
-  implicit none
-  
-  class(realization_base_type) :: realization_base
-
-  call printMsg(realization_base%option,'')
-  write(realization_base%option%io_buffer, &
-        '("PFLOTRAN must be compiled with HDF5 to ", &
-        &"write HDF5 formatted structured grids.")')
-  call printErrMsg(realization_base%option)
-#else
-
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
 !#define HDF_NATIVE_INTEGER H5T_STD_I64LE
@@ -1676,7 +1814,7 @@ subroutine OutputMAD(realization_base)
 
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
-#endif
+
 end subroutine OutputMAD
 
 ! ************************************************************************** !
@@ -2024,7 +2162,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
@@ -2265,55 +2403,7 @@ subroutine OutputAvegVars(realization_base)
 
   endif
 
-
 end subroutine OutputAvegVars
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine OutputWell(realization_base)
-  ! 
-  ! Prints out the well variables
-  ! 
-  ! Author: Paolo Orsini - OpenGoSim
-  ! Date: 10/7/15
-  ! 
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-  use Coupler_module
-  use Patch_module
-  use Well_module
-
-  implicit none
-
-  class(realization_base_type) :: realization_base  
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch  
-  type(output_option_type), pointer :: output_option
-  type(coupler_type), pointer :: source_sink
-  !class(well_auxvar_base_type), pointer :: well_auxvar 
-
-  PetscInt :: iconn
-  PetscInt :: local_id, ghosted_id
-
-  patch => realization_base%patch
-  !grid => patch%grid
-  option => realization_base%option
-  output_option => realization_base%output_option
-
-  source_sink => patch%source_sink_list%first
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      if (source_sink%connection_set%num_connections > 0 ) then
-        !call WellOutput(source_sink%well,output_option,source_sink%name,option)
-        call WellOutput(source_sink%well,output_option,option)
-      end if 
-    end if
-    source_sink => source_sink%next
-  enddo
-
-end subroutine OutputWell
-#endif
 
 ! ************************************************************************** !
 
@@ -2401,5 +2491,69 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
 end subroutine OutputListEnsureVariablesExist
 
 ! ************************************************************************** !
+
+subroutine OutputFindNaNOrInfInVec(vec,grid,option)
+  ! 
+  ! Reports Infs or NaNs in a vector
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/08/18
+  ! 
+  use Grid_module
+  use Option_module
+!geh: ieee_arithmetic is not yet supported by gfortran 4.x or lower
+!  use ieee_arithmetic
+
+  implicit none
+
+  Vec :: vec
+  type(grid_type), pointer :: grid
+  type(option_type) :: option
+
+  PetscReal, pointer :: vec_p(:)
+  PetscInt :: i, idof, icell, block_size, local_size, local_count, exscan_count
+  PetscInt, parameter :: max_number_to_print = 10
+  PetscInt :: iarray(2,max_number_to_print)
+  character(len=MAXWORDLENGTH) :: word
+  PetscErrorCode :: ierr
+
+  iarray = 0
+  call VecGetLocalSize(vec,local_size,ierr);CHKERRQ(ierr)
+  call VecGetBlockSize(vec,block_size,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
+  local_count = 0
+  do i = 1, local_size
+     if (PetscIsInfOrNanReal(vec_p(i))) then
+!    if (ieee_is_nan(vec_p(i)) .or. .not.ieee_is_finite(vec_p(i))) then
+      local_count = local_count + 1
+      icell = int(float(i-1)/float(block_size))+1
+      iarray(1,local_count) = grid%nG2A(grid%nL2G(icell))
+      idof = i-(icell-1)*block_size
+!      if (ieee_is_nan(vec_p(i))) idof = -idof
+      iarray(2,local_count) = idof
+    endif
+  enddo
+  call VecRestoreArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
+
+  exscan_count = 0
+  call MPI_Exscan(local_count,exscan_count,ONE_INTEGER_MPI, &
+                MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  do i = 1, min(max_number_to_print-exscan_count,local_count)
+    idof = iarray(2,i)
+    if (idof > 0) then
+      option%io_buffer = 'NaN'
+    else
+      option%io_buffer = 'Inf'
+    endif
+    write(word,*) iarray(1,i)
+    option%io_buffer = trim(option%io_buffer) // ' at cell ' // &
+      trim(adjustl(word)) // ' and dof'
+    write(word,*) iabs(idof)
+    option%io_buffer = trim(option%io_buffer) // ' ' // &
+      trim(adjustl(word)) //  '.'
+    call printMsgByRank(option)
+  enddo
+
+end subroutine OutputFindNaNOrInfInVec
 
 end module Output_module

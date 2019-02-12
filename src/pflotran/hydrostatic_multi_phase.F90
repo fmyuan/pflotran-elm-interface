@@ -268,7 +268,7 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
 
   !write(*,*) "my_rank", option%myrank, "min_ghost", ghosted_id_min_dist, &
   !           "sat_fun_id", sat_func_id(ghosted_id_min_dist)
-
+  !PO This approach must be review - pc at owc must be entered in the input
   characteristic_curves => &
       characteristic_curves_array(sat_func_id(ghosted_id_min_dist))%ptr
   !characteristic_curves = characteristic_curves_array(func_id)%ptr
@@ -276,8 +276,16 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
   sat_ir(:) = CharCurvesGetGetResidualSats(characteristic_curves,option) 
   sat_liq_owc = 1.0 - sat_ir(2)
       
-  call characteristic_curves%saturation_function% &
-       CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
+  if ( (pw_hydrostatic .or. po_hydrostatic ) .and. &
+       (.not.characteristic_curves%oil_wat_sat_func%sat_func_of_pc_available) &
+     ) then
+       option%io_buffer = 'The capillary pressure function used for&
+                          & hydrostatic equilibration is not valid.'
+      call printErrMsg(option)
+  end if    
+
+  call characteristic_curves%oil_wat_sat_func% &
+           CapillaryPressure(sat_liq_owc,pc_owc,dpc_dsatl,option)
 
   ! compute pressure and density profiles for phases where hydrostatic pressure
   ! is imposed. And pressure (water or oil) at owc elevation
@@ -428,13 +436,15 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
         coupler%flow_aux_real_var(2,iconn) = 1.0d-6 !to avoid truncation erros
       !oil region - case of zero capillary pressure - can assign So < So_ir
       else if ( (pc_comp > 0.d0) .and. &
-                (characteristic_curves%saturation_function%pcmax < 1.0d-40 ) &
+              !  (characteristic_curves%saturation_function%pcmax < 1.0d-40 ) &
+               (characteristic_curves%oil_wat_sat_func%pcmax < 1.0d-40 ) &
               ) then  
         !OIL SATURATION from input
         coupler%flow_aux_real_var(1,iconn) = po_cell
         coupler%flow_aux_real_var(2,iconn) = &
                 coupler%flow_condition%toil_ims%saturation%dataset%rarray(1)        
-      else if ( pc_comp >= characteristic_curves%saturation_function%pcmax ) &
+      !else if ( pc_comp >= characteristic_curves%saturation_function%pcmax ) &
+      else if ( pc_comp >= characteristic_curves%oil_wat_sat_func%pcmax ) &
         then
         ! oil region: can consider here connate water if required, or Sw_ir
         ! sat_ir(1) currenlty used, this Sw_ir taken from owc characteristic curve
@@ -444,8 +454,8 @@ subroutine TOIHydrostaticUpdateCoupler(coupler,option,grid, &
       else
         ! water/oil transition zone
         coupler%flow_aux_real_var(1,iconn) = po_cell      
-        call characteristic_curves%saturation_function%Saturation( &
-                   pc_comp,sat_liq_comp,dsat_dpres,option) 
+        call characteristic_curves%oil_wat_sat_func%Saturation( &
+                  pc_comp,sat_liq_comp,dsat_dpres,option)         
         coupler%flow_aux_real_var(2,iconn) = 1.0d0 - sat_liq_comp
         if (coupler%flow_aux_real_var(2,iconn) < 1.0d-6 ) &
            coupler%flow_aux_real_var(2,iconn) = 1.0d-6 

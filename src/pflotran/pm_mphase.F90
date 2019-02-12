@@ -56,6 +56,7 @@ function PMMphaseCreate()
 
   call PMSubsurfaceFlowCreate(mphase_pm)
   mphase_pm%name = 'Mphase CO2 Flow'
+  mphase_pm%header = 'MPHASE CO2 FLOW'
 
   PMMphaseCreate => mphase_pm
   
@@ -102,7 +103,8 @@ subroutine PMMphaseRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -124,17 +126,13 @@ subroutine PMMphaseInitializeTimestep(this)
   ! 
 
   use Mphase_module, only : MphaseInitializeTimestep
+  use Option_module
   
   implicit none
   
   class(pm_mphase_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)         
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," MPHASE FLOW ",65("="))')
-  endif
-  
   call MphaseInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)         
   
@@ -265,7 +263,8 @@ end subroutine PMMphasePostSolve
 ! ************************************************************************** !
 
 subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                  num_newton_iterations,tfac, &
+                                  time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -280,6 +279,7 @@ subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -316,7 +316,7 @@ subroutine PMMphaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.

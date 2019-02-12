@@ -2,7 +2,8 @@ module Waypoint_module
  
   use Option_module
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private
@@ -245,55 +246,38 @@ subroutine WaypointInsertInList(new_waypoint,waypoint_list)
 
   type(waypoint_type), pointer :: waypoint
     
-    ! place new waypoint in proper location within list
+  ! place new waypoint in proper location within list
   waypoint => waypoint_list%first
   if (associated(waypoint)) then ! list exists
-    ! if waypoint time matches another waypoint time, merge them
-!geh    if ((new_waypoint%time > 0.999999d0*waypoint%time .and. &
-!geh         new_waypoint%time < 1.000001d0*waypoint%time) .or. &
-         ! need to account for waypoint%time = 0.d0
-    if (Equal(new_waypoint%time,waypoint%time) .or. &
-        (new_waypoint%time < 1.d-40 .and. &
-         waypoint%time < 1.d-40)) then ! same
-      call WaypointMerge(waypoint,new_waypoint)
-      return
+    if (new_waypoint%time < waypoint%time) then 
+      ! insert at beginning of list
+      waypoint_list%first => new_waypoint
+      new_waypoint%next => waypoint
+      new_waypoint%next%prev => new_waypoint
     else
-      ! if waypoint time is less than any previous, insert at beginning of list
-      if (new_waypoint%time < waypoint%time) then 
-        waypoint_list%first => new_waypoint
-        new_waypoint%next => waypoint
-        new_waypoint%next%prev => new_waypoint
-      else
-        ! find its location in the list
-        do
-          if (associated(waypoint)) then 
-            if (Equal(new_waypoint%time,waypoint%time)) then
-!geh            if (new_waypoint%time > 0.999999d0*waypoint%time .and. &
-!geh                new_waypoint%time < 1.000001d0*waypoint%time) then ! same
-              call WaypointMerge(waypoint,new_waypoint)
-              return
-            else if (associated(waypoint%next)) then 
-              if (new_waypoint%time-waypoint%time > 1.d-10 .and. & ! within list
-                  new_waypoint%time-waypoint%next%time < -1.d-10) then 
-                new_waypoint%next => waypoint%next
-                new_waypoint%next%prev => new_waypoint
-                waypoint%next => new_waypoint
-                new_waypoint%prev => waypoint
-                waypoint_list%num_waypoints = waypoint_list%num_waypoints+1
-                return
-              else
-                waypoint => waypoint%next
-                cycle
-              endif
-            else ! at end of list
-              waypoint%next => new_waypoint
-              new_waypoint%prev => waypoint
-              waypoint_list%last => new_waypoint
-              exit
-            endif
+      ! find its location in the list
+      do
+        if (Equal(new_waypoint%time,waypoint%time)) then
+          call WaypointMerge(waypoint,new_waypoint)
+          return ! do not increment num_waypoints at bottom
+        else if (associated(waypoint%next)) then 
+          if (new_waypoint%time-waypoint%time > 1.d-10 .and. & ! within list
+              new_waypoint%time-waypoint%next%time < -1.d-10) then 
+            new_waypoint%next => waypoint%next
+            new_waypoint%next%prev => new_waypoint
+            waypoint%next => new_waypoint
+            new_waypoint%prev => waypoint
+            exit
+          else
+            waypoint => waypoint%next
           endif
-        enddo
-      endif
+        else ! at end of list
+          waypoint%next => new_waypoint
+          new_waypoint%prev => waypoint
+          waypoint_list%last => new_waypoint
+          exit
+        endif
+      enddo
     endif
   else
     waypoint_list%first => new_waypoint
@@ -305,13 +289,14 @@ end subroutine WaypointInsertInList
 
 ! ************************************************************************** !
 
-subroutine WaypointDeleteFromList(obsolete_waypoint,waypoint_list)
-  ! 
-  ! Deletes a waypoing in a list
+subroutine WaypointDeleteFromList(obsolete_waypoint,waypoint_list) ! 
+  !
+  ! Deletes a waypoint in a list
   ! 
   ! Author: Gautam Bisht
   ! Date: 01/20/11
   ! 
+  use Utility_module
 
   implicit none
 
@@ -324,7 +309,7 @@ subroutine WaypointDeleteFromList(obsolete_waypoint,waypoint_list)
   if (associated(waypoint)) then ! list exists
 
     ! Is the waypoint to be deleted is the first waypoint?
-    if (waypoint%time == obsolete_waypoint%time) then
+    if (Equal(waypoint%time,obsolete_waypoint%time)) then
       waypoint_list%first => waypoint%next
       call WaypointDestroy(waypoint)
       waypoint_list%num_waypoints = waypoint_list%num_waypoints - 1
@@ -908,7 +893,7 @@ subroutine WaypointInputRecord(output_option,waypoint_list)
     if (cur_waypoint%final .or. cur_waypoint%time > final_time) then
       final_time = cur_waypoint%time
     endif
-    if (cur_waypoint%dt_max /= max_dt) then
+    if (.not. Equal(cur_waypoint%dt_max,max_dt)) then
       write(id,'(a29)',advance='no') 'max. timestep: '
       write(word1,Format) cur_waypoint%dt_max/output_option%tconv
       write(word2,Format) prev_time/output_option%tconv
@@ -936,7 +921,6 @@ function WaypointListGetFinalTime(waypoint_list)
   ! Author: Glenn Hammond
   ! Date: 06/12/13
   ! 
-
   implicit none
   
   type(waypoint_list_type) :: waypoint_list
@@ -945,7 +929,8 @@ function WaypointListGetFinalTime(waypoint_list)
   
   type(waypoint_type), pointer :: cur_waypoint
 
-  WaypointListGetFinalTime = 0.d0
+  ! initialize to negative infinity
+  WaypointListGetFinalTime = -1.d20
   
   cur_waypoint => waypoint_list%first
   do

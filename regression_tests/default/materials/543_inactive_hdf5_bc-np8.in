@@ -29,7 +29,7 @@ CHEMISTRY
   Tracer
   /
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 END
@@ -281,7 +281,7 @@ END
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ./543_inactive.h5
+  FILE ./543_inactive.h5
 END
 
 END_SUBSURFACE

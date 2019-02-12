@@ -115,7 +115,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Simulation_Subsurface_class
   use Simulation_Surf_Subsurf_class
   use Simulation_Geomechanics_class
-  use Simulation_Hydrogeophysics_class
   use PM_Base_class
   use PM_Surface_Flow_class
   use PM_Surface_TH_class
@@ -128,7 +127,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Units_module
   
   use Factory_Subsurface_module
-  use Factory_Hydrogeophysics_module
   use Factory_Surf_Subsurf_module
   use Factory_Geomechanics_module
   
@@ -154,6 +152,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   class(pmc_base_type), pointer :: pmc_master
   
   PetscBool :: print_ekg
+  PetscBool :: realization_dependent_restart
+  PetscInt :: i
   
   nullify(pm_master)
   nullify(cur_pm)
@@ -209,8 +209,10 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('UFD_BIOSPHERE')
               call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
             case('WIPP_SOURCE_SINK')
-              call SubsurfaceReadWIPPSrcSinkPM(input,option,new_pm)
-            case('HYDROGEOPHYSICS')
+              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
+                &unless you are running in WIPP_FLOW mode and intend to &
+                &include gas generation.'
+              call printErrMsg(option)
             case('SURFACE_SUBSURFACE')
               call SurfSubsurfaceReadFlowPM(input,option,new_pm)
             case('GEOMECHANICS_SUBSURFACE')
@@ -254,14 +256,53 @@ subroutine PFLOTRANReadSimulation(simulation,option)
                             checkpoint_waypoint_list)
       case ('RESTART')
         option%restart_flag = PETSC_TRUE
-        call InputReadNChars(input,option,option%restart_filename, &
-                             MAXSTRINGLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'RESTART','Restart file name') 
-        call InputReadDouble(input,option,option%restart_time)
+        realization_dependent_restart = PETSC_FALSE
+        ! this section preserves the legacy implementation
+        call InputReadFilename(input,option,option%restart_filename)
         if (input%ierr == 0) then
-          call InputReadAndConvertUnits(input,option%restart_time, &
+          call InputReadDouble(input,option,option%restart_time)
+          if (input%ierr == 0) then
+            call InputReadAndConvertUnits(input,option%restart_time, &
                                         'sec','RESTART,time units',option)
-        endif    
+          endif 
+          cycle
+          ! end legacy implementation
+        endif 
+        input%ierr = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call StringToUpper(word)
+          select case(word)
+            case('FILENAME')
+              call InputReadFilename(input,option,option%restart_filename)
+              call InputErrorMsg(input,option,'RESTART','filename') 
+            case('RESET_TO_TIME_ZERO')
+              ! any value but UNINITIALIZED_DOUBLE will set back to zero.
+              option%restart_time = 0.d0 
+            case('REALIZATION_DEPENDENT')
+              realization_dependent_restart = PETSC_TRUE
+            case default
+              call InputKeywordUnrecognized(word,'SIMULATION,RESTART',option)
+          end select
+        enddo
+        if (realization_dependent_restart) then
+          ! insert realization id
+          i = index(option%restart_filename,'-restart')
+          if (i > 0) then
+            string = option%restart_filename(1:i-1) // &
+                     trim(option%group_prefix) // &
+                   option%restart_filename(i:len_trim(option%restart_filename))
+          else
+            option%io_buffer = 'Realization-dependent restart requires that &
+              &"-restart" be present in the restart file name so that the &
+              &realization id can be inserted prior to -restart.  E.g. &
+              &pflotran-restart.h5 -> pflotranR1-restart.h5'
+            call printErrMsg(option)
+          endif
+          option%restart_filename = trim(string)
+        endif
       case('INPUT_RECORD_FILE')
         option%input_record = PETSC_TRUE
         call OpenAndWriteInputRecord(option)
@@ -289,8 +330,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select case(simulation_type)
     case('SUBSURFACE')
       simulation => SubsurfaceSimulationCreate(option)
-    case('HYDROGEOPHYSICS')
-      simulation => HydrogeophysicsCreate(option)
     case('SURFACE_SUBSURFACE')
       simulation => SurfSubsurfaceSimulationCreate(option)
     case('GEOMECHANICS_SUBSURFACE')
@@ -311,8 +350,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select type(simulation)
     class is(simulation_subsurface_type)
       call SubsurfaceInitialize(simulation)  
-    class is(simulation_hydrogeophysics_type)
-      call HydrogeophysicsInitialize(simulation)
     class is(simulation_surfsubsurface_type)
       call SurfSubsurfaceInitialize(simulation)
     class is(simulation_geomechanics_type)
@@ -450,6 +487,8 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   PetscBool :: bool_flag
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
+  PetscBool :: output_dir_found
+  PetscBool :: output_file_prefix_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
   PetscErrorCode :: ierr
@@ -475,10 +514,18 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   else if (input_prefix_option_found) then
     option%input_filename = trim(option%input_prefix) // '.in'
   endif
-  
+
   string = '-output_prefix'
   call InputGetCommandLineString(string,option%global_prefix,option_found,option)
-  if (.not.option_found) option%global_prefix = option%input_prefix  
+
+  if (.not.option_found) then
+    option%global_prefix = option%input_prefix
+    option%output_file_name_prefix = option%input_prefix
+  else
+    call InputReadFileDirNamePrefix(option%global_prefix, &
+                                    option%output_file_name_prefix, &
+                                    option%output_dir)
+  end if
   
   string = '-screen_output'
   call InputGetCommandLineTruth(string,option%print_to_screen,option_found,option)

@@ -4,6 +4,10 @@ module Test_Characteristic_Curves_module
   use petscsys
   use pFUnit_mod
   use Characteristic_Curves_module
+  use Characteristic_Curves_Base_module
+  use Characteristic_Curves_Common_module
+  use Characteristic_Curves_OWG_module
+  use Characteristic_Curves_WIPP_module
   use Option_module
 
   implicit none
@@ -2236,7 +2240,7 @@ contains
                            dpc_dsatl,this%option)
     string = 'KRP12 capillary pressure as a function of saturation &
              &at low liquid saturation'
-    value = 48690419.134075843d0
+    value = 35364351.440591194d0
     @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     capillary_pressure = 100.d0
     call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &
@@ -2267,7 +2271,7 @@ contains
                            dpc_dsatl,this%option)
     string = 'KRP12 capillary pressure as a function of saturation &
              &at high liquid saturation'
-    value = 4589.5472979195620d0
+    value = 4547.8850244305122d0
     @assertEqual(value, capillary_pressure, dabs(value)*tolerance, string)
     capillary_pressure = 1.d6
     call this%cc_krp12%saturation_function%Saturation(capillary_pressure, &

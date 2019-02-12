@@ -6,18 +6,19 @@
   ! co2_span_wagner(p,t,rho,dddt,dddp,fg,dfgdp,dfgdt,
   !                 eng,ent,dhdt,dhdp,visc,dvdt,dvdp)
 
-  !  where units are assigned as:   
-  !     P [MPa]       T [K]         
+  !  where units are assigned as:
+  !     P [MPa]       T [K]
   !     rho [kg/m^3] Energy [MJ/kg] Enthalpy [MJ/kg] Vis [Pa s]
 
 #include "petsc/finclude/petscsys.h"
-      use petscsys
+    use petscsys
+    use Utility_module, only : Equal
   use PFLOTRAN_Constants_module
 
       implicit none
 
       save
-      
+
 !     table lookup parameters t[k], p[MPa]
 
 !     t = 35 - 410 C, p = 0.01 - 250 bars
@@ -39,12 +40,13 @@
       PetscReal ,private, allocatable :: co2_prop_spwag(:,:,:)
       PetscReal, private :: p,t,rhosav
 
-      public initialize_span_wagner, co2_span_wagner, vappr
+      public initialize_span_wagner, co2_span_wagner, vappr, &
+             co2_span_wagner_db_write
 
       private
 
       contains
- 
+
 
 ! ************************************************************************** !
 
@@ -54,32 +56,32 @@ subroutine initialize_span_wagner(itable,myrank,option)
 
       implicit none
       PetscInt, optional :: itable
-      
+
       PetscReal :: pl,tl,tmp,tmp2,dtmp,dtemp,dpres,dddt,dddp
-      
+
       PetscReal :: rhodp,rhodt,fgdp,fgdt,engdp,engdt,entdp,entdt,vdp,vdt
-       
+
       PetscInt :: iitable,i,j
       PetscMPIInt :: myrank
       PetscInt :: iflag = 1
-      
+
       character*3 :: q
       character*1 :: tab
-      
+
       PetscReal :: temparray(15)
       PetscInt :: status
 
       character(len=MAXSTRINGLENGTH) :: co2_database_filename
 
       type(option_type) :: option
-      
+
       tab = char(9)
       q = '","'
 
       if (.not. allocated(co2_prop_spwag)) &
         allocate(co2_prop_spwag(0:ntab_p,0:ntab_t,1:15))
-      
-      iitable = 0      
+
+      iitable = 0
       if (present(itable)) iitable=itable
 
       denc = 467.6d0
@@ -305,28 +307,28 @@ subroutine initialize_span_wagner(itable,myrank,option)
       capd(1) = 275.d0
       capd(2) = 275.d0
       capd(3) = 275.d0
-  
+
   if (myrank==0) print *,'Preparing Table...',iitable
   if (iitable == 1) then
       ! Generate the table: 3 dimensional array
          !  1 p,     2  T
          !  3 rho    4 dddt,  5 dddp,
          !  6 fg,    7 dfgdp, 8 dfgdt
-         !  9 eng,  
+         !  9 eng,
          ! 10 ent,  11 dhdt, 12 dhdp,
          ! 13 visc, 14 dvdt, 15 dvdp
-          
-    tmp2=0.D0    
+
+    tmp2=0.D0
     do i = 0, ntab_p
       tmp=tmp2
       pl = p0_tab + dp_tab * real(i)
-      
+
       do j = 0, ntab_t
         tl = t0_tab + dt_tab * real(j)
-        
+
         co2_prop_spwag(i,j,1) = pl
         co2_prop_spwag(i,j,2) = tl
-        co2_prop_spwag(i,j,3) = tmp 
+        co2_prop_spwag(i,j,3) = tmp
         call co2_span_wagner(pl,tl,co2_prop_spwag(i,j,3),co2_prop_spwag(i,j,4),&
         co2_prop_spwag(i,j,5),co2_prop_spwag(i,j,6),co2_prop_spwag(i,j,7),&
         co2_prop_spwag(i,j,8),co2_prop_spwag(i,j,9),co2_prop_spwag(i,j,10),&
@@ -352,44 +354,44 @@ subroutine initialize_span_wagner(itable,myrank,option)
 ! compute derivatives numerically: 1-p,2-T,3-d,4-dddt,5-dddp,6-fg,7-dfgdp,8-dfgdt,
 !                 9-energy,10-enthalpy,11-dhdt,12-dhdp,13-visc,14-dvdt,15-dvdp
 !#if 0
-          
+
           !dddt
           co2_prop_spwag(i,j,4) = (rhodt-co2_prop_spwag(i,j,3))/dtemp
-          
+
           !dfgdt
           co2_prop_spwag(i,j,8) = (fgdt-co2_prop_spwag(i,j,6))/dtemp
-          
+
           !dhdt
           co2_prop_spwag(i,j,11) = (entdt-co2_prop_spwag(i,j,10))/dtemp
-          
+
           !dvdt
           co2_prop_spwag(i,j,14) = (vdt-co2_prop_spwag(i,j,13))/dtemp
 
           !dddp
           co2_prop_spwag(i,j,5) = (rhodp-co2_prop_spwag(i,j,3))/dpres
-          
+
           !dfgdp
           co2_prop_spwag(i,j,7) = (fgdp-co2_prop_spwag(i,j,6))/dpres
-          
+
           !dhdp
           co2_prop_spwag(i,j,12) = (entdp-co2_prop_spwag(i,j,10))/dpres
-          
+
           !dvdp
           co2_prop_spwag(i,j,15) = (vdp-co2_prop_spwag(i,j,13))/dpres
 !#endif
 #if 0
         if (j>0) then
           dtemp = tl-co2_prop_spwag(i,j-1,2)
-          
+
           !dddt
           co2_prop_spwag(i,j,4) = (co2_prop_spwag(i,j,3)-co2_prop_spwag(i,j-1,3))/dtemp
-          
+
           !dfgdt
           co2_prop_spwag(i,j,8) = (co2_prop_spwag(i,j,6)-co2_prop_spwag(i,j-1,6))/dtemp
-          
+
           !dhdt
           co2_prop_spwag(i,j,11) = (co2_prop_spwag(i,j,10)-co2_prop_spwag(i,j-1,10))/dtemp
-          
+
           !dvdt
           co2_prop_spwag(i,j,14) = (co2_prop_spwag(i,j,13)-co2_prop_spwag(i,j-1,13))/dtemp
         endif
@@ -397,13 +399,13 @@ subroutine initialize_span_wagner(itable,myrank,option)
           dpres = pl-co2_prop_spwag(i-1,j,1)
           !dddp
           co2_prop_spwag(i,j,5) = (co2_prop_spwag(i,j,3)-co2_prop_spwag(i-1,j,3))/dpres
-          
+
           !dfgdp
           co2_prop_spwag(i,j,7) = (co2_prop_spwag(i,j,6)-co2_prop_spwag(i-1,j,6))/dpres
-          
+
           !dhdp
           co2_prop_spwag(i,j,12) = (co2_prop_spwag(i,j,10)-co2_prop_spwag(i-1,j,10))/dpres
-          
+
           !dvdp
           co2_prop_spwag(i,j,15) = (co2_prop_spwag(i,j,13)-co2_prop_spwag(i-1,j,13))/dpres
         endif
@@ -414,12 +416,12 @@ subroutine initialize_span_wagner(itable,myrank,option)
       enddo
     enddo
   endif
-  
+
   if (len_trim(option%co2_database_filename) < 2) then
     option%io_buffer = 'CO2 database filename not included in input deck.'
     call printErrMsg(option)
   endif
-  
+
   if (myrank == 0) then
     if (iitable == 1) then
       co2_database_filename = 'co2data.dat'
@@ -447,7 +449,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
       close (IUNIT_TEMP)
     endif
   endif
-  
+
   if (iitable == 2) then
     if (myrank == 0) print *,'Reading Table ...'
     if (myrank == 0) print *,'--> CO2 database file: ', &
@@ -480,21 +482,21 @@ end subroutine initialize_span_wagner
 
 subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       eng,ent,dhdt,dhdp,visc,dvdt,dvdp,iflag,itable)
-      
+
   use co2_sw_rtsafe_module
 
   implicit none
-      
+
       PetscReal :: pl,tl,rho,eng,ent,dhdt,dhdp,dddt,dddp,visc,dvdt,dvdp
       PetscReal :: fiot,fiott,fird,firt,firdt,firdd,firtt,ftau,fdel,del,tau,fir
 !     PetscReal :: vpartial, rho_h2o, Cs, xco2, rho_wco2
       PetscReal :: fg,dfgdp,fg1,dfgdt
       PetscReal :: rho1,rho2
       PetscInt :: iflag
-      
+
 !     PetscInt :: it
       PetscInt, optional :: itable
-       
+
       PetscInt :: iitable,i1,i2,j1,j2,i,isucc
       PetscReal :: iindex,jindex,tmp,factor(1:4)
 
@@ -502,7 +504,7 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       p=pl; t=tl; iitable = 0
       if (present(itable)) iitable = itable
 
-!     co2data0.dat - units: 
+!     co2data0.dat - units:
 !      1-P      : MPa
 !      2-T      : K
 !      3-d (den): kg/m^3
@@ -529,8 +531,8 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
   tablelookup: if (iitable >= 1) then
 
   isucc=1
-  tmp = (p - p0_tab) / dp_tab; i1 = floor(tmp); i2 = ceiling(tmp); iindex=tmp 
-  tmp = (t - t0_tab) / dt_tab; j1 = floor(tmp); j2 = ceiling(tmp); jindex=tmp 
+  tmp = (p - p0_tab) / dp_tab; i1 = floor(tmp); i2 = ceiling(tmp); iindex=tmp
+  tmp = (t - t0_tab) / dt_tab; j1 = floor(tmp); j2 = ceiling(tmp); jindex=tmp
 
   if (iindex > ntab_p .or. iindex < 0.d0 .or. jindex < 0.d0 .or. jindex > ntab_t) then
     print  *,' Out of Table Bounds (Span-Wagner): ', 'p [MPa] =',p, &
@@ -568,7 +570,7 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
     if (dabs(tmp-p) > 1.D-10 ) then
       print *,' Error in interpolation: P ',tmp,p,iindex,factor;isucc=0
     endif
-   !print *, 'Table: P ',iindex,jindex, factor,i  
+   !print *, 'Table: P ',iindex,jindex, factor,i
     i=i+1
     tmp = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
          + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
@@ -584,7 +586,7 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
     i=i+1
     rho = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
          + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
-    i=i+1 
+    i=i+1
     dddt = factor(1)*co2_prop_spwag(i1,j1,i) + factor(2)*co2_prop_spwag(i2,j1,i) &
          + factor(3)*co2_prop_spwag(i1,j2,i) + factor(4)*co2_prop_spwag(i2,j2,i)
 
@@ -632,10 +634,10 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
     dvdp= factor(1)* co2_prop_spwag(i1,j1,i) + factor(2)* co2_prop_spwag(i2,j1,i) &
          + factor(3)* co2_prop_spwag(i1,j2,i) + factor(4)* co2_prop_spwag(i2,j2,i)
 ! print *,'sp:tab: ', p,t,rho,ent, factor
-    return 
-    endif     
-    
-    
+    return
+    endif
+
+
   endif tablelookup
 
 
@@ -657,7 +659,7 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       call dphirdtautau(firtt,del,tau)
       call dphirddeldtau(firdt,del,tau)
       call dphiodtautau(fiott,del,tau)
-      
+
       ent = rg*t*(1.0d0+tau*(fiot+firt)+del*fird) + 506.78d0
       eng = ent - p/rho*1.d3
 
@@ -680,7 +682,7 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       fdel = (2.d0*del*fird)+(del*del*firdd)+1.d0
       dddt = (denc*tc/(t*t))*(ftau/fdel)
       dddp = 1000.d0/(rg*t*(1.d0+(del*del*firdd)+(2.d0*del*fird)))
-      
+
 !     print *,'co2_span: ','p=',p,'t=',t,'rho=',rho,'dddt=',dddt,'dddp=',dddp,'del=',del, &
 !     'ftau=',ftau,'fdel=',fdel,'firdt=',firdt,'firdd=',firdd,'fird=',fird
 
@@ -690,11 +692,11 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       dfgdp = (fird*(1.d0+(2.d0*del*fird)+(del*del*firdd))/ &
           (1.d0+(del*fird)))*dddp/denc
       dfgdp = fg1+(fg*dfgdp)
-      
+
       dfgdt = (firt+(del*firt*fird)+(del*del*firdt*fird))/ &
           (1.d0+(del*fird))
       dfgdt = -fg*dfgdt*tc/(t*t)
-      
+
 !      write(*,*) "Molality?"
 !      read(*,*) mol
 !     call dissco2(p,t,mco2,fg1,mol)
@@ -721,10 +723,10 @@ subroutine co2_span_wagner(pl,tl,rho,dddt,dddp,fg,dfgdp,dfgdt, &
       visc = visc*1d-6
       dvdt = dvdt*1d-6
       dvdp = dvdp*1d-6
-      
+
       if (allocated(co2_prop_spwag)) deallocate(co2_prop_spwag)
 
-      
+
 end subroutine co2_span_wagner
 
 ! ************************************************************************** !
@@ -771,7 +773,7 @@ subroutine guess(lguess,uguess)
             rhol =denc*exp(rhol)
 
 !           print *,'guess: ',p,t,ts,tc,denc,tr,rhov,rhol
- 
+
         if (t.le.ts) then ! sub-critical liquid region
           if (p.lt.6.d0) then
             lguess = rhol+2.d0*(ts-t)
@@ -840,7 +842,7 @@ end subroutine guess
 ! ************************************************************************** !
 
 subroutine co2den(den,f,df)
-     
+
     IMPLICIT NONE
       PetscReal :: den,tau1,del1
       PetscReal :: f1,df1,f,df
@@ -899,7 +901,7 @@ end subroutine dphiodtau
 subroutine dphiodtautau(dr,del2,tau2)
 
       implicit none
-      
+
 !     Span & Wagner (1996) Table 32
 
       PetscInt :: i
@@ -924,7 +926,7 @@ subroutine phir(r_helm,del2,tau2)
 !     Table 32
 
       implicit none
-      
+
       PetscReal :: del2,tau2,r_helm,psi1
 !     PetscReal :: x1,x2,x3,x4,x5,x6,x7,x8,x10
 !     PetscReal :: e1,e2,e3,e4,e5,e6
@@ -941,7 +943,7 @@ subroutine phir(r_helm,del2,tau2)
       enddo
 
       do i = 8, 34
-        r_helm = r_helm+(n(i)*(del2**d(i))*(tau2**ti(i))*exp(-del2**c(i))) 
+        r_helm = r_helm+(n(i)*(del2**d(i))*(tau2**ti(i))*exp(-del2**c(i)))
       enddo
 
       do i = 35, 39
@@ -981,7 +983,7 @@ subroutine dphirddel(dr,del2,tau2)
       enddo
       do i = 8, 34
         derdr_helm=derdr_helm+(n(i)*(del2**(d(i)-1.d0))*(tau2**ti(i)) &
-        *exp(-del2**c(i))*(d(i)-(c(i)*(del2**c(i))))) 
+        *exp(-del2**c(i))*(d(i)-(c(i)*(del2**c(i)))))
       enddo
       do i = 35, 39
         derdr_helm = derdr_helm+(n(i)*(del2**d(i))*(tau2**ti(i))* &
@@ -998,7 +1000,7 @@ subroutine dphirddel(dr,del2,tau2)
         (del2*dsidd)))+(del2*psi1*ddelbdd)))
       enddo
       dr = derdr_helm
-      
+
 end subroutine dphirddel
 
 ! ************************************************************************** !
@@ -1021,7 +1023,7 @@ subroutine dphirdddel(dpdd,del2,tau2)
         derdr_helm=derdr_helm+(n(i)*d(i)*(d(i)-1.d0)* &
         (del2**(d(i)-2.d0))*(tau2**ti(i)))
       enddo
-      
+
       do i = 8, 34
         derdr_helm=derdr_helm+(n(i)*(del2**(d(i)-2.d0))*(tau2**ti(i))* &
         exp(-del2**c(i))*(((d(i)-(c(i)*(del2**c(i))))* &
@@ -1049,12 +1051,12 @@ subroutine dphirdddel(dpdd,del2,tau2)
         derdr_helm = derdr_helm+(n(i)*(((capdel1**bco2(i-39))*((2.d0* &
         dsidd)+(del2*d2sidd)))+(2.d0*ddelbdd*(psi1+(del2*dsidd))) &
         +(d2delbdd*del2*psi1)))
-        
+
 !       print *,'dphirdddel: ',i,psi1,capdel1,dsidd,d2sidd,ddelbdd,derdr_helm
       enddo
-      
+
       dpdd = derdr_helm
-      
+
 end subroutine dphirdddel
 
 ! ************************************************************************** !
@@ -1074,12 +1076,12 @@ subroutine dphirdtau(dpdtau,del2,tau2)
         derdr_helm=derdr_helm+(n(i)*ti(i)* &
         (tau2**(ti(i)-1))*(del2**d(i)))
       enddo
-      
+
       do i = 8, 34
         derdr_helm=derdr_helm+(n(i)*ti(i)*(del2**d(i))* &
         (tau2**(ti(i)-1))*exp(-del2**c(i)))
       enddo
-      
+
       do i = 35, 39
         derdr_helm = derdr_helm+(n(i)*(del2**d(i))*(tau2**ti(i))* &
         exp((-alpha(i-34)*((del2-epsilon(i-34))**2.0d0))-(beta(i-34)* &
@@ -1095,7 +1097,7 @@ subroutine dphirdtau(dpdtau,del2,tau2)
         bco2(i-39))*dsidt)))
       enddo
       dpdtau = derdr_helm
-      
+
 end subroutine dphirdtau
 
 ! ************************************************************************** !
@@ -1116,12 +1118,12 @@ subroutine dphirdtautau(dpdtt,del2,tau2)
         derdr_helm=derdr_helm+(n(i)*ti(i)*(ti(i)-1.d0)* &
         (tau2**(ti(i)-2.d0))*(del2**d(i)))
       enddo
-      
+
       do i = 8, 34
         derdr_helm=derdr_helm+(n(i)*ti(i)*(ti(i)-1.d0)*(del2**d(i))* &
         (tau2**(ti(i)-2))*exp(-del2**c(i)))
       enddo
-      
+
       do i = 35, 39
         derdr_helm = derdr_helm+(n(i)*(del2**d(i))*(tau2**ti(i))* &
         exp((-alpha(i-34)*((del2-epsilon(i-34))**2.0d0))-(beta(i-34)* &
@@ -1129,7 +1131,7 @@ subroutine dphirdtautau(dpdtt,del2,tau2)
         (((ti(i)/tau2)-(2.0d0*beta(i-34)*(tau2-gamma(i-34))))**2.d0) &
         -(ti(i)/(tau2*tau2))-(2.d0*beta(i-34))))
       enddo
-      
+
       do i = 40, 42
         psi1    = psi(i-39,del2,tau2)
         capdel1 = capdel(i-39,del2,tau2)
@@ -1140,9 +1142,9 @@ subroutine dphirdtautau(dpdtt,del2,tau2)
         derdr_helm = derdr_helm+(n(i)*del2*((d2bidtt*psi1)+ &
         (2.d0*dbidt*dsidt)+((capdel1**bco2(i-39))*d2sidtt)))
       enddo
-      
+
       dpdtt = derdr_helm
-      
+
 end subroutine dphirdtautau
 
 ! ************************************************************************** !
@@ -1162,13 +1164,13 @@ subroutine dphirddeldtau(dpddt,del2,tau2)
         derdr_helm=derdr_helm+(n(i)*ti(i)*d(i)* &
         (tau2**(ti(i)-1))*(del2**(d(i)-1)))
       enddo
-      
+
       do i = 8, 34
         derdr_helm=derdr_helm+(n(i)*ti(i)*(del2**(d(i)-1))* &
         (tau2**(ti(i)-1))*exp(-del2**c(i))* &
         (d(i)-(c(i)*(del2**c(i)))))
       enddo
-      
+
       do i = 35, 39
         derdr_helm = derdr_helm+(n(i)*(del2**d(i))*(tau2**ti(i))* &
         exp((-alpha(i-34)*((del2-epsilon(i-34))**2.0d0))-(beta(i-34)* &
@@ -1176,7 +1178,7 @@ subroutine dphirddeldtau(dpddt,del2,tau2)
         ((ti(i)/tau2)-(2.0d0*beta(i-34)*(tau2-gamma(i-34))))* &
         ((d(i)/del2)-(2.d0*alpha(i-34)*(del2-epsilon(i-34)))))
       enddo
-      
+
       do i = 40, 42
         psi1    = psi(i-39,del2,tau2)
         capdel1 = capdel(i-39,del2,tau2)
@@ -1190,9 +1192,9 @@ subroutine dphirddeldtau(dpddt,del2,tau2)
         (del2*dsiddt)))+(del2*dbidd*dsidt)+(dbidt* &
         (psi1+(del2*dsidd)))+(d2biddt*del2*psi1)))
       enddo
-      
+
       dpddt = derdr_helm
-      
+
 end subroutine dphirddeldtau
 
 ! ************************************************************************** !
@@ -1205,7 +1207,7 @@ function dpsiddel(i,del2,tau2)
 
       psi1=psi(i,del2,tau2)
       dpsiddel = -2.d0*capc(i)*(del2-1.d0)*psi1
-      
+
 !     print *,'dpsiddel: ',i,dpsiddel,psi1,del2,tau2,capc(i)
 
       end function dpsiddel
@@ -1316,7 +1318,7 @@ function dpsiddel(i,del2,tau2)
       theta1=theta(i,del2,tau2)
       tmp1=4.d0*capb(i)*aco2(i)*(aco2(i)-1.d0)*(((del2-1.d0) &
       **2)**(aco2(i)-2.d0))
- 
+
       tmp1=tmp1+(2.d0*capa(i)*capa(i)*((1.d0/beta(i))**2)* &
       ((((del2-1.d0)**2)**((1.d0/(2.d0*beta(i)))-1.d0))**2))
 
@@ -1338,7 +1340,7 @@ function dpsiddel(i,del2,tau2)
       PetscReal :: ddelbiddel
       PetscInt :: i
       PetscReal :: del2,tau2,capdel1,ddd
-      
+
       capdel1=capdel(i,del2,tau2)
       ddd=dcapdelddel(i,del2,tau2)*(del2-1.d0)
       ddelbiddel=bco2(i)*(capdel1**(bco2(i)-1.d0))*ddd
@@ -1409,7 +1411,7 @@ function dpsiddel(i,del2,tau2)
 
       tmp3=tmp3-(2.d0*theta1*bco2(i)*(bco2(i)-1.d0)*(capdel1** &
       (bco2(i)-2.d0))*ddd)
-    
+
       d2delbiddeltau=tmp3
 
 end function d2delbiddeltau
@@ -1419,7 +1421,7 @@ end function d2delbiddeltau
 subroutine vappr(tm,ps,dertp,derpt,ifl1)
 
       implicit none
-      
+
 !     co2 vapor pressure curve (Span & Wagner, 1996, p. 1524, eq. (3.13)
 
       PetscInt :: j,maxit
@@ -1449,7 +1451,7 @@ subroutine vappr(tm,ps,dertp,derpt,ifl1)
         lguess = 50.
         uguess = 400.
         tm = (uguess-lguess)/2.d0
-        nu = 1.d0-(tm/tc)            
+        nu = 1.d0-(tm/tc)
         do j = 1, maxit
           ps1 = a1*nu+(a2*(nu**1.5d0))+(a3*(nu**2))+ &
                 (a4*(nu**4))
@@ -1470,7 +1472,7 @@ subroutine vappr(tm,ps,dertp,derpt,ifl1)
         derpt = (ps/tm)*(-ps2-((ps1*tc)/tm))
         derpt=1/derpt
       endif
-      
+
 end subroutine vappr
 
 ! ************************************************************************** !
@@ -1497,17 +1499,17 @@ subroutine viscosity(p,t,rho,drhodp,drhodt,mu,dmudt,dmudp)
 !     av(4) = -1.537102d-2
 
       t_star = t/251.196
-      
+
       lnstr = log(t_star)
 
       xsection = av(0) + (av(1) + (av(2) + (av(3) + &
           av(4)*lnstr)*lnstr)*lnstr)*lnstr
-      
+
       xsection1 = xsection
       xsection = exp(xsection)
 
       zeroden_mu = 1.00697d0*(t**0.5d0)/xsection
-      
+
       r2 = rho*rho
       r4 = r2*r2
       r5 = rho*r4
@@ -1599,5 +1601,181 @@ subroutine dissco2(p,t,mco2,fg,mol)
       p = p*0.1d0
 
 end subroutine dissco2
+
+
+! ************************************************************************** !
+
+subroutine co2_span_wagner_db_write(temparray,filename,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 07/25/17
+  !
+  ! Write CO2 database using the Span and Wagner EOS in co2_span_wagner_module
+  !
+  ! Input: temparray(1:10)
+  !         temparray(1:3) = press_min, press_max, press_delta
+  !         temparray(4:6) = temp_min, temp_max, temp_delta
+  !         temparray(6:10) = UNINITIALIZED_DOUBLE
+  !       option = pflotran option object
+  !       Units:
+  !       P[Pa]
+  !       T[C]
+  ! I/O   filename = name of the CO2 database file to write
+  !
+  ! output: I/O rank writes CO2 database file on disk
+  !         if the input filename is empty will be overwritten by a default
+  !         option
+
+  use Option_module
+
+  implicit none
+
+  PetscReal, intent(in) :: temparray(10)
+  type(option_type), intent(inout) :: option
+  character(len=MAXWORDLENGTH), intent(inout) :: filename
+
+  PetscReal :: press_min, press_max, press_delta
+  PetscReal :: temp_min, temp_max, temp_delta
+  PetscReal :: tmp, tmp2, press, temp
+  PetscReal, pointer :: co2_properties(:,:,:)
+  PetscInt :: n_tab_press, n_tab_temp, n_sub_tab
+  PetscInt :: myrank, itable, iflag
+  PetscInt :: i,j
+  PetscInt :: status
+
+  press_min = temparray(1)
+  press_max = temparray(2)
+  press_delta = temparray(3)
+  temp_min = temparray(4)
+  temp_max = temparray(5)
+  temp_delta = temparray(6)
+
+  !PO TODO: must add:
+  ! - checks user inputs for consistency between min max and delta values
+  ! - add unit conversion to allow P, T ranges and deltas to be entered in
+  !   different units than C and MPa. To be done in eos_read.
+  ! - control round-off of deltas to avoid issues with writting datbase
+  !   in a datafile
+
+  !set default ranges and steps
+  if (Equal(press_min,UNINITIALIZED_DOUBLE) ) then
+    press_min = 0.01d0
+  else
+    press_min = press_min * 1.0d-6 !convert to MPa
+  end if
+
+  if (Equal(press_max,UNINITIALIZED_DOUBLE) ) then
+    press_max = 250.01d0
+  else
+    press_max = press_max * 1.0d-6 !MPa
+  end if
+
+  if (Equal(press_delta,UNINITIALIZED_DOUBLE) ) then
+    press_delta = 0.5d0 !MPa
+  else
+    press_delta = press_delta * 1.0d-6 !MPa
+    n_sub_tab = int(press_delta/0.001d0)
+    press_delta = n_sub_tab * 0.001d0
+  end if
+
+  n_tab_press = int( (press_max - press_min ) / press_delta ) + 1
+
+  if (Equal(temp_min,UNINITIALIZED_DOUBLE) ) then
+    temp_min = 0.0d0 + 273.15D0 !temp in Kelvin
+  else
+    temp_min = temp_min + 273.15D0 !convert to K
+  end if
+
+  if (Equal(temp_max,UNINITIALIZED_DOUBLE) ) then
+    temp_max = 375.0d0 + 273.15D0 !Kelvin
+  else
+    temp_max = temp_max + 273.15D0 !convert to K
+  end if
+
+  if (Equal(temp_delta,UNINITIALIZED_DOUBLE) ) then
+    temp_delta = 2.5d0 !k
+  else
+    n_sub_tab = int(temp_delta/0.01d0)
+    temp_delta = n_sub_tab * 0.01d0
+  end if
+
+  n_tab_temp = int( dabs(temp_max - temp_min ) / temp_delta ) + 1
+
+  if (len(trim(filename)) < 2) then
+    filename = "co2datbase_eos.dat"
+  end if
+
+  option%co2_database_filename = filename
+
+  myrank=0; itable=0;
+  call initialize_span_wagner(itable,myrank,option)
+
+  !code snippet taken from PFLOTRAN Span and Wagner original implementation
+  ! Generate the table: 3 dimensional array
+  !  1 p,     2  T
+  !  3 rho    4 dddt,  5 dddp,
+  !  6 fg,    7 dfgdp, 8 dfgdt
+  !  9 eng (internal energy),
+  ! 10 ent,  11 dhdt, 12 dhdp,
+  ! 13 visc, 14 dvdt, 15 dvdp
+
+  allocate(co2_properties(0:n_tab_press,0:n_tab_temp,1:15))
+
+  iflag = 0
+  tmp2=0.D0
+  do i = 0,n_tab_press
+    tmp=tmp2
+    press = press_min + press_delta * real(i)
+
+    do j = 0, n_tab_temp
+      temp = temp_min + temp_delta * real(j)
+
+      co2_properties(i,j,1) = press
+      co2_properties(i,j,2) = temp
+      co2_properties(i,j,3) = tmp
+      call co2_span_wagner(press,temp,co2_properties(i,j,3), &
+        co2_properties(i,j,4),co2_properties(i,j,5),co2_properties(i,j,6), &
+        co2_properties(i,j,7),co2_properties(i,j,8),co2_properties(i,j,9), &
+        co2_properties(i,j,10),co2_properties(i,j,11),co2_properties(i,j,12),&
+        co2_properties(i,j,13), co2_properties(i,j,14), &
+        co2_properties(i,j,15),iflag)
+      !update density inital guess
+      tmp = co2_properties(i,j,3)
+      if (j==0) tmp2 = co2_properties(i,j,3)
+    enddo
+
+  enddo
+
+  open(unit=IUNIT_TEMP,file=filename,status='unknown',iostat=status)
+
+  !for GENERAL print also fugacity
+  !derivatives to be done numerically during look-up
+  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_P", n_tab_press + 1
+  write(IUNIT_TEMP,'(A6,1X,I6)') "NUM_T", n_tab_temp + 1
+  write(IUNIT_TEMP,'(A15)') "DATA_LIST_ORDER"
+  write(IUNIT_TEMP,'(2X,A8,2X,A3)') "PRESSURE", "MPa"
+  write(IUNIT_TEMP,'(2X,A11,2X,A1)') "TEMPERATURE", "C"
+  write(IUNIT_TEMP,'(2X,A7,2X,A6)') "DENSITY", "kg/m^3"
+  write(IUNIT_TEMP,'(2X,A15,2X,A5)') "INTERNAL_ENERGY", "MJ/kg" 
+  write(IUNIT_TEMP,'(2X,A8,2X,A5)') "ENTHALPY", "MJ/kg"
+  write(IUNIT_TEMP,'(2X,A9,2X,A4)') "VISCOSITY", "Pa-s"
+  write(IUNIT_TEMP,'(A3)') "END"
+  write(IUNIT_TEMP,'(A4)') "DATA"
+
+  do i = 0, n_tab_press
+    do j = 0, n_tab_temp
+      write(IUNIT_TEMP,'(1p6e14.6)') co2_properties(i,j,1), &
+        co2_properties(i,j,2) - 273.15D0, & !back to C
+        co2_properties(i,j,3), &
+        co2_properties(i,j,9:10), co2_properties(i,j,13)
+    enddo
+  enddo
+  close (IUNIT_TEMP)
+
+  deallocate(co2_properties)
+
+end subroutine co2_span_wagner_db_write
+
+! ************************************************************************** !
 
 end module co2_span_wagner_module

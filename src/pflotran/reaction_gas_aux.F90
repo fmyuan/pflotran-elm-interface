@@ -63,7 +63,8 @@ module Reaction_Gas_Aux_module
             GasGetNames, &
             GasGetCount, &
             GasSpeciesListMergeDuplicates, &
-            GasDestroy
+            GasDestroy, &
+            GasGetIDFromName
              
 contains
 
@@ -148,7 +149,7 @@ end function GasSpeciesCreate
 
 ! ************************************************************************** !
 
-function GasGetNames(gas_species_list,gas_itype)
+function GasGetNames(gas,gas_itype)
   ! 
   ! Returns the names of gases in an array
   ! 
@@ -158,7 +159,7 @@ function GasGetNames(gas_species_list,gas_itype)
 
   implicit none
   
-  type(gas_species_type), pointer :: gas_species_list
+  type(gas_type) :: gas
   PetscInt :: gas_itype
 
   character(len=MAXWORDLENGTH), pointer :: GasGetNames(:)
@@ -167,11 +168,11 @@ function GasGetNames(gas_species_list,gas_itype)
   character(len=MAXWORDLENGTH), pointer :: names(:)
   type(gas_species_type), pointer :: gas_species
 
-  count = GasGetCount(gas_species_list,gas_itype)
+  count = GasGetCount(gas,gas_itype)
   allocate(names(count))
   
   count = 1
-  gas_species => gas_species_list
+  gas_species => gas%list
   do
     if (.not.associated(gas_species)) exit
     if (gas_species%itype == gas_itype .or. &
@@ -189,7 +190,7 @@ end function GasGetNames
 
 ! ************************************************************************** !
 
-function GasGetCount(gas_species_list,gas_itype)
+function GasGetCount(gas,gas_itype)
   ! 
   ! Returns the number of gas species in list
   ! 
@@ -198,7 +199,7 @@ function GasGetCount(gas_species_list,gas_itype)
   ! 
   implicit none
   
-  type(gas_species_type), pointer :: gas_species_list
+  type(gas_type) :: gas
   PetscInt :: gas_itype
 
   PetscInt :: GasGetCount
@@ -206,7 +207,7 @@ function GasGetCount(gas_species_list,gas_itype)
   type(gas_species_type), pointer :: gas_species
 
   GasGetCount = 0
-  gas_species => gas_species_list
+  gas_species => gas%list
   do
     if (.not.associated(gas_species)) exit
     if (gas_species%itype == gas_itype .or. &
@@ -221,7 +222,7 @@ end function GasGetCount
 
 ! ************************************************************************** !
 
-function GasGetIDFromName(gas_species_list,name)
+function GasGetIDFromName(gas,name)
   ! 
   ! Returns the id of gas with the corresponding name from a specific list
   ! 
@@ -232,15 +233,15 @@ function GasGetIDFromName(gas_species_list,name)
   
   implicit none
   
-  type(gas_species_type), pointer :: gas_species_list
+  type(gas_type) :: gas
   character(len=MAXWORDLENGTH) :: name
 
   PetscInt :: GasGetIDFromName
   type(gas_species_type), pointer :: gas_species
 
-  GasGetIDFromName = -1
+  GasGetIDFromName = UNINITIALIZED_INTEGER
  
-  gas_species => gas_species_list
+  gas_species => gas%list
   do
     if (.not.associated(gas_species)) exit
     if (StringCompare(name,gas_species%name,MAXWORDLENGTH)) then

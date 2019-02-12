@@ -1,0 +1,5 @@
+GRID
+  TYPE UNSTRUCTURED_EXPLICIT ./2x2x2.uge
+END
+
+EXTERNAL_FILE ./2x2x2_uge_regions.txt

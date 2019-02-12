@@ -1,0 +1,136 @@
+#Description:
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        HARMONIC_PERMEABILITY_ONLY
+        DO_NOT_SCALE_JACOBIAN
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== flow mode ========================================
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 2
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 2 2 2
+  BOUNDS
+    0.d0 0.d0 0.d0
+    2.d0 2.d0 2.d0
+  /
+END
+
+#=========================== solver options ===================================
+TIMESTEPPER FLOW
+  MAXIMUM_NUMBER_OF_TIMESTEPS 0
+END
+
+#=========================== datasets =========================================
+DATASET liquid_pressure
+  HDF5_DATASET_NAME Liquid_Pressure
+  FILENAME ic_datasets.h5
+END
+
+DATASET gas_saturation
+  HDF5_DATASET_NAME Gas_Saturation
+  FILENAME ic_datasets.h5
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY  soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  PERMEABILITY
+    PERM_X 1.1d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+#  TEST
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    GAS_RESIDUAL_SATURATION 1.d-40
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  VARIABLES
+    LIQUID_PRESSURE
+    GAS_SATURATION
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1. y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 0.01d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+/
+
+#=========================== observation points ===============================
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial 
+  TYPE
+    LIQUID_PRESSURE dirichlet
+    GAS_SATURATION dirichlet
+  /
+  LIQUID_PRESSURE DATASET liquid_pressure
+  GAS_SATURATION DATASET gas_saturation
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+/
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+END_SUBSURFACE

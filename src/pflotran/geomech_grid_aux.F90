@@ -1,6 +1,9 @@
 module Geomechanics_Grid_Aux_module
 
 #include "petsc/finclude/petscvec.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscvec
   use Grid_Unstructured_Cell_module
   use Gauss_module
@@ -11,10 +14,6 @@ module Geomechanics_Grid_Aux_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
- 
   type, public :: geomech_grid_type
     ! variables for geomechanics grid (unstructured) for finite element formulation
     ! The dofs (displacements, here) are solved at the nodes 
@@ -207,7 +206,7 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
 #include "petsc/finclude/petscdm.h"
   use petscdm
   use Option_module
-  use Utility_module, only: reallocateIntArray
+  use Utility_module, only: ReallocateArray
   
   implicit none
 

@@ -18,6 +18,7 @@ module Field_module
     Vec :: porosity_base_store
     Vec :: porosity_t
     Vec :: porosity_tpdt
+    Vec :: porosity_geomech_store
     Vec :: tortuosity0
     Vec :: ithrm_loc
     Vec :: icap_loc
@@ -39,6 +40,7 @@ module Field_module
     ! Solution vectors (yy = previous solution, xx = current iterate)
     Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum, flow_accum2
     Vec :: tran_xx, tran_xx_loc, tran_dxx, tran_yy, tran_accum
+    Vec :: flow_xxdot, flow_xxdot_loc
 
     ! vectors for operator splitting
     Vec :: tran_rhs
@@ -99,6 +101,7 @@ function FieldCreate()
   ! nullify PetscVecs
   field%porosity0 = PETSC_NULL_VEC
   field%porosity_base_store = PETSC_NULL_VEC
+  field%porosity_geomech_store = PETSC_NULL_VEC
   field%porosity_t = PETSC_NULL_VEC
   field%porosity_tpdt = PETSC_NULL_VEC
   field%tortuosity0 = PETSC_NULL_VEC
@@ -124,6 +127,8 @@ function FieldCreate()
   field%flow_yy = PETSC_NULL_VEC
   field%flow_accum = PETSC_NULL_VEC
   field%flow_accum2 = PETSC_NULL_VEC
+  field%flow_xxdot = PETSC_NULL_VEC
+  field%flow_xxdot_loc = PETSC_NULL_VEC
 
   field%tran_r = PETSC_NULL_VEC
   field%tran_log_xx = PETSC_NULL_VEC
@@ -189,6 +194,9 @@ subroutine FieldDestroy(field)
   endif
   if (field%porosity_base_store /= PETSC_NULL_VEC) then
     call VecDestroy(field%porosity_base_store,ierr);CHKERRQ(ierr)
+  endif
+  if (field%porosity_geomech_store /= PETSC_NULL_VEC) then
+    call VecDestroy(field%porosity_geomech_store,ierr);CHKERRQ(ierr)
   endif
   if (field%porosity_t /= PETSC_NULL_VEC) then
     call VecDestroy(field%porosity_t,ierr);CHKERRQ(ierr)
@@ -257,6 +265,12 @@ subroutine FieldDestroy(field)
   endif
   if (field%flow_accum2 /= PETSC_NULL_VEC) then
     call VecDestroy(field%flow_accum2,ierr);CHKERRQ(ierr)
+  endif
+  if (field%flow_xxdot /= PETSC_NULL_VEC) then
+    call VecDestroy(field%flow_xxdot,ierr);CHKERRQ(ierr)
+  endif
+  if (field%flow_xxdot_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(field%flow_xxdot_loc,ierr);CHKERRQ(ierr)
   endif
   
   if (field%tran_r /= PETSC_NULL_VEC) then

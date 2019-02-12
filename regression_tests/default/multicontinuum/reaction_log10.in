@@ -8,6 +8,7 @@ SIMULATION
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
+      MULTIPLE_CONTINUUM
     /
   /
 END
@@ -19,9 +20,10 @@ REGRESSION
   CELLS_PER_PROCESS 5
 END
 
-UNIFORM_VELOCITY 14.4d0 0.d0 0.d0 m/yr
-
-MULTIPLE_CONTINUUM
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 14.4d0 0.d0 0.d0 m/yr
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -43,7 +45,7 @@ CHEMISTRY
  DATABASE ../../../database/hanford.dat
   MOLAL
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 /

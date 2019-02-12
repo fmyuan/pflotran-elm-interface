@@ -12,6 +12,8 @@ module TOilIms_module
 
   use PFLOTRAN_Constants_module
 
+  use TOilIms_derivs_module
+
   implicit none
   
   private 
@@ -32,7 +34,7 @@ module TOilIms_module
                      material_auxvar_up,sir_up, thermal_conductivity_up, &
                      toil_auxvar_dn,global_auxvar_dn,material_auxvar_dn, &
                      sir_dn, thermal_conductivity_dn, area, dist, parameter, &
-                     option,v_darcy,Res)
+                     option,v_darcy,Res,jup,jdn,analytical_derivatives)
       
       use AuxVars_TOilIms_module
       use PM_TOilIms_Aux_module
@@ -55,6 +57,8 @@ module TOilIms_module
       PetscReal :: thermal_conductivity_dn(2)
       PetscReal :: thermal_conductivity_up(2)
       PetscReal :: Res(option%nflowdof)
+      PetscReal, dimension(1:3,1:3) :: jup, jdn
+      PetscBool :: analytical_derivatives
                                      
     end subroutine TOilImsFluxDummy
 
@@ -96,6 +100,7 @@ subroutine TOilImsSetup(realization)
   !use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use AuxVars_Flow_module
  
   implicit none
   
@@ -122,6 +127,13 @@ subroutine TOilImsSetup(realization)
   grid => patch%grid
   
   patch%aux%TOil_ims => TOilImsAuxCreate(option)
+
+  toil_analytical_derivatives = .not. option%flow%numerical_derivatives
+  toil_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
+
+  toil_dcomp_tol = flow_aux_debug_tol
+  toil_dcomp_reltol = flow_aux_debug_reltol
+  toil_GP = flow_aux_use_GP
 
   ! ensure that material properties specific to this module are properly
   ! initialized
@@ -395,10 +407,11 @@ subroutine TOilImsUpdateAuxVars(realization)
   use Material_Aux_class
   !use EOS_Water_module 
   !use Saturation_Function_module
+  use Appleyard_module
   
   implicit none
 
-  type(realization_subsurface_type) :: realization
+  type(realization_subsurface_type), target :: realization
   PetscBool :: update_state
   
   type(option_type), pointer :: option
@@ -430,6 +443,13 @@ subroutine TOilImsUpdateAuxVars(realization)
   PetscReal :: xxbc(realization%option%nflowdof)
 
   PetscErrorCode :: ierr
+
+  PetscReal :: sat0, sat1, del_sat
+  PetscInt :: saturation_index
+
+  class(realization_subsurface_type), pointer :: realization_p
+
+  realization_p => realization
   
   option => realization%option
   patch => realization%patch
@@ -472,6 +492,27 @@ subroutine TOilImsUpdateAuxVars(realization)
     ! TOIL_IMS_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = TOIL_IMS_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
+
+#if 0
+    if(toil_appleyard) then
+      saturation_index = ghosted_start - 1 + TOIL_IMS_SATURATION_DOF
+      !print *, "sat index ", saturation_index
+      sat0 = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, ghosted_id)%sat(option%oil_phase)
+      !print *, "sat0 ", sat0
+      if (sat0 > 0.d0) then
+        sat1 = xx_loc_p(saturation_index)
+        !print *, "sat1 ", sat1
+        del_sat = sat0 - sat1 !! decrement assumed in appleyard code
+        !print *, "del sat ", del_sat
+        call TOilAppleyard(sat0, del_sat, ghosted_id, realization_p, &
+                           option%liquid_phase, option%oil_phase)
+        !print *, "del sat after ", del_sat
+        xx_loc_p(saturation_index) = sat0 - del_sat
+      endif
+    endif
+#endif
+
+
     call TOilImsAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), & 
                        !toil_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -591,6 +632,8 @@ subroutine TOilImsUpdateFixedAccum(realization)
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+
+  PetscReal :: Jdum(realization%option%nflowdof,realization%option%nflowdof)  
                           
   PetscErrorCode :: ierr
   
@@ -639,7 +682,7 @@ subroutine TOilImsUpdateFixedAccum(realization)
                           patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
-                          option,accum_p(local_start:local_end) )
+                          option,accum_p(local_start:local_end),Jdum,PETSC_FALSE)
   enddo
   
   !Tough2 conv. creteria: initialize accumulation term for every iteration
@@ -670,10 +713,36 @@ subroutine TOilImsUpdateSolution(realization)
   ! 
 
   use Realization_Subsurface_class
+  use Well_Data_class
+  use Option_module
   
   implicit none
   
   type(realization_subsurface_type) :: realization
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
+  PetscReal :: dt
+  type(option_type), pointer :: option
+
+! Loop over well_data wells if present
+
+  option => realization%option
+  dt = option%flow_dt
+
+  if (WellDataGetFlag()) then
+    well_data_list => realization%well_data
+    well_data => well_data_list%first
+
+    do
+      if (.not.associated(well_data)) exit
+      call well_data%DoUpdate(dt,option)
+      well_data => well_data%next
+    enddo
+
+    call FindGroupRates (well_data_list)
+    call FindGroupTotals(well_data_list)
+
+  endif
 
   if (realization%option%compute_mass_balance_new) then
     call TOilImsUpdateMassBalance(realization)
@@ -915,7 +984,7 @@ end subroutine TOilImsMapBCAuxVarsToGlobal
 ! ************************************************************************** !
 
 subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,Res)
+                               soil_heat_capacity,option,Res,j,analytical_derivatives)
   ! 
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -942,7 +1011,18 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
   
   PetscReal :: porosity
   PetscReal :: v_over_t
+
+  PetscReal, dimension(1:3,1:3) :: j 
+  PetscBool :: analytical_derivatives
+  PetscInt :: oid, lid
+
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
   
+
   energy_id = option%energy_id
   
   ! v_over_t[m^3 bulk/sec] = vol[m^3 bulk] / dt[sec]
@@ -983,10 +1063,98 @@ subroutine TOilImsAccumulation(toil_auxvar,material_auxvar, &
                     (1.d0 - porosity) * &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * toil_auxvar%temp) * v_over_t
+
+  if (analytical_derivatives) then
+    !! not the prettiest thing in the world but this is simple enough that we can just 
+    !! handcode everything here, alternative is to work inside the loops above and take
+    !! into account that saturation derivatives may introduce -1 scaling for liquid phase
+    !! and so on.
+
+    j = 0.d0
+    oid = option%oil_phase
+    lid = option%liquid_phase
+
+    !!    OIL EQUATION:
+    !! w.r.t. pressure
+    j(oid, 1) = porosity*toil_auxvar%sat(oid)*toil_auxvar%D_den(oid,dof_op) + &
+                toil_auxvar%D_por(dof_op)*(toil_auxvar%sat(oid)*toil_auxvar%den(oid))
+    !! w.r.t. sat:
+    j(oid, 2)  = porosity*toil_auxvar%den(oid)
+    !! w.r.t. temp:
+    j(oid,3) = porosity*toil_auxvar%sat(oid)*toil_auxvar%D_den(oid,dof_temp)
+    !! END OIL EQUATION
+
+    !!     LIQUID EQUATION
+    !! w.r.t. pressure:
+    j(lid,1)  = porosity*toil_auxvar%sat(lid)*toil_auxvar%D_den(lid,dof_op) + &
+                toil_auxvar%D_por(dof_op)*(toil_auxvar%sat(lid)*toil_auxvar%den(lid))
+    !! w.r.t. sat:
+    j(lid,2)  = -1.d0*toil_auxvar%den(lid)*porosity
+    !! w.r.t. temp
+    j(lid,3) =  porosity*toil_auxvar%sat(lid)*toil_auxvar%D_den(lid,dof_temp)
+    !! END LIQUID EQUATION
+
+    !! ENERGY EQUATION:
+    !! first a sum over the two phases, with the term being
+    !! 
+    !!    (poro) (sat) (den) (U)
+
+    !!  liquid phase
+    !! 
+    !! w.r.t pressure
+    j(energy_id, 1) = j(energy_id, 1) + & 
+                      porosity * &
+                      toil_auxvar%sat(lid)* ( &
+                      toil_auxvar%D_den(lid,dof_op)*toil_auxvar%U(lid) + &
+                      toil_auxvar%den(lid)*toil_auxvar%D_U(lid,dof_op) )
+    !! and density w.r.t. pressure:
+    j(energy_id, 1) = j(energy_id, 1) + & 
+                      toil_auxvar%D_por(dof_op)*toil_auxvar%sat(lid)*toil_auxvar%den(lid)*toil_auxvar%u(lid)
+    !! w.r.t oil sat:
+    j(energy_id, 2) = j(energy_id, 2) - & !! note negative, next term is scaled by dsl/dso 
+                      porosity*toil_auxvar%den(lid)*toil_auxvar%U(lid)
+    !! w.r.t. temp
+    j(energy_id,3) = j(energy_id,3) + &
+                     porosity * &
+                     toil_auxvar%sat(lid)* ( &
+                     toil_auxvar%D_den(lid,dof_temp)*toil_auxvar%U(lid) + &
+                     toil_auxvar%den(lid)*toil_auxvar%D_U(lid,dof_temp)  )
+    !!  oil phase
+    !!
+    !! w.r.t pressure
+    j(energy_id, 1) = j(energy_id, 1) + & 
+                      porosity * &
+                      toil_auxvar%sat(oid)* ( &
+                      toil_auxvar%D_den(oid,dof_op)*toil_auxvar%U(oid) + &
+                      toil_auxvar%den(oid)*toil_auxvar%D_U(oid,dof_op) )
+    !! and density w.r.t. pressure:
+    j(energy_id, 1) = j(energy_id, 1) + & 
+                      toil_auxvar%D_por(dof_op)*toil_auxvar%sat(oid)*toil_auxvar%den(oid)*toil_auxvar%u(oid)
+    !! w.r.t oil sat:
+    j(energy_id, 2) = j(energy_id, 2) + & 
+                      porosity*toil_auxvar%den(oid)*toil_auxvar%U(oid)
+    !! w.r.t. temp
+    j(energy_id,3) = j(energy_id,3) + &
+                     porosity * &
+                     toil_auxvar%sat(oid)* ( &
+                     toil_auxvar%D_den(oid,dof_temp)*toil_auxvar%U(oid) + &
+                     toil_auxvar%den(oid)*toil_auxvar%D_U(oid,dof_temp)  )
+    !! also the (1-por) ... term
+    j(energy_id,1) = j(energy_id,1) - toil_auxvar%D_por(dof_op)*material_auxvar%soil_particle_density* &
+                     soil_heat_capacity*toil_auxvar%temp
+    j(energy_id,3) = j(energy_id,3) + (1.d0 - porosity)*material_auxvar%soil_particle_density * &
+                                                               soil_heat_capacity
+
+    !! END ENERGY EQUATION
+
+
+    j = j*material_auxvar%volume
+    j = j/option%flow_dt
+    !j = j*v_over_t
+  endif
+
                     
 end subroutine TOilImsAccumulation
-
-! ************************************************************************** !
 
 ! ************************************************************************** !
 
@@ -999,13 +1167,10 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
                        sir_dn, &
                        thermal_conductivity_dn, &
                        area, dist, parameter, &
-                       option,v_darcy,Res)
-  ! 
-  ! Computes the internal flux terms for the residual
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 10/27/15
-  ! 
+                       option,v_darcy,Res, &
+                       jup, jdn, analytical_derivatives)
+
+
   use Option_module
   use Material_Aux_class
   use Connection_module
@@ -1059,53 +1224,72 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
   
   PetscReal :: dummy_perm_up, dummy_perm_dn
 
+  PetscReal :: up_scale, dn_scale
+
+  PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
+  PetscReal :: d_delta_pres_dp_up, d_delta_pres_dp_dn
+  PetscReal :: d_delta_pres_dT_up, d_delta_pres_dT_dn
+
+  PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
+  PetscReal :: d_delta_temp_dt_up, d_delta_temp_dt_dn, dheat_flux_ddelta_temp
+  PetscReal :: d_delta_pres_ds_up, d_delta_pres_ds_dn   
+
+  PetscReal, dimension(1:3) :: d_v_darcy_up, d_v_darcy_dn
+  PetscReal, dimension(1:3) :: d_q_up, d_q_dn
+  PetscReal, dimension(1:3) :: d_mole_flux_up, d_mole_flux_dn
+  PetscReal, dimension(1:3) :: d_energy_flux_up, d_energy_flux_dn
+
+  PetscReal, dimension(1:3,1:3) :: jup, jdn
+  PetscBool :: analytical_derivatives
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+
+
   energy_id = option%energy_id
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+
   
-  ! Fracture permeability change only available for structured grid (Heeho)
-  ! PO no fractures considered for now
-  !if (associated(material_auxvar_up%fracture)) then
-  !  call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
-  !                            dummy_perm_up,dist)
-  !endif
-  !if (associated(material_auxvar_dn%fracture)) then
-  !  call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-  !                            dummy_perm_dn,dist)
-  !endif
-  
-  !if (associated(klinkenberg)) then
-  !  perm_ave_over_dist(1) = (perm_up * perm_dn) / &
-  !                          (dist_up*perm_dn + dist_dn*perm_up)
-  !  dummy_perm_up = klinkenberg%Evaluate(perm_up, &
-  !                                       gen_auxvar_up%pres(option%gas_phase))
-  !  dummy_perm_dn = klinkenberg%Evaluate(perm_dn, &
-  !                                       gen_auxvar_dn%pres(option%gas_phase))
-  !  perm_ave_over_dist(2) = (dummy_perm_up * dummy_perm_dn) / &
-  !                          (dist_up*dummy_perm_dn + dist_dn*dummy_perm_up)
-  !else
     perm_ave_over_dist(:) = (perm_up * perm_dn) / &
                             (dist_up*perm_dn + dist_dn*perm_up)
-  !endif
       
   Res = 0.d0
   
   v_darcy = 0.d0
 
-!#ifdef DEBUG_FLUXES  
-!  adv_flux = 0.d0
-!  diff_flux = 0.d0
-!#endif
-!#ifdef DEBUG_GENERAL_FILEOUTPUT
-!  debug_flux = 0.d0
-!  debug_dphi = 0.d0
-!#endif
+  jup = 0.d0
+  jdn = 0.d0
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
+
 
 #ifdef TOIL_CONVECTION
   do iphase = 1, option%nphase
+    if (analytical_derivatives) then
+      up_scale = 0.d0
+      dn_scale =0.d0
+      ddensity_kg_ave_dden_kg_up = 0.d0
+      ddensity_kg_ave_dden_kg_dn = 0.d0
+      d_delta_pres_dp_up = 0.d0
+      d_delta_pres_dp_dn = 0.d0
+      d_delta_pres_dT_up = 0.d0
+      d_delta_pres_dT_dn = 0.d0
+      d_delta_pres_ds_up = 0.d0
+      d_delta_pres_ds_dn = 0.d0
+      d_v_darcy_up = 0.d0
+      d_v_darcy_dn = 0.d0
+      d_q_up = 0.d0
+      d_q_dn = 0.d0
+      d_mole_flux_up = 0.d0
+      d_mole_flux_dn = 0.d0
+      d_energy_flux_up = 0.d0
+      d_energy_flux_dn = 0.d0
+    endif
  
     if (toil_auxvar_up%mobility(iphase) + &
         toil_auxvar_dn%mobility(iphase) < eps) then
@@ -1115,34 +1299,55 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
     ! an alternative could be to avergae using oil_sat
     !density_kg_ave = 0.5d0* ( toil_auxvar_up%den_kg(iphase) + &
     !                          toil_auxvar_dn%den_kg(iphase) )
-    density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
-                     toil_auxvar_dn%sat(iphase), &
-                     toil_auxvar_up%den_kg(iphase), &
-                     toil_auxvar_dn%den_kg(iphase))
+    if (analytical_derivatives) then
+      density_kg_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                       toil_auxvar_dn%sat(iphase), &
+                       toil_auxvar_up%den_kg(iphase), &
+                       toil_auxvar_dn%den_kg(iphase), &
+                       ddensity_kg_ave_dden_kg_up, &
+                       ddensity_kg_ave_dden_kg_dn)
+
+     else
+      density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                       toil_auxvar_dn%sat(iphase), &
+                       toil_auxvar_up%den_kg(iphase), &
+                       toil_auxvar_dn%den_kg(iphase))
+     endif
+
 
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = toil_auxvar_up%pres(iphase) - &
                      toil_auxvar_dn%pres(iphase) + &
                      gravity_term
 
+
+
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !      debug_dphi(iphase) = delta_pressure
 !#endif
 
     ! upwinding the mobilities and enthalpies
+    up_scale = 0.d0 
+    dn_scale = 0.d0
     if (delta_pressure >= 0.D0) then
+      up_scale = 1.d0
       mobility = toil_auxvar_up%mobility(iphase)
       H_ave = toil_auxvar_up%H(iphase)
       uH = H_ave
 #ifdef TOIL_DEN_UPWIND
       density_ave = toil_auxvar_up%den(iphase)
+      ddensity_ave_dden_up = 1.d0
+      ddensity_ave_dden_dn = 0.d0
 #endif
     else
+      dn_scale = 1.d0
       mobility = toil_auxvar_dn%mobility(iphase)
       H_ave = toil_auxvar_dn%H(iphase)
       uH = H_ave
 #ifdef TOIL_DEN_UPWIND
       density_ave = toil_auxvar_dn%den(iphase)
+      ddensity_ave_dden_up = 0.d0
+      ddensity_ave_dden_dn = 1.d0
 #endif
     endif      
 
@@ -1151,20 +1356,69 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
 
+
+
       ! if comments below, use upwinding value
       !density_ave = 0.5d0*( toil_auxvar_up%den(iphase) + &
       !                      toil_auxvar_dn%den(iphase))
 #ifndef TOIL_DEN_UPWIND
-      density_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+      density_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
                            toil_auxvar_dn%sat(iphase), &
                            toil_auxvar_up%den(iphase), &
-                           toil_auxvar_dn%den(iphase))       
+                           toil_auxvar_dn%den(iphase), &
+                           ddensity_ave_dden_up, &
+                           ddensity_ave_dden_dn)
 #endif 
+
+      if (analytical_derivatives) then
+        !! defer delta pressure derivtives to here because we know density average 
+        !! derivatives will have been calculated by this point
+        call  DeltaPressureDerivs_up_and_down(d_delta_pres_dp_up, d_delta_pres_dp_dn,     &
+                                              d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
+                                              dist_gravity,                               &
+                                              ddensity_ave_dden_up, ddensity_ave_dden_dn, &
+                                              toil_auxvar_up%D_den(iphase,dof_op),                &
+                                              toil_auxvar_dn%D_den(iphase,dof_op),                &
+                                              toil_auxvar_up%D_den(iphase,dof_temp),                 &
+                                              toil_auxvar_dn%D_den(iphase,dof_temp),                 &
+                                              toil_auxvar_up%D_pres(iphase,dof_osat),                 &
+                                              toil_auxvar_dn%D_pres(iphase,dof_osat),                 &
+                                              d_delta_pres_ds_up, d_delta_pres_ds_dn,&
+                                              toil_ims_fmw_comp(iphase))
+
+                                             !dp_ds_up, dp_ds_dn,                         &
+                                             !ddelta_pressure_dsatup, ddelta_pressure_dsatdn )
+
+
+        call v_darcy_derivs(d_v_darcy_up, toil_auxvar_up%D_mobility(iphase, 1:3),     &
+                            up_scale, delta_pressure, mobility, perm_ave_over_dist(iphase),  &
+                            d_delta_pres_dp_up, d_delta_pres_dt_up, d_delta_pres_ds_up)
+        call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%D_mobility(iphase, 1:3),     &
+                            dn_scale, delta_pressure, mobility, perm_ave_over_dist(iphase),  &
+                            d_delta_pres_dp_dn, d_delta_pres_dt_dn, d_delta_pres_ds_dn)
+      endif
+
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area  
+
+      if (analytical_derivatives) then
+        d_q_up = d_v_darcy_up * area
+        d_q_dn = d_v_darcy_dn * area
+      endif
+
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                             density_ave[kmol phase/m^3 phase]        
       mole_flux = q*density_ave
+
+      if (analytical_derivatives) then
+        call MoleFluxDerivs(d_mole_flux_up, d_q_up, q, density_ave, ddensity_ave_dden_up, &
+                            toil_auxvar_up%D_den(iphase,dof_op), toil_auxvar_up%D_den(iphase,dof_temp))
+        call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
+                            toil_auxvar_dn%D_den(iphase,dof_op), toil_auxvar_dn%D_den(iphase,dof_temp))
+        jup(iphase,1:3) = jup(iphase, 1:3) + d_mole_flux_up
+        jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
+      endif
+
       ! Res[kmol total/sec]
 
       ! Res[kmol phase/sec] = mole_flux[kmol phase/sec]  
@@ -1188,6 +1442,17 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 !#endif
 
       Res(energy_id) = Res(energy_id) + mole_flux * uH
+
+      if (analytical_derivatives) then
+        !! by `energy driven flux' mean the term moleFlux * uH
+        call EnergyDrivenFluxDerivs(d_energy_flux_up, d_mole_flux_up, uH, up_scale, mole_flux, &
+                              toil_auxvar_up%D_H(iphase,dof_op), toil_auxvar_up%D_H(iphase,dof_temp))
+        call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
+                              toil_auxvar_dn%D_H(iphase,dof_op), toil_auxvar_dn%D_H(iphase,dof_temp))
+        jup(energy_id, 1:3) = jup(energy_id, 1:3) + d_energy_flux_up
+        jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
+      endif
+
 
 !#ifdef DEBUG_FLUXES  
 !      adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
@@ -1243,9 +1508,22 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
   ! area = m^2
   ! heat_flux = k_eff * delta_temp * area = J/s
   delta_temp = toil_auxvar_up%temp - toil_auxvar_dn%temp
+
   heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! J/s -> MJ/s
+
   ! MJ/s
   Res(energy_id) = Res(energy_id) + heat_flux
+
+  if (analytical_derivatives) then
+    d_delta_temp_dt_up = 1.d0
+    d_delta_temp_dt_dn = - 1.d0
+
+    dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+    jup(energy_id, 3) = jup(energy_id, 3) + d_delta_temp_dt_up*dheat_flux_ddelta_temp
+    jdn(energy_id, 3) = jdn(energy_id, 3) + d_delta_temp_dt_dn*dheat_flux_ddelta_temp
+  endif
+
+
 ! CONDUCTION
 #endif
 
@@ -1261,8 +1539,6 @@ end subroutine TOilImsFluxPFL
 
 ! ************************************************************************** !
 
-
-! ************************************************************************** !
 subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
                            material_auxvar_up, &
                            sir_up, &
@@ -1272,7 +1548,8 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
                            sir_dn, &
                            thermal_conductivity_dn, &
                            area, dist, parameter, &
-                           option,v_darcy,Res)
+                           option,v_darcy,Res, &
+                           jup,jdn,analytical_derivatives)
   ! 
   ! Computes the internal flux terms for the residual
   ! using a dip correction for distorted mesh
@@ -1336,6 +1613,15 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
   PetscReal :: dist_hrz_up, dist_hrz_dn
   PetscReal :: dist_vrt_projection_sq !vertical projection: cell centres dh 
   PetscReal :: dip_corr
+
+  PetscReal, dimension(1:3,1:3) :: jup, jdn
+  PetscBool :: analytical_derivatives
+
+
+  if (analytical_derivatives) then
+    option%io_buffer = 'TOilImsFluxDipc: analytical derivatives are not yet available.'
+    call printErrMsg(option)
+  endif
 
   energy_id = option%energy_id  
 
@@ -1511,7 +1797,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
-                         option,v_darcy,Res)
+                         option,v_darcy,Res, jdn,  &
+                         analytical_derivatives)
   ! 
   ! Computes the boundary flux terms for the residual
   ! 
@@ -1566,12 +1853,38 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: neumann_bc_present
   
   PetscReal :: dummy_perm_dn
+
+  PetscBool :: analytical_derivatives
+
+  PetscReal :: jdn(1:option%nflowdof, 1:option%nflowdof)
+
+  PetscReal :: up_scale, dn_scale
+
+  PetscReal :: ddensity_kg_ave_dden_kg_up, ddensity_kg_ave_dden_kg_dn
+  PetscReal :: d_delta_pres_dp_up, d_delta_pres_dp_dn
+  PetscReal :: d_delta_pres_dT_up, d_delta_pres_dT_dn
+
+  PetscReal :: ddensity_ave_dden_up, ddensity_ave_dden_dn
+  PetscReal :: d_delta_temp_dt_dn, dheat_flux_ddelta_temp
+  PetscReal :: d_delta_pres_ds_up, d_delta_pres_ds_dn     
+
+  PetscReal, dimension(1:3) :: d_v_darcy_dn
+  PetscReal, dimension(1:3) :: d_q_dn
+  PetscReal, dimension(1:3) :: d_mole_flux_dn
+  PetscReal, dimension(1:3) :: d_energy_flux_dn
+
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
   
   energy_id = option%energy_id
 
+  jdn = 0.d0  
   Res = 0.d0
   v_darcy = 0.d0 
- 
+
 !#ifdef DEBUG_FLUXES    
 !  adv_flux = 0.d0
 !  diff_flux = 0.d0
@@ -1603,7 +1916,22 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   
 #ifdef TOIL_CONVECTION  
   do iphase = 1, option%nphase
- 
+    if (analytical_derivatives) then
+      up_scale = 0.d0
+      dn_scale =0.d0
+      ddensity_kg_ave_dden_kg_up = 0.d0
+      ddensity_kg_ave_dden_kg_dn = 0.d0
+      d_delta_pres_dp_up = 0.d0
+      d_delta_pres_dp_dn = 0.d0
+      d_delta_pres_dT_up = 0.d0
+      d_delta_pres_dT_dn = 0.d0
+      d_delta_pres_ds_up = 0.d0
+      d_delta_pres_ds_dn = 0.d0
+      d_v_darcy_dn = 0.d0
+      d_q_dn = 0.d0
+      d_mole_flux_dn = 0.d0
+      d_energy_flux_dn = 0.d0
+    endif
     bc_type = ibndtype(iphase) ! loop over equations 1.Liq and 2.Oil
     select case(bc_type)
       ! figure out the direction of flow
@@ -1648,16 +1976,24 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
           !density_kg_ave = 0.5d0 * (toil_auxvar_up%den_kg(iphase) + &
           !                          toil_auxvar_dn%den_kg(iphase) )
 
-          density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
-                           toil_auxvar_dn%sat(iphase), &
-                           toil_auxvar_up%den_kg(iphase), &
-                           toil_auxvar_dn%den_kg(iphase))
+          if (analytical_derivatives) then
+            density_kg_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den_kg(iphase), &
+                             toil_auxvar_dn%den_kg(iphase), &
+                             ddensity_kg_ave_dden_kg_up, &
+                             ddensity_kg_ave_dden_kg_dn)
+          else
+            density_kg_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den_kg(iphase), &
+                             toil_auxvar_dn%den_kg(iphase))
+          endif
 
           gravity_term = density_kg_ave * dist_gravity
           delta_pressure = boundary_pressure - &
                            toil_auxvar_dn%pres(iphase) + &
                            gravity_term
-          
 
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !          debug_dphi(iphase) = delta_pressure
@@ -1674,13 +2010,17 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
           endif
           
           !upwinding mobilities and enthalpies   
+          up_scale = 0.d0
+          dn_scale = 0.d0
           if (delta_pressure >= 0.D0) then
+            up_scale = 1.d0
             mobility = toil_auxvar_up%mobility(iphase)
             uH = toil_auxvar_up%H(iphase)
 #ifdef TOIL_DEN_UPWIND
             density_ave = toil_auxvar_up%den(iphase)
 #endif
           else
+            dn_scale = 1.d0
             mobility = toil_auxvar_dn%mobility(iphase)
             uH = toil_auxvar_dn%H(iphase)
 #ifdef TOIL_DEN_UPWIND
@@ -1698,10 +2038,40 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
             !density_ave = 0.5d0 * (toil_auxvar_up%den(iphase) + &
             !                       toil_auxvar_dn%den(iphase) )
 #ifndef TOIL_DEN_UPWIND
-            density_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
-                           toil_auxvar_dn%sat(iphase), &
-                           toil_auxvar_up%den(iphase), &
-                           toil_auxvar_dn%den(iphase))
+            if (.NOT.analytical_derivatives) then
+              density_ave = TOilImsAverageDensity(toil_auxvar_up%sat(iphase), &
+                             toil_auxvar_dn%sat(iphase), &
+                             toil_auxvar_up%den(iphase), &
+                             toil_auxvar_dn%den(iphase))
+            else
+              density_ave = TOilImsAverageDensity_derivs(toil_auxvar_up%sat(iphase), &
+                                   toil_auxvar_dn%sat(iphase), &
+                                   toil_auxvar_up%den(iphase), &
+                                   toil_auxvar_dn%den(iphase), &
+                                   ddensity_ave_dden_up, &
+                                   ddensity_ave_dden_dn)
+              
+
+              !! the upwind values computed by this are wrong but will not be used
+              call  DeltaPressureDerivs_up_and_down(d_delta_pres_dp_up, d_delta_pres_dp_dn,     &
+                                                    d_delta_pres_dT_up, d_delta_pres_dT_dn,     &
+                                                    dist_gravity,                               &
+                                                    ddensity_ave_dden_up, ddensity_ave_dden_dn, &
+                                                    toil_auxvar_up%D_den(iphase,dof_op),                &
+                                                    toil_auxvar_dn%D_den(iphase,dof_op),                &
+                                                    toil_auxvar_up%D_den(iphase,dof_temp),                 &
+                                                    toil_auxvar_dn%D_den(iphase,dof_temp),                 &
+                                                    toil_auxvar_up%D_pres(iphase,dof_osat),                 &
+                                                    toil_auxvar_dn%D_pres(iphase,dof_osat),                 &
+                                                    d_delta_pres_ds_up, d_delta_pres_ds_dn,           &
+                                                    toil_ims_fmw_comp(iphase) )
+
+
+              call v_darcy_derivs(d_v_darcy_dn, toil_auxvar_dn%D_mobility(iphase, 1:3),     &
+                                  dn_scale, delta_pressure, mobility, perm_ave_over_dist,    &
+                                  d_delta_pres_dp_dn, d_delta_pres_dt_dn,                    &
+                                  d_delta_pres_ds_dn)
+            endif
 #endif
           endif
 !#ifndef BAD_MOVE1        
@@ -1718,11 +2088,18 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
         
         neumann_bc_present = PETSC_TRUE
         if (dabs(auxvars(idof)) > floweps) then
+          up_scale = 0.d0
+          dn_scale = 0.d0
+
           v_darcy(iphase) = auxvars(idof)
+          ! so d_v_darcy is 0 here
+
           if (v_darcy(iphase) > 0.d0) then 
+            up_scale = 1.d0
             density_ave = toil_auxvar_up%den(iphase)
             uH = toil_auxvar_up%H(iphase)
           else 
+            dn_scale = 1.d0
             density_ave = toil_auxvar_dn%den(iphase)
             uH = toil_auxvar_dn%H(iphase)
           endif 
@@ -1733,7 +2110,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
         call printErrMsg(option)
     end select
 
-    if (dabs(v_darcy(iphase)) > 0.d0) then
+    if (dabs(v_darcy(iphase)) > 0.d0) then ! note need derivs even if this is case
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
@@ -1767,6 +2144,21 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !      debug_flux(energy_id,iphase) = debug_flux(energy_id,iphase) + mole_flux * uH
 !#endif
+
+      if (analytical_derivatives) then
+        ! q derivatives:
+        d_q_dn = d_v_darcy_dn * area
+        ! mole flux derivatives:
+        call MoleFluxDerivs(d_mole_flux_dn, d_q_dn, q, density_ave, ddensity_ave_dden_dn, &
+                            toil_auxvar_dn%D_den(iphase,dof_op), toil_auxvar_dn%D_den(iphase,dof_temp))
+        ! add into jacobian:
+        jdn(iphase, 1:3) = jdn(iphase, 1:3) + d_mole_flux_dn
+        ! the energy part:
+        !! by `energy driven flux' mean the term moleFlux * uH
+        call EnergyDrivenFluxDerivs(d_energy_flux_dn, d_mole_flux_dn, uH, dn_scale, mole_flux, &
+                              toil_auxvar_dn%D_H(iphase,dof_op), toil_auxvar_dn%D_H(iphase,dof_temp))
+        jdn(energy_id, 1:3) = jdn(energy_id, 1:3) + d_energy_flux_dn
+      endif
     endif
   enddo
 #endif 
@@ -1801,27 +2193,37 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! heat_flux = J/s
       k_eff_ave = k_eff_dn / dist(0)
       delta_temp = toil_auxvar_up%temp - toil_auxvar_dn%temp
+
+      d_delta_temp_dt_dn = - 1.d0
+
       heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! convert W -> MW
+
+      dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
       heat_flux = auxvars(auxvar_mapping(TOIL_IMS_ENERGY_FLUX_INDEX)) * area
+      dheat_flux_ddelta_temp = 0.d0 ! constant
     case(ZERO_GRADIENT_BC)
       ! No contribution to heat_flux
+      dheat_flux_ddelta_temp = 0.d0 ! constant
     case default
       option%io_buffer = 'Boundary condition type not recognized in ' // &
         'TOilImsBCFlux heat conduction loop.'
       call printErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
+
+  if (analytical_derivatives) then
+    jdn(energy_id, 3) = jdn(energy_id, 3) + d_delta_temp_dt_dn*dheat_flux_ddelta_temp
+  endif
 #endif 
 ! end of TOIL_CONDUCTION
 
 end subroutine TOilImsBCFlux
 
 ! ************************************************************************** !
-
 subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
-                          global_auxvar,ss_flow_vol_flux,scale,Res)
+                          global_auxvar,ss_flow_vol_flux,scale,Res, j, analytical_derivatives)
   ! 
   ! Computes the source/sink terms for the residual
   ! 
@@ -1845,6 +2247,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale  
   PetscReal :: Res(option%nflowdof)
+  PetscBool :: analytical_derivatives
 
   ! local parameter
   PetscInt, parameter :: SRC_TEMPERATURE = 1
@@ -1858,6 +2261,33 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscInt :: iphase
   PetscInt :: energy_var
   PetscErrorCode :: ierr
+
+  PetscReal :: dden_bool, denth_bool
+  PetscReal :: hw_dp, hw_dT, ho_dp, ho_dT
+  PetscReal, dimension(1:3,1:3) :: j
+  PetscReal, dimension(1:3) :: d_qsrc_mol, d_inj_en_part
+  PetscReal :: scale_use
+
+  PetscInt :: dof_op, dof_osat, dof_temp
+
+  dof_op     = TOIL_IMS_PRESSURE_DOF
+  dof_osat   = TOIL_IMS_SATURATION_DOF
+  dof_temp   = TOIL_IMS_ENERGY_DOF
+
+  if (analytical_derivatives) then
+    j = 0.d0
+    dden_bool = 0.d0
+    denth_bool = 0.d0
+    hw_dp = 0.d0
+    hw_dT = 0.d0
+    ho_dp = 0.d0
+    ho_dT = 0.d0
+    d_qsrc_mol = 0.d0
+    d_inj_en_part = 0.d0
+    scale_use = 0.d0
+  endif !! ensure initialised
+
+  cell_pressure = 0.d0 !! ensure initialised
 
   ! this can be removed when etxending to pressure condition
   if (.not.associated(src_sink_condition%rate) ) then
@@ -1888,18 +2318,11 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
     call printErrMsg(option)
   end if
 
+
   ! approximates BHP with local pressure
   ! to compute BHP we need to solve an IPR equation
-  if ( ( (flow_src_sink_type == VOLUMETRIC_RATE_SS) .or. &
-         ( associated(src_sink_condition%temperature) ) &
-       ) .and. &
-       (  (qsrc(option%liquid_phase) > 0.d0).or. &
-         (qsrc(option%oil_phase) > 0.d0) &
-       ) & 
-     ) then  
     cell_pressure = &
         maxval(toil_auxvar%pres(option%liquid_phase:option%oil_phase))
-  end if
 
   ! if enthalpy is used to define enthelpy or energy rate is used  
   ! approximate bottom hole temperature (BHT) with local temp
@@ -1911,6 +2334,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
 
 
   Res = 0.d0
+  dden_bool = 0.d0
   do iphase = 1, option%nphase
     qsrc_mol = 0.d0
     if ( qsrc(iphase) > 0.d0) then 
@@ -1924,22 +2348,32 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
       den = toil_auxvar%den(iphase)
     end if
 
+    scale_use = 0.d0
     select case(flow_src_sink_type)
       ! injection and production 
       case(MASS_RATE_SS)
         qsrc_mol = qsrc(iphase)/toil_ims_fmw_comp(iphase) ! kg/sec -> kmol/sec
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
         qsrc_mol = qsrc(iphase)/toil_ims_fmw_comp(iphase)*scale 
+        scale_use = scale
       case(VOLUMETRIC_RATE_SS)  ! assume local density for now 
                   ! qsrc(iphase) = m^3/sec  
         qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3 
+        dden_bool = 1.d0
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec             ! den = kmol/m^3
         qsrc_mol = qsrc(iphase)* den * scale
+        dden_bool = 1.d0
         !qsrc_mol = qsrc(iphase)*gen_auxvar%den(iphase)*scale 
+        scale_use = scale
     end select
     ss_flow_vol_flux(iphase) = qsrc_mol/ den
     Res(iphase) = qsrc_mol
+    if (analytical_derivatives) then
+      call Qsrc_mol_derivs(d_qsrc_mol,dden_bool, qsrc(iphase), toil_auxvar%D_den(iphase,dof_op), &
+                           toil_auxvar%D_den(iphase,dof_temp), scale_use)
+      j(iphase, 1:3) = j(iphase, 1:3) + d_qsrc_mol(1:3)
+    endif
   enddo
 
   ! when using scaled src/sinks, the rates (marr or vol) scaling 
@@ -1959,13 +2393,29 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
     !end if
     ! water injection 
     if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
+      denth_bool = 0.d0
       if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSWaterDensity(src_sink_condition%temperature% &
-                             dataset%rarray(1), cell_pressure, &
-                             den_kg,den,ierr)
-        call EOSWaterEnthalpy(src_sink_condition%temperature% &
-                              dataset%rarray(1), cell_pressure, &
-                              enthalpy,ierr)
+        if (analytical_derivatives) then 
+          call EOSWaterDensity(src_sink_condition%temperature% &
+                               dataset%rarray(1), cell_pressure, &
+                               den_kg,den,ierr)
+          call EOSWaterEnthalpy(src_sink_condition%temperature% &
+                                dataset%rarray(1), cell_pressure, &
+                                enthalpy, hw_dp, hw_dT,ierr)
+          hw_dp = hw_dp * 1.d-6
+          hw_dT = 0.d0 !! because input temp is constant here
+          denth_bool = 1.d0
+        else
+          call EOSWaterDensity(src_sink_condition%temperature% &
+                               dataset%rarray(1), cell_pressure, &
+                               den_kg,den,ierr)
+          call EOSWaterEnthalpy(src_sink_condition%temperature% &
+                                dataset%rarray(1), cell_pressure, &
+                                enthalpy,ierr)
+        endif
+
+        !call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,enthalpy, &
+                              !hw_dp,hw_dT,ierr)
         ! enthalpy = [J/kmol]
       else if ( energy_var == SRC_ENTHALPY ) then
         !input as J/kg
@@ -1973,17 +2423,38 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                        dataset%rarray(option%liquid_phase)
                      ! J/kg * kg/kmol = J/kmol  
         enthalpy = enthalpy * toil_ims_fmw_comp(option%liquid_phase) 
+        if (analytical_derivatives) then 
+          hw_dp = 0.d0
+          hw_dp = 0.d0
+        endif
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
       ! enthalpy units: MJ/kmol ! water component mass                     
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * enthalpy
+
+      if (analytical_derivatives) then
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%liquid_phase),  &
+                                       hw_dp, hw_dT)
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
     end if
     ! oil injection 
     if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
+      denth_bool = 0.d0
       if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSOilEnthalpy(src_sink_condition%temperature%dataset%rarray(1), &
-                            cell_pressure, enthalpy, ierr)
+        if (analytical_derivatives) then
+          call EOSOilEnthalpy(src_sink_condition%temperature%dataset%rarray(1), &
+                              cell_pressure, enthalpy, hw_dp, hw_dT,  ierr)
+          ho_dp = ho_dp * 1.d-6
+          ho_dT = 0.d0 !! because input temp is constant here
+          denth_bool = 1.d0
+        else
+          call EOSOilEnthalpy(src_sink_condition%temperature%dataset%rarray(1), &
+                              cell_pressure, enthalpy, ierr)
+        endif
         ! enthalpy = [J/kmol] 
       else if ( energy_var == SRC_ENTHALPY ) then
         enthalpy = src_sink_condition%enthalpy% &
@@ -1995,6 +2466,14 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
       ! enthalpy units: MJ/kmol ! oil component mass                     
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * enthalpy
+
+      if (analytical_derivatives) then
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%oil_phase),  &
+                                       ho_dp, ho_dT)
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
     end if
     ! water energy extraction due to water production
     if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
@@ -2002,6 +2481,24 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * &
                               toil_auxvar%H(option%liquid_phase)
+
+      if (analytical_derivatives) then
+        !! bit of a misuse here since commenting in this routine says it's
+        !! for r * enthalpy
+        !! here use it for 
+        !! r * H
+        !! but it's fine if the arguments are changed appropriately.
+        !! Really this is a general purpose simple derivative routine
+        !! for const * x 
+        !! where only dx_dp and dx_dT are nonzero
+        !! and switched on or off by an upstreaming-like flag
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%liquid_phase), &
+                                       toil_auxvar%D_H(option%liquid_phase,dof_op), &
+                                       toil_auxvar%D_H(option%liquid_phase,dof_temp))
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
     end if
     !oil energy extraction due to oil production 
     if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
@@ -2009,11 +2506,22 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * &
                               toil_auxvar%H(option%oil_phase)
+
+      if (analytical_derivatives) then
+        call SrcSinkEnergyPartDerivs(d_inj_en_part, denth_bool, &
+                                       Res(option%oil_phase), &
+                                       toil_auxvar%D_H(option%oil_phase,dof_op), &
+                                       toil_auxvar%D_H(option%oil_phase,dof_temp))
+        j(option%energy_id, :) = j(option%energy_id, :) +  d_inj_en_part
+      endif
+
     end if
 
   else !if not temp or enthalpy are given
     ! if energy rate is given, loaded in qsrc(3) in MJ/sec 
     Res(option%energy_id) = qsrc(THREE_INTEGER)* scale ! MJ/s
+
+    !! no derivatives for this!
   end if
 
 
@@ -2056,6 +2564,7 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
   use Option_module
   use Saturation_Function_module
   use Material_Aux_class
+  use Utility_module
   
   implicit none
 
@@ -2070,49 +2579,89 @@ subroutine TOilImsAccumDerivative(toil_auxvar,material_auxvar, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
-  !print *, 'ToilImsAccumDerivative'
+  PetscReal :: J_alt(option%nflowdof,option%nflowdof)
+  PetscReal :: J_dff(option%nflowdof,option%nflowdof)
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
 
-  !write(*,"('acc sat01 derivB = ',e10.4)"), toil_auxvar(0)%den(2)
-  !write(*,"('acc sat11 derivB = ',e10.4)"), toil_auxvar(1)%den(2) 
-  !write(*,"('acc sat21 derivB = ',e10.4)"), toil_auxvar(2)%den(2) 
-  !write(*,"('acc sat31 derivB = ',e10.4)"), toil_auxvar(3)%den(2) 
+  PetscBool :: flagged
 
-  call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
-                           material_auxvar,soil_heat_capacity,option,Res)
+  J_alt = 0.d0
 
-  !write(*,"('acc sat01 derivM = ',e10.4)"), toil_auxvar(0)%den(2)
-  !write(*,"('acc sat11 derivM = ',e10.4)"), toil_auxvar(1)%den(2) 
-  !write(*,"('acc sat21 derivM = ',e10.4)"), toil_auxvar(2)%den(2) 
-  !write(*,"('acc sat31 derivM = ',e10.4)"), toil_auxvar(3)%den(2) 
+  if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
 
-  do idof = 1, option%nflowdof
-    call TOilImsAccumulation(toil_auxvar(idof), &
-                           material_auxvar,soil_heat_capacity,option,res_pert)
-    do irow = 1, option%nflowdof
-      J(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
-      !print *, irow, idof, J(irow,idof), toil_auxvar(idof)%pert
-    enddo !irow
-  enddo ! idof
+    !print *, 'ToilImsAccumDerivative'
+
+    !write(*,"('acc sat01 derivB = ',e10.4)"), toil_auxvar(0)%den(2)
+    !write(*,"('acc sat11 derivB = ',e10.4)"), toil_auxvar(1)%den(2) 
+    !write(*,"('acc sat21 derivB = ',e10.4)"), toil_auxvar(2)%den(2) 
+    !write(*,"('acc sat31 derivB = ',e10.4)"), toil_auxvar(3)%den(2) 
+
+    call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
+                             material_auxvar,soil_heat_capacity,option,Res,&
+                             Jdum,PETSC_FALSE)
+
+    !write(*,"('acc sat01 derivM = ',e10.4)"), toil_auxvar(0)%den(2)
+    !write(*,"('acc sat11 derivM = ',e10.4)"), toil_auxvar(1)%den(2) 
+    !write(*,"('acc sat21 derivM = ',e10.4)"), toil_auxvar(2)%den(2) 
+    !write(*,"('acc sat31 derivM = ',e10.4)"), toil_auxvar(3)%den(2) 
+
+    do idof = 1, option%nflowdof
+      call TOilImsAccumulation(toil_auxvar(idof), &
+                             material_auxvar,soil_heat_capacity,option,res_pert,&
+                             Jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        J(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
+        !print *, irow, idof, J(irow,idof), toil_auxvar(idof)%pert
+      enddo !irow
+    enddo ! idof
 
 
-  !write(*,"('acc sat01 deriv = ',e10.4)"), toil_auxvar(0)%den(2)
-  !write(*,"('acc sat11 deriv = ',e10.4)"), toil_auxvar(1)%den(2) 
-  !write(*,"('acc sat21 deriv = ',e10.4)"), toil_auxvar(2)%den(2) 
-  !write(*,"('acc sat31 deriv = ',e10.4)"), toil_auxvar(3)%den(2) 
+    !write(*,"('acc sat01 deriv = ',e10.4)"), toil_auxvar(0)%den(2)
+    !write(*,"('acc sat11 deriv = ',e10.4)"), toil_auxvar(1)%den(2) 
+    !write(*,"('acc sat21 deriv = ',e10.4)"), toil_auxvar(2)%den(2) 
+    !write(*,"('acc sat31 deriv = ',e10.4)"), toil_auxvar(3)%den(2) 
 
-!  write(*,"('acc sat derivative = ',(4(e10.4,1x)))"), &
-!        toil_auxvar(0:3)%sat(1)
+  !  write(*,"('acc sat derivative = ',(4(e10.4,1x)))"), &
+  !        toil_auxvar(0:3)%sat(1)
 
-  if (toil_ims_isothermal) then
-    J(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
-    J(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    if (toil_ims_isothermal) then
+      J(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      J(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+    
+  !#ifdef DEBUG_GENERAL_FILEOUTPUT
+  !  if (debug_flag > 0) then
+  !    write(debug_unit,'(a,10es24.15)') 'accum deriv:', J
+  !  endif
+  !#endif
   endif
-  
-!#ifdef DEBUG_GENERAL_FILEOUTPUT
-!  if (debug_flag > 0) then
-!    write(debug_unit,'(a,10es24.15)') 'accum deriv:', J
-!  endif
-!#endif
+
+
+  if (toil_analytical_derivatives) then
+    call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
+                             material_auxvar,soil_heat_capacity,option,Res,&
+                             J_alt,PETSC_TRUE)
+    if (toil_ims_isothermal) then
+      J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+    if (toil_analytical_derivatives_compare) then
+
+      J_dff = J - J_alt
+
+      call MatCompare(J, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
+
+      call TOilImsAccumulation(toil_auxvar(ZERO_INTEGER), &
+                               material_auxvar,soil_heat_capacity,option,Res,&
+                               J_alt,PETSC_TRUE)
+      if (toil_ims_isothermal) then
+        J_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        J_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      endif
+    endif
+
+    j = j_alt
+  endif
 
 end subroutine TOilImsAccumDerivative
 
@@ -2138,6 +2687,7 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
   ! 
   use Option_module
   use Material_Aux_class
+  use Utility_module
   
   implicit none
   
@@ -2159,65 +2709,129 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
+  PetscReal :: Jup_alt(option%nflowdof,option%nflowdof), Jdn_alt(option%nflowdof,option%nflowdof)
+  PetscReal :: Jup_dff(option%nflowdof,option%nflowdof), Jdn_dff(option%nflowdof,option%nflowdof)
+
+  PetscReal :: Jdum1(option%nflowdof,option%nflowdof)  
+  PetscReal :: Jdum2(option%nflowdof,option%nflowdof)  
+
+  PetscBool :: flagged
+  
+
   Jup = 0.d0
   Jdn = 0.d0
+
+  if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
   
-  !geh:print *, 'ToilImsFluxDerivative'
-  option%iflag = -2
-  call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                   material_auxvar_up,sir_up, &
-                   thermal_conductivity_up, &
-                   toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                   material_auxvar_dn,sir_dn, &
-                   thermal_conductivity_dn, &
-                   area,dist,toil_parameter, &
-                   option,v_darcy,res)
-                           
-  ! upgradient derivatives
-  do idof = 1, option%nflowdof
-    call ToilImsFlux(toil_auxvar_up(idof),global_auxvar_up, &
+    !geh:print *, 'ToilImsFluxDerivative'
+    option%iflag = -2
+    call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                      material_auxvar_up,sir_up, &
                      thermal_conductivity_up, &
                      toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                      material_auxvar_dn,sir_dn, &
                      thermal_conductivity_dn, &
                      area,dist,toil_parameter, &
-                     option,v_darcy,res_pert)
-    do irow = 1, option%nflowdof
-      Jup(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_up(idof)%pert
-      !print *, 'up: ', irow, idof, Jup(irow,idof), toil_auxvar_up(idof)%pert
-    enddo !irow
-  enddo ! idof
+                     option,v_darcy,res,Jdum1,Jdum2,PETSC_FALSE)
+                             
+    ! upgradient derivatives
+    do idof = 1, option%nflowdof
+      call ToilImsFlux(toil_auxvar_up(idof),global_auxvar_up, &
+                       material_auxvar_up,sir_up, &
+                       thermal_conductivity_up, &
+                       toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                       material_auxvar_dn,sir_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,toil_parameter, &
+                       option,v_darcy,res_pert,Jdum1,Jdum2,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jup(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_up(idof)%pert
+        !print *, 'up: ', irow, idof, Jup(irow,idof), toil_auxvar_up(idof)%pert
+      enddo !irow
+    enddo ! idof
 
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                     material_auxvar_up,sir_up, &
-                     thermal_conductivity_up, &
-                     toil_auxvar_dn(idof),global_auxvar_dn, &
-                     material_auxvar_dn,sir_dn, &
-                     thermal_conductivity_dn, &
-                     area,dist,toil_parameter, &
-                     option,v_darcy,res_pert)
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_dn(idof)%pert
-!geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                       material_auxvar_up,sir_up, &
+                       thermal_conductivity_up, &
+                       toil_auxvar_dn(idof),global_auxvar_dn, &
+                       material_auxvar_dn,sir_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,toil_parameter, &
+                       option,v_darcy,res_pert,Jdum1,Jdum2,PETSC_FALSE)
 
-  if (toil_ims_isothermal) then
-    Jup(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jup(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
-    Jdn(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jdn(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      do irow = 1, option%nflowdof
+        Jdn(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_dn(idof)%pert
+  !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
+      enddo !irow
+    enddo ! idof
+
+    if (toil_ims_isothermal) then
+      Jup(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jup(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      Jdn(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jdn(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+    
+
+  !#ifdef DEBUG_GENERAL_FILEOUTPUT
+  !  if (debug_flag > 0) then
+  !    write(debug_unit,'(a,20es24.15)') 'flux deriv:', Jup, Jdn
+  !  endif
+  !#endif
   endif
-  
 
-!#ifdef DEBUG_GENERAL_FILEOUTPUT
-!  if (debug_flag > 0) then
-!    write(debug_unit,'(a,20es24.15)') 'flux deriv:', Jup, Jdn
-!  endif
-!#endif
+  if (toil_analytical_derivatives) then
+    call TOilImsFluxPFL(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                         material_auxvar_up, &
+                         sir_up, &
+                         thermal_conductivity_up, &
+                         toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         sir_dn, &
+                         thermal_conductivity_dn, &
+                         area, dist, toil_parameter,&
+                         option,v_darcy,Res, &
+                         jup_alt, jdn_alt,PETSC_TRUE)
+
+    if (toil_ims_isothermal) then
+      Jup_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jup_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+    if (toil_analytical_derivatives_compare) then
+      Jup_dff = Jup - Jup_alt
+      Jdn_dff = Jdn - Jdn_alt
+
+       call MatCompare(Jup, Jup_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
+       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol,toil_dcomp_reltol,flagged)
+
+      call TOilImsFluxPFL(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                           material_auxvar_up, &
+                           sir_up, &
+                           thermal_conductivity_up, &
+                           toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                           material_auxvar_dn, &
+                           sir_dn, &
+                           thermal_conductivity_dn, &
+                           area, dist, toil_parameter,&
+                           option,v_darcy,Res, &
+                           jup_alt, jdn_alt,PETSC_TRUE)
+      if (toil_ims_isothermal) then
+        Jup_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        Jup_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+        Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+      endif
+
+    endif
+
+
+    Jup = Jup_alt
+    Jdn = Jdn_alt
+  endif
   
 end subroutine ToilImsFluxDerivative
 
@@ -2242,6 +2856,7 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 
   use Option_module 
   use Material_Aux_class
+  use Utility_module
   
   implicit none
 
@@ -2265,45 +2880,97 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+
+  PetscReal :: Jdn_alt(option%nflowdof,option%nflowdof)
+  PetscReal :: J_dff(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
+
   Jdn = 0.d0
+  !Jdn_alt = 0.d0
 !geh:print *, 'GeneralBCFluxDerivative'
 
-  option%iflag = -2
-  call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
-                     toil_auxvar_up,global_auxvar_up, &
-                     toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn, &
-                     sir_dn, &
-                     thermal_conductivity_dn, &
-                     area,dist,toil_parameter, &
-                     option,v_darcy,res)                     
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
+  if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
+
+    option%iflag = -2
     call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
-                       toil_auxvar_dn(idof),global_auxvar_dn, &
+                       toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
                        sir_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
-                       option,v_darcy,res_pert)   
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_dn(idof)%pert
-!print *, 'bc: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
+                       option,v_darcy,res,Jdum,PETSC_FALSE)
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                         toil_auxvar_up,global_auxvar_up, &
+                         toil_auxvar_dn(idof),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         sir_dn, &
+                         thermal_conductivity_dn, &
+                         area,dist,toil_parameter, &
+                         option,v_darcy,res_pert,Jdum,PETSC_FALSE)   
+      do irow = 1, option%nflowdof
+        Jdn(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar_dn(idof)%pert
+  !print *, 'bc: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
+      enddo !irow
+    enddo ! idof
 
-  if (toil_ims_isothermal) then
-    Jdn(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jdn(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    if (toil_ims_isothermal) then
+      Jdn(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jdn(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+    
+   
+  !#ifdef DEBUG_GENERAL_FILEOUTPUT
+  !  if (debug_flag > 0) then
+  !    write(debug_unit,'(a,10es24.15)') 'bc flux deriv:', Jdn
+  !  endif
+  !#endif
   endif
-  
- 
-!#ifdef DEBUG_GENERAL_FILEOUTPUT
-!  if (debug_flag > 0) then
-!    write(debug_unit,'(a,10es24.15)') 'bc flux deriv:', Jdn
-!  endif
-!#endif
+
+  if (toil_analytical_derivatives) then 
+
+    call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                       toil_auxvar_up,global_auxvar_up, &
+                       toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       sir_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,toil_parameter, &
+                       option,v_darcy,res,jdn_alt,PETSC_TRUE)
+
+    if (toil_ims_isothermal) then
+      Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+
+
+    if (toil_analytical_derivatives_compare) then
+       J_dff = Jdn -  Jdn_alt
+
+       call MatCompare(Jdn, Jdn_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
+
+      call ToilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                         toil_auxvar_up,global_auxvar_up, &
+                         toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         sir_dn, &
+                         thermal_conductivity_dn, &
+                         area,dist,toil_parameter, &
+                         option,v_darcy,res, jdn_alt,PETSC_TRUE)
+        if (toil_ims_isothermal) then
+          Jdn_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+          Jdn_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        endif
+    endif
+
+     Jdn = Jdn_alt
+
+
+    endif
   
 end subroutine ToilImsBCFluxDerivative
 
@@ -2321,6 +2988,7 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
 
   use Option_module
   use Condition_module
+  use Utility_module
 
   implicit none
 
@@ -2337,32 +3005,71 @@ subroutine ToilImsSrcSinkDerivative(option,src_sink_condition, toil_auxvar, &
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
 
+  PetscReal :: Jdum(option%nflowdof,option%nflowdof)  
+
+  PetscReal :: J_alt(option%nflowdof,option%nflowdof)
+  PetscReal :: J_dff(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
+
   option%iflag = -3
 
-  call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
-                          global_auxvar,dummy_real,scale,Res)
+ J_alt = 0.d0
 
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
+ if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
+    call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
+                            global_auxvar,dummy_real,scale,Res,Jdum,PETSC_FALSE)
 
-    call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(idof), &
-                        global_auxvar,dummy_real,scale,res_pert)
-  
-    do irow = 1, option%nflowdof
-      Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
-    enddo !irow
-  enddo ! idof
-  
-  if (toil_ims_isothermal) then
-    Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+
+      call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(idof), &
+                          global_auxvar,dummy_real,scale,res_pert,Jdum,PETSC_FALSE)
+    
+      do irow = 1, option%nflowdof
+        Jac(irow,idof) = (res_pert(irow)-res(irow))/toil_auxvar(idof)%pert
+      enddo !irow
+    enddo ! idof
+    
+    if (toil_ims_isothermal) then
+      Jac(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      Jac(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+     
+  !#ifdef DEBUG_GENERAL_FILEOUTPUT
+  !  if (debug_flag > 0) then
+  !    write(debug_unit,'(a,20es24.15)') 'src/sink deriv:', Jac
+  !  endif
+  !#endif
   endif
-   
-!#ifdef DEBUG_GENERAL_FILEOUTPUT
-!  if (debug_flag > 0) then
-!    write(debug_unit,'(a,20es24.15)') 'src/sink deriv:', Jac
-!  endif
-!#endif
+
+  if (toil_analytical_derivatives) then
+
+    call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
+                            global_auxvar,dummy_real,scale,Res,j_alt,PETSC_TRUE)
+
+
+    if (toil_ims_isothermal) then
+      j_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+      j_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+    endif
+
+    if (toil_analytical_derivatives_compare) then
+        J_dff = Jac - J_alt
+
+       call MatCompare(Jac, J_alt, 3, 3, toil_dcomp_tol, toil_dcomp_reltol,flagged)
+
+       call TOilImsSrcSink(option,src_sink_condition,toil_auxvar(ZERO_INTEGER), &
+                               global_auxvar,dummy_real,scale,Res,j_alt,PETSC_TRUE)
+        if (toil_ims_isothermal) then
+          j_alt(TOIL_IMS_ENERGY_EQUATION_INDEX,:) = 0.d0
+          j_alt(:,TOIL_IMS_ENERGY_EQUATION_INDEX) = 0.d0
+        endif
+
+    endif
+
+    Jac = j_alt
+  endif
 
 end subroutine ToilImsSrcSinkDerivative
 
@@ -2387,6 +3094,8 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use Well_Solver_module
+  use Well_Data_class
 
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
@@ -2400,7 +3109,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   Vec :: r
   type(realization_subsurface_type) :: realization
   PetscViewer :: viewer
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr,jerr
   
   Mat, parameter :: null_mat = PETSC_NULL_MAT
   type(discretization_type), pointer :: discretization
@@ -2431,6 +3140,9 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   PetscReal :: scale
   PetscReal :: ss_flow_vol_flux(realization%option%nphase)
 
+  type(well_data_list_type),pointer :: well_data_list
+  class(well_data_type), pointer :: well_data
+
   PetscInt :: sum_connection
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id
@@ -2440,6 +3152,9 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
+
+  PetscReal :: Jac_dummy(realization%option%nflowdof, &
+                         realization%option%nflowdof)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -2513,7 +3228,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
                           patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
-                          option,Res) 
+                          option,Res,Jac_dummy,PETSC_FALSE)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     
     !TOUGH2 conv. creteria: update p+1 accumulation term
@@ -2563,7 +3278,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
-                     toil_parameter,option,v_darcy,Res)
+                     toil_parameter,option,v_darcy,Res,Jac_dummy,Jac_dummy,PETSC_FALSE)
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -2610,18 +3325,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-#ifdef WELL_DEBUG
-  write(*,*) 'BC gh = ', ghosted_id
-  write(*,"('BC cell press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
-      !this%flow_auxvars(dof,ghosted_id)%pres(i_ph)
-  write(*,"('BC press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars_bc(sum_connection)%pres(option%oil_phase)
-  write(*,"('BC delta press = ',e26.20)") &
-    patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase) - &
-    patch%aux%TOil_ims%auxvars_bc(sum_connection)%pres(option%oil_phase)
-#endif
-
       call TOilImsBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
@@ -2635,7 +3338,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      toil_parameter,option, &
-                     v_darcy,Res)
+                     v_darcy,Res,Jac_dummy,PETSC_FALSE)
 
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -2664,22 +3367,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
     
     cur_connection_set => source_sink%connection_set
 
-#ifdef WELL_DEBUG
-  print *,'my rank = ',option%myrank,' just before ExplUpdate'
-#endif
-
-#ifdef WELL_CLASS
-    if ( associated(source_sink%well) ) then
-      if (cur_connection_set%num_connections > 0 ) then
-        call source_sink%well%ExplUpdate(grid,option)
-      end if
-    end if 
-#endif
-
-#ifdef WELL_DEBUG
-  print *,'my rank = ',option%myrank,' just after ExplUpdate'
-#endif
- 
     do iconn = 1, cur_connection_set%num_connections      
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
@@ -2701,19 +3388,10 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
          ! use the if well to decide if to call TOilImsSrcSink or the WellRes
          !call source_sink%well%PrintMsg(); 
       !end if
-#ifdef WELL_CLASS
-      if ( associated(source_sink%well) ) then
-        call source_sink%well%ExplRes(iconn,ss_flow_vol_flux, &
-                       toil_ims_isothermal,ghosted_id,ZERO_INTEGER,option,Res)
-      else
-#endif
         call TOilImsSrcSink(option,source_sink%flow_condition%toil_ims, &
                            patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                            global_auxvars(ghosted_id),ss_flow_vol_flux, &
-                           scale,Res)
-#ifdef WELL_CLASS
-      end if
-#endif
+                           scale,Res,Jac_dummy,PETSC_FALSE)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -2731,18 +3409,29 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
       endif
 
     enddo 
-!#ifdef WELL_DEBUG    
-    ! for debugging
-#ifdef WELL_CLASS
-    if ( associated(source_sink%well) ) then
-      if (cur_connection_set%num_connections > 0 ) then
-        call source_sink%well%DataOutput(grid,source_sink%name,option)
-      end if
-    end if
-#endif
-!#endif
+
     source_sink => source_sink%next
   enddo
+
+  ! Set up the average pressure (may be needed for voidage calculations)
+
+  call patch%aux%TOil_ims%FieldVolRefAve(grid,patch%aux%material, &
+                                              patch%imat,option)
+
+  ! Loop over well_data wells if present
+
+  if (WellDataGetFlag()) then
+    jerr = 0
+    well_data_list => realization%well_data
+    well_data => well_data_list%first
+
+    do
+      if (.not.associated(well_data)) exit
+        call SolveWell(patch%aux,option,well_data,r_p)
+        call MPI_Barrier(option%mycomm,jerr)
+      well_data => well_data%next
+    enddo
+  endif
 
   if (patch%aux%TOil_ims%inactive_cells_exist) then
     do i=1,patch%aux%TOil_ims%n_inactive_rows
@@ -2813,6 +3502,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use Well_Data_class
 
   use AuxVars_Flow_module
 
@@ -2837,6 +3527,9 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = PETSC_NULL_VEC
+
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
@@ -2844,7 +3537,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: iconn
+  PetscInt :: iconn,jerr,nflowdof
   PetscInt :: sum_connection  
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
@@ -2863,7 +3556,11 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  
+
+  PetscReal :: J_alt(realization%option%nflowdof,realization%option%nflowdof)
+
+  J_alt = 0.d0
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -2893,33 +3590,16 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   do ghosted_id = 1, grid%ngmax  ! For each local node do...
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    call TOilImsAuxVarPerturb(patch%aux%TOil_ims%auxvars(:,ghosted_id), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id), &
-                              patch%characteristic_curves_array( &
-                               patch%sat_func_id(ghosted_id))%ptr, &
-                              ghosted_id,option)
-!#ifdef WELL_DEBUG    
-!  write(*,"('after perturb = ',(4(e10.4,1x)))"), patch%aux%TOil_ims%auxvars(0:3,ghosted_id)%pert
-!#endif 
-    ! alternative way to call TOilImsAuxVarPerturb using a type-bound procedure 
-    !call patch%aux%TOil_ims%Perturb(ghosted_id, &
-    !                       global_auxvars(ghosted_id), &
-    !                       material_auxvars(ghosted_id), &
-    !                       patch%characteristic_curves_array( &
-    !                       patch%sat_func_id(ghosted_id))%ptr, &
-    !                       ghosted_id,option)
-
+    if (.NOT. toil_analytical_derivatives .OR. toil_analytical_derivatives_compare) then
+      call TOilImsAuxVarPerturb(patch%aux%TOil_ims%auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                patch%sat_func_id(ghosted_id))%ptr, &
+                                ghosted_id,option)
+    endif
   enddo
 
-#ifdef WELL_DEBUG    
-  write(*,"('AP p011 before = ',e10.4)") patch%aux%TOil_ims%auxvars(0,1)%pres(1)
-  write(*,"('AP p111 before = ',e10.4)") patch%aux%TOil_ims%auxvars(1,1)%pres(1)
-  write(*,"('AP p211 before = ',e10.4)") patch%aux%TOil_ims%auxvars(2,1)%pres(1)
-  write(*,"('AP p311 before = ',e10.4)") patch%aux%TOil_ims%auxvars(3,1)%pres(1)
-#endif 
-
-  
 !#ifdef DEBUG_GENERAL_LOCAL
 !  call GeneralOutputAuxVars(gen_auxvars,global_auxvars,option)
 !#endif 
@@ -2989,6 +3669,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       ! if issues in passing auxvars, pass the entire TOil_ims and 
       ! ghosted_id_up, ghosted_id_dn
+
       call TOilImsFluxDerivative(patch%aux%TOil_ims%auxvars(:,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -3103,35 +3784,36 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       else
         scale = 1.d0
       endif
-      
-#ifdef WELL_CLASS      
-      if (associated(source_sink%well) ) then
-        !Jdn = 0.0d0
-        call source_sink%well%ExplJDerivative(iconn,ghosted_id, &
-                        toil_ims_isothermal,TOIL_IMS_ENERGY_EQUATION_INDEX, &
-                         option,Jdn)
-        Jdn = -Jdn  
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-
-      else 
-#endif
         !Jup = 0.d0
-        call TOilImsSrcSinkDerivative(option, &
-                          source_sink%flow_condition%toil_ims, &
-                          patch%aux%TOil_ims%auxvars(:,ghosted_id), &
-                          global_auxvars(ghosted_id), &
-                          scale,Jup)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                      ADD_VALUES,ierr);CHKERRQ(ierr)
-#ifdef WELL_CLASS
-      end if
-#endif
+      call TOilImsSrcSinkDerivative(option, &
+                        source_sink%flow_condition%toil_ims, &
+                        patch%aux%TOil_ims%auxvars(:,ghosted_id), &
+                        global_auxvars(ghosted_id), &
+                        scale,Jup)
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
 
     enddo
     source_sink => source_sink%next
   enddo
-   
+
+! Loop over well_data wells if present
+
+  if( toil_analytical_derivatives ) then
+    if (WellDataGetFlag()) then
+      nflowdof=realization%option%nflowdof
+      jerr = 0
+      well_data_list => realization%well_data
+      well_data => well_data_list%first
+
+      do
+        if (.not.associated(well_data)) exit
+          call well_data%DoIncrJac(option,nflowdof,Jup,A)
+          well_data => well_data%next
+      enddo
+   endif
+  endif
+
   ! SSSandBox not supported 
   !call GeneralSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
   !                      gen_auxvars,option)
@@ -3239,7 +3921,6 @@ end subroutine TOilImsDestroy
 
 ! ************************************************************************** !
 
-! ************************************************************************** !
 
 function TOilImsAverageDensity(sat_up,sat_dn,density_up,density_dn)
   ! 
@@ -3269,6 +3950,37 @@ end function TOilImsAverageDensity
 
 ! ************************************************************************** !
 
+function TOilImsAverageDensity_derivs(sat_up,sat_dn,density_up,density_dn, dden_up, dden_dn)
+  ! 
+  ! Modification of TOilImsAverageDensity which computes derivatives
+
+  implicit none
+
+  PetscReal :: sat_up, sat_dn
+  PetscReal :: density_up, density_dn, dden_up, dden_dn
+
+  PetscReal :: TOilImsAverageDensity_derivs
+
+  dden_up = 0.d0
+  dden_dn = 0.d0
+
+  if (sat_up < eps ) then
+    TOilImsAverageDensity_derivs = density_dn
+    dden_dn = 1.d0
+  else if (sat_dn < eps ) then 
+    TOilImsAverageDensity_derivs = density_up
+    dden_up = 1.d0
+  else ! in here we could use an armonic average, 
+       ! other idea sat weighted average but it needs truncation
+    TOilImsAverageDensity_derivs = 0.5d0*(density_up+density_dn)
+    dden_up = 0.5d0
+    dden_dn = 0.5d0
+  end if
+
+end function TOilImsAverageDensity_derivs
+
+
+! ************************************************************************** !
 
 end module TOilIms_module
 

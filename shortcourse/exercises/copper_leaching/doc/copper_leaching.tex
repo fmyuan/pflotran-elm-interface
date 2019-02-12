@@ -678,7 +678,6 @@ and do not add to number of degrees of freedom
 \begin{semiverbatim}
   DATABASE ../../../hanford.dat
   LOG_FORMULATION
-#  OPERATOR_SPLITTING
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
     PH
@@ -967,6 +966,31 @@ END
 
 
 %-----------------------------------------------------------------------------
+\subsection{Running cu_leaching.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/copper_leaching
+> pflotran -input_prefix cu_leaching
+> python cu_leaching.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Scaling}
+\begin{frame}[fragile]\frametitle{PFLOTRAN Scaling on 3D Copper Leaching Problem}
+\textit{\scriptsize Hammond et al., 2014, Evaluating the performance of parallel subsurface simulators: An illustrative example with PFLOTRAN,  Water Resources Research}
+\begin{center}
+\includegraphics[width=0.95\linewidth]{./cu_leaching_schematic}
+\end{center}
+\end{frame}
+
+%-----------------------------------------------------------------------------
+
 \frame{
 \frametitle{\bf Scaling: $32 \times 32 \times \magentacomment{4}$ Grid $\times 12$ Species}
 

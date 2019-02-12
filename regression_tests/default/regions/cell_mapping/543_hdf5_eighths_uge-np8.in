@@ -18,7 +18,10 @@ REGRESSION
 END
 
 #=========================== flow mode ========================================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 
+END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -26,7 +29,7 @@ CHEMISTRY
   Tracer
   /
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 END
@@ -126,7 +129,7 @@ EXTERNAL_FILE 543_condition_eighths_block.txt
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  MATERIAL ../../543/543.h5
+  FILE ../../543/543.h5
 END
 
 END_SUBSURFACE

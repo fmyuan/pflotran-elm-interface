@@ -6,7 +6,8 @@ module Richards_Common_module
   use Global_Aux_module
   
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
   
   private 
@@ -108,6 +109,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
     call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
                                material_auxvar_pert, &
                                characteristic_curves, &
+                               -999, &
                                option)
     call RichardsAccumulation(rich_auxvar_pert,global_auxvar_pert, &
                               material_auxvar_pert, &
@@ -271,37 +273,11 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
     dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_dn%dden_dp
 
     if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY
-      if (dabs(dist(1))==1) then
-        ukvr = rich_auxvar_up%kvr_x
-        dukvr_dp_up = rich_auxvar_up%dkvr_x_dp
-      else if (dabs(dist(2))==1) then
-        ukvr = rich_auxvar_up%kvr_y
-        dukvr_dp_up = rich_auxvar_up%dkvr_y_dp
-      else if (dabs(dist(3))==1) then
-        ukvr = rich_auxvar_up%kvr_z
-        dukvr_dp_up = rich_auxvar_up%dkvr_z_dp
-      end if
-#else
       ukvr = rich_auxvar_up%kvr
       dukvr_dp_up = rich_auxvar_up%dkvr_dp
-#endif
     else
-#ifdef USE_ANISOTROPIC_MOBILITY    
-      if (dabs(dist(1))==1) then
-        ukvr = rich_auxvar_dn%kvr_x
-        dukvr_dp_dn = rich_auxvar_dn%dkvr_x_dp
-      else if (dabs(dist(2))==1) then
-        ukvr = rich_auxvar_dn%kvr_y
-        dukvr_dp_dn = rich_auxvar_dn%dkvr_y_dp
-      else if (dabs(dist(3))==1) then
-        ukvr = rich_auxvar_dn%kvr_z
-        dukvr_dp_dn = rich_auxvar_dn%dkvr_z_dp
-      end if
-#else
       ukvr = rich_auxvar_dn%kvr
       dukvr_dp_dn = rich_auxvar_dn%dkvr_dp
-#endif
     endif      
    
     if (ukvr>floweps) then
@@ -353,11 +329,13 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
                                global_auxvar_pert_up, &
                                material_auxvar_pert_up, &
                                characteristic_curves_up, &
+                               -999, &
                                option)
     call RichardsAuxVarCompute(x_pert_dn(1),rich_auxvar_pert_dn, &
                                global_auxvar_pert_dn, &
                                material_auxvar_pert_dn, &
                                characteristic_curves_dn, &
+                               -999, &
                                option)
     call RichardsFlux(rich_auxvar_pert_up,global_auxvar_pert_up, &
                       material_auxvar_pert_up,sir_up, &
@@ -448,29 +426,9 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
     dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1)  + gravity
 
     if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY       
-      if (dabs(dabs(dist(1))-1) < 1e-6) then
-        ukvr = rich_auxvar_up%kvr_x
-      else if (dabs(dabs(norm(2))-1) < 1e-6) then
-        ukvr = rich_auxvar_up%kvr_y
-      else if (dabs(dabs(norm(3))-1) < 1e-6) then
-        ukvr = rich_auxvar_up%kvr_z
-      end if
-#else
       ukvr = rich_auxvar_up%kvr
-#endif
     else
-#ifdef USE_ANISOTROPIC_MOBILITY       
-      if (dabs(dabs(norm(1))-1) < 1e-6) then
-        ukvr = rich_auxvar_dn%kvr_x
-      else if (dabs(dabs(norm(2))-1) < 1e-6) then
-        ukvr = rich_auxvar_dn%kvr_y
-      else if (dabs(dabs(norm(3))-1) < 1e-6) then
-        ukvr = rich_auxvar_dn%kvr_z
-      end if
-#else
       ukvr = rich_auxvar_dn%kvr
-#endif
     endif      
 
     if (ukvr>floweps) then
@@ -581,14 +539,15 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
     ! figure out the direction of flow
     case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
          HET_SURF_SEEPAGE_BC, &
-         HET_DIRICHLET)
+         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3) = vector(3) - unit vector
       dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-      if (pressure_bc_type == CONDUCTANCE_BC) then
+      if (pressure_bc_type == CONDUCTANCE_BC .or. &
+          pressure_bc_type == HET_CONDUCTANCE_BC) then
         Dq = auxvars(RICHARDS_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dist(0)
@@ -615,45 +574,23 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_dn%dden_dp
 
-        if (pressure_bc_type == SEEPAGE_BC .or. &
-            pressure_bc_type == CONDUCTANCE_BC .or. &
-            pressure_bc_type == HET_SURF_SEEPAGE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)- &
-                                option%reference_pressure < eps) then
-            dphi = 0.d0
-            dphi_dp_dn = 0.d0
-          endif
-        endif
+        select case(pressure_bc_type)
+          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+               HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+                ! flow in
+            if (dphi > 0.d0 .and. &
+                ! boundary cell is <= pref
+                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+              dphi = 0.d0
+              dphi_dp_dn = 0.d0
+            endif
+        end select
         
         if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY  
-          if (dabs(dabs(dist(1))-1) < 1e-6) then
-            ukvr = rich_auxvar_up%kvr_x
-          else if (dabs(dabs(dist(2))-1) < 1e-6) then
-            ukvr = rich_auxvar_up%kvr_y
-          else if (dabs(dabs(dist(3))-1) < 1e-6) then
-            ukvr = rich_auxvar_up%kvr_z
-          end if
-#else
           ukvr = rich_auxvar_up%kvr
-#endif
         else
-#ifdef USE_ANISOTROPIC_MOBILITY
-          if (dabs(dabs(dist(1))-1) < 1e-6) then
-            ukvr = rich_auxvar_dn%kvr_x
-            dukvr_dp_dn = rich_auxvar_dn%dkvr_x_dp
-          else if (dabs(dabs(dist(2))-1) < 1e-6) then
-            ukvr = rich_auxvar_dn%kvr_y
-            dukvr_dp_dn = rich_auxvar_dn%dkvr_y_dp
-          else if (dabs(dabs(dist(3))-1) < 1e-6) then
-            ukvr = rich_auxvar_dn%kvr_z
-            dukvr_dp_dn = rich_auxvar_dn%dkvr_z_dp
-          end if
-#else
           ukvr = rich_auxvar_dn%kvr
           dukvr_dp_dn = rich_auxvar_dn%dkvr_dp
-#endif
         endif      
      
         if (ukvr*Dq>floweps) then
@@ -664,7 +601,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
           if (option%surf_flow_on) then
-          if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+          if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
             if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. &
                 option%surf_flow_on) then
               call EOSWaterdensity(option%reference_temperature, &
@@ -735,21 +672,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         dden_ave_dp_dn = rich_auxvar_dn%dden_dp
 
         ! since boundary auxvar is meaningless (no pressure specified there), only use cell
-#ifdef USE_ANISOTROPIC_MOBILITY
-        if (dabs(dabs(dist(1))-1) < 1e-6) then
-          ukvr = rich_auxvar_dn%kvr_x
-          dukvr_dp_dn = rich_auxvar_dn%dkvr_x_dp
-        else if (dabs(dabs(dist(2))-1) < 1e-6) then
-          ukvr = rich_auxvar_dn%kvr_y
-          dukvr_dp_dn = rich_auxvar_dn%dkvr_y_dp
-        else if (dabs(dabs(dist(3))-1) < 1e-6) then
-          ukvr = rich_auxvar_dn%kvr_z
-          dukvr_dp_dn = rich_auxvar_dn%dkvr_z_dp
-        end if
-#else
         ukvr = rich_auxvar_dn%kvr
         dukvr_dp_dn = rich_auxvar_dn%dkvr_dp
-#endif
      
         if (ukvr*perm_dn>floweps) then
           v_darcy = perm_dn * ukvr * dphi
@@ -806,11 +730,13 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                                global_auxvar_pert_dn, &
                                material_auxvar_pert_dn, &
                                characteristic_curves_dn, &
+                               -999, &
                                option)
     call RichardsAuxVarCompute(x_pert_up(1),rich_auxvar_pert_up, &
                                global_auxvar_pert_up, &
                                material_auxvar_pert_up, &
                                characteristic_curves_dn, &
+                               -999, &
                                option)
     call RichardsBCFlux(ibndtype,auxvars, &
                         rich_auxvar_pert_up,global_auxvar_pert_up, &
@@ -891,15 +817,17 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
-         HET_DIRICHLET)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
+         HET_SURF_SEEPAGE_BC, &
+         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3) = vector(3) - unit vector
       dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-      if (pressure_bc_type == CONDUCTANCE_BC) then
+      if (pressure_bc_type == CONDUCTANCE_BC .or. &
+          pressure_bc_type == HET_CONDUCTANCE_BC) then
         Dq = auxvars(RICHARDS_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dist(0)
@@ -920,39 +848,21 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
        
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
-        if (pressure_bc_type == SEEPAGE_BC .or. &
-            pressure_bc_type == CONDUCTANCE_BC .or. &
-            pressure_bc_type == HET_SURF_SEEPAGE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
-            dphi = 0.d0
-          endif
-        endif
+        select case(pressure_bc_type)
+          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+               HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+                ! flow in
+            if (dphi > 0.d0 .and. &
+                ! boundary cell is <= pref
+                global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+              dphi = 0.d0
+            endif
+        end select
    
        if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY       
-         if (dabs(dabs(dist(1))-1) < 1e-6) then
-           ukvr = rich_auxvar_up%kvr_x
-         else if (dabs(dabs(dist(2))-1) < 1e-6) then
-           ukvr = rich_auxvar_up%kvr_y
-         else if (dabs(dabs(dist(3))-1) < 1e-6) then
-           ukvr = rich_auxvar_up%kvr_z
-         end if
-#else
          ukvr = rich_auxvar_up%kvr
-#endif
        else
-#ifdef USE_ANISOTROPIC_MOBILITY
-         if (dabs(dabs(dist(1))-1) < 1e-6) then
-           ukvr = rich_auxvar_dn%kvr_x
-         else if (dabs(dabs(dist(2))-1) < 1e-6) then
-           ukvr = rich_auxvar_dn%kvr_y
-         else if (dabs(dabs(dist(3))-1) < 1e-6) then
-           ukvr = rich_auxvar_dn%kvr_z
-         end if
-#else
          ukvr = rich_auxvar_dn%kvr
-#endif
        endif
         
        if (ukvr*Dq>floweps) then
@@ -960,14 +870,15 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water.
-        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
+        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. &
+            option%surf_flow_on) then
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 
-          if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+          if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
             if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
 
-              if (rich_auxvar_dn%vars_for_sflow(7) == -99999.d0) then
+              if (Equal(rich_auxvar_dn%vars_for_sflow(7),-99999.d0)) then
                 call printErrMsg(option,'Coeffs for linear approx for darcy flux not set')
               endif
 
@@ -982,7 +893,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
             else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
 
-              if (rich_auxvar_dn%vars_for_sflow(3) == -99999.d0) then
+              if (Equal(rich_auxvar_dn%vars_for_sflow(3),-99999.d0)) then
                 call printErrMsg(option,'Coeffs for cubic approx for darcy flux not set')
               endif
 
@@ -1015,17 +926,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
       density_ave = global_auxvar_dn%den(1)
 
       ! since boundary auxvar is meaningless (no pressure specified there), only use cell
-#ifdef USE_ANISOTROPIC_MOBILITY
-      if (dabs(dabs(dist(1))-1) < 1e-6) then
-        ukvr = rich_auxvar_dn%kvr_x
-      else if (dabs(dabs(dist(2))-1) < 1e-6) then
-        ukvr = rich_auxvar_dn%kvr_y
-      else if (dabs(dabs(dist(3))-1) < 1e-6) then
-        ukvr = rich_auxvar_dn%kvr_z
-      end if
-#else
       ukvr = rich_auxvar_dn%kvr
-#endif
      
       if (ukvr*perm_dn>floweps) then
         v_darcy = perm_dn * ukvr * dphi

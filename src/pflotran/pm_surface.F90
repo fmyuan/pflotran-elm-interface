@@ -24,6 +24,7 @@ module PM_Surface_class
     procedure, public :: Setup => PMSurfaceSetup
     procedure, public :: PMSurfaceSetRealization
     procedure, public :: InitializeRun => PMSurfaceInitializeRun
+    procedure, public :: FinalizeRun => PMSurfaceFinalizeRun
     procedure, public :: PreSolve => PMSurfacePreSolve
     procedure, public :: PostSolve => PMSurfacePostSolve
     procedure, public :: CheckpointBinary => PMSurfaceCheckpointBinary
@@ -252,8 +253,7 @@ subroutine PMSurfaceUpdateSolution(this)
 
   ! begin from RealizationUpdate()
   call FlowConditionUpdate(this%surf_realization%surf_flow_conditions, &
-                           this%surf_realization%option, &
-                           this%surf_realization%option%time)
+                           this%surf_realization%option)
 
   call RealizSurfAllCouplerAuxVars(this%surf_realization,force_update_flag)
 

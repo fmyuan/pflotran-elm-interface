@@ -218,7 +218,7 @@ END
 
 \begin{semiverbatim}
 mpirun -n 8 pflotran
-  -input_prefix stochastic_regional_model
+  -input_prefix stochastic_regional_doublet
   -stochastic
   -num_realizations 10
   -num_groups 2
@@ -229,7 +229,7 @@ or to run a single realization (e.g. \#5)
 
 \begin{semiverbatim}
 mpirun -n 8 pflotran
-  -input_prefix stochastic_regional_model
+  -input_prefix stochastic_regional_doublet
   -realization_id 5
 \end{semiverbatim}
 

@@ -13,15 +13,13 @@ SIMULATION
       OPTIONS
         MAX_PRESSURE_CHANGE 1.e5
         MAX_TEMPERATURE_CHANGE 5.
+        MULTIPLE_CONTINUUM
       /
     /
   /
 END
 
 SUBSURFACE
-
-
-MULTIPLE_CONTINUUM
 
 #=========================== regression ===================================
 REGRESSION

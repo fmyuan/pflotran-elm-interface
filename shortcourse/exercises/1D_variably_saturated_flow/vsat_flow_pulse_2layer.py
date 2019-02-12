@@ -15,7 +15,7 @@ import pflotran as pft
 path = []
 path.append('.')
 
-files = pft.get_tec_filenames('vsat_flow_pulse_2layer',range(0,36,5))
+files = pft.get_tec_filenames('vsat_flow_pulse_2layer',range(0,6,1))
 filenames = pft.get_full_paths(path,files)
 
 f = plt.figure(figsize=(6,6))
@@ -29,14 +29,20 @@ plt.xlim(0.,1.)
 #plt.grid(True)
 
 line_styles = []
-for i in range(7):
+for i in range(5):
   line_styles.append('-')
 line_styles.append('--')
+
+line_widths = []
+for i in range(5):
+  line_widths.append(1)
+line_widths.append(2)
+
 
 for ifile in range(len(filenames)):
   data = pft.Dataset(filenames[ifile],5,3)
   plt.plot(data.get_array('x'),data.get_array('y'),label=data.title, \
-           ls=line_styles[ifile])
+           ls=line_styles[ifile],lw=line_widths[ifile])
 
 #'best'         : 0, (only implemented for axis legends)
 #'upper right'  : 1,

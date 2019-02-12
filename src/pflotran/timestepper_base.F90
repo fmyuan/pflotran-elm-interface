@@ -2,6 +2,7 @@ module Timestepper_Base_class
  
 #include "petsc/finclude/petscsys.h"
   use Waypoint_module 
+  use Solver_module
  
   use PFLOTRAN_Constants_module
 
@@ -24,10 +25,11 @@ module Timestepper_Base_class
 
     PetscInt :: max_time_step                ! Maximum number of time steps to be taken by the code.
     PetscInt :: max_time_step_cuts           ! Maximum number of timestep cuts within one time step.
-    PetscReal :: time_step_reduction_factor  ! scaling factor by which timestep is reduced.
-    PetscInt :: constant_time_step_threshold        ! Steps needed after cutting to increase time step
+    PetscReal :: time_step_reduction_factor  ! Scaling factor by which timestep is reduced.
+    PetscReal :: time_step_max_growth_factor ! Maximum scaling factor by which timestep is increasd.
+    PetscInt :: constant_time_step_threshold ! Steps needed after cutting to increase time step
 
-    PetscInt :: cumulative_time_step_cuts       ! Total number of cuts in the timestep taken.    
+    PetscInt :: cumulative_time_step_cuts    ! Total number of cuts in the timestep taken.    
     PetscReal :: cumulative_solver_time
     
     PetscReal :: dt
@@ -37,6 +39,7 @@ module Timestepper_Base_class
     PetscReal :: dt_max
     PetscBool :: revert_dt
     PetscInt :: num_contig_revert_due_to_sync
+    PetscInt :: max_num_contig_revert
     
     PetscBool :: init_to_steady_state
     PetscBool :: run_as_steady_state
@@ -52,6 +55,8 @@ module Timestepper_Base_class
 
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
+
+    type(solver_type), pointer :: solver
 
   contains
     
@@ -145,6 +150,7 @@ subroutine TimestepperBaseInit(this)
   this%max_time_step = 999999
   this%max_time_step_cuts = 16
   this%time_step_reduction_factor = 0.5d0
+  this%time_step_max_growth_factor = 2.d0
   this%constant_time_step_threshold = 5
 
   this%cumulative_time_step_cuts = 0    
@@ -171,6 +177,7 @@ subroutine TimestepperBaseInit(this)
   nullify(this%prev_waypoint)
   this%revert_dt = PETSC_FALSE
   this%num_contig_revert_due_to_sync = 0
+  this%max_num_contig_revert = 2
   this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
@@ -195,11 +202,15 @@ subroutine TimestepperBaseInitializeRun(this,option)
   
   call this%PrintInfo(option)
   option%time = this%target_time
-  ! For the case where the second waypoint is a printout after the first time 
-  ! step, we must increment the waypoint beyond the first (time=0.) waypoint.  
-  ! Otherwise the second time step will be zero. - geh
-  if (this%cur_waypoint%time < 1.d-40) then
-    this%cur_waypoint => this%cur_waypoint%next
+  ! cur_waypoint may be null due to restart of a simulation that reached 
+  ! its final time
+  if (associated(this%cur_waypoint)) then 
+    ! For the case where the second waypoint is a printout after the 
+    ! first time step, we must increment the waypoint beyond the first 
+    ! (time=0.) waypoint. ! Otherwise the second time step will be zero. - geh
+    if (this%cur_waypoint%time < 1.d-40) then
+      this%cur_waypoint => this%cur_waypoint%next
+    endif
   endif
 
 end subroutine TimestepperBaseInitializeRun
@@ -251,38 +262,51 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   type(input_type) :: input
   type(option_type) :: option
 
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'TIMESTEPPER'
+
   select case(trim(keyword))
 
     case('NUM_STEPS_AFTER_TS_CUT')
       call InputReadInt(input,option,this%constant_time_step_threshold)
       call InputErrorMsg(input,option,'num_constant_time_steps_after_ts_cut', &
-                         'TIMESTEPPER')
-
-    case('MAX_STEPS')
+                         error_string)
+    case('MAX_STEPS','MAXIMUM_NUMBER_OF_TIMESTEPS')
       call InputReadInt(input,option,this%max_time_step)
-      call InputErrorMsg(input,option,'max_time_step','TIMESTEPPER')
-  
-    case('MAX_TS_CUTS')
+      call InputErrorMsg(input,option,'max_time_step',error_string)
+    case('MAX_TS_CUTS','MAXIMUM_CONSECUTIVE_TS_CUTS')
       call InputReadInt(input,option,this%max_time_step_cuts)
-      call InputErrorMsg(input,option,'max_time_step_cuts','TIMESTEPPER')
-        
+      call InputErrorMsg(input,option,'max_time_step_cuts',error_string)
+    case('MAX_NUM_CONTIGUOUS_REVERTS')
+      call InputReadInt(input,option,this%max_num_contig_revert)
+      call InputErrorMsg(input,option,'max_num_contig_reverts',error_string)
+    case('TIMESTEP_MINIMUM_SIZE')
+      call InputReadDouble(input,option,this%dt_min)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%dt_min,'sec', &
+                                    trim(error_string)//','//keyword,option)
     case('TIMESTEP_REDUCTION_FACTOR')
       call InputReadDouble(input,option,this%time_step_reduction_factor)
-      call InputErrorMsg(input,option,'timestep reduction factor','TIMESTEPPER')
-        
+      call InputErrorMsg(input,option,'timestep reduction factor',error_string)
+    case('TIMESTEP_MAXIMUM_GROWTH_FACTOR')
+      call InputReadDouble(input,option,this%time_step_max_growth_factor)
+      call InputErrorMsg(input,option,'timestep maximum growth factor', &
+                         error_string)
+    case('TIMESTEP_OVERSTEP_REL_TOLERANCE')
+      call InputReadDouble(input,option,this%time_step_tolerance)
+      call InputErrorMsg(input,option,'timestep overstep tolerance', &
+                         error_string)
     case('INITIALIZE_TO_STEADY_STATE')
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)
       call InputErrorMsg(input,option,'steady state convergence relative &
-                         &tolerance','TIMESTEPPER')
-
+                         &tolerance',error_string)
     case('RUN_AS_STEADY_STATE')
       this%run_as_steady_state = PETSC_TRUE
-
     case('PRINT_EKG')
       this%print_ekg = PETSC_TRUE
       option%print_ekg = PETSC_TRUE
-
     case('MAX_PRESSURE_CHANGE','MAX_TEMPERATURE_CHANGE', &
          'MAX_CONCENTRATION_CHANGE','MAX_SATURATION_CHANGE', &
          'PRESSURE_DAMPENING_FACTOR','SATURATION_CHANGE_LIMIT', &
@@ -291,7 +315,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
         &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
       call printErrMsg(option)
     case default
-      call InputKeywordUnrecognized(keyword,'TIMESTEPPER',option)
+      call InputKeywordUnrecognized(keyword,error_string,option)
   end select
 
 end subroutine TimestepperBaseProcessKeyword
@@ -381,11 +405,12 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   else
     ! If the maximum time step size decreased in the past step, need to set
     ! the time step size to the minimum of the this%prev_dt and 
-    ! this%dt_max.  However, if we have to revert twice in a row, throw 
-    ! away the old time step and move on.
-    if (this%revert_dt .and. &
-        this%num_contig_revert_due_to_sync < 2) then
-      this%dt = min(this%prev_dt,this%dt_max)
+    ! this%dt_max.  However, if we have to revert "max_num_contig_revert" 
+    ! times in a row, throw away the old time step and move on.
+    if (this%revert_dt) then
+      if (this%num_contig_revert_due_to_sync < this%max_num_contig_revert) then
+        this%dt = min(this%prev_dt,this%dt_max)
+      endif
     endif
   endif
   this%revert_dt = PETSC_FALSE ! reset back to false
@@ -566,40 +591,30 @@ subroutine TimestepperBasePrintInfo(this,option)
   ! 
 
   use Option_module
+  use String_module
   
   implicit none
   
   class(timestepper_base_type) :: this
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
-  
-  if (OptionPrintToScreen(option)) then
-    write(*,*) 
-    write(*,'(a)') trim(this%name) // ' Time Stepper'
-    write(string,*) this%max_time_step
-    write(*,'("max steps:",x,a)') trim(adjustl(string))
-    write(string,*) this%constant_time_step_threshold
-    write(*,'("max constant cumulative time steps:",x,a)') &
-      trim(adjustl(string))
-    write(string,*) this%max_time_step_cuts
-    write(*,'("max cuts:",x,a)') trim(adjustl(string))
-    write(string,*) this%time_step_reduction_factor
-    write(*,'("ts reduction factor:",x,a)') trim(adjustl(string))
-  endif
-  if (OptionPrintToFile(option)) then
-    write(option%fid_out,*) 
-    write(option%fid_out,'(a)') trim(this%name) // ' Time Stepper'
-    write(string,*) this%max_time_step
-    write(option%fid_out,'("max steps:",x,a)') trim(adjustl(string))
-    write(string,*) this%constant_time_step_threshold
-    write(option%fid_out,'("max constant cumulative time steps:",x,a)') &
-      trim(adjustl(string))
-    write(string,*) this%max_time_step_cuts
-    write(option%fid_out,'("max cuts:",x,a)') trim(adjustl(string))
-    write(string,*) this%time_step_reduction_factor
-    write(option%fid_out,'("ts reduction factor:",x,a)') trim(adjustl(string))
-  endif    
+  PetscInt :: fids(2)
+  character(len=MAXSTRINGLENGTH) :: strings(10)
+
+  fids = OptionGetFIDs(option)
+  ! header is printed in daughter class
+  strings(:) = ''
+  strings(1) = 'maximum number of steps: ' // StringWrite(this%max_time_step)
+  strings(2) = 'constant time steps threshold: ' // &
+                              StringWrite(this%constant_time_step_threshold)
+  strings(3) = 'maximum number of cuts: ' // &
+                                        StringWrite(this%max_time_step_cuts)
+  strings(4) = 'reduction factor: ' // &
+                                StringWrite(this%time_step_reduction_factor)
+  strings(5) = 'maximum growth factor: ' // &
+                               StringWrite(this%time_step_max_growth_factor)
+  call StringsCenter(strings,30,':')
+  call StringWriteToUnits(fids,strings)
 
 end subroutine TimestepperBasePrintInfo
 
@@ -618,7 +633,7 @@ subroutine TimestepperBaseInputRecord(this)
   class(timestepper_base_type) :: this
 
 #ifdef DEBUG
-  call printMsg(this%option,'TimestepperBaseInputRecord()')
+  write(*,*) 'TimestepperBaseInputRecord()'
 #endif
 
   write(*,*) 'TimestepperBaseInputRecord must be extended for &
@@ -657,20 +672,20 @@ end subroutine TimestepperBaseCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseCheckpointHDF5(this, chk_grp_id, option)
+subroutine TimestepperBaseCheckpointHDF5(this, h5_chk_grp_id, option)
   ! 
   ! Checkpoints parameters/variables associated with a time stepper to a HDF5.
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 07/30/15
   ! 
-
   use Option_module
+  use hdf5
 
   implicit none
   
   class(timestepper_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseCheckpointHDF5 must be extended.'
@@ -680,20 +695,20 @@ end subroutine TimestepperBaseCheckpointHDF5
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseRestartHDF5(this, chk_grp_id, option)
+subroutine TimestepperBaseRestartHDF5(this, h5_chk_grp_id, option)
   ! 
   ! Restart parameters/variables associated with a time stepper to a HDF5.
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/15
   ! 
-
   use Option_module
+  use hdf5
 
   implicit none
 
   class(timestepper_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseRestartHDF5 must be extended.'

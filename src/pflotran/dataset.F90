@@ -26,6 +26,7 @@ module Dataset_module
             DatasetGetClass, &
             DatasetPrint, &
             DatasetReadDoubleOrDataset, &
+            DatasetGetMinRValue, &
             DatasetDestroy
 
 contains
@@ -184,7 +185,6 @@ subroutine DatasetVerify(dataset,default_time_storage,header,option)
   type(option_type) :: option
 
   PetscBool :: dataset_error 
-  type(time_storage_type), pointer :: default
 
   if (.not.associated(dataset)) return
 
@@ -216,7 +216,7 @@ end subroutine DatasetVerify
 
 ! ************************************************************************** !
 
-recursive subroutine DatasetUpdate(dataset,time,option)
+recursive subroutine DatasetUpdate(dataset,option)
   ! 
   ! Updates a dataset based on type
   ! 
@@ -228,7 +228,6 @@ recursive subroutine DatasetUpdate(dataset,time,option)
   
   implicit none
   
-  PetscReal :: time
   class(dataset_base_type), pointer :: dataset
   type(option_type) :: option
 
@@ -237,7 +236,7 @@ recursive subroutine DatasetUpdate(dataset,time,option)
   if (.not.associated(dataset)) return
 
   if (associated(dataset%time_storage)) then
-    dataset%time_storage%cur_time = time
+    dataset%time_storage%cur_time = option%time
   endif
   select type (selector => dataset)
     class is (dataset_ascii_type)
@@ -356,7 +355,8 @@ subroutine DatasetFindInList(list,dataset_base,default_time_storage, &
         if (associated(dataset_base%time_storage)) then
           dataset_base%time_storage%force_update = PETSC_TRUE  
         endif
-        call DatasetUpdate(dataset_base,time,option)
+        option%time = time
+        call DatasetUpdate(dataset_base,option)
     end select
   endif
 
@@ -509,6 +509,55 @@ subroutine DatasetReadDoubleOrDataset(input,double_value,dataset, &
   endif
   
 end subroutine DatasetReadDoubleOrDataset
+
+! ************************************************************************** !
+
+function DatasetGetMinRValue(dataset,option)
+  ! 
+  ! Returns the minimum value in a dataset.  Considers distributed datasets.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(dataset_base_type) :: dataset
+  type(option_type) :: option
+
+  PetscReal :: DatasetGetMinRValue
+
+  PetscBool :: global_reduction_flag
+  PetscErrorCode :: ierr
+
+  global_reduction_flag = PETSC_TRUE
+  DatasetGetMinRValue = 1.d20
+
+  if (associated(dataset%rarray)) then
+    DatasetGetMinRValue =  minval(dataset%rarray)
+  endif
+  
+  select type (dataset)
+    class is (dataset_ascii_type)
+    class is (dataset_global_hdf5_type)
+      global_reduction_flag = PETSC_TRUE
+    class is (dataset_gridded_hdf5_type)
+    class is (dataset_map_hdf5_type)
+      global_reduction_flag = PETSC_TRUE
+    class is (dataset_common_hdf5_type)
+      global_reduction_flag = PETSC_TRUE
+    class is (dataset_base_type)
+    class default
+  end select
+
+  if (global_reduction_flag) then
+    call MPI_Allreduce(MPI_IN_PLACE,DatasetGetMinRValue,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+  endif
+  
+end function DatasetGetMinRValue
 
 ! ************************************************************************** !
 

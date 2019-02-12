@@ -5,7 +5,8 @@ module Factory_Surface_module
   use Simulation_Surface_class
 
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -142,8 +143,8 @@ subroutine SurfaceJumpStart(simulation)
     call SurfaceRestart(surf_realization,surf_flow_prev_dt,surf_flow_read)
 
     if (option%time /= option%surf_flow_time) then
-      option%io_buffer = 'option%time does not match option%surf_flow_time' // &
-        ' while restarting simulation. Check the restart files.'
+      option%io_buffer = 'option%time does not match option%surf_flow_time &
+        &while restarting simulation. Check the restart files.'
       call printErrMsg(option)
     endif
 
@@ -169,8 +170,8 @@ subroutine SurfaceJumpStart(simulation)
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
-                       '), specified by TIMESTEPPER->MAX_STEPS, ' // &
-                       'has been met.  Stopping....'  
+                       '), specified by TIMESTEPPER->MAX_STEPS, &
+                       &has been met.  Stopping....'  
     call printMsg(option)
     call printMsg(option,'')
     return
@@ -193,8 +194,8 @@ subroutine SurfaceJumpStart(simulation)
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
-                       '), specified by TIMESTEPPER->MAX_STEPS, ' // &
-                       'has been met.  Stopping....'  
+                       '), specified by TIMESTEPPER->MAX_STEPS, &
+                       &has been met.  Stopping....'  
     call printMsg(option)
     call printMsg(option,'') 
     return
@@ -756,17 +757,17 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
             output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
             output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
             if (aveg_mass_flowrate.or.aveg_energy_flowrate) then
-              if (output_option%periodic_snap_output_time_incr==0.d0) then
-                option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ ' // &
-                  'AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without' // &
-                  ' PERIODIC TIME being set.'
+              if (Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
+                option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ &
+                  &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without &
+                  &PERIODIC TIME being set.'
                 call printErrMsg(option)
               endif
             endif
             option%flow%store_fluxes = PETSC_TRUE
           else
-            option%io_buffer='Output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE ' // &
-              'only available in HDF5 format'
+            option%io_buffer='Output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE &
+              &only available in HDF5 format'
             call printErrMsg(option)
           endif
         endif
@@ -829,25 +830,12 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
       case ('SURF_RESTART')
         option%io_buffer = 'The SURF_RESTART card within SURFACE_FLOW &
                            &block has been deprecated.'      
-        !option%surf_restart_flag = PETSC_TRUE
-        !call InputReadNChars(input,option,option%surf_restart_filename, &
-        !                     MAXSTRINGLENGTH,PETSC_TRUE)
-        !call InputErrorMsg(input,option,'SURF_RESTART','Surface restart &
-        !                                               &file name') 
-        !call InputReadDouble(input,option,option%restart_time)
-        !if (input%ierr == 0) then
-        !  call printErrMsg(option,'Setting time to value not supported in &
-        !                          &surface-flow')
-        !endif
-        !option%first_step_after_restart = PETSC_TRUE
 
 !......................
 
       case ('SURF_CHECKPOINT')
         option%io_buffer = 'The SURF_CHECKPOINT card within SURFACE_FLOW &
                            &block has been deprecated.'      
-!        call CheckpointRead(input,option,surf_realization%checkpoint_option, &
-!                            surf_realization%waypoint_list)
         
 !......................
 

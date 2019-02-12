@@ -212,6 +212,9 @@ subroutine GeneralSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call GeneralSetPlotVariables(realization,list)
   
+  general_ts_count = 0
+  general_ts_cut_count = 0
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
   debug_iteration_count = 0
@@ -223,6 +226,8 @@ subroutine GeneralSetup(realization)
   write(debug_info_unit,*) 'type timestep cut iteration'
   close(debug_info_unit)
 #endif  
+
+  call PatchSetupUpwindDirection(patch,option)
 
 end subroutine GeneralSetup
 
@@ -237,13 +242,17 @@ subroutine GeneralInitializeTimestep(realization)
   ! 
 
   use Realization_Subsurface_class
+  use Upwind_Direction_module
   
   implicit none
   
   type(realization_subsurface_type) :: realization
 
+  general_newton_iteration_number = 0
+  update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
 !  if (realization%option%time >= 35.6d0*3600d0*24.d0*365.d0 - 1.d-40) then
@@ -305,6 +314,9 @@ subroutine GeneralUpdateSolution(realization)
       global_auxvars(ghosted_id)%istate
   enddo
   
+  general_ts_count = general_ts_count + 1
+  general_ts_cut_count = 0
+  general_ni_count = 0
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_iteration_count = 0
   debug_timestep_cut_count = 0
@@ -353,6 +365,7 @@ subroutine GeneralTimeCut(realization)
       gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
   enddo
 
+  general_ts_cut_count = general_ts_cut_count + 1
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_timestep_cut_count = debug_timestep_cut_count + 1
 #endif 
@@ -675,22 +688,31 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:)  
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)  
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
+                                        gen_auxvars_ss(:)
+  type(general_auxvar_type) :: gen_auxvar, gen_auxvar_ss
+  type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
+  type(global_auxvar_type), pointer :: global_auxvars(:), &
+                                       global_auxvars_bc(:), global_auxvars_ss(:)
+  
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end
+  PetscInt :: ghosted_start, ghosted_end, ssn, i
   PetscInt :: iphasebc, iphase
   PetscInt :: offset
   PetscInt :: istate
+  PetscInt :: wat_comp_id, air_comp_id
   PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
   PetscReal :: saturation_pressure, temperature
-  PetscInt :: real_index, variable
+  PetscReal :: qsrc(3)
+  PetscInt :: real_index, variable, flow_src_sink_type
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal :: xxbc(realization%option%nflowdof)
+  PetscReal :: xxbc(realization%option%nflowdof), & 
+               xxss(realization%option%nflowdof)
+  PetscReal :: cell_pressure,qsrc_vol(2),scale
 !#define DEBUG_AUXVARS
 #ifdef DEBUG_AUXVARS
   character(len=MAXWORDLENGTH) :: word
@@ -705,6 +727,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
+  gen_auxvars_ss => patch%aux%General%auxvars_ss
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
@@ -752,11 +776,11 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                               PETSC_TRUE,option)
 #endif
 #ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', natural_id, &
+    if (debug_flag > 0) then
+      write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', natural_id, &
                         global_auxvars(ghosted_id)%istate, &
                         xx_loc_p(ghosted_start:ghosted_end)
-  endif
+    endif
 #endif
   enddo
 
@@ -911,7 +935,119 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     enddo
     boundary_condition => boundary_condition%next
   enddo
+  
+  wat_comp_id = option%water_id
+  air_comp_id = option%air_id
+  source_sink => patch%source_sink_list%first
+  ssn = 0
+  do
+  
+    if (.not.associated(source_sink)) exit
+    do i = 1,source_sink%region%num_cells
+      
+      ssn = ssn+1
+      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
+      gen_auxvar = gen_auxvars(ZERO_INTEGER,source_sink%region%cell_ids(i))
+      global_auxvar = global_auxvars(source_sink%region%cell_ids(i))
+      gen_auxvar_ss = gen_auxvars_ss(ssn)
+      global_auxvar_ss = global_auxvars_ss(ssn)
+    
+      if (associated(gen_auxvar%d)) then
+        allocate(gen_auxvar_ss%d)
+      endif
+    
+      flow_src_sink_type = source_sink%flow_condition%general%rate%itype
+    
+      if (associated(source_sink%flow_condition%general%temperature)) then
+        gen_auxvar_ss%temp = source_sink%flow_condition%general% &
+                           temperature%dataset%rarray(1)
+      else
+        gen_auxvar_ss%temp = gen_auxvar%temp
+      endif
+    
+      ! Check if liquid pressure is set
+      if (associated(source_sink%flow_condition%general%liquid_pressure)) then
+        gen_auxvar_ss%pres(wat_comp_id) = source_sink%flow_condition% &
+                                    general%liquid_pressure%dataset%rarray(1)
+      else
+        gen_auxvar_ss%pres(wat_comp_id) = gen_auxvar%pres(option%liquid_phase)
+      endif
+    
+      ! Check if gas pressure is set
+      if (associated(source_sink%flow_condition%general%gas_pressure)) then
+        gen_auxvar_ss%pres(air_comp_id) = source_sink%flow_condition% &
+                               general%gas_pressure%dataset%rarray(1)
+      else
+        gen_auxvar_ss%pres(air_comp_id) = gen_auxvar%pres(option%gas_phase)
+      endif
+    
+      select case(flow_src_sink_type)
+      case(MASS_RATE_SS)
+        qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+                              gen_auxvar%den(air_comp_id))
+        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+                              gen_auxvar%den(wat_comp_id))
+      case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
+        qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+                              gen_auxvar%den(air_comp_id))*scale 
+        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+                              gen_auxvar%den(wat_comp_id))*scale 
+      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+      ! qsrc1 = m^3/sec             ! den = kmol/m^3
+        qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
+        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
+      end select
+    
+      xxss(1) = maxval(gen_auxvar_ss%pres(option% &
+                     liquid_phase:option%gas_phase))
+      xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
+              + qsrc_vol(air_comp_id))
+      xxss(3) = gen_auxvar_ss%temp
+    
+      cell_pressure = maxval(gen_auxvar%pres(option% &
+                           liquid_phase:option%gas_phase))    
+    
+      if (cell_pressure>xxss(1) .or. qsrc(wat_comp_id)<0 .or. &
+         qsrc(air_comp_id)<0.d0) then
+        xxss(1) = cell_pressure
+        xxss(2) = gen_auxvar%sat(air_comp_id)
+        xxss(3) = gen_auxvar%temp
+      endif
+    
+      if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
+          dabs(qsrc(air_comp_id)) > 0.d0) then
+        global_auxvar_ss%istate = TWO_PHASE_STATE
+      elseif (dabs(qsrc(wat_comp_id)) > 0.d0) then
+        global_auxvar_ss%istate = LIQUID_STATE
+      elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
+        global_auxvar_ss%istate = GAS_STATE
+      else
+        global_auxvar_ss%istate = TWO_PHASE_STATE
+      endif
+    
+      if (global_auxvar_ss%istate /= global_auxvar%istate) then
+        global_auxvar_ss%istate = TWO_PHASE_STATE
+      endif
+    
+      allocate(global_auxvar_ss%m_nacl(1))
+      global_auxvar_ss%m_nacl(1) = 0.d0
+      option%iflag = GENERAL_UPDATE_FOR_SS
+    
+      ! Compute state variables 
+      call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
+                                global_auxvar_ss, &
+                                material_auxvars(source_sink% &
+                                region%cell_ids(1)), &
+                                patch%characteristic_curves_array( &
+                                patch%sat_func_id(source_sink%region% &
+                                cell_ids(1)))%ptr, &
+                                source_sink%region%cell_ids(1), &
+                                option)
 
+      gen_auxvars_ss(ssn) = gen_auxvar_ss
+    enddo
+    source_sink => source_sink%next
+  enddo
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
   patch%aux%General%auxvars_up_to_date = PETSC_TRUE
@@ -1040,6 +1176,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use Upwind_Direction_module
 
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
@@ -1055,7 +1192,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
-  Mat, parameter :: null_mat = tMat(-1)
+  Mat, parameter :: null_mat = tMat(0)
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -1065,7 +1202,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   type(coupler_type), pointer :: source_sink
   type(material_parameter_type), pointer :: material_parameter
   type(general_parameter_type), pointer :: general_parameter
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:)
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
+                                        gen_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
@@ -1083,10 +1221,14 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt, save :: iplot = 0
+  PetscInt :: flow_src_sink_type
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
+  
+  PetscReal :: qsrc(3)
+  PetscInt :: ssn
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -1105,6 +1247,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   material_parameter => patch%aux%Material%material_parameter
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
+  gen_auxvars_ss => patch%aux%General%auxvars_ss
   general_parameter => patch%aux%General%general_parameter
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
@@ -1128,6 +1271,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     close(debug_info_unit)
   endif
 #endif
+
+  general_newton_iteration_number = general_newton_iteration_number + 1
+  ! bragflo uses the following logic, update when
+  !   it == 1, before entering iteration loop
+  !   it > 1 and mod(it-1,frequency) == 0
+  ! the first is set in GeneralInitializeTimestep, the second is set here
+  if (general_newton_iteration_number > 1 .and. &
+      mod(general_newton_iteration_number-1, &
+          upwind_dir_update_freq) == 0) then
+    update_upwind_direction = PETSC_TRUE
+  endif
 
   ! Communication -----------------------------------------
   ! These 3 must be called before GeneralUpdateAuxVars()
@@ -1238,9 +1392,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        material_parameter%soil_thermal_conductivity(:,imat_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
+                       patch%flow_upwind_direction(:,iconn), &
                        general_parameter,option,v_darcy,Res, &
                        Jac_dummy,Jac_dummy, &
                        general_analytical_derivatives, &
+                       update_upwind_direction, &
+                       count_upwind_direction_flip, &
                        (local_id_up == general_debug_cell_id .or. &
                         local_id_dn == general_debug_cell_id))
 
@@ -1300,9 +1457,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction_bc(:,iconn), &
                      general_parameter,option, &
                      v_darcy,Res,Jac_dummy, &
                      general_analytical_derivatives, &
+                     update_upwind_direction, &
+                     count_upwind_direction_flip, &
                      local_id == general_debug_cell_id)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -1326,9 +1486,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
   sum_connection = 0
+  ssn=0
   do 
     if (.not.associated(source_sink)) exit
-    
+    ssn=ssn+1
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
@@ -1345,10 +1506,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       else
         scale = 1.d0
       endif
+
+      qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
+      flow_src_sink_type=source_sink%flow_condition%general%rate%itype
       
-      call GeneralSrcSink(option,source_sink%flow_condition%general%rate% &
-                                  dataset%rarray(:), &
-                          source_sink%flow_condition%general%rate%itype, &
+      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+                          gen_auxvars_ss(ssn), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
@@ -1439,16 +1602,20 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   
   
   if (realization%debug%vecview_residual) then
-    string = 'Gresidual'
+    call DebugWriteFilename(realization%debug,string,'Gresidual','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%vecview_solution) then
-    string = 'Gxx'
+    call DebugWriteFilename(realization%debug,string,'Gxx','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 #ifdef DEBUG_GENERAL_FILEOUTPUT
@@ -1456,6 +1623,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     close(debug_unit)
   endif
 #endif
+
+  update_upwind_direction = PETSC_FALSE
   
 end subroutine GeneralResidual
 
@@ -1478,6 +1647,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use Upwind_Direction_module
 
   implicit none
 
@@ -1499,7 +1669,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: irow
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  Vec, parameter :: null_vec = tVec(-1)
+  Vec, parameter :: null_vec = tVec(0)
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
@@ -1508,7 +1678,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
-  PetscInt :: sum_connection  
+  PetscInt :: sum_connection 
+  PetscInt :: ssn
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
   PetscInt, pointer :: zeros(:)
@@ -1518,7 +1689,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(field_type), pointer :: field 
   type(material_parameter_type), pointer :: material_parameter
   type(general_parameter_type), pointer :: general_parameter
-  type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:)
+  type(general_auxvar_type), pointer :: gen_auxvars(:,:), &
+                                        gen_auxvars_bc(:), &
+                                        gen_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
   
@@ -1532,6 +1705,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   material_parameter => patch%aux%Material%material_parameter
   gen_auxvars => patch%aux%General%auxvars
   gen_auxvars_bc => patch%aux%General%auxvars_bc
+  gen_auxvars_ss => patch%aux%General%auxvars_ss
   general_parameter => patch%aux%General%general_parameter
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
@@ -1602,10 +1776,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_accum'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_accum','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
 
@@ -1641,6 +1817,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction(:,iconn), &
                      general_parameter,option,&
                      Jup,Jdn)
       if (local_id_up > 0) then
@@ -1664,10 +1841,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_flux'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_flux','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
   ! Boundary Flux Terms -----------------------------------
@@ -1705,6 +1884,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
+                      patch%flow_upwind_direction_bc(:,iconn), &
                       general_parameter,option, &
                       Jdn)
 
@@ -1718,22 +1898,28 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_bcflux'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_bcflux','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
 
   ! Source/sinks
   source_sink => patch%source_sink_list%first 
+  ssn=0
   do 
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
     
-    do iconn = 1, cur_connection_set%num_connections      
+    do iconn = 1, cur_connection_set%num_connections
+      ssn = ssn+1
+      
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+      
       if (patch%imat(ghosted_id) <= 0) cycle
 
       if (associated(source_sink%flow_aux_real_var)) then
@@ -1743,10 +1929,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       endif
       
       Jup = 0.d0
-      call GeneralSrcSinkDerivative(option, &
-                        source_sink%flow_condition%general%rate% &
-                                  dataset%rarray(:), &
-                        source_sink%flow_condition%general%rate%itype, &
+      call GeneralSrcSinkDerivative(option,source_sink,gen_auxvars_ss(ssn), &
                         gen_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         scale,Jup)
@@ -1764,10 +1947,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_srcsink'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_srcsink','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1809,10 +1994,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
   
   if (realization%debug%matview_Jacobian) then
-    string = 'Gjacobian'
+    call DebugWriteFilename(realization%debug,string,'Gjacobian','', &
+                            general_ts_count,general_ts_cut_count, &
+                            general_ni_count)
     call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%norm_Jacobian) then
     option => realization%option
@@ -1851,6 +2038,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     close(debug_unit)
   endif
 #endif
+  ! update after evaluations to ensure zero-based index to match screen output
+  general_ni_count = general_ni_count + 1
 
 end subroutine GeneralJacobian
 
@@ -2007,81 +2196,89 @@ subroutine GeneralSetPlotVariables(realization,list)
     return
   endif
   
-  name = 'Temperature'
-  units = 'C'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               TEMPERATURE)
+  if (list%flow_vars) then
+  
+    name = 'Liquid Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                LIQUID_PRESSURE)
 
-  name = 'Liquid Pressure'
-  units = 'Pa'
-  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                               LIQUID_PRESSURE)
+    name = 'Gas Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                GAS_PRESSURE)
 
-  name = 'Gas Pressure'
-  units = 'Pa'
-  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
-                               GAS_PRESSURE)
-
-  name = 'Liquid Saturation'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                               LIQUID_SATURATION)
+    name = 'Liquid Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                LIQUID_SATURATION)
+    
+    name = 'Gas Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                GAS_SATURATION)
+    
+    name = 'Liquid Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_DENSITY)
+    
+    name = 'Gas Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_DENSITY)
+    
+    name = 'X_g^l'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOLE_FRACTION, &
+                                realization%option%air_id)
+    
+    name = 'X_l^l'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOLE_FRACTION, &
+                                realization%option%water_id)
+    
+    name = 'X_g^g'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_MOLE_FRACTION, &
+                                realization%option%air_id)
+    
+    name = 'X_l^g'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_MOLE_FRACTION, &
+                                realization%option%water_id)
   
-  name = 'Gas Saturation'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-                               GAS_SATURATION)
+  endif
   
-  name = 'Liquid Density'
-  units = 'kg/m^3'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_DENSITY)
+  if (list%energy_vars) then
   
-  name = 'Gas Density'
-  units = 'kg/m^3'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_DENSITY)
+    name = 'Temperature'
+    units = 'C'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                TEMPERATURE)
+    
+    name = 'Liquid Energy'
+    units = 'MJ/kmol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_ENERGY)
+    
+    name = 'Gas Energy'
+    units = 'MJ/kmol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_ENERGY)
+    
+    name = 'Thermodynamic State'
+    units = ''
+    output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
+    output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+    output_variable%iformat = 1 ! integer
+    call OutputVariableAddToList(list,output_variable)   
   
-  name = 'X_g^l'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_MOLE_FRACTION, &
-                               realization%option%air_id)
-  
-  name = 'X_l^l'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_MOLE_FRACTION, &
-                               realization%option%water_id)
-  
-  name = 'X_g^g'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_MOLE_FRACTION, &
-                               realization%option%air_id)
-  
-  name = 'X_l^g'
-  units = ''
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_MOLE_FRACTION, &
-                               realization%option%water_id)
-  
-  name = 'Liquid Energy'
-  units = 'MJ/kmol'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               LIQUID_ENERGY)
-  
-  name = 'Gas Energy'
-  units = 'MJ/kmol'
-  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                               GAS_ENERGY)
-  
-  name = 'Thermodynamic State'
-  units = ''
-  output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
-  output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-  output_variable%iformat = 1 ! integer
-  call OutputVariableAddToList(list,output_variable)   
+  endif
   
 end subroutine GeneralSetPlotVariables
 

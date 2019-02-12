@@ -14,6 +14,7 @@ module Simulation_Geomechanics_class
   use Waypoint_module
   use Simulation_Aux_module
   use Output_Aux_module 
+  use Utility_module, only : Equal
   
   implicit none
 
@@ -178,7 +179,7 @@ subroutine GeomechanicsSimulationExecuteRun(this)
 
     ! If simulation is decoupled subsurfac-geomech simulation, set
     ! dt_coupling to be dt_max
-    if (this%geomech_realization%dt_coupling == 0.d0) then
+    if (Equal(this%geomech_realization%dt_coupling,0.d0)) then
       this%option%io_buffer = 'Set non-zero COUPLING_TIME_SIZE in GEOMECHANICS_TIME.'
       call printErrMsg(this%option)
     else

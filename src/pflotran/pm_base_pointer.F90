@@ -29,12 +29,16 @@ module PM_Base_Pointer_module
             PMJacobian, &
             PMCheckUpdatePre, &
             PMCheckUpdatePost, &
+            PMCheckConvergence, &
             PMRHSFunction, &
             PMResidualPtr, &
             PMJacobianPtr, &
             PMCheckUpdatePrePtr, &
             PMCheckUpdatePostPtr, &
-            PMRHSFunctionPtr
+            PMCheckConvergencePtr, &
+            PMRHSFunctionPtr, &
+            PMIFunctionPtr, &
+            PMIJacobianPtr
 
 contains
 
@@ -207,6 +211,62 @@ end subroutine PMRHSFunctionPtr
 
 ! ************************************************************************** !
 
+subroutine PMIFunctionPtr(ts,time,U,Udot,F,this,ierr)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/20/18
+  ! 
+
+#include "petsc/finclude/petscts.h"
+  use petscts
+  implicit none
+
+  TS :: ts
+  PetscReal :: time
+  Vec :: U, Udot
+  Vec :: F
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+  
+#ifdef DEBUG
+  print *, 'PMIFunctionPtr()'
+#endif
+
+  call this%pm%IFunction(ts,time,U,Udot,F,ierr)
+
+end subroutine PMIFunctionPtr
+
+! ************************************************************************** !
+
+subroutine PMIJacobianPtr(ts,time,U,Udot,shift,A,B,this,ierr)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/20/18
+  ! 
+#include "petsc/finclude/petscts.h"
+  use petscts
+  use Option_module
+  
+  implicit none
+
+  TS :: ts
+  PetscReal :: time
+  Vec :: U, Udot
+  PetscReal :: shift
+  Mat :: A, B
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+  
+#ifdef DEBUG
+  print *, 'PMIJacobianPtr()'
+#endif
+
+  call this%pm%IJacobian(ts,time,U,Udot,shift,A,B,ierr)
+    
+end subroutine PMIJacobianPtr
+
+! ************************************************************************** !
+
 subroutine PMCheckUpdatePre(line_search,X,dX,changed,this,ierr)
   ! 
   ! Wrapper for native call to XXXCheckUpdatePre
@@ -323,5 +383,59 @@ subroutine PMCheckUpdatePostPtr(line_search,X0,dX,X1,dX_changed,X1_changed, &
   call this%pm%CheckUpdatePost(line_search,X0,dX,X1,dX_changed,X1_changed,ierr)
     
 end subroutine PMCheckUpdatePostPtr
+
+! ************************************************************************** !
+
+subroutine PMCheckConvergence(snes,it,xnorm,unorm,fnorm,reason,this,ierr)
+  ! 
+  ! User defined convergence test for a process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
+  implicit none
+
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm ! 2-norm of updated solution
+  PetscReal :: unorm ! 2-norm of update. PETSc refers to this as snorm
+  PetscReal :: fnorm ! 2-norm of updated residual
+  SNESConvergedReason :: reason
+  class(pm_base_type) :: this
+  PetscErrorCode :: ierr
+
+  call this%CheckConvergence(snes,it,xnorm,unorm,fnorm,reason,ierr)
+    
+end subroutine PMCheckConvergence
+
+! ************************************************************************** !
+
+subroutine PMCheckConvergencePtr(snes,it,xnorm,unorm,fnorm,reason,this,ierr)
+  ! 
+  ! User defined convergence test for a process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/15/17
+  ! 
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
+  implicit none
+
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm ! 2-norm of updated solution
+  PetscReal :: unorm ! 2-norm of update. PETSc refers to this as snorm
+  PetscReal :: fnorm ! 2-norm of updated residual
+  SNESConvergedReason :: reason
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+
+  call this%pm%CheckConvergence(snes,it,xnorm,unorm,fnorm,reason,ierr)
+    
+end subroutine PMCheckConvergencePtr
 
 end module PM_Base_Pointer_module

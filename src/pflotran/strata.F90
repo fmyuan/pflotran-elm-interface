@@ -202,14 +202,16 @@ subroutine StrataRead(strata,input,option)
       
     select case(trim(keyword))
     
+      case('FILE')
+        call InputReadFilename(input,option,strata%material_property_filename)
+        call InputErrorMsg(input,option,'material property filename','STRATA')
       case('REGION','SURF_REGION')
         call InputReadWord(input,option,strata%region_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'region name','STRATA')
       case('MATERIAL')
-        call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputReadWord(input,option,strata%material_property_name, &
+                           PETSC_TRUE)
         call InputErrorMsg(input,option,'material property name','STRATA')
-        strata%material_property_name = trim(string)
-        strata%material_property_filename = string
       case('REALIZATION_DEPENDENT')
         strata%realization_dependent = PETSC_TRUE
       case('START_TIME')
@@ -239,6 +241,15 @@ subroutine StrataRead(strata,input,option)
     end select 
   
   enddo
+
+  if (len_trim(strata%region_name) == 0 .and. &
+      len_trim(strata%material_property_name) > 0) then
+    option%io_buffer = 'The MATERIAL property "' // &
+      trim(strata%material_property_name) // '" must have an associated &
+      &REGION in the STRATA block.  Otherwise, please use "FILE <filename>" &
+      &to read material IDs from a file.'
+    call printErrMsg(option)
+  endif
   
   if ((Initialized(strata%start_time) .and. &
        Uninitialized(strata%final_time)) .or. &

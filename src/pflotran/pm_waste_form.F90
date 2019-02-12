@@ -11,6 +11,9 @@ module PM_Waste_Form_class
 ! ===========================================================================
 
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class
@@ -19,9 +22,12 @@ module PM_Waste_Form_class
   use Data_Mediator_Vec_class
   use Dataset_Base_class
   use Region_module
+  use Checkpoint_module
+  use Criticality_module
  
   use PFLOTRAN_Constants_module
-
+  use Utility_module, only : Equal
+  
   implicit none
 
   private
@@ -70,6 +76,8 @@ module PM_Waste_Form_class
 ! ---------------------------------------------------------------------------
 ! rad_species_list(:): pointer to a linked list of radionuclide objects
 ! num_species: [-] number of radionuclides in the waste form inventory
+! seed: [-] integer that provides a seed for the random number
+!    generator for normal distribution
 ! canister_degradation_model: Boolean which indicates if the waste package
 !    degradation model is on or off
 ! vitality_rate_mean: [log10/yr] mean waste package degradation rate, used
@@ -90,6 +98,7 @@ module PM_Waste_Form_class
   type, public :: wf_mechanism_base_type
     type(rad_species_type), pointer :: rad_species_list(:)
     PetscInt :: num_species
+    PetscInt :: seed
     PetscBool :: canister_degradation_model
     PetscReal :: vitality_rate_mean
     PetscReal :: vitality_rate_stdev
@@ -246,6 +255,7 @@ module PM_Waste_Form_class
   type, public, extends(wf_mechanism_base_type) :: wf_mechanism_custom_type
     PetscReal :: dissolution_rate       
     PetscReal :: frac_dissolution_rate 
+    PetscBool :: frac_diss_vol_init
   contains
     procedure, public :: Dissolution => WFMechCustomDissolution
   end type wf_mechanism_custom_type
@@ -291,6 +301,7 @@ module PM_Waste_Form_class
 !    form should start decaying, default time is 0.d0 sec
 ! mech_name: name string for the waste form mechanism object
 ! mechanism: pointer to waste form's mechanism object
+! crit: pointer to the criticality object
 ! next: pointer to next waste form object in linked list
 ! -----------------------------------------------------
   type :: waste_form_base_type
@@ -319,6 +330,7 @@ module PM_Waste_Form_class
     character(len=MAXWORDLENGTH) :: mech_name
     class(wf_mechanism_base_type), pointer :: mechanism
     class(waste_form_base_type), pointer :: next
+    
   end type waste_form_base_type
 ! -----------------------------------------------------
 
@@ -344,10 +356,12 @@ module PM_Waste_Form_class
     class(data_mediator_vec_type), pointer :: data_mediator
     class(waste_form_base_type), pointer :: waste_form_list
     class(wf_mechanism_base_type), pointer :: mechanism_list
+    type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
+    PetscLogDouble :: cumulative_time
   contains
-    procedure, public :: PMWFSetRealization
+    procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
     procedure, public :: Read => PMWFRead
     procedure, public :: InitializeRun => PMWFInitializeRun
@@ -355,11 +369,14 @@ module PM_Waste_Form_class
     procedure, public :: FinalizeTimestep => PMWFFinalizeTimestep
     procedure, public :: UpdateSolution => PMWFUpdateSolution
     procedure, public :: Solve => PMWFSolve
-    procedure, public :: Checkpoint => PMWFCheckpoint    
-    procedure, public :: Restart => PMWFRestart  
+    procedure, public :: CheckpointHDF5 => PMWFCheckpointHDF5
+    procedure, public :: CheckpointBinary => PMWFCheckpointBinary
+    procedure, public :: RestartHDF5 => PMWFRestartHDF5  
+    procedure, public :: RestartBinary => PMWFRestartBinary
     procedure, public :: InputRecord => PMWFInputRecord
     procedure, public :: Destroy => PMWFDestroy
   end type pm_waste_form_type
+
 ! -------------------------------------------------------------------
   
   public :: PMWFCreate, &
@@ -394,6 +411,7 @@ subroutine PMWFMechanismInit(this)
   nullify(this%next)
   nullify(this%rad_species_list)
   this%num_species = 0
+  this%seed = 1
   this%matrix_density = UNINITIALIZED_DOUBLE
   this%specific_surface_area = UNINITIALIZED_DOUBLE
   this%name = ''
@@ -587,6 +605,7 @@ function PMWFMechanismCustomCreate()
   call PMWFMechanismInit(custom)
   custom%dissolution_rate = UNINITIALIZED_DOUBLE      ! kg/m^2/sec
   custom%frac_dissolution_rate = UNINITIALIZED_DOUBLE ! 1/sec
+  custom%frac_diss_vol_init = PETSC_FALSE
   
   PMWFMechanismCustomCreate => custom
 
@@ -697,15 +716,17 @@ function PMWFCreate()
 ! ------------------------------------------------
   
   allocate(PMWFCreate)
+  call PMBaseInit(PMWFCreate)
   nullify(PMWFCreate%realization)
   nullify(PMWFCreate%data_mediator)
   nullify(PMWFCreate%waste_form_list)
-  nullify(PMWFCreate%mechanism_list)  
+  nullify(PMWFCreate%mechanism_list) 
+  nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
+  PMWFCreate%cumulative_time = 0.d0
   PMWFCreate%name = 'waste form general'
-
-  call PMBaseInit(PMWFCreate)
+  PMWFCreate%header = 'WASTE FORM (GENERAL)'
 
 end function PMWFCreate
 
@@ -733,6 +754,7 @@ subroutine PMWFRead(this,input)
 ! ----------------------------------
   class(pm_waste_form_type) :: this
   type(input_type), pointer :: input
+!   class(simulation_subsurface_type) :: simulation
 ! ----------------------------------
   
 ! LOCAL VARIABLES:
@@ -767,6 +789,10 @@ subroutine PMWFRead(this,input)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle    
     
     select case(trim(word))
     !-------------------------------------
@@ -787,9 +813,19 @@ subroutine PMWFRead(this,input)
     error_string = 'WASTE_FORM_GENERAL'
     call PMWFReadWasteForm(this,input,option,word,error_string,found)
     if (found) cycle
+    
+    error_string = 'WASTE_FORM_GENERAL'
+    call ReadCriticalityMech(this%criticality_mediator,input,option, &
+                             word,error_string,found)
+    if (found) cycle
    
   enddo
-
+  
+  ! Assign chosen mechanism to each criticality object
+  if (associated(this%criticality_mediator)) then
+    call AssignCritMech(this%criticality_mediator)
+  endif
+  
   ! Assign chosen mechanism to each waste form
   cur_waste_form => this%waste_form_list
   do
@@ -959,6 +995,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   class(wf_mechanism_base_type), pointer :: new_mechanism, cur_mechanism
   PetscInt :: k, j
   PetscReal :: double
+  PetscInt :: integer
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
@@ -1063,6 +1100,31 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 new_mechanism%matrix_density = double
             end select
         !--------------------------
+          case('SEED')
+            call InputReadInt(input,option,integer)
+            call InputErrorMsg(input,option,'seed',error_string)
+            select type(new_mechanism)
+              class default
+                new_mechanism%seed = integer
+            end select
+        !--------------------------
+          case('FRACTIONAL_DISSOLUTION_RATE_VI')
+            call InputReadDouble(input,option,double)
+            call InputErrorMsg(input,option,'fractional dissolution rate vi', &
+                               error_string)
+            call InputReadAndConvertUnits(input,double,'unitless/sec', &
+                   trim(error_string)//',fractional dissolution rate vi',option)
+            select type(new_mechanism)
+              type is(wf_mechanism_custom_type)
+                new_mechanism%frac_dissolution_rate = double
+                new_mechanism%frac_diss_vol_init = PETSC_TRUE
+              class default
+                option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE_VI &
+                           &cannot be specified for ' // trim(error_string)
+                call printMsg(option)
+                num_errors = num_errors + 1
+            end select
+        !--------------------------
           case('FRACTIONAL_DISSOLUTION_RATE')
             call InputReadDouble(input,option,double)
             call InputErrorMsg(input,option,'fractional dissolution rate', &
@@ -1073,7 +1135,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               type is(wf_mechanism_custom_type)
                 new_mechanism%frac_dissolution_rate = double
               class default
-                option%io_buffer = 'ERRORS: FRACTIONAL_DISSOLUTION_RATE cannot &
+                option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE cannot &
                                    &be specified for ' // trim(error_string)
                 call printMsg(option)
                 num_errors = num_errors + 1
@@ -1294,11 +1356,10 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               k = k + 1
               if (k > 50) then
                 option%io_buffer = 'More than 50 radionuclide species are &
-                                 &provided in the ' // trim(error_string) // &
-                                 ', SPECIES block. Reduce to less than 50 &
-                                 &species, or e-mail pflotran-dev at &
-                                 &googlegroups dot com.'
-                call printErrMsg(option)
+                  &provided in the ' // trim(error_string) // &
+                  ', SPECIES block.'
+                call PrintErrMsgToDev('if reducing to less than 50 is not &
+                                      &an option.',option)
               endif
               temp_species_array(k) = PMWFRadSpeciesCreate() 
               ! read species name
@@ -1490,7 +1551,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           if (Uninitialized(new_mechanism%specific_surface_area) .and. &
               Uninitialized(new_mechanism%dissolution_rate) .and. &
               Uninitialized(new_mechanism%frac_dissolution_rate)) then
-            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE or &
+            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE, &
+                               &FRACTIONAL_DISSOLUTION_RATE_VI, or &
                                &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block.'
@@ -1501,8 +1563,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 Initialized(new_mechanism%dissolution_rate)    ) .or. &
                (Uninitialized(new_mechanism%frac_dissolution_rate) .and. &
                 Uninitialized(new_mechanism%dissolution_rate)    ) ) then
-            option%io_buffer = 'ERROR: Either FRACTIONAL_DISSOLUTION_RATE or &
-                               &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
+            option%io_buffer = 'ERROR: Either FRACTIONAL_DISSOLUTION_RATE(_VI) &
+                               &or DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block. &
                                &Both types of dissolution rates cannot be &
@@ -1514,7 +1576,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 Uninitialized(new_mechanism%dissolution_rate)  ) .or. &
                (Uninitialized(new_mechanism%specific_surface_area) .and. &
                 initialized(new_mechanism%dissolution_rate)      ) ) then
-            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE or &
+            option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE(_VI) or &
                                &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block.'
@@ -1610,6 +1672,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   use String_module
   use Units_module
   use Region_module
+  use Criticality_module
   
   implicit none
   
@@ -1642,6 +1705,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   PetscInt :: num_errors
   character(len=MAXWORDLENGTH) :: word
   class(waste_form_base_type), pointer :: new_waste_form, cur_waste_form
+  type(criticality_type), pointer :: cur_criticality, new_criticality
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',WASTE_FORM'
@@ -1715,11 +1779,50 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                  new_waste_form%decay_start_time,'sec',trim(error_string)// &
                  ',DECAY_START_TIME',option)
         !-----------------------------    
+          case('CRITICALITY')
+            new_criticality => CriticalityCreate()
+            do
+              call InputReadPflotranString(input, option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'keyword',error_string)
+              call StringToUpper(word)
+              select case (trim(word))
+                case('MECH_NAME')
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputErrorMsg(input,option,'criticality mechanism assignment', &
+                                     error_string)
+                  call StringToUpper(word)
+                  new_criticality%crit_event%mech_name= trim(word)
+                case('CRIT_TIME')
+                  call InputReadDouble(input,option,new_criticality% &
+                                       crit_event%crit_time)
+                  call InputErrorMsg(input,option,'CRIT_TIME',error_string)
+                case default
+                  call InputKeywordUnrecognized(word,error_string,option)
+              end select
+            enddo        
+            if (.not. associated(this%criticality_mediator)) then
+              this%criticality_mediator => CriticalityMediatorCreate()
+              this%criticality_mediator%criticality_list => new_criticality
+            else
+              cur_criticality => this%criticality_mediator%criticality_list
+              do
+                if (.not. associated(cur_criticality)) exit
+                if (.not. associated(cur_criticality%next)) then
+                  cur_criticality%next => new_criticality
+                endif
+                cur_criticality => cur_criticality%next
+              enddo
+            endif
           case default
             call InputKeywordUnrecognized(word,error_string,option)
         !-----------------------------
         end select
+
       enddo
+    
       
      ! ----------------- error messaging -------------------------------------
       if (Uninitialized(new_waste_form%volume)) then
@@ -1804,6 +1907,7 @@ subroutine PMWFAssociateRegion(this,region_list)
   use Grid_module
   use Grid_Structured_module
   use Grid_Unstructured_module
+  use Criticality_module
 
   implicit none
   
@@ -1832,6 +1936,7 @@ subroutine PMWFAssociateRegion(this,region_list)
   type(region_type), pointer :: cur_region
   type(region_type), pointer :: new_region
   class(waste_form_base_type), pointer :: cur_waste_form
+  type(criticality_type), pointer :: cur_criticality
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   character(len=MAXWORDLENGTH) :: word1, word2
@@ -1846,6 +1951,12 @@ subroutine PMWFAssociateRegion(this,region_list)
   coordinate_counter = 0
   
   cur_waste_form => this%waste_form_list
+  if (associated(this%criticality_mediator)) then
+    cur_criticality => this%criticality_mediator%criticality_list
+  else
+    nullify(cur_criticality)
+  endif
+  
   do
     if (.not.associated(cur_waste_form)) exit
     ! if COORDINATE was given, auto-create a region for it
@@ -1879,6 +1990,12 @@ subroutine PMWFAssociateRegion(this,region_list)
         new_region%name = 'WF_COORDINATE_' // trim(adjustl(word1)) // '_p' //  &
                           trim(adjustl(word2))
         cur_waste_form%region => new_region
+        
+        if (associated(cur_criticality)) then
+          cur_criticality%region => new_region
+          cur_criticality => cur_criticality%next
+        endif
+        
         allocate(cur_waste_form%scaling_factor(1))
         cur_waste_form%scaling_factor(1) = 1.d0
       endif
@@ -1888,6 +2005,12 @@ subroutine PMWFAssociateRegion(this,region_list)
         if (.not.associated(cur_region)) exit
         if (StringCompare(cur_region%name,cur_waste_form%region_name)) then
           cur_waste_form%region => cur_region
+          
+          if (associated(cur_criticality)) then
+            cur_criticality%region => cur_region
+            cur_criticality => cur_criticality%next
+          endif
+          
           exit
         endif
         cur_region => cur_region%next
@@ -1901,6 +2024,19 @@ subroutine PMWFAssociateRegion(this,region_list)
     !
     cur_waste_form => cur_waste_form%next
   enddo
+  
+  if (associated(this%criticality_mediator)) then
+    cur_criticality => this%criticality_mediator%criticality_list
+    do
+      if (.not.associated(cur_criticality)) exit
+      if (.not.associated(cur_criticality%region)) then
+        nullify(this%criticality_mediator%criticality_list)
+        exit
+      endif
+      cur_criticality => cur_criticality%next
+    enddo
+  endif
+  
   
 end subroutine PMWFAssociateRegion
   
@@ -2051,7 +2187,7 @@ subroutine PMWFSetup(this)
   class(waste_form_base_type), pointer :: prev_waste_form
   class(waste_form_base_type), pointer :: next_waste_form
   class(wf_mechanism_base_type), pointer :: cur_mechanism
-  PetscInt :: waste_form_id
+  PetscInt :: waste_form_id, num_species
   PetscInt :: i, j
   PetscBool :: local, found
   PetscErrorCode :: ierr
@@ -2091,8 +2227,11 @@ subroutine PMWFSetup(this)
         ! memory of the random number generator will not be global
         call GetRndNumFromNormalDist( &
              cur_waste_form%mechanism%vitality_rate_mean, &
-             cur_waste_form%mechanism%vitality_rate_stdev,&
-             cur_waste_form%canister_vitality_rate)
+             cur_waste_form%mechanism%vitality_rate_stdev, &
+             cur_waste_form%canister_vitality_rate, &
+             cur_waste_form%mechanism%seed)
+        write(*,*) 'cur_waste_form%canister_vitality_rate = '
+        write(*,*) cur_waste_form%canister_vitality_rate
         if (cur_waste_form%canister_vitality_rate > &
             cur_waste_form%mechanism%vitality_rate_trunc) then
           cur_waste_form%canister_vitality_rate = &
@@ -2100,11 +2239,11 @@ subroutine PMWFSetup(this)
         endif
         ! Given rates are in units of log-10/yr, so convert to 1/yr:
         cur_waste_form%canister_vitality_rate = &
-          10.0**(cur_waste_form%canister_vitality_rate)
+          10.d0**(cur_waste_form%canister_vitality_rate)
         ! Convert rates from 1/yr to internal units of 1/sec
         cur_waste_form%canister_vitality_rate = &
           cur_waste_form%canister_vitality_rate * &
-          (1.0/365.0/24.0/3600.0)
+          (1.d0/DAYS_PER_YEAR/24.d0/3600.d0)
       endif
     endif
    !----------------------------------------------------------       
@@ -2242,6 +2381,31 @@ subroutine PMWFSetup(this)
     cur_mechanism => cur_mechanism%next
   enddo
   
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species = cur_waste_form%mechanism%num_species
+    
+    allocate(cur_waste_form%cumulative_mass(num_species))
+    cur_waste_form%cumulative_mass = 0.d0
+    allocate(cur_waste_form%rad_mass_fraction(num_species))
+    cur_waste_form%rad_mass_fraction = &
+      cur_waste_form%mechanism%rad_species_list%mass_fraction
+    allocate(cur_waste_form%rad_concentration(num_species))
+    cur_waste_form%rad_concentration = 0.d0
+    allocate(cur_waste_form%instantaneous_mass_rate(num_species))
+    cur_waste_form%instantaneous_mass_rate = 0.d0
+    allocate(cur_waste_form%inst_release_amount(num_species))
+    cur_waste_form%inst_release_amount = 0.d0
+    do j = 1, num_species
+      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
+        GetPrimarySpeciesIDFromName( &
+        cur_waste_form%mechanism%rad_species_list(j)%name, &
+        this%realization%reaction,this%option)
+    enddo
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
   
 end subroutine PMWFSetup
 
@@ -2287,34 +2451,10 @@ end subroutine PMWFSetup
   PetscInt, allocatable :: species_indices_in_residual(:)
   PetscErrorCode :: ierr
 ! -------------------------------------------------------
-
-  cur_waste_form => this%waste_form_list
-  do
-    if (.not.associated(cur_waste_form)) exit
-    num_species = cur_waste_form%mechanism%num_species
-    allocate(cur_waste_form%instantaneous_mass_rate(num_species))
-    allocate(cur_waste_form%cumulative_mass(num_species))
-    cur_waste_form%instantaneous_mass_rate = 0.d0
-    cur_waste_form%cumulative_mass = 0.d0
-    allocate(cur_waste_form%rad_mass_fraction(num_species))
-    allocate(cur_waste_form%rad_concentration(num_species))
-    allocate(cur_waste_form%inst_release_amount(num_species))
-    cur_waste_form%rad_mass_fraction = &
-      cur_waste_form%mechanism%rad_species_list%mass_fraction
-    cur_waste_form%rad_concentration = 0.d0
-    cur_waste_form%inst_release_amount = 0.d0
-    do j = 1, num_species
-      cur_waste_form%mechanism%rad_species_list(j)%ispecies = &
-        GetPrimarySpeciesIDFromName( &
-        cur_waste_form%mechanism%rad_species_list(j)%name, &
-        this%realization%reaction,this%option)
-    enddo
-    cur_waste_form => cur_waste_form%next
-  enddo
   
-  ! restart
-  if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_transport) then
+  if (this%option%restart_flag .and. .not.this%skip_restart) then
+      ! need to verify whether this is needed anymore
+      call PMWFSetup(this)
   endif
   
   if (this%print_mass_balance) then
@@ -2322,6 +2462,11 @@ end subroutine PMWFSetup
     call PMWFOutput(this)
   endif
 
+  ! set up heat transfer
+  if (associated(this%criticality_mediator)) then
+    call CriticalityInitializeRun(this%criticality_mediator,this%realization, &
+                                  this%option)
+  endif
   ! set up mass transfer
   call RealizCreateTranMassTransferVec(this%realization)
   this%data_mediator => DataMediatorVecCreate()
@@ -2488,9 +2633,7 @@ subroutine PMWFInitializeTimestep(this)
   grid => this%realization%patch%grid
   dt = option%tran_dt
   
-  if (option%print_screen_flag) then
-    write(*,'(/,2("=")," WASTE FORM MODEL ",60("="))')
-  endif
+  call PMBasePrintHeader(this)
 
   ! zero entries from previous time step
   call VecZeroEntries(this%data_mediator%vec,ierr);CHKERRQ(ierr)
@@ -2838,7 +2981,9 @@ subroutine PMWFSolve(this,time,ierr)
   use petscvec
   use Global_Aux_module
   use Material_Aux_class
+  use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
+  use Criticality_module
   
   implicit none
 
@@ -2886,11 +3031,14 @@ subroutine PMWFSolve(this,time,ierr)
   PetscReal, pointer :: vec_p(:)  
   PetscReal, pointer :: xx_p(:)
   PetscInt :: fmdm_count_global, fmdm_count_local
+  PetscLogDouble :: log_start_time, log_end_time
   character(len=MAXWORDLENGTH) :: word
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(grid_type), pointer :: grid
 ! -----------------------------------------------------------
+
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
   
   fmdm_count_global = 0
   fmdm_count_local = 0
@@ -2920,6 +3068,10 @@ subroutine PMWFSolve(this,time,ierr)
           do k = 1,cur_waste_form%region%num_cells
             local_id = cur_waste_form%region%cell_ids(k)
             ghosted_id = grid%nL2G(local_id)
+            if (global_auxvars(ghosted_id)%sat(LIQUID_PHASE) < &
+                rt_min_saturation) then
+              cycle
+            endif
             do j = 1,num_species
               i = i + 1
               cur_waste_form%instantaneous_mass_rate(j) = &   ! mol-rad/sec
@@ -2991,15 +3143,22 @@ subroutine PMWFSolve(this,time,ierr)
   if ((fmdm_count_global > 0) .and. &
       this%realization%option%print_screen_flag) then
     write(word,'(i5)') fmdm_count_global
-    write(*,'(/,2("=")," FMDM ",72("="))')
   ! ** START (this can be removed after FMDM profiling is finished) **
-    write(*,'(a)') '== ' // adjustl(trim(word)) // ' calls to FMDM.'
+    write(*,'(a)') '== ' // adjustl(trim(word)) // ' call(s) to FMDM.'
   ! ** END (this can be removed after FMDM profiling is finished) **
   endif
   
   call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
   
+  if (associated(this%criticality_mediator)) then
+    call CriticalitySolve(this%criticality_mediator,this%realization,time,ierr)
+  endif
+  
+  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+
+  this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
+
 end subroutine PMWFSolve
 
 ! ************************************************************************** !
@@ -3164,7 +3323,7 @@ subroutine WFMechGlassDissolution(this,waste_form,pm,ierr)
   ! kg-glass/m^2/sec
   this%dissolution_rate = this%k0 * (10.d0**(this%nu*this%pH)) * &
                           exp(-this%Ea/(8.314d0*avg_temp_global)) * &
-                          (1.d0 - (this%Q/this%K)**(1/this%v)) + this%k_long
+                          (1.d0 - (this%Q/this%K)**(1.d0/this%v)) + this%k_long
 
   ! kg-glass/sec
   waste_form%eff_dissolution_rate = &
@@ -3357,7 +3516,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   ! convert total component concentration from mol/L to mol/m3 (*1.d3)
   this%concentration = this%concentration*1.d3
   
-  if (waste_form%volume /= waste_form%init_volume) then
+  if (.not. Equal(waste_form%volume,waste_form%init_volume)) then
     initialRun = PETSC_FALSE
   else
     initialRun = PETSC_TRUE
@@ -3369,7 +3528,7 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
   time = option%time
   
   avg_temp_local = 0.d0
-  do i = 1,waste_form%region%num_cells)
+  do i = 1,waste_form%region%num_cells
     ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
     avg_temp_local = avg_temp_local + &  ! Celcius
                global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
@@ -3378,13 +3537,14 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
                        avg_temp_global)
   call AMP_step(this%burnup, time, avg_temp_global, this%concentration, &
                 initialRun, this%dissolution_rate, Usource, success) 
-  write(*,*) this%dissolution_rate
+  !write(*,*) this%dissolution_rate
   ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
   this%concentration = this%concentration/1.d3
   ! convert this%dissolution_rate from fmdm to pflotran units:
   ! g/m^2/yr => kg/m^2/sec
-  this%dissolution_rate = this%dissolution_rate / (1000.0*24.0*3600.0*365)
-  Usource = Usource / (1000.0*24.0*3600.0*365)
+  this%dissolution_rate = this%dissolution_rate / &
+                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
+  Usource = Usource / (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
  !====================================================================
 #else
   ! if no FMDM model, use the burnup as this%dissolution_rate:
@@ -3455,6 +3615,13 @@ subroutine WFMechCustomDissolution(this,waste_form,pm,ierr)
        this%matrix_density * &           ! kg-matrix/m^3-matrix
        waste_form%volume * &             ! m^3-matrix
        waste_form%exposure_factor        ! [-]
+  else if (this%frac_diss_vol_init) then
+    ! kg-matrix / sec
+    waste_form%eff_dissolution_rate = &
+       this%frac_dissolution_rate * &     ! [-]/sec
+       this%matrix_density * &            ! kg-matrix/m^3-matrix
+       waste_form%init_volume * &         ! m^3 matrix
+       waste_form%exposure_factor         ! [-]
   else
     ! kg-matrix / sec
     waste_form%eff_dissolution_rate = &
@@ -3599,7 +3766,7 @@ subroutine PMWFOutput(this)
     write(fid,100,advance="no") cur_waste_form%eff_dissolution_rate, &
                                 cur_waste_form%volume, &
                                 cur_waste_form%eff_canister_vit_rate, &
-                                cur_waste_form%canister_vitality*100.0
+                                cur_waste_form%canister_vitality*100.d0
     cur_waste_form => cur_waste_form%next
   enddo
   close(fid)
@@ -3777,90 +3944,608 @@ end subroutine PMWFOutputHeader
 
 ! ***************************************************************************** !
 
-subroutine PMWFCheckpoint(this,viewer)
+subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! 
   ! Checkpoints data associated with the waste form process model
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/26/15
+  ! into the "canister_properties" dataset for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
+
   !
+  ! Author: Michael Nole
+  ! Date: 09/21/18
+  ! 
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use HDF5_module, only : HDF5WriteDataSetFromVec
 
   implicit none
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): waste form process model object
-! viewer (input): PETSc viewer object
-! ---------------------------------
+  ! Input Arguments
   class(pm_waste_form_type) :: this
-  PetscViewer :: viewer
-! ---------------------------------
+
+  integer(HID_T) :: pm_grp_id
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wf_vec, local_wf_vec
   
-! LOCAL VARIABLES:
-! ================
-! ------------------------------------------------------
-  class(waste_form_base_type), pointer :: cur_waste_form
-  PetscInt :: maximum_waste_form_id
-  PetscInt :: local_waste_form_count
-  PetscInt :: temp_int
-  Vec :: local, global
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  
   PetscErrorCode :: ierr
-! ------------------------------------------------------
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscReal, allocatable :: check_vars(:)
   
-  this%option%io_buffer = 'PMWFCheckpoint not implemented.'
-  call printErrMsg(this%option)
+  class(waste_form_base_type), pointer :: cur_waste_form
   
-  ! calculate maximum waste form id
-  maximum_waste_form_id = 0
-  local_waste_form_count = 0
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+  
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+                                    
+                    
+  allocate(check_vars(stride))
+  allocate(indices(stride))
+  
+  !Collect data for checkpointing
+  j=1
   cur_waste_form => this%waste_form_list
   do
     if (.not.associated(cur_waste_form)) exit
-    local_waste_form_count = local_waste_form_count + 1
-    maximum_waste_form_id = max(maximum_waste_form_id,cur_waste_form%id)
+    num_species=cur_waste_form%mechanism%num_species
+    check_vars(1)=cur_waste_form%canister_vitality
+    check_vars(2)=cur_waste_form%volume
+    check_vars(3)=cur_waste_form%breach_time
+    
+    do i = 1,num_species
+      check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
+      check_vars(n_vecs*i-1+n_check_vars+1)=cur_waste_form%cumulative_mass(i)
+    enddo
+    i=n_vecs*num_species+n_check_vars+1
+    do
+      if (i>stride) exit
+      check_vars(i)=-9999
+      i=i+1
+    enddo
+    
+    do i = 1,stride
+      indices(i)=(j-1)*stride+i-1
+    enddo
+    j=j+1
+    
+    call VecSetValues(local_wf_vec,stride,indices,check_vars, &
+                     INSERT_VALUES,ierr);CHKERRQ(ierr)
     cur_waste_form => cur_waste_form%next
+
   enddo
-  call MPI_Allreduce(maximum_waste_form_id,temp_int,ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_MAX,this%option%mycomm,ierr)
-!  call VecCreateMPI(this%option%mycomm,local_waste_form_count,PETSC_DETERMINE,ierr)
   
-                     
-end subroutine PMWFCheckpoint
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, local_wf_vec, global_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_wf_vec, global_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  dataset_name='canister_properties'
+  
+  !Write the checkpoint file
+  call HDF5WriteDataSetFromVec(dataset_name, this%option, global_wf_vec,&
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+           
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+
+end subroutine PMWFCheckpointHDF5
 
 ! ***************************************************************************** !
 
-subroutine PMWFRestart(this,viewer)
+
+subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! 
-  ! Restarts data associated with Subsurface PM
+  ! Restarts data associated with waste form process model
+  ! from the "canister_properties" dataset for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 08/26/15
+  ! Author: Michael Nole
+  ! Date: 10/03/18
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use HDF5_module, only : HDF5ReadDataSetInVec
 
   implicit none
-#include "petsc/finclude/petscviewer.h"      
 
-! INPUT ARGUMENTS:
-! ================
-! this (input/output): waste form process model object
-! viewer (input): PETSc viewer object
-! ---------------------------------
+  ! Input Arguments
   class(pm_waste_form_type) :: this
-  PetscViewer :: viewer
-! ---------------------------------
-  
-  this%option%io_buffer = 'PMWFRestart not implemented.'
-  call printErrMsg(this%option)
 
-!  call RestartFlowProcessModel(viewer,this%realization)
-!  call this%UpdateAuxVars()
-!  call this%UpdateSolution()
+  integer(HID_T) :: pm_grp_id
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  character(len=MAXSTRINGLENGTH) :: dataset_name
   
-end subroutine PMWFRestart
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, pointer :: local_wf_array(:)
+
+  class(waste_form_base_type), pointer :: cur_waste_form
+  
+  Vec :: global_wf_vec, local_wf_vec
+
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  !Gather relevant information
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+                     
+  !Create MPI vector into which HDF5 will read, and sequential vector
+  !for wf information on a given process.
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+  
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  
+  !Read the data
+  dataset_name = 'canister_properties'
+  call HDF5ReadDataSetInVec(dataset_name, this%option, global_wf_vec, &
+                             pm_grp_id, H5T_NATIVE_DOUBLE)
+  
+  !Create map between MPI and sequential vectors
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     
+  call VecScatterCreate(global_wf_vec,is,local_wf_vec, &
+                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  
+  !Get the data from the MPI vector
+  call VecScatterBegin(scatter_ctx, global_wf_vec, local_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_wf_vec, local_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  !Convert the data to a Fortran array
+  call VecGetArrayF90(local_wf_vec, local_wf_array, ierr); CHKERRQ(ierr)
+
+  !Assign checkpointed waste form attribute values
+  i=1
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species=cur_waste_form%mechanism%num_species
+    
+    allocate(cur_waste_form%rad_mass_fraction(num_species))
+    allocate(cur_waste_form%cumulative_mass(num_species))
+    
+    cur_waste_form%canister_vitality=local_wf_array(i)
+    cur_waste_form%volume=local_wf_array(i+1)
+    cur_waste_form%breach_time=local_wf_array(i+2)
+    if (cur_waste_form%breach_time<0) then
+      cur_waste_form%breached=PETSC_FALSE
+    else
+      cur_waste_form%breached=PETSC_TRUE
+    endif
+    
+    do j = 1,num_species
+      cur_waste_form%rad_mass_fraction(j)=local_wf_array(2*(j-1)+i+n_check_vars)
+      cur_waste_form%cumulative_mass(j)=local_wf_array(2*j-1+i+n_check_vars)
+    enddo
+    cur_waste_form => cur_waste_form%next
+    i=i+stride
+  enddo
+  
+  call VecRestoreArrayF90(local_wf_vec, local_wf_array, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+
+end subroutine PMWFRestartHDF5
 
 ! ************************************************************************** !
+subroutine PMWFCheckpointBinary(this, viewer)
+  ! 
+  ! Checkpoints data associated with the waste form process model
+  ! into a checkpiont binary file for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
+
+  !
+  ! Author: Michael Nole
+  ! Date: 10/09/18
+  ! 
+
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  
+  implicit none
+  
+  !Input Arguments
+  PetscViewer :: viewer
+  class(pm_waste_form_type) :: this
+  
+  ! Local Variables
+  
+  IS :: is
+  VecScatter :: scatter_ctx
+  Vec :: global_wf_vec, local_wf_vec
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: indices(:), int_array(:)
+  PetscReal, allocatable :: check_vars(:)
+  
+  class(waste_form_base_type), pointer :: cur_waste_form
+  
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  
+  !Gather relevant information from all processes
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)                  
+                     
+  !Create MPI vector and sequential vector for mapping
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+                    
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+                                    
+                    
+  allocate(check_vars(stride))
+  allocate(indices(stride))
+  
+  !Collect data for checkpointing
+  j=1
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species=cur_waste_form%mechanism%num_species
+    check_vars(1)=cur_waste_form%canister_vitality
+    check_vars(2)=cur_waste_form%volume
+    check_vars(3)=cur_waste_form%breach_time
+    
+    do i = 1,num_species
+      check_vars(n_vecs*i-1+n_check_vars)=cur_waste_form%rad_mass_fraction(i)
+      check_vars(n_vecs*i-1+n_check_vars+1)=cur_waste_form%cumulative_mass(i)
+    enddo
+    i=n_vecs*num_species+n_check_vars+1
+    do
+      if (i>stride) exit
+      check_vars(i)=-9999
+      i=i+1
+    enddo
+    
+    do i = 1,stride
+      indices(i)=(j-1)*stride+i-1
+    enddo
+    j=j+1
+    
+    call VecSetValues(local_wf_vec,stride,indices,check_vars, &
+                     INSERT_VALUES,ierr);CHKERRQ(ierr)
+    cur_waste_form => cur_waste_form%next
+
+  enddo
+  
+  !Create map and add values from the sequential vector to the global 
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+  
+  call VecScatterCreate(local_wf_vec,PETSC_NULL_IS,global_wf_vec, &
+                        is,scatter_ctx, ierr);CHKERRQ(ierr)
+                        
+  call VecScatterBegin(scatter_ctx, local_wf_vec, global_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, local_wf_vec, global_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  !Write the checkpoint file
+
+  call VecView(global_wf_vec,viewer,ierr);CHKERRQ(ierr)         
+           
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+  
+  
+
+end subroutine PMWFCheckpointBinary
+
+! ***************************************************************************** !
+
+subroutine PMWFRestartBinary(this, viewer)
+
+  ! 
+  ! Restarts data associated with waste form process model
+  ! from a checkpoint binary file for a given wf pm: 
+  ! canister vitality (1), canister volume (2), breach time (3),
+  ! radionuclide mass fraction (4:2:end-1), 
+  ! cumulative mass released (5:2:end) .
+  ! 
+  ! Author: Michael Nole
+  ! Date: 10/09/18
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Option_module
+  use Realization_Subsurface_class
+  use hdf5
+  use HDF5_module, only : HDF5ReadDataSetInVec
+
+  implicit none
+
+  ! Input Arguments
+  PetscViewer :: viewer
+  class(pm_waste_form_type) :: this
+
+  ! Local Variables
+  IS :: is
+  VecScatter :: scatter_ctx
+  
+  PetscErrorCode :: ierr
+  PetscInt :: local_stride, n_wf_local, n_wf_global, n_check_vars, &
+              n_vecs, local_stride_tmp, i, j, num_species, stride
+  PetscInt, allocatable :: int_array(:)
+  PetscReal, pointer :: local_wf_array(:)
+
+  class(waste_form_base_type), pointer :: cur_waste_form
+  
+  Vec :: global_wf_vec, local_wf_vec
+
+  cur_waste_form => this%waste_form_list
+  
+  local_stride=0
+  local_stride_tmp=0
+  n_wf_local=0
+  n_wf_global=0
+  
+  n_check_vars=3 !number of scalar wf checkpoint variables
+  n_vecs=2 !number of vector wf checkpoint variables (by species)
+  
+  do 
+    if (.not.associated(cur_waste_form)) exit
+    n_wf_local=n_wf_local+1
+    local_stride_tmp=local_stride_tmp+n_check_vars+&
+                     cur_waste_form%mechanism%num_species*n_vecs
+    cur_waste_form => cur_waste_form%next
+    if (local_stride_tmp>local_stride) then
+      local_stride=local_stride_tmp
+    endif
+    local_stride_tmp=0
+  enddo
+  
+  cur_waste_form => this%waste_form_list
+  allocate(int_array(n_wf_local))
+  i=1
+  do
+    if (.not.associated(cur_waste_form)) exit
+    int_array(i)=cur_waste_form%id-1
+    i=i+1
+    cur_waste_form => cur_waste_form%next
+  enddo
+  
+  !Gather relevant information
+  call MPI_Allreduce(local_stride,stride,ONE_INTEGER_MPI, &
+                  MPI_INTEGER,MPI_MAX,this%option%mycomm,ierr)
+  call MPI_Allreduce(n_wf_local,n_wf_global,ONE_INTEGER_MPI, &
+                     MPI_INTEGER,MPI_SUM,this%option%mycomm,ierr)
+                     
+  !Create MPI vector into which HDF5 will read, and sequential vector
+  !for wf information on a given process.
+  call VecCreateMPI(this%option%mycomm,n_wf_local*stride,&
+                    n_wf_global*stride,& 
+                    global_wf_vec,ierr);CHKERRQ(ierr)
+  
+  call VecCreateSeq(PETSC_COMM_SELF, n_wf_local*stride,local_wf_vec, &
+                    ierr); CHKERRQ(ierr)
+  
+  call VecSetBlockSize(global_wf_vec, stride, ierr);CHKERRQ(ierr)
+  call VecSetBlockSize(local_wf_vec, stride, ierr);CHKERRQ(ierr)
+  
+  !Read the data
+  call VecLoad(global_wf_vec,viewer, ierr);CHKERRQ(ierr)
+  
+  !Create map between MPI and sequential vectors
+  call ISCreateBlock(this%option%mycomm,stride,n_wf_local,int_array, &
+                     PETSC_COPY_VALUES,is, ierr); CHKERRQ(ierr)
+                     
+  call VecScatterCreate(global_wf_vec,is,local_wf_vec, &
+                        PETSC_NULL_IS,scatter_ctx, ierr);CHKERRQ(ierr)
+  
+  !Get the data from the MPI vector
+  call VecScatterBegin(scatter_ctx, global_wf_vec, local_wf_vec, &  
+                       INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  call VecScatterEnd(scatter_ctx, global_wf_vec, local_wf_vec, & 
+                     INSERT_VALUES, SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+  
+  !Convert the data to a Fortran array
+  call VecGetArrayF90(local_wf_vec, local_wf_array, ierr); CHKERRQ(ierr)
+
+  !Assign checkpointed waste form attribute values
+  i=1
+  cur_waste_form => this%waste_form_list
+  do
+    if (.not.associated(cur_waste_form)) exit
+    num_species=cur_waste_form%mechanism%num_species
+    
+    allocate(cur_waste_form%rad_mass_fraction(num_species))
+    allocate(cur_waste_form%cumulative_mass(num_species))
+    
+    cur_waste_form%canister_vitality=local_wf_array(i)
+    cur_waste_form%volume=local_wf_array(i+1)
+    cur_waste_form%breach_time=local_wf_array(i+2)
+    if (cur_waste_form%breach_time<0) then
+      cur_waste_form%breached=PETSC_FALSE
+    else
+      cur_waste_form%breached=PETSC_TRUE
+    endif
+    
+    do j = 1,num_species
+      cur_waste_form%rad_mass_fraction(j)=local_wf_array(2*(j-1)+i+n_check_vars)
+      cur_waste_form%cumulative_mass(j)=local_wf_array(2*j-1+i+n_check_vars)
+    enddo
+    cur_waste_form => cur_waste_form%next
+    i=i+stride
+  enddo
+  
+  call VecRestoreArrayF90(local_wf_vec, local_wf_array, ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(scatter_ctx, ierr);CHKERRQ(ierr)
+  call ISDestroy(is, ierr);CHKERRQ(ierr)
+  call VecDestroy(global_wf_vec, ierr);CHKERRQ(ierr)
+  call VecDestroy(local_wf_vec, ierr);CHKERRQ(ierr)
+
+
+end subroutine PMWFRestartBinary
+
+! ***************************************************************************** !
 
 subroutine PMWFInputRecord(this)
   ! 
@@ -3936,6 +4621,7 @@ subroutine PMWFStrip(this)
   enddo
   nullify(this%waste_form_list)
   call PMWFMechanismStrip(this)
+!   call CriticalityStrip(this%criticality_mediator)
 
 end subroutine PMWFStrip
 
@@ -4041,7 +4727,11 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   class(pm_waste_form_type) :: this
 ! ---------------------------------
+  character(len=MAXWORDLENGTH) :: word
+
+  write(word,'(f12.1)') this%cumulative_time
   
+  write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
   call PMWFStrip(this)
   
 end subroutine PMWFDestroy
@@ -4049,3 +4739,4 @@ end subroutine PMWFDestroy
 ! ************************************************************************** !
   
 end module PM_Waste_Form_class
+

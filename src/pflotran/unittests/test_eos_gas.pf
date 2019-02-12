@@ -113,7 +113,7 @@ contains
     PetscReal :: density
     PetscReal :: dden_dp ! derivative with respect to pressure
     PetscReal :: dden_dt ! derivative with respect to temperature
-    PetscReal, parameter :: tolerance = 1.d-9
+    PetscReal, parameter :: tolerance = 1.d-12
 
     call EOSGasSetDensityIdeal()
 
@@ -147,9 +147,9 @@ contains
 
     PetscReal, parameter :: not_calculated_dden_dt = UNINITIALIZED_DOUBLE
     PetscReal, parameter :: not_calculated_dden_dp = UNINITIALIZED_DOUBLE
-    PetscReal, parameter :: correct_density1 = 7.6981326805322534d-2
-    PetscReal, parameter :: correct_density2 = 0.22973426422005402d0
-    PetscReal, parameter :: correct_density3 = 0.85506278682136605d0
+    PetscReal :: correct_density1
+    PetscReal :: correct_density2
+    PetscReal :: correct_density3
     PetscReal, parameter :: temperature1 = 23.4d0
     PetscReal, parameter :: pressure1 = 1.9d5
     PetscReal, parameter :: temperature2 = 40.01d0
@@ -161,10 +161,24 @@ contains
     PetscReal :: density3
     PetscReal :: dden_dt
     PetscReal :: dden_dp
-    PetscReal, parameter :: tolerance = 1.d-9
+    PetscReal, parameter :: tolerance = 1.d-12
+    PetscBool :: use_hydrogen
+    PetscBool :: use_effective_properties
+    PetscBool :: use_cubic_root_solution
 
-    call EOSGasSetDensityRKS(PETSC_TRUE,41.67d0,2.1029d6,0.0d0,0.42747d0, &
-                             0.08664d0)
+    use_hydrogen = PETSC_TRUE
+
+  ! Newton's method for solution with effective properties OFF
+    use_effective_properties = PETSC_FALSE
+    use_cubic_root_solution = PETSC_FALSE
+
+    correct_density1 = 7.6982161383611136d-2 
+    correct_density2 = 0.22974126063080880d0
+    correct_density3 = 0.85516684075321425d0
+
+    call EOSGasSetDensityRKS(use_hydrogen,use_effective_properties, &
+                             use_cubic_root_solution, &
+                             41.67d0,2.1029d6,0.0d0,0.42747d0,0.08664d0)
     call EOSGasVerify(ierr, error_string)
     @assertEqual(0, ierr)
 
@@ -181,11 +195,76 @@ contains
 
     call EOSGasDensity(temperature2, pressure2, density2, &
                        dden_dt, dden_dp, ierr)
-    @assertEqual(correct_density2, density2, dabs(correct_density1)*tolerance)
+    @assertEqual(correct_density2, density2, dabs(correct_density2)*tolerance)
 
     call EOSGasDensity(temperature3, pressure3, density3, &
                        dden_dt, dden_dp, ierr)
-    @assertEqual(correct_density3, density3, dabs(correct_density1)*tolerance)
+    @assertEqual(correct_density3, density3, dabs(correct_density3)*tolerance)
+
+  ! Newton's method for solution with effective properties ON
+    use_effective_properties = PETSC_TRUE
+
+    correct_density1 = 7.6978484736231159d-2
+    correct_density2 = 0.22971082071657448d0
+    correct_density3 = 0.85467420739653210d0
+
+    call EOSGasSetDensityRKS(use_hydrogen,use_effective_properties, &
+                             use_cubic_root_solution, &
+                             41.67d0,2.1029d6,0.0d0,0.42747d0,0.08664d0)
+    call EOSGasVerify(ierr, error_string)
+    @assertEqual(0, ierr)
+
+    call EOSGasDensity(temperature1, pressure1, density1, &
+                       dden_dt, dden_dp, ierr)
+
+    ! The newton iteration within EOSGasDensityRKS tolerance is 1d-10 to
+    ! find the correct volume solution; thus, setting the tolerance to 1d-9.
+    @assertEqual(correct_density1, density1, dabs(correct_density1)*tolerance)
+
+    ! the derivatives are calculated in the Jacobian step.
+    @assertEqual(not_calculated_dden_dt, dden_dt, dabs(correct_density1)*tolerance)
+    @assertEqual(not_calculated_dden_dp, dden_dp, dabs(correct_density1)*tolerance)
+
+    call EOSGasDensity(temperature2, pressure2, density2, &
+                       dden_dt, dden_dp, ierr)
+    @assertEqual(correct_density2, density2, dabs(correct_density2)*tolerance)
+
+    call EOSGasDensity(temperature3, pressure3, density3, &
+                       dden_dt, dden_dp, ierr)
+    @assertEqual(correct_density3, density3, dabs(correct_density3)*tolerance)
+
+  ! cubic root solution with effective properties ON
+    use_effective_properties = PETSC_TRUE
+    use_cubic_root_solution = PETSC_TRUE
+
+    correct_density1 = 7.6978484736231173d-2
+    correct_density2 = 0.22971082071657450d0
+    correct_density3 = 0.85467420739653210d0
+
+    call EOSGasSetDensityRKS(use_hydrogen,use_effective_properties, &
+                             use_cubic_root_solution, &
+                             41.67d0,2.1029d6,0.0d0,0.42747d0,0.08664d0)
+    call EOSGasVerify(ierr, error_string)
+    @assertEqual(0, ierr)
+
+    call EOSGasDensity(temperature1, pressure1, density1, &
+                       dden_dt, dden_dp, ierr)
+
+    ! The newton iteration within EOSGasDensityRKS tolerance is 1d-10 to
+    ! find the correct volume solution; thus, setting the tolerance to 1d-9.
+    @assertEqual(correct_density1, density1, dabs(correct_density1)*tolerance)
+
+    ! the derivatives are calculated in the Jacobian step.
+    @assertEqual(not_calculated_dden_dt, dden_dt, dabs(correct_density1)*tolerance)
+    @assertEqual(not_calculated_dden_dp, dden_dp, dabs(correct_density1)*tolerance)
+
+    call EOSGasDensity(temperature2, pressure2, density2, &
+                       dden_dt, dden_dp, ierr)
+    @assertEqual(correct_density2, density2, dabs(correct_density2)*tolerance)
+
+    call EOSGasDensity(temperature3, pressure3, density3, &
+                       dden_dt, dden_dp, ierr)
+    @assertEqual(correct_density3, density3, dabs(correct_density3)*tolerance)
 
   end subroutine testEOSGas_DensityRKS
 
@@ -219,7 +298,7 @@ contains
     PetscReal :: correct_dV_dPcomp
     PetscReal :: correct_dV_dPgas
     PetscErrorCode :: ierr
-    PetscReal, parameter :: tolerance = 1.d-0
+    PetscReal, parameter :: tolerance = 1.d-12
 
     temperature = 2.d0
     air_pressure = 29999296.328d0
@@ -230,10 +309,10 @@ contains
     dair_density_dPgas = 4.377d-7
     dPcomp_dT = -50.277d0
     dPcomp_dPgas = 1.d0
-    correct_viscosity = 1.7456616193894670d-005
-    correct_dV_dT = 4.0516006959937812d-008
-    correct_dV_dPcomp = 6.7872587417791199d-014
-    correct_dV_dPgas = 1.5919314445176576d-018
+    correct_viscosity = 1.7456616193894666d-005
+    correct_dV_dT = 4.0516006959937799d-008
+    correct_dV_dPcomp = 6.7872587417791098d-014
+    correct_dV_dPgas = 1.5919314444166867d-018
     call EOSGasViscosity(temperature, air_pressure, gas_pressure, &
                          air_density, dair_density_dT, dair_density_dPcomp, &
                          dair_density_dPgas, dPcomp_dT, dPcomp_dPgas, &
@@ -252,10 +331,10 @@ contains
     dair_density_dPgas = 4.1739d-7
     dPcomp_dT = -109.436d0
     dPcomp_dPgas = 1.d0
-    correct_viscosity = 1.7947104806578326d-005
-    correct_dV_dT = 3.8142688463437546d-008
-    correct_dV_dPcomp = 2.2670206487329510d-011
-    correct_dV_dPgas = 3.7841755726193832d-013
+    correct_viscosity = 1.7947104806578322d-005
+    correct_dV_dT = 3.8142688463437539d-008
+    correct_dV_dPcomp = 2.2670206487329426d-011
+    correct_dV_dPgas = 3.7841755726193181d-013
     call EOSGasViscosity(temperature, air_pressure, gas_pressure, &
                          air_density, dair_density_dT, dair_density_dPcomp, &
                          dair_density_dPgas, dPcomp_dT, dPcomp_dPgas, &
@@ -275,7 +354,7 @@ contains
     dPcomp_dT = -1609.062d0
     dPcomp_dPgas = 1.d0
     correct_viscosity = 2.0383771097353054d-005
-    correct_dV_dT = 4.0047118836097288d-008
+    correct_dV_dT = 4.0047118836097321d-008
     correct_dV_dPcomp = 1.6401052586968451d-014
     correct_dV_dPgas = -6.7630759113825132d-016
     call EOSGasViscosity(temperature, air_pressure, gas_pressure, &
@@ -297,9 +376,9 @@ contains
     dPcomp_dT = -6247.72d0
     dPcomp_dPgas = 1.d0
     correct_viscosity = 2.2184119693802046d-005
-    correct_dV_dT = 4.0198054804996850d-008
-    correct_dV_dPcomp = 8.6949319794896073d-016
-    correct_dV_dPgas = -5.1007448971251133d-017
+    correct_dV_dT = 4.0198054804996831d-008
+    correct_dV_dPcomp = 8.6949319794916268d-016
+    correct_dV_dPgas = -5.1007448971049185d-017
     call EOSGasViscosity(temperature, air_pressure, gas_pressure, &
                          air_density, dair_density_dT, dair_density_dPcomp, &
                          dair_density_dPgas, dPcomp_dT, dPcomp_dPgas, &
@@ -319,9 +398,9 @@ contains
     dPcomp_dT = -224828.268d0
     dPcomp_dPgas = 1.d0
     correct_viscosity = 3.2964574505744611d-005
-    correct_dV_dT = 5.6451224034663605d-008
-    correct_dV_dPcomp = -4.9050455367409281d-014
-    correct_dV_dPgas = -3.4767965708222201d-015
+    correct_dV_dT = 5.6451224034663618d-008
+    correct_dV_dPcomp = -4.9050455367409294d-014
+    correct_dV_dPgas = -3.4767965708222343d-015
     call EOSGasViscosity(temperature, air_pressure, gas_pressure, &
                          air_density, dair_density_dT, dair_density_dPcomp, &
                          dair_density_dPgas, dPcomp_dT, dPcomp_dPgas, &

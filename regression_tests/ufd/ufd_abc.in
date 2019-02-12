@@ -20,11 +20,11 @@ REGRESSION
   /
 END
 
-#=========================== flow mode ========================================
-# Uniform velocity (see below). No flow mode specified.
-
 #=========================== useful tranport parameters ==================
-UNIFORM_VELOCITY 0.d0 0.d0 0.d0 m/yr
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0 
+END
 
 #=========================== chemistry ========================================
 # Uncomment to debug reactions
@@ -105,7 +105,7 @@ CHEMISTRY
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
-    all
+    ALL
     TOTAL
   /
 END

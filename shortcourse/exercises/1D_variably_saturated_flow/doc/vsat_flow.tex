@@ -128,7 +128,7 @@
 \subsection{1D Variably Saturated Flow Conceptual Model}
 
 \frame{\frametitle{Description of 1D Variably Saturated Flow Scenario}
-The ``1D Variably Saturated Flow Scenario'' simulates single phase groundwater flow within the vadose and saturated zones in a vertical column measuring 10 meters in height with unit cross sectional area.  Assumptions with regard to transport include:
+The ``1D Variably Saturated Flow Scenario'' simulates single phase groundwater flow within the vadose and saturated zones in a vertical column measuring 10 meters in height with unit cross sectional area.  Assumptions with regard to flow include:
 \begin{itemize}
   \small
   \item Problem domain: $1 \times 1 \times 10$ m (x $\times$ y $\times$ z)
@@ -151,7 +151,7 @@ The ``1D Variably Saturated Flow Scenario'' simulates single phase groundwater f
   \end{itemize}
   \item Total simulation time: 10 y
 \end{itemize}
-\begin{textblock}{.5}[1,1](10.5,-.75)
+\begin{textblock}{.5}[1,1](9.5,-.75)
 \includegraphics[height=2in]{./vsat_flow_uniform}
 \end{textblock}  
 }
@@ -560,12 +560,29 @@ END                       \bluecomment{!   converted to SI}
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Running vsat_flow.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_variably_saturated_flow
+> pflotran -input_prefix vsat_flow
+> python vsat_flow.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \section{Description of Input Deck: Adding a pulsed recharge}
 
 \subsection{Input File Modifications}
 
-\begin{frame}[fragile]\frametitle{Input File Modifications}
+\begin{frame}[fragile]\frametitle{Adding pulsed recharge over first 0.2 years}
 
+
+Input File Modifications
 \begin{itemize}
 \item Modify cards:
   \begin{itemize}
@@ -627,27 +644,45 @@ END
 \end{frame}
 
 %-----------------------------------------------------------------------------
-\section{Description of Input Deck: Split into two soil layers and add observation point}
+\subsection{Running vsat_flow_pulse.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_variably_saturated_flow
+> pflotran -input_prefix vsat_flow_pulse
+> python vsat_flow_pulse.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\section{Description of Input Deck: Split into two soil layers and add an observation point}
 
 \subsection{Input File Modifications}
 
-\begin{frame}[fragile]\frametitle{Input File Modifications}
+\begin{frame}[fragile]\frametitle{Split into two soil layers and add an observation point}
 
+Input File Modifications
 \begin{itemize}
 \item Add cards:
   \begin{itemize}
     \item MATERIAL\_PROPERTY
     \item CHARACTERISTIC\_CURVES
     \item REGION
+    \item OBSERVATION
     \item STRATA
   \end{itemize}
 \item Modify card:
   \begin{itemize}
     \item STRATA
     \item OUTPUT
+    \item TIME
    \end{itemize}
 \end{itemize}
-\begin{textblock}{.5}[1,1](9,3)
+\begin{textblock}{.5}[1,1](8,2)
 \includegraphics[height=2.5in]{./vsat_flow_layered}
 \end{textblock} 
 \end{frame}
@@ -670,7 +705,7 @@ MATERIAL_PROPERTY soil2    \bluecomment{! new soil name}
   PERMEABILITY
     PERM_ISO 2.d-12
   /
-  CHARACTERISTIC\_CURVES cc2  \bluecomment{! new saturation function name}
+  CHARACTERISTIC\_CURVES cc2 \bluecomment{! new saturation function name}
 END}
 \end{semiverbatim}
 
@@ -796,7 +831,7 @@ END}
 \begin{frame}[fragile]\frametitle{OUTPUT}
 
 \begin{itemize}
-\item Change output times to every 0.1 years
+\item Change output times to 0.5 1. 2. 5. years
 \item Add output of observation data at every time step
 \end{itemize}
 
@@ -804,11 +839,48 @@ END}
 \begin{semiverbatim}
 
 OUTPUT
-  \magentacomment{PERIODIC TIME 0.1 y}        \bluecomment{! print plot files every}
-  FORMAT TECPLOT POINT       \bluecomment{!   0.1 years}
+  \magentacomment{TIMES y 0.5 1. 2. 5.}   
   \magentacomment{PERIODIC_OBSERVATION TIMESTEP 1} \bluecomment{! print observation}
-END                               \bluecomment{!   data every time step}
+  FORMAT TECPLOT POINT            \bluecomment{!   data every time step}
+END
 
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{TIME}
+
+\begin{frame}[fragile]\frametitle{TIME}
+
+\begin{itemize}
+\item Change final simulation time to 35 years
+\end{itemize}
+
+\begin{semiverbatim}
+
+TIME
+  FINAL_TIME \magentacomment{35.d0} y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-2 y
+END
+
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Running vsat_flow_pulse_2layer.in}
+
+\begin{frame}[fragile]\frametitle{Running PFLOTRAN}
+
+\begin{semiverbatim}
+
+> cd $PFLOTRAN_DIR
+> cd shortcourse/exercises/1D_variably_saturated_flow
+> pflotran -input_prefix vsat_flow_pulse_2layer
+> python vsat_flow_pulse_2layer.py
+> python vsat_flow_pulse_2layer_obs.py
 \end{semiverbatim}
 
 \end{frame}

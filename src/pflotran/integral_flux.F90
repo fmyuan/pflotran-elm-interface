@@ -17,9 +17,13 @@ module Integral_Flux_module
   type, public :: integral_flux_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
-    type(point3d_type), pointer :: coordinates(:)
+    type(point3d_type), pointer :: polygon(:)
+    type(plane_type), pointer :: plane
+    PetscReal, pointer :: coordinates_and_directions(:,:)
+    PetscInt, pointer :: vertices(:,:)
     PetscBool :: invert_direction
-    PetscInt, pointer :: connections(:)
+    PetscInt, pointer :: internal_connections(:)
+    PetscInt, pointer :: boundary_connections(:)
     PetscReal, pointer :: integral_value(:)
     type(integral_flux_type), pointer :: next
   end type integral_flux_type
@@ -65,8 +69,12 @@ function IntegralFluxCreate()
   integral_flux%name = ''
   integral_flux%id = 0
   integral_flux%invert_direction = PETSC_FALSE
-  nullify(integral_flux%connections)
-  nullify(integral_flux%coordinates)
+  nullify(integral_flux%polygon)
+  nullify(integral_flux%plane)
+  nullify(integral_flux%coordinates_and_directions)
+  nullify(integral_flux%vertices)
+  nullify(integral_flux%internal_connections)
+  nullify(integral_flux%boundary_connections)
   nullify(integral_flux%integral_value)
   nullify(integral_flux%next)
   
@@ -87,6 +95,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
   use Input_Aux_module
   use String_module
   use Option_module
+  use Utility_module, only : ReallocateArray, DeallocateArray
   
   implicit none
   
@@ -95,6 +104,11 @@ subroutine IntegralFluxRead(integral_flux,input,option)
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscInt :: icount
+  PetscReal :: x(3), y(3), z(3)
+  PetscInt, pointer :: int_array(:,:)
+  PetscReal, pointer :: real_array(:,:)
   
   input%ierr = 0
   do
@@ -112,9 +126,88 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         call InputErrorMsg(input,option,'name','INTEGRAL_FLUX')    
       case('INVERT_DIRECTION')
         integral_flux%invert_direction = PETSC_TRUE
-      case('COORDINATES')
+      case('POLYGON')
         call GeometryReadCoordinates(input,option,integral_flux%name, &
-                                     integral_flux%coordinates)
+                                     integral_flux%polygon)
+      case('PLANE')
+        error_string = 'INTEGRAL_FLUX,PLANE'
+        icount = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit  
+          icount = icount + 1
+          ! only use first three points
+          if (icount < 4) then
+            call InputReadDouble(input,option,x(icount))
+            call InputErrorMsg(input,option,'x-coordinate',error_string)
+            call InputReadDouble(input,option,y(icount))
+            call InputErrorMsg(input,option,'y-coordinate',error_string)
+            call InputReadDouble(input,option,z(icount))
+            call InputErrorMsg(input,option,'z-coordinate',error_string)
+          endif
+        enddo
+        allocate(integral_flux%plane)
+        call GeometryComputePlaneWithPoints(integral_flux%plane, &
+                                            x(1),y(1),z(1), &
+                                            x(2),y(2),z(2), &
+                                            x(3),y(3),z(3))
+      case('COORDINATES')
+        option%io_buffer = "COORDINATES has been deprecated within the & 
+          INTEGRAL_FLUX block in favor of COORDINATES_AND_DIRECTIONS. &
+          Please see the user guide for instructions on the new card's use."
+        call PrintErrMsg(option)
+      case('COORDINATES_AND_DIRECTIONS')
+        allocate(real_array(6,100))
+        real_array = UNINITIALIZED_DOUBLE
+        error_string = 'INTEGRAL_FLUX,COORDINATES_AND_DIRECTIONS'
+        icount = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit  
+          icount = icount + 1
+          if (icount > size(real_array,2)) then
+            call ReallocateArray(real_array)
+          endif
+          call InputReadDouble(input,option,real_array(1,icount))
+          call InputErrorMsg(input,option,'x-coordinate',error_string)
+          call InputReadDouble(input,option,real_array(2,icount))
+          call InputErrorMsg(input,option,'y-coordinate',error_string)
+          call InputReadDouble(input,option,real_array(3,icount))
+          call InputErrorMsg(input,option,'z-coordinate',error_string)
+          call InputReadDouble(input,option,real_array(4,icount))
+          call InputErrorMsg(input,option,'x-direction',error_string)
+          call InputReadDouble(input,option,real_array(5,icount))
+          call InputErrorMsg(input,option,'y-direction',error_string)
+          call InputReadDouble(input,option,real_array(6,icount))
+          call InputErrorMsg(input,option,'z-direction',error_string)
+        enddo
+        allocate(integral_flux%coordinates_and_directions(6,icount))
+        integral_flux%coordinates_and_directions = real_array(:,1:icount)
+        call DeallocateArray(real_array)
+      case('VERTICES')
+        allocate(int_array(4,100))
+        int_array = UNINITIALIZED_INTEGER
+        error_string = 'INTEGRAL_FLUX,VERTICES'
+        icount = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit  
+          icount = icount + 1
+          if (icount > size(int_array,2)) then
+            call ReallocateArray(int_array)
+          endif
+          call InputReadInt(input,option,int_array(1,icount))
+          call InputErrorMsg(input,option,'vertex 1',error_string)
+          call InputReadInt(input,option,int_array(2,icount))
+          call InputErrorMsg(input,option,'vertex 2',error_string)
+          call InputReadInt(input,option,int_array(3,icount))
+          call InputErrorMsg(input,option,'vertex 3',error_string)
+          call InputReadInt(input,option,int_array(4,icount))
+          ! fourth value is optional, no error message
+        enddo
+        allocate(integral_flux%vertices(4,icount))
+        integral_flux%vertices = int_array(:,1:icount)
+        call DeallocateArray(int_array)
       case default
         call InputKeywordUnrecognized(keyword,'INTEGRAL_FLUX',option)
     end select 
@@ -237,18 +330,32 @@ subroutine IntegralFluxGetInstantaneous(integral_flux, internal_fluxes, &
   PetscInt :: iconn
   
   sum_array = 0.d0
-  if (.not.associated(integral_flux%connections)) return
-  
-  do i = 1, size(integral_flux%connections)
-    iconn = integral_flux%connections(i)
-    if (iconn > 0) then ! internal
-      sum_array(1:num_values) = sum_array(1:num_values) + &
-                                internal_fluxes(1:num_values,iconn)
-    else ! boundary
-      sum_array(1:num_values) = sum_array(1:num_values) + &
-                                boundary_fluxes(1:num_values,-iconn)
-    endif
-  enddo
+  if (associated(integral_flux%internal_connections)) then
+    do i = 1, size(integral_flux%internal_connections)
+      iconn = integral_flux%internal_connections(i)
+      if (iconn > 0) then
+        sum_array(1:num_values) = sum_array(1:num_values) + &
+                                  internal_fluxes(1:num_values,iconn)
+      else
+        ! negative connection ids indicate inversion of flux
+        sum_array(1:num_values) = sum_array(1:num_values) - &
+                                  internal_fluxes(1:num_values,-iconn)
+      endif
+    enddo
+  endif
+  if (associated(integral_flux%boundary_connections)) then
+    do i = 1, size(integral_flux%boundary_connections)
+      iconn = integral_flux%boundary_connections(i)
+      if (iconn > 0) then
+        sum_array(1:num_values) = sum_array(1:num_values) + &
+                                  boundary_fluxes(1:num_values,iconn)
+      else
+        ! negative connection ids indicate inversion of flux
+        sum_array(1:num_values) = sum_array(1:num_values) - &
+                                  boundary_fluxes(1:num_values,-iconn)
+      endif
+    enddo
+  endif
   if (integral_flux%invert_direction) then
     sum_array = -1.d0 * sum_array
   endif
@@ -393,10 +500,16 @@ subroutine IntegralFluxDestroy(integral_flux)
   
   if (.not.associated(integral_flux)) return
   
-  if (associated(integral_flux%coordinates)) &
-    deallocate(integral_flux%coordinates)
-  nullify(integral_flux%coordinates)
-  call DeallocateArray(integral_flux%connections)
+  if (associated(integral_flux%polygon)) &
+    deallocate(integral_flux%polygon)
+  nullify(integral_flux%polygon)
+  if (associated(integral_flux%plane)) &
+    deallocate(integral_flux%plane)
+  nullify(integral_flux%plane) 
+  call DeallocateArray(integral_flux%coordinates_and_directions)
+  call DeallocateArray(integral_flux%vertices)
+  call DeallocateArray(integral_flux%internal_connections)
+  call DeallocateArray(integral_flux%boundary_connections)
   call DeallocateArray(integral_flux%integral_value)
   deallocate(integral_flux)
   nullify(integral_flux)

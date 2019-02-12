@@ -109,9 +109,6 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
   PetscReal :: gas_concentration
   type(gas_type), pointer :: gas
   
-  if (option%nphase < 2 .or. &
-      .not.(option%iflowmode == G_MODE .or. option%iflowmode == WF_MODE)) return
-  
   rt_auxvar%total(:,iphase) = 0.d0 !debugging 
   
   gas => reaction%gas
@@ -208,7 +205,6 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   ! CO2-specific
   iphase = 2
 
-  if (iphase > option%nphase) return 
   rt_auxvar%total(:,iphase) = 0.D0
   rt_auxvar%aqueous%dtotal(:,:,iphase) = 0.D0
 

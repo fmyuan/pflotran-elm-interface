@@ -1,6 +1,9 @@
 module Geomechanics_Regression_module
  
 #include "petsc/finclude/petscvec.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscvec
   use Output_Aux_module
   
@@ -157,7 +160,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
 
           count = count + 1
           if (count > max_vertices) then
-            call reallocateIntArray(int_array,max_vertices)
+            call ReallocateArray(int_array,max_vertices)
           endif
           call InputReadInt(input,option,int_array(count))
           call InputErrorMsg(input,option,'natural vertex id','GEOMECHANICS_REGRESSION,VERTICES')

@@ -205,7 +205,7 @@ end subroutine DownregSetup
 
 ! ************************************************************************** !
 
-subroutine DownregUpdate(this,time,option)
+subroutine DownregUpdate(this,option)
 
   use Option_module
   use Dataset_module
@@ -213,10 +213,9 @@ subroutine DownregUpdate(this,time,option)
   implicit none
 
   class(srcsink_sandbox_downreg_type) :: this
-  PetscReal :: time
   type(option_type) :: option
 
-  call DatasetUpdate(this%dataset,time,option)
+  call DatasetUpdate(this%dataset,option)
 
 end subroutine DownregUpdate
 

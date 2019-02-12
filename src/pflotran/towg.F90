@@ -16,6 +16,8 @@ module TOWG_module
 #define LIQUID_DIFFUSION
 #define CONDUCTION
 
+#define GLOBALWORKERS
+
 !#define DEBUG_TOWG_FILEOUTPUT
 !#define DEBUG_TOWG_FLUXES  
 
@@ -32,6 +34,23 @@ module TOWG_module
   PetscInt :: debug_timestep_cut_count
   PetscInt :: debug_timestep_count
 #endif
+
+#ifdef GLOBALWORKERS
+  PetscReal, allocatable, dimension(:) :: D_den_kg_ave_up,D_den_kg_ave_dn
+  PetscReal, allocatable, dimension(:) :: D_den_ave_up,D_den_ave_dn
+  PetscReal, allocatable, dimension(:) :: D_delta_presure_up,D_delta_presure_dn
+  PetscReal, allocatable, dimension(:) :: D_mobility_up,D_mobility_dn
+  PetscReal, allocatable, dimension(:) :: D_uH_up,D_uH_dn
+  PetscReal, allocatable, dimension(:) :: D_v_darcy_up,D_v_darcy_dn
+  PetscReal, allocatable, dimension(:) :: D_q_up,D_q_dn
+  PetscReal, allocatable, dimension(:) :: D_mole_flux_up,D_mole_flux_dn
+  PetscReal, allocatable, dimension(:) :: D_xmf_up,D_xmf_dn
+
+  PetscReal, allocatable, dimension(:) :: D_sat_liquid_up,D_sat_liquid_dn,D_k_eff_up,D_k_eff_dn
+  PetscReal, allocatable, dimension(:) :: D_k_eff_ave_up,D_k_eff_ave_dn,D_delta_temp_up,D_delta_temp_dn
+  PetscReal, allocatable, dimension(:) :: D_worker1,D_worker2
+#endif
+
 
   !pointing to null() function
   procedure(TOWGUpdateAuxVarsDummy), pointer :: TOWGUpdateAuxVars => null()
@@ -54,7 +73,8 @@ module TOWG_module
     end subroutine TOWGUpdateAuxVarsDummy
 
     subroutine TOWGAccumulationDummy(auxvar,global_auxvar,material_auxvar, &
-                                     soil_heat_capacity,option,Res,debug_cell)
+                                     soil_heat_capacity,option,Res,debug_cell,&
+                                     j,analytical_derivatives)
       use AuxVars_TOWG_module
       use Global_Aux_module
       use Option_module
@@ -68,6 +88,8 @@ module TOWG_module
       type(option_type) :: option
       PetscReal :: Res(option%nflowdof) 
       PetscBool :: debug_cell
+      PetscReal :: j(1:option%nflowspec,1:option%nflowdof) 
+      PetscBool :: analytical_derivatives
     end subroutine TOWGAccumulationDummy
 
     subroutine TOWGComputeMassBalanceDummy(realization,mass_balance)
@@ -88,7 +110,8 @@ module TOWG_module
                              thermal_conductivity_dn, &
                              area, dist, towg_parameter, &
                              option,v_darcy,Res, &
-                             debug_connection)
+                             debug_connection, &
+                             jup,jdn,analytical_derivatives)
       use PM_TOWG_Aux_module
       use AuxVars_TOWG_module
       use Global_Aux_module
@@ -108,6 +131,8 @@ module TOWG_module
       PetscReal :: thermal_conductivity_up(2)
       PetscReal :: Res(option%nflowdof)
       PetscBool :: debug_connection
+      PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: jup,jdn
+      PetscBool :: analytical_derivatives
     end subroutine TOWGFluxDummy
 
     subroutine TOWGBCFluxDummy(ibndtype,bc_auxvar_mapping,bc_auxvars, &
@@ -117,7 +142,8 @@ module TOWG_module
                                sir_dn, &
                                thermal_conductivity_dn, &
                                area,dist,towg_parameter, &
-                               option,v_darcy,Res,debug_connection)
+                               option,v_darcy,Res,debug_connection,&
+                               Jdn,analytical_derivatives)
       use PM_TOWG_Aux_module
       use AuxVars_TOWG_module
       use Global_Aux_module
@@ -138,10 +164,13 @@ module TOWG_module
       PetscInt :: bc_auxvar_mapping(TOWG_MAX_INDEX)
       PetscReal :: thermal_conductivity_dn(2)
       PetscBool :: debug_connection
+      PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: Jdn
+      PetscBool :: analytical_derivatives
     end subroutine TOWGBCFluxDummy
 
     subroutine TOWGSrcSinkDummy(option,src_sink_condition, auxvar, &
-                            global_auxvar,ss_flow_vol_flux,scale,Res)
+                            global_auxvar,ss_flow_vol_flux,scale,Res,&
+                            j,analytical_derivatives)
       use Option_module
       use AuxVars_TOWG_module
       use Global_Aux_module
@@ -154,6 +183,8 @@ module TOWG_module
       PetscReal :: ss_flow_vol_flux(option%nphase)
       PetscReal :: scale  
       PetscReal :: Res(option%nflowdof)
+      PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: j
+      PetscBool :: analytical_derivatives
     end subroutine TOWGSrcSinkDummy
 
     subroutine TOWGCheckUpdatePreDummy(line_search,X,dX,changed,realization, &
@@ -208,11 +239,52 @@ contains
 
 ! ************************************************************************** !
 
+function checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+
+!------------------------------------------------------------------------------
+! Used in black oil, returns .true. if phase iphase contains component icomp
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Oct 2017
+!------------------------------------------------------------------------------
+
+  use Option_module, only : option_type
+
+  PetscBool                    :: checkBlackOilCIP
+  PetscInt,  intent(in )       :: iphase
+  PetscInt,  intent(in )       :: icomp
+  PetscBool, intent(out)       :: is_oil_in_oil,is_gas_in_oil
+  type(option_type),intent(in) :: option
+  PetscBool                    :: componentInPhase
+
+!  Default return values
+
+  componentInPhase = PETSC_FALSE
+  is_oil_in_oil    = PETSC_FALSE
+  is_gas_in_oil    = PETSC_FALSE
+
+! disgas is special case
+
+  if( iphase == option%oil_phase ) then
+    if( icomp == option%oil_phase ) is_oil_in_oil = PETSC_TRUE
+    if( icomp == option%gas_phase ) is_gas_in_oil = PETSC_TRUE
+  endif
+
+! OK if phase and component match or dissolved gas
+
+  if( iphase == icomp .or. is_gas_in_oil )  componentInPhase = PETSC_TRUE
+
+  checkBlackOilCIP = componentInPhase
+
+end function checkBlackOilCIP
+
+! ************************************************************************** !
+
 subroutine TOWGSetup(realization)
   ! 
   ! Creates arrays for TOWG auxiliary variables
   ! 
-  ! Author: Paolo Orsini (OGS)
+  ! Author: Paolo Orsini and Dave Ponting (OGS)
   ! Date: 11/07/16
   ! 
 
@@ -225,6 +297,7 @@ subroutine TOWGSetup(realization)
   !use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use AuxVars_Flow_module
 
   implicit none
   
@@ -251,6 +324,47 @@ subroutine TOWGSetup(realization)
   grid => patch%grid
   
   patch%aux%TOWG => TOWGAuxCreate(option)
+
+  towg_analytical_derivatives = .not. option%flow%numerical_derivatives
+  towg_analytical_derivatives_compare = option%flow%numerical_derivatives_compare
+
+  towg_dcomp_tol = flow_aux_debug_tol
+  towg_dcomp_reltol = flow_aux_debug_reltol
+
+#ifdef GLOBALWORKERS
+  if (towg_analytical_derivatives) then
+    allocate(D_den_kg_ave_up (1:option%nflowdof))
+    allocate(D_den_kg_ave_dn (1:option%nflowdof))
+    allocate(D_den_ave_up (1:option%nflowdof))
+    allocate(D_den_ave_dn (1:option%nflowdof))
+    allocate(D_delta_presure_up (1:option%nflowdof))
+    allocate(D_delta_presure_dn (1:option%nflowdof))
+    allocate( D_mobility_up (1:option%nflowdof))
+    allocate(D_mobility_dn (1:option%nflowdof))
+    allocate(D_uH_up (1:option%nflowdof))
+    allocate(D_uH_dn (1:option%nflowdof))
+    allocate(D_v_darcy_up (1:option%nflowdof))
+    allocate(D_v_darcy_dn (1:option%nflowdof))
+    allocate(D_q_up (1:option%nflowdof))
+    allocate(D_q_dn (1:option%nflowdof))
+    allocate(D_mole_flux_up (1:option%nflowdof))
+    allocate(D_mole_flux_dn (1:option%nflowdof))
+    allocate(D_xmf_up (1:option%nflowdof))
+    allocate(D_xmf_dn (1:option%nflowdof))
+
+    allocate( D_sat_liquid_up  (1:option%nflowdof))
+    allocate( D_sat_liquid_dn (1:option%nflowdof))
+    allocate(D_k_eff_up  (1:option%nflowdof))
+    allocate(D_k_eff_dn  (1:option%nflowdof))
+    allocate(D_k_eff_ave_up (1:option%nflowdof))
+    allocate(D_k_eff_ave_dn (1:option%nflowdof))
+    allocate(D_delta_temp_up (1:option%nflowdof))
+    allocate(  D_delta_temp_dn (1:option%nflowdof))
+    allocate( D_worker1 (1:option%nflowdof))
+    allocate(D_worker2 (1:option%nflowdof))
+
+  endif
+#endif
 
   ! ensure that material properties specific to this module are properly
   ! initialized
@@ -322,6 +436,7 @@ subroutine TOWGSetup(realization)
 
   call patch%aux%TOWG%Init(grid,num_bc_connection,num_ss_connection,option)
 
+
   !initialise here diffusion coefficient when supporting the oil and gas
   ! diffusione terms
   ! initialize parameters
@@ -349,23 +464,58 @@ subroutine TOWGSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call TOWGSetPlotVariables(list) 
 
-  ! covergence creteria to be chosen (can use TOUGH or TOWG type) 
-  ! set up here tough convergnce creteria if needed.
+  ! convergence criteria to be chosen (can use TOUGH or TOWG type)
+  ! set up here tough convergence creteria if needed.
 
-  !set up TOWG functions that can vary with the miscibility model
+!------------------------------------------------------------------------------
+!  TOWG functions that can vary with the miscibility model
+!------------------------------------------------------------------------------
+
   select case(towg_miscibility_model)
-    case(TOWG_IMMISCIBLE)
-      TOWGUpdateAuxVars => TOWGImsUpdateAuxVars
-      TOWGAccumulation => TOWGImsTLAccumulation
-      TOWGComputeMassBalance => TOWGImsTLComputeMassBalance
-      TOWGFlux => TOWGImsTLFlux
-      TOWGBCFlux => TOWGImsTLBCFlux
-      TOWGSrcSink => TOWGImsTLSrcSink
+    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
       TOWGCheckUpdatePre => TOWGImsTLCheckUpdatePre
       TOWGMaxChange => TOWGImsTLMaxChange
-      call TOWGImsAuxVarComputeSetup()
+      TOWGSrcSink   => TOWGImsTLSrcSink
+      select case(towg_miscibility_model)
+        case(TOWG_IMMISCIBLE)
+          call TOWGImsAuxVarComputeSetup()
+        case(TOWG_TODD_LONGSTAFF)
+          call TOWGTLAuxVarComputeSetup()
+      end select
+    case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+! No trap on neg Sg, avoid dampling Pb as Sg, so special black oil/TL4P version
+       TOWGCheckUpdatePre => TOWGBlackOilCheckUpdatePre
+! Detailed lookup needed for the oil source case, so special black oil/TL4P version
+       TOWGSrcSink => TOWGBOSrcSink
+! Cases in which black oil and TL4P are different
+       select case(towg_miscibility_model)
+          case(TOWG_BLACK_OIL)
+! Must convert Pbub changes to eff. satn. change, so special black oil version
+            TOWGMaxChange => TOWGBOMaxChange
+            call TOWGBlackOilAuxVarComputeSetup()
+          case(TOWG_SOLVENT_TL)
+! Pbub changes and extra saturation, so special solvent version
+            TOWGMaxChange => TOWGTL4PMaxChange
+            call TL4PAuxVarComputeSetup()
+       end select
     case default
-      option%io_buffer = 'TOWGSetup: only TOWG_IMMISCIBLE is supported.'
+       option%io_buffer = 'TOWGSetup: mode not supported.'
+       call printErrMsg(option)
+  end select
+
+!------------------------------------------------------------------------------
+! TOWG functions that do not vary with the miscibility model
+!------------------------------------------------------------------------------
+
+  select case(towg_miscibility_model)
+    case(TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+       TOWGAccumulation => TOWGImsTLBOAccumulation
+       TOWGUpdateAuxVars => TOWGImsTLBOUpdateAuxVars
+       TOWGComputeMassBalance => TOWGImsTLBOComputeMassBalance
+       TOWGFlux => TOWGImsTLBOFlux
+       TOWGBCFlux => TOWGImsTLBOBCFlux
+    case default
+      option%io_buffer = 'TOWGSetup: mode not supported.'
       call printErrMsg(option)
   end select
 
@@ -385,7 +535,76 @@ end subroutine TOWGSetup
 
 ! ************************************************************************** !
 
-subroutine TOWGImsUpdateAuxVars(realization,update_state)
+#ifdef GLOBALWORKERS
+function CheckWorkersAllocated()
+
+  implicit none
+
+  PetscBool :: CheckWorkersAllocated
+
+  CheckWorkersAllocated = PETSC_TRUE
+
+  if (.NOT. allocated(D_den_kg_ave_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_den_kg_ave_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_den_ave_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_den_ave_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_delta_presure_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_delta_presure_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mobility_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mobility_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_uH_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_uH_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_v_darcy_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_v_darcy_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_q_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_q_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mole_flux_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_mole_flux_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_xmf_up))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+  if (.NOT. allocated(D_xmf_dn))  then
+    CheckWorkersAllocated = PETSC_FALSE; return
+  endif
+
+end function CheckWorkersAllocated
+#endif
+
+! ************************************************************************** !
+
+subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
   ! 
   ! Updates the auxiliary variables associated with the TOWG_IMS problem
   ! 
@@ -453,6 +672,10 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
     
+!------------------------------------------------------------------------------
+! Extract solution
+!------------------------------------------------------------------------------
+
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
 #ifdef DEBUG_AUXVARS
@@ -460,6 +683,10 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
   write(word,*) icall
   word = 'towgaux' // trim(adjustl(word))
 #endif
+
+!------------------------------------------------------------------------------
+! Loop over cells
+!------------------------------------------------------------------------------
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -484,6 +711,10 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
                        option)
   enddo
 
+!------------------------------------------------------------------------------
+! Now boundary conditions
+!------------------------------------------------------------------------------
+
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
@@ -503,8 +734,8 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
       if (istate == TOWG_NULL_STATE) then !this is applied to flux (Neumann) conditions
         istate = global_auxvars(ghosted_id)%istate !look into the state of down cell
         select case(istate)
-          !only two states are possible for TOWGIms: TOWG_THREE_PHASE_STATE, TOWG_NULL_STATE
-          case(TOWG_THREE_PHASE_STATE)
+! Two states possible: TOWG_THREE_PHASE_STATE,TOWG_LIQ_OIL_STATE
+          case(TOWG_THREE_PHASE_STATE,TOWG_LIQ_OIL_STATE)
             do idof = 1, option%nflowdof
               select case(boundary_condition%flow_bc_type(idof))
                 case(HYDROSTATIC_BC)
@@ -583,6 +814,8 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
         enddo
       endif
           
+!--Now do the auxvar setup for the boundary condition--------------------------
+
       ! set this based on data given 
       global_auxvars_bc(sum_connection)%istate = istate
       ! TOWG_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
@@ -598,11 +831,15 @@ subroutine TOWGImsUpdateAuxVars(realization,update_state)
     boundary_condition => boundary_condition%next
   enddo
 
+!------------------------------------------------------------------------------
+! Restore state and solution
+!------------------------------------------------------------------------------
+
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
   patch%aux%TOWG%auxvars_up_to_date = PETSC_TRUE
 
-end subroutine TOWGImsUpdateAuxVars
+end subroutine TOWGImsTLBOUpdateAuxVars
 
 ! ************************************************************************** !
 
@@ -650,10 +887,13 @@ subroutine TOWGUpdateSolution(realization)
   use Discretization_module
   use Option_module
   use Grid_module
+  use Well_Data_class
   
   implicit none
   
   type(realization_subsurface_type) :: realization
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -663,6 +903,7 @@ subroutine TOWGUpdateSolution(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
+  PetscReal :: dt
   
   option => realization%option
   field => realization%field
@@ -670,7 +911,26 @@ subroutine TOWGUpdateSolution(realization)
   grid => patch%grid
   towg => patch%aux%TOWG
   global_auxvars => patch%aux%Global%auxvars
-  
+
+! Loop over well_data wells if present
+
+  dt = option%flow_dt
+
+  if (WellDataGetFlag()) then
+    well_data_list => realization%well_data
+    well_data => well_data_list%first
+
+    do
+      if (.not.associated(well_data)) exit
+      call well_data%DoUpdate(dt,option)
+      well_data => well_data%next
+    enddo
+
+    call FindGroupRates (well_data_list)
+    call FindGroupTotals(well_data_list)
+
+  endif
+
   if (realization%option%compute_mass_balance_new) then
     call TOWGUpdateMassBalance(realization)
   endif
@@ -833,7 +1093,7 @@ end subroutine TOWGUpdateMassBalance
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
+subroutine TOWGImsTLBOComputeMassBalance(realization,mass_balance)
   ! 
   ! Initializes mass balance
   ! 
@@ -865,7 +1125,14 @@ subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscInt :: iphase, icomp
-  PetscReal :: vol_phase
+  PetscReal :: vol_phase,xmf,molar_density,mole_wt
+
+  PetscBool :: is_black_oil
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+  is_black_oil=PETSC_FALSE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
 
   option => realization%option
   patch => realization%patch
@@ -889,13 +1156,29 @@ subroutine TOWGImsTLComputeMassBalance(realization,mass_balance)
         towg%auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity* &
         material_auxvars(ghosted_id)%volume
       ! mass = volume_phase*density 
+      if( is_black_oil ) then
+        do icomp=1,option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+            ! mole fraction of component in phase
+            xmf=1.0
+            if( is_oil_in_oil ) xmf=towg%auxvars(ZERO_INTEGER,ghosted_id)%bo%xo
+            if( is_gas_in_oil ) xmf=towg%auxvars(ZERO_INTEGER,ghosted_id)%bo%xg
+          ! mass = xmf*volume_phase*density
+            molar_density=towg%auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)
+            mole_wt      =towg_fmw_comp(icomp)
+            mass_balance(icomp,1) = mass_balance(icomp,1)+molar_density*mole_wt*vol_phase*xmf
+          endif
+        enddo
+      else
       mass_balance(iphase,1) = mass_balance(iphase,1) + &
         towg%auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
         towg_fmw_comp(iphase) * vol_phase
+      endif
     enddo
   enddo
 
-end subroutine TOWGImsTLComputeMassBalance
+end subroutine TOWGImsTLBOComputeMassBalance
 
 ! ************************************************************************** !
 
@@ -994,6 +1277,288 @@ subroutine TOWGImsTLMaxChange(realization,max_change_ivar,max_change_isubvar,&
   max_temperature_change = max_change_global(4)
   
 end subroutine TOWGImsTLMaxChange
+
+! ************************************************************************** !
+
+subroutine TOWGBOMaxChange(realization,max_change_ivar,max_change_isubvar,&
+                           max_pressure_change,max_xmol_change, &
+                           max_saturation_change,max_temperature_change)
+
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL, to compute primary variable max changes
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Dec 2017
+!------------------------------------------------------------------------------
+
+  use Realization_Base_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Variables_module, only : OIL_PRESSURE
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  PetscInt :: max_change_ivar(:)
+  PetscInt :: max_change_isubvar(:)
+  PetscReal :: max_pressure_change
+  PetscReal :: max_xmol_change
+  PetscReal :: max_saturation_change
+  PetscReal :: max_temperature_change
+
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal :: max_change_local(5)
+  PetscReal :: max_change_global(5)
+  PetscReal :: sum_values_local (2)
+  PetscReal :: sum_values_global(2)
+  PetscReal :: max_change,sum_pressure,normed_max_pb_change,average_pressure
+  PetscInt :: i, j
+  PetscInt :: local_id, ghosted_id
+
+  PetscErrorCode :: ierr
+
+  option => realization%option
+  field => realization%field
+  grid => realization%patch%grid
+
+  max_change_global   = 0.d0
+  max_change_local    = 0.d0
+  sum_pressure        = 0.d0
+  normed_max_pb_change= 0.d0
+  average_pressure    = 0.d0
+
+!------------------------------------------------------------------------------
+! Look at the black oil variables:
+! {OIL_PRESSURE,OIL_SATURATION,GAS_SATURATION,TEMPERATURE,BUBBLE_POINT}
+!------------------------------------------------------------------------------
+
+  do i = 1, 5
+
+!--Get values------------------------------------------------------------------
+
+    call RealizationGetVariable(realization,field%work, &
+                                max_change_ivar(i),max_change_isubvar(i))
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    max_change = 0.d0
+    do j = 1, grid%nlmax
+      ! have to weed out cells that changed state
+      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
+        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+      endif
+    enddo
+    max_change_local(i) = max_change
+
+!--Case of pressure to provide norm for bubble point change--------------------
+
+    if( max_change_ivar(i)==OIL_PRESSURE ) then
+      do j = 1, grid%nlmax
+        sum_values_local(1)=sum_pressure
+        sum_values_local(2)=real(grid%nlmax)
+      enddo
+    endif
+
+!--Restore values--------------------------------------------------------------
+
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+                            ierr);CHKERRQ(ierr)
+
+    call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
+
+  enddo
+
+!------------------------------------------------------------------------------
+! Do global reductions
+!------------------------------------------------------------------------------
+
+  call MPI_Allreduce(max_change_local,max_change_global,FIVE_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(sum_values_local,sum_values_global,TWO_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+  if( sum_values_global(2)>0.0 ) then
+    average_pressure=sum_values_global(1)/sum_values_global(2)
+  endif
+
+  if( average_pressure>0.0 ) then
+   normed_max_pb_change=max_change_global(5)/average_pressure
+  endif
+
+!------------------------------------------------------------------------------
+! Report the changes
+!------------------------------------------------------------------------------
+
+  if (OptionPrintToScreen(option)) then
+    write(*,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4, &
+      & " dsg= ",1pe12.4," dt= ",1pe12.4," dpb= ",1pe12.4)') &
+      max_change_global(1:5)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4,&
+      & " dsg= ",1pe12.4,/,15x,"  dt= ",1pe12.4,"  dpb= ",1pe12.4)') &
+      max_change_global(1:5)
+  endif
+
+!------------------------------------------------------------------------------
+! Assemble the changes that control the simulation step
+! Black oil model should be independent of mole weights,
+! so do not set mole fraction max change
+! Include normed maximum bubble point as an effective saturation change
+!------------------------------------------------------------------------------
+
+  max_pressure_change    = max_change_global(1)
+  max_xmol_change        = 0.0d0
+  max_saturation_change  = maxval(max_change_global(2:3))
+  max_saturation_change  = max(max_saturation_change,normed_max_pb_change)
+  max_temperature_change = max_change_global(4)
+
+end subroutine TOWGBOMaxChange
+
+subroutine TOWGTL4PMaxChange(realization,max_change_ivar,max_change_isubvar,&
+                             max_pressure_change,max_xmol_change, &
+                             max_saturation_change,max_temperature_change)
+
+!------------------------------------------------------------------------------
+! Used in TOWG_SOLVENT_TL, to compute primary variable max changes
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Apr 2018
+!------------------------------------------------------------------------------
+
+  use Realization_Base_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Variables_module, only : OIL_PRESSURE
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  PetscInt :: max_change_ivar(:)
+  PetscInt :: max_change_isubvar(:)
+  PetscReal :: max_pressure_change
+  PetscReal :: max_xmol_change
+  PetscReal :: max_saturation_change
+  PetscReal :: max_temperature_change
+
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal :: max_change_local(6)
+  PetscReal :: max_change_global(6)
+  PetscReal :: sum_values_local (2)
+  PetscReal :: sum_values_global(2)
+  PetscReal :: max_change,sum_pressure,normed_max_pb_change,average_pressure
+  PetscInt :: i, j
+  PetscInt :: local_id, ghosted_id
+
+  PetscErrorCode :: ierr
+
+  option => realization%option
+  field => realization%field
+  grid => realization%patch%grid
+
+  max_change_global   = 0.d0
+  max_change_local    = 0.d0
+  sum_pressure        = 0.d0
+  normed_max_pb_change= 0.d0
+  average_pressure    = 0.d0
+
+!------------------------------------------------------------------------------
+! Look at the TL4P oil variables (order defined by max_change_ivar)
+! {OIL_PRESSURE,OIL_SATURATION,GAS_SATURATION,SOLVENT_SATURATION,TEMPERATURE,BUBBLE_POINT}
+!------------------------------------------------------------------------------
+
+  do i = 1, 6
+
+!--Get values------------------------------------------------------------------
+
+    call RealizationGetVariable(realization,field%work, &
+                                max_change_ivar(i),max_change_isubvar(i))
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
+    max_change = 0.d0
+    do j = 1, grid%nlmax
+      ! have to weed out cells that changed state
+      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
+        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+      endif
+    enddo
+    max_change_local(i) = max_change
+
+!--Case of pressure to provide norm for bubble point change--------------------
+
+    if( max_change_ivar(i)==OIL_PRESSURE ) then
+      do j = 1, grid%nlmax
+        sum_values_local(1)=sum_pressure
+        sum_values_local(2)=real(grid%nlmax)
+      enddo
+    endif
+
+!--Restore values--------------------------------------------------------------
+
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
+                            ierr);CHKERRQ(ierr)
+
+    call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
+
+  enddo
+
+!------------------------------------------------------------------------------
+! Do global reductions
+!------------------------------------------------------------------------------
+
+  call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(sum_values_local,sum_values_global,TWO_INTEGER, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+  if( sum_values_global(2)>0.0 ) then
+    average_pressure=sum_values_global(1)/sum_values_global(2)
+  endif
+
+  if( average_pressure>0.0 ) then
+   normed_max_pb_change=max_change_global(6)/average_pressure
+  endif
+
+!------------------------------------------------------------------------------
+! Report the changes
+!------------------------------------------------------------------------------
+
+  if (OptionPrintToScreen(option)) then
+    write(*,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4, &
+      & " dsg= ",1pe12.4," dss= ",1pe12.4," dt= ",1pe12.4," dpb= ",1pe12.4)') &
+      max_change_global(1:6)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,'("  --> max chng: dpo= ",1pe12.4, " dso= ",1pe12.4,&
+      & " dsg= ",1pe12.4," dss= ",1pe12.4,/,15x,"  dt= ",1pe12.4,"  dpb= ",1pe12.4)') &
+      max_change_global(1:6)
+  endif
+
+!------------------------------------------------------------------------------
+! Assemble the changes that control the simulation step
+! TL4P model should be independent of mole weights,
+! so do not set mole fraction max change
+! Include normed maximum bubble point as an effective saturation change
+!------------------------------------------------------------------------------
+
+  max_pressure_change    = max_change_global(1)
+  max_xmol_change        = 0.0d0
+  max_saturation_change  = maxval(max_change_global(2:4))
+  max_saturation_change  = max(max_saturation_change,normed_max_pb_change)
+  max_temperature_change = max_change_global(5)
+
+end subroutine TOWGTL4PMaxChange
 
 ! ************************************************************************** !
 
@@ -1140,34 +1705,23 @@ subroutine TOWGSetPlotVariables(list)
   call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                GAS_ENERGY)
 
-  !to be added later for BLACK oil model and solvent model
+! Bubble point output option for black oil and full solvent
   if ( towg_miscibility_model == TOWG_BLACK_OIL .or. &
        towg_miscibility_model == TOWG_SOLVENT_TL ) then
-     write(*,*) "error: TOWGSetPlotVariables: TOWG_BLACK_OIL and " // &
-                "TOWG_SOLVENT_TL not currently supported"
-     stop
-     ! add the following output variables to print:
-     ! - gas mol fraction in oil (dissolved gas)
-     ! - oil mol fraction in oil
-     ! - gas mol fraction in gas
-     ! - oil mol fraction in gas (oil vaour)
+    name = 'Bubble Point'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                               BUBBLE_POINT)
   end if
 
+! Solvent model
   if ( towg_miscibility_model == TOWG_SOLVENT_TL ) then
-    ! add solvent saturation 
-     write(*,*) "error: TOWGSetPlotVariables: TOWG_SOLVENT_TL " // &
-                "not currently supported"
-     stop
+    name = 'Solvent Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                 SOLVENT_SATURATION)
   end if
 
- ! to switch on when TOWG_BLACK_OIL is implemented 
- ! name = 'Thermodynamic State'
- ! units = ''
- ! output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
- ! output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
- ! output_variable%iformat = 1 ! integer
- ! call OutputVariableAddToList(list,output_variable)   
-  
 end subroutine TOWGSetPlotVariables
 
 ! ************************************************************************** !
@@ -1207,6 +1761,8 @@ subroutine TOWGUpdateFixedAccum(realization)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
                           
   PetscErrorCode :: ierr
+
+  PetscReal :: jdum(realization%option%nflowdof,realization%option%nflowdof)
   
   option => realization%option
   field => realization%field
@@ -1251,7 +1807,7 @@ subroutine TOWGUpdateFixedAccum(realization)
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
                           option,accum_p(local_start:local_end), &
-                          local_id == towg_debug_cell_id) 
+                          local_id == towg_debug_cell_id,jdum,PETSC_FALSE) 
   enddo
   
   !for tough2 convergence criteria
@@ -1273,11 +1829,12 @@ end subroutine TOWGUpdateFixedAccum
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
-                                 soil_heat_capacity,option,Res,debug_cell)
+subroutine TOWGImsTLBOAccumulation(auxvar,global_auxvar,material_auxvar, &
+                                 soil_heat_capacity,option,Res,debug_cell,&
+                                 j,analytical_derivatives)
   ! 
-  ! Computes the non-fixed portion of the accumulation
-  ! term for the residual - TOWG_IMS and TOWG_TL models
+  ! Computes the non-fixed portion of the accumulation term for the residual
+  ! Used for TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF,TOWG_BLACK_OIL,TOWG_SOLVENT_TL
   ! 
   ! Author: Paolo Orsini
   ! Date: 12/07/16 
@@ -1286,6 +1843,7 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   use Option_module
   use Material_module
   use Material_Aux_class
+  use Derivatives_utilities_module 
   
   implicit none
 
@@ -1297,10 +1855,35 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Res(option%nflowdof) 
   PetscBool :: debug_cell
   
-  PetscInt :: iphase, energy_id
+  PetscInt :: iphase,icomp, energy_id
   
   PetscReal :: porosity
-  PetscReal :: volume_over_dt
+  PetscReal :: volume_over_dt,xmf
+
+  PetscBool :: is_black_oil
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+  PetscReal :: j(1:option%nflowdof,1:option%nflowdof) 
+  PetscReal :: D_xmf(1:option%nflowdof) 
+  PetscReal :: D_temp(1:option%nflowdof) 
+  PetscBool :: analytical_derivatives
+  PetscInt :: ndof 
+  
+  ndof = option%nflowdof
+
+  if (analytical_derivatives) then
+    j = 0.d0
+
+    ! a bit silly but helps elegance later on:
+    D_temp = 0.d0
+    D_temp(towg_energy_dof) = 1.d0
+  endif
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
  
   energy_id = option%energy_id
   
@@ -1314,18 +1897,74 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   ! not for TOWG IMS and TL (kmol phase) = (kmol comp)
   ! and nphase = nflowspec
   Res = 0.d0
+
+  if( is_black_oil ) then
+    do iphase = 1, option%nphase
+      do icomp = 1, option%nphase ! In black oil, same number of components as phases
+        ! Res[kmol comp/m^3 void] =  moleFraction
+        !                           *sat[m^3 phase /m^3 void ]
+        !                           *den[kmol phase/m^3 phase]
+        componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+
+        if( componentInPhase ) then
+          xmf=1.0d0
+          if( is_oil_in_oil ) xmf=auxvar%bo%xo
+          if( is_gas_in_oil ) xmf=auxvar%bo%xg
+
+          if (analytical_derivatives) then
+            D_xmf = 0.d0
+            if( is_oil_in_oil ) D_xmf=auxvar%bo%D_xo
+            if( is_gas_in_oil ) D_xmf=auxvar%bo%D_xg
+          endif
+
+          Res(icomp)=Res(icomp)+xmf*auxvar%sat(iphase)*auxvar%den(iphase)
+
+          if (analytical_derivatives) then
+            ! This is first instance of a XRule() type routine being used; see 
+            ! derivatives_utilites.F90 for definition and description.
+            J(icomp,:) = J(icomp,:) + ProdRule3(xmf,D_xmf,                                  &
+                                            auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
+                                            auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
+          endif
+
+        endif
+
+      enddo
+    enddo
+  else
   do iphase = 1, option%nphase
     ! Res[kmol phase/m^3 void] = sat[m^3 phase/m^3 void] * 
     !                           den[kmol phase/m^3 phase] * 
     Res(iphase) = Res(iphase) + auxvar%sat(iphase) * &
                                 auxvar%den(iphase) 
+
+    if (analytical_derivatives) then
+      J(iphase,:) = J(iphase,:) + ProdRule(auxvar%sat(iphase),auxvar%D_sat(iphase,:),      &
+                                           auxvar%den(iphase),auxvar%D_den(iphase,:),ndof )
+    endif
+
   enddo
+  endif
 
   ! scale by porosity * volume / dt
   ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] * 
+  !---------  scale by porosity * volume / dt ----------------
   !                 vol[m^3 bulk] / dt[sec]
+
+  ! do derivs first because it depends on unmodified value of Res.
+  if (analytical_derivatives) then
+    do icomp = 1,option%nflowspec
+      J(icomp,:) = ProdRule(Res(icomp),J(icomp,:), &
+                            porosity,auxvar%D_por,ndof) &
+                 * volume_over_dt
+    enddo
+  endif
+
   Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
                             porosity * volume_over_dt
+
+  !---------  scale by porosity * volume / dt ----------------
+
 
   do iphase = 1, option%nphase
     ! Res[MJ/m^3 void] = sat[m^3 phase/m^3 void] *
@@ -1333,7 +1972,24 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
     Res(energy_id) = Res(energy_id) + auxvar%sat(iphase) * &
                                       auxvar%den(iphase) * &
                                       auxvar%U(iphase)
+    if (analytical_derivatives) then
+      J(energy_id,:) = J(energy_id,:) + ProdRule3(auxvar%sat(iphase),auxvar%D_sat(iphase,:),   &
+                                                  auxvar%den(iphase),auxvar%D_den(iphase,:),   &
+                                                  auxvar%U(iphase),auxvar%D_U(iphase,:),ndof    )
+    endif
+
   enddo
+
+  
+  if (analytical_derivatives) then
+    J(energy_id,:) = (  ProdRule(Res(energy_id),J(energy_id,:),     &
+                                porosity,auxvar%D_por,ndof    )     &
+                      + material_auxvar%soil_particle_density       &
+                      * soil_heat_capacity                          &
+                      * ProdRule(1.d0-porosity,-1.d0*auxvar%D_por,  &
+                                 auxvar%temp,D_temp,ndof         )  &
+                     ) * volume_over_dt
+  endif
   ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] + 
   !                (1-por)[m^3 rock/m^3 bulk] * 
   !                  dencpr[kg rock/m^3 rock * MJ/kg rock-K] * T[C]) &
@@ -1342,6 +1998,7 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
                     (1.d0 - porosity) * &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * auxvar%temp) * volume_over_dt
+
   
 #ifdef DEBUG_TOWG_FILEOUTPUT
   if (debug_flag > 0) then
@@ -1349,11 +2006,11 @@ subroutine TOWGImsTLAccumulation(auxvar,global_auxvar,material_auxvar, &
   endif
 #endif                    
 
-end subroutine TOWGImsTLAccumulation
+end subroutine TOWGImsTLBOAccumulation
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
+subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                          material_auxvar_up, &
                          sir_up, &
                          thermal_conductivity_up, &
@@ -1363,7 +2020,8 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
                          thermal_conductivity_dn, &
                          area, dist, towg_parameter, &
                          option,v_darcy,Res, &
-                         debug_connection)
+                         debug_connection, &
+                         jup,jdn,analytical_derivatives)
   ! 
   ! Computes the internal flux terms for the residual
   ! 
@@ -1373,6 +2031,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   use Option_module
   use Material_Aux_class
   use Connection_module
+  use Derivatives_utilities_module
   !use Fracture_module
   !use Klinkenberg_module
   
@@ -1397,7 +2056,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: upweight
 
   PetscInt :: energy_id
-  PetscInt :: iphase
+  PetscInt :: iphase,icomp
   
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
@@ -1408,7 +2067,7 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
   PetscReal :: sat_up, sat_dn, den_up, den_dn
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
   !for debugging
@@ -1417,6 +2076,62 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   
   PetscReal :: dummy_dperm_up, dummy_dperm_dn
   PetscReal :: temp_perm_up, temp_perm_dn
+  PetscReal :: denup,dendn,xmf
+
+  PetscBool :: is_black_oil,istl,isoil,isgas
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+
+  PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: jup, jdn
+  PetscBool :: analytical_derivatives
+  PetscInt :: ndof 
+  
+
+  PetscReal :: d_den_kg_ave_dden_up,d_den_kg_ave_dden_dn
+  PetscReal :: d_den_ave_dden_up,d_den_ave_dden_dn
+  PetscReal :: d_delta_temp_dt_up,d_delta_temp_dt_dn,dheat_flux_ddelta_temp
+
+  PetscReal :: D_denup(option%nflowdof),D_dendn(option%nflowdof)
+#ifndef GLOBALWORKERS
+  PetscReal :: D_den_kg_ave_up(option%nflowdof),D_den_kg_ave_dn(option%nflowdof)
+  PetscReal :: D_den_ave_up(option%nflowdof),D_den_ave_dn(option%nflowdof)
+  PetscReal :: D_delta_presure_up(option%nflowdof),D_delta_presure_dn(option%nflowdof)
+  PetscReal :: D_mobility_up(option%nflowdof),D_mobility_dn(option%nflowdof)
+  PetscReal :: D_uH_up(option%nflowdof),D_uH_dn(option%nflowdof)
+  PetscReal :: D_v_darcy_up(option%nflowdof),D_v_darcy_dn(option%nflowdof)
+  PetscReal :: D_q_up(option%nflowdof),D_q_dn(option%nflowdof)
+  PetscReal :: D_mole_flux_up(option%nflowdof),D_mole_flux_dn(option%nflowdof)
+  PetscReal :: D_xmf_up(option%nflowdof),D_xmf_dn(option%nflowdof)
+  PetscReal, dimension(1:option%nflowdof) :: D_sat_liquid_up,D_sat_liquid_dn,D_k_eff_up,D_k_eff_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_k_eff_ave_up,D_k_eff_ave_dn,D_delta_temp_up,D_delta_temp_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_worker1,D_worker2
+#endif
+
+  PetscReal :: worker1,worker2
+  PetscInt :: i
+
+#ifdef GLOBALWORKERS
+  if (analytical_derivatives) then
+    if (.NOT. CheckWorkersAllocated()) then
+      ! something has gone horribly wrong here
+      option%io_buffer = 'TOWGImsTLBOFlux: analytical derivatives mode is ON but &
+                          intermediate workers are not allocated.'
+     call printErrMsg(option)
+    endif
+  endif
+#endif
+
+
+
+  ndof = option%nflowdof
+  if (analytical_derivatives) then
+    jup = 0.d0; jdn = 0.d0
+  endif
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
 
   energy_id = option%energy_id
 
@@ -1463,22 +2178,103 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
 #endif
 
 #ifdef CONVECTION
+
   do iphase = 1, option%nphase
+
+    if (analytical_derivatives) then
+      ! ensure all the worker variables are zero at the start of each loop
+      d_den_kg_ave_dden_up=0.d0; d_den_kg_ave_dden_dn=0.d0
+      d_den_ave_dden_up=0.d0;       d_den_ave_dden_dn=0.d0
+      d_delta_temp_dt_up=0.d0;     d_delta_temp_dt_dn=0.d0; dheat_flux_ddelta_temp=0.d0
+      D_den_kg_ave_up=0.d0;           D_den_kg_ave_dn=0.d0
+      D_den_ave_up=0.d0;                 D_den_ave_dn=0.d0
+      D_delta_presure_up=0.d0;     D_delta_presure_dn=0.d0
+      D_mobility_up=0.d0;               D_mobility_dn=0.d0
+      D_uH_up=0.d0;                           D_uH_dn=0.d0
+      D_v_darcy_up=0.d0;                 D_v_darcy_dn=0.d0
+      D_q_up=0.d0;                             D_q_dn=0.d0
+      D_mole_flux_up=0.d0;             D_mole_flux_dn=0.d0
+      D_xmf_up=0.d0;                         D_xmf_dn=0.d0
+    endif
  
+ !!! EXPERIMENTAL
+ !if (.NOT. analytical_derivatives) then
     if (auxvar_up%mobility(iphase) + &
         auxvar_dn%mobility(iphase) < eps) then
       cycle
     endif
+  !endif
 
-    density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                             auxvar_dn%sat(iphase), &
-                                             auxvar_up%den_kg(iphase), &
-                                             auxvar_dn%den_kg(iphase) )
+    istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
+    isoil=(option%phase_map(iphase) == OIL_PHASE)
+    isgas=(option%phase_map(iphase) == GAS_PHASE)
+    if( istl .and. (isoil.or.isgas) ) then
+      if( isoil ) then
+        denup=auxvar_up%tl%den_oil_eff_kg
+        dendn=auxvar_dn%tl%den_oil_eff_kg
+        if (analytical_derivatives) then
+          D_denup = auxvar_up%tl%D_den_oil_eff_kg
+          D_dendn = auxvar_dn%tl%D_den_oil_eff_kg
+        endif
+      else
+        denup=auxvar_up%tl%den_gas_eff_kg
+        dendn=auxvar_dn%tl%den_gas_eff_kg
+        if (analytical_derivatives) then
+          D_denup = auxvar_up%tl%D_den_gas_eff_kg
+          D_dendn = auxvar_dn%tl%D_den_gas_eff_kg
+        endif
+      endif
+
+      if (analytical_derivatives) then
+        density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
+                                                  auxvar_dn%sat(iphase), &
+                                                  denup                , &
+                                                  dendn                , &
+                                                  d_den_kg_ave_dden_up , &
+                                                  d_den_kg_ave_dden_dn    )
+        !D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
+        !D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
+        D_den_kg_ave_up = D_denup*d_den_kg_ave_dden_up
+        D_den_kg_ave_dn = D_dendn*d_den_kg_ave_dden_dn
+      else
+        density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
+                                                  auxvar_dn%sat(iphase), &
+                                                  denup                , &
+                                                  dendn )
+      endif
+
+    else
+      if (analytical_derivatives) then
+        density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase)    , &
+                                                  auxvar_dn%sat(iphase)    , &
+                                                  auxvar_up%den_kg(iphase) , &
+                                                  auxvar_dn%den_kg(iphase) , &
+                                                  d_den_kg_ave_dden_up     , &
+                                                  d_den_kg_ave_dden_dn         )
+        ! d_den_kg_ave_dden_up comes from average density calc
+        ! ( d (ave den) / d (den up) )
+        D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
+        D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
+      else
+        density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase)   , &
+                                                  auxvar_dn%sat(iphase)   , &
+                                                  auxvar_up%den_kg(iphase), &
+                                                  auxvar_dn%den_kg(iphase) )
+      endif
+
+    endif
 
     gravity_term = density_kg_ave * dist_gravity
     delta_pressure = auxvar_up%pres(iphase) - &
                      auxvar_dn%pres(iphase) + &
                      gravity_term
+
+    if (analytical_derivatives) then
+      D_delta_presure_up = auxvar_up%D_pres(iphase,:) &
+                         + D_den_kg_ave_up*dist_gravity
+      D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
+                           + D_den_kg_ave_dn*dist_gravity
+    endif
 
 #ifdef TOWG_DEBUG
       debug_dphi(iphase) = delta_pressure
@@ -1488,44 +2284,143 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       mobility = auxvar_up%mobility(iphase)
       H_ave = auxvar_up%H(iphase)
       uH = H_ave
+
+      if (analytical_derivatives) then
+        D_mobility_up = auxvar_up%D_mobility(iphase,:)
+        D_mobility_dn = 0.d0
+        D_uH_up = auxvar_up%D_H(iphase,:)
+        D_uH_dn = 0.d0
+      endif
+
     else
       mobility = auxvar_dn%mobility(iphase)
       H_ave = auxvar_dn%H(iphase)
       uH = H_ave
+
+      if (analytical_derivatives) then
+        D_mobility_up = 0.d0
+        D_mobility_dn = auxvar_dn%D_mobility(iphase,:)
+        D_uH_up = 0.d0
+        D_uH_dn = auxvar_dn%D_H(iphase,:)
+      endif
+
     endif      
 
-    if (mobility > floweps) then
+    !if (mobility > floweps) then
+    if (mobility > floweps .OR. analytical_derivatives) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
-      density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                            auxvar_dn%sat(iphase), &
-                                            auxvar_up%den(iphase), &
-                                            auxvar_dn%den(iphase) )
+
+      if (analytical_derivatives) then
+        D_v_darcy_up(:) = perm_ave_over_dist(iphase)                             &
+                               * ProdRule(mobility,D_mobility_up,                &
+                                          delta_pressure,D_delta_presure_up,ndof  )
+        D_v_darcy_dn(:) = perm_ave_over_dist(iphase)                             &
+                               * ProdRule(mobility,D_mobility_dn,                &
+                                          delta_pressure,D_delta_presure_dn,ndof  )
+
+        density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                              auxvar_dn%sat(iphase), &
+                                              auxvar_up%den(iphase), &
+                                              auxvar_dn%den(iphase), &
+                                              d_den_ave_dden_up    , &
+                                              d_den_ave_dden_dn       )
+        ! d_den_ave_dden_up comes from average density calc
+        ! ( d (ave den) / d (den up) )
+        D_den_ave_up = auxvar_up%D_den(iphase,:)*d_den_ave_dden_up
+        D_den_ave_dn = auxvar_dn%D_den(iphase,:)*d_den_ave_dden_dn
+      else
+        density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                              auxvar_dn%sat(iphase), &
+                                              auxvar_up%den(iphase), &
+                                              auxvar_dn%den(iphase) )
+      endif
+
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area  
+      if (analytical_derivatives) then
+        D_q_up = D_v_darcy_up * area
+        D_q_dn = D_v_darcy_dn * area
+      endif
+
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                             density_ave[kmol phase/m^3 phase]        
       mole_flux = q*density_ave
 
-      ! Res[kmol total/sec] = mole_flux[kmol phase/sec]
-      Res(iphase) = mole_flux
+      if (analytical_derivatives) then
+        D_mole_flux_up = ProdRule(q,D_q_up,                     &
+                                  density_ave,D_den_ave_up,ndof  )
+        D_mole_flux_dn = ProdRule(q,D_q_dn,                     &
+                                  density_ave,D_den_ave_dn,ndof  )
+      endif
 
-      !do icomp = 1, option%nflowspec
-      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
-      !  !                      xmol[kmol comp/kmol phase]
-      !  Res(icomp) = Res(icomp) + mole_flux * xmol(icomp)
-      !enddo
+      ! Res[kmol total/sec] = mole_flux[kmol phase/sec]
+
+      if( is_black_oil ) then
+! Loop over components in phase
+        do icomp = 1, option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+
+            xmf=1.0d0
+            if (delta_pressure >= 0.D0) then
+              if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
+            else
+              if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
+            endif
+
+            if (analytical_derivatives) then
+              D_xmf_up=0.0d0
+              D_xmf_dn=0.0d0
+              if (delta_pressure >= 0.D0) then
+                if( is_oil_in_oil ) D_xmf_up=auxvar_up%bo%D_xo
+                if( is_gas_in_oil ) D_xmf_up=auxvar_up%bo%D_xg
+              else
+                if( is_oil_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xo
+                if( is_gas_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xg
+              endif
+            endif
+
+            if (analytical_derivatives) then
+              Jup(icomp,:) = Jup(icomp,:) + ProdRule(xmf,D_xmf_up,                &
+                                                     mole_flux,D_mole_flux_up,ndof )
+              Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(xmf,D_xmf_dn,                &
+                                                     mole_flux,D_mole_flux_dn,ndof )
+            endif
+
+            Res(icomp)=Res(icomp)+xmf*mole_flux
+
+          endif
+        enddo
+      else
+! One component in phase
+        Res(iphase) = mole_flux
+        icomp = iphase
+
+        if (analytical_derivatives) then
+          Jup(icomp,:) = Jup(icomp,:) + D_mole_flux_up(:)
+          Jdn(icomp,:) = Jdn(icomp,:) + D_mole_flux_dn(:)
+        endif
+
+      endif
 
 #ifdef DEBUG_FLUXES  
       adv_flux(iphase) = mole_flux
-      !do icomp = 1, option%nflowspec
-      !  adv_flux(icomp) = adv_flux(icomp) + mole_flux * xmol(icomp)
-      !enddo      ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
 #endif
 
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH
+
+
+      if (analytical_derivatives) then
+        Jup(energy_id,:) = Jup(energy_id,:) + ProdRule(mole_flux,D_mole_flux_up, &
+                                               uH,D_uH_up,ndof             )
+        Jdn(energy_id,:) = Jdn(energy_id,:) + ProdRule(mole_flux,D_mole_flux_dn, &
+                                               uH,D_uH_dn,ndof             )
+      endif
 
 #ifdef DEBUG_FLUXES  
       adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
@@ -1536,7 +2431,6 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
       debug_flux(iphase) = mole_flux * uH
 #endif
     endif                   
-
   enddo
 ! CONVECTION
 #endif
@@ -1558,18 +2452,92 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   ! s_l = S_water + S_oil 
   sat_liquid = auxvar_up%sat(option%liquid_phase) + &
                auxvar_up%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_up = thermal_conductivity_up(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_up(2) - thermal_conductivity_up(1))
+
+  ! get corresponding upwind derivative contributions
+  if (analytical_derivatives) then
+    D_sat_liquid_up(:) = auxvar_up%D_sat(option%liquid_phase,:) + &
+                         auxvar_up%D_sat(option%oil_phase,:)
+
+    D_k_eff_up = 0.d0
+    do i = 1,ndof
+      if (abs(D_sat_liquid_up(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+        D_k_eff_up(i) = 0.d0 
+      else
+        D_k_eff_up(i) = 0.5d0*D_sat_liquid_up(i)/sqrt(sat_liquid_pos)
+      endif
+    enddo
+    D_k_eff_up = D_k_eff_up * &
+                 (thermal_conductivity_up(2) - thermal_conductivity_up(1))
+
+  endif
+
+
   sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                auxvar_dn%sat(option%oil_phase)
+  sat_liquid_pos=max(sat_liquid,0.0d0)
   k_eff_dn = thermal_conductivity_dn(1) + &
-             sqrt(sat_liquid) * &
+             sqrt(sat_liquid_pos) * &
              (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+
+  ! get corresponding downwind derivative contributions
+  if (analytical_derivatives) then
+    D_sat_liquid_dn = auxvar_dn%D_sat(option%liquid_phase,:) + &
+                      auxvar_dn%D_sat(option%oil_phase,:)
+    D_k_eff_dn = 0.d0
+    do i = 1,ndof
+      if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+        D_k_eff_dn(i) = 0.d0 
+      else
+        D_k_eff_dn(i) = 0.5d0*D_sat_liquid_dn(i)/sqrt(sat_liquid_pos)
+      endif
+    enddo
+    D_k_eff_dn = D_k_eff_dn * &
+                 (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+  endif
+
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
     k_eff_ave = (k_eff_up*k_eff_dn)/(k_eff_up*dist_dn+k_eff_dn*dist_up)
+
+
+    if (analytical_derivatives) then
+      ! complete the upwind derivatives
+      D_k_eff_ave_up = 0.d0
+
+      worker1 = k_eff_up*k_eff_dn
+      ! derivative w.r.t. upwind variables:
+      D_worker1 = k_eff_dn*D_k_eff_up 
+
+      worker2 = k_eff_up*dist_dn+k_eff_dn*dist_up
+      ! derivative w.r.t. upwind variables:
+      D_worker2 = D_k_eff_up*dist_dn 
+
+      D_k_eff_ave_up = DivRule(worker1,D_worker1, &
+                               worker2,D_worker2,ndof)
+
+      !complete the downwind derivatives
+      D_k_eff_ave_dn = 0.d0
+
+      worker1 = k_eff_up*k_eff_dn
+      ! derivative w.r.t. downwind variables:
+      D_worker1 = k_eff_up*D_k_eff_dn
+
+      worker2 = k_eff_up*dist_dn+k_eff_dn*dist_up
+      ! derivative w.r.t. downwind variables:
+      D_worker2 = D_k_eff_dn*dist_up
+
+      D_k_eff_ave_dn = DivRule(worker1,D_worker1, &
+                               worker2,D_worker2,ndof)
+    endif
   else
     k_eff_ave = 0.d0
+    if (analytical_derivatives) then
+      D_k_eff_ave_up = 0.d0
+      D_k_eff_ave_dn = 0.d0
+    endif
   endif
   ! units:
   ! k_eff = W/K-m = J/s/K-m
@@ -1580,6 +2548,28 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! J/s -> MJ/s
   ! MJ/s
   Res(energy_id) = Res(energy_id) + heat_flux
+
+  if (analytical_derivatives) then
+    d_delta_temp_dt_up = 1.d0
+    d_delta_temp_dt_dn = - 1.d0
+
+    D_delta_temp_up = 0.d0
+    D_delta_temp_up(towg_energy_dof) = 1.d0
+    D_delta_temp_dn = 0.d0
+    D_delta_temp_dn(towg_energy_dof) = -1.d0
+
+
+    jup(energy_id,:) = jup(energy_id,:)              &
+                                   + ProdRule(k_eff_ave,D_k_eff_ave_up,          &
+                                              delta_temp,D_delta_temp_up,ndof )  &
+                                   * area * 1.d-6
+
+    jdn(energy_id,:) = jdn(energy_id,:)              &
+                                   + ProdRule(k_eff_ave,D_k_eff_ave_dn,          &
+                                              delta_temp,D_delta_temp_dn,ndof )  &
+                                   * area * 1.d-6
+  endif
+
 ! CONDUCTION
 #endif
   
@@ -1612,18 +2602,19 @@ subroutine TOWGImsTLFlux(auxvar_up,global_auxvar_up, &
   endif
 #endif
 
-end subroutine TOWGImsTLFlux
+end subroutine TOWGImsTLBOFlux
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            auxvar_up,global_auxvar_up, &
                            auxvar_dn,global_auxvar_dn, &
                            material_auxvar_dn, &
                            sir_dn, &
                            thermal_conductivity_dn, &
                            area,dist,towg_parameter, &
-                           option,v_darcy,Res,debug_connection)
+                           option,v_darcy,Res,debug_connection,&
+                           jdn,analytical_derivatives)
   ! 
   ! Computes the boundary flux terms for the residual
   ! 
@@ -1634,6 +2625,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   use Material_Aux_class
   !use Fracture_module
   !use Klinkenberg_module
+  use Derivatives_utilities_module
   
   implicit none
   
@@ -1653,7 +2645,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscBool :: debug_connection
   
   PetscInt :: energy_id
-  PetscInt :: iphase !, icomp
+  PetscInt :: iphase,icomp
   PetscInt :: bc_type
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: H_ave, uH
@@ -1671,15 +2663,55 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscReal :: debug_flux(3), debug_dphi(3)
 
   PetscReal :: boundary_pressure
-  PetscReal :: sat_liquid
+  PetscReal :: sat_liquid,sat_liquid_pos
 
   PetscReal :: dden_dn, dden_up
 
   PetscInt :: idof
-  PetscBool :: neumann_bc_present
+  PetscBool :: neumann_bc_present,is_black_oil
   
   PetscReal :: temp_perm_dn
   PetscReal :: dummy_dperm_dn
+
+  PetscReal :: denup,dendn,xmf
+
+  PetscBool :: istl,isoil,isgas,is_oil_in_oil,is_gas_in_oil,componentInPhase
+
+  PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: jdn
+  PetscBool :: analytical_derivatives
+  PetscInt :: ndof 
+
+  PetscReal, dimension(1:option%nflowdof) :: D_dendn
+  PetscReal, dimension(1:option%nflowdof) :: D_den_kg_ave_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_den_ave_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_delta_presure_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_mobility_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_uH_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_v_darcy_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_q_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_mole_flux_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_xmf_dn
+  PetscReal :: d_den_kg_ave_dden_dn
+  PetscReal :: d_den_ave_dden_dn
+  PetscReal :: d_delta_temp_dt_dn
+  PetscReal :: dheat_flux_ddelta_temp
+  PetscReal :: dummy
+
+  PetscReal, dimension(1:option%nflowdof) :: D_sat_liquid_dn,D_k_eff_dn
+  PetscReal, dimension(1:option%nflowdof) :: D_k_eff_ave_dn,D_delta_temp_dn
+  PetscInt :: i
+
+  ndof = option%nflowdof
+
+  if (analytical_derivatives) then
+    jdn = 0.d0
+  endif
+
+! Set flag indicating a black oil run
+
+  is_black_oil=PETSC_FALSE
+  if(     ( towg_miscibility_model == TOWG_BLACK_OIL  ) &
+     .or. ( towg_miscibility_model == TOWG_SOLVENT_TL ) ) is_black_oil=PETSC_TRUE
   
   energy_id = option%energy_id
 
@@ -1716,6 +2748,25 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   
 #ifdef CONVECTION  
   do iphase = 1, option%nphase
+
+    if (analytical_derivatives) then
+      ! zero out all the workers 
+      D_den_kg_ave_dn=0.d0
+      D_den_ave_dn=0.d0
+      D_delta_presure_dn=0.d0
+      D_mobility_dn=0.d0
+      D_uH_dn=0.d0
+      D_v_darcy_dn=0.d0
+      D_q_dn=0.d0
+      D_mole_flux_dn=0.d0
+      D_xmf_dn=0.d0
+      d_den_kg_ave_dden_dn=0.d0
+      d_den_ave_dden_dn=0.d0
+      d_delta_temp_dt_dn=0.d0
+      dheat_flux_ddelta_temp=0.d0
+   endif
+   ! zero this out
+   density_ave = 0.d0
  
     bc_type = ibndtype(iphase)
     select case(bc_type)
@@ -1726,8 +2777,13 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
-      
+
         if (bc_type == CONDUCTANCE_BC) then
+
+! The values at TOWG_LIQ_CONDUCTANCE_INDEX etc are not actually set
+         option%io_buffer = 'Boundary conductances are not available'
+         call printErrMsg(option)
+
           select case(option%phase_map(iphase)) 
             case(LIQUID_PHASE)
               idof = bc_auxvar_mapping(TOWG_LIQ_CONDUCTANCE_INDEX)
@@ -1735,6 +2791,8 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
               idof = bc_auxvar_mapping(TOWG_OIL_CONDUCTANCE_INDEX)
             case(GAS_PHASE)
               idof = bc_auxvar_mapping(TOWG_GAS_CONDUCTANCE_INDEX)
+            case(SOLVENT_PHASE)
+              idof = bc_auxvar_mapping(TOWG_SOLVENT_CONDUCTANCE_INDEX)
           end select        
           perm_ave_over_dist = bc_auxvars(idof)
         else
@@ -1760,16 +2818,71 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           !  boundary_pressure = gen_auxvar_up%pres(option%gas_phase)
           !endif
 
-          density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                                   auxvar_dn%sat(iphase), &
-                                                   auxvar_up%den_kg(iphase), &
-                                                   auxvar_dn%den_kg(iphase) )
+          istl =(towg_miscibility_model == TOWG_TODD_LONGSTAFF)
+          isoil=(option%phase_map(iphase) == OIL_PHASE)
+          isgas=(option%phase_map(iphase) == GAS_PHASE)
+          if( istl .and. (isoil.or.isgas) ) then
+            if( isoil ) then
+              dendn=auxvar_dn%tl%den_oil_eff_kg
+              if (analytical_derivatives) then
+                D_dendn = auxvar_dn%tl%D_den_oil_eff_kg
+              endif
+            else
+              dendn=auxvar_dn%tl%den_gas_eff_kg
+              if (analytical_derivatives) then
+                D_dendn = auxvar_dn%tl%D_den_gas_eff_kg
+              endif
+            endif
+            if (analytical_derivatives) then
+              density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
+                                                        auxvar_dn%sat(iphase), &
+                                                        denup                , &
+                                                        dendn                , &
+                                                        dummy                , &
+                                                        d_den_kg_ave_dden_dn    )
+
+              ! d_den_kg_ave_dden_up comes from average density calc
+              ! ( d (ave den) / d (den up) )
+              !D_den_kg_ave_up = auxvar_up%D_den_kg(iphase,:)*d_den_kg_ave_dden_up
+              !D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
+              D_den_kg_ave_dn = D_dendn*d_den_kg_ave_dden_dn
+              else
+                density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                                         auxvar_dn%sat(iphase), &
+                                                         denup                , &
+                                                         dendn )
+            endif
+                else
+
+            if (analytical_derivatives) then
+              density_kg_ave = TOWGImsTLAverageDensity( auxvar_up%sat(iphase), &
+                                                        auxvar_dn%sat(iphase), &
+                                                     auxvar_up%den_kg(iphase), &
+                                                     auxvar_dn%den_kg(iphase), &
+                                                        dummy , &
+                                                        d_den_kg_ave_dden_dn    )
+              ! d_den_kg_ave_dden_up comes from average density calc
+              ! ( d (ave den) / d (den up) )
+              D_den_kg_ave_dn = auxvar_dn%D_den_kg(iphase,:)*d_den_kg_ave_dden_dn
+            else
+              density_kg_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase)   , &
+                                                       auxvar_dn%sat(iphase)   , &
+                                                       auxvar_up%den_kg(iphase), &
+                                                       auxvar_dn%den_kg(iphase) )
+            endif
+
+          endif
 
 
           gravity_term = density_kg_ave * dist_gravity
           delta_pressure = boundary_pressure - &
                            auxvar_dn%pres(iphase) + &
                            gravity_term
+
+          if (analytical_derivatives) then
+            D_delta_presure_dn = -auxvar_dn%D_pres(iphase,:) &
+                                 + D_den_kg_ave_dn*dist_gravity
+          endif
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
           debug_dphi(iphase) = delta_pressure
@@ -1783,6 +2896,10 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                 auxvar_up%pres(iphase) - &
                  option%reference_pressure < eps) then
               delta_pressure = 0.d0
+              if (analytical_derivatives) then
+                D_delta_presure_up = 0.d0
+                D_delta_presure_dn = 0.d0
+              endif
             endif
           endif
           
@@ -1790,20 +2907,48 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           if (delta_pressure >= 0.D0) then
             mobility = auxvar_up%mobility(iphase)
             uH = auxvar_up%H(iphase)
+            if (analytical_derivatives) then
+              D_mobility_dn = 0.d0
+              D_uH_dn = 0.d0
+            endif
           else
             mobility = auxvar_dn%mobility(iphase)
             uH = auxvar_dn%H(iphase)
+            if (analytical_derivatives) then
+              D_mobility_dn = auxvar_dn%D_mobility(iphase,:)
+              D_uH_dn = auxvar_dn%D_H(iphase,:)
+            endif
           endif      
 
           if (mobility > floweps) then
             ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
             !                    dP[Pa]]
             v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
+
+            if (analytical_derivatives) then
+              D_v_darcy_dn = perm_ave_over_dist                                        &
+                                     * ProdRule(mobility,D_mobility_dn,                &
+                                                delta_pressure,D_delta_presure_dn,ndof  )
+            endif
+
             ! only need average density if velocity > 0.
-            density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
-                                                  auxvar_dn%sat(iphase), &
-                                                  auxvar_up%den(iphase), &
-                                                  auxvar_dn%den(iphase) )
+            if (analytical_derivatives) then
+
+              density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                                    auxvar_dn%sat(iphase), &
+                                                    auxvar_up%den(iphase), &
+                                                    auxvar_dn%den(iphase), &
+                                                    dummy    , &
+                                                    d_den_ave_dden_dn       )
+              ! d_den_ave_dden_up comes from average density calc
+              ! ( d (ave den) / d (den up) )
+              D_den_ave_dn = auxvar_dn%D_den(iphase,:)*d_den_ave_dden_dn
+            else
+              density_ave = TOWGImsTLAverageDensity(auxvar_up%sat(iphase), &
+                                                    auxvar_dn%sat(iphase), &
+                                                    auxvar_up%den(iphase), &
+                                                    auxvar_dn%den(iphase) )
+            endif
           endif
 #ifndef BAD_MOVE1        
         endif ! sat > eps
@@ -1817,6 +2962,8 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
             idof = bc_auxvar_mapping(TOWG_OIL_FLUX_INDEX)
           case(GAS_PHASE)
             idof = bc_auxvar_mapping(TOWG_GAS_FLUX_INDEX)
+          case(SOLVENT_PHASE)
+            idof = bc_auxvar_mapping(TOWG_SOLV_FLUX_INDEX)
         end select
         
         neumann_bc_present = PETSC_TRUE
@@ -1825,51 +2972,108 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         if (dabs(bc_auxvars(idof)) > floweps) then
           v_darcy(iphase) = bc_auxvars(idof)
           !upwinding based on given BC flux sign
+          if (analytical_derivatives) then
+            D_v_darcy_dn(:) = 0.d0
+          endif
           if (v_darcy(iphase) > 0.d0) then 
             density_ave = auxvar_up%den(iphase)
             uH = auxvar_up%H(iphase)
+            if (analytical_derivatives) then
+              D_den_ave_dn = 0.d0
+              D_uH_dn = 0.d0
+            endif
           else 
             density_ave = auxvar_dn%den(iphase)
             uH = auxvar_dn%H(iphase)
+            if (analytical_derivatives) then
+              D_den_ave_dn = auxvar_dn%D_den(iphase,:)
+              D_uH_dn = auxvar_dn%D_H(iphase,:)
+            endif
           endif 
         endif
       case default
         option%io_buffer = &
-         'Boundary condition type not recognized in TOWGImsTLBCFlux phase loop'
+         'Boundary condition type not recognized in TOWGImsTLBOBCFlux phase loop'
         call printErrMsg(option)
     end select
 
     if (dabs(v_darcy(iphase)) > 0.d0) then
       ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
       q = v_darcy(iphase) * area
+      if (analytical_derivatives) then
+        D_q_dn = D_v_darcy_dn * area
+      endif
       if (density_ave < 1.d-40) then
-        option%io_buffer = 'Zero density in TOWGImsTLBCFlux()'
+        option%io_buffer = 'Zero density in TOWGImsTLBOBCFlux()'
         call printErrMsgByRank(option)
       endif
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                              density_ave[kmol phase/m^3 phase]
       mole_flux = q*density_ave
       ! Res[kmol phase/sec] 
+      if (analytical_derivatives) then
+        D_mole_flux_dn = ProdRule(q,D_q_dn,                     &
+                                  density_ave,D_den_ave_dn,ndof  )
+      endif
+
+      if( is_black_oil ) then
+
+! Loop over components in this phase
+
+        do icomp = 1, option%nphase
+          componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+          if( componentInPhase ) then
+            xmf=1.0d0
+            if (v_darcy(iphase) > 0.d0) then
+              if( is_oil_in_oil ) xmf=auxvar_up%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_up%bo%xg
+            else
+              if( is_oil_in_oil ) xmf=auxvar_dn%bo%xo
+              if( is_gas_in_oil ) xmf=auxvar_dn%bo%xg
+            endif
+
+            if (analytical_derivatives) then
+              D_xmf_dn=0.0d0
+              if (delta_pressure >= 0.D0) then
+                ! we'd set upstream derivatives here but we won't use them
+              else
+                if( is_oil_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xo
+                if( is_gas_in_oil ) D_xmf_dn=auxvar_dn%bo%D_xg
+              endif
+            endif
+
+            if (analytical_derivatives) then
+              Jdn(icomp,:) = Jdn(icomp,:) + ProdRule(xmf,D_xmf_dn,                &
+                                                     mole_flux,D_mole_flux_dn,ndof )
+            endif
+
+            Res(icomp)=Res(icomp)+xmf*mole_flux
+
+          endif
+        enddo
+
+      else
+
+! Just one component in this phase
+
       Res(iphase) = mole_flux 
 
-      !do icomp = 1, option%nflowspec
-      !  ! Res[kmol comp/sec] = mole_flux[kmol phase/sec] * 
-      !  !                      xmol[kmol comp/mol phase]
-      !  Res(icomp) = Res(icomp) + mole_flux * xmol(icomp)
-      !enddo
+      if (analytical_derivatives) then
+        Jdn(iphase,:) = Jdn(iphase,:) + D_mole_flux_dn(:)
+      endif
+
+      endif
+
 #ifdef DEBUG_FLUXES  
       adv_flux(iphase) = mole_flux 
-      !do icomp = 1, option%nflowspec
-      !  adv_flux(icomp,iphase) = adv_flux(icomp,iphase) + mole_flux * xmol(icomp)
-      !enddo
 #endif
-!#ifdef DEBUG_TOWG_FILEOUTPUT
-!      do icomp = 1, option%nflowspec
-!        debug_flux(icomp,iphase) = debug_flux(icomp,iphase) + mole_flux * xmol(icomp)
-!      enddo
-!#endif
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
+
+      if (analytical_derivatives) then
+        Jdn(energy_id,:) = Jdn(energy_id,:) + ProdRule(mole_flux,D_mole_flux_dn, &
+                                               uH,D_uH_dn,ndof             )
+      endif
 
 #ifdef DEBUG_FLUXES  
       adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
@@ -1878,6 +3082,7 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       debug_flux(iphase) = mole_flux * uH
 #endif
     endif
+
   enddo
 ! CONVECTION
 #endif
@@ -1901,10 +3106,28 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       ! s_l = S_water + S_oil 
       sat_liquid = auxvar_dn%sat(option%liquid_phase) + &
                    auxvar_dn%sat(option%oil_phase)
+      sat_liquid_pos=max(sat_liquid,0.0d0)
 
       k_eff_dn = thermal_conductivity_dn(1) + &
-                 sqrt(sat_liquid) * &
+                 sqrt(sat_liquid_pos) * &
                  (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+
+  ! corresponding downwind derivatives:
+  if (analytical_derivatives) then
+    D_sat_liquid_dn = auxvar_dn%D_sat(option%liquid_phase,:) + &
+                      auxvar_dn%D_sat(option%oil_phase,:)
+    D_k_eff_dn = 0.d0
+    do i = 1,ndof
+      if (abs(D_sat_liquid_dn(i)) < epsilon(sat_liquid) .OR.  sat_liquid_pos == 0.d0) then
+        D_k_eff_dn(i) = 0.d0 
+      else
+        D_k_eff_dn(i) = 0.5d0*D_sat_liquid_dn(i)/sqrt(sat_liquid_pos)
+      endif
+    enddo
+    D_k_eff_dn = D_k_eff_dn * &
+                 (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+  endif
+
       ! units:
       ! k_eff = W/K/m/m = J/s/K/m/m
       ! delta_temp = K
@@ -1913,13 +3136,28 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       k_eff_ave = k_eff_dn / dist(0)
       delta_temp = auxvar_up%temp - auxvar_dn%temp
       heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! convert W -> MW
+
+  ! corresponding downwind derivatives:
+  if (analytical_derivatives) then
+
+      D_k_eff_ave_dn = D_k_eff_dn / dist(0)
+      D_delta_temp_dn = 0.d0
+      D_delta_temp_dn(towg_energy_dof) = -1.d0
+
+      jdn(energy_id,:) = jdn(energy_id,:)              &
+                                     + ProdRule(k_eff_ave,D_k_eff_ave_dn,          &
+                                                delta_temp,D_delta_temp_dn,ndof )  &
+                                     * area * 1.d-6
+
+  endif
+
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
       heat_flux = bc_auxvars(bc_auxvar_mapping(TOWG_ENERGY_FLUX_INDEX)) * area
 
     case default
       option%io_buffer = 'Boundary condition type not recognized in ' // &
-        'TOWGImsTLBCFlux heat conduction loop.'
+        'TOWGImsTLBOBCFlux heat conduction loop.'
       call printErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
@@ -1955,12 +3193,13 @@ subroutine TOWGImsTLBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   endif
 #endif
   
-end subroutine TOWGImsTLBCFlux
+end subroutine TOWGImsTLBOBCFlux
 
 ! ************************************************************************** !
 
 subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
-                            global_auxvar,ss_flow_vol_flux,scale,Res)
+                            global_auxvar,ss_flow_vol_flux,scale,Res,&
+                            j,analytical_derivatives)
   ! 
   ! Computes the source/sink terms for the residual 
   ! 
@@ -1974,6 +3213,8 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   use EOS_Water_module
   use EOS_Oil_module
   use EOS_Gas_module
+  use EOS_Slv_module
+  use Derivatives_utilities_module
 
   implicit none
 
@@ -1997,6 +3238,37 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   PetscInt :: iphase
   PetscInt :: energy_var
   PetscErrorCode :: ierr
+
+  PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: j
+  PetscBool :: analytical_derivatives
+  PetscReal, dimension(1:option%nflowdof) :: D_den,D_qsrc_mol,D_enthalpy,D_cpres
+
+  PetscReal :: dx_dcpres, dx_dtcell, dT_dTcell
+  PetscInt :: ndof, cp_loc, idex
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+  PetscReal :: dum1,dum2
+
+
+
+#if 0
+  if (analytical_derivatives) then
+    option%io_buffer = 'TOWGImsTLSrcSink: analytical derivatives are not yet available.'
+    call printErrMsg(option)
+  endif
+#endif
+
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+
+  if (analytical_derivatives) then
+    j = 0.d0
+    ndof = option%nflowdof
+    ! zero out the intermediates:
+    D_den = 0.d0
+    D_qsrc_mol = 0.d0; D_enthalpy = 0.d0
+  endif
 
   ! this can be removed if extending to pressure condition
   if (.not.associated(src_sink_condition%rate) ) then
@@ -2029,17 +3301,35 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   ! if not given, approximates BHP with pressure of perforated cell
   if ( associated(src_sink_condition%bhp_pressure) ) then
     cell_pressure = src_sink_condition%bhp_pressure%dataset%rarray(1)
+      if (analytical_derivatives) then
+        D_cpres = 0.d0
+      endif
   else
     cell_pressure = &
         maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
+        if (analytical_derivatives) then
+          cp_loc = option%liquid_phase
+          do idex = option%liquid_phase,option%gas_phase
+            if (auxvar%pres(idex) > auxvar%pres(cp_loc)) then
+            cp_loc = idex
+            endif
+          end do
+          D_cpres = auxvar%D_pres(cp_loc,:)
+        endif
   end if
 
   ! if enthalpy is used to define enthalpy or energy rate is used  
   ! approximate bottom hole temperature (BHT) with local temp
   if ( associated(src_sink_condition%temperature) ) then
     temperature = src_sink_condition%temperature%dataset%rarray(1)
+    if (analytical_derivatives) then
+      dT_dTcell = 0.d0
+    endif
   else   
     temperature = auxvar%temp
+    if (analytical_derivatives) then
+      dT_dTcell = 1.d0
+    endif
   end if
 
   Res = 0.d0
@@ -2048,13 +3338,51 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
     if ( qsrc(iphase) > 0.d0) then 
       select case(option%phase_map(iphase))
         case(LIQUID_PHASE)
-          call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+          if (analytical_derivatives) then
+            call EOSWaterDensity(temperature,cell_pressure, &
+                                  den_kg,den, &
+                                  dx_dcpres, &
+                                  dx_dtcell, ierr)
+            D_den = D_cpres*dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell*dT_dTcell
+          else
+            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+          endif
         case(OIL_PHASE)
-          call EOSOilDensity(temperature,cell_pressure,den,ierr)
+          if (analytical_derivatives) then
+             call EOSOilDensity(temperature,cell_pressure,den,dx_dtcell,dx_dcpres,&
+                     ierr,auxvar%table_idx)
+            D_den = D_cpres*dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell*dT_dTcell
+          else
+            call EOSOilDensity(temperature,cell_pressure,den,ierr, &
+                               auxvar%table_idx)
+          endif
         case(GAS_PHASE)
-          call EOSGasDensity(temperature,cell_pressure,den,ierr)
+          if (analytical_derivatives) then
+            call EOSGasDensity(temperature,cell_pressure,den,dx_dtcell,dx_dcpres, &
+                                ierr,auxvar%table_idx)
+            D_den = D_cpres*dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell*dT_dTcell
+          else
+            call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                               auxvar%table_idx)
+          endif
+        case(SOLVENT_PHASE)
+          if (analytical_derivatives) then
+           call EOSSlvDensity(temperature,cell_pressure,den,dx_dcpres,dx_dtcell, &
+                               ierr,auxvar%table_idx)
+            D_den = D_cpres*dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell*dT_dTcell
+          else
+            call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
+                               auxvar%table_idx)
+          endif
       end select 
     else
+      if (analytical_derivatives) then
+        D_den = auxvar%D_den(iphase,:)
+      endif
       den = auxvar%den(iphase)
     end if
 
@@ -2062,16 +3390,34 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
       ! injection and production 
       case(MASS_RATE_SS)
         qsrc_mol = qsrc(iphase)/towg_fmw_comp(iphase) ! kg/sec -> kmol/sec
+        if (analytical_derivatives) then
+          !!! qsrc and fmw both 0
+          D_qsrc_mol = 0.d0
+        endif
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
         qsrc_mol = qsrc(iphase)/towg_fmw_comp(iphase)*scale 
+        if (analytical_derivatives) then
+          !!! qsrc and fmw both 0
+          D_qsrc_mol = 0.d0
+        endif
       case(VOLUMETRIC_RATE_SS)  ! assume local density for now 
                   ! qsrc(iphase) = m^3/sec  
         qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3 
+        if (analytical_derivatives) then
+          D_qsrc_mol = qsrc(iphase)*D_den
+        endif
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec             ! den = kmol/m^3
         qsrc_mol = qsrc(iphase)* den * scale
+        if (analytical_derivatives) then
+          D_qsrc_mol = qsrc(iphase)*D_den*scale
+        endif
     end select
     ss_flow_vol_flux(iphase) = qsrc_mol/ den
+    !!! note we don't provide an ss_flow_vol_flux deriv
+    if (analytical_derivatives) then
+      J(iphase,:) = D_qsrc_mol(:)
+    endif
     Res(iphase) = qsrc_mol
   enddo
 
@@ -2084,7 +3430,10 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   !    associated(src_sink_condition%enthalpy) &
   !   ) then
   !if the energy rate is not given, use either temperature or enthalpy
-  if ( dabs(qsrc(FOUR_INTEGER)) < 1.0d-40 ) then
+  if (analytical_derivatives) then 
+    D_enthalpy= 0.d0
+  endif
+  if ( dabs(qsrc(option%energy_id)) < 1.0d-40 ) then
     ! water injection 
     if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
       if ( energy_var == SRC_ENTHALPY ) then
@@ -2093,30 +3442,59 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
                        dataset%rarray(option%liquid_phase)
                      ! J/kg * kg/kmol = J/kmol  
         enthalpy = enthalpy * towg_fmw_comp(option%liquid_phase)
+        !!! no analytical derivatives here
       else !note: temp can either be input or taken as the one of perf. block
       !else if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,ierr)
-        ! enthalpy = [J/kmol]
+        if (analytical_derivatives) then
+          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+          D_enthalpy = D_cpres*dx_dcpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell*dT_dTcell
+        else
+          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,ierr)
+          ! enthalpy = [J/kmol]
+        endif
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! water component mass    
+      if (analytical_derivatives) then
+        D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
+        J(option%energy_id,:) = J(option%energy_id,:) &
+                              + ProdRule(Res(option%liquid_phase),J(option%liquid_phase,:),&
+                                             enthalpy,D_enthalpy,ndof)
+      endif
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * enthalpy
     end if
     ! oil injection 
+    if (analytical_derivatives) then 
+      D_enthalpy= 0.d0
+    endif
     if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
       if ( energy_var == SRC_ENTHALPY ) then
         enthalpy = src_sink_condition%enthalpy% &
                      dataset%rarray(option%oil_phase)
                       !J/kg * kg/kmol = J/kmol  
         enthalpy = enthalpy * towg_fmw_comp(option%oil_phase)
+        !!! no analytical derivatives here
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
+        if (analytical_derivatives) then
+          call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+          D_enthalpy = D_cpres*dx_dcpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell*dT_dTcell
+        else
+          call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
+        endif
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass
+      if (analytical_derivatives) then
+        D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
+        J(option%energy_id,:) = J(option%energy_id,:) &
+                              + ProdRule(Res(option%oil_phase),J(option%oil_phase,:),&
+                                             enthalpy,D_enthalpy,ndof)
+      endif
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * enthalpy
     end if
@@ -2129,38 +3507,84 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
         enthalpy = enthalpy * towg_fmw_comp(option%gas_phase)
       else !note: temp can either be input or taken as the one of perf. block
       !if ( energy_var == SRC_TEMPERATURE ) then
-        call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
+        if (analytical_derivatives) then
+          !subroutine EOSGasEnergyDerive(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+          call EOSGasEnergy(temperature, cell_pressure,enthalpy,dx_dtcell,dx_dcpres,&
+                            internal_energy_dummy,dum1,dum2,ierr)
+          D_enthalpy = D_cpres*dx_dcpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell*dT_dTcell
+        else
+          call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
                               internal_energy_dummy,ierr)
+        endif
         ! enthalpy = [J/kmol]
       end if
       enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-      ! enthalpy units: MJ/kmol ! oil component mass           
+      if (analytical_derivatives) then
+        D_enthalpy = D_enthalpy * 1.d-6 ! J/kmol -> whatever units
+        J(option%energy_id,:) = J(option%energy_id,:) &
+                              + ProdRule(Res(option%gas_phase),J(option%gas_phase,:),&
+                                             enthalpy,D_enthalpy,ndof)
+      endif
+      ! enthalpy units: MJ/kmol
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * enthalpy
     end if
     ! water energy extraction due to water production
     if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%liquid_phase),J(option%liquid_phase,:),               &
+                                         auxvar%H(option%liquid_phase),auxvar%D_H(option%liquid_phase,:), &
+                                         ndof)
+      endif
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * &
                               auxvar%H(option%liquid_phase)
     end if
     !oil energy extraction due to oil production
     if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%oil_phase),J(option%oil_phase,:),               &
+                                         auxvar%H(option%oil_phase),auxvar%D_H(option%oil_phase,:), &
+                                         ndof)
+      endif
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * &
                               auxvar%H(option%oil_phase)
     end if
     if (qsrc(option%gas_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
-      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%gas_phase),J(option%gas_phase,:),               &
+                                         auxvar%H(option%gas_phase),auxvar%D_H(option%gas_phase,:), &
+                                         ndof)
+      endif
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%gas_phase) * &
                               auxvar%H(option%gas_phase)
     end if
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%solvent_phase)<=0
+        ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        J(option%energy_id,:) = J(option%energy_id,:)                                               &
+                              + ProdRule(Res(option%solvent_phase),J(option%solvent_phase,:),               &
+                                         auxvar%H(option%solvent_phase),auxvar%D_H(option%solvent_phase,:), &
+                                         ndof)
+      endif
+        Res(option%energy_id) = Res(option%energy_id) + &
+                                Res(option%solvent_phase) * &
+                                auxvar%H(option%solvent_phase)
+      end if
+    end if
   else !if the energy rate is given, it overwrites both temp and enthalpy
     ! if energy rate is given, loaded in qsrc(4) in MJ/sec 
-    Res(option%energy_id) = qsrc(FOUR_INTEGER)* scale ! MJ/s
+    Res(option%energy_id) = qsrc(option%energy_id)* scale ! MJ/s
   end if
 
   nullify(qsrc)      
@@ -2169,20 +3593,736 @@ end subroutine TOWGImsTLSrcSink
 
 ! ************************************************************************** !
 
+subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
+                         global_auxvar,ss_flow_vol_flux,scale,Res,&
+                         j, analytical_derivatives)
+  ! 
+  ! Computes the source/sink terms for the residual in the black oil case
+  ! 
+  ! Author: Dave Ponting
+  ! Date: Dec 2017
+  ! 
+
+  use Option_module
+  use Condition_module
+
+  use EOS_Water_module
+  use EOS_Oil_module
+  use EOS_Gas_module
+  use EOS_Slv_module
+  use Derivatives_utilities_module
+  
+  implicit none
+
+  type(option_type) :: option
+  type(flow_towg_condition_type), pointer :: src_sink_condition
+  class(auxvar_towg_type) :: auxvar
+  type(global_auxvar_type) :: global_auxvar !keep global_auxvar for salinity
+  PetscReal :: ss_flow_vol_flux(option%nphase)
+  PetscReal :: scale
+  PetscReal :: Res(option%nflowdof)
+
+  ! local parameter
+  PetscInt, parameter :: SRC_TEMPERATURE = 1
+  PetscInt, parameter :: SRC_ENTHALPY = 2
+  ! local variables
+  PetscReal, pointer :: qsrc(:)
+  PetscInt :: flow_src_sink_type
+  PetscReal :: qsrc_mol,mole_wt,ref_pressure
+  PetscReal :: den, den_kg, enthalpy, internal_energy_dummy, temperature &
+              ,xmf,xmfo,xmfg,po,pb,cr,crusp
+  PetscReal :: cell_pressure
+  PetscInt :: iphase,icomp
+  PetscInt :: energy_var
+  PetscBool :: componentInPhase,is_oil_in_oil,is_gas_in_oil
+  PetscErrorCode :: ierr
+
+  PetscReal, dimension(1:option%nflowdof,1:option%nflowdof) :: j
+  PetscBool :: analytical_derivatives
+
+  PetscReal :: dp_dpo,dT_dTcell
+  PetscReal, dimension(1:option%nflowdof) :: D_xmfo,D_xmfg,D_mole_wt,D_den
+  PetscReal, dimension(1:option%nflowdof) :: D_qsrc_mol,D_enthalpy,D_xmf
+  PetscReal, dimension(1:option%nflowdof) :: D_cpres
+  PetscReal, dimension(1:option%nflowdof) :: D_crusp, D_cor
+
+  PetscInt :: ndof, cp_loc, idex
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp
+  PetscReal :: cor,one_p_crusp,dcor_dpo,dcor_dpb,dcor_dt
+  PetscReal :: dcr_dt,dcr_dpb,dum1,dum2,mxpcand
+  PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt
+  PetscReal :: dx_dcpres, dx_dtcell
+  PetscBool :: isSat
+
+  PetscReal :: dden_dt, dummy
+
+
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+
+
+  ref_pressure=option%reference_pressure
+
+  if (analytical_derivatives) then
+    j = 0.d0
+    ndof = option%nflowdof
+    ! let's be thorough and zero out the intermediates:
+    D_xmfo = 0.d0; D_xmfg = 0.d0; D_mole_wt = 0.d0; D_den = 0.d0
+    D_qsrc_mol = 0.d0; D_enthalpy = 0.d0; D_xmf = 0.d0
+  endif
+
+  ! this can be removed if extending to pressure condition
+  if (.not.associated(src_sink_condition%rate) ) then
+    option%io_buffer = 'TOWGBOSrcSink flow condition rate not defined ' // &
+    'rate is needed for a valid src/sink term'
+    call printErrMsg(option)
+  endif
+
+  qsrc => src_sink_condition%rate%dataset%rarray
+
+  energy_var = 0
+  if ( associated(src_sink_condition%temperature) ) then
+    energy_var = SRC_TEMPERATURE
+  else if ( associated(src_sink_condition%enthalpy) ) then
+    energy_var = SRC_ENTHALPY
+  endif
+  
+  flow_src_sink_type = src_sink_condition%rate%itype
+
+  ! if not given, approximates BHP with pressure of perforated cell
+  if ( associated(src_sink_condition%bhp_pressure) ) then
+    cell_pressure = src_sink_condition%bhp_pressure%dataset%rarray(1)
+    !!!! TODO - should do something with D_cpres here?
+    ! there should be no cell (oil) pressure dependence - zero out later on pressure derivs
+    if (analytical_derivatives) then
+      dp_dpo = 0.d0
+    endif
+  else
+    cell_pressure = &
+        maxval(auxvar%pres(option%liquid_phase:option%gas_phase))
+    if (analytical_derivatives) then
+      dp_dpo = 1.d0
+      ! this is stupid but figuring out maxloc might take all day so do 
+      ! this quickly:
+      cp_loc = option%liquid_phase
+      do idex = option%liquid_phase,option%gas_phase
+        if (auxvar%pres(idex) > auxvar%pres(cp_loc)) then
+          cp_loc = idex
+        endif
+      end do
+      !cp_loc =  maxloc(auxvar%pres(option%liquid_phase:option%gas_phase))
+      D_cpres = auxvar%D_pres(cp_loc,:)
+    endif
+  end if
+
+
+  ! if enthalpy is used to define enthalpy or energy rate is used
+  ! approximate bottom hole temperature (BHT) with local temp
+  if ( associated(src_sink_condition%temperature) ) then
+    temperature = src_sink_condition%temperature%dataset%rarray(1)
+    ! there should be no cell temp dependence - zero out later on temp derivs
+    if (analytical_derivatives) then
+      dT_dTcell = 0.d0
+    endif
+  else
+    temperature = auxvar%temp
+    if (analytical_derivatives) then
+      dT_dTcell = 1.d0
+    endif
+  end if
+
+  Res = 0.d0
+  do iphase = 1, option%nphase
+    qsrc_mol = 0.d0
+    mole_wt  = towg_fmw_comp(iphase)
+    xmfo=auxvar%bo%xo
+    xmfg=auxvar%bo%xg
+    if (analytical_derivatives) then
+      ! get xo and xg derivs from auxvars,
+      D_xmfo = auxvar%bo%D_xo
+      D_xmfg = auxvar%bo%D_xg
+      ! mol wt has 0 derivs
+      D_mole_wt = 0.d0
+      ! zero out other derivatives
+      D_den = 0.d0
+    endif
+    if ( qsrc(iphase) > 0.d0) then
+      select case(option%phase_map(iphase))
+        case(LIQUID_PHASE)
+! Case of water
+          if (.NOT. analytical_derivatives) then
+            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+          else
+            ! there is a density deriv w.r.t. pressure and temp
+#if 0
+            call EOSWaterDensity(temperature,cell_pressure, &
+                                 den_kg,den, &
+                                 D_den(dof_op), &
+                                 D_den(dof_temp), ierr)
+            !D_den(dof_op) = D_den(dof_op) * dp_dpo
+#endif
+            call EOSWaterDensity(temperature,cell_pressure, &
+                                 den_kg,den, &
+                                 dx_dcpres, &
+                                 dx_dtcell, ierr)
+            D_den = D_cpres*dx_dcpres
+
+
+          ! dx_dtcell may or may not be derivative by true 
+          ! temperature, so we filter:
+          dx_dtcell = dx_dtcell * dT_dTcell
+
+          ! technically we might have to deal with a case where
+          ! cell pressure is depenent on temp; this has been assumed
+          ! possible since we use the full D_cpres array or derivatives,
+          ! and is taken care of correctly above.
+          ! However the density routine also introduces a seperate 
+          ! dependence on temperature (though it may be fixed temp case thus
+          ! zero etc etc)
+
+          ! The cell pressure temp derivative is going to be 0 in any model we're dealing 
+          ! with now, but for generality and correctness we should treat this
+          ! properly.
+          ! Let the density routine above be 
+          ! den = den(a,b) ; it takes two arguments.
+          ! We have selected a = cell pressure, b = temp:
+          ! den = den(cp,t).
+          ! Now we assume cp is a function of all nflowdof solution variables.
+          ! Denote the cell variables as
+          ! x;t
+          ! where t is temperature and x are the non temperature variables
+          ! we don't care about.
+          ! the d den / d x_i are taken care of properly above. For derivative
+          ! w.r.t. t we have a part (potentially) missing, since:
+          ! d den / d t = (d den / d a) * (d cp / d t) + (d t / d t = 1) * (d den / d b)
+          ! The part (d den / d cp) * (d cp / d t) was correctly taken care of
+          ! by the line " D_den = D_cpres*dx_dcpres " above, so we just add in the
+          ! missing part:
+          D_den(dof_temp) = D_den(dof_temp) + dx_dtcell
+
+          endif
+        case(OIL_PHASE)
+! Note this is dead oil, so take bubble point as reference pressure
+          po=cell_pressure
+          pb=ref_pressure
+! Density and compressibility lookup
+          if (.NOT. analytical_derivatives) then
+            call EOSOilDensity        (temperature,pb,den,ierr,auxvar%table_idx)
+            call EOSOilCompressibility(temperature,pb,cr ,ierr,auxvar%table_idx)
+          else
+            ! differentiate following correction 
+            !crusp=cr*(po-pb)
+            !den=den*(1.0+crusp*(1.0+0.5*crusp))
+            ! given:
+            !       - po is cell pres which should be treated as having full derivs
+            !       - pb is ref pressure which is constant
+            ! should care about the temp derivatives in the density and compressibility calls
+            ! but not the pb ones:
+            call EOSOilDensity(temperature,pb,den,dden_dt,dummy,ierr,auxvar%table_idx)
+            call EOSOilCompressibility(temperature,pb,cr,dcr_dt,dummy,ierr,auxvar%table_idx)
+
+
+            ! should also make sure dcr_dt is acted on by dT_dTcell:
+            dcr_dt = dcr_dt * dT_dTcell
+            dden_dt = dden_dt * dT_dTcell
+
+            ! fully, we have:
+            ! crusp(X) = cr(X) * (po(X) - pb)
+            ! =>
+            ! D_crusp(X) = D_cr(X) * (po(X) - pb) + cr(X) * D_po(X)
+            ! The only nonzero term in D_cr would be the dof_temp one, so we 
+            ! won't do full arrays for the first term of the above.
+            ! the second term is:
+            D_crusp = cr * D_cpres
+            ! correction for the nonzero temp deriv of cr:
+            D_crusp(dof_temp) = D_crusp(dof_temp) + dcr_dt * (po - pb)
+
+            ! then we consider
+            cor = 1 + crusp + 0.5*crusp*crusp
+            ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
+            ! or
+            D_cor = (1.d0 + crusp) * D_crusp
+            ! Next:
+            ! den = cor * den
+            ! In principle full prod rule applies:
+            ! D_den = cor * D_den + D_cor * den
+            ! but only nonzero part of D_den is temp again so like before:
+            D_den = den * D_cor
+            ! correct temp part:
+            D_cor(dof_temp) = D_cor(dof_temp) + dden_dt * cor
+
+
+
+# if 0
+            ! density derivs. 
+            ! NOTE - here placing deriv of oil den w.r.t. pb in D_den(dof_gsat) - this is valid if state is unsat.
+            !        otherwise should zero out that entry once we're done using it
+            call EOSOilDensity(temperature,pb,den,D_den(dof_temp),D_den(dof_gsat),ierr,auxvar%table_idx)
+            call EOSOilCompressibility(temperature,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
+
+
+            !!! TOTIDY
+            ! note that pb is actually constant reference pressure here so we shouldn't
+            ! mistake it for the solution variable pb and assign derivatives 
+            D_den(dof_gsat) = 0.d0
+            dcr_dpb = 0.d0
+
+
+            ! corrected density derivs
+            isSat = ( global_auxvar%istate==TOWG_THREE_PHASE_STATE ) 
+            if (isSat) then
+              ! leave density derivs w.r.t. pres, temp, and bubble point as set above since the correction
+              ! is zero.
+            else
+              crusp=cr*(po-pb)
+              dcrusp_dpo =  cr !  +  dcr_dpo*(po-pb) but we know dcr_dpo is zero
+
+              ! recall potentially cell_pressure is constant - need to multiply derivs by dp_dpo:
+              dcrusp_dpo = dcrusp_dpo * dp_dpo
+
+              !dcrusp_dpb = dcr_dpb*(po-pb) - cr
+              dcrusp_dpb = 0.d0
+              dcrusp_dt =  dcr_dt*(po-pb)
+
+              cor = 1 + crusp + 0.5*crusp*crusp
+              ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
+              ! so
+              one_p_crusp = 1.d0 + crusp
+              dcor_dpo = one_p_crusp*dcrusp_dpo
+              !dcor_dpb = one_p_crusp*dcrusp_dpb
+              dcor_dpb = 0.d0
+              dcor_dt = one_p_crusp*dcrusp_dt
+
+              D_den(dof_op) = den*dcor_dpo ! +  ddeno_dpo*cor but we know ddeno_dpo is zero
+              !d_den(dof_gsat) = d_den(dof_gsat)*cor + den*dcor_dpb
+              d_den(dof_gsat) = 0.d0
+              D_den(dof_temp) = D_den(dof_temp)*cor + den*dcor_dt
+            endif
+            if (isSat) then
+               ! done with density computations; we don't actually need deriv w.r.t. pb
+               ! since pb=op in this state. Actual sol variable is gsat and that deriv
+               ! should be 0.
+               D_den(dof_op) =  D_den(dof_gsat)
+               D_den(dof_gsat) = 0.d0
+            endif
+            ! xmfo and xmfg are constants now
+            D_xmfo = 0.d0
+            D_xmfg = 0.d0
+#endif
+          endif
+! Correct for undersaturation: correction not yet available for energy
+          crusp=cr*(po-pb)
+          den=den*(1.0+crusp*(1.0+0.5*crusp))
+! Set to pure dead oil composition and molecular weight
+          xmfo=1.0D0
+          xmfg=0.0D0
+          mole_wt=EOSOilGetFMW()
+
+          if (analytical_derivatives) then
+            ! now constants:
+            D_xmfo = 0.d0
+            D_xmfg = 0.d0
+            D_mole_wt = 0.d0
+          endif
+
+        case(GAS_PHASE)
+          if (.NOT. analytical_derivatives) then
+            call EOSGasDensity(temperature,cell_pressure,den,ierr, &
+                               auxvar%table_idx)
+          else
+            ! there is a density deriv w.r.t. pressure and temp at least
+#if 0
+            call EOSGasDensity(temperature,cell_pressure,den,D_den(dof_temp),D_den(dof_op), &
+                                     ierr,auxvar%table_idx)
+            D_den(dof_op) = D_den(dof_op) * dp_dpo
+#endif
+            call EOSGasDensity(temperature,cell_pressure,den,dx_dtcell,dx_dcpres, &
+                               ierr,auxvar%table_idx)
+            ! refer to explaination after analgous water density
+            ! calls above
+            dx_dtcell = dx_dtcell * dT_dTcell
+            D_den = D_cpres * dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell
+
+          endif
+        case(SOLVENT_PHASE)
+          call EOSSlvDensity(temperature,cell_pressure,den,ierr, &
+                             auxvar%table_idx)
+          if (analytical_derivatives) then
+#if 0
+            call EOSSlvDensity(temperature,cell_pressure,den,    &
+                               D_den(dof_temp), d_den(dof_op),   &
+                               ierr,                             &
+                               auxvar%table_idx)
+            D_den(dof_op) = D_den(dof_op) * dp_dpo
+            D_den(dof_temp) = D_den(dof_temp) * dT_dTcell
+#endif
+            call EOSSlvDensity(temperature,cell_pressure,den,dx_dcpres,dx_dtcell, &
+                               ierr,auxvar%table_idx)
+            ! refer to explaination after analgous water density
+            ! calls above
+            dx_dtcell = dx_dtcell * dT_dTcell
+            D_den = D_cpres * dx_dcpres
+            D_den(dof_temp) = D_den(dof_temp) + dx_dtcell
+          endif
+      end select
+    else
+      den = auxvar%den(iphase)
+      if (analytical_derivatives) then
+        ! get den derivs from auxvar
+        D_Den = auxvar%D_den(iphase,:)
+      endif
+      select case(option%phase_map(iphase))
+        case(OIL_PHASE)
+          mole_wt= xmfo*EOSOilGetFMW() &
+                  +xmfg*EOSGasGetFMW()
+          if (analytical_derivatives) then
+            ! xmf derivs have been taken as the ones from 
+            ! the auxvar, so just add and multiply by ...FMW()
+            D_mole_wt = D_xmfo*EOSOilGetFMW() &
+                      + D_xmfg*EOSGasGetFMW()
+          endif
+      end select
+    end if
+
+    select case(flow_src_sink_type)
+      ! injection and production
+      case(MASS_RATE_SS)
+        qsrc_mol = qsrc(iphase)/mole_wt          ! kg/sec -> kmol/sec
+        if (analytical_derivatives) then
+          ! qsrc is constant, mole_wt might not be
+          D_qsrc_mol = qsrc(iphase)*DivRule1(mole_wt,D_mole_wt,ndof)
+
+        endif
+      case(SCALED_MASS_RATE_SS)                  ! kg/sec -> kmol/sec
+        qsrc_mol = qsrc(iphase)/mole_wt*scale
+        ! 
+        if (analytical_derivatives) then
+          D_qsrc_mol = scale*qsrc(iphase)*DivRule1(mole_wt,D_mole_wt,ndof)
+        endif
+      case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+                                ! qsrc(iphase) = m^3/sec
+        qsrc_mol = qsrc(iphase)*den ! den = kmol/m^3
+        ! 
+        if (analytical_derivatives) then
+          !D_qsrc_mol = qsrc(iphase)*DivRule1(den,D_den,ndof)
+          D_qsrc_mol = qsrc(iphase)*D_den
+        endif
+      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+        ! qsrc1 = m^3/sec              ! den = kmol/m^3
+        qsrc_mol = qsrc(iphase)* den * scale
+        ! 
+        if (analytical_derivatives) then
+          !D_qsrc_mol = scale*qsrc(iphase)*DivRule1(den,D_den,ndof)
+          D_qsrc_mol = scale*qsrc(iphase)*D_den
+        endif
+    end select
+
+    ss_flow_vol_flux(iphase) = qsrc_mol/ den
+
+! Loop over components (note number of comps=number of phases in black oil)
+! Increment as given icomp value can occur more than once
+
+    do icomp=1, option%nphase
+      componentInPhase=checkBlackOilCIP(iphase,icomp,is_oil_in_oil,is_gas_in_oil,option)
+      if( componentInPhase ) then
+        xmf=1.0d0
+        if( is_oil_in_oil ) xmf=xmfo
+        if( is_gas_in_oil ) xmf=xmfg
+
+        if (analytical_derivatives) then
+          D_xmf = 0.d0
+          if( is_oil_in_oil ) D_xmf=D_xmfo
+          if( is_gas_in_oil ) D_xmf=D_xmfg
+        endif
+
+        Res(icomp) = Res(icomp)+xmf*qsrc_mol
+        ! jac contribution here
+        if (analytical_derivatives) then
+          J(icomp,:) = J(icomp,:) + ProdRule(xmf,D_xmf,              &
+                                             qsrc_mol,D_qsrc_mol,ndof )
+        endif
+      endif
+    enddo
+
+  enddo
+
+  ! when using scaled src/sinks, the rates (mass or vol) scaling
+  ! at this point the scale factor is already included in Res(iphase)
+
+  ! Res(option%energy_id), energy units: MJ/sec
+
+  !if ( associated(src_sink_condition%temperature) .or. &
+  !    associated(src_sink_condition%enthalpy) &
+  !   ) then
+  !if the energy rate is not given, use either temperature or enthalpy
+  if ( dabs(qsrc(option%energy_id)) < 1.0d-40 ) then
+    ! water injection
+    if (analytical_derivatives) then
+      ! zero out enthalpy derivs
+      D_enthalpy = 0.d0
+    endif
+    if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
+      if ( energy_var == SRC_ENTHALPY ) then
+        !input as J/kg
+        enthalpy = src_sink_condition%enthalpy% &
+                       dataset%rarray(option%liquid_phase)
+                     ! J/kg * kg/kmol = J/kmol
+        enthalpy = enthalpy * towg_fmw_comp(option%liquid_phase)
+      else !note: temp can either be input or taken as the one of perf. block
+      !else if ( energy_var == SRC_TEMPERATURE ) then
+        if (analytical_derivatives) then
+          ! enthalpy derivatives from eos
+#if 0
+          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_op),D_enthalpy(dof_temp),ierr)
+
+          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
+          D_enthalpy = D_enthalpy * 1.d-6
+#endif
+          ! all anagous to density calls above
+          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+
+          dx_dtcell = dx_dtcell * dT_dTcell
+          D_enthalpy = dx_dcpres * D_cpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
+          D_enthalpy = D_enthalpy * 1.d-6
+        else
+          call EOSWaterEnthalpy(temperature, cell_pressure,enthalpy,ierr)
+        endif
+        ! enthalpy = [J/kmol]
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol
+
+      if (analytical_derivatives) then
+        ! jac contribution involves using previous residual values, so do it before those
+        ! values change
+        J(option%energy_id,:) = J(option%energy_id,:) + ProdRule(Res(option%liquid_phase),J(option%liquid_phase,:), &
+                                                   enthalpy,D_enthalpy,ndof                           )
+      endif
+
+      ! enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%liquid_phase) * enthalpy
+    end if
+    ! oil injection (is assumed dead oil, so can use simple oil molecular weight)
+    if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
+      if (analytical_derivatives) then
+        ! zero out enthalpy derivs
+        D_enthalpy = 0.d0
+      endif
+      if ( energy_var == SRC_ENTHALPY ) then
+        enthalpy = src_sink_condition%enthalpy% &
+                     dataset%rarray(option%oil_phase)
+                      !J/kg * kg/kmol = J/kmol
+        enthalpy = enthalpy * towg_fmw_comp(option%oil_phase)
+
+        ! derivs should be 0 here
+      else !note: temp can either be input or taken as the one of perf. block
+      !if ( energy_var == SRC_TEMPERATURE ) then
+        ! enthalpy = [J/kmol]
+        if (analytical_derivatives) then
+          ! enthalpy derivatives from eos
+#if 0
+          call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_op),D_enthalpy(dof_temp),ierr)
+
+          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
+          D_enthalpy = D_enthalpy * 1.d-6
+#endif
+
+          ! all anagous to density calls above
+          call EOSOilEnthalpy(temperature, cell_pressure,enthalpy,dx_dcpres,dx_dtcell,ierr)
+
+          dx_dtcell = dx_dtcell * dT_dTcell
+          D_enthalpy = dx_dcpres * D_cpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
+          D_enthalpy = D_enthalpy * 1.d-6
+        else
+          call EOSOilEnthalpy(temperature,cell_pressure,enthalpy,ierr)
+        endif
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        ! jac contribution involves using previous residual values, so do it before those
+        ! values change
+        J(option%energy_id,:) = J(option%energy_id,:) + ProdRule(Res(option%oil_phase),J(option%oil_phase,:), &
+                                                   enthalpy,D_enthalpy,ndof                           )
+      endif
+      ! enthalpy units: MJ/kmol ! oil component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%oil_phase) * enthalpy
+    end if
+    ! gas injection
+    if (qsrc(option%gas_phase) > 0.d0) then
+      if (analytical_derivatives) then
+        ! zero out enthalpy derivs
+        D_enthalpy = 0.d0
+      endif
+      if ( energy_var == SRC_ENTHALPY ) then
+        enthalpy = src_sink_condition%enthalpy% &
+                     dataset%rarray(option%gas_phase)
+                      !J/kg * kg/kmol = J/kmol
+        enthalpy = enthalpy * towg_fmw_comp(option%gas_phase)
+      else !note: temp can either be input or taken as the one of perf. block
+      !if ( energy_var == SRC_TEMPERATURE ) then
+        ! enthalpy = [J/kmol]
+        if (analytical_derivatives) then
+          ! enthalpy derivatives from eos
+#if 0
+          call EOSGasEnergy(temperature, cell_pressure,enthalpy,D_enthalpy(dof_temp),D_enthalpy(dof_op),&
+                            internal_energy_dummy,dum1,dum2,ierr)
+
+          D_enthalpy(dof_op) = D_enthalpy(dof_op) * dp_dpo
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) * dT_dTcell
+
+          D_enthalpy = D_enthalpy * 1.d-6
+#endif
+
+          ! all anagous to density calls above
+          call EOSGasEnergy(temperature, cell_pressure,enthalpy,dx_dtcell,dx_dcpres,&
+                            internal_energy_dummy,dum1,dum2,ierr)
+
+          dx_dtcell = dx_dtcell * dT_dTcell
+          D_enthalpy = dx_dcpres * D_cpres
+          D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
+          D_enthalpy = D_enthalpy * 1.d-6
+
+        else
+          call EOSGasEnergy(temperature,cell_pressure,enthalpy, &
+                                internal_energy_dummy,ierr)
+        endif
+      end if
+      enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+      ! enthalpy units: MJ/kmol ! oil component mass
+      if (analytical_derivatives) then
+        ! jac contribution involves using previous residual values, so do it before those
+        ! values change
+        J(option%energy_id,:) = J(option%energy_id,:) + ProdRule(Res(option%gas_phase),J(option%gas_phase,:), &
+                                                   enthalpy,D_enthalpy,ndof                           )
+      endif
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%gas_phase) * enthalpy
+    end if
+
+!--Solvent injection-----------------------------------------------------------
+
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+      if (qsrc(option%solvent_phase) > 0.d0) then
+        if ( energy_var == SRC_ENTHALPY ) then
+          enthalpy = src_sink_condition%enthalpy% &
+                       dataset%rarray(option%solvent_phase)
+                        !J/kg * kg/kmol = J/kmol
+          enthalpy = enthalpy * towg_fmw_comp(option%solvent_phase)
+        else !note: temp can either be input or taken as the one of perf. block
+        !if ( energy_var == SRC_TEMPERATURE ) then
+          if (analytical_derivatives) then
+!subroutine EOSSlvEnergyDerive(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
+            call EOSSlvEnergy(temperature,cell_pressure,enthalpy,dx_dtcell,dx_dcpres, &
+                              internal_energy_dummy,dummy,dummy,ierr)
+
+            dx_dtcell = dx_dtcell * dT_dTcell
+            D_enthalpy = dx_dcpres * D_cpres
+            D_enthalpy(dof_temp) = D_enthalpy(dof_temp) + dx_dtcell
+            D_enthalpy = D_enthalpy * 1.d-6
+          else
+            call EOSSlvEnergy(temperature,cell_pressure,enthalpy, &
+                              internal_energy_dummy,ierr)
+            ! enthalpy = [J/kmol]
+          endif
+        end if
+        enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
+        ! enthalpy units: MJ/kmol
+        Res(option%energy_id) = Res(option%energy_id) + &
+                                Res(option%solvent_phase) * enthalpy
+      end if
+    endif
+
+    ! water energy extraction due to water production
+    if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        ! jac contribution involves using previous residual values, so do it before those
+        ! values change
+        J(option%energy_id,:) = J(option%energy_id,:)                                                           &
+                              + ProdRule(Res(option%liquid_phase),J(option%liquid_phase,:),                     &
+                                         auxvar%H(option%liquid_phase),auxvar%D_H(option%liquid_phase,:),ndof )
+      endif
+      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%liquid_phase) * &
+                              auxvar%H(option%liquid_phase)
+    end if
+    !oil energy extraction due to oil production
+    if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        ! jac contribution involves using previous residual values, so do it before those
+        ! values change
+        J(option%energy_id,:) = J(option%energy_id,:) + ProdRule(Res(option%oil_phase),J(option%oil_phase,:),                   &
+                                                                 auxvar%H(option%oil_phase),auxvar%D_H(option%oil_phase,:),ndof )
+      endif
+      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%oil_phase) * &
+                              auxvar%H(option%oil_phase)
+    end if
+    if (qsrc(option%gas_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
+      ! auxvar enthalpy units: MJ/kmol
+      if (analytical_derivatives) then
+        ! jac contribution involves using previous residual values, so do it before those
+        ! values change
+        J(option%energy_id,:) = J(option%energy_id,:) + ProdRule(Res(option%gas_phase),J(option%gas_phase,:),                   &
+                                                                 auxvar%H(option%gas_phase),auxvar%D_H(option%gas_phase,:),ndof )
+      endif
+      ! auxvar enthalpy units: MJ/kmol ! water component mass
+      Res(option%energy_id) = Res(option%energy_id) + &
+                              Res(option%gas_phase) * &
+                              auxvar%H(option%gas_phase)
+    end if
+
+    !--Solvent energy extraction due to solvent production-------------------------
+
+    if( towg_miscibility_model == TOWG_SOLVENT_TL ) then
+
+      if (qsrc(option%solvent_phase) < 0.d0) then !implies qsrc(option%gas_phase)<=0
+        ! auxvar enthalpy units: MJ/kmol
+        Res(option%energy_id) = Res(option%energy_id) + &
+                                Res(option%solvent_phase) * &
+                                auxvar%H(option%solvent_phase)
+      end if
+    endif
+
+  else !if the energy rate is given, it overwrites both temp and enthalpy
+    ! if energy rate is given, loaded in qsrc(option%energy_id) in MJ/sec
+    Res(option%energy_id) = qsrc(option%energy_id)* scale ! MJ/s
+  end if
+
+  nullify(qsrc)
+
+end subroutine TOWGBOSrcSink
+
+! ************************************************************************** !
+
 subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,J)
-  ! 
+  !
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
-  ! 
+  !
   ! Author: Paolo Orsini
   ! Date: 12/27/16
-  ! 
+  !
 
   use Option_module
   use Saturation_Function_module
   use Material_Aux_class
-  
+  use Utility_module
+
   implicit none
 
   type(auxvar_towg_type) :: auxvar(0:)
@@ -2191,38 +4331,75 @@ subroutine TOWGAccumDerivative(auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
-     
+
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
 
-  call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
-                        soil_heat_capacity,option,res,PETSC_FALSE)
+  PetscReal :: jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: jalyt(option%nflowdof,option%nflowdof)
+  PetscBool :: flagged
 
-  do idof = 1, option%nflowdof
-    call TOWGAccumulation(auxvar(idof),global_auxvar,material_auxvar, &
-                          soil_heat_capacity,option,res_pert,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      J(irow,idof) = (res_pert(irow)-res(irow))/auxvar(idof)%pert
-    enddo !irow
-  enddo ! idof
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+    call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
+                          soil_heat_capacity,option,res,PETSC_FALSE,jdum,PETSC_FALSE)
 
-  if (towg_isothermal) then
-    J(towg_energy_eq_idx,:) = 0.d0
-    J(:,towg_energy_eq_idx) = 0.d0
+    do idof = 1, option%nflowdof
+      call TOWGAccumulation(auxvar(idof),global_auxvar,material_auxvar, &
+                            soil_heat_capacity,option,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        J(irow,idof) = (res_pert(irow)-res(irow))/auxvar(idof)%pert
+      enddo !irow
+    enddo ! idof
+
+    if (towg_isothermal) then
+      J(towg_energy_eq_idx,:) = 0.d0
+      J(:,towg_energy_eq_idx) = 0.d0
+    endif
+
+    if (towg_no_oil) then
+      J(TOWG_OIL_EQ_IDX,:) = 0.d0
+      J(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif
+
+    if (towg_no_gas) then
+      J(TOWG_GAS_EQ_IDX,:) = 0.d0
+      J(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif
   endif
 
-  if (towg_no_oil) then
-    J(TOWG_OIL_EQ_IDX,:) = 0.d0
-    J(:,TOWG_OIL_EQ_IDX) = 0.d0
+  if (towg_analytical_derivatives) then
+    call TOWGAccumulation(auxvar(ZERO_INTEGER),global_auxvar,material_auxvar, &
+                          soil_heat_capacity,option,res,PETSC_FALSE,jalyt,PETSC_TRUE)
+    if (towg_isothermal) then
+      jalyt(towg_energy_eq_idx,:) = 0.d0
+      jalyt(:,towg_energy_eq_idx) = 0.d0
+    endif
+
+    if (towg_no_oil) then
+      jalyt(TOWG_OIL_EQ_IDX,:) = 0.d0
+      jalyt(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif
+
+    if (towg_no_gas) then
+      jalyt(TOWG_GAS_EQ_IDX,:) = 0.d0
+      jalyt(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif
+
+    if (towg_analytical_derivatives_compare) then
+      flagged = PETSC_FALSE
+      call MatCompare(J, jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is accum derivative"
+      endif
+    endif
+
+    j = jalyt
+
+
   endif
 
-  if (towg_no_gas) then
-    J(TOWG_GAS_EQ_IDX,:) = 0.d0
-    J(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif
-  
 
 end subroutine TOWGAccumDerivative
 
@@ -2248,6 +4425,7 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
   ! 
   use Option_module
   use Material_Aux_class
+  use Utility_module
   
   implicit none
   
@@ -2268,70 +4446,132 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
+  PetscReal :: Jalyt_up(option%nflowdof,option%nflowdof)
+  PetscReal :: Jalyt_dn(option%nflowdof,option%nflowdof)
+
+  PetscReal :: Jdum_up(option%nflowdof,option%nflowdof)
+  PetscReal :: Jdum_dn(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
+
   Jup = 0.d0
   Jdn = 0.d0
+
+
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
   
-  !print *, 'TOWGFluxDerivative'
-  option%iflag = -2
-  call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                material_auxvar_up,sir_up, &
-                thermal_conductivity_up, &
-                auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                material_auxvar_dn,sir_dn, &
-                thermal_conductivity_dn, &
-                area,dist,towg_parameter, &
-                option,v_darcy,res,PETSC_FALSE)
-                           
-  ! upgradient derivatives
-  do idof = 1, option%nflowdof
-    call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
+    !print *, 'TOWGFluxDerivative'
+    option%iflag = -2
+    call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                   material_auxvar_up,sir_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                   material_auxvar_dn,sir_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
-                  option,v_darcy,res_pert,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jup(irow,idof) = (res_pert(irow)-res(irow))/auxvar_up(idof)%pert
-    enddo !irow
-  enddo ! idof
+                  option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
+                             
+    ! upgradient derivatives
+    do idof = 1, option%nflowdof
+      call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
+                    material_auxvar_up,sir_up, &
+                    thermal_conductivity_up, &
+                    auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                    material_auxvar_dn,sir_dn, &
+                    thermal_conductivity_dn, &
+                    area,dist,towg_parameter, &
+                    option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jup(irow,idof) = (res_pert(irow)-res(irow))/auxvar_up(idof)%pert
+      enddo !irow
+    enddo ! idof
 
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                    material_auxvar_up,sir_up, &
+                    thermal_conductivity_up, &
+                    auxvar_dn(idof),global_auxvar_dn, &
+                    material_auxvar_dn,sir_dn, &
+                    thermal_conductivity_dn, &
+                    area,dist,towg_parameter, &
+                    option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jdn(irow,idof) = (res_pert(irow)-res(irow))/auxvar_dn(idof)%pert
+      enddo !irow
+    enddo ! idof
+
+    if (towg_isothermal) then
+      Jup(towg_energy_eq_idx,:) = 0.d0
+      Jup(:,towg_energy_eq_idx) = 0.d0
+      Jdn(towg_energy_eq_idx,:) = 0.d0
+      Jdn(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+      Jup(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jup(:,TOWG_OIL_EQ_IDX) = 0.d0
+      Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      Jup(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jup(:,TOWG_GAS_EQ_IDX) = 0.d0
+      Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+  endif
+
+  if (towg_analytical_derivatives) then
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                   material_auxvar_up,sir_up, &
                   thermal_conductivity_up, &
-                  auxvar_dn(idof),global_auxvar_dn, &
+                  auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                   material_auxvar_dn,sir_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
-                  option,v_darcy,res_pert,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
+                  option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
 
-  if (towg_isothermal) then
-    Jup(towg_energy_eq_idx,:) = 0.d0
-    Jup(:,towg_energy_eq_idx) = 0.d0
-    Jdn(towg_energy_eq_idx,:) = 0.d0
-    Jdn(:,towg_energy_eq_idx) = 0.d0
+
+    if (towg_isothermal) then
+      Jalyt_up(towg_energy_eq_idx,:) = 0.d0
+      Jalyt_up(:,towg_energy_eq_idx) = 0.d0
+      Jalyt_dn(towg_energy_eq_idx,:) = 0.d0
+      Jalyt_dn(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+      Jalyt_up(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jalyt_up(:,TOWG_OIL_EQ_IDX) = 0.d0
+      Jalyt_dn(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jalyt_dn(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      Jalyt_up(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jalyt_up(:,TOWG_GAS_EQ_IDX) = 0.d0
+      Jalyt_dn(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jalyt_dn(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_analytical_derivatives_compare) then
+      flagged = PETSC_FALSE
+      call MatCompare(Jup, Jalyt_up, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is flux derivative, that was matrix up"
+      endif
+      flagged = PETSC_FALSE
+      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is flux derivative, that was matrix dn"
+      endif
+    endif
+
+    jup = jalyt_up
+    jdn = jalyt_dn
   endif
-  
-  if (towg_no_oil) then
-    Jup(TOWG_OIL_EQ_IDX,:) = 0.d0
-    Jup(:,TOWG_OIL_EQ_IDX) = 0.d0
-    Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
-    Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
 
-  if (towg_no_gas) then
-    Jup(TOWG_GAS_EQ_IDX,:) = 0.d0
-    Jup(:,TOWG_GAS_EQ_IDX) = 0.d0
-    Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
-    Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
 
 end subroutine TOWGFluxDerivative
 
@@ -2354,6 +4594,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   use Option_module 
   use Material_Aux_class
+  use Utility_module
   
   implicit none
 
@@ -2375,48 +4616,100 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscInt :: idof, irow
 
+  PetscReal :: jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: Jalyt_dn(option%nflowdof,option%nflowdof)
+
+  PetscBool :: flagged
+
   Jdn = 0.d0
   !print *, 'TOWGBCFluxDerivative'
 
-  option%iflag = -2
-  call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
-                  auxvar_up,global_auxvar_up, &
-                  auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
-                  thermal_conductivity_dn, &
-                  area,dist,towg_parameter, &
-                  option,v_darcy,res,PETSC_FALSE)
-                    
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+
+    option%iflag = -2
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     auxvar_up,global_auxvar_up, &
-                    auxvar_dn(idof),global_auxvar_dn, &
+                    auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                     material_auxvar_dn,sir_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
-                    option,v_darcy,res_pert,PETSC_FALSE)
-    do irow = 1, option%nflowdof
-      Jdn(irow,idof) = (res_pert(irow)-res(irow))/auxvar_dn(idof)%pert
-    enddo !irow
-  enddo ! idof
+                    option,v_darcy,res,PETSC_FALSE,jdum,PETSC_FALSE)
+                      
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+                      auxvar_up,global_auxvar_up, &
+                      auxvar_dn(idof),global_auxvar_dn, &
+                      material_auxvar_dn,sir_dn, &
+                      thermal_conductivity_dn, &
+                      area,dist,towg_parameter, &
+                      option,v_darcy,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jdn(irow,idof) = (res_pert(irow)-res(irow))/auxvar_dn(idof)%pert
+      enddo !irow
+    enddo ! idof
 
-  if (towg_isothermal) then
-    Jdn(towg_energy_eq_idx,:) = 0.d0
-    Jdn(:,towg_energy_eq_idx) = 0.d0
+    if (towg_isothermal) then
+      Jdn(towg_energy_eq_idx,:) = 0.d0
+      Jdn(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+      Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
   endif
-  
-  if (towg_no_oil) then
-    Jdn(TOWG_OIL_EQ_IDX,:) = 0.d0
-    Jdn(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
 
-  if (towg_no_gas) then
-    Jdn(TOWG_GAS_EQ_IDX,:) = 0.d0
-    Jdn(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
-  
-end subroutine TOWGBCFluxDerivative
+  if (towg_analytical_derivatives) then
+    call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+                    auxvar_up,global_auxvar_up, &
+                    auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                    material_auxvar_dn,sir_dn, &
+                    thermal_conductivity_dn, &
+                    area,dist,towg_parameter, &
+                    option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
+
+    if (towg_isothermal) then
+     jalyt_dn(towg_energy_eq_idx,:) = 0.d0
+     jalyt_dn(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+     jalyt_dn(TOWG_OIL_EQ_IDX,:) = 0.d0
+     jalyt_dn(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      jalyt_dn(TOWG_GAS_EQ_IDX,:) = 0.d0
+      jalyt_dn(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_analytical_derivatives_compare) then
+      flagged = PETSC_FALSE
+      call MatCompare(Jdn, Jalyt_dn, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then
+        print *, "this is bc flux derivative"
+      endif
+
+      call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
+                      auxvar_up,global_auxvar_up, &
+                      auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                      material_auxvar_dn,sir_dn, &
+                      thermal_conductivity_dn, &
+                      area,dist,towg_parameter, &
+                      option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
+    endif
+
+    jdn = jalyt_dn
+  endif
+    
+  end subroutine TOWGBCFluxDerivative
 
 ! ************************************************************************** !
 
@@ -2431,6 +4724,7 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
 
   use Option_module
   use Condition_module
+  use Utility_module
 
   implicit none
 
@@ -2445,33 +4739,74 @@ subroutine TOWGSrcSinkDerivative(option,src_sink_condition,auxvars, &
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
 
-  option%iflag = -3
-  call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
-                   global_auxvar,dummy_real,scale,Res)
+  PetscReal :: jdum(option%nflowdof,option%nflowdof)
+  PetscReal :: Jalyt(option%nflowdof,option%nflowdof)
 
-  ! downgradient derivatives
-  do idof = 1, option%nflowdof
-    call TOWGSrcSink(option,src_sink_condition,auxvars(idof), &
-                     global_auxvar,dummy_real,scale,res_pert)
-    do irow = 1, option%nflowdof
-      Jac(irow,idof) = (res_pert(irow)-res(irow))/auxvars(idof)%pert
-    enddo !irow
-  enddo ! idof
- 
-  if (towg_isothermal) then
-    Jac(towg_energy_eq_idx,:) = 0.d0
-    Jac(:,towg_energy_eq_idx) = 0.d0
+  PetscBool :: flagged
+
+
+  if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+    option%iflag = -3
+    call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
+                     global_auxvar,dummy_real,scale,Res,jdum,PETSC_FALSE)
+
+    ! downgradient derivatives
+    do idof = 1, option%nflowdof
+      call TOWGSrcSink(option,src_sink_condition,auxvars(idof), &
+                       global_auxvar,dummy_real,scale,res_pert,jdum,PETSC_FALSE)
+      do irow = 1, option%nflowdof
+        Jac(irow,idof) = (res_pert(irow)-res(irow))/auxvars(idof)%pert
+      enddo !irow
+    enddo ! idof
+   
+    if (towg_isothermal) then
+      Jac(towg_energy_eq_idx,:) = 0.d0
+      Jac(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+      Jac(TOWG_OIL_EQ_IDX,:) = 0.d0
+      Jac(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      Jac(TOWG_GAS_EQ_IDX,:) = 0.d0
+      Jac(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
   endif
-  
-  if (towg_no_oil) then
-    Jac(TOWG_OIL_EQ_IDX,:) = 0.d0
-    Jac(:,TOWG_OIL_EQ_IDX) = 0.d0
-  endif  
 
-  if (towg_no_gas) then
-    Jac(TOWG_GAS_EQ_IDX,:) = 0.d0
-    Jac(:,TOWG_GAS_EQ_IDX) = 0.d0
-  endif  
+  if (towg_analytical_derivatives) then
+
+    call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
+                     global_auxvar,dummy_real,scale,res_pert,Jalyt,PETSC_TRUE)
+
+    if (towg_isothermal) then
+      jalyt(towg_energy_eq_idx,:) = 0.d0
+      jalyt(:,towg_energy_eq_idx) = 0.d0
+    endif
+    
+    if (towg_no_oil) then
+     jalyt(TOWG_OIL_EQ_IDX,:) = 0.d0
+     jalyt(:,TOWG_OIL_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_no_gas) then
+      jalyt(TOWG_GAS_EQ_IDX,:) = 0.d0
+      jalyt(:,TOWG_GAS_EQ_IDX) = 0.d0
+    endif  
+
+    if (towg_analytical_derivatives_compare) then
+      flagged = PETSC_FALSE
+      call MatCompare(Jac, Jalyt, 4, 4, towg_dcomp_tol, towg_dcomp_reltol,flagged)
+      if (flagged) then 
+        print *, "this is src sink derivative"
+      endif
+      call TOWGSrcSink(option,src_sink_condition,auxvars(ZERO_INTEGER), &
+                       global_auxvar,dummy_real,scale,res_pert,Jalyt,PETSC_TRUE)
+    endif
+
+    jac = jalyt
+  endif
 
 end subroutine TOWGSrcSinkDerivative
 
@@ -2499,6 +4834,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   use Coupler_module  
   use Debug_module
   use Material_Aux_class
+  use Well_Data_class
+  use Well_Solver_module
 
   implicit none
 
@@ -2507,7 +4844,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   Vec :: r
   type(realization_subsurface_type) :: realization
   PetscViewer :: viewer
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr,jerr
   
   Mat, parameter :: null_mat = PETSC_NULL_MAT
   type(discretization_type), pointer :: discretization
@@ -2549,6 +4886,12 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
   !PetscReal :: Jac_dummy(realization%option%nflowdof, &
   !                       realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
+
+  type(well_data_list_type),pointer :: well_data_list
+  class(well_data_type), pointer :: well_data
+
+  PetscReal :: jdum(realization%option%nflowdof,realization%option%nflowdof)
+  PetscReal :: jdum2(realization%option%nflowdof,realization%option%nflowdof)
   
   discretization => realization%discretization
   option => realization%option
@@ -2628,7 +4971,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                           global_auxvars(ghosted_id), &
                           material_auxvars(ghosted_id), &
                           material_parameter%soil_heat_capacity(imat), &
-                          option,Res,local_id == towg_debug_cell_id)
+                          option,Res,local_id == towg_debug_cell_id,jdum,PETSC_FALSE)
 
 
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
@@ -2682,7 +5025,8 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                     cur_connection_set%dist(:,iconn), &
                     towg_parameter,option,v_darcy,Res, &
                     (local_id_up == towg_debug_cell_id .or. &
-                     local_id_dn == towg_debug_cell_id))
+                     local_id_dn == towg_debug_cell_id), &
+                     jdum,jdum2,PETSC_FALSE)
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -2742,7 +5086,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(:,iconn), &
                     towg_parameter,option,v_darcy,Res, &
-                    local_id == towg_debug_cell_id)
+                    local_id == towg_debug_cell_id,jdum,PETSC_FALSE)
 
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
@@ -2750,9 +5094,11 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_bc(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) = &
+          global_auxvars_bc(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) - &
+          Res(1:option%nflowspec)
       endif
 
       local_end = local_id * option%nflowdof
@@ -2789,7 +5135,7 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       call TOWGSrcSink(option,source_sink%flow_condition%towg, &
                        towg%auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), ss_flow_vol_flux, &
-                       scale,Res)
+                       scale,Res,jdum,PETSC_FALSE)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -2801,17 +5147,39 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       endif      
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
-          Res(1:2)
+        global_auxvars_ss(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) = &
+          global_auxvars_ss(sum_connection)% &
+            mass_balance_delta(1:option%nflowspec,1) - &
+          Res(1:option%nflowspec)
       endif
 
     enddo
     source_sink => source_sink%next
   enddo
 
+  ! Set up the average pressure (may be needed for voidage calculations)
+
+  call patch%aux%TOWG%FieldVolRefAve(grid,patch%aux%material, &
+                                          patch%imat,option)
+
+  ! Loop over well_data wells if present
+
+  if (WellDataGetFlag()) then
+    jerr = 0
+    well_data_list => realization%well_data
+    well_data => well_data_list%first
+
+    do
+      if (.not.associated(well_data)) exit
+        call SolveWell(patch%aux,option,well_data,r_p)
+        call MPI_Barrier(option%mycomm,jerr)
+      well_data => well_data%next
+    enddo
+  endif
+
   if (towg%inactive_cells_exist) then
-    do i=1,towg%n_inactive_rows
+    do i = 1,towg%n_inactive_rows
       r_p(towg%inactive_rows_local(i)) = 0.d0
     enddo
   endif
@@ -2912,6 +5280,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Debug_module
   use Material_Aux_class
+  use Well_Data_class
 
   implicit none
 
@@ -2919,7 +5288,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_subsurface_type) :: realization
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr,jerr,nflowdof
 
   Mat :: J
   MatType :: mat_type
@@ -2934,7 +5303,10 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
   Vec, parameter :: null_vec = PETSC_NULL_VEC
-  
+
+  class(well_data_type), pointer :: well_data
+  type(well_data_list_type),pointer :: well_data_list
+
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
   
@@ -2955,6 +5327,7 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   type(towg_parameter_type), pointer :: towg_parameter
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscBool::analytical_derivatives
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -3002,12 +5375,15 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
   do ghosted_id = 1, grid%ngmax  ! For each local node do...
     if (patch%imat(ghosted_id) <= 0) cycle
     natural_id = grid%nG2A(ghosted_id)
-    call TOWGAuxVarPerturb(towg%auxvars(:,ghosted_id), &
-                           global_auxvars(ghosted_id), &
-                           material_auxvars(ghosted_id), &
-                           patch%characteristic_curves_array( &
-                           patch%sat_func_id(ghosted_id))%ptr, &
-                           natural_id,option)
+    if (.NOT. towg_analytical_derivatives .OR. towg_analytical_derivatives_compare) then
+      call TOWGAuxVarPerturb(towg%auxvars(:,ghosted_id), &
+                             global_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id), &
+                             patch%characteristic_curves_array( &
+                             patch%sat_func_id(ghosted_id))%ptr, &
+                             natural_id,option)
+    endif
+
   enddo
 
   ! Accumulation terms ------------------------------------
@@ -3186,7 +5562,25 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-  
+
+! Loop over well_data wells if present
+
+  analytical_derivatives = .not. option%flow%numerical_derivatives
+  if( analytical_derivatives ) then
+    if (WellDataGetFlag()) then
+      nflowdof=realization%option%nflowdof
+      jerr = 0
+      well_data_list => realization%well_data
+      well_data => well_data_list%first
+
+      do
+        if (.not.associated(well_data)) exit
+          call well_data%DoIncrJac(option,nflowdof,Jup,A)
+          well_data => well_data%next
+      enddo
+    endif
+  endif
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3332,8 +5726,8 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: temperature0, temperature1, del_temperature
   PetscReal :: saturation0, saturation1, del_saturation
 
-  PetscReal :: max_saturation_change = 0.125d0
-  PetscReal :: max_temperature_change = 10.d0
+  PetscReal, parameter :: max_saturation_change = 0.125d0
+  PetscReal, parameter :: max_temperature_change = 10.d0
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
@@ -3465,7 +5859,224 @@ end subroutine TOWGImsTLCheckUpdatePre
 
 ! ************************************************************************** !
 
-function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
+subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
+                                      max_it_before_damping,damping_factor, &
+                                      max_pressure_change,ierr)
+!------------------------------------------------------------------------------
+! Used in TOWG_BLACK_OIL and TOWG_SOLVENT_TL, prepares update for solver
+!------------------------------------------------------------------------------
+! Author: Dave Ponting
+! Date  : Oct 2017
+!------------------------------------------------------------------------------
+
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Option_module
+  use Patch_module
+  use Appleyard_module
+
+  implicit none
+
+  SNESLineSearch :: line_search
+  Vec :: X
+  Vec :: dX
+  PetscBool :: changed
+  PetscErrorCode :: ierr
+  type(realization_subsurface_type) :: realization
+  PetscInt :: max_it_before_damping
+  PetscReal :: damping_factor
+  PetscReal :: max_pressure_change
+
+  PetscReal, pointer :: X_p(:), dX_p(:)
+
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: offset
+
+  PetscInt :: pressure_index, saturation_index, temperature_index
+
+  PetscReal :: pressure0, pressure1, del_pressure
+  PetscReal :: temperature0, temperature1, del_temperature
+  PetscReal :: saturation0, saturation1, del_saturation, del_sat_cand
+
+  PetscReal,parameter :: max_saturation_change = 0.125d0
+  PetscReal,parameter :: max_temperature_change = 10.d0
+  PetscReal :: max_pb_change
+  PetscReal :: scale, temp_scale, temp_real
+  PetscReal, parameter :: tolerance = 0.99d0
+  PetscReal, parameter :: initial_scale = 1.d0
+  SNES :: snes
+  PetscInt :: newton_iteration,istate
+
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+
+# if 0
+  !! for appleyard:
+  PetscReal :: saturation0_oil, del_saturation_oil
+  PetscInt :: oid
+  PetscBool :: ayard_ch
+#endif
+
+  grid => realization%patch%grid
+  option => realization%option
+  field => realization%field
+  patch => realization%patch
+
+  global_auxvars => patch%aux%Global%auxvars
+
+  call SNESLineSearchGetSNES(line_search,snes,ierr)
+  call SNESGetIterationNumber(snes,newton_iteration,ierr)
+
+  call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+
+  !changed = PETSC_TRUE ! for appleyard
+
+  max_pb_change=2.0*max_pressure_change
+  !max_pb_change= 1.1D5
+
+  !oid = option%oil_phase ! for appleyard
+
+  ! truncation
+  ! Oil saturation must be truncated.  We do not use scaling
+  ! here because of the very small values.  just truncation.
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    offset = (local_id-1)*option%nflowdof
+! Stop oil saturation going negative, not gas - need Sg<0 to get back to Pbub
+    saturation_index = offset + TOWG_OIL_SATURATION_DOF
+    if ( (X_p(saturation_index) - dX_p(saturation_index)) < 0.d0 ) then
+      dX_p(saturation_index) = X_p(saturation_index)
+    end if
+  enddo
+
+#if 0
+    ! appleyard, not currently functional:
+    saturation0 = X_p(saturation_index)
+    del_saturation = dX_p(saturation_index)
+    call TOWGAppleyard(saturation0, del_sat_cand, ghosted_id, realization, oid, ayard_ch)
+    !if (del_saturation /= del_sat_cand) then
+    if (ayard_ch) then
+      print *, "appleyarding; d sat is ", dX_p(saturation_index), &
+                " will be ", del_sat_cand, " sat is ", saturation0
+      dX_p(saturation_index) = del_sat_cand
+    endif
+#endif
+
+  scale = initial_scale
+  if (max_it_before_damping > 0 .and. &
+      newton_iteration > max_it_before_damping) then
+    scale = damping_factor
+  endif
+
+#define LIMIT_MAX_PRESSURE_CHANGE
+#define LIMIT_MAX_SATURATION_CHANGE
+!!#define LIMIT_MAX_TEMPERATURE_CHANGE
+!! TRUNCATE_PRESSURE is needed for times when the solve wants
+!! to pull them negative.
+!#define TRUNCATE_PRESSURE
+
+  ! scaling
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    offset = (local_id-1)*option%nflowdof
+
+    istate=global_auxvars(ghosted_id)%istate
+
+    temp_scale = 1.d0
+    pressure_index = offset + TOWG_OIL_PRESSURE_DOF
+    dX_p(pressure_index) = dX_p(pressure_index) * towg_pressure_scale
+    del_pressure = dX_p(pressure_index)
+    pressure0 = X_p(pressure_index)
+    pressure1 = pressure0 - del_pressure
+#ifdef LIMIT_MAX_PRESSURE_CHANGE
+    if (dabs(del_pressure) > max_pressure_change) then
+      temp_real = dabs(max_pressure_change/del_pressure)
+      temp_scale = min(temp_scale,temp_real)
+     endif
+#endif
+#ifdef TRUNCATE_PRESSURE
+    if (pressure1 <= 0.d0) then
+      if (dabs(del_pressure) > 1.d-40) then
+        temp_real = tolerance * dabs(pressure0 / del_pressure)
+        temp_scale = min(temp_scale,temp_real)
+      endif
+    endif
+#endif
+!TRUNCATE_PRESSURE
+#ifdef LIMIT_MAX_SATURATION_CHANGE
+    !oil saturation
+    saturation_index = offset + TOWG_OIL_SATURATION_DOF
+    del_saturation = dX_p(saturation_index)
+    !saturation0 = X_p(saturation_index)
+    !saturation1 = saturation0 - del_saturation
+    if (dabs(del_saturation) > max_saturation_change) then
+       temp_real = dabs(max_saturation_change/del_saturation)
+       temp_scale = min(temp_scale,temp_real)
+    endif
+    !gas saturation location
+    saturation_index = offset + TOWG_GAS_SATURATION_3PH_DOF
+    del_saturation = dX_p(saturation_index)
+    !saturation0 = X_p(saturation_index)
+    !saturation1 = saturation0 - del_saturation
+    if( istate == TOWG_THREE_PHASE_STATE ) then ! Is gas saturation variable
+      if (dabs(del_saturation) > max_saturation_change) then
+         temp_real = dabs(max_saturation_change/del_saturation)
+         temp_scale = min(temp_scale,temp_real)
+      endif
+    else if( istate == TOWG_LIQ_OIL_STATE ) then ! Is bubble point variable
+      if (dabs(del_saturation) > max_pb_change) then
+         temp_real = dabs(max_pb_change/del_saturation)
+         temp_scale = min(temp_scale,temp_real)
+      endif
+      ! let's try avoiding negative pb values:
+      if ((X_p(saturation_index) - dX_p(saturation_index))  < 0.d0) then
+         !print *, "negative pb! ", X_p(saturation_index)
+        !print *, dX_p(saturation_index), ", ", X_p(saturation_index) - dX_p(saturation_index)
+      dX_p(saturation_index) = X_p(saturation_index) - 0.5
+      endif
+    endif
+#endif
+!LIMIT_MAX_SATURATION_CHANGE
+#ifdef LIMIT_MAX_TEMPERATURE_CHANGE
+    temperature_index  = offset + towg_energy_dof
+    del_temperature = dX_p(temperature_index)
+    if (dabs(del_temperature) > max_temperature_change) then
+       temp_real = dabs(max_temperature_change/del_temperature)
+       temp_scale = min(temp_scale,temp_real)
+    endif
+#endif
+!LIMIT_MAX_TEMPERATURE_CHANGE
+    scale = min(scale,temp_scale)
+  enddo
+
+  temp_scale = scale
+  call MPI_Allreduce(temp_scale,scale,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION, &
+                     MPI_MIN,option%mycomm,ierr)
+
+  ! it performs an homogenous scaling using the smallest scaling factor
+  ! over all subdomains domains
+  if (scale < 0.9999d0) then
+    dX_p = scale*dX_p
+  endif
+
+  call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
+
+end subroutine TOWGBlackOilCheckUpdatePre
+
+! ************************************************************************** !
+
+function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn, &
+                                 d_denave_den_up,d_denave_den_dn)
   ! 
   ! Averages density, using opposite cell density if phase non-existent
   ! 
@@ -3478,15 +6089,43 @@ function TOWGImsTLAverageDensity(sat_up,sat_dn,density_up,density_dn)
   PetscReal :: sat_up, sat_dn
   PetscReal :: density_up, density_dn
 
+  PetscReal, optional, intent(OUT) :: d_denave_den_up,d_denave_den_dn
+
+  PetscBool :: getDerivs
+
   PetscReal :: TOWGImsTLAverageDensity
 
-  if (sat_up < eps ) then
-    TOWGImsTLAverageDensity = density_dn
-  else if (sat_dn < eps ) then 
-    TOWGImsTLAverageDensity = density_up
-  else ! in here we could use an armonic average, 
-       ! other idea sat weighted average but it needs truncation
+  getDerivs = PETSC_FALSE
+  if (present(d_denave_den_up) .AND. present(d_denave_den_dn)) then
+    getDerivs = PETSC_TRUE
+  endif
+
+!  if ( (towg_miscibility_model == TOWG_IMMISCIBLE) .or. &
+!       (towg_miscibility_model == TOWG_TODD_LONGSTAFF) &
+!     ) then
+  if ( towg_miscibility_model == TOWG_TODD_LONGSTAFF ) then
     TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
+    if (getDerivs) then
+      d_denave_den_up = 0.5d0;d_denave_den_dn = 0.5d0
+    endif
+  else
+    if (sat_up < eps ) then
+      TOWGImsTLAverageDensity = density_dn
+      if (getDerivs) then
+        d_denave_den_up = 0.0d0;d_denave_den_dn = 1.0d0
+      endif
+    else if (sat_dn < eps ) then 
+      TOWGImsTLAverageDensity = density_up
+      if (getDerivs) then
+        d_denave_den_up = 1.0d0;d_denave_den_dn = 0.0d0
+      endif
+    else ! in here we could use an armonic average, 
+         ! other idea sat weighted average but it needs truncation
+      TOWGImsTLAverageDensity = 0.5d0*(density_up+density_dn)
+      if (getDerivs) then 
+        d_denave_den_up = 0.5d0;d_denave_den_dn = 0.5d0
+      endif
+    end if
   end if
 
 end function TOWGImsTLAverageDensity
@@ -3508,6 +6147,40 @@ subroutine TOWGDestroy(realization)
   type(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
+#ifdef GLOBALWORKERS
+  if (towg_analytical_derivatives) then
+    deallocate(D_den_kg_ave_up)
+    deallocate(D_den_kg_ave_dn)
+    deallocate(D_den_ave_up)
+    deallocate(D_den_ave_dn)
+    deallocate(D_delta_presure_up)
+    deallocate(D_delta_presure_dn)
+    deallocate( D_mobility_up)
+    deallocate(D_mobility_dn)
+    deallocate(D_uH_up)
+    deallocate(D_uH_dn)
+    deallocate(D_v_darcy_up)
+    deallocate(D_v_darcy_dn)
+    deallocate(D_q_up)
+    deallocate(D_q_dn)
+    deallocate(D_mole_flux_up)
+    deallocate(D_mole_flux_dn)
+    deallocate(D_xmf_up)
+    deallocate(D_xmf_dn)
+
+    deallocate(D_sat_liquid_up)
+    deallocate(D_sat_liquid_dn)
+    deallocate(D_k_eff_up)
+    deallocate(D_k_eff_dn)
+    deallocate(D_k_eff_ave_up)
+    deallocate(D_k_eff_ave_dn)
+    deallocate(D_delta_temp_up)
+    deallocate(D_delta_temp_dn)
+    deallocate(D_worker1)
+    deallocate(D_worker2)
+  endif
+#endif
+
 
 end subroutine TOWGDestroy
 

@@ -1,0 +1,24 @@
+REGION top
+  FILE top.ss
+END
+
+REGION bottom
+  FILE bottom.ss
+END
+
+REGION east
+  FILE east.ss
+END
+
+REGION west
+  FILE west.ss
+END
+
+REGION south
+  FILE south.ss
+END
+
+REGION north
+  FILE north.ss
+END
+

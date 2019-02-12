@@ -1,6 +1,9 @@
 module Grid_module
 
 #include "petsc/finclude/petscmat.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscmat
   use Grid_Structured_module
   use Grid_Unstructured_module
@@ -108,7 +111,8 @@ module Grid_module
             GridGetGhostedNeighborsWithCorners, &
             GridMapCellsInPolVol, &
             GridGetLocalIDFromCoordinate, &
-            GridRestrictRegionalConnect
+            GridRestrictRegionalConnect, &
+            GridPrintExtents
   
 contains
 
@@ -212,7 +216,9 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
     case(EXPLICIT_UNSTRUCTURED_GRID)
       connection_set => &
         UGridExplicitSetInternConnect(grid%unstructured_grid%explicit_grid, &
-                                        option)
+                                      grid%unstructured_grid% &
+                                        upwind_fraction_method, &
+                                      option)
     case(POLYHEDRA_UNSTRUCTURED_GRID)
       connection_set => &
         UGridPolyhedraComputeInternConnect(grid%unstructured_grid, &
@@ -2139,5 +2145,57 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
     
 end subroutine GridGetLocalIDFromCoordinate
 
+! ************************************************************************** !
+
+subroutine GridPrintExtents(grid,option)
+  ! 
+  ! Prints the extents of the gridded domain.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/20/18
+  ! 
+  use Option_module
+
+  implicit none
+
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1, word2
+
+  write(word1,*) grid%x_min_global
+  write(word2,*) grid%x_max_global
+  write(string,*) 'X: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
+  if (OptionPrintToScreen(option)) then
+    write(*,*) 'Extent of Gridded Domain'
+    write(*,*) trim(string)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,*) 'Extent of Gridded Domain'
+    write(option%fid_out,*) trim(string)
+  endif
+  write(word1,*) grid%y_min_global
+  write(word2,*) grid%y_max_global
+  write(string,*) 'Y: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
+  if (OptionPrintToScreen(option)) then
+    write(*,*) trim(string)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,*) trim(string)
+  endif
+  write(word1,*) grid%z_min_global
+  write(word2,*) grid%z_max_global
+  write(string,*) 'Z: ', trim(adjustl(word1)), ' - ', trim(adjustl(word2))
+  if (OptionPrintToScreen(option)) then
+    write(*,*) trim(string)
+    write(*,*)
+  endif
+  if (OptionPrintToFile(option)) then
+    write(option%fid_out,*) trim(string)
+    write(option%fid_out,*)
+  endif
+
+end subroutine GridPrintExtents
 
 end module Grid_module

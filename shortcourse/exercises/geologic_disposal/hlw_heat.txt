@@ -1,0 +1,84 @@
+# This file is part of the following SAND report described in gdsa.in:
+# SAND2017-9343 O
+#
+# Title: Geologic Disposal Safety Assessment PFLOTRAN Short Course Example
+# Author: Emily Stein (Sandia National Laboratories) ergiamb@sandia.gov
+#
+# Sandia National Laboratories is a multi-mission laboratory managed and
+# operated by National Technology and Engineering Solutions of Sandia, LLC,
+# a wholly owned subsidiary of Honeywell International Inc. for the U.S.
+# Department of Energy's National Nuclear Security Administration under
+# contract DE-NA0003525.
+
+#Average calcine heat per wp (10 cans per wp) decayed to 2038
+#Carter et al. 2013, "Fuel Cycle Potential Waste Inventory for Disposition,"
+#FCRD-USED-2010-000031 Rev 6 Table F-1
+    TIME_UNITS y
+    DATA_UNITS W
+# time energy (W/waste package)
+0.00E+00	1.755E+02
+1.00E-01	1.751E+02
+2.00E-01	1.747E+02
+3.00E-01	1.743E+02
+4.00E-01	1.739E+02
+5.00E-01	1.735E+02
+6.00E-01	1.732E+02
+7.00E-01	1.728E+02
+8.00E-01	1.724E+02
+9.00E-01	1.720E+02
+1.00E+00	1.716E+02
+2.00E+00	1.677E+02
+3.00E+00	1.640E+02
+4.00E+00	1.603E+02
+5.00E+00	1.567E+02
+6.00E+00	1.532E+02
+7.00E+00	1.498E+02
+8.00E+00	1.464E+02
+9.00E+00	1.432E+02
+1.00E+01	1.400E+02
+2.00E+01	1.118E+02
+3.00E+01	8.944E+01
+4.00E+01	7.172E+01
+5.00E+01	5.764E+01
+6.00E+01	4.646E+01
+7.00E+01	3.757E+01
+8.00E+01	3.050E+01
+9.00E+01	2.486E+01
+1.00E+02	2.036E+01
+1.25E+02	1.267E+01
+1.50E+02	8.238E+00
+1.75E+02	5.637E+00
+2.00E+02	4.078E+00
+2.25E+02	3.116E+00
+2.50E+02	2.503E+00
+3.00E+02	1.812E+00
+3.50E+02	1.452E+00
+4.00E+02	1.234E+00
+4.50E+02	1.087E+00
+5.00E+02	9.818E-01
+6.00E+02	8.396E-01
+7.00E+02	7.480E-01
+8.00E+02	6.827E-01
+9.00E+02	6.328E-01
+1.00E+03	5.927E-01
+1.25E+03	5.190E-01
+1.50E+03	4.692E-01
+1.75E+03	4.344E-01
+2.00E+03	4.095E-01
+2.25E+03	3.914E-01
+2.50E+03	3.777E-01
+3.00E+03	3.586E-01
+4.00E+03	3.349E-01
+5.00E+03	3.177E-01
+6.00E+03	3.028E-01
+7.00E+03	2.892E-01
+8.00E+03	2.766E-01
+9.00E+03	2.650E-01
+1.00E+04	2.542E-01
+2.00E+04	1.792E-01
+5.00E+04	9.676E-02
+1.00E+05	6.683E-02
+2.00E+05	6.631E-02
+5.00E+05	6.488E-02
+1.00E+06	5.137E-02
+/

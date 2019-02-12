@@ -42,7 +42,7 @@ CHEMISTRY
   /
   DATABASE ../../../database/hanford.dat
   OUTPUT
-    All
+    ALL
     TOTAL
   /
 END

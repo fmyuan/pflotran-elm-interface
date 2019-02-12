@@ -52,6 +52,7 @@ function PMSurfaceTHCreate()
   allocate(surface_th_pm)
   call PMSurfaceCreate(surface_th_pm)
   surface_th_pm%name = 'Surface+TH Flow'
+  surface_th_pm%header = 'SURFACE TH FLOW'
 
   PMSurfaceTHCreate => surface_th_pm
 
@@ -124,9 +125,7 @@ subroutine PMSurfaceTHPreSolve(this)
   PetscErrorCode :: ierr
   class(pm_surface_th_type) :: this
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE TH FLOW ",61("="))')
-  endif
+  call PMBasePrintHeader(this)
 
 end subroutine PMSurfaceTHPreSolve
 
@@ -182,7 +181,8 @@ end subroutine PMSurfaceTHRHSFunction
 ! ************************************************************************** !
 
 subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                     num_newton_iterations,tfac, &
+                                     time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
@@ -200,6 +200,7 @@ subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
 
   PetscReal :: dt_max_glb
   PetscErrorCode :: ierr
@@ -208,7 +209,8 @@ subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call SurfaceTHComputeMaxDt(this%surf_realization,dt_max_loc)
   call MPI_Allreduce(dt_max_loc,dt_max_glb,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
                      MPI_MIN,this%option%mycomm,ierr)
-  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max)
+  dt = min(0.9d0*dt_max_glb,this%surf_realization%dt_max, &
+           time_step_max_growth_factor*dt)
 
 end subroutine PMSurfaceTHUpdateTimestep
 

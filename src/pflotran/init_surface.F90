@@ -14,7 +14,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine SurfaceInitReadRequiredCards(surf_realization)
+subroutine SurfaceInitReadRequiredCards(surf_realization,input)
   ! 
   ! This routine reads the required input file cards related to surface flows
   ! 
@@ -35,20 +35,17 @@ subroutine SurfaceInitReadRequiredCards(surf_realization)
   implicit none
 
   class(realization_surface_type) :: surf_realization
-  type(discretization_type), pointer :: discretization
+  type(input_type), pointer :: input
 
+  type(discretization_type), pointer :: discretization
   character(len=MAXSTRINGLENGTH) :: string
-  
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(input_type), pointer :: input
   
   patch          => surf_realization%patch
   option         => surf_realization%option
   discretization => surf_realization%discretization
-  
-  input => surf_realization%input
   
 ! Read in select required cards
 !.........................................................................
@@ -143,21 +140,16 @@ subroutine SurfaceInit(surf_realization,input,option)
           unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
           unstructured_grid_ctype = 'implicit unstructured'
           discretization%itype = UNSTRUCTURED_GRID
-          call InputReadNChars(input,option, &
-                               discretization%filename, &
-                               MAXSTRINGLENGTH, &
-                               PETSC_TRUE)
+          call InputReadFilename(input,option,discretization%filename)
           call InputErrorMsg(input,option,'keyword','filename')
 
           grid => GridCreate()
           un_str_sfgrid => UGridCreate()
           un_str_sfgrid%grid_type = TWO_DIM_GRID
           if (index(discretization%filename,'.h5') > 0) then
-#if defined(PETSC_HAVE_HDF5)
             call UGridReadHDF5SurfGrid( un_str_sfgrid, &
                                         discretization%filename, &
                                         option)
-#endif
           else
             call UGridReadSurfGrid(un_str_sfgrid, &
                                    surf_realization%subsurf_filename, &
@@ -197,7 +189,7 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   use Option_module
   use Waypoint_module
   use Condition_Control_module
-  use EOS_Water_module
+  use EOS_module
   
   implicit none
   
@@ -206,19 +198,13 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   type(waypoint_list_type) :: waypoint_list
   
   type(option_type), pointer :: option
-  PetscReal :: dum1
   PetscErrorCode :: ierr
   
   option => surf_realization%option
 
-  ! initialize reference density
-  if (option%reference_water_density < 1.d-40) then
-    call EOSWaterDensity(option%reference_temperature, &
-                         option%reference_pressure, &
-                         option%reference_water_density, &
-                         dum1,ierr)    
-  endif  
-  
+  ! set reference densities if not specified in input file.
+  call EOSReferenceDensity(option)
+
   call RealizSurfCreateDiscretization(surf_realization)
 
   ! Check if surface-flow is compatible with the given flowmode
@@ -534,7 +520,6 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
     if (.not.associated(surf_region)) exit
     if (len_trim(surf_region%filename) > 1) then
       if (index(surf_region%filename,'.h5') > 0) then
-#if defined(PETSC_HAVE_HDF5)
         call HDF5QueryRegionDefinition(surf_region, surf_region%filename, &
                                        surf_realization%option, &
                                        cell_ids_exists, face_ids_exists, &
@@ -553,7 +538,6 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
           call HDF5ReadRegionDefinedByVertex(option,surf_region, &
                                              surf_region%filename)
         endif
-#endif      
       else if (index(surf_region%filename,'.ss') > 0) then
         surf_region%sideset => RegionCreateSideset()
         call RegionReadFromFile(surf_region%sideset,surf_region%filename, &

@@ -1,10 +1,7 @@
 module HDF5_Aux_module
 
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
   use Logging_module
-
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -17,7 +14,6 @@ module HDF5_Aux_module
 
   PetscErrorCode :: ierr
 
-#if defined(PETSC_HAVE_HDF5)
   integer :: hdf5_err
   PetscMPIInt :: io_rank_mpi
 ! 64-bit stuff
@@ -29,26 +25,14 @@ module HDF5_Aux_module
 #endif
 
   public :: HDF5ReadNDimRealArray, &
-#ifdef SCORPIO
-            HDF5ReadDatasetInteger2D, &
-            HDF5ReadDatasetReal2D, &
             HDF5GroupExists, &
             HDF5DatasetExists, &
-#else
-            HDF5GroupExists, &
-            HDF5DatasetExists, &
-#endif
-! SCORPIO
             HDF5MakeStringCompatible, &
             HDF5ReadDbase, &
-            HDF5OpenFileReadOnly
+            HDF5OpenFileReadOnly, &
+            HDF5GroupOpen
 
 contains
-
-#endif
-  
-
-#if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
 
@@ -151,11 +135,11 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
                           
 end subroutine HDF5ReadNDimRealArray
 
-#if defined(SCORPIO)
+#if defined(PARALLELIO_LIB)
 
 ! ************************************************************************** !
 
-subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
+subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
   ! 
   ! Author: Gautam Bisht
@@ -167,98 +151,20 @@ subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
   
   implicit none
   
-#if defined(SCORPIO)
-  include "scorpiof.h"  
+#if defined(PARALLELIO_LIB)
+  include "piof.h"  
 #endif
 
   ! in
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  integer :: read_option
-  type(option_type) :: option
+  integer                        :: read_option
+  type(option_type)              :: option
   
   ! out
-  PetscInt,pointer :: data(:,:)
-  PetscInt :: data_dims(2)
-  PetscInt :: dataset_dims(2)
-  
-  ! local
-  PetscInt :: file_id
-  PetscInt :: ndims
-  PetscInt :: ii, remainder
-
-  PetscErrorCode :: ierr
-  
-  ! Open file collectively
-  filename = trim(filename) // CHAR(0)
-  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
-
-  ! Get dataset dimnesions
-  call fscorpio_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
-  if (ndims > 2) then
-    option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
-    ' is greater than to 2.'
-    call printErrMsg(option)
-  endif
-  
-  ! Get size of each dimension
-  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
-  
-  data_dims(1) = dataset_dims(1)/option%mycommsize
-  data_dims(2) = dataset_dims(2)
-
-  remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
-  if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
-
-  
-  allocate(data(data_dims(2),dataset_dims(1)))
-  
-  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
-
-  ! Read the dataset collectively
-  call fscorpio_read_dataset( data, SCORPIO_INTEGER, ndims, dataset_dims, data_dims, & 
-            file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
-  
-  data_dims(1) = data_dims(1) + data_dims(2)
-  data_dims(2) = data_dims(1) - data_dims(2)
-  data_dims(1) = data_dims(1) - data_dims(2)
-  
-  dataset_dims(1) = dataset_dims(1) + dataset_dims(2)
-  dataset_dims(2) = dataset_dims(1) - dataset_dims(2)
-  dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
-
-  ! Close file
-  call fscorpio_close_file( file_id, option%ioread_group_id, ierr)  
-
-end subroutine HDF5ReadDatasetInteger2D
-#endif
-! SCORPIO
-
-#if defined(SCORPIO)
-
-! ************************************************************************** !
-
-subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
-           data,data_dims,dataset_dims)
-  use hdf5
-  use Option_module
-  
-  implicit none
-  
-#if defined(SCORPIO)
-  include "scorpiof.h"  
-#endif
-
-  ! in
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  integer :: read_option
-  type(option_type) :: option
-  
-  ! out
-  PetscReal,pointer :: data(:,:)
-  PetscInt :: data_dims(2)
-  PetscInt :: dataset_dims(2)
+  PetscReal,pointer              :: data(:)
+  PetscInt                       :: data_dims(1)
+  PetscInt                       :: dataset_dims(1)
   
   ! local
   integer :: file_id
@@ -269,53 +175,87 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   
   ! Open file collectively
   filename = trim(filename) // CHAR(0)
-  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
+  call parallelIO_open_file(filename, option%ioread_group_id, FILE_READONLY, file_id, ierr)
 
   ! Get dataset dimnesions
-  call fscorpio_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
-  if (ndims > 2) then
+  call parallelIO_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
+  if (ndims.ne.1) then
     option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
-    ' is greater than to 2.'
-    call printErrMsg(option)
+	   ' is not equal to 1.'
+	call printErrMsg(option)
   endif
   
   ! Get size of each dimension
-  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
   
   data_dims(1) = dataset_dims(1)/option%mycommsize
-  data_dims(2) = dataset_dims(2)
 
   remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
 
   
-  allocate(data(data_dims(2),dataset_dims(1)))
+  allocate(data(data_dims(1)))
   
-  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  !call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
 
   ! Read the dataset collectively
-  call fscorpio_read_dataset( data, SCORPIO_DOUBLE, ndims, dataset_dims, data_dims, & 
-            file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
+  call parallelIO_read_dataset( data, PIO_DOUBLE, ndims, dataset_dims, data_dims, & 
+            file_id, dataset_name, option%ioread_group_id, NONUNIFORM_CONTIGUOUS_READ, ierr)
   
-  data_dims(1) = data_dims(1) + data_dims(2)
-  data_dims(2) = data_dims(1) - data_dims(2)
-  data_dims(1) = data_dims(1) - data_dims(2)
+  !data_dims(1) = data_dims(1) + data_dims(2)
+  !data_dims(2) = data_dims(1) - data_dims(2)
+  !data_dims(1) = data_dims(1) - data_dims(2)
 
-  dataset_dims(1) = dataset_dims(1) + dataset_dims(2)
-  dataset_dims(2) = dataset_dims(1) - dataset_dims(2)
-  dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
+  !dataset_dims(1) = dataset_dims(1) + dataset_dims(2)
+  !dataset_dims(2) = dataset_dims(1) - dataset_dims(2)
+  !dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
 
   ! Close file
-  call fscorpio_close_file( file_id, option%ioread_group_id, ierr)  
+  call parallelIO_close_file( file_id, option%ioread_group_id, ierr)  
 
-end subroutine HDF5ReadDatasetReal2D
-#endif
+end subroutine HDF5ReadDatasetReal1D
+
+#endif 
+! PARALLELIO_LIB
+
+! ************************************************************************** !
+
+subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
+  ! 
+  ! Opens an HDF5 group with proper error messaging when not found.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/28/18
+  ! 
+
+#include <petsc/finclude/petscsys.h>
+  use petscsys
+  use hdf5
+  use Option_module
+  
+  implicit none
+  
+  integer(HID_T) :: parent_id
+  character(len=*) :: group_name
+  integer(HID_T) :: group_id
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscMPIInt :: hdf5_err
+
+  string = adjustl(group_name)
+  call h5gopen_f(parent_id,trim(string),group_id,hdf5_err)
+  if (hdf5_err < 0) then
+    option%io_buffer = 'HDF5 Group "' // trim(string) // '" not found.'
+    call printErrMsg(option)
+  endif
+
+end subroutine HDF5GroupOpen
 
 ! ************************************************************************** !
 
 function HDF5GroupExists(filename,group_name,option)
   ! 
-  ! SCORPIO
   ! Returns true if a group exists
   ! 
   ! Author: Glenn Hammond
@@ -329,10 +269,6 @@ function HDF5GroupExists(filename,group_name,option)
   
   implicit none
 
-#if defined(SCORPIO)
-  include "scorpiof.h"  
-#endif
-  
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: group_name
   type(option_type) :: option
@@ -345,29 +281,6 @@ function HDF5GroupExists(filename,group_name,option)
   
   PetscBool :: HDF5GroupExists
 
-#if defined(SCORPIO)
-
-  ! Open file collectively
-  filename = trim(filename) // CHAR(0)
-  group_name = trim(group_name) // CHAR(0)
-  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
-  call fscorpio_group_exists(group_name, file_id, option%ioread_group_id, ierr)
-  group_exists = (ierr == 1);
-
-  if (group_exists) then
-    HDF5GroupExists = PETSC_TRUE
-    option%io_buffer = 'Group "' // trim(group_name) // '" in HDF5 file "' // &
-      trim(filename) // '" found in file.'
-  else
-    HDF5GroupExists = PETSC_FALSE
-    option%io_buffer = 'Group "' // trim(group_name) // '" in HDF5 file "' // &
-      trim(filename) // '" not found in file.  Therefore, assuming a ' // &
-      'cell-indexed dataset.'
-  endif
-  call printMsg(option)
-
-  call fscorpio_close_file( file_id, option%ioread_group_id, ierr)  
-#else
   ! open the file
   call h5open_f(hdf5_err)
   ! set read file access property
@@ -402,8 +315,6 @@ function HDF5GroupExists(filename,group_name,option)
 
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)  
-#endif 
-!SCORPIO
 
 end function HDF5GroupExists
 
@@ -411,7 +322,6 @@ end function HDF5GroupExists
 
 function HDF5DatasetExists(filename,group_name,dataset_name,option)
   !
-  ! SCORPIO
   ! Returns true if a dataset exists
   !
   ! Author: Gautam Bisht
@@ -424,10 +334,6 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   use Option_module
 
   implicit none
-
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: group_name
@@ -444,13 +350,6 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   PetscBool :: dataset_exists
 
   PetscBool :: HDF5DatasetExists
-
-#if defined(SCORPIO)
-
-  option%io_buffer = 'Need to extend HDF5DatasetExists() for SCORPIO.'
-  call printErrMsg(option)
-
-#else
 
   if (len_trim(group_name) == 0) then
     group_name_local = "/" // CHAR(0)
@@ -493,8 +392,6 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
 
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
-#endif
-!SCORPIO
 
 end function HDF5DatasetExists
 
@@ -557,7 +454,6 @@ subroutine HDF5ReadDbase(filename,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: object_name
   character(len=MAXWORDLENGTH) :: word
-#if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
   integer(HID_T) :: prop_id
   integer(HID_T) :: dataset_id
@@ -572,7 +468,6 @@ subroutine HDF5ReadDbase(filename,option)
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
   PetscMPIInt :: rank_mpi
   PetscMPIInt :: int_mpi
-#endif
   integer :: num_objects
   integer :: i_object
   integer :: object_type
@@ -628,6 +523,12 @@ subroutine HDF5ReadDbase(filename,option)
     endif
   enddo
   allocate(dbase)
+  nullify(dbase%icard)
+  nullify(dbase%rcard)
+  nullify(dbase%ccard)
+  nullify(dbase%ivalue)
+  nullify(dbase%rvalue)
+  nullify(dbase%cvalue)
   if (num_ints > 0) then
     allocate(dbase%icard(num_ints))
     dbase%icard = ''
@@ -807,8 +708,5 @@ subroutine HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   endif
   
 end subroutine HDF5OpenFileReadOnly
-
-#endif
-! defined(PETSC_HAVE_HDF5)
 
 end module HDF5_Aux_module

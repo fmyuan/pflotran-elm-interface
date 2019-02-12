@@ -4,24 +4,27 @@
 !=========================== flow mode ========================================
 
 SIMULATION
+  !INPUT_RECORD_FILE #special WIPP feature
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      MODE GENERAL
+      MODE WIPP_FLOW
       OPTIONS
-        ITOL_RELATIVE_UPDATE 1.d-30  ! Turn off ITOL_RELATIVE_UPDATE criteria
-        ISOTHERMAL                        ! BF is fundamentally isothermal
-        TWO_PHASE_ENERGY_DOF TEMPERATURE  ! isothermal ignores this but needs to be specified
-        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! hydrogen gas that BF uses (kg/kmol)
-        MAXIMUM_PRESSURE_CHANGE 5.0D5          ! PRESNORM in BF
-        TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5
+        FIX_UPWIND_DIRECTION #hardwired
+        MAX_PRESSURE_CHANGE 1.d20 #hardwired
+        MAX_SATURATION_CHANGE 1.d20 #hardwired
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588d0 #hardwired
+       !LIQUID_EQUATION_TOLERANCE 1.d-6
+       !GAS_EQUATION_TOLERANCE 1.d-6
+       !LIQUID_PRESSURE_TOLERANCE 1.d-5
+       !GAS_SATURATION_TOLERANCE 1.d-4
+       !NO_GAS_GENERATION
+       !NO_CREEP_CLOSURE 
+       !NO_FRACTURE 
       /
     /
-    WIPP_SOURCE_SINK wipp
-    /
-  /
+  / #end PROCESS_MODELS block
 END
-
 
 SUBSURFACE
 
@@ -141,24 +144,20 @@ TIME
 
 FLOW_CONDITION initial  ! single-phase liquid state
   TYPE
-    LIQUID_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
-  LIQUID_PRESSURE 101325.d0 Pa
-  MOLE_FRACTION 1.d-15
-  TEMPERATURE 25.d0 
+  LIQUID_PRESSURE 1.0132500d+05
+  LIQUID_SATURATION 1.0000000d+00 
 END
 
 FLOW_CONDITION outlet
   TYPE
-    LIQUID_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
   /
-  LIQUID_PRESSURE 101325.d0 Pa
-  MOLE_FRACTION 1.d-15
-  TEMPERATURE 25.d0 
+  LIQUID_PRESSURE 1.0132500d+05
+  LIQUID_SATURATION 1.0000000d+00 
 END
 
 !=========================== regions ==========================================
@@ -170,7 +169,7 @@ REGION all
 /
 
 REGION top
-  FACE top
+  FACE TOP
   COORDINATES
     0.d0   0.d0  200.d0
     100.d0 10.d0 200.d0
@@ -250,7 +249,7 @@ WIPP_SOURCE_SINK
   BIOGENFC  0.725563609600067   ![-]
   PROBDEG   2       ![-]
 
-  OUTPUT_START_TIME 2.6d0 yr
+  OUTPUT_START_TIME 2.97d0 yr
   
   STOICHIOMETRIC_MATRIX
     0.0d0  1.0d0 -2.0d0 -1.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # anoxic iron corrosion reaction
@@ -303,11 +302,11 @@ WIPP_SOURCE_SINK
   #  INVENTORY inv1
   #  SCALE_BY_VOLUME yes
   #/
-  WASTE_PANEL wp2
-    REGION wp2
-    INVENTORY inv1
-    SCALE_BY_VOLUME yes
-  /
+  #WASTE_PANEL wp2
+  #  REGION wp2
+  #  INVENTORY inv1
+  #  SCALE_BY_VOLUME yes
+  #/
   #WASTE_PANEL wp3
   #  REGION wp3
   #  INVENTORY inv1

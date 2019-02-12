@@ -38,7 +38,10 @@ END
 # Uniform velocity (see below). No flow mode specified.
 
 #=========================== useful tranport parameters ==================
-UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 1.d0 0.d0 0.d0 m/yr
+END
 
 #=========================== chemistry ========================================
 # Uncomment to debug reactions
@@ -83,7 +86,7 @@ CHEMISTRY
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
-    all
+    ALL
     TOTAL
   /
 END
@@ -141,7 +144,7 @@ REGION all
 END
 
 REGION west
-  FACE west
+  FACE WEST
   COORDINATES
     0.d0 0.d0 0.d0
     0.d0 1.d0 1.d0
@@ -156,7 +159,7 @@ REGION biozone
 END
 
 REGION east
-  FACE east
+  FACE EAST
   COORDINATES
     100.d0 0.d0 0.d0
     100.d0 1.d0 1.d0

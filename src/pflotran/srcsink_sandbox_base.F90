@@ -161,14 +161,13 @@ end subroutine SSSandboxBaseSelectCase
 
 ! ************************************************************************** !
 
-subroutine SSSandboxBaseUpdate(this,time,option)
+subroutine SSSandboxBaseUpdate(this,option)
     
   use Option_module
   
   implicit none
   
   class(srcsink_sandbox_base_type) :: this
-  PetscReal :: time
   type(option_type) :: option
   
   if (associated(this%cumulative_mass)) then

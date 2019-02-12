@@ -49,10 +49,8 @@ module PMC_Base_class
     procedure, public :: Checkpoint => PMCBaseCheckpoint
     procedure, public :: CheckpointBinary => PMCBaseCheckpointBinary
     procedure, public :: RestartBinary => PMCBaseRestartBinary
-#if defined(PETSC_HAVE_HDF5)
     procedure, public :: CheckpointHDF5 => PMCBaseCheckpointHDF5
     procedure, public :: RestartHDF5 => PMCBaseRestartHDF5
-#endif
     procedure, public :: FinalizeRun
     procedure, public :: OutputLocal
     procedure, public :: UpdateSolution => PMCBaseUpdateSolution
@@ -61,6 +59,10 @@ module PMC_Base_class
     procedure, public :: GetAuxData
     procedure, public :: SetAuxData
     procedure, public :: CheckNullPM => PMCBaseCheckNullPM
+    procedure, public :: SetName
+    procedure, public :: SetOption
+    procedure, public :: SetCheckpointOption
+    procedure, public :: SetWaypointList
     !procedure, public :: SetChildPeerPtr => PMCBaseSetChildPeerPtr
   end type pmc_base_type
   
@@ -257,9 +259,9 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
       else
         pmcB%child => pmcA
 #ifdef DEBUG
-        option%io_buffer = trim(pmcA%name)// ' assigned as first child of ' // &
-                           trim(pmcB%name) // '.'
-        call printMsg(option)
+        pmcA%option%io_buffer = trim(pmcA%name)// ' assigned as first child&
+                                & of ' // trim(pmcB%name) // '.'
+        call printMsg(pmcA%option)
 #endif
       endif
   !--------------------------------------------------------
@@ -274,9 +276,9 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
           else
             pmcB%peer => pmcA
 #ifdef DEBUG
-        option%io_buffer = trim(pmcA%name) // ' assigned as peer of ' // &
-                           trim(pmcB%name) // ' via "append".'
-        call printMsg(option)
+        pmcA%option%io_buffer = trim(pmcA%name) // ' assigned as peer of ' // &
+                                trim(pmcB%name) // ' via "append".'
+        call printMsg(pmcA%option)
 #endif
           endif
       !----------------------------------------------------
@@ -285,9 +287,9 @@ recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &
           if (associated(pmcB_parent)) then
             pmcB_parent%child => pmcA
 #ifdef DEBUG
-        option%io_buffer = trim(pmcA%name)// ' assigned as first child of ' // &
-                           trim(pmcB%name) // ' via "insert".'
-        call printMsg(option)
+        pmcA%option%io_buffer = trim(pmcA%name)// ' assigned as first child&
+                                & of ' // trim(pmcB%name) // ' via "insert".'
+        call printMsg(pmcA%option)
 #endif
           else
             pmcA%option%io_buffer = 'Null pointer for pmcB_parent passed into &
@@ -542,10 +544,11 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
     endif
     
     if (this%is_master .and. associated(this%checkpoint_option)) then
-      if (this%checkpoint_option%periodic_ts_incr > 0 .and. &
-          mod(this%timestepper%steps, &
-              this%checkpoint_option%periodic_ts_incr) == 0) then
-        checkpoint_at_this_timestep_flag = PETSC_TRUE
+      if (this%checkpoint_option%periodic_ts_incr > 0) then
+        if (mod(this%timestepper%steps, &
+                this%checkpoint_option%periodic_ts_incr) == 0) then
+          checkpoint_at_this_timestep_flag = PETSC_TRUE
+        endif
       endif
     endif
 
@@ -659,6 +662,10 @@ recursive subroutine FinalizeRun(this)
     call this%timestepper%FinalizeRun(this%option)
   endif
 
+  if (associated(this%pm_list)) then
+    call this%pm_list%FinalizeRun()
+  endif
+
   if (associated(this%child)) then
     call this%child%FinalizeRun()
   endif
@@ -749,6 +756,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   ! 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use hdf5
   use Option_module
   
   implicit none
@@ -756,7 +764,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   class(pmc_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: filename_append
   
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   PetscViewer :: viewer
   
   if (this%checkpoint_option%format == CHECKPOINT_BINARY .or. &
@@ -765,13 +773,7 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   endif
   if (this%checkpoint_option%format == CHECKPOINT_HDF5 .or. &
       this%checkpoint_option%format == CHECKPOINT_BOTH) then
-#if !defined(PETSC_HAVE_HDF5)
-    this%option%io_buffer = 'HDF5 formatted checkpointing not supported &
-      &unless PFLOTRAN is compiled with HDF5 libraries enabled.'
-    call printErrMsg(this%option)
-#else
-    call this%CheckpointHDF5(chk_grp_id,filename_append)
-#endif
+    call this%CheckpointHDF5(h5_chk_grp_id,filename_append)
   endif
 
 end subroutine PMCBaseCheckpoint
@@ -945,12 +947,19 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   PetscBag :: bag
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
+  PetscBool :: flag
   PetscErrorCode :: ierr
 
   bagsize = size(transfer(dummy_header,dummy_char))
 
   ! if the top PMC, 
   if (this%is_master) then
+    call PetscTestFile(this%option%restart_filename,'r',flag,ierr);CHKERRQ(ierr)
+    if (.not.flag) then
+      this%option%io_buffer = 'Restart file "' // &
+        trim(this%option%restart_filename) // '" not found.'
+      call PrintErrMsg(this%option)
+    endif
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call printMsg(this%option)
@@ -1001,7 +1010,7 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
         &is at or beyond the end of checkpointed simulation (' // &
         trim(adjustl(this%option%io_buffer)) // &
         trim(this%pm_list%realization_base%output_option%tunit) // ').'
-      call printErrMsg(this%option)
+      call printMsg(this%option)
     endif
     this%option%time = this%timestepper%target_time
   endif
@@ -1009,6 +1018,11 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      this%option%io_buffer = 'Due to sequential nature of binary files, &
+        &skipping restart for binary formatted files is not allowed.'
+      call PrintErrMsg(this%option)
+    endif
     call cur_pm%RestartBinary(viewer)
     cur_pm => cur_pm%next
   enddo
@@ -1078,8 +1092,7 @@ end subroutine PMCBaseGetHeader
 
 ! ************************************************************************** !
 
-#if defined(PETSC_HAVE_HDF5)
-recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
+recursive subroutine PMCBaseCheckpointHDF5(this,h5_chk_grp_id,append_name)
   !
   ! Checkpoints PMC timestepper and state variables in HDF5 format.
   !
@@ -1094,27 +1107,17 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
   character(len=MAXSTRINGLENGTH) :: append_name
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-  integer :: h5_file_id
-  integer :: pmc_grp_id
-  integer :: pm_grp_id
-  integer :: temp_id
-#else
-  integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
-#endif
 
   class(pm_base_type), pointer :: cur_pm
   class(pmc_base_header_type), pointer :: header
   type(pmc_base_header_type) :: dummy_header
   character(len=1),pointer :: dummy_char(:)
-  PetscInt :: pmc_grp_id
   PetscSizeT :: bagsize
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
@@ -1135,16 +1138,13 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
                      h5_pmc_grp_id,hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
     call PMCBaseSetHeaderHDF5(this, h5_pmc_grp_id, this%option)
-    chk_grp_id = h5_chk_grp_id
   else
-    h5_chk_grp_id = chk_grp_id
     call h5gcreate_f(h5_chk_grp_id, trim(this%name), &
                      h5_pmc_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
   endif
 
   if (associated(this%timestepper)) then
-    pmc_grp_id = h5_pmc_grp_id
-    call this%timestepper%CheckpointHDF5(pmc_grp_id, this%option)
+    call this%timestepper%CheckpointHDF5(h5_pmc_grp_id, this%option)
   endif
 
   cur_pm => this%pm_list
@@ -1162,11 +1162,11 @@ recursive subroutine PMCBaseCheckpointHDF5(this,chk_grp_id,append_name)
   call h5gclose_f(h5_pmc_grp_id, hdf5_err)
 
   if (associated(this%child)) then
-    call this%child%CheckpointHDF5(chk_grp_id,append_name)
+    call this%child%CheckpointHDF5(h5_chk_grp_id,append_name)
   endif
 
   if (associated(this%peer)) then
-    call this%peer%CheckpointHDF5(chk_grp_id,append_name)
+    call this%peer%CheckpointHDF5(h5_chk_grp_id,append_name)
   endif
 
   if (this%is_master) then
@@ -1186,7 +1186,7 @@ end subroutine PMCBaseCheckpointHDF5
 
 ! ************************************************************************** !
 
-recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
+recursive subroutine PMCBaseRestartHDF5(this,h5_chk_grp_id)
   ! 
   ! Restarts PMC timestepper and state variables from a HDF5
   ! 
@@ -1195,35 +1195,40 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
   ! 
   use Logging_module
   use hdf5
+  use HDF5_Aux_module
   use Checkpoint_module, only : CheckPointReadCompatibilityHDF5, &
                                 CheckpointOpenFileForReadHDF5
 
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: chk_grp_id
+  integer(HID_T) :: h5_chk_grp_id
 
   class(pm_base_type), pointer :: cur_pm
   PetscLogDouble :: tstart, tend
   PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
-#if defined(SCORPIO_WRITE)
-  integer :: h5_chk_grp_id
-  integer :: h5_file_id
-  integer :: h5_pmc_grp_id
-  integer :: h5_pm_grp_id
-#else
-  integer(HID_T) :: h5_chk_grp_id
   integer(HID_T) :: h5_file_id
   integer(HID_T) :: h5_pmc_grp_id
   integer(HID_T) :: h5_pm_grp_id
-#endif
-  PetscInt :: pmc_grp_id
+
+  PetscBool :: skip_restart
+
+  ! search pm for skip restart flag which will apply to everything in pmc
+  skip_restart = PETSC_FALSE
+  cur_pm => this%pm_list
+  do
+    if (.not.associated(cur_pm)) exit
+    if (cur_pm%skip_restart) then
+      skip_restart = PETSC_TRUE
+      exit
+    endif
+    cur_pm => cur_pm%next
+  enddo
 
   ! if the top PMC
   if (this%is_master) then
-
     this%option%io_buffer = 'Restarting with checkpoint file "' // &
       trim(this%option%restart_filename) // '".'
     call printMsg(this%option)
@@ -1238,32 +1243,36 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
     call CheckPointReadCompatibilityHDF5(h5_chk_grp_id, &
                                          this%option)
 
-    call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   h5_pmc_grp_id, hdf5_err)
+    if (.not.skip_restart) then
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
 
-    ! read pmc header
-    call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
+      ! read pmc header
+      call PMCBaseGetHeaderHDF5(this, h5_pmc_grp_id, this%option)
+    endif
 
     if (Initialized(this%option%restart_time)) then
       this%pm_list%realization_base%output_option%plot_number = 0
     endif
-    chk_grp_id = h5_chk_grp_id 
   else
-    h5_chk_grp_id = chk_grp_id
-    call h5gopen_f(h5_chk_grp_id, trim(this%name), &
-                   h5_pmc_grp_id, hdf5_err)
-
+    if (.not.skip_restart) then
+      call HDF5GroupOpen(h5_chk_grp_id,this%name,h5_pmc_grp_id,this%option)
+    endif
   endif
 
   if (associated(this%timestepper)) then
-    pmc_grp_id = h5_pmc_grp_id
-    call this%timestepper%RestartHDF5(pmc_grp_id, this%option)
+    if (.not.skip_restart) then
+      call this%timestepper%RestartHDF5(h5_pmc_grp_id, this%option)
+    endif
 
     if (Initialized(this%option%restart_time)) then
       ! simply a flag to set time back to zero, no matter what the restart
       ! time is set to.
       call this%timestepper%Reset()
       ! note that this sets the target time back to zero.
+    else if (skip_restart) then
+        this%option%io_buffer = 'Restarted simulations that SKIP_RESTART on &
+          &checkpointed process models must restart at time 0.'
+        call PrintErrMsg(this%option)
     endif
 
     ! Point cur_waypoint to the correct waypoint.
@@ -1289,24 +1298,25 @@ recursive subroutine PMCBaseRestartHDF5(this,chk_grp_id)
     this%option%time = this%timestepper%target_time
   endif
 
-  cur_pm => this%pm_list
-  do
-    if (.not.associated(cur_pm)) exit
-    call h5gopen_f(h5_pmc_grp_id, trim(cur_pm%name), h5_pm_grp_id, &
-                   hdf5_err)
-    call cur_pm%RestartHDF5(h5_pm_grp_id)
-    call h5gclose_f(h5_pm_grp_id, hdf5_err)
-    cur_pm => cur_pm%next
-  enddo
+  if (.not.skip_restart) then
+    cur_pm => this%pm_list
+    do
+      if (.not.associated(cur_pm)) exit
+      call HDF5GroupOpen(h5_pmc_grp_id,cur_pm%name,h5_pm_grp_id,this%option)
+      call cur_pm%RestartHDF5(h5_pm_grp_id)
+      call h5gclose_f(h5_pm_grp_id, hdf5_err)
+      cur_pm => cur_pm%next
+    enddo
 
-  call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+    call h5gclose_f(h5_pmc_grp_id, hdf5_err)
+  endif
 
   if (associated(this%child)) then
-    call this%child%RestartHDF5(chk_grp_id)
+    call this%child%RestartHDF5(h5_chk_grp_id)
   endif
 
   if (associated(this%peer)) then
-    call this%peer%RestartHDF5(chk_grp_id)
+    call this%peer%RestartHDF5(h5_chk_grp_id)
   endif
 
   if (this%is_master) then
@@ -1325,7 +1335,7 @@ end subroutine PMCBaseRestartHDF5
 
 ! ************************************************************************** !
 
-subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
+subroutine PMCBaseSetHeaderHDF5(this, h5_chk_grp_id, option)
   ! 
   ! Similar to PMCBaseSetHeader(), except this subroutine writes values in
   ! a HDF5.
@@ -1341,24 +1351,13 @@ subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
   implicit none
 
   class(pmc_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-#else
-  integer(HID_T) :: chk_grp_id
-#endif
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
   
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1380,14 +1379,14 @@ subroutine PMCBaseSetHeaderHDF5(this, chk_grp_id, option)
 
   dataset_name = "Output_plot_number" // CHAR(0)
   int_array(1) = this%pm_list%realization_base%output_option%plot_number
-  call CheckPointWriteIntDatasetHDF5(chk_grp_id, &
+  call CheckPointWriteIntDatasetHDF5(h5_chk_grp_id, &
                                      dataset_name, dataset_rank, &
                                      dims, start, length, stride, &
                                      int_array, option)
 
   dataset_name = "Output_times_per_h5_file" // CHAR(0)
   int_array(1) = this%pm_list%realization_base%output_option%times_per_h5_file
-  call CheckPointWriteIntDatasetHDF5(chk_grp_id, &
+  call CheckPointWriteIntDatasetHDF5(h5_chk_grp_id, &
                                      dataset_name, dataset_rank, &
                                      dims, start, length, stride, &
                                      int_array, option)
@@ -1402,7 +1401,7 @@ end subroutine PMCBaseSetHeaderHDF5
 
 ! ************************************************************************** !
 
-subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
+subroutine PMCBaseGetHeaderHDF5(this, h5_chk_grp_id, option)
   ! 
   ! Similar to PMCBaseGetHeader(), except this subroutine reads values from
   ! a HDF5.
@@ -1418,24 +1417,13 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
   implicit none
 
   class(pmc_base_type) :: this
-#if defined(SCORPIO_WRITE)
-  integer :: chk_grp_id
-#else
-  integer(HID_T) :: chk_grp_id
-#endif
+  integer(HID_T) :: h5_chk_grp_id
   type(option_type) :: option
 
-#if defined(SCORPIO_WRITE)
-  integer, pointer :: dims(:)
-  integer, pointer :: start(:)
-  integer, pointer :: stride(:)
-  integer, pointer :: length(:)
-#else
   integer(HSIZE_T), pointer :: dims(:)
   integer(HSIZE_T), pointer :: start(:)
   integer(HSIZE_T), pointer :: stride(:)
   integer(HSIZE_T), pointer :: length(:)
-#endif
 
   PetscMPIInt :: dataset_rank
   character(len=MAXSTRINGLENGTH) :: dataset_name
@@ -1456,13 +1444,13 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
   stride(1) = ONE_INTEGER
 
   dataset_name = "Output_plot_number" // CHAR(0)
-  call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
+  call CheckPointReadIntDatasetHDF5(h5_chk_grp_id, dataset_name, dataset_rank, &
                                     dims, start, length, stride, &
                                     int_array, option)
   this%pm_list%realization_base%output_option%plot_number = int_array(1)
 
   dataset_name = "Output_times_per_h5_file" // CHAR(0)
-  call CheckPointReadIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank, &
+  call CheckPointReadIntDatasetHDF5(h5_chk_grp_id, dataset_name, dataset_rank, &
                                     dims, start, length, stride, &
                                     int_array, option)
   this%pm_list%realization_base%output_option%times_per_h5_file = int_array(1)
@@ -1474,7 +1462,6 @@ subroutine PMCBaseGetHeaderHDF5(this, chk_grp_id, option)
   deallocate(int_array)
 
 end subroutine PMCBaseGetHeaderHDF5
-#endif
 
 ! ************************************************************************** !
 
@@ -1609,6 +1596,83 @@ subroutine PMCBaseStrip(this)
   nullify(this%sim_aux)
 
 end subroutine PMCBaseStrip
+
+!    procedure, public :: SetName
+!    procedure, public ::
+!    procedure, public ::
+!    procedure, public ::
+
+! ************************************************************************** !
+
+subroutine SetName(this, name)
+  ! 
+  ! Sets name
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  character(len=*) :: name
+
+  this%name = name
+
+end subroutine SetName
+
+! ************************************************************************** !
+
+subroutine SetOption(this, option)
+  ! 
+  ! Sets option
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(option_type), pointer :: option
+
+  if (associated(option)) this%option => option
+
+end subroutine SetOption
+
+! ************************************************************************** !
+
+subroutine SetCheckpointOption(this, checkpoint_option)
+  ! 
+  ! Sets checkpoint option
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(checkpoint_option_type), pointer :: checkpoint_option
+
+  if (associated(checkpoint_option)) this%checkpoint_option => checkpoint_option
+
+end subroutine SetCheckpointOption
+
+! ************************************************************************** !
+
+subroutine SetWaypointList(this, waypoint_list)
+  ! 
+  ! Sets waypoint list
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 06/11/18
+  ! 
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(waypoint_list_type), pointer :: waypoint_list
+
+  if (associated(waypoint_list)) this%waypoint_list => waypoint_list
+
+end subroutine SetWaypointList
 
 ! ************************************************************************** !
 

@@ -76,7 +76,7 @@ module PM_UFD_Biosphere_class
     PetscReal :: output_start_time
     PetscBool :: unsupp_rads_needed
   contains
-    procedure, public :: PMUFDBSetRealization
+    procedure, public :: SetRealization => PMUFDBSetRealization
     procedure, public :: Setup => PMUFDBSetup
     procedure, public :: Read => PMUFDBRead
     procedure, public :: InitializeRun => PMUFDBInitializeRun
@@ -111,6 +111,7 @@ function PMUFDBCreate()
   class(pm_ufd_biosphere_type), pointer :: PMUFDBCreate
   
   allocate(PMUFDBCreate)
+  call PMBaseInit(PMUFDBCreate)
   nullify(PMUFDBCreate%realization)
   nullify(PMUFDBCreate%ERB_list)
   nullify(PMUFDBCreate%unsupported_rad_list)
@@ -118,8 +119,8 @@ function PMUFDBCreate()
   PMUFDBCreate%output_start_time = 0.d0  ! [sec] default value
   PMUFDBCreate%unsupp_rads_needed = PETSC_FALSE
   PMUFDBCreate%name = 'ufd biosphere'
+  PMUFDBCreate%header = 'UFD BIOSPHERE'
 
-  call PMBaseInit(PMUFDBCreate)
   
 end function PMUFDBCreate
 
@@ -298,7 +299,7 @@ subroutine PMUFDBRead(this,input)
   type(ERB_1A_type), pointer :: new_ERB1A
   class(ERB_base_type), pointer :: cur_ERB
   PetscBool :: added
-
+  PetscBool :: found
   
   option => this%option
   input%ierr = 0
@@ -314,6 +315,11 @@ subroutine PMUFDBRead(this,input)
     call InputErrorMsg(input,option,'keyword',error_string)
     error_string = 'UFD_BIOSPHERE'
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
+    if (found) cycle
+
     select case(trim(word))
     !-----------------------------------------
     !-----------------------------------------
@@ -1309,9 +1315,7 @@ subroutine PMUFDBInitializeTimestep(this)
 
   class(pm_ufd_biosphere_type) :: this
   
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," UFD BIOSPHERE MODEL ",57("="))')
-  endif
+  call PMBasePrintHeader(this)
   
   if (this%option%time >= this%output_start_time) then
     call PMUFDBOutput(this)
@@ -1408,7 +1412,7 @@ end subroutine PMUFDBInitializeTimestep
       cur_ERB%annual_dose_supp_rad(k) = &                     ! [Sv/yr]
           cur_ERB%aqueous_conc_supported_rad(k) * &           ! [Bq/L]
           cur_ERB%indv_consumption_rate * &                   ! [L/day]
-          (365.d0/1.d0) * &                                   ! [day/L]
+          (DAYS_PER_YEAR/1.d0) * &                            ! [day/L]
           cur_supp_rad%dcf                                    ! [Sv/Bq]
       !-----Initialize-dose-from-supp'd-+-unsupp'd-rads--------------------
       cur_ERB%annual_dose_supp_w_unsupp_rads(k) = &
@@ -1458,7 +1462,7 @@ end subroutine PMUFDBInitializeTimestep
         cur_ERB%annual_dose_unsupp_rad(k) = &                   ! [Sv/yr]
           cur_ERB%aqueous_conc_unsupported_rad(k) * &           ! [Bq/L]
           cur_ERB%indv_consumption_rate * &                     ! [L/day]
-          (365.d0/1.d0) * &                                     ! [day/L]
+          (DAYS_PER_YEAR/1.d0) * &                              ! [day/L]
           cur_unsupp_rad%dcf                                    ! [Sv/Bq]
     !-----Calculate-dose-from-supp'd-rads-with-their-unsupp'd-desc's-------
         cur_ERB%annual_dose_supp_w_unsupp_rads(position) = &    ! [Sv/yr]

@@ -32,6 +32,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Mphase_module
   use Immis_module
   use Miscible_module
+  use PM_Richards_TS_class
   use Richards_module
   use TH_module
   use General_module
@@ -56,7 +57,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,WF_MODE,G_MODE,TOIL_IMS_MODE,TOWG_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,TOIL_IMS_MODE,TOWG_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -65,7 +66,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
     select case(option%iflowmode)
       case(TH_MODE)
         call THSetup(realization)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE, RICHARDS_TS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -86,8 +87,11 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call TOilImsSetup(realization)
       case(TOWG_MODE)
         call TOWGSetup(realization)
+      case default
+        option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
+        call printErrMsg(option)
     end select
-  
+
     ! assign initial conditionsRealizAssignFlowInitCond
     call CondControlAssignFlowInitCond(realization)
 
@@ -102,6 +106,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call THUpdateAuxVars(realization)
       case(RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
+      case(RICHARDS_TS_MODE)
+        call PMRichardsTSUpdateAuxVarsPatch(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
       case(IMS_MODE)
@@ -121,65 +127,17 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call TOilImsUpdateAuxVars(realization)
       case(TOWG_MODE)
         call TOWGUpdateAuxVars(realization,PETSC_FALSE)
+      case default
+        option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
+        call printErrMsg(option)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
-#if defined(PETSC_HAVE_HDF5)
       call InitCommonReadVelocityField(realization)
-#else
-      write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
-                               &"read HDF5 formatted fluxes in for transport with no flow.")')
-      call printErrMsg(option)
-#endif
     endif
   endif  
-#ifdef WELL_CLASS
-  call AllWellsSetup(realization)
-#endif
-  
+
 end subroutine InitSubsurfFlowSetupRealization
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsSetup(realization)
-  ! 
-  ! Point well auxvars to the domain auxvars te wells belong to
-  ! does nothing if well are not defined
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 06/03/16
-  ! 
-  use Realization_Subsurface_class
-  use Coupler_module
-  use Well_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-  type(coupler_type), pointer :: source_sink
-  PetscInt :: cpl_idx_start
-
-  source_sink => realization%patch%source_sink_list%first
-
-  cpl_idx_start = 1
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      !exclude empty wells - not included in well comms
-      if(source_sink%connection_set%num_connections > 0) then
-        source_sink%well%name = source_sink%name    
-        call WellAuxVarSetUp(source_sink%well,source_sink%connection_set, &
-                         source_sink%flow_condition,realization%patch%aux, &
-                         cpl_idx_start,realization%patch%ss_flow_vol_fluxes, &
-                         realization%option)
-      end if
-    end if
-    cpl_idx_start = cpl_idx_start + source_sink%connection_set%num_connections
-    source_sink => source_sink%next
-  end do
-
-end subroutine AllWellsSetup
-#endif
 
 ! ************************************************************************** !
 
@@ -225,7 +183,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE) then
+  if (option%iflowmode /= RICHARDS_MODE .and. & 
+      option%iflowmode /= RICHARDS_TS_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &

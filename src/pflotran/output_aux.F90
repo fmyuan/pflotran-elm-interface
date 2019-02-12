@@ -37,6 +37,7 @@ module Output_Aux_module
     PetscBool :: print_final_massbal
   
     PetscBool :: print_hdf5
+    PetscBool :: extend_hdf5_time_format
     PetscBool :: print_hdf5_vel_cent
     PetscBool :: print_hdf5_vel_face
     PetscBool :: print_single_h5_file
@@ -96,12 +97,20 @@ module Output_Aux_module
     PetscBool :: print_hydrograph
     PetscInt :: surf_xmf_vert_len
 
+    PetscBool :: write_ecl = PETSC_FALSE
+    ! Write well mass rates and totals as well as surface volumes
+    ! Note this is not a Eclipse-file-only option
+    PetscBool :: write_masses = PETSC_FALSE
+    type(output_option_eclipse_type), pointer :: eclipse_options =>null()
+
   end type output_option_type
   
   type, public :: output_variable_list_type
     type(output_variable_type), pointer :: first
     type(output_variable_type), pointer :: last
     PetscInt :: nvars
+    PetscBool :: flow_vars
+    PetscBool :: energy_vars
   end type output_variable_list_type
   
   type, public :: output_variable_type
@@ -124,6 +133,22 @@ module Output_Aux_module
     PetscReal :: total_mass
     type(mass_balance_region_type), pointer :: next
   end type mass_balance_region_type
+
+  type, public :: output_option_eclipse_type
+! Controls for Eclipse format input and output
+    PetscBool :: write_ecl_form         ! Indicates Eclipse files are formatted
+! For output of Eclipse summary and restart files, hold:
+! The interval in time or step count between writes
+! The last time or step count at which the file was written
+    PetscReal :: write_ecl_sum_deltat
+    PetscReal :: write_ecl_rst_deltat
+    PetscInt  :: write_ecl_sum_deltas
+    PetscInt  :: write_ecl_rst_deltas
+    PetscReal :: write_ecl_sum_lastt
+    PetscReal :: write_ecl_rst_lastt
+    PetscInt  :: write_ecl_sum_lasts
+    PetscInt  :: write_ecl_rst_lasts
+  end type
 
 !  type, public, EXTENDS (output_variable_type) :: aveg_output_variable_type
 !    PetscReal :: time_interval
@@ -169,7 +194,8 @@ module Output_Aux_module
             OutputOptionDestroy, &
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
-            CheckpointOptionDestroy
+            CheckpointOptionDestroy, &
+            CreateOutputOptionEclipse
 
 contains
 
@@ -191,6 +217,7 @@ function OutputOptionCreate()
   
   allocate(output_option)
   output_option%print_hdf5 = PETSC_FALSE
+  output_option%extend_hdf5_time_format = PETSC_FALSE
   output_option%print_hdf5_vel_cent = PETSC_FALSE
   output_option%print_hdf5_vel_face = PETSC_FALSE
   output_option%print_single_h5_file = PETSC_TRUE
@@ -275,15 +302,22 @@ function OutputOptionDuplicate(output_option)
   allocate(output_option2)
 
   output_option2%print_hdf5 = output_option%print_hdf5
+  output_option2%extend_hdf5_time_format = &
+    output_option%extend_hdf5_time_format
   output_option2%print_hdf5_vel_cent = output_option%print_hdf5_vel_cent
   output_option2%print_hdf5_vel_face = output_option%print_hdf5_vel_face
   output_option2%print_single_h5_file = output_option%print_single_h5_file
   output_option2%times_per_h5_file = output_option%times_per_h5_file
-  output_option2%print_hdf5_mass_flowrate = output_option%print_hdf5_mass_flowrate
-  output_option2%print_hdf5_energy_flowrate = output_option%print_hdf5_energy_flowrate
-  output_option2%print_hdf5_aveg_mass_flowrate = output_option%print_hdf5_aveg_mass_flowrate
-  output_option2%print_hdf5_aveg_energy_flowrate = output_option%print_hdf5_aveg_energy_flowrate
-  output_option2%print_explicit_flowrate = output_option%print_explicit_flowrate
+  output_option2%print_hdf5_mass_flowrate = &
+    output_option%print_hdf5_mass_flowrate
+  output_option2%print_hdf5_energy_flowrate = &
+    output_option%print_hdf5_energy_flowrate
+  output_option2%print_hdf5_aveg_mass_flowrate = &
+    output_option%print_hdf5_aveg_mass_flowrate
+  output_option2%print_hdf5_aveg_energy_flowrate = &
+    output_option%print_hdf5_aveg_energy_flowrate
+  output_option2%print_explicit_flowrate = &
+    output_option%print_explicit_flowrate
   output_option2%print_tecplot = output_option%print_tecplot
   output_option2%tecplot_format = output_option%tecplot_format
   output_option2%print_tecplot_vel_cent = output_option%print_tecplot_vel_cent
@@ -303,17 +337,24 @@ function OutputOptionDuplicate(output_option)
   output_option2%plot_number = output_option%plot_number
   output_option2%screen_imod = output_option%screen_imod
   output_option2%output_file_imod = output_option%output_file_imod
-  output_option2%periodic_snap_output_ts_imod = output_option%periodic_snap_output_ts_imod
-  output_option2%periodic_obs_output_ts_imod = output_option%periodic_obs_output_ts_imod
-  output_option2%periodic_msbl_output_ts_imod = output_option%periodic_msbl_output_ts_imod
-  output_option2%periodic_snap_output_time_incr = output_option%periodic_snap_output_time_incr
-  output_option2%periodic_obs_output_time_incr = output_option%periodic_obs_output_time_incr
-  output_option2%periodic_msbl_output_time_incr = output_option%periodic_msbl_output_time_incr
+  output_option2%periodic_snap_output_ts_imod = &
+    output_option%periodic_snap_output_ts_imod
+  output_option2%periodic_obs_output_ts_imod = &
+    output_option%periodic_obs_output_ts_imod
+  output_option2%periodic_msbl_output_ts_imod = &
+    output_option%periodic_msbl_output_ts_imod
+  output_option2%periodic_snap_output_time_incr = &
+    output_option%periodic_snap_output_time_incr
+  output_option2%periodic_obs_output_time_incr = &
+    output_option%periodic_obs_output_time_incr
+  output_option2%periodic_msbl_output_time_incr = &
+    output_option%periodic_msbl_output_time_incr
   output_option2%plot_name = output_option%plot_name
   output_option2%aveg_var_time = output_option%aveg_var_time
   output_option2%aveg_var_dtime = output_option%aveg_var_dtime
   output_option2%xmf_vert_len = output_option%xmf_vert_len
-  output_option2%filter_non_state_variables = output_option%filter_non_state_variables
+  output_option2%filter_non_state_variables = &
+    output_option%filter_non_state_variables
 
   nullify(output_option2%output_variable_list)
   nullify(output_option2%output_snap_variable_list)
@@ -517,6 +558,8 @@ function OutputVariableListCreate()
   nullify(output_variable_list%first)
   nullify(output_variable_list%last)
   output_variable_list%nvars = 0
+  output_variable_list%flow_vars = PETSC_TRUE
+  output_variable_list%energy_vars = PETSC_TRUE
   
   OutputVariableListCreate => output_variable_list
   
@@ -1034,6 +1077,59 @@ end subroutine OutputMassBalRegDestroy
 
 ! ************************************************************************** !
 
+subroutine CreateOutputOptionEclipse(output_option)
+  !
+  ! Creates and initialises the Eclipse output option block
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/29/07
+  !
+
+  implicit none
+
+  type(output_option_type), pointer :: output_option
+
+  if (.not.associated(output_option%eclipse_options) ) then
+    allocate(output_option%eclipse_options)
+!  Initial defaults for Eclipse format input and output
+    output_option%eclipse_options%write_ecl_form  = PETSC_FALSE
+
+    output_option%eclipse_options%write_ecl_sum_deltat = -1.0
+    output_option%eclipse_options%write_ecl_rst_deltat = -1.0
+    output_option%eclipse_options%write_ecl_sum_deltas =  1
+    output_option%eclipse_options%write_ecl_rst_deltas =  10
+
+    output_option%eclipse_options%write_ecl_sum_lastt =  -1.0
+    output_option%eclipse_options%write_ecl_rst_lastt =  -1.0
+    output_option%eclipse_options%write_ecl_sum_lasts =  -1
+    output_option%eclipse_options%write_ecl_rst_lasts =  -1
+  endif
+
+end subroutine CreateOutputOptionEclipse
+
+! ************************************************************************** !
+
+subroutine DestroyOutputOptionEclipse(eclipse_options)
+  !
+  ! Deletes the Eclipse output option block
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/29/07
+  !
+
+  implicit none
+
+  type(output_option_eclipse_type), pointer :: eclipse_options
+
+  if (associated(eclipse_options) ) then
+    deallocate(eclipse_options)
+    nullify(eclipse_options)
+  endif
+
+end subroutine DestroyOutputOptionEclipse
+
+! ************************************************************************** !
+
 subroutine OutputOptionDestroy(output_option)
   ! 
   ! Deallocates an output option
@@ -1064,6 +1160,8 @@ subroutine OutputOptionDestroy(output_option)
   call OutputVariableListDestroy(output_option%aveg_output_variable_list)
   
   call OutputMassBalRegDestroy(output_option%mass_balance_region_list)
+
+  call DestroyOutputOptionEclipse(output_option%eclipse_options)
     
   deallocate(output_option)
   nullify(output_option)

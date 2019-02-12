@@ -56,6 +56,7 @@ function PMFlash2Create()
   allocate(flash2_pm)
   call PMSubsurfaceFlowCreate(flash2_pm)
   flash2_pm%name = 'Flash2 Flow'
+  flash2_pm%header = 'FLASH2 FLOW'
 
   PMFlash2Create => flash2_pm
   
@@ -102,7 +103,8 @@ subroutine PMFlash2Read(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -129,9 +131,6 @@ subroutine PMFlash2InitializeTimestep(this)
   
   class(pm_flash2_type) :: this
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," FLASH2 FLOW ",65("="))')
-  endif
   
   call PMSubsurfaceFlowInitializeTimestepA(this)
   call Flash2InitializeTimestep(this%realization)
@@ -174,7 +173,8 @@ end subroutine PMFlash2PostSolve
 ! ************************************************************************** !
 
 subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                                    num_newton_iterations,tfac)
+                                  num_newton_iterations,tfac, &
+                                  time_step_max_growth_factor)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -189,6 +189,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -225,7 +226,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_p)
   endif
   
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   dtt = max(dtt,dt_min)
 

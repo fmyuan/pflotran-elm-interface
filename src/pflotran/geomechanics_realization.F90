@@ -1,6 +1,9 @@
 module Geomechanics_Realization_class
 
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscsys
   use Realization_Base_class
   use Geomechanics_Discretization_module
@@ -50,6 +53,7 @@ private
             GeomechRealizCreateDiscretization, &
             GeomechRealizProcessGeomechConditions, &
             GeomechRealizInitAllCouplerAuxVars, &
+            GeomechRealizUpdateAllCouplerAuxVars, &
             GeomechRealizPrintCouplers, &
             GeomechRealizAddWaypointsToList, &
             GeomechRealizGetDataset, &
@@ -82,7 +86,6 @@ function GeomechRealizCreate(option)
     geomech_realization%option => OptionCreate()
   endif
   
-  nullify(geomech_realization%input)
   geomech_realization%geomech_discretization => GeomechDiscretizationCreate()
   
   geomech_realization%geomech_field => GeomechFieldCreate()
@@ -371,6 +374,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   PetscInt, pointer :: int_ptr(:)
   IS :: is_geomech_petsc_block
   IS :: is_subsurf_petsc_block
+  PetscInt :: size_int_ptr
 
   geomech_grid => geomech_realization%geomech_discretization%grid
   grid => realization%discretization%grid
@@ -471,6 +475,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call ISDuplicate(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
   call ISCopy(is_geomech,is_geomech_petsc,ierr);CHKERRQ(ierr)
 
+  ! natural ordering of the geomech nodes
 #if GEOMECH_DEBUG
   call PetscViewerASCIIOpen(option%mycomm,'geomech_is_geomech_petsc.out', &
                             viewer,ierr);CHKERRQ(ierr)
@@ -479,6 +484,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
 #endif
 
   ! Now calculate the petsc ordering of the mapped geomech nodes
+  ! from natural ordering
   call AOApplicationToPetscIS(geomech_grid%ao_natural_to_petsc_nodes, &
                               is_geomech_petsc,ierr);CHKERRQ(ierr)
                               
@@ -521,13 +527,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   
   ! Geomech to subsurf scatter
   
-  allocate(int_array(grid%nlmax))
   call ISGetIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
+  size_int_ptr = size(int_ptr)
+  allocate(int_array(size_int_ptr))
+  do local_id = 1, size_int_ptr
     int_array(local_id) = int_ptr(local_id)
   enddo  
   call ISRestoreIndicesF90(is_geomech_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,grid%nlmax, &
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
                      int_array,PETSC_COPY_VALUES,is_geomech_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
@@ -540,13 +547,14 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif 
 
-  allocate(int_array(grid%nlmax))
-  call ISGetIndicesF90(is_subsurf_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
+  call ISGetIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
+  size_int_ptr = size(int_ptr)
+  allocate(int_array(size_int_ptr))
+  do local_id = 1, size_int_ptr
     int_array(local_id) = int_ptr(local_id)
   enddo  
-  call ISRestoreIndicesF90(is_subsurf_petsc,int_ptr,ierr);CHKERRQ(ierr)
-  call ISCreateBlock(option%mycomm,SIX_INTEGER,grid%nlmax, &
+  call ISRestoreIndicesF90(is_subsurf,int_ptr,ierr);CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,SIX_INTEGER,size_int_ptr, &
                      int_array,PETSC_COPY_VALUES,is_subsurf_petsc_block, &
                      ierr);CHKERRQ(ierr)
   deallocate(int_array)
@@ -692,10 +700,38 @@ subroutine GeomechRealizInitAllCouplerAuxVars(geomech_realization)
   type(geomech_patch_type), pointer :: patch
   
   patch => geomech_realization%geomech_patch
-
-  call GeomechPatchInitAllCouplerAuxVars(patch,geomech_realization%option)
+  
+call GeomechPatchInitAllCouplerAuxVars(patch,geomech_realization%option)
 
 end subroutine GeomechRealizInitAllCouplerAuxVars
+
+! ************************************************************************** !
+
+subroutine GeomechRealizUpdateAllCouplerAuxVars(geomech_realization, &
+                                                force_update_flag)
+  ! 
+  ! This routine updates coupler
+  ! auxillary variables
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 03/21/18
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(realization_geomech_type) :: geomech_realization
+  PetscBool :: force_update_flag
+ 
+  type(geomech_patch_type), pointer :: patch
+  
+  patch => geomech_realization%geomech_patch
+
+  call GeomechPatchUpdateAllCouplerAuxVars(patch,force_update_flag, &
+                                           geomech_realization%option)
+
+end subroutine GeomechRealizUpdateAllCouplerAuxVars
 
 ! ************************************************************************** !
 

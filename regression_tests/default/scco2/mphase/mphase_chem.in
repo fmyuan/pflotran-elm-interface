@@ -411,10 +411,10 @@ CHEMISTRY
   MOLAL
   OUTPUT
     PH
-    pe
-    eh
-    all
-    Total
+    PE
+    EH
+    ALL
+    TOTAL
   /
 END
 

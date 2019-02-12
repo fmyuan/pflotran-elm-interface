@@ -9,9 +9,7 @@ module Realization_Subsurface_class
   use Input_Aux_module
   use Region_module
   use Condition_module
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
+  use Well_Data_class
   use Transport_Constraint_module
   use Material_module
   use Saturation_Function_module
@@ -21,7 +19,6 @@ module Realization_Subsurface_class
   use Discretization_module
   use Field_module
   use Debug_module
-  use Uniform_Velocity_module
   use Output_Aux_module
   
   use Reaction_Aux_module
@@ -38,9 +35,7 @@ private
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
-#ifdef WELL_CLASS
-    type(well_spec_list_type), pointer :: well_specs
-#endif
+    type(well_data_list_type), pointer :: well_data=>null()
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
     
@@ -52,7 +47,7 @@ private
     class(characteristic_curves_type), pointer :: characteristic_curves
     class(dataset_base_type), pointer :: datasets
     
-    type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
+    class(dataset_base_type), pointer :: uniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
     
   end type realization_subsurface_type
@@ -150,10 +145,9 @@ function RealizationCreate2(option)
 
   allocate(realization%flow_conditions)
   call FlowConditionInitList(realization%flow_conditions)
-#ifdef WELL_CLASS
-  allocate(realization%well_specs)
-  call WellSpecInitList(realization%well_specs)
-#endif
+! Allocate well_data and create its list of wells
+  allocate(realization%well_data)
+  call WellDataInitList(realization%well_data,option%nphase)
   allocate(realization%transport_conditions)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
@@ -241,6 +235,13 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%porosity_tpdt)
   endif
 
+  if (option%geomech_on) then
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%porosity_base_store)
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%porosity_geomech_store)
+  endif
+
   ! 1 degree of freedom, local
   call DiscretizationCreateVector(discretization,ONEDOF,field%work_loc, &
                                   LOCAL,option)
@@ -282,6 +283,16 @@ subroutine RealizationCreateDiscretization(realization)
     ! ndof degrees of freedom, local
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx_loc, &
                                     LOCAL,option)
+
+    if (option%iflowmode == RICHARDS_TS_MODE) then
+      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot, &
+                                      GLOBAL,option)
+
+      call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot_loc, &
+                                      LOCAL,option)
+
+    endif
+
   endif
 
   if (option%ntrandof > 0) then
@@ -333,9 +344,9 @@ subroutine RealizationCreateDiscretization(realization)
     
   endif
 
+  grid => discretization%grid
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-      grid => discretization%grid
       ! set up nG2L, nL2G, etc.
       call GridMapIndices(grid, &
                           discretization%dm_1dof, &
@@ -356,7 +367,6 @@ subroutine RealizationCreateDiscretization(realization)
       ! set up internal connectivity, distance, etc.
       call GridComputeInternalConnect(grid,option)
     case(UNSTRUCTURED_GRID)
-      grid => discretization%grid
       ! set up nG2L, NL2G, etc.
       call GridMapIndices(grid, &
                           discretization%dm_1dof, &
@@ -374,6 +384,7 @@ subroutine RealizationCreateDiscretization(realization)
                                       discretization%dm_1dof%ugdm) 
       call GridComputeVolumes(grid,field%volume0,option)
   end select
+  call GridPrintExtents(grid,option)
  
   ! initialize to UNINITIALIZED_DOUBLE for check later that verifies all values 
   ! have been set
@@ -618,9 +629,6 @@ subroutine RealizationProcessCouplers(realization)
   
   call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
                              realization%transport_conditions, &
-#ifdef WELL_CLASS
-                             realization%well_specs, &
-#endif
                              realization%option)
   
 end subroutine RealizationProcessCouplers
@@ -783,7 +791,12 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           trim(cur_material_property%saturation_function_name) // &
           '" not found.'
         call printErrMsg(option)
-      endif
+      else
+        if (associated(patch%characteristic_curves_array)) then
+          call CharCurvesProcessTables(patch%characteristic_curves_array(  &
+                        cur_material_property%saturation_function_id)%ptr,option)
+        end if                
+      end if
     endif
     
     ! if named, link dataset to property
@@ -1318,11 +1331,9 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
   !geh: Must update conditions prior to initializing the aux vars.  
   !     Otherwise, datasets will not have been read for routines such as
   !     hydrostatic and auxvars will be initialized to garbage.
-  call FlowConditionUpdate(realization%flow_conditions,realization%option, &
-                           realization%option%time)
+  call FlowConditionUpdate(realization%flow_conditions,realization%option)
   call TranConditionUpdate(realization%transport_conditions, &
-                           realization%option, &
-                           realization%option%time)  
+                           realization%option)
   call PatchInitAllCouplerAuxVars(realization%patch,realization%option)
    
 end subroutine RealizationInitAllCouplerAuxVars
@@ -1417,16 +1428,16 @@ subroutine RealizUpdateUniformVelocity(realization)
   ! 
 
   use Option_module
+  use Dataset_module
 
   implicit none
   
   class(realization_subsurface_type) :: realization
   
-  call UniformVelocityDatasetUpdate(realization%option, &
-                                    realization%option%time, &
-                                    realization%uniform_velocity_dataset)
+  call DatasetUpdate(realization%uniform_velocity_dataset, &
+                     realization%option)
   call PatchUpdateUniformVelocity(realization%patch, &
-                            realization%uniform_velocity_dataset%cur_value, &
+                            realization%uniform_velocity_dataset%rarray, &
                             realization%option)
  
 end subroutine RealizUpdateUniformVelocity
@@ -1462,6 +1473,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(waypoint_type), pointer :: waypoint, cur_waypoint
   type(option_type), pointer :: option
   type(strata_type), pointer :: cur_strata
+  type(time_storage_type), pointer :: time_storage_ptr
   PetscInt :: itime, isub_condition
   PetscReal :: temp_real, final_time
   PetscReal, pointer :: times(:)
@@ -1544,14 +1556,17 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
 
   ! add update of velocity fields
   if (associated(realization%uniform_velocity_dataset)) then
-    if (realization%uniform_velocity_dataset%times(1) > 1.d-40 .or. &
-        size(realization%uniform_velocity_dataset%times) > 1) then
-      do itime = 1, size(realization%uniform_velocity_dataset%times)
-        waypoint => WaypointCreate()
-        waypoint%time = realization%uniform_velocity_dataset%times(itime)
-        waypoint%update_conditions = PETSC_TRUE
-        call WaypointInsertInList(waypoint,waypoint_list)
-      enddo
+    time_storage_ptr => realization%uniform_velocity_dataset%time_storage
+    if (associated(time_storage_ptr)) then
+      if (time_storage_ptr%times(1) > 1.d-40 .or. &
+          time_storage_ptr%max_time_index > 1) then
+        do itime = 1, size(time_storage_ptr%times)
+          waypoint => WaypointCreate()
+          waypoint%time = time_storage_ptr%times(itime)
+          waypoint%update_conditions = PETSC_TRUE
+          call WaypointInsertInList(waypoint,waypoint_list)
+        enddo
+      endif
     endif
   endif
   
@@ -1562,11 +1577,11 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
       if (.not.associated(cur_data_mediator)) exit
       select type(cur_data_mediator)
         class is(data_mediator_dataset_type)
-          if (associated(cur_data_mediator%dataset%time_storage)) then
-            do itime = 1, cur_data_mediator%dataset%time_storage%max_time_index
+          time_storage_ptr => cur_data_mediator%dataset%time_storage
+          if (associated(time_storage_ptr)) then
+            do itime = 1, time_storage_ptr%max_time_index
               waypoint => WaypointCreate()
-              waypoint%time = &
-                cur_data_mediator%dataset%time_storage%times(itime)
+              waypoint%time = time_storage_ptr%times(itime)
               waypoint%update_conditions = PETSC_TRUE
               call WaypointInsertInList(waypoint,waypoint_list)
             enddo
@@ -1584,11 +1599,11 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
       if (.not.associated(cur_data_mediator)) exit
       select type(cur_data_mediator)
         class is(data_mediator_dataset_type)
-          if (associated(cur_data_mediator%dataset%time_storage)) then
-            do itime = 1, cur_data_mediator%dataset%time_storage%max_time_index
+          time_storage_ptr => cur_data_mediator%dataset%time_storage
+          if (associated(time_storage_ptr)) then
+            do itime = 1, time_storage_ptr%max_time_index
               waypoint => WaypointCreate()
-              waypoint%time = &
-                cur_data_mediator%dataset%time_storage%times(itime)
+              waypoint%time = time_storage_ptr%times(itime)
               waypoint%update_conditions = PETSC_TRUE
               call WaypointInsertInList(waypoint,waypoint_list)
             enddo
@@ -2461,10 +2476,8 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   if (Uninitialized(rmin)) then
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
-      // trim(var_name) // ',cell=' // trim(adjustl(word)) // &
-      '). Please send this error message and your input file to &
-      &pflotran-dev@googlegroups.com.'
-    call printErrMsg(option)
+      // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
+    call PrintErrMsgToDev('send your input deck.',option)
   endif
 
 end subroutine RealizUnInitializedVar1
@@ -2523,6 +2536,7 @@ subroutine RealizationDestroyLegacy(realization)
   ! 
 
   use Dataset_module
+  use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2532,14 +2546,19 @@ subroutine RealizationDestroyLegacy(realization)
     
   call FieldDestroy(realization%field)
 
-!  call OptionDestroy(realization%option) !geh it will be destroy externally
+  !  call OptionDestroy(realization%option) !geh it will be destroy externally
   call OutputOptionDestroy(realization%output_option)
   call RegionDestroyList(realization%region_list)
   
   call FlowConditionDestroyList(realization%flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(realization%well_specs)
-#endif
+
+  !  Destroy the list of wells held by well_data
+  call WellDataDestroyList(realization%well_data,realization%option)
+  !  Release output buffers held by Output_Eclipse_module
+  if (realization%output_option%write_ecl) then
+    call ReleaseEwriterBuffers()
+  endif
+
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
 
@@ -2562,7 +2581,7 @@ subroutine RealizationDestroyLegacy(realization)
 
   call DatasetDestroy(realization%datasets)
   
-  call UniformVelocityDatasetDestroy(realization%uniform_velocity_dataset)
+  call DatasetDestroy(realization%uniform_velocity_dataset)
   
   call DiscretizationDestroy(realization%discretization)
   
@@ -2586,6 +2605,7 @@ subroutine RealizationStrip(this)
   ! 
 
   use Dataset_module
+  use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none
   
@@ -2595,9 +2615,12 @@ subroutine RealizationStrip(this)
   call RegionDestroyList(this%region_list)
   
   call FlowConditionDestroyList(this%flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(this%well_specs)
-#endif
+
+  !  Destroy the list of wells held by well_data
+  call WellDataDestroyList(this%well_data,this%option)
+  !  Release output buffers held by Output_Eclipse_module
+  call ReleaseEwriterBuffers()
+
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
 
@@ -2613,7 +2636,7 @@ subroutine RealizationStrip(this)
 
   call DatasetDestroy(this%datasets)
   
-  call UniformVelocityDatasetDestroy(this%uniform_velocity_dataset)
+  call DatasetDestroy(this%uniform_velocity_dataset)
   
   call ReactionDestroy(this%reaction,this%option)
   

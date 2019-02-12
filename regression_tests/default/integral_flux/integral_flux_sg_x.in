@@ -1,0 +1,24 @@
+SIMULATION
+  EXTERNAL_FILE simulation_block.txt
+END
+
+#=========================== subsurface block =================================
+SUBSURFACE
+EXTERNAL_FILE subsurface_common_block.txt
+EXTERNAL_FILE ../common/2x2x2_sg.txt
+EXTERNAL_FILE ../integral_flux/integral_flux_block_x.txt
+
+#=========================== boundary and initial conditions ==================
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION east
+END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION inlet
+  TRANSPORT_CONDITION initial
+  REGION west
+END
+
+END_SUBSURFACE

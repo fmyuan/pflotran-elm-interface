@@ -68,6 +68,7 @@ function PMTHCreate()
 
   call PMSubsurfaceFlowCreate(th_pm)
   th_pm%name = 'TH Flow'
+  th_pm%header = 'TH FLOW'
 
   PMTHCreate => th_pm
   
@@ -114,7 +115,8 @@ subroutine PMTHRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
+                                        error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -204,6 +206,7 @@ subroutine PMTHInitializeTimestep(this)
   ! 
 
   use TH_module, only : THInitializeTimestep
+  use Option_module
 
   implicit none
   
@@ -219,10 +222,6 @@ subroutine PMTHInitializeTimestep(this)
   call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
                                this%realization%field%iphas_loc)
 
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TH FLOW ",69("="))')
-  endif
-  
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
   
@@ -266,7 +265,8 @@ end subroutine PMTHPostSolve
 ! ************************************************************************** !
 
 subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                              num_newton_iterations,tfac)
+                              num_newton_iterations,tfac, &
+                              time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
@@ -283,6 +283,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
   
   PetscReal :: fac
   PetscReal :: ut
@@ -323,7 +324,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dtt = min(dt_tfac,dt_u)
   endif
 
-  if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
+  dtt = min(time_step_max_growth_factor*dt,dtt)
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.
@@ -716,22 +717,18 @@ subroutine PMTHMaxChange(this)
   ! 
 
   use TH_module, only : THMaxChange
+  use Option_module
 
   implicit none
   
   class(pm_th_type) :: this
+  character(len=MAXSTRINGLENGTH) :: string
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
-    if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
+  write(string,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
-  endif
-  if (this%option%print_file_flag) then
-    write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
-      & " dtmpmx= ",1pe12.4)') &
-      this%max_pressure_change,this%max_temperature_change
-  endif 
+  call OptionPrint(string,this%option)
 
 end subroutine PMTHMaxChange
 

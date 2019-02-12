@@ -152,7 +152,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
   !
 
   ! look through the input file
-  rewind(input%fid)        
+  call InputRewind(input)
   do
     call InputReadPflotranString(input, option)
     if (InputError(input)) exit
@@ -320,7 +320,7 @@ program pflotran_rxn
   !
   option%nphase = 1
   option%liquid_phase = 1
-  option%reference_water_density = 998.2
+  option%reference_density(option%liquid_phase) = 998.2
 
   call BatchChemInitializeReactions(option, input, reaction)
 

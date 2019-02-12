@@ -1,6 +1,9 @@
 module Grid_Unstructured_module
 
 #include "petsc/finclude/petscvec.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscvec
   use Connection_module
   use Grid_Unstructured_Aux_module
@@ -12,10 +15,6 @@ module Grid_Unstructured_module
 
   private 
 
-#if defined(SCORPIO)
-  include "scorpiof.h"
-#endif
-
   !  PetscInt, parameter :: HEX_TYPE          = 1
   !  PetscInt, parameter :: TET_TYPE          = 2
   !  PetscInt, parameter :: WEDGE_TYPE        = 3
@@ -25,16 +24,9 @@ module Grid_Unstructured_module
   !  PetscInt, parameter :: MAX_VERT_PER_FACE = 4
 
   public :: UGridRead, &
-#if defined(PETSC_HAVE_HDF5)
             UGridReadHDF5, &
-#endif
-#if defined(SCORPIO)
-            UGridReadHDF5PIOLib, &
-#endif
             UGridReadSurfGrid, &
-#if defined(PETSC_HAVE_HDF5)
             UGridReadHDF5SurfGrid, &
-#endif
             UGridDecompose, &
             UGridComputeInternConnect, &
             UGridPopulateConnection, &
@@ -566,8 +558,6 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 
 end subroutine UGridReadSurfGrid
 
-#if defined(PETSC_HAVE_HDF5)
-
 ! ************************************************************************** !
 
 subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
@@ -577,10 +567,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 06/01/12
   ! 
-
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -616,7 +603,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   PetscInt, parameter :: max_nvert_per_cell = 8  
   PetscErrorCode :: ierr
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
@@ -627,7 +613,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
-#endif
   integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
@@ -846,11 +831,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   
 end subroutine UGridReadHDF5SurfGrid
 
-#endif
-! End PETSC_HAVE_HDF5
-
-#if defined(PETSC_HAVE_HDF5)
-
 ! ************************************************************************** !
 
 subroutine UGridReadHDF5(unstructured_grid,filename,option)
@@ -860,10 +840,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   ! Author: Gautam Bisht
   ! Date: 04/25/11
   ! 
-
-#if defined(PETSC_HAVE_HDF5)
   use hdf5
-#endif
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -901,7 +878,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   PetscInt :: error_count
   PetscErrorCode :: ierr
 
-#if defined(PETSC_HAVE_HDF5)
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
@@ -912,7 +888,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
-#endif
   integer :: ndims_h5
 
   ! Initialize FORTRAN predefined datatypes
@@ -1151,111 +1126,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   
 end subroutine UGridReadHDF5
 
-#endif
-! End PETSC_HAVE_HDF5
-
-#if defined(SCORPIO)
-
-! ************************************************************************** !
-
-subroutine UGridReadHDF5PIOLib(unstructured_grid, filename, &
-                                          option)
-!
-! UGridReadHDF5PIOLib: Reads an unstructured grid from HDF5
-! Author: Gautam Bisht
-! Date: 05/13/11
-!
-#if defined(PETSC_HAVE_HDF5)
-  use hdf5
-#endif
-
-!#include "petsc/finclude/petscsys.h"
-
-! 64-bit stuff
-#ifdef PETSC_USE_64BIT_INDICES
-#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
-#else
-#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
-#endif
-
-  use Input_Aux_module
-  use Option_module
-  use HDF5_Aux_module
-
-  implicit none
-
-  type(grid_unstructured_type) :: unstructured_grid
-  type(option_type) :: option
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: group_name
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-
-  PetscInt,pointer :: int_buffer(:,:)
-  PetscReal,pointer :: double_buffer(:,:)
-  PetscInt :: ii, jj
-  PetscInt :: dims(2), dataset_dims(2)
-  PetscInt, parameter :: max_nvert_per_cell = 8
-  PetscInt :: num_cells_local
-
-  character(len=MAXSTRINGLENGTH) :: cell_dataset_name = &
-                                                       '/Domain/Cells'//CHAR(0)
-  character(len=MAXSTRINGLENGTH) :: vert_dataset_name = &
-                                                    '/Domain/Vertices'//CHAR(0)
-
-  ! Read Domain/Cells
-  call HDF5ReadDatasetInteger2D(filename, &
-                                cell_dataset_name, &
-                                SCORPIO_NONUNIFORM_CONTIGUOUS_READ, &
-                                option, &
-                                int_buffer, &
-                                dims, &
-                                dataset_dims)
-
-  ! Allocate array to store vertices for each cell
-  num_cells_local  = dims(2)
-  unstructured_grid%nmax = dataset_dims(2)
-  allocate(unstructured_grid%cell_vertices(max_nvert_per_cell, &
-                                             num_cells_local))
-  unstructured_grid%cell_vertices = -1
-
-  ! Fill the cell data structure
-  do ii = 1, num_cells_local
-    do jj = 2, int_buffer(1, ii) + 1
-      unstructured_grid%cell_vertices(jj-1, ii) = int_buffer(jj, ii)
-    enddo
-  enddo
-  deallocate(int_buffer)
-  nullify(int_buffer)
-
-  ! Read Vertices
-  call HDF5ReadDatasetReal2D(filename, &
-                             vert_dataset_name, &
-                             SCORPIO_NONUNIFORM_CONTIGUOUS_READ, &
-                             option, &
-                             double_buffer, &
-                             dims, &
-                             dataset_dims)
-
-  unstructured_grid%num_vertices_local = dims(2)
-  unstructured_grid%num_vertices_global= dataset_dims(2)
-  allocate(unstructured_grid%vertices(unstructured_grid%num_vertices_local))
-  ! fill the vertices data structure
-  do ii = 1, unstructured_grid%num_vertices_local
-    unstructured_grid%vertices(ii)%id = 0
-    unstructured_grid%vertices(ii)%x = double_buffer(1, ii)
-    unstructured_grid%vertices(ii)%y = double_buffer(2, ii)
-    unstructured_grid%vertices(ii)%z = double_buffer(3, ii)
-  enddo
-  deallocate(double_buffer)
-  nullify(double_buffer)
-
-  unstructured_grid%max_nvert_per_cell = max_nvert_per_cell
-  unstructured_grid%nlmax = num_cells_local
-
-end subroutine UGridReadHDF5PIOLib
-
-#endif
-
 ! ************************************************************************** !
 
 subroutine UGridDecompose(unstructured_grid,option)
@@ -1269,7 +1139,7 @@ subroutine UGridDecompose(unstructured_grid,option)
 #include "petsc/finclude/petscmat.h"
   use petscmat
   use Option_module
-  use Utility_module, only: reallocateIntArray, SearchOrderedArray
+  use Utility_module, only: ReallocateArray, SearchOrderedArray
   
   implicit none
   
@@ -1624,7 +1494,7 @@ subroutine UGridDecompose(unstructured_grid,option)
       if (vertex_id < 1) exit
       vertex_count = vertex_count + 1
       if (vertex_count > max_int_count) then
-        call reallocateIntArray(int_array_pointer,max_int_count)
+        call ReallocateArray(int_array_pointer,max_int_count)
       endif
       vec_ptr(ivertex + vertex_ids_offset + (local_id-1)*stride) = vertex_count
       int_array_pointer(vertex_count) = vertex_id
@@ -3144,7 +3014,7 @@ subroutine UGridGetCellsInRectangle(x_min,x_max,y_min,y_max,z_min,z_max, &
   ! Date: 10/24/09
   ! 
   use Option_module
-  use Utility_module, only : reallocateIntArray
+  use Utility_module, only : ReallocateArray
   use Geometry_module  
   
   implicit none
@@ -3211,9 +3081,9 @@ subroutine UGridGetCellsInRectangle(x_min,x_max,y_min,y_max,z_min,z_max, &
       if (in_rectangle) then
         num_cells = num_cells + 1
         if (num_cells > temp_array_size) then
-          call reallocateIntArray(temp_cell_array,temp_array_size)
+          call ReallocateArray(temp_cell_array,temp_array_size)
           temp_array_size = temp_array_size / 2 ! convert back for next call
-          call reallocateIntArray(temp_face_array,temp_array_size)
+          call ReallocateArray(temp_face_array,temp_array_size)
         endif
         temp_cell_array(num_cells) = local_id
         temp_face_array(num_cells) = iface

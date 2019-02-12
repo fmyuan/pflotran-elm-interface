@@ -6,6 +6,7 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TOIL_IMS
       OPTIONS
+       MAXIMUM_PRESSURE_CHANGE 5.D4
        !ISOTHERMAL
        !TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5 1.d0
       /
@@ -118,29 +119,19 @@ MATERIAL_PROPERTY formation
 /
 
 #=========================== saturation functions =============================
-!SATURATION_FUNCTION sf2
 CHARACTERISTIC_CURVES ch1
-  SATURATION_FUNCTION VAN_GENUCHTEN
-    M 0.44380d0
-    ALPHA 5.792e-05
-    LIQUID_RESIDUAL_SATURATION 0.1d0
-    MAX_CAPILLARY_PRESSURE 0.d0
-    !SMOOTH !when using smoothing option
+  CAP_PRESSURE_FUNCTION_OW CONSTANT
+   CONSTANT_PRESSURE 0.0
   /
-  PERMEABILITY_FUNCTION MUALEM_VG_LIQ  ! checks it calls RPF_Mualem_VG_Liq_RelPerm and for Oil?
-    PHASE LIQUID
-    LIQUID_RESIDUAL_SATURATION 0.2d0
-    M 0.5d0
-    !SMOOTH !when using smoothing option
-  /
-  PERMEABILITY_FUNCTION TOUGH2_LINEAR_OIL  
-    !PHASE OIL ! not needed
-    LIQUID_RESIDUAL_SATURATION 0.0d0 ! not used
-    OIL_RESIDUAL_SATURATION 0.01d0
-    !SMOOTH !when using smoothing option
-  /
+  PERMEABILITY_FUNCTION_WAT MUALEM_VG
+   M 0.5
+   WATER_CONNATE_SATURATION 0.0
+   WATER_RESIDUAL_SATURATION 0.20
+  END
+  PERMEABILITY_FUNCTION_OW TOUGH2_LINEAR
+   OIL_RESIDUAL_SATURATION 0.01d0
+  END  
 /
-
 #=========================== EOSs =============================================
 
 ! if all commented, initialised IFC67 for density, enthaplty and viscosity  

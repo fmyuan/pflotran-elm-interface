@@ -15,6 +15,10 @@ module AuxVars_FlowEnergy_module
     PetscReal :: temp
     PetscReal, pointer :: H(:) ! MJ/kmol
     PetscReal, pointer :: U(:) ! MJ/kmol
+
+
+    PetscReal, pointer :: D_H(:,:) ! MJ/kmol
+    PetscReal, pointer :: D_U(:,:) ! MJ/kmol
   contains
    !..............
   end type auxvar_flow_energy_type
@@ -46,6 +50,18 @@ subroutine AuxVarFlowEnergyInit(this,option)
   allocate(this%U(option%nphase))
   this%U = 0.d0
 
+  nullify(this%D_H)
+  nullify(this%D_U)
+
+  this%has_derivs = PETSC_FALSE
+  if (.not.option%flow%numerical_derivatives) then
+    this%has_derivs = PETSC_TRUE
+    allocate(this%D_H(option%nphase,option%nflowdof))
+    this%D_H = 0.d0
+    allocate(this%D_U(option%nphase,option%nflowdof))
+    this%D_U = 0.d0
+  endif
+
 end subroutine AuxVarFlowEnergyInit
 
 ! ************************************************************************** !
@@ -65,6 +81,9 @@ subroutine AuxVarFlowEnergyStrip(this)
 
   call DeallocateArray(this%H)  
   call DeallocateArray(this%U)  
+
+  call DeallocateArray(this%D_H)  
+  call DeallocateArray(this%D_U)  
 
 end subroutine AuxVarFlowEnergyStrip
 

@@ -1,0 +1,24 @@
+REGION top
+  FILE top.ex
+END
+
+REGION bottom
+  FILE bottom.ex
+END
+
+REGION east
+  FILE east.ex
+END
+
+REGION west
+  FILE west.ex
+END
+
+REGION south
+  FILE south.ex
+END
+
+REGION north
+  FILE north.ex
+END
+
