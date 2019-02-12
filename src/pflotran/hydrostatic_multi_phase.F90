@@ -603,6 +603,8 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
 
   end do !end of connection loop
 
+  call HydrostaticSetCouplerMap(option,coupler)
+
   call DeallocateGridArrays()
 
   if (.not.temp_grad_given) then
@@ -927,16 +929,16 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
   select case(option%iflowmode)
     case(TOIL_IMS_MODE)
       coupler%flow_aux_real_var(ONE_INTEGER,iconn) = po
-      coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = ONE_INTEGER
+      !coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = ONE_INTEGER
       coupler%flow_aux_real_var(TWO_INTEGER,iconn) = so
-      coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = TWO_INTEGER
+      !coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = TWO_INTEGER
       coupler%flow_aux_real_var(THREE_INTEGER,iconn) = temp
-      coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = THREE_INTEGER
+      !coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = THREE_INTEGER
     case(TOWG_MODE)
       coupler%flow_aux_real_var(ONE_INTEGER,iconn) = po
-      coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = ONE_INTEGER
+      !coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = ONE_INTEGER
       coupler%flow_aux_real_var(TWO_INTEGER,iconn) = so
-      coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = TWO_INTEGER
+      !coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = TWO_INTEGER
       select case (option%iflow_sub_mode)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
           !PO correction when the user enter Pb > Po for oil region
@@ -960,30 +962,70 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
           !----
           if( state == TOWG_THREE_PHASE_STATE ) then
             coupler%flow_aux_real_var(THREE_INTEGER,iconn) = sg
-            coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+            !coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
           else
             coupler%flow_aux_real_var(THREE_INTEGER,iconn) = pb
-            coupler%flow_aux_mapping(TOWG_BUBBLE_POINT_INDEX) = THREE_INTEGER
+            !coupler%flow_aux_mapping(TOWG_BUBBLE_POINT_INDEX) = THREE_INTEGER
           endif
           coupler%flow_aux_int_var(TOWG_STATE_INDEX,iconn) = state
         case (TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
           coupler%flow_aux_real_var(THREE_INTEGER,iconn) = sg
-          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+          !coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
           coupler%flow_aux_int_var(TOWG_STATE_INDEX,iconn) = &
                                                        TOWG_THREE_PHASE_STATE
       end select
       if ( option%iflow_sub_mode == TOWG_SOLVENT_TL ) then
         coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = 0.0d0 !imposing zero sovent saturation
-        coupler%flow_aux_mapping(TOWG_SOLV_SATURATION_INDEX) = FOUR_INTEGER
+        !coupler%flow_aux_mapping(TOWG_SOLV_SATURATION_INDEX) = FOUR_INTEGER
         coupler%flow_aux_real_var(FIVE_INTEGER,iconn) = temp
-        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FIVE_INTEGER
+        !coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FIVE_INTEGER
       else
         coupler%flow_aux_real_var(FOUR_INTEGER,iconn) = temp
-        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FOUR_INTEGER
+        !coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FOUR_INTEGER
       end if
   end select
   
 end subroutine HydrostaticPMCellInit
+
+! ************************************************************************** !
+
+subroutine HydrostaticSetCouplerMap(option,coupler)
+
+  use Option_module
+  use Coupler_module
+  use PM_TOWG_Aux_module
+  use PM_TOilIms_Aux_module
+
+  implicit none
+
+  type(option_type) :: option
+  type(coupler_type), intent(inout) :: coupler
+
+  select case(option%iflowmode)
+    case(TOIL_IMS_MODE)
+      coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = ONE_INTEGER
+      coupler%flow_aux_mapping(TOIL_IMS_OIL_SATURATION_INDEX) = TWO_INTEGER
+      coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = THREE_INTEGER
+    case(TOWG_MODE)
+      coupler%flow_aux_mapping(TOWG_OIL_PRESSURE_INDEX) = ONE_INTEGER
+      coupler%flow_aux_mapping(TOWG_OIL_SATURATION_INDEX) = TWO_INTEGER
+      select case (option%iflow_sub_mode)
+        case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
+          !note that TOWG_GAS_SATURATION_INDEX = TOWG_BUBBLE_POINT_INDEX
+          !coupler%flow_aux_mapping(TOWG_BUBBLE_POINT_INDEX) = THREE_INTEGER
+          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+        case (TOWG_IMMISCIBLE,TOWG_TODD_LONGSTAFF)
+          coupler%flow_aux_mapping(TOWG_GAS_SATURATION_INDEX) = THREE_INTEGER
+      end select
+      if ( option%iflow_sub_mode == TOWG_SOLVENT_TL ) then
+        coupler%flow_aux_mapping(TOWG_SOLV_SATURATION_INDEX) = FOUR_INTEGER
+        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FIVE_INTEGER
+      else
+        coupler%flow_aux_mapping(TOWG_TEMPERATURE_INDEX) = FOUR_INTEGER
+      end if
+  end select
+
+end subroutine HydrostaticSetCouplerMap
 
 ! ************************************************************************** !
 

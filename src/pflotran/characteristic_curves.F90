@@ -1706,6 +1706,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
       if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
         CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
       end if
+      if (option%iflow_sub_mode == TOWG_SOLVENT_TL) then
+        CharCurvesGetGetResidualSats(option%solvent_phase) = 0.0d0
+      end if
     case(TOIL_IMS_MODE)
       call characteristic_curves%GetOWGCriticalAndConnateSats( &
                     CharCurvesGetGetResidualSats(option%liquid_phase), &

@@ -2467,6 +2467,11 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
     real_count = real_count + 1
     select case(towg%solvent_saturation%itype)
       case(DIRICHLET_BC)
+        if (towg%oil_pressure%itype == HYDROSTATIC_BC) then
+          option%io_buffer = 'Solvent saturation cannot be asssigned ' // &
+                'when using hydrostatic equilibration, Ss = 0 is assumed'
+          call printErrMsg(option)
+        end if
         coupler%flow_aux_mapping(TOWG_SOLV_SATURATION_INDEX) = real_count
         select type(selector =>towg%solvent_saturation%dataset)
           class is(dataset_ascii_type)

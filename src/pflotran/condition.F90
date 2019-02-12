@@ -3670,6 +3670,11 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
             allocate(lkp_table%axis1%values(size(lkp_table%var_data(1,:))))
             lkp_table%axis1%values = lkp_table%var_data(1,:)
             lkp_table%dims(1) = size(lkp_table%axis1%values(:))
+            if ( .not. lkp_table%LookupTableVarIsSMInc(ONE_INTEGER) ) then
+              option%io_buffer = 'TEMPERATURE_TABLE: temperature values must &
+                                  &be entered for strictly growing depths '
+              call printErrMsg(option)
+            end if
             nullify(lkp_table)
             rtempvz_found = PETSC_TRUE
           case default

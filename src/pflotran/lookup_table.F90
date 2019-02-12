@@ -30,6 +30,7 @@ module Lookup_Table_module
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
     procedure, public :: LookupTableVarIsPresent
+    procedure, public :: LookupTableVarIsSMInc
     procedure, public :: CreateAddLookupTableVar
     procedure, public :: VarDataRead
     procedure, public :: VarDataReverse
@@ -1732,8 +1733,6 @@ subroutine LookupTableBaseDestroy(lookup_table)
 
   class(lookup_table_base_type) :: lookup_table
 
-  call DeallocateArray(lookup_table%data)
-  call DeallocateArray(lookup_table%var_data)
   call LookupTableAxisDestroy(lookup_table%axis1)
 
   if (associated(lookup_table%var_array)) then
@@ -1745,6 +1744,10 @@ subroutine LookupTableBaseDestroy(lookup_table)
   end if
 
   call LookupTableVarListDestroy(lookup_table%vars)
+
+  !deallocate data arrays at last, as lookup variables point to it
+  call DeallocateArray(lookup_table%data)
+  call DeallocateArray(lookup_table%var_data)
 
 end subroutine LookupTableBaseDestroy
 
@@ -1846,6 +1849,35 @@ function LookupTableVarIsPresent(this,var_iname)
   LookupTableVarIsPresent = associated(this%var_array(var_iname)%ptr)
 
 end function LookupTableVarIsPresent
+
+! ************************************************************************** !
+
+function LookupTableVarIsSMInc(this,var_iname)
+  !
+  ! Check if a lookup table var is strictly monotonically increasing
+  !
+  ! Author: Paolo Orsini
+  ! Date: 02/11/19
+  !
+
+  implicit none
+
+  PetscBool :: LookupTableVarIsSMInc
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+
+  PetscInt :: i_data
+
+  LookupTableVarIsSMInc = PETSC_TRUE
+
+  do i_data = 2, size(this%var_array(var_iname)%ptr%data(:))
+    if ( this%var_array(var_iname)%ptr%data(i_data) <= &
+         this%var_array(var_iname)%ptr%data(i_data - 1 ) ) then
+      LookupTableVarIsSMInc = PETSC_FALSE
+    end if
+  end do
+
+end function LookupTableVarIsSMInc
 
 ! ************************************************************************** !
 
