@@ -171,9 +171,7 @@ module Condition_module
             TranConditionCreate, &
             TranConditionAddToList, TranConditionInitList, &
             TranConditionDestroyList, TranConditionGetPtrFromList, &
-            TranConstraintAddToList, TranConstraintInitList, &
-            TranConstraintDestroyList, TranConstraintGetPtrFromList, &
-            TranConditionRead, TranConstraintRead, &
+            TranConditionRead, &
             TranConditionUpdate, &
             FlowConditionIsTransient, &
             ConditionReadValues, &
@@ -1006,7 +1004,6 @@ subroutine FlowConditionRead(condition,input,option)
                                        concentration, enthalpy, rate, well,&
                                        sub_condition_ptr, saturation, &
                                        energy_rate, energy_flux
-  PetscReal :: default_time
   PetscInt :: default_iphase
   PetscInt :: idof
   type(time_storage_type), pointer :: default_time_storage
@@ -1017,7 +1014,6 @@ subroutine FlowConditionRead(condition,input,option)
   call PetscLogEventBegin(logging%event_flow_condition_read, &
                           ierr);CHKERRQ(ierr)
 
-  default_time = 0.d0
   default_iphase = 0
 
   default_time_storage => TimeStorageCreate()
@@ -1263,9 +1259,6 @@ subroutine FlowConditionRead(condition,input,option)
               call InputKeywordUnrecognized(word,'condition bc type',option)
           end select
         enddo
-      case('TIME','TIMES')
-        call InputReadDouble(input,option,default_time)
-        call InputErrorMsg(input,option,'TIME','CONDITION')
       case('IPHASE')
         call InputReadInt(input,option,default_iphase)
         call InputErrorMsg(input,option,'IPHASE','CONDITION')
@@ -1707,7 +1700,7 @@ subroutine FlowConditionRead(condition,input,option)
       condition%itype(TWO_INTEGER) = concentration%itype
 !#endif
 
-    case(RICHARDS_MODE, RICHARDS_TS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate) .and. &
           .not.associated(saturation) .and. .not.associated(well)) then
         option%io_buffer = 'pressure, rate and saturation condition null in &
@@ -3638,11 +3631,7 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
         call printMsg(option)
         call TranConstraintRead(constraint,reaction,input,option)
         call TranConstraintAddToList(constraint,constraint_list)
-        constraint_coupler%aqueous_species => constraint%aqueous_species
-        constraint_coupler%minerals => constraint%minerals
-        constraint_coupler%surface_complexes => constraint%surface_complexes
-        constraint_coupler%colloids => constraint%colloids
-        constraint_coupler%immobile_species => constraint%immobile_species
+        call TranConstraintMapToCoupler(constraint_coupler,constraint)
         constraint_coupler%time = default_time
         ! add to end of coupler list
         if (.not.associated(condition%constraint_coupler_list)) then

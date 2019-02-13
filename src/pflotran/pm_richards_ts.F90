@@ -176,10 +176,10 @@ subroutine PMRichardsTSIFunction(this,ts,time,U,Udot,F,ierr)
 
   call RichardsResidualInternalConn(F,realization,skip_conn_type,ierr)
   call RichardsResidualBoundaryConn(F,realization,ierr)
+  call RichardsResidualSourceSink(F,realization,ierr)
   call IFunctionAccumulation(F,realization,ierr)
 
 end subroutine PMRichardsTSIFunction
-
 ! ************************************************************************** !
 subroutine IFunctionAccumulation(F,realization,ierr)
   !

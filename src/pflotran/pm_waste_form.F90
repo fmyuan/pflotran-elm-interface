@@ -11,6 +11,9 @@ module PM_Waste_Form_class
 ! ===========================================================================
 
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class
@@ -73,6 +76,8 @@ module PM_Waste_Form_class
 ! ---------------------------------------------------------------------------
 ! rad_species_list(:): pointer to a linked list of radionuclide objects
 ! num_species: [-] number of radionuclides in the waste form inventory
+! seed: [-] integer that provides a seed for the random number
+!    generator for normal distribution
 ! canister_degradation_model: Boolean which indicates if the waste package
 !    degradation model is on or off
 ! vitality_rate_mean: [log10/yr] mean waste package degradation rate, used
@@ -93,6 +98,7 @@ module PM_Waste_Form_class
   type, public :: wf_mechanism_base_type
     type(rad_species_type), pointer :: rad_species_list(:)
     PetscInt :: num_species
+    PetscInt :: seed
     PetscBool :: canister_degradation_model
     PetscReal :: vitality_rate_mean
     PetscReal :: vitality_rate_stdev
@@ -405,6 +411,7 @@ subroutine PMWFMechanismInit(this)
   nullify(this%next)
   nullify(this%rad_species_list)
   this%num_species = 0
+  this%seed = 1
   this%matrix_density = UNINITIALIZED_DOUBLE
   this%specific_surface_area = UNINITIALIZED_DOUBLE
   this%name = ''
@@ -988,6 +995,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   class(wf_mechanism_base_type), pointer :: new_mechanism, cur_mechanism
   PetscInt :: k, j
   PetscReal :: double
+  PetscInt :: integer
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
@@ -1090,6 +1098,14 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             select type(new_mechanism)
               class default
                 new_mechanism%matrix_density = double
+            end select
+        !--------------------------
+          case('SEED')
+            call InputReadInt(input,option,integer)
+            call InputErrorMsg(input,option,'seed',error_string)
+            select type(new_mechanism)
+              class default
+                new_mechanism%seed = integer
             end select
         !--------------------------
           case('FRACTIONAL_DISSOLUTION_RATE_VI')
@@ -1343,7 +1359,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                   &provided in the ' // trim(error_string) // &
                   ', SPECIES block.'
                 call PrintErrMsgToDev('if reducing to less than 50 is not &
-                                      an option.',option)
+                                      &an option.',option)
               endif
               temp_species_array(k) = PMWFRadSpeciesCreate() 
               ! read species name
@@ -2211,8 +2227,11 @@ subroutine PMWFSetup(this)
         ! memory of the random number generator will not be global
         call GetRndNumFromNormalDist( &
              cur_waste_form%mechanism%vitality_rate_mean, &
-             cur_waste_form%mechanism%vitality_rate_stdev,&
-             cur_waste_form%canister_vitality_rate)
+             cur_waste_form%mechanism%vitality_rate_stdev, &
+             cur_waste_form%canister_vitality_rate, &
+             cur_waste_form%mechanism%seed)
+        write(*,*) 'cur_waste_form%canister_vitality_rate = '
+        write(*,*) cur_waste_form%canister_vitality_rate
         if (cur_waste_form%canister_vitality_rate > &
             cur_waste_form%mechanism%vitality_rate_trunc) then
           cur_waste_form%canister_vitality_rate = &

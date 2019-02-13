@@ -18,7 +18,8 @@ util_obj  = \
 	${common_src}toil_ims_derivs.o \
 	${common_src}variables.o \
 	${common_src}derivative_tests.o \
-	${common_src}derivatives_utilities.o
+	${common_src}derivatives_utilities.o \
+	${common_src}grid_grdecl_util.o
 
 eos_obj = \
 	${common_src}co2_sw.o \
@@ -144,7 +145,8 @@ grid_obj = \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o
+	${common_src}grid_unstructured_polyhedra.o \
+	${common_src}grid_grdecl.o
 
 relations_obj = \
 	${common_src}saturation.o \
@@ -179,6 +181,7 @@ srcsink_obj = \
 	${common_src}srcsink_sandbox_wipp_well.o
 
 io_obj = \
+	${common_src}output_eclipse.o \
 	${common_src}hdf5.o \
 	${common_src}hdf5_aux.o \
 	${common_src}output.o \
@@ -244,16 +247,9 @@ misc_obj = \
 	${common_src}wipp.o
 
 well_obj = \
-	${common_src}well_spec_base.o \
-	${common_src}well_base.o \
-	${common_src}well_flow.o \
-	${common_src}well_flow_energy.o \
-	${common_src}well_water_injector.o \
-	${common_src}well_oil_producer.o \
-	${common_src}well_toil_ims.o \
 	${common_src}well_data.o \
-	${common_src}well_solver.o \
-	${common_src}well.o
+	${common_src}well_type.o \
+	${common_src}well_solver.o
 
 surface_obj = \
 	${common_src}checkpoint_surface.o \

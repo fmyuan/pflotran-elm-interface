@@ -25,8 +25,8 @@ module PM_RT_class
     PetscReal :: tran_weight_t1
     PetscBool :: check_post_convergence
     ! these govern the size of subsequent time steps
-    PetscReal :: max_concentration_change
-    PetscReal :: max_volfrac_change
+    PetscReal, pointer :: max_concentration_change(:)
+    PetscReal, pointer :: max_volfrac_change(:)
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
     PetscBool :: temperature_dependent_diffusion
@@ -103,8 +103,8 @@ function PMRTCreate()
   rt_pm%tran_weight_t0 = 0.d0
   rt_pm%tran_weight_t1 = 0.d0
   rt_pm%check_post_convergence = PETSC_FALSE
-  rt_pm%max_concentration_change = 0.d0
-  rt_pm%max_volfrac_change = 0.d0
+  nullify(rt_pm%max_concentration_change)
+  nullify(rt_pm%max_volfrac_change)
   rt_pm%volfrac_change_governor = 1.d0
   rt_pm%cfl_governor = UNINITIALIZED_DOUBLE
   rt_pm%temperature_dependent_diffusion = PETSC_FALSE
@@ -258,6 +258,11 @@ subroutine PMRTSetup(this)
     endif
   endif
   
+  allocate(this%max_concentration_change( &
+           this%realization%reaction%ncomp))
+  allocate(this%max_volfrac_change( &
+           this%realization%reaction%mineral%nkinmnrl))
+
 end subroutine PMRTSetup
 
 ! ************************************************************************** !
@@ -545,24 +550,26 @@ subroutine PMRTFinalizeTimestep(this)
   if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
             &" [mol/s]")') &
-      this%max_concentration_change, &
-      this%max_concentration_change/this%option%tran_dt
+      maxval(this%max_concentration_change), &
+      maxval(this%max_concentration_change)/this%option%tran_dt
     if (this%realization%reaction%mineral%nkinmnrl > 0) then
       write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
             &" [1/s]")') &
-        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+        maxval(this%max_volfrac_change), &
+        maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
   if (this%option%print_file_flag) then  
     write(this%option%fid_out,&
             '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
             &" [mol/s]")') &
-      this%max_concentration_change, &
-      this%max_concentration_change/this%option%tran_dt
+      maxval(this%max_concentration_change), &
+      maxval(this%max_concentration_change)/this%option%tran_dt
     if (this%realization%reaction%mineral%nkinmnrl > 0) then
       write(this%option%fid_out, &
         '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
-        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+        maxval(this%max_volfrac_change), &
+        maxval(this%max_volfrac_change)/this%option%tran_dt
     endif
   endif
   
@@ -628,7 +635,8 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
         fac = 0.33d0
         uvf = 0.d0
       else
-        uvf = this%volfrac_change_governor/(this%max_volfrac_change+pert)
+        uvf = this%volfrac_change_governor/ &
+              (maxval(this%max_volfrac_change)+pert)
       endif
       dtt = fac * dt * (1.d0 + uvf)
     else
@@ -636,7 +644,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       dt_tfac = tfac(ifac) * dt
 
       fac = 0.5d0
-      uvf= this%volfrac_change_governor/(this%max_volfrac_change+pert)
+      uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
       dt_vf = fac * dt * (1.d0 + uvf)
 
       dtt = min(dt_tfac,dt_vf)
@@ -1932,10 +1940,14 @@ subroutine PMRTDestroy(this)
   ! 
 
   use Reactive_Transport_module, only : RTDestroy
+  use Utility_module, only : DeallocateArray
 
   implicit none
   
   class(pm_rt_type) :: this
+
+  call DeallocateArray(this%max_concentration_change)
+  call DeallocateArray(this%max_volfrac_change)
 
   call RTDestroy(this%realization)
   ! destroyed in realization

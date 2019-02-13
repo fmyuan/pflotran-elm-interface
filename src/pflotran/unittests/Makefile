@@ -44,6 +44,11 @@ PFLOTRAN_OBJS = \
 	$(EXE_DIR)/variables.o
 
 FFLAGS = -g -I. -I$(EXE_DIR) -I$(PFUNIT_DIR)/source -I$(PFUNIT_DIR)/include
+LIBS   =
+ifdef codecov
+  FFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
+endif
 
 all : test
 
@@ -55,7 +60,7 @@ test : pfunit unittests
 
 unittests : testSuites.inc $(TEST_OBJS) $(PFLOTRAN_OBJS)
 	$(FC) -o $@ $(PFUNIT_DIR)/include/driver.F90 $(FFLAGS) \
-	$(TEST_OBJS) $(PFLOTRAN_OBJS) -L$(PFUNIT_DIR)/source -lpfunit  ${PETSC_LIB}
+	$(TEST_OBJS) $(PFLOTRAN_OBJS) -L$(PFUNIT_DIR)/source -lpfunit ${LIBS}  ${PETSC_LIB}
 
 #
 # generic rules for converting from .pf --> .F90 --> .o

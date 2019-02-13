@@ -172,10 +172,6 @@ ifdef towg_debug
   MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
 endif
 
-ifdef well_class
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
-endif
-
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif
@@ -187,6 +183,11 @@ ifdef scorpio
   MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO
   MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO_WRITE
   MYFLAGS += -I${SCORPIO_DIR}/include
+endif
+
+ifdef codecov
+  MYFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
 endif
 
 ###############################################################################
@@ -317,7 +318,7 @@ check : FORCE
 	fi
 
 clean-pflotran :
-	-rm -f $(CLEANFILES) *.o *.mod *.a;
+	-rm -f $(CLEANFILES) *.o *.mod *.a *.gcov *.gcda *.gcno;
 
 # Flags
 echo-flags :

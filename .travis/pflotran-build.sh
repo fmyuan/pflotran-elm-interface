@@ -7,7 +7,7 @@ ls -l ${PETSC_DIR}/${PETSC_ARCH}/lib
 
 if [ $CMAKE_BUILD -eq 0 ]; then
   cd src/pflotran;
-  make pflotran;
+  make codecov=1 pflotran;
 else
   cd src/pflotran
   mkdir build

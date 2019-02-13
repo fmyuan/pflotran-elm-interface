@@ -19,14 +19,7 @@ SUBSURFACE
 #=========================== discretization ===================================
 
 GRID
-  TYPE structured
-  ORIGIN 0.d0 0.d0 -2540.508
-  NXYZ 3 3 3
-  DXYZ
-    1000
-    1000
-    15.24 9.144 6.096 ! Note upwards order
-  END
+  TYPE grdecl wstowg.grdecl
 END
 
 #=========================set up standard conditions ==========================
@@ -60,19 +53,24 @@ END
 
 #=========================== output options ===================================
 OUTPUT
+  FORMAT HDF5
   TIMES d 0.0 500 
   PRINT_PRIMAL_GRID
   EXPLICIT_GRID_PRIMAL_GRID_TYPE cell_centered
   MASS_BALANCE_FILE
     PERIODIC TIMESTEP 1
   END
+  ECLIPSE_FILE
+    PERIOD_SUM TIMESTEP 5
+    PERIOD_RST TIME 50 d
+  END
+  LINEREPT
 END
 
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation
   ID 1
-  POROSITY 0.1d0
   TORTUOSITY 1.d0
   ROCK_DENSITY 2.350d3
   SPECIFIC_HEAT 1.0d3
@@ -82,11 +80,6 @@ MATERIAL_PROPERTY formation
   SOIL_COMPRESSIBILITY    4.35d-10 ! 1/Pa
   SOIL_REFERENCE_PRESSURE 1.0D5
   CHARACTERISTIC_CURVES ch1
-  PERMEABILITY
-    PERM_X 0.9869D-12 
-    PERM_Y 0.9869D-12 
-    PERM_Z 0.9869D-12 
-  /
 /
 
 #=========================== saturation functions =============================

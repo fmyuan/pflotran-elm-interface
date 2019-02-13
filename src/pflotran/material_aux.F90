@@ -21,8 +21,8 @@ module Material_Aux_class
 
   ! Tensor to scalar conversion models
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
-  PetscInt, parameter, public :: TENSOR_TO_SCALAR_QUADRATIC = 2
-  PetscInt, parameter, public :: TENSOR_TO_SCALAR_ELLIPTIC = 3
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW = 2
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL = 3
 
   ! flag to determine which model to use for tensor to scalar conversion 
   ! of permeability
@@ -248,8 +248,8 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
   !! Please note that if you add a new model type above then you MUST add
   !! it to this little list here too. 
   if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
-      model == TENSOR_TO_SCALAR_QUADRATIC .OR. &
-      model == TENSOR_TO_SCALAR_QUADRATIC) then
+      model == TENSOR_TO_SCALAR_FLOW .OR. &
+      model == TENSOR_TO_SCALAR_POTENTIAL) then
     perm_tens_to_scal_model = model
   else
     option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
@@ -270,7 +270,6 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   ! 
-
   use Utility_module, only : Equal
 
   implicit none
@@ -299,12 +298,19 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   select case(perm_tens_to_scal_model)
     case(TENSOR_TO_SCALAR_LINEAR)
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
-    case(TENSOR_TO_SCALAR_QUADRATIC)
-      scalar_permeability = DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_FLOW)
+      scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL)
+      scalar_permeability = DiagPermTensortoScalar_Potential(kx,ky,kz,dist)
     case default
       ! as default, just do linear 
-      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      !scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      ! as default, do perm in direction of flow
+      !scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+      ! as default, do perm in direction of potential gradient
+      scalar_permeability = DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
   end select
+
 
 end subroutine MaterialDiagPermTensorToScalar
 
@@ -323,17 +329,37 @@ end function DiagPermTensorToScalar_Linear
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+function DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+  
+  !Permeability in the direction of flow
+
   implicit none
-  PetscReal :: DiagPermTensorToScalar_Quadratic
+  PetscReal :: DiagPermTensorToScalar_Flow
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx,ky,kz
 
-  DiagPermTensorToScalar_Quadratic = kx*dabs(dist(1))**2.0 + &
+  DiagPermTensorToScalar_Flow = kx*dabs(dist(1))**2.0 + &
                                      ky*dabs(dist(2))**2.0 + &
                                      kz*dabs(dist(3))**2.0
 
-end function DiagPermTensorToScalar_Quadratic
+end function DiagPermTensorToScalar_Flow
+
+! ************************************************************************** !
+
+function DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
+  
+  !Permeability in the direction of the potential gradient
+
+  implicit none
+  PetscReal :: DiagPermTensorToScalar_Potential
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: kx,ky,kz
+
+  DiagPermTensorToScalar_Potential = 1.d0/(dist(1)*dist(1)/kx + &
+                                         dist(2)*dist(2)/ky + &
+                                         dist(3)*dist(3)/kz)
+
+end function DiagPermTensorToScalar_Potential
 
 ! ************************************************************************** !
 

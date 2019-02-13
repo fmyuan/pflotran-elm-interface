@@ -110,6 +110,9 @@ module PM_TOWG_Aux_module
   contains
     !add bound-procedure
     procedure, public :: Init => InitTOWGAuxVars
+    procedure, public :: FieldVolRefAve => TOWGAuxFieldVolRefAve
+    procedure, public :: GetLocalSol    => TOWGGetLocalSol
+    procedure, public :: IsSolventModel
     !procedure, public :: Perturb => PerturbTOilIms
   end type pm_towg_aux_type
 
@@ -1034,7 +1037,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     ! (implicitly: D_cell_pres(dof_oid) = 1 and a multplication by 1 was not
     !  done here)
     
-    auxvar%D_H = auxvar%D_H * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
 
     ! derivatives corresponding to computation of U(wid) below:
     auxvar%D_U(wid,:) = auxvar%D_H(wid,:)                                          &
@@ -1050,6 +1053,12 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+
+  if (getDerivs) then
+    auxvar%D_den_kg(oid,:) = auxvar%D_den(oid,:) * EOSOilGetFMW()
+  endif
+
+
 
 !------------------------------------------------------------------------------
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
@@ -2030,6 +2039,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
+  use Derivatives_utilities_module
 
   implicit none
 
@@ -2058,6 +2068,51 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   !PetscReal :: Uoil_J_kg, Hoil_J_kg
   PetscErrorCode :: ierr
   PetscReal :: krotl,krgtl,viscotl,viscgtl,denotl,dengtl
+
+  PetscBool :: getDerivs
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,cploc,ndof
+  PetscReal,dimension(1:option%nflowdof) :: D_cell_pres,D_kr,D_visc,D_visco,D_viscg
+  PetscReal,dimension(1:option%nflowdof) :: D_deno,D_deng,D_sath
+  PetscReal,dimension(1:option%nflowdof) :: D_krotl,D_krgtl,D_viscotl,D_viscgtl,D_denotl,D_dengtl
+  PetscReal :: d_x_d_cp,d_x_d_T,d_ps_d_T
+
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+  ndof = option%nflowdof
+
+
+
+  if (towg_analytical_derivatives) then
+    if (.NOT. auxvar%has_derivs) then
+      ! how did this happen?
+      option%io_buffer = 'towg tl auxvars: towg_analytical_derivatives is true, &
+                          but auxvar%has_derivs is false, should both be true. &
+                          How did this happen?'
+      call printErrMsg(option)
+    endif
+
+    auxvar%D_pres = 0.d0
+    auxvar%D_sat = 0.d0
+    auxvar%D_pc = 0.d0
+    auxvar%D_den = 0.d0
+    auxvar%D_den_kg = 0.d0
+    auxvar%D_mobility = 0.d0
+    auxvar%D_por = 0.d0
+
+    auxvar%D_H = 0.d0
+    auxvar%D_U = 0.d0
+
+    auxvar%tl%D_den_oil_eff_kg(:) = 0.d0
+    auxvar%tl%D_den_gas_eff_kg(:) = 0.d0
+
+
+    getDerivs = PETSC_TRUE
+  else 
+    getDerivs = PETSC_FALSE
+  endif
+
 
 !--Initialise-----------------------------------------------------------------
 
@@ -2101,6 +2156,15 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid)
 
+  ! trivial saturation derivatives:
+  if (getDerivs) then
+    auxvar%D_sat(oid,dof_osat) =  1.d0 ! diff oil sat by oil sat
+    auxvar%D_sat(wid,dof_osat) = -1.d0 ! diff liquid sat by gas sat
+    auxvar%D_sat(wid,dof_gsat) = -1.d0 ! diff liquid sat by gas sat
+    auxvar%D_sat(gid,dof_gsat) =  1.d0 ! diff gas sat by gas sat
+  endif
+
+
 !--Set up phase pressures and capillary pressures-----------------------------
 
   ! In Todd-Longstaff mode assume no cap. pressure between oil and gas: pcog=0
@@ -2117,7 +2181,37 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%pres(gid) = auxvar%pres(oid)
   auxvar%pres(wid) = auxvar%pres(oid) - auxvar%pc(wid)
 
+  if (getDerivs) then 
+    auxvar%D_pres(oid,dof_op) = 1.d0
+    auxvar%D_pres(gid,dof_op) = 1.d0
+    auxvar%D_pres(wid,dof_op) = 1.d0 
+
+    ! dummy is d cp / d s_w 
+    ! sw = 1 - s_o - s_g s
+    ! so d cp / d s_o = d cp / d s_w * d sw / d s_o = -1*d pc / d s_w
+    ! so:
+    !auxvar%D_pc(oid,dof_osat) = dummy
+    !auxvar%D_pc(oid,dof_gsat) = dummy
+    auxvar%D_pc(wid,dof_osat) = -dummy
+    auxvar%D_pc(wid,dof_gsat) = -dummy
+    auxvar%D_pres(wid,dof_osat) = -auxvar%D_pc(wid,dof_osat)
+    auxvar%D_pres(wid,dof_gsat) = -auxvar%D_pc(wid,dof_gsat)
+
+  endif 
+
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
+
+  if (getDerivs) then
+    ! a bit ugly but works:
+    cploc = wid
+    if (auxvar%pres(oid) > auxvar%pres(cploc)) then
+      cploc = oid
+    endif
+    if (auxvar%pres(gid) > auxvar%pres(cploc)) then
+      cploc = gid
+    endif
+    D_cell_pres = auxvar%D_pres(cploc,:)
+  endif
 
 !--Calculate effective porosity as a function of pressure---------------------
 
@@ -2127,6 +2221,10 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
                                 auxvar%effective_porosity,dummy)
+      if (getDerivs) then
+        ! dummy here is d por / d cell pres so
+        auxvar%D_por = dummy*D_cell_pres
+      endif
     endif
     if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = auxvar%effective_porosity
@@ -2138,49 +2236,149 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Liquid phase thermodynamic properties
   ! using cell_pressure (which is the max press)? or %pres(wid)?
 
-  call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
-  call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+! WATER THERMODYNAMIC PROPERTIES --------------------------------------------
+  if (getDerivs) then
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                      auxvar%den_kg(wid),auxvar%den(wid), &
+                      d_x_d_cp, &
+                      d_x_d_T, ierr)
+
+    ! den = den( cell_pressure, temp)
+    ! chain rule for cell pressure part:
+    auxvar%D_den(wid,:) = d_x_d_cp*D_cell_pres(:)
+    ! then additional term for temperature derivative:
+    auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + d_x_d_T
+
+
+    call EOSWaterEnthalpy(auxvar%temp, &
+                       cell_pressure, &
+                       auxvar%H(wid), &
+                       d_x_d_cp, &
+                       d_x_d_T, &
+                       ierr)
+
+    ! H = H H(  cell_pressure, temp)
+    ! chain rule for cell pressure part:
+    auxvar%D_H(wid,:) = d_x_d_cp*D_cell_pres(:)
+    ! then additional term for temperature derivative:
+    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + d_x_d_T
+
+    ! derivatives corresponding to scaling of H then computation of U(wid) below:
+    auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(wid,:) = auxvar%D_H(wid,:)                                          &
+                      - 1.d-6                                                      &
+                      * DivRule(cell_pressure,D_cell_pres,                         &
+                                auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
+
+    ! don't forget den kg derivatives:
+    auxvar%den_kg(wid) = auxvar%den(wid) * FMWH2O 
+
+  else
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+    call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+  endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
 
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+
+! END OF WATER THERMODYNAMIC PROPERTIES -----------------------------------------
+  
 
   ! ADD HERE BRINE dependency. Two options (see mphase)
   ! - salinity constant in space and time (passed in option%option%m_nacl)
   ! - salt can be transported by RT (sequential coupling) and passed
   !   and passed with global_auxvar%m_nacl
 
-  call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
-                           auxvar%den(oid),auxvar%H(oid), &
-                           auxvar%U(oid),ierr,auxvar%table_idx)
+
+! OIL THERMODYNAMIC PROPERTIES ------------------------------------------------------
+
+  if (getDerivs) then
+    call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),auxvar%den(oid), &
+                             auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
+                             auxvar%H(oid),auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
+                             auxvar%U(oid),auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
+                             ierr,auxvar%table_idx) 
+
+    auxvar%D_den_kg(oid,:) = auxvar%D_den(oid,:) * EOSOilGetFMW()
+
+    auxvar%D_H(oid,:) = auxvar%D_H(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(oid,:) = auxvar%D_U(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  else
+    call EOSOilDensityEnergy(auxvar%temp,auxvar%pres(oid),&
+                             auxvar%den(oid),auxvar%H(oid), &
+                             auxvar%U(oid),ierr,auxvar%table_idx)
+  endif
 
   auxvar%den_kg(oid) = auxvar%den(oid) * EOSOilGetFMW()
 
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
 
+! END OF OIL THERMODYNAMIC PROPERTIES -----------------------------------------------
+
+! GAS THERMODYNAMIC PROPERTIES ------------------------------------------------------
+
   !compute gas properties (default is air - but methane can be set up)
-  call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
-                      auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  if (getDerivs) then
+    call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid),auxvar%D_den(gid,dof_temp),auxvar%D_den(gid,dof_op), &
+                                     auxvar%H(gid),auxvar%D_H(gid,dof_temp),auxvar%D_H(gid,dof_op),auxvar%U(gid),&
+                                     auxvar%D_U(gid,dof_temp),&
+                                     auxvar%D_U(gid,dof_op),ierr,auxvar%table_idx)
+   ! Note some implicit chain rule here. The pressure derivatives this gives are with respect to gas pressure, not cell or oil pressure.
+   ! Referencing above, we see that 
+   ! "  auxvar%pres(gid) = auxvar%pres(oid)  "
+   ! is the only dependence - on capilliary pres complications, gas pressure is just oil pressure. So we save some lines and just save
+   ! the gas presure derivatives as oil pressure derivatives, since the correct chain rule is just to multpily by one.
+   ! NOTE that if someone decides to change the cap pressure behaviour so that gas pressure is more complex, then need to revise this.
+
+    auxvar%D_den_kg(gid,:) = auxvar%D_den(gid,:) * EOSGasGetFMW()
+    auxvar%D_H(gid,:) = auxvar%D_H(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,:) = auxvar%D_U(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  else
+    call EOSGasDensityEnergy(auxvar%temp,auxvar%pres(gid),auxvar%den(gid), &
+                        auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  endif
 
   auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
 
+! END OF GAS THERMODYNAMIC PROPERTIES -----------------------------------------------
+
 !--Set up water phase rel. perm. and unmixed viscosities-----------------------
 
+! ------ WATER MOBILITY -----------------------------------------------
   ! compute water relative permability Krw(Sw)
   call characteristic_curves%wat_rel_perm_func_owg% &
                       RelativePermeability(auxvar%sat(wid),krw,dkrw_satw, &
                                                 option,auxvar%table_idx)
 
-  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
-  ! use cell_pressure; cell_pressure - psat calculated internally
-  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+  if (getDerivs) then
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,d_ps_d_T,ierr)
+    ! use cell_pressure; cell_pressure - psat calculated internally
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,d_ps_d_T,visw,d_x_d_T,d_x_d_cp,ierr)
+    D_visc = d_x_d_T*D_cell_pres
+    D_visc(dof_temp) = D_visc(dof_temp) + d_x_d_T
+  else
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+    ! use cell_pressure; cell_pressure - psat calculated internally
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+  endif
 
   auxvar%mobility(wid) = krw/visw
+
+  if (getDerivs) then
+    D_kr = 0.d0
+    D_kr(dof_osat) = -dkrw_satw
+    D_kr(dof_gsat) = -dkrw_satw
+    auxvar%D_mobility(wid,:) = DivRule(krw,D_kr,visw,D_visc,ndof)
+  endif
+
+! END OF WATER MOBILITY -----------------------------------------------
 
 !--Set up hydrocarbon phase rel. perm. and unmixed viscosities----------------
 
@@ -2190,50 +2388,132 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   sath = auxvar%sat(oid) + auxvar%sat(gid)
   dummy = 0.0
 
+  if (getDerivs) then
+    D_sath = auxvar%D_sat(oid,:) + auxvar%D_sat(gid,:)
+  endif
+
   call characteristic_curves%ow_rel_perm_func_owg% &
                RelativePermeability(sath,krh,dkrh_sath,option,auxvar%table_idx)
+  if (getDerivs) then
+    D_kr = 0.d0
+    D_kr = dkrh_sath*D_sath
+  endif
 
   ! Oil viscosity
-  call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
-                       auxvar%den(oid), viso, ierr,auxvar%table_idx)
+  if (getDerivs) then
+    D_visco = 0.d0
+    call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
+                         auxvar%den(oid), viso, D_visco(dof_temp),D_visco(dof_op), &
+                         ierr,auxvar%table_idx)
+  else
+    call EOSOilViscosity(auxvar%temp,auxvar%pres(oid), &
+                         auxvar%den(oid), viso, ierr,auxvar%table_idx)
+  endif
 
   ! Gas viscosity : currently only viscosity model for air or constant value
-  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid), &
-                       auxvar%den(gid),visg,ierr,auxvar%table_idx)
+  if (getDerivs) then
+    D_viscg = 0.d0
+    call EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid),auxvar%den(gid), &
+                         auxvar%D_den(gid,dof_temp),auxvar%D_den(gid,dof_op),auxvar%D_den(gid,dof_op), &
+                         auxvar%D_pres(gid,dof_temp),1.d0, &
+                         visg,D_viscg(dof_temp),D_viscg(dof_op),D_viscg(dof_op), &
+                         ierr,auxvar%table_idx)
+  else
+    call EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid), &
+                         auxvar%den(gid),visg,ierr,auxvar%table_idx)
+  endif
+
 
 !--Set up the Todd-Longstaff rel perms, viscosities and densities-------------
 
   deno=auxvar%den_kg(oid)
   deng=auxvar%den_kg(gid)
+  if (getDerivs) then
+    D_deno=auxvar%D_den_kg(oid,:)
+    D_deng=auxvar%D_den_kg(gid,:)
+  endif
 
-  call vToddLongstaff( oid,gid,krh,viso,visg,deno,deng,auxvar &
-                      ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl )
+  if (getDerivs) then
+    call vToddLongstaff( oid,gid,krh,viso,visg,deno,deng,auxvar    &
+                        ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl,&
+                        PETSC_TRUE,ndof,option,                    &
+                        D_visco,D_viscg,D_kr,                      &
+                        D_krotl,D_krgtl,D_viscotl,D_viscgtl,       &
+                        D_denotl,D_dengtl                           )
+  else
+    call vToddLongstaff( oid,gid,krh,viso,visg,deno,deng,auxvar &
+                        ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl,&
+                        PETSC_FALSE,ndof,option)
+  endif
+
+  if (auxvar%hastl3p_test_object) then
+    auxvar%tl3TEST%viscotl = viscotl
+    auxvar%tl3TEST%D_viscotl = D_viscotl
+
+    auxvar%tl3TEST%viscgtl = viscgtl
+    auxvar%tl3TEST%D_viscgtl = D_viscgtl
+
+    auxvar%tl3TEST%denotl = denotl
+    auxvar%tl3TEST%D_denotl = D_denotl
+
+    auxvar%tl3TEST%dengtl = dengtl
+    auxvar%tl3TEST%D_dengtl = D_dengtl
+
+    auxvar%tl3TEST%krotl = krotl
+    auxvar%tl3TEST%D_krotl = D_krotl
+
+    auxvar%tl3TEST%krgtl = krgtl
+    auxvar%tl3TEST%D_krgtl = D_krgtl
+
+    auxvar%tl3TEST%krh = krh
+    auxvar%tl3TEST%D_krh = D_kr
+  endif
 
 !--Calculate and store oil and gas mobilities---------------------------------
 
   if( viscotl>0.0 ) then
     auxvar%mobility(oid) = krotl/viscotl
+    if (getDerivs) then
+      auxvar%D_mobility(oid,:) = DivRule(krotl,D_krotl,viscotl,D_viscotl,ndof)
+    endif
   else
     auxvar%mobility(oid) = 0.0
+    if (getDerivs) then
+      auxvar%D_mobility(oid,:) = 0.d0
+    endif
   endif
 
   if( viscgtl>0.0 ) then
     auxvar%mobility(gid) = krgtl/viscgtl
+    if (getDerivs) then
+      auxvar%D_mobility(gid,:) = DivRule(krgtl,D_krgtl,viscgtl,D_viscgtl,ndof)
+    endif
   else
     auxvar%mobility(gid) = 0.0
+    if (getDerivs) then
+      auxvar%D_mobility(gid,:) = 0.d0
+    endif
   endif
 
 !--Store mixed density values-------------------------------------------------
 
   auxvar%tl%den_oil_eff_kg = denotl
   auxvar%tl%den_gas_eff_kg = dengtl
+  if (getDerivs) then
+    auxvar%tl%D_den_oil_eff_kg = D_denotl
+    auxvar%tl%D_den_gas_eff_kg = D_dengtl
+  endif
 
 end subroutine TOWGTLAuxVarCompute
 
 !==============================================================================
 
 subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
-                          ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl )
+                          ,krotl,krgtl,viscotl,viscgtl,denotl,dengtl  &
+                          ,getDerivs,ndof,option                      &
+                          ,D_visco,D_viscg,D_krh                      &
+                          ,D_krotl,D_krgtl,D_viscotl,D_viscgtl        &
+                          ,D_denotl,D_dengtl                           )
 
 !------------------------------------------------------------------------------
 ! Routine to calculate the Todd-Longstaff mobilities
@@ -2258,18 +2538,47 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
+  use Option_module
   implicit none
 
   PetscInt ,intent(in )   ::oid,gid
   PetscReal,intent(in )   ::krh
   PetscReal,intent(in )   ::visco,viscg
   PetscReal,intent(in )   ::deno,deng
+  PetscBool,intent(in)    :: getDerivs
+  PetscInt,intent(in)     :: ndof
+
+  PetscReal,dimension(1:ndof),optional,intent(in ):: D_visco,D_viscg,D_krh
+  type(option_type) :: option
+  PetscReal,dimension(1:ndof),optional,intent(out):: D_krotl,D_krgtl
+  PetscReal,dimension(1:ndof),optional,intent(out):: D_viscotl,D_viscgtl
+  PetscReal,dimension(1:ndof),optional,intent(out):: D_denotl,D_dengtl
+
   class(auxvar_towg_type) :: auxvar
   PetscReal,intent(out)   ::krotl,krgtl
   PetscReal,intent(out)   ::viscotl,viscgtl
   PetscReal,intent(out)   ::denotl,dengtl
 
   PetscReal::so,sg,den,deninv,fo,fg
+  PetscReal,dimension(1:ndof) :: D_worker,D_fo,D_fg
+  PetscReal,dimension(1:ndof):: D_deno,D_deng 
+
+
+  if (getDerivs .AND. &
+      .NOT.(present(D_visco).AND.present(D_viscg).AND.present(D_krh).AND.present(D_krotl).AND.present(D_krgtl).AND. &
+            present(D_viscotl).AND.present(D_viscgtl).AND.present(D_denotl).AND.present(D_dengtl)                    )) then
+      option%io_buffer = 'vToddLongstaff(): attempting to get analytical &
+                          derivatives but not all optional arguments in place'
+      call printErrMsg(option)
+  endif
+          
+
+
+  if (getDerivs) then
+    D_deno = auxvar%D_den_kg(oid,:)
+    D_deng = auxvar%D_den_kg(gid,:)
+  endif
 
 !--Get oil and gas saturations and form fractions------------------------------
 
@@ -2281,30 +2590,61 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
     deninv=1.0/den
     fo=so*deninv
     fg=sg*deninv
+    if (getDerivs) then
+      D_worker = auxvar%D_sat(oid,:)+auxvar%D_sat(gid,:)
+      D_fo = DivRule(so,auxvar%D_sat(oid,:),den,D_worker,ndof)
+      D_fg = DivRule(sg,auxvar%D_sat(gid,:),den,D_worker,ndof)
+    endif
   else
     fo=0.5
     fg=0.5
+    if (getDerivs) then
+      D_fo = 0.d0
+      D_fg = 0.d0
+    endif
   endif
 
 !--Split the hydrocarbon relative permeability using fractions (TL,eqn. 2a,2b)-
 
   krotl=fo*krh
   krgtl=fg*krh
+  if (getDerivs) then
+   D_krotl = ProdRule(fo,D_fo,krh,D_krh,ndof)
+   D_krgtl = ProdRule(fg,D_fg,krh,D_krh,ndof)
+  endif
 
 !--Form the omega-weighted oil and gas viscosities-----------------------------
-
-  call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
+  
+  if (getDerivs) then
+    call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl,PETSC_TRUE,ndof &
+                                 ,option                                                 &
+                                 ,D_fo,D_fg,D_visco,D_viscg,D_viscotl,D_viscgtl)
+  else
+    call vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl,PETSC_FALSE,ndof&
+                                ,option)
+  endif
 
 !--Form the omega weighted oil and gas densities (for Darcy flow only)---------
 
-  call vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
-                             ,deno,deng,denotl,dengtl)
+  if (getDerivs) then
+    call vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
+                               ,deno,deng,denotl,dengtl,PETSC_TRUE,ndof &
+                               ,option                                  &
+                               ,D_deno,D_deng                           &
+                               ,D_visco,D_viscg,D_fo,D_fg               &
+                               ,D_viscotl,D_viscgtl, D_denotl,D_dengtl)
+  else
+    call vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
+                               ,deno,deng,denotl,dengtl,PETSC_FALSE,NDOF,option)
+  endif
 
 end subroutine vToddLongstaff
 
 !==============================================================================
 
-subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
+subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
+                                  ,getDerivs,ndof,option,D_fo,D_fg,D_visco,D_viscg &
+                                  ,D_viscotl,D_viscgtl)
 
 !------------------------------------------------------------------------------
 ! Routine to calculate the Todd-Longstaff mixed viscosities
@@ -2317,13 +2657,34 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 ! Author: Dave Ponting
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
+  use Derivatives_utilities_module
+  use Option_module
   implicit none
 
   PetscReal,intent(in ):: fo,fg,so,sg,visco,viscg
+
+  PetscBool,intent(in)    :: getDerivs
+  PetscInt,intent(in)     :: ndof
+  PetscReal,dimension(1:ndof),optional,intent(in ):: D_fo,D_fg,D_visco,D_viscg
+  type(option_type) :: option
+
   PetscReal,intent(out):: viscotl,viscgtl
+  PetscReal,dimension(1:ndof),optional,intent(out):: D_viscotl,D_viscgtl
   PetscReal            :: tlomegac,sn,sni,viscqpo,viscqpg,wviscqp &
                          ,denom,denominv,viscm
   PetscReal            :: viscoimw,viscgimw,viscmw
+  PetscReal            :: workerReal,numerator
+  PetscReal,dimension(1:ndof)  :: D_viscqpo,D_viscqpg,D_wviscqp,D_denom,D_viscm
+  PetscReal,dimension(1:ndof)  :: D_viscoimw,D_viscgimw,D_viscmw,D_numerator
+
+  !!! TODO - input error check
+  if (getDerivs .AND. &
+      .NOT.(present(D_fo).AND.present(D_fg).AND.present(D_visco).AND.present(D_viscg).AND.&
+            present(D_viscotl).AND.present(D_viscgtl)                   )) then
+      option%io_buffer = 'vToddLongstaffViscosity(): attempting to get analytical &
+                          derivatives but not all optional arguments in place'
+      call printErrMsg(option)
+  endif
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
 
@@ -2334,6 +2695,12 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
   viscqpo=visco**0.25
   viscqpg=viscg**0.25
 
+  if (getDerivs) then
+    workerReal = 0.25
+    D_viscqpo=PowerRule(visco,D_visco,workerReal,ndof)
+    D_viscqpg=PowerRule(viscg,D_viscg,workerReal,ndof)
+  endif
+
 !--Form weighted combination of the 1/4 powers & its 4th power (denom of TL 4a)
 !  Note that:
 !  fg multiplies the oil viscosity 1/4-power term
@@ -2341,6 +2708,13 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 
   wviscqp=fg*viscqpo+fo*viscqpg
   denom=wviscqp**4.0
+  if (getDerivs) then
+    D_wviscqp=ProdRule(fg,D_fg,viscqpo,D_viscqpo,ndof) &
+             +ProdRule(fo,D_fo,viscqpg,D_viscqpg,ndof)
+    workerReal = 4.0
+    D_denom=PowerRule(wviscqp,D_wviscqp,workerReal,ndof)
+
+  endif
 
 !--Obtain a safe denominator inverse-------------------------------------------
 
@@ -2353,6 +2727,12 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
 !--Form mixed viscosity--(TL equation 4a)--------------------------------------
 
   viscm=visco*viscg*denominv
+  if (getDerivs) then
+    numerator = visco*viscg
+    D_numerator = ProdRule(visco,D_visco,viscg,D_viscg,ndof)
+    D_viscm = DivRule(numerator,D_numerator,denom,D_denom,ndof)
+    !D_viscm = ProdRule3(visco,D_visco,viscg,D_viscg,denom,D_denom,ndof)
+  endif
 
 !--Form omega-weighted replacement viscosities---------------------------------
 
@@ -2362,15 +2742,35 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl)
   viscgimw=viscg**tlomegac
   viscmw  =viscm**val_tl_omega
 
+  if (getDerivs) then
+    workerReal = tlomegac
+    D_viscoimw= PowerRule(visco,D_visco,workerReal,ndof)
+    D_viscgimw= PowerRule(viscg,D_viscg,workerReal,ndof)
+    workerReal = val_tl_omega
+    D_viscmw= PowerRule(viscm,D_viscm,workerReal,ndof)
+  endif
+
 ! Combine to get final value (TL 3a and 3b)
 
   viscotl=viscoimw*viscmw
   viscgtl=viscgimw*viscmw
 
+  if (getDerivs) then
+    D_viscotl=ProdRule(viscoimw,D_viscoimw,viscmw,D_viscmw,ndof)
+    D_viscgtl=ProdRule(viscgimw,D_viscgimw,viscmw,D_viscmw,ndof)
+  endif
+
 end subroutine vToddLongstaffViscosity
 
+!------------------------------------------------------------------------------
+
 subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
-                                 ,deno,deng,denotl,dengtl)
+                                 ,deno,deng,denotl,dengtl,getDerivs,ndof &
+                                 ,option                                 &
+                                 ,D_deno,D_deng,D_visco,D_viscg          &
+                                 ,D_fo,D_fg                              &
+                                 ,D_viscotl,D_viscgtl                    &
+                                 ,D_denotl,D_dengtl)
 
 !------------------------------------------------------------------------------
 ! Routine to calculate the Todd-Longstaff mixed densities
@@ -2386,13 +2786,39 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 ! Date  : Jul 2017
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
+  use Option_module
   implicit none
 
   PetscReal,intent(in) :: fo,fg,visco,viscg,viscotl,viscgtl,deno,deng
+
+  PetscBool,intent(in)    :: getDerivs
+  PetscInt,intent(in)     :: ndof
+  PetscReal,dimension(1:ndof),optional,intent(in ):: D_deno,D_deng,D_visco,D_viscg
+  PetscReal,dimension(1:ndof),optional,intent(in ):: D_viscotl,D_viscgtl,D_fo,D_fg
+
+  type(option_type) :: option
+
   PetscReal,intent(out):: denotl,dengtl
+
+  PetscReal,dimension(1:ndof),optional,intent(out):: D_denotl,D_dengtl
+
   PetscReal            :: tlomegac,viscginv,viscotlinv,viscgtlinv &
                          ,m,mooe,moge,mqp,mooeqp,mogeqp,mqpm,mqpm1,mqpm1inv &
-                         ,fo_oe,fo_ge,fg_oe,fg_ge,denm
+                         ,fo_oe,fo_ge,fg_oe,fg_ge,denm,workerReal
+
+  PetscReal,dimension(1:ndof) :: D_m,D_mqp,D_mooeqp,D_mogeqp,D_mooe,D_moge
+  PetscReal,dimension(1:ndof) :: D_fo_oe,D_fo_ge,D_denm,P1,P2
+
+  !!! TODO - input error check
+  if (getDerivs .AND. &
+      .NOT.(present(D_deno).AND.present(D_deng).AND.present(D_visco).AND.present(D_viscg).AND.&
+            present(D_viscotl).AND.present(D_viscgtl).AND.present(D_fo).AND.present(D_fg).AND.&
+            present(D_denotl).AND.present(D_dengtl)                                            )) then
+      option%io_buffer = 'vToddLongstaffDensity(): attempting to get analytical &
+                          derivatives but not all optional arguments in place'
+      call printErrMsg(option)
+  endif
 
 !--Set up complement of omega--------------------------------------------------
 
@@ -2420,6 +2846,9 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   endif
 
   m=visco*viscginv
+  if (getDerivs) then
+    D_m = DivRule(visco,D_visco,viscg,D_viscg,ndof)
+  endif
   if( abs(m-1.0)>1.0E-6 .and. viscotl>0.0 .and. viscgtl>0.0 ) then
 
 ! Case of non-unit mobility ratio
@@ -2428,10 +2857,21 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 
     mooe=visco*viscotlinv
     moge=visco*viscgtlinv
+    if (getDerivs) then 
+      D_mooe=DivRule(visco,D_visco,viscotl,D_viscotl,ndof)
+      D_moge=DivRule(visco,D_visco,viscgtl,D_viscgtl,ndof)
+    endif
 
     mqp   =m   **0.25
     mooeqp=mooe**0.25
     mogeqp=moge**0.25
+
+    if (getDerivs) then 
+      workerReal = 0.25
+      D_mqp   =PowerRule(m,D_m,workerReal,ndof)
+      D_mooeqp=PowerRule(mooe,D_mooe,workerReal,ndof)
+      D_mogeqp=PowerRule(moge,D_moge,workerReal,ndof)   
+    endif
 
     mqpm1=mqp-1.0
 
@@ -2444,6 +2884,12 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
 
     fo_oe=(mqp-mooeqp)*mqpm1inv
     fo_ge=(mqp-mogeqp)*mqpm1inv
+    if (getDerivs) then 
+      D_fo_oe = DivRule(mqp,D_mqp,mqpm1,D_mqp,ndof) &
+              - DivRule(mooeqp,D_mooeqp,mqpm1,D_mqp,ndof)
+      D_fo_ge = DivRule(mqp,D_mqp,mqpm1,D_mqp,ndof) &
+              - DivRule(mogeqp,D_mogeqp,mqpm1,D_mqp,ndof)
+    endif
 
 !  Complements of effective oil saturations, as used in eqn. 9a and 9b
 
@@ -2455,6 +2901,18 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
     denotl=deno*fo_oe+deng*fg_oe
     dengtl=deno*fo_ge+deng*fg_ge
 
+    if (getDerivs) then 
+      D_denotl = D_deno*  fo_oe &
+               +   deno*D_fo_oe &
+               + D_deng*  fg_oe & 
+               -   deng*D_fo_oe ! D_fg_oe = -D_fo_oe
+
+      D_dengtl = D_deno*  fo_ge &
+               +   deno*D_fo_ge &
+               + D_deng*  fg_ge & 
+               -   deng*D_fo_ge ! D_fg_ge = -D_fo_ge
+    endif
+
   else
 
 ! Case of unit mobility ratio, eqn. 10a and 10b
@@ -2462,6 +2920,13 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
     denm=fo*deno+fg*deng
     denotl=tlomegac*deno+val_tl_omega*denm
     dengtl=tlomegac*deng+val_tl_omega*denm
+
+    if (getDerivs) then 
+      D_denm(:)=ProdRule(fo,D_fo,deno,D_deno,ndof) &
+               +ProdRule(fg,D_fg,deng,D_deng,ndof)
+      D_denotl=tlomegac*D_deno+val_tl_omega*D_denm
+      D_dengtl=tlomegac*D_deng+val_tl_omega*D_denm
+    endif
 
   endif
 
@@ -2482,6 +2947,7 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
   use Characteristic_Curves_module
   use Global_Aux_module
   use Material_Aux_class
+  use Derivative_tests_module
 
   implicit none
 
@@ -2535,6 +3001,14 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
 
   auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
+
+
+
+  if (option%flow%numerical_derivatives_compare) then 
+    call NumCompare_tl3p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof)
+  endif
 
 end subroutine TOWGImsTLAuxVarPerturb
 
@@ -3409,5 +3883,164 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
 end subroutine formMixedDen2
 
 ! ************************************************************************** !
+
+subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+  !
+
+  use Option_module
+  use Grid_module
+  use Material_Aux_class
+  use Well_Data_class,only : SetFieldData
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: rpv_sh_l, rpv_sh_g,rpv_l, rpv_g
+  PetscReal :: pr,pv,sh
+  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,fpav
+  PetscInt :: int_mpi
+  PetscErrorCode :: ierr
+
+!  Initial values for sums (with and without hydrocarbon fraction)
+
+  rpv_sh_l = 0.0d0
+  rpv_sh_g = 0.0d0
+  rpv_l   = 0.0d0
+  rpv_g   = 0.0d0
+
+  fhpav_l = 0.0d0
+  fhpav_g = 0.0d0
+  fpav_l  = 0.0d0
+  fpav_g  = 0.0d0
+
+!  Do the summations on this rank
+
+  material_auxvars => material%auxvars
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+
+    pv = material_auxvars(ghosted_id)%porosity_base * &
+         material_auxvars(ghosted_id)%volume
+    sh = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%oil_phase) + &
+          this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
+    if (this%IsSolventModel()) then
+       sh = sh + this%auxvars(ZERO_INTEGER,ghosted_id)% &
+                                           sat(option%solvent_phase)
+    end if
+    pr=this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+
+    rpv_sh_l = rpv_sh_l + sh * pv
+    rpv_l    = rpv_l    +      pv
+    fhpav_l  = fhpav_l  + sh * pv * pr
+    fpav_l   = fpav_l   +      pv * pr
+
+  end do
+
+!  Do the summations over ranks
+
+  int_mpi = ONE_INTEGER
+  call MPI_AllReduce(rpv_sh_l,rpv_sh_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fhpav_l,fhpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(rpv_l,rpv_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fpav_l,fpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+! Form the average pressure: use simpler form if no hydrocarbon volume
+
+  if ( rpv_sh_g>0.0 ) then
+    fpav = fhpav_g/rpv_sh_g  !  Hydrocarbon volume exists
+  else if ( rpv_g>0.0 ) then
+    fpav = fpav_g/rpv_g      ! No hydrocarbon, but pore volume exists
+  endif
+
+!  Set value
+
+  call SetFieldData(fpav)
+
+  nullify(material_auxvars)
+
+end subroutine TOWGAuxFieldVolRefAve
+
+! ************************************************************************** !
+
+subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+
+  use Grid_module
+  use Material_Aux_class
+  use Option_module
+  use String_module,only : StringCompareIgnoreCase
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+  PetscReal :: vsoll(:,:)
+  PetscInt,intent(in)::isol
+  character(len=8)::zsol
+  PetscInt::iphase
+  PetscBool::ispres
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+
+  material_auxvars => material%auxvars
+
+  ispres=PETSC_FALSE
+  iphase=0
+
+  if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
+  if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
+  if( StringCompareIgnoreCase(zsol,'Sgas')     ) iphase=option%gas_phase
+  if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+    if( isPres ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if ( iphase>0 ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    else
+      vsoll(local_id,isol)=0.0
+    endif
+  end do
+
+end subroutine TOWGGetLocalSol
+
+! ************************************************************************** !
+
+function IsSolventModel(this)
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+
+  PetscBool :: IsSolventModel
+
+  IsSolventModel = PETSC_FALSE
+
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) IsSolventModel = PETSC_TRUE
+
+end function IsSolventModel
 
 end module PM_TOWG_Aux_module

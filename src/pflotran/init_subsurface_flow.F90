@@ -136,53 +136,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       call InitCommonReadVelocityField(realization)
     endif
   endif  
-#ifdef WELL_CLASS
-  call AllWellsSetup(realization)
-#endif
 
 end subroutine InitSubsurfFlowSetupRealization
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsSetup(realization)
-  ! 
-  ! Point well auxvars to the domain auxvars te wells belong to
-  ! does nothing if well are not defined
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 06/03/16
-  ! 
-  use Realization_Subsurface_class
-  use Coupler_module
-  use Well_module
-
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-  type(coupler_type), pointer :: source_sink
-  PetscInt :: cpl_idx_start
-
-  source_sink => realization%patch%source_sink_list%first
-
-  cpl_idx_start = 1
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      !exclude empty wells - not included in well comms
-      if(source_sink%connection_set%num_connections > 0) then
-        source_sink%well%name = source_sink%name    
-        call WellAuxVarSetUp(source_sink%well,source_sink%connection_set, &
-                         source_sink%flow_condition,realization%patch%aux, &
-                         cpl_idx_start,realization%patch%ss_flow_vol_fluxes, &
-                         realization%option)
-      end if
-    end if
-    cpl_idx_start = cpl_idx_start + source_sink%connection_set%num_connections
-    source_sink => source_sink%next
-  end do
-
-end subroutine AllWellsSetup
-#endif
 
 ! ************************************************************************** !
 
@@ -228,7 +183,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE) then
+  if (option%iflowmode /= RICHARDS_MODE .and. & 
+      option%iflowmode /= RICHARDS_TS_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &

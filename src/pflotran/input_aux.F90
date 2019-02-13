@@ -103,6 +103,7 @@ module Input_Aux_module
   interface InputFindStringInFile
     module procedure InputFindStringInFile1
     module procedure InputFindStringInFile2
+    module procedure InputFindStringInFile3
   end interface
 
   interface InputKeywordUnrecognized
@@ -1301,6 +1302,7 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   ! Rewinds file and finds the first occurrence of
   ! 'string'.  Note that the line must start with 'string'
   ! in order to match and that line is NOT returned
+  ! This version of the overload can cope with a section that is not present
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/07/07
@@ -1314,16 +1316,47 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: print_warning
+  PetscBool :: found
+
+  found = PETSC_FALSE
   
+  call InputFindStringInFile3(input, option, string, print_warning,found)
+  
+end subroutine InputFindStringInFile2
+
+! ************************************************************************** !
+
+subroutine InputFindStringInFile3(input, option, string, print_warning,found)
+  !
+  ! Rewinds file and finds the first occurrence of
+  ! 'string'.  Note that the line must start with 'string'
+  ! in order to match and that line is NOT returned
+  ! This routine differs from InputFindStringInFile2 only in that the
+  ! result of the search is returned in the 'found' argument
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/07/07
+  !
+
+  use String_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: print_warning
+  PetscBool :: found
+
   character(len=MAXWORDLENGTH) :: word
-  PetscBool :: found = PETSC_FALSE
   PetscInt :: length1, length2
 
   input%ierr = 0
+  found = PETSC_FALSE
 
   length1 = len_trim(string)
 
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     call InputReadWord(input,option,word,PETSC_TRUE)
@@ -1334,14 +1367,14 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
       exit
     endif
   enddo
-  
-  ! if not found, rewind once and try again.  this approach avoids excessive 
-  ! reading if successive searches for strings are in descending order in 
+
+  ! if not found, rewind once and try again.  this approach avoids excessive
+  ! reading if successive searches for strings are in descending order in
   ! the file.
   if (InputError(input)) then
     input%ierr = 0
     call InputRewind(input)
-    do 
+    do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
       call InputReadWord(input,option,word,PETSC_TRUE)
@@ -1352,15 +1385,15 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
         exit
       endif
     enddo
-  endif    
-  
+  endif
+
   if (.not.found .and. print_warning) then
     option%io_buffer = 'Card (' // trim(string) // ') not found in input file.'
     call printWrnMsg(option)
     input%ierr = 1
   endif
-  
-end subroutine InputFindStringInFile2
+
+end subroutine InputFindStringInFile3
 
 ! ************************************************************************** !
 

@@ -9,6 +9,9 @@ module Criticality_module
 ! to waste form criticality.
 ! ===========================================================================
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscsys
   use PFLOTRAN_Constants_module
   use Data_Mediator_Vec_class
@@ -316,8 +319,8 @@ subroutine CriticalityInitializeRun(this, realization, option)
     cur_criticality => cur_criticality%next
   enddo
   
-  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec,ierr); &
-                    CHKERRQ(ierr)
+  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec, &
+                    ierr);CHKERRQ(ierr)
   call VecSetFromOptions(this%data_mediator%vec,ierr); CHKERRQ(ierr)
   
   cur_criticality => this%criticality_list

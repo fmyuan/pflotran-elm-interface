@@ -865,7 +865,7 @@ subroutine CondControlAssignTranInitCond(realization)
 
   PetscInt :: iphase
   PetscInt :: offset
-  PetscBool :: re_equilibrate_at_each_cell
+  PetscBool :: equilibrate_at_each_cell
   character(len=MAXSTRINGLENGTH) :: string, string2
   class(dataset_base_type), pointer :: dataset
   PetscInt :: aq_dataset_to_idof(realization%reaction%naqcomp)
@@ -912,9 +912,10 @@ subroutine CondControlAssignTranInitCond(realization)
       
       if (.not.associated(initial_condition)) exit
         
-      constraint_coupler => initial_condition%tran_condition%cur_constraint_coupler
+      constraint_coupler => &
+        initial_condition%tran_condition%cur_constraint_coupler
 
-      re_equilibrate_at_each_cell = PETSC_FALSE
+      equilibrate_at_each_cell = constraint_coupler%equilibrate_at_each_cell
       use_aq_dataset = PETSC_FALSE
       num_aq_datasets = 0
       aq_dataset_to_idof = 0
@@ -922,7 +923,7 @@ subroutine CondControlAssignTranInitCond(realization)
         if (constraint_coupler%aqueous_species%external_dataset(idof)) then
           num_aq_datasets = num_aq_datasets + 1
           aq_dataset_to_idof(num_aq_datasets) = idof
-          re_equilibrate_at_each_cell = PETSC_TRUE
+          equilibrate_at_each_cell = PETSC_TRUE
           use_aq_dataset = PETSC_TRUE
           string = 'constraint ' // trim(constraint_coupler%constraint_name)
           dataset => DatasetBaseGetPointer(realization%datasets, &
@@ -937,7 +938,7 @@ subroutine CondControlAssignTranInitCond(realization)
       if (associated(constraint_coupler%minerals)) then
         do imnrl = 1, reaction%mineral%nkinmnrl
           if (constraint_coupler%minerals%external_vol_frac_dataset(imnrl)) then
-            re_equilibrate_at_each_cell = PETSC_TRUE
+            equilibrate_at_each_cell = PETSC_TRUE
             string = 'constraint ' // trim(constraint_coupler%constraint_name)
             dataset => DatasetBaseGetPointer(realization%datasets, &
                           constraint_coupler%minerals% &
@@ -967,7 +968,7 @@ subroutine CondControlAssignTranInitCond(realization)
       if (associated(constraint_coupler%minerals)) then
         do imnrl = 1, reaction%mineral%nkinmnrl
           if (constraint_coupler%minerals%external_area_dataset(imnrl)) then
-            re_equilibrate_at_each_cell = PETSC_TRUE
+            equilibrate_at_each_cell = PETSC_TRUE
             string = 'constraint ' // trim(constraint_coupler%constraint_name)
             dataset => DatasetBaseGetPointer(realization%datasets, &
                           constraint_coupler%minerals% &
@@ -1048,7 +1049,7 @@ subroutine CondControlAssignTranInitCond(realization)
       endif
           
       if (.not.option%use_isothermal) then
-        re_equilibrate_at_each_cell = PETSC_TRUE
+        equilibrate_at_each_cell = PETSC_TRUE
       endif
         
       if (use_aq_dataset) then
@@ -1067,7 +1068,7 @@ subroutine CondControlAssignTranInitCond(realization)
           xx_p(ibegin:iend) = 1.d-200
           cycle
         endif
-        if (re_equilibrate_at_each_cell) then
+        if (equilibrate_at_each_cell) then
           if (use_aq_dataset) then
             offset = (ghosted_id-1)*option%ntrandof
             do iaqdataset = 1, num_aq_datasets
@@ -1093,8 +1094,10 @@ subroutine CondControlAssignTranInitCond(realization)
               PETSC_FALSE,option)
           else
             ! copy molalities from previous equilibrated auxvar as initial guess
-            rt_auxvars(ghosted_id)%pri_molal = &
-              rt_auxvars(prev_equilibrated_ghosted_id)%pri_molal
+            call RTAuxVarCopyInitialGuess(rt_auxvars(ghosted_id), &
+              rt_auxvars(prev_equilibrated_ghosted_id),option)
+!            rt_auxvars(ghosted_id)%pri_molal = &
+!              rt_auxvars(prev_equilibrated_ghosted_id)%pri_molal
             call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
               global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
               reaction, &
@@ -1177,7 +1180,7 @@ subroutine CondControlAssignTranInitCond(realization)
         if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
           ! geh: if we re-equilibrate at each grid cell, we do not want to
           ! overwrite the reequilibrated values with those from the constraint
-            .not. re_equilibrate_at_each_cell) then
+            .not. equilibrate_at_each_cell) then
           ! copy over total sorbed concentration
           rt_auxvars(ghosted_id)%kinmr_total_sorb = &
             constraint_coupler%rt_auxvar%kinmr_total_sorb
@@ -1462,7 +1465,7 @@ subroutine CondControlScaleSourceSink(realization)
         ghosted_id = grid%nL2G(local_id)
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,G_MODE,WF_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -1518,7 +1521,7 @@ subroutine CondControlScaleSourceSink(realization)
       do iconn = 1, cur_connection_set%num_connections      
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
-          case(RICHARDS_MODE,G_MODE,WF_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
           case(TH_MODE)
@@ -1693,7 +1696,7 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
     select case(option%iflowmode)
       
-      case (RICHARDS_MODE,TH_MODE)
+      case (RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE)
         ! assign initial conditions values to domain
         call VecGetArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     

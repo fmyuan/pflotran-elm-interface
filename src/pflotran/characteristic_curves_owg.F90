@@ -2384,6 +2384,12 @@ subroutine MBC_RelPerm_dkr_dSe(poly,m,kr_max,effective_sat,rel_perm,&
 
   if (Se >= 1.d0) then
     rel_perm = kr_max
+    !!!! EXPERIMENTAL - DS
+    ! return slope as though at se = 1 for derivative
+    if (Se == 1.d0) then
+      dkr_Se = kr_max*m
+    endif
+    !!!! 
     return
   else if (Se <=  0.d0) then
     rel_perm = 0.d0

@@ -59,10 +59,6 @@ module PM_Subsurface_Flow_class
     procedure, public :: CheckpointHDF5 => PMSubsurfaceFlowCheckpointHDF5
     procedure, public :: RestartHDF5 => PMSubsurfaceFlowRestartHDF5
     procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
-#ifdef WELL_CLASS
-    procedure  :: AllWellsInit
-    procedure :: AllWellsUpdate
-#endif
     procedure, public :: InitialiseAllWells
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
@@ -213,6 +209,11 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    ! artifact from testing, currently does nothing; will be used again
+    ! in future testing/implementation phases.
+    case('NUMERICAL_AS_ALYT')
+      option%flow%num_as_alyt_derivs = PETSC_TRUE
 
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
@@ -413,9 +414,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   call this%PreSolve()
   call this%UpdateAuxVars()
   call this%UpdateSolution() 
-#ifdef WELL_CLASS
-  call this%AllWellsInit() !does nothing if no well exist
-#endif    
 
 ! Initialise the well data held in well_data
 
@@ -562,46 +560,6 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
 end subroutine PMSubsurfaceFlowSetSoilRefPres
 
 ! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsInit(this)
-  !
-  ! Initialise all wells - does nothing if no well exist
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 05/25/16
-
-  !use Well_Base_class
-  use Coupler_module
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-
-  type(coupler_type), pointer :: source_sink
-
-  PetscMPIInt :: cur_w_myrank
-  character(len=MAXSTRINGLENGTH) :: wfile_name
-  PetscInt :: ierr 
-
-  source_sink => this%realization%patch%source_sink_list%first
-
-  do
-    if (.not.associated(source_sink)) exit
-    if (associated(source_sink%well) ) then
-      !exlude empty wells - not included in well comms
-      if (source_sink%connection_set%num_connections > 0) then
-
-        call source_sink%well%InitRun(this%realization%patch%grid, &
-                                this%realization%patch%aux%Material%auxvars, &
-                                this%realization%output_option, &
-                                this%realization%option)
-
-      end if
-    end if
-    source_sink => source_sink%next 
-  end do 
-
-end subroutine AllWellsInit
-#endif
 
 subroutine InitialiseAllWells(this)
  !
@@ -615,32 +573,33 @@ subroutine InitialiseAllWells(this)
   use Well_Solver_module
   use Grid_module
   use Material_Aux_class
+  use Grid_Grdecl_module, only : UGrdEclWellCmplCleanup, GetIsGrdecl
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
   class(well_data_type), pointer :: well_data
-  type(well_data_list_type),pointer :: well_data_list
+  type(well_data_list_type), pointer :: well_data_list
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: type_material_auxvars(:)
   class(material_auxvar_type), pointer :: class_material_auxvars(:)
   type(option_type), pointer :: option
 
   PetscInt  :: num_well
-  PetscBool :: cast_ok
+  PetscBool :: cast_ok,is_grdecl
 
-! Loop over wells
+  ! Loop over wells
 
   well_data_list => this%realization%well_data
   num_well=getnwell(well_data_list)
-  if( num_well > 0 ) then
+  if (num_well > 0) then
 
     well_data => well_data_list%first
     option => this%realization%option
 
     grid => this%realization%patch%grid
 
-!  Specialise polymorphic class pointer to type pointer
+  !  Specialise polymorphic class pointer to type pointer
 
     cast_ok = PETSC_FALSE
     type_material_auxvars => null()
@@ -651,14 +610,15 @@ subroutine InitialiseAllWells(this)
       class default
     end select
 
-!  Checks
+  !  Checks
 
-    if (grid%itype /= STRUCTURED_GRID) then
+    is_grdecl = GetIsGrdecl()
+    if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl)) then
       option%io_buffer='WELL_DATA well specification can only be used with structured grids'
       call printErrMsg(option)
     endif
 
-    if( .not. cast_ok ) then
+    if (.not.cast_ok) then
       option%io_buffer='WELL_DATA call cannot cast CLASS to TYPE'
       call printErrMsg(option)
     else
@@ -674,6 +634,11 @@ subroutine InitialiseAllWells(this)
     endif
 
   endif ! If num_well>0
+
+  ! All the well data from grdecl should be safely in well_data,
+  ! so cleanup grdecl
+
+  call UGrdEclWellCmplCleanup()
 
 end subroutine InitialiseAllWells
 
@@ -783,53 +748,8 @@ PetscErrorCode :: ierr
 
   endif
 
-#ifdef WELL_CLASS
-  call this%AllWellsUpdate()
-#endif
-
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsUpdate(this)
-  !
-  ! Update all wells at the beginning of each time step
-  !  - is permeability changes updates well factor 
-  !  - update hydrostatic corrections
-  !  - 
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 06/06/16
-
-  use Coupler_module
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-
-  type(coupler_type), pointer :: source_sink
-
-  PetscInt :: beg_cpl_conns, end_cpl_conns
-
-  source_sink => this%realization%patch%source_sink_list%first
-
-  beg_cpl_conns = 1
-  do
-    if (.not.associated(source_sink)) exit
-    if (associated(source_sink%well) ) then
-      !exlude empty wells - not included in well comms
-      if (source_sink%connection_set%num_connections > 0) then
-
-        call source_sink%well%InitTimeStep(this%realization%patch%grid, &
-                                this%realization%patch%aux%Material%auxvars, &
-                                this%realization%option)
-
-      end if
-    end if
-    source_sink => source_sink%next 
-  end do 
-
-end subroutine AllWellsUpdate
-#endif
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowPreSolve(this)
