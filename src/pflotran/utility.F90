@@ -2473,28 +2473,20 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
       dff = abs(a1(i,j) - a2(i,j)) 
       reldff = dff/abs(a1(i,j))
 
-if (dabs(a1(i,j)) > 1.d-9 .AND. dabs(a2(i,j)) > 1.d-9) then
 
       if (dff > tol .OR. reldff > reltol) then
         print *, "difference in matrices at ", i, ", ", j, ", value ", dff, &
                  ", relative difference: ", reldff
         print *, a1(i,j), " compare to ", a2(i,j)
         print *, "..."
+#if 0
         if (reldff == 1.d0) then
           print *, "rel dif is 1"
         endif
-#if 0
-        if (dabs(a2(i,j))<1.d-30 .AND. a1(i,j) == 0.d0) then
-          print *, "this nonsense"
-        endif
 #endif
-        if (dabs(a2(i,j))>1.d-10 .AND. a1(i,j) == 0.d0) then
-          print *, "nontriv alyt contrib vs 0 numerical"
-        endif
         flagged_err = PETSC_TRUE
       endif
 
-endif
 
     end do
   end do 

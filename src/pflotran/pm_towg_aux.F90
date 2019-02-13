@@ -313,8 +313,8 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
   PetscInt :: ghosted_id, iconn, local_id
   PetscInt :: idof
 
-  if (option%flow%numerical_derivatives         .OR. &
-      option%flow%numerical_derivatives_compare .OR. &
+  if (option%flow%numerical_derivatives         .or. &
+      option%flow%numerical_derivatives_compare .or. &
       option%flow%num_as_alyt_derivs)             then
     allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
     do ghosted_id = 1, grid%ngmax
@@ -2262,7 +2262,7 @@ endif
   call characteristic_curves%wat_rel_perm_func_owg% &
                 RelativePermeability(sw,krw,dkrw_satw,option,auxvar%table_idx)
 
-   if (getDerivs) then
+  if (getDerivs) then
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
 
     call EOSWaterViscosity(auxvar%temp, cell_pressure, &
@@ -2413,7 +2413,7 @@ endif
 
 !--krom and derivs:----------------------------------------------------------
 ! For non-zero Krom, must have So and Sh > Socrs
-  if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
+  if( (sh > (socrs+epss)) .and. (so >= socrs) ) then
     krom=krh*(so-socrs)/(sh-socrs)
   else
     krom=0.0
@@ -2422,7 +2422,7 @@ endif
  ! recall sh = so + sg + ss
   if (getDerivs) then
     D_krom = 0.d0
-    if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
+    if( (sh > (socrs+epss)) .and. (so >= socrs) ) then
       num = krh*(so-socrs)
       worker = so-socrs
       ! D_socrs = sogcr*D_fi = -sogcr*D_fm so:
@@ -2451,7 +2451,7 @@ endif
 
 !--krvm and derivs:----------------------------------------------------------
 ! For non-zero Krvm, must have Sv and Sh > Svcrs
-  if( (sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs) ) then
+  if( (sh > (svcrs+epss)) .and. (sv >= svcrs) ) then
     krvm=krh*(sv-svcrs)/(sh-svcrs)
   else
     krvm=0.0
@@ -2459,7 +2459,7 @@ endif
 
   if (getDerivs) then
     D_krvm = 0.d0
-    if((sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs)) then
+    if((sh > (svcrs+epss)) .and. (sv >= svcrs)) then
       num = krh*(sv-svcrs)
       den = sh-svcrs
       worker = sv-svcrs
@@ -2488,7 +2488,7 @@ endif
 ! Now split vapour Krvm into Krgm and Krsm pro rata saturations
 
 !--krgm, krsm and derivs:----------------------------------------------------
-  if( sv .gt. 0.0 ) then
+  if( sv > 0.0 ) then
     krgm=krvm*sg/sv
     krsm=krvm*ss/sv
   else
@@ -2499,7 +2499,7 @@ endif
    if (getDerivs) then
     D_krgm = 0.d0
     D_krsm = 0.d0
-    if( sv .gt. 0.0) then
+    if( sv > 0.0) then
 
       num = krvm*sg;
       ! prod rule but we know there's only one nonzero deriv of sg so:
