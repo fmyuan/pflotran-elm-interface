@@ -169,7 +169,12 @@ subroutine PMGeneralRead(this,input)
         !geh: assuming gas component is index 2
         call InputReadDouble(input,option,fmw_comp(2))
         call InputErrorMsg(input,option,'gas component formula wt.', &
-                           error_string)
+             error_string)
+      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
+         !heeho: assuming liquid component is index 1
+         call InputReadDouble(input,option,fmw_comp(1))
+         call InputErrorMsg(input,option,'liquid component formula wt.', &
+             error_string)
       case('TWO_PHASE_ENERGY_DOF')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
