@@ -132,6 +132,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Material_Aux_class
   use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
@@ -259,6 +260,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   grid => GridCreate()
   select case(discretization%itype)
     case(UNSTRUCTURED_GRID)
+      ! For unstructured grids, we cannot use the default 
+      ! TENSOR_TO_SCALAR_LINEAR for mapping the permeability tensor to 
+      ! a scalar. This can be overriden by the user during second read.
+      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,option)
       un_str_grid => UGridCreate()
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
@@ -291,6 +296,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)      
+      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
       if (nx*ny*nz <= 0) &
         call printErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()

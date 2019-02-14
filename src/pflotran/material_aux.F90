@@ -20,6 +20,11 @@ module Material_Aux_class
   PetscInt, parameter, public :: POROSITY_MINERAL = 1
 
   ! Tensor to scalar conversion models
+  ! default for structured grids = TENSOR_TO_SCALAR_LINEAR
+  ! default for unstructured grids = TENSOR_TO_SCALAR_POTENTIAL
+  ! Both are set in discretization.F90:DiscretizationReadRequiredCards() 
+  ! immediately after the GRID cards is read with a call to 
+  ! MaterialAuxSetPermTensorModel()
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW = 2
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL = 3

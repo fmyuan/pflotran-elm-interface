@@ -2,7 +2,7 @@
       Max:   1.0474763618359E+05
       Min:   1.0083605242028E+05
      Mean:   1.0279184390300E+05
-        7:   1.0181394779498E+05
+        7:   1.0181394779497E+05
         8:   1.0181394779498E+05
         9:   1.0083605242028E+05
        10:   1.0083605242028E+05
@@ -23,10 +23,10 @@
         9:         1
        10:         1
 -- SOLUTION: Flow --
-   Time (seconds):   4.9431480001658E-03
+   Time (seconds):   3.2110214233398E-03
    Time Steps:            1
    Newton Iterations:            1
-   Solver Iterations:            5
+   Solver Iterations:            6
    Time Step Cuts:            0
    Solution 2-Norm:   3.2508576920406E+05
    Residual 2-Norm:   5.4389598220421E-16
