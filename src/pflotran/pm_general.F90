@@ -80,14 +80,6 @@ function PMGeneralCreate()
   PetscReal, parameter :: ref_pres = 101325.d0 !Pa
   PetscReal, parameter :: ref_sat = 0.5
   PetscReal, parameter :: ref_xmol = 1.d-6
-  
-!   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
-!   PetscReal, parameter :: temp_abs_inf_tol = pres_abs_inf_tol * ref_temp /  &
-!                                              ref_pres !1.d-5
-!   PetscReal, parameter :: sat_abs_inf_tol = pres_abs_inf_tol * ref_sat / & 
-!                                             ref_pres !1.d-6
-!   PetscReal, parameter :: xmol_abs_inf_tol = pres_abs_inf_tol * ref_xmol / &
-!                                              ref_pres !1.d-6
                                              
   !MAN optimized:
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0 ! Reference tolerance [Pa]
@@ -102,10 +94,10 @@ function PMGeneralCreate()
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
             
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d-2 !1.d-3
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d-2 !1.d-3
-  PetscReal, parameter :: sat_rel_inf_tol = 1.d-2 !1.d-3
-  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-2 !1.d-3
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
   PetscReal, parameter :: rel_update_inf_tol(3,3) = &
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
@@ -117,12 +109,6 @@ function PMGeneralCreate()
   PetscReal, parameter :: ref_density_a = 0.0423 !kmol_air/m^3
   PetscReal, parameter :: ref_u = 83.8 !MJ/m^3
   
-  !PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-8 !kmol_water/sec
-  !PetscReal, parameter :: a_mass_abs_inf_tol = w_mass_abs_inf_tol * &
-  !                                            ref_density_a / ref_density_w
-  !PetscReal, parameter :: u_abs_inf_tol = w_mass_abs_inf_tol * &
-  !                                        ref_u / ref_density_w
-  
   !MAN optimized:
   PetscReal, parameter :: w_mass_abs_inf_tol = 1.d-5 !1.d-7 !kmol_water/sec
   PetscReal, parameter :: a_mass_abs_inf_tol = 1.d-5 !1.d-7
@@ -130,7 +116,7 @@ function PMGeneralCreate()
                                           
   PetscReal, parameter :: residual_abs_inf_tol(3) = (/w_mass_abs_inf_tol, &
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
-  PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-5
+  PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
 #ifdef PM_GENERAL_DEBUG  
   print *, 'PMGeneralCreate()'
@@ -646,8 +632,11 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! Date: 11/21/18
   ! 
   
+  use Realization_Subsurface_class
   use Grid_module
+  use Field_module
   use Option_module
+  use Saturation_Function_module
   use Patch_module
   use General_Aux_module
   use Global_Aux_module
@@ -677,6 +666,28 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
 
   PetscReal, pointer :: X_p(:),dX_p(:)
 
+  ! MAN: OLD
+  PetscReal, pointer :: r_p(:)
+  type(field_type), pointer :: field
+  PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
+  PetscInt :: temperature_index
+  PetscInt :: lid, gid, apid, cpid, vpid, spid
+  PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
+  PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
+  PetscReal :: air_pressure0, air_pressure1, del_air_pressure
+  PetscReal :: temperature0, temperature1, del_temperature
+  PetscReal :: saturation0, saturation1, del_saturation
+  PetscReal :: xmol0, xmol1, del_xmol
+  PetscReal :: max_saturation_change = 0.125d0
+  PetscReal :: max_temperature_change = 10.d0
+  PetscReal :: min_pressure
+  PetscReal :: scale, temp_scale
+  PetscReal, parameter :: tolerance = 0.99d0
+  PetscReal, parameter :: initial_scale = 1.d0
+  SNES :: snes
+  PetscInt :: newton_iteration
+  ! MAN: END OLD
+
   call VecGetArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
@@ -688,55 +699,194 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   
   changed = PETSC_TRUE 
 
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    offset = (local_id-1)*option%nflowdof
-    select case(global_auxvars(ghosted_id)%istate)
-      case(LIQUID_STATE)
-        xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
-        pw_index = offset + GENERAL_LIQUID_PRESSURE_DOF
-        if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
-          dX_p(xmol_index) = X_p(xmol_index)
-          changed = PETSC_TRUE
-        endif
-        if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
-          dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(GAS_STATE)
-        pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
-        if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
-          dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
-          changed = PETSC_TRUE
-        endif
-      case(TWO_PHASE_STATE)
-        pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
-        if (X_p(pgas_index) - dX_p(pgas_index) < &
-                gen_auxvars(ZERO_INTEGER,ghosted_id)% &
-                pres(option%saturation_pressure_id)) then
-          dX_p(pgas_index) = X_p(pgas_index) - &
-                  gen_auxvars(ZERO_INTEGER,ghosted_id)% &
-                  pres(option%saturation_pressure_id)
-          changed = PETSC_TRUE
-        endif
-        if (general_immiscible) then
-          saturation_index = offset + GENERAL_GAS_SATURATION_DOF
-          temp_real = X_p(saturation_index) - dX_p(saturation_index)
-          if (temp_real > ALMOST_ONE) then
-            dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
-            changed = PETSC_TRUE
-          else if (temp_real < ALMOST_ZERO) then
-            dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+  ! MAN: OLD
+  field => this%realization%field
+
+  spid = option%saturation_pressure_id
+  apid = option%air_pressure_id
+
+  call SNESLineSearchGetSNES(line_search,snes,ierr)
+  call SNESGetIterationNumber(snes,newton_iteration,ierr)
+
+  ! MAN: END OLD
+  if (this%check_post_convergence) then
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      offset = (local_id-1)*option%nflowdof
+      select case(global_auxvars(ghosted_id)%istate)
+        case(LIQUID_STATE)
+          xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
+          pw_index = offset + GENERAL_LIQUID_PRESSURE_DOF
+          if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+            dX_p(xmol_index) = X_p(xmol_index)
             changed = PETSC_TRUE
           endif
-        endif
-    end select
-  enddo
+          if (X_p(pw_index)- dX_p(pw_index) <= 0.d0) then
+           dX_p(pw_index) = X_p(pw_index) - ALMOST_ZERO
+           changed = PETSC_TRUE
+          endif
+        case(GAS_STATE)
+         pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+         if (X_p(pgas_index)- dX_p(pgas_index) <= 0.d0) then
+           dX_p(pgas_index) = X_p(pgas_index) - ALMOST_ZERO
+           changed = PETSC_TRUE
+         endif
+        case(TWO_PHASE_STATE)
+          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+          if (X_p(pgas_index) - dX_p(pgas_index) < &
+                  gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)) then
+            dX_p(pgas_index) = X_p(pgas_index) - &
+                    gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                    pres(option%saturation_pressure_id)
+            changed = PETSC_TRUE
+          endif
+          if (general_immiscible) then
+            saturation_index = offset + GENERAL_GAS_SATURATION_DOF
+            temp_real = X_p(saturation_index) - dX_p(saturation_index)
+            if (temp_real > ALMOST_ONE) then
+              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+              changed = PETSC_TRUE
+            else if (temp_real < ALMOST_ZERO) then
+              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+              changed = PETSC_TRUE
+            endif
+          endif
+      end select
+    enddo
 
-  if (this%damping_factor > 0.d0) then
-    dX_p = dX_p*this%damping_factor
-    changed = PETSC_TRUE
+    if (this%damping_factor > 0.d0) then
+      dX_p = dX_p*this%damping_factor
+      changed = PETSC_TRUE
+    endif
+  
+! MAN OLD
+  else
+    
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      offset = (local_id-1)*option%nflowdof
+      select case(global_auxvars(ghosted_id)%istate)
+        case(LIQUID_STATE)
+          xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
+          pw_index = offset + GENERAL_LIQUID_PRESSURE_DOF
+          if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
+            dX_p(xmol_index) = X_p(xmol_index)
+            changed = PETSC_TRUE
+          endif
+        case(TWO_PHASE_STATE)
+          pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+          if (X_p(pgas_index) - dX_p(pgas_index) < &
+                  gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)) then
+            dX_p(pgas_index) = X_p(pgas_index) - &
+                    gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                    pres(option%saturation_pressure_id)
+            changed = PETSC_TRUE
+          endif
+          if (general_immiscible) then
+            saturation_index = offset + GENERAL_GAS_SATURATION_DOF
+            temp_real = X_p(saturation_index) - dX_p(saturation_index)
+            if (temp_real > ALMOST_ONE) then
+              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ONE
+              changed = PETSC_TRUE
+            else if (temp_real < ALMOST_ZERO) then
+              dX_p(saturation_index) = X_p(saturation_index) - ALMOST_ZERO
+              changed = PETSC_TRUE
+            endif
+          endif
+      end select
+    enddo
+    
+    scale = initial_scale
+    if (general_max_it_before_damping > 0 .and. &
+        newton_iteration > general_max_it_before_damping) then
+      scale = general_damping_factor
+    endif
+
+#define LIMIT_MAX_PRESSURE_CHANGE
+#define LIMIT_MAX_SATURATION_CHANGE
+    ! scaling
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      offset = (local_id-1)*option%nflowdof
+      temp_scale = 1.d0
+      select case(global_auxvars(ghosted_id)%istate)
+        case(LIQUID_STATE)
+          liquid_pressure_index  = offset + GENERAL_LIQUID_PRESSURE_DOF
+          temperature_index  = offset + GENERAL_ENERGY_DOF
+          dX_p(liquid_pressure_index) = dX_p(liquid_pressure_index) * &
+                                        GENERAL_PRESSURE_SCALE
+          temp_scale = 1.d0
+          del_liquid_pressure = dX_p(liquid_pressure_index)
+          liquid_pressure0 = X_p(liquid_pressure_index)
+          liquid_pressure1 = liquid_pressure0 - del_liquid_pressure
+          del_temperature = dX_p(temperature_index)
+          temperature0 = X_p(temperature_index)
+          temperature1 = temperature0 - del_temperature
+#ifdef LIMIT_MAX_PRESSURE_CHANGE
+          if (dabs(del_liquid_pressure) > general_max_pressure_change) then
+            temp_real = dabs(general_max_pressure_change/del_liquid_pressure)
+            temp_scale = min(temp_scale,temp_real)
+          endif
+#endif
+!LIMIT_MAX_PRESSURE_CHANGE
+        case(TWO_PHASE_STATE)
+          gas_pressure_index = offset + GENERAL_GAS_PRESSURE_DOF
+!        air_pressure_index = offset + 2
+          saturation_index = offset + GENERAL_GAS_SATURATION_DOF
+          temperature_index  = offset + GENERAL_ENERGY_DOF
+          dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
+                                     GENERAL_PRESSURE_SCALE
+          if (general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
+            air_pressure_index = offset + GENERAL_ENERGY_DOF
+            dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
+                                       GENERAL_PRESSURE_SCALE
+            del_air_pressure = dX_p(air_pressure_index)
+            air_pressure0 = X_p(air_pressure_index)
+            air_pressure1 = air_pressure0 - del_air_pressure
+          endif
+          temp_scale = 1.d0
+          del_gas_pressure = dX_p(gas_pressure_index)
+          gas_pressure0 = X_p(gas_pressure_index)
+          gas_pressure1 = gas_pressure0 - del_gas_pressure
+          del_saturation = dX_p(saturation_index)
+          saturation0 = X_p(saturation_index)
+          saturation1 = saturation0 - del_saturation
+#ifdef LIMIT_MAX_PRESSURE_CHANGE
+          if (dabs(del_gas_pressure) > general_max_pressure_change) then
+            temp_real = dabs(general_max_pressure_change/del_gas_pressure)
+            temp_scale = min(temp_scale,temp_real)
+          endif
+#endif
+#ifdef LIMIT_MAX_SATURATION_CHANGE
+          if (dabs(del_saturation) > max_saturation_change) then
+            temp_real = dabs(max_saturation_change/del_saturation)
+            temp_scale = min(temp_scale,temp_real)
+          endif
+#endif
+!LIMIT_MAX_SATURATION_CHANGE
+        case(GAS_STATE)
+          gas_pressure_index = offset + GENERAL_GAS_PRESSURE_DOF
+          air_pressure_index = offset + GENERAL_GAS_STATE_AIR_PRESSURE_DOF
+          dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
+                                     GENERAL_PRESSURE_SCALE
+          dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
+                                     GENERAL_PRESSURE_SCALE
+      end select
+      scale = min(scale,temp_scale)
+    enddo
+
+    temp_scale = scale
+    call MPI_Allreduce(temp_scale,scale,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION, &
+                       MPI_MIN,option%mycomm,ierr)
+
+    if (scale < 0.9999d0) then
+      dX_p = scale*dX_p
+    endif
   endif
 
   call VecRestoreArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
@@ -958,7 +1108,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 !         R_A = R/A
         
         !TOUGH3 way:
-        if (A > 1) then
+        if (A > 1.d0) then
           R_A = R/A
         else
           R_A = R
@@ -1049,25 +1199,27 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         this%converged_real(:,:,REL_UPDATE_INDEX)
       call OptionPrint(string,option)
     endif
-  endif
   
-  if (it >= this%general_newton_max_iter) then
-    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    if (it >= this%general_newton_max_iter) then
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
     
-    if (this%logging_verbosity > 0) then
-      string = '    Exceeded General Mode Max Newton Iterations'
-      call OptionPrint(string,option)
+      if (this%logging_verbosity > 0) then
+        string = '    Exceeded General Mode Max Newton Iterations'
+        call OptionPrint(string,option)
+      endif
     endif
   endif
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
 
-  !RESET ALL FLAGS AND ZERO ALL THE CELL ID'S
-  this%converged_flag(:,:,:) = PETSC_TRUE
-  this%converged_real(:,:,:) = 0.d0
-  this%converged_cell(:,:,:) = 0
-                                        
+  if (this%check_post_convergence) then
+    !RESET ALL FLAGS AND ZERO ALL THE CELL ID'S
+    this%converged_flag(:,:,:) = PETSC_TRUE
+    this%converged_real(:,:,:) = 0.d0
+    this%converged_cell(:,:,:) = 0
+  endif
+
 end subroutine PMGeneralCheckConvergence
 
 ! ************************************************************************** !
