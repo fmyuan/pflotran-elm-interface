@@ -366,6 +366,8 @@ subroutine EOSWaterSetDensity(keyword,aux)
     case('DEFAULT','IFC67')
       EOSWaterDensityPtr => EOSWaterDensityIFC67
       EOSWaterDensityExtPtr => EOSWaterDensityBatzleAndWangExt
+    case('IF97')
+      EOSWaterDensityPtr => EOSWaterDensityIF97
     case('EXPONENTIAL')
       exponent_reference_density = aux(1)
       exponent_reference_pressure = aux(2)
@@ -433,6 +435,8 @@ subroutine EOSWaterSetEnthalpy(keyword,aux)
       EOSWaterEnthalpyPtr => EOSWaterEnthalpyConstant
     case('DEFAULT','IFC67')
       EOSWaterEnthalpyPtr => EOSWaterEnthalpyIFC67
+    case('IF97')
+      EOSWaterEnthalpyPtr => EOSWaterEnthalpyIF97
     case('PLANAR')
       EOSWaterEnthalpyPtr => EOSWaterEnthalpyTPPlanar  
       call EOSWaterEnthalpyTPPlanarSetup()
@@ -488,6 +492,8 @@ subroutine EOSWaterSetSaturationPressure(keyword,aux)
   select case(keyword)
     case('IFC67')
       EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIFC67
+    case('IF97')
+      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIF97
     case('WAGNER_AND_PRUSS')
       EOSWaterSaturationPressurePtr => EOSWaterSatPresWagnerPruss
     case default
@@ -516,6 +522,9 @@ subroutine EOSWaterSetSteamDensity(keyword,aux)
       call EOSWaterSteamDenEnthTPPlanarSetup()
     case('IFC67')
       EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIFC67
+    case('IF97')
+      EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIF97
+      EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIF97
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSteamDensity().'
@@ -542,6 +551,8 @@ subroutine EOSWaterSetSteamEnthalpy(keyword,aux)
       call EOSWaterSteamDenEnthTPPlanarSetup()
     case('DEFAULT','IFC67')
       EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIFC67
+    case('IF97')
+      EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIF97
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetSteamEnthalpy().'
@@ -945,6 +956,59 @@ subroutine EOSWaterSaturationPressureIFC67(T, calculate_derivatives, &
 
 end subroutine EOSWaterSaturationPressureIFC67
 
+subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
+                                           PS, dPS_dT, ierr)
+
+  !Author: Michael Nole
+  !Date: 01/20/19
+  !Water saturation Pressure as f(T) from IF97 standard, valid between 273.15K and
+  !647.096K (Region 4)
+
+
+  implicit none
+
+  PetscReal, intent(in) :: T ! temperature
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: PS, dPS_dT ! Saturation pres. and derivative
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal,save, dimension(10) :: n(10)
+  PetscReal :: theta, T_temp, A, B, C
+  PetscReal :: B2_4AC, dtheta_dt, da_dt, db_dt, dc_dt
+
+  T_temp = T + 273.15d0
+
+  if (T_temp > 647.096d0 .or. T_temp < 273.15d0) then
+    ierr = 1
+    return
+  endif
+
+  DATA n/ 0.11670521452767d4,-0.72421316703206d6,-0.17073846940092d2, &
+         0.12020824702470d5,-0.32325550322333d7,0.14915108613530d2, &
+         -0.48232657361591d4,0.40511340542057d6,-0.23855557567849d0, &
+         0.65017534844798d3 /
+  theta = T_temp + n(9)/(T_temp-n(10))
+  A = theta*theta + n(1)*theta +n(2)
+  B = n(3)*theta*theta + n(4)*theta + n(5)
+  C = n(6)*theta*theta + n(7)*theta + n(8)
+  B2_4AC = (B*B-4*A*C)**(0.5d0)
+  PS = 1.d6*(2.d0*C/((B2_4AC)-B))**4
+  if (calculate_derivatives) then
+    dtheta_dt = 1.d0 - n(9)/((T_temp - n(10))*(T_temp - n(10)))
+    da_dt = 2.d0*theta*dtheta_dt +n(1)*dtheta_dt
+    db_dt = 2.d0*n(3)*theta*dtheta_dt + n(4)*dtheta_dt
+    dc_dt = 2.d0*n(6)*theta*dtheta_dt + n(7)*dtheta_dt
+
+    dPS_DT = 1.d6*4.d0*(2.d0*C/(B2_4AC-B))**3 * (2.d0*dc_dt/(B2_4AC-B) + &
+             2.d0*C/(-(B2_4AC-B)*(B2_4AC-B))*(-db_dt + 0.5d0/B2_4AC * &
+             (2.d0*B*db_dt - 4.d0*(A*dc_dt + C*da_dt))))
+  else 
+    dPS_DT = UNINITIALIZED_DOUBLE
+  endif
+
+end subroutine EOSWaterSaturationPressureIF97
+
+
 ! ************************************************************************** !
 
 subroutine EOSWaterSatPresWagnerPruss(T, calculate_derivatives, &
@@ -1165,6 +1229,75 @@ subroutine EOSWaterDensityIFC67(t,p,calculate_derivatives,dw,dwmol, &
   endif
 
 end subroutine EOSWaterDensityIFC67
+
+subroutine EOSWaterDensityIF97(T,P,calculate_derivatives,dw,dwmol, &
+                                dwp,dwt,ierr)
+
+  implicit none
+
+  PetscReal, intent(in) :: T   ! Temperature in centigrade
+  PetscReal, intent(in) :: P   ! Pressure in Pascals
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dw,dwmol,dwp,dwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: p_ref = 16.53d6 !Pa
+  PetscReal, parameter :: T_ref = 1386.d0  ! K
+  PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
+  PetscReal, save, dimension(34) :: n_i(34)
+  PetscInt, save, dimension(34) :: I_i(34), J_i(34)
+  PetscReal :: pi, tao, g_pi, g_taoi, T_temp
+  PetscReal :: dg_pi_dT, dv_dt, dg_pi_dp, dv_dp
+
+! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+  
+  T_temp = T+Tf
+  pi = P/p_ref
+  tao = T_ref/T_temp
+
+
+  DATA I_i/ 0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,2,3,3,3,4,4,4,5,8,&
+            8,21,23,29,30,31,32 /
+
+  DATA J_i/ -2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1,3,17,-4,0,6,-5,&
+            -2,10,-8,-11,-6,-29,-31,-38,-39,-40,-41 /
+
+  DATA n_i/ 1.4632971213167d-1, -8.4548187169114d-1, -0.37563603672040d1, &
+          0.33855169168385d1, -9.5791963387872d-1, 1.5772038513228d-1, &
+          -0.16616417199501d-1, 0.81214629983568d-3, 0.28319080123804d-3, &
+          -0.60706301565874d-3, -0.18990068218419d-1, -0.32529748770505d-1, &
+          -0.21841717175414d-1, -0.52838357969930d-4, -0.47184321073267d-3, &
+          -0.30001780793026d-3, 0.47661393906987d-4, -0.44141845330846d-5, &
+          -0.72694996297594d-15, -0.31679644845054d-4, -0.28270797985312d-5, &
+          -0.85205128120103d-9, -0.22425281908000d-5, -0.65171222895601d-6, &
+          -0.14341729937924d-12, -0.40516996860117d-6, -0.12734301741641d-8, &
+          -0.17424871230634d-9, -0.68762131295531d-18, 0.14478307828521d-19, &
+          0.26335781662795d-22, -0.11947622640071d-22, 0.18228094581404d-23, &
+          -0.93537087292458d-25 /
+
+  g_pi = sum((-n_i*I_i*(7.1d0-pi)**(I_i-1))*(tao-1.222d0)**(J_i))
+  dw = g_pi * pi*R*T_temp/P * 1.d3
+
+  dw = 1/dw
+  dwmol = dw/FMWH2O
+
+  if (calculate_derivatives) then
+    dg_pi_dT = T_ref/(T_temp*T_temp) * sum(n_i*I_i*(7.1d0-pi)**(I_i-1.d0)* &
+                                           J_i*(tao-1.222d0)**(J_i-1.d0))
+    dv_dt = R*pi/P * (g_pi+T_temp*dg_pi_dT)
+    dwt = -1.d3/FMWH2O*dw*dw * dv_dt
+
+    dg_pi_dp = sum(n_i*I_i*(I_i-1.d0)*(7.1d0-pi)**(I_i-2.d0)* &
+                   (tao-1.222d0)**(J_i)) / p_ref
+    dv_dp = R*T_temp*(-g_pi*pi/(P*P) + (g_pi/p_ref + dg_pi_dp*pi)/P)
+    dwp = -1.d3/FMWH2O*dw*dw *dv_dp
+  else
+    dwp = UNINITIALIZED_DOUBLE
+    dwt = UNINITIALIZED_DOUBLE
+  endif
+
+end subroutine EOSWaterDensityIF97
 
 ! ************************************************************************** !
 
@@ -1421,6 +1554,69 @@ subroutine EOSWaterEnthalpyIFC67(t,p,calculate_derivatives,hw, &
   endif
     
 end subroutine EOSWaterEnthalpyIFC67
+
+subroutine EOSWaterEnthalpyIF97(T,P,calculate_derivatives,hw, &
+                                 hwp,hwt,ierr)
+  implicit none
+
+  PetscReal, intent(in) :: T   ! Temperature in centigrade
+  PetscReal, intent(in) :: P   ! Pressure in Pascals
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: hw,hwp,hwt
+  PetscErrorCode, intent(out) :: ierr
+
+  PetscReal, parameter :: Tf = 273.15d0 !K
+  PetscReal, parameter :: p_ref = 16.53d6 !Pa
+  PetscReal, parameter :: T_ref = 1386.d0  ! K
+  PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
+  PetscReal, save, dimension(34) :: n_i(34)
+  PetscInt, save, dimension(34) :: I_i(34), J_i(34) 
+  PetscReal :: pi, tao,  g_tao, T_temp
+
+! Region 1: Valid from 273.15K to 623.15 K, Ps(T) to 100MPa
+  
+  T_temp = T+Tf
+  pi = P/p_ref
+  tao = T_ref/T_temp
+
+
+  DATA I_i/ 0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,2,2,3,3,3,4,4,4,5,8,&
+            8,21,23,29,30,31,32 /
+
+  DATA J_i/ -2,-1,0,1,2,3,4,5,-9,-7,-1,0,1,3,-3,0,1,3,17,-4,0,6,-5,&
+            -2,10,-8,-11,-6,-29,-31,-38,-39,-40,-41 /
+
+  DATA n_i/ 1.4632971213167d-1, -8.4548187169114d-1, -0.37563603672040d1, &
+          0.33855169168385d1, -9.5791963387872d-1, 1.5772038513228d-1, &
+          -0.16616417199501d-1, 0.81214629983568d-3, 0.28319080123804d-3, &
+          -0.60706301565874d-3, -0.18990068218419d-1, -0.32529748770505d-1, &
+          -0.21841717175414d-1, -0.52838357969930d-4, -0.47184321073267d-3, &
+          -0.30001780793026d-3, 0.47661393906987d-4, -0.44141845330846d-5, &
+          -0.72694996297594d-15, -0.31679644845054d-4, -0.28270797985312d-5, &
+          -0.85205128120103d-9, -0.22425281908000d-5, -0.65171222895601d-6, &
+          -0.14341729937924d-12, -0.40516996860117d-6, -0.12734301741641d-8, &
+          -0.17424871230634d-9, -0.68762131295531d-18, 0.14478307828521d-19, &
+          0.26335781662795d-22, -0.11947622640071d-22, 0.18228094581404d-23, &
+          -0.93537087292458d-25 /
+
+  g_tao = sum((n_i*(7.1d0-pi)**(I_i))*J_i*(tao-1.222d0)**(J_i-1.d0))
+
+  hw = g_tao *T_ref*R
+  hw = hw*FMWH2O * 1.d3
+
+  if (calculate_derivatives) then
+    hwp = T_ref*R/p_ref * sum(-n_i*I_i*(7.1d0-pi)**(I_i-1.d0) * &
+                              J_i*(tao-1.222d0)**(J_i-1.d0))
+    hwt = -T_ref*T_ref*R/(T_temp*T_temp) * sum(n_i*(7.1d0-pi)**(I_i)* &
+                                       J_i*(J_i-1.d0)*(tao-1.222d0)**(J_i-2.d0))
+    hwp = hwp*FMWH2O * 1.d3
+    hwt = hwt*FMWH2O * 1.d3
+  else
+    hwp = UNINITIALIZED_DOUBLE
+    hwt = UNINITIALIZED_DOUBLE
+  endif
+
+end subroutine EOSWaterEnthalpyIF97
 
 ! ************************************************************************** !
 
@@ -2297,6 +2493,109 @@ subroutine EOSWaterSteamDenEnthTPPlanar(t,pv,calculate_derivatives, &
 end subroutine EOSWaterSteamDenEnthTPPlanar
 
 ! ************************************************************************** !
+
+subroutine EOSWaterSteamDensityEnthalpyIF97(T, Pv, calculate_derivatives, &
+                                             dg, dgmol, hg, dgp, dgt, hgp, &
+                                             hgt, ierr)
+  
+  !Author: Michael Nole
+  !Date: 01/20/19
+  !Superheated steam EOS from IF97
+  !Region 2, valid on: {273.15K <= T <= 623.15K; 0 < P < Ps(T)}
+  !                    {623.15K < T <= 863.15K; 0 < P <= P(T) 2-3 boundary fn}
+  !                    {863.15K < T <= 1073.15K; 0 < P < 100MPa}
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: Pv
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: dg,dgmol,dgp,dgt
+  PetscReal, intent(out) :: hg,hgp,hgt
+  PetscErrorCode, intent(out) :: ierr
+  
+  PetscReal, parameter :: p_ref = 1.d6 !16.53d6 !Pa
+  PetscReal, parameter :: T_ref = 540d0 !1386  ! K
+  PetscReal, parameter :: R = 0.461526d0 ! kJ/kg-K
+  PetscReal, parameter :: Tf = 273.15d0
+  PetscReal :: pi, tao, T_temp
+  PetscReal :: gamma_0_pi, gamma_r_pi, gamma_0_tao, gamma_r_tao
+  PetscReal, save, dimension(9) :: n_i0(9)
+  PetscReal, save, dimension(43) :: n_i(43)
+  PetscInt, save, dimension(9) :: J_i0(9)
+  PetscInt, save, dimension(43) :: I_i(43), J_i(43)
+  
+  T_temp = T+Tf
+  pi = Pv/p_ref
+  tao = T_ref/T_temp
+  
+  DATA J_i0/ 0,1,-5,-4,-3,-2,-1,2,3 /
+  
+  DATA n_i0/ -0.96927686500217d1, 0.10086655968018d2, -0.56087911283020d-2, &
+            0.71452738081455d-1, -0.40710498223928d0, 0.14240819171444d1, &
+            -0.43839511319450d1, -0.28408632460772d0, 0.21268463753307d-1 /
+  
+  DATA I_i/ 1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,5,6,6,6,7,7,7,8,8,9,10,10, &
+           10,16,16,18,20,20,20,21,22,23,24,24,24 /
+           
+  DATA J_i/ 0,1,2,3,6,1,2,4,7,36,0,1,3,6,35,1,2,3,7,3,16,35,0,11,25,8,36, &
+           13,4,10,14,29,50,57,20,35,48,21,53,39,26,40,58 /
+  
+  DATA n_i/ -0.17731742473213d-2, -0.17834862292358d-1, -0.45996013696365d-1,&
+           -0.57581259083432d-1, -0.50325278727930d-1, -0.33032641670203d-4, &
+           -0.18948987516315d-3, -0.39392777243355d-2, -0.43797295650573d-1, &
+           -0.26674547914087d-4, 0.20481737692309d-7, 0.43870667284435d-6, &
+           -0.32277677238570d-4, -0.15033924542148d-2, -0.40668253562649d-1, &
+           -0.78847309559367d-9, 0.12790717852285d-7, 0.48225372718507d-6, &
+           0.22922076337661d-5, -0.16714766451061d-10, -0.21171472321355d-2, &
+           -0.23895741934104d2, -0.59059564324270d-17, -0.12621808899101d-5, &
+           -0.38946842435739d-1, 0.11256211360459d-10, -0.82311340897998d1, &
+           0.19809712802088d-7, 0.10406965210174d-18, -0.10234747095929d-12, &
+           -0.10018179379511d-8, -0.80882908646985d-10, 0.10693031879409d0, &
+           -0.33662250574171d0, 0.89185845355421d-24, 0.30629316876232d-12, &
+           -0.42002467698208d-5, -0.59056029685639d-25, 0.37826947613457d-5, &
+           -0.12768608934681d-14, 0.73087610595061d-28, 0.55414715350778d-16, &
+           -0.94369707241210d-6 /
+  
+  gamma_0_pi = 1/pi
+  
+  gamma_r_pi = sum(n_i*I_i*(pi**(I_i-1))*(tao-0.5)**J_i)
+  
+  gamma_0_tao = sum(n_i0*J_i0*tao**(J_i0-1))
+  
+  gamma_r_tao = sum(n_i*pi**(I_i)*J_i*(tao-0.5)**(J_i-1))
+  
+  dg = R*T_temp/Pv * pi * (gamma_0_pi + gamma_r_pi) *1.d3
+  
+  hg = R*T_temp * tao * (gamma_0_tao + gamma_r_tao) 
+
+  dg = 1/dg
+  dgmol = dg/FMWH2O
+
+  if (calculate_derivatives) then
+    dgt = R/p_ref*((gamma_0_pi+gamma_r_pi)-T_ref/(T_temp)* &
+          sum(n_i*I_i*pi**(I_i-1.d0)*J_i*(tao-0.5d0)**(J_i-1.d0)))
+    dgp = R*T_temp/(p_ref*p_ref)*(-1.d0/(pi*pi)+ &
+          sum(n_i*I_i*(I_i-1.d0)*pi**(I_i-2.d0)*(tao-0.5d0)**(J_i)))
+    hgt = -tao*tao*R*(sum(n_i0*J_i0*(J_i0-1.d0)*tao**(J_i0-2.d0))+ &
+                      sum(n_i*pi**(I_i)*J_i*(J_i-1.d0)*(tao-0.5d0)**(J_i-2.d0)))
+    hgp = T_ref*R/p_ref *(sum(n_i*I_i*pi**(I_i-1.d0)*J_i*(tao-0.5d0)**(J_i-1.d0))) 
+
+    hgt = hgt*FMWH2O * 1.d3 
+    hgp = hgp*FMWH2O * 1.d3
+    dgt = -dgt*dg*dg*1.d3/FMWH2O
+    dgp = -dgp*dg*dg*1.d3/FMWH2O
+  else
+    dgt = UNINITIALIZED_DOUBLE
+    dgp = UNINITIALIZED_DOUBLE
+    hgt = UNINITIALIZED_DOUBLE
+    hgp = UNINITIALIZED_DOUBLE
+  endif 
+
+  hg = hg*FMWH2O * 1.d3
+  
+
+end subroutine EOSWaterSteamDensityEnthalpyIF97
 
 subroutine EOSWaterDuanMixture(t,p,xmol,y_nacl,avgmw,dw_kg,denmix)
 

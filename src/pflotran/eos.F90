@@ -147,7 +147,7 @@ subroutine EOSRead(input,option)
                   end select
                 enddo
               case('IFC67','DEFAULT','BATZLE_AND_WANG','TGDPB01','PLANAR', &
-                   'TRANGENSTEIN')
+                              'TRANGENSTEIN','IF97')
               case default
                 call InputKeywordUnrecognized(word,'EOS,WATER,DENSITY',option)
             end select
@@ -163,7 +163,7 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,ENTHALPY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                                'J/kmol','EOS,WATER,ENTHALPY,CONSTANT',option)
-               case('IFC67','PAINTER','DEFAULT','PLANAR')
+              case('IFC67','PAINTER','DEFAULT','PLANAR','IF97')
               case default
                 call InputKeywordUnrecognized(word,'EOS,WATER,ENTHALPY',option)
             end select
@@ -196,12 +196,12 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,STEAM_DENSITY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                            'kg/m^3','EOS,WATER,STEAM_DENSITY,CONSTANT',option)
-              case('IFC67','DEFAULT','PLANAR')
+              case('IFC67','DEFAULT','PLANAR','IF97')
               case default
                 call InputKeywordUnrecognized(word,'EOS,WATER,STEAM_DENSITY', &
                                               option)
             end select
-            call EOSWaterSetSteamDensity(keyword,temparray)
+            call EOSWaterSetSteamDensity(word,temparray)
           case('STEAM_ENTHALPY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'STEAM_ENTHALPY','EOS,WATER')
@@ -213,12 +213,12 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,STEAM_ENTHALPY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                         'J/kmol','EOS,WATER,STEAM_ENTHALPY,CONSTANT',option)
-              case('IFC67','DEFAULT','PLANAR')
+        case('IFC67','DEFAULT','PLANAR','IF97')
               case default
                 call InputKeywordUnrecognized(word, &
                        'EOS,WATER,STEAM_ENTHALPY',option)
             end select
-            call EOSWaterSetSteamEnthalpy(keyword,temparray)
+            call EOSWaterSetSteamEnthalpy(word,temparray)
           case('TEST')
             if (option%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
