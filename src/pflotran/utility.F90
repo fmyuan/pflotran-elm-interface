@@ -2472,13 +2472,22 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
     do j = 1,m
       dff = abs(a1(i,j) - a2(i,j)) 
       reldff = dff/abs(a1(i,j))
+
+
       if (dff > tol .OR. reldff > reltol) then
         print *, "difference in matrices at ", i, ", ", j, ", value ", dff, &
                  ", relative difference: ", reldff
         print *, a1(i,j), " compare to ", a2(i,j)
         print *, "..."
+#if 0
+        if (reldff == 1.d0) then
+          print *, "rel dif is 1"
+        endif
+#endif
         flagged_err = PETSC_TRUE
       endif
+
+
     end do
   end do 
 

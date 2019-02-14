@@ -86,6 +86,7 @@ module EOS_Slv_module
 
   interface EOSSlvViscosity
     procedure EOSSlvViscosityNoDerive
+    procedure EOSSlvViscosityDerive
   end interface
   interface EOSSlvDensity
     procedure EOSSlvDensityNoDerive
@@ -393,6 +394,22 @@ subroutine EOSSlvViscosityNoDerive(T,P,V_mix,ierr,table_idxs)
 end subroutine EOSSlvViscosityNoDerive
 
 ! ************************************************************************** !
+subroutine EOSSlvViscosityDerive(T,P,V_mix,dV_dT,dV_dP,ierr,table_idxs)
+
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscReal, intent(out) :: V_mix   ! mixture viscosity
+  PetscReal, intent(out) :: dV_dT,dv_dP   ! derivatives
+  PetscErrorCode, intent(out) :: ierr
+  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
+
+  call EOSSlvViscosityPtr(T,P,V_mix,PETSC_TRUE,dV_dT,dV_dP,ierr,table_idxs)
+
+end subroutine EOSSlvViscosityDerive
+
+! ************************************************************************** !
 
 subroutine EOSSlvViscosityConstant(T, P, V, &
                                    calculate_derivative, dV_dT, dV_dP, &
@@ -415,7 +432,7 @@ subroutine EOSSlvViscosityConstant(T, P, V, &
 
   dV_dT=0.d0
   dV_dP=0.d0
-  if (calculate_derivative) call throwDerivativeError()
+  !if (calculate_derivative) call throwDerivativeError()
 
 end subroutine EOSSlvViscosityConstant
 
@@ -436,11 +453,17 @@ subroutine EOSSlvViscosityTable(T,P,V, &
 
   ierr=0
 
+#if 0
   call pvt_table%EOSProp(T,P,EOS_VISCOSITY,V,table_idxs,ierr)
 
   dV_dT=0.0d0
   dV_dP=0.0d0
   if (calculate_derivative) call throwDerivativeError()
+#endif
+
+  call pvt_table%EOSPropGrad(T,P,EOS_VISCOSITY,V,dV_dT,dV_dP, &
+                             ierr,table_idxs)
+
 
 end subroutine EOSSlvViscosityTable
 
@@ -661,10 +684,15 @@ subroutine EOSSlvDensityTable(T, P, Rho_slv, dRho_dT, dRho_dP, ierr, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   !Rho from pvt table is in kmol/m3
-  call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_slv,table_idxs,ierr)
+  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_slv,table_idxs,ierr)
 
+  call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_slv,dRho_dT,dRho_dP, &
+                             ierr,table_idxs)
+
+#if 0
   dRho_dT = 0.0
   dRho_dP = 0.0
+#endif
 
 end subroutine EOSSlvDensityTable
 
