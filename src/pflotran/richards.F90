@@ -1985,7 +1985,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   PetscInt :: local_id, ghosted_id, region_id
   PetscInt :: istart
 
-  PetscReal, pointer :: r_p(:), accum_p(:)
+  PetscReal, pointer :: r_p(:), accum_p(:), accum2_p(:)
   PetscReal :: Res(realization%option%nflowdof)
 
   PetscErrorCode :: ierr
@@ -2007,6 +2007,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
@@ -2022,6 +2023,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
            option,Res)
       istart = (local_id-1)*option%nflowdof + 1
       r_p(istart) = r_p(istart) + Res(1)
+      accum2_p(istart) = Res(1)
     enddo
 
     if (option%inline_surface_flow) then
@@ -2034,6 +2036,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
              material_auxvars(ghosted_id),option,Res)
         istart = (local_id-1)*option%nflowdof + 1
         r_p(istart) = r_p(istart) + Res(1)
+        accum2_p(istart) = accum2_p(istart) + Res(1)
       enddo
     endif
 
@@ -2041,6 +2044,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
 
 end subroutine RichardsResidualAccumulation
 

@@ -1001,6 +1001,23 @@ subroutine PMRTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
 
+#if 0
+  character(len=MAXSTRINGLENGHT) :: out_string
+  character(len=2) :: pass_or_fail
+
+  if (this%option%use_mc .and. it > 0) then
+    pass_or_fail = ' P'
+    !TODO(geh): move newton_inf_res_tol_sec into RT option block
+    if (.not. this%option%infnorm_res_sec < &
+        this%solver%newton_inf_res_tol_sec) then
+      this%option%convergence = CONVERGENCE_KEEP_ITERATING
+      pass_or_fail = ' F'
+    endif
+    write(out_string,'(4x,"irsec:",es9.2,i3)') this%option%infnorm_res_sec
+    call OptionPrint(out_string,this%option)
+  endif
+#endif
+
   call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
                        this%realization%patch%grid, &
                        this%option,this%solver,ierr)

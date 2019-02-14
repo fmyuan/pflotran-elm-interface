@@ -58,7 +58,6 @@ module PM_WIPP_Flow_class
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
     PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
-    PetscInt :: logging_verbosity
   contains
     procedure, public :: Read => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -71,7 +70,7 @@ module PM_WIPP_Flow_class
     procedure, public :: PostSolve => PMWIPPFloPostSolve
     procedure, public :: CheckUpdatePre => PMWIPPFloCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMWIPPFloCheckUpdatePost
-    procedure, public :: CheckConvergence => PMWIPPFloConvergence
+    procedure, public :: CheckConvergence => PMWIPPFloCheckConvergence
     procedure, public :: TimeCut => PMWIPPFloTimeCut
     procedure, public :: UpdateSolution => PMWIPPFloUpdateSolution
     procedure, public :: UpdateAuxVars => PMWIPPFloUpdateAuxVars
@@ -169,7 +168,6 @@ subroutine PMWIPPFloInitObject(this)
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
-  this%logging_verbosity = 0
 
 end subroutine PMWIPPFloInitObject
 
@@ -410,9 +408,6 @@ subroutine PMWIPPFloRead(this,input)
           allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
           this%dirichlet_dofs = int_array(1:icount) - 1 
         endif
-      case('LOGGING_VERBOSITY')
-        call InputReadInt(input,option,this%logging_verbosity)
-        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
@@ -1344,8 +1339,8 @@ end subroutine PMWIPPFloCheckUpdatePost
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
-                                            fnorm,reason,ierr)
+subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
+                                     fnorm,reason,ierr)
   ! Author: Glenn Hammond
   ! Date: 11/15/17
   ! 
@@ -1765,11 +1760,10 @@ subroutine PMWIPPFloConvergence(this,snes,it,xnorm,unorm, &
   call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xx,X1_p,ierr);CHKERRQ(ierr)
 
-  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
-                       this%realization%patch%grid, &
-                       this%option,this%solver,ierr)
+  call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
+                                        reason,ierr)
 
-end subroutine PMWIPPFloConvergence
+end subroutine PMWIPPFloCheckConvergence
 
 ! ************************************************************************** !
 

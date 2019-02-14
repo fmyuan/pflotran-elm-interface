@@ -47,7 +47,7 @@ module Characteristic_Curves_module
             CharCurvesProcessTables, &
             CharCurvesGetGetResidualSats, &
             CharacteristicCurvesDestroy, &
-            CharCurvesInputRecord 
+            CharCurvesInputRecord
 
 contains
 
@@ -641,6 +641,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
         call InputReadDouble(input,option,saturation_function%pcmax)
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
                             error_string)
+      case('CALCULATE_INTERFACIAL_TENSION')
+        saturation_function%calc_int_tension = PETSC_TRUE
+      
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default

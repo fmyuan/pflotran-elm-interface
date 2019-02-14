@@ -133,6 +133,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 
   PetscInt :: sec_reason
 
+! From PETSC_DIR/include/petscsnes.h
 !typedef enum {/* converged */
 !              SNES_CONVERGED_FNORM_ABS         =  2, /* ||F|| < atol */
 !              SNES_CONVERGED_FNORM_RELATIVE    =  3, /* ||F|| < rtol*||F_initial|| */
@@ -148,7 +149,10 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !              SNES_DIVERGED_LINE_SEARCH         = -6, /* the line search failed */
 !              SNES_DIVERGED_INNER               = -7, /* inner solve failed */
 !              SNES_DIVERGED_LOCAL_MIN           = -8, /* || J^T b || is small, implies converged to local minimum of F() */
+!              SNES_DIVERGED_DTOL                = -9, /* || F || > divtol*||F_initial|| */
+!
 !              SNES_CONVERGED_ITERATING          =  0} SNESConvergedReason;
+!PETSC_EXTERN const char *const*SNESConvergedReasons;
 
   if (option%use_touch_options) then
     string = 'detailed_convergence'
@@ -208,7 +212,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     end select
   endif
   ! must turn off after each convergence check as a subsequent process
-  ! model may not user this custom test
+  ! model may not use this custom test
   option%convergence = CONVERGENCE_OFF
     
 !  if (reason <= 0 .and. solver%check_infinity_norm) then

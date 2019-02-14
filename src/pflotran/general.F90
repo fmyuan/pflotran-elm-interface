@@ -247,7 +247,11 @@ subroutine GeneralInitializeTimestep(realization)
   implicit none
   
   type(realization_subsurface_type) :: realization
-
+  
+  if (realization%option%restrict_state_chng) then
+    realization%patch%aux%global%auxvars%istatechng = PETSC_FALSE
+  endif
+  
   general_newton_iteration_number = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
@@ -1105,14 +1109,8 @@ subroutine GeneralUpdateFixedAccum(realization)
   material_parameter => patch%aux%Material%material_parameter
     
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  !Heeho initialize dynamic accumulation term for every p iteration step
-  if (general_tough2_conv_criteria) then
-    call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
-  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1140,18 +1138,9 @@ subroutine GeneralUpdateFixedAccum(realization)
                              local_id == general_debug_cell_id) 
   enddo
   
-  if (general_tough2_conv_criteria) then
-    accum_p2 = accum_p
-  endif
   
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  
-  !Heeho initialize dynamic accumulation term for every p iteration step
-  if (general_tough2_conv_criteria) then
-    call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
   
 end subroutine GeneralUpdateFixedAccum
 
@@ -1230,6 +1219,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscReal :: qsrc(3)
   PetscInt :: ssn
   
+  
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
@@ -1239,6 +1229,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                          realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
   
+
   discretization => realization%discretization
   option => realization%option
   patch => realization%patch
@@ -1253,6 +1244,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
+  
   
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   if (debug_flag > 0) then
@@ -1323,14 +1315,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! accumulation at t(k) (doesn't change during Newton iteration)
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = -accum_p
+  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  
-  !Heeho dynamically update p+1 accumulation term
-  if (general_tough2_conv_criteria) then
-    call VecGetArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
-  
   ! accumulation at t(k+1)
+  call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1346,19 +1334,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                              general_analytical_derivatives, &
                              local_id == general_debug_cell_id) 
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
-    
-    !Heeho dynamically update p+1 accumulation term
-    if (general_tough2_conv_criteria) then
-      accum_p2(local_start:local_end) = Res(:)
-    endif
-    
+    accum_p2(local_start:local_end) = Res(:)
   enddo
-
-  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  !Heeho dynamically update p+1 accumulation term
-  if (general_tough2_conv_criteria) then
-    call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
+  call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -1597,6 +1575,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     write(debug_unit,'(a,i5,7es24.15)') 'residual:', local_id, &
       r_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
   enddo
+  
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 #endif
   
@@ -1710,6 +1689,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
+
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
@@ -2040,7 +2020,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 #endif
   ! update after evaluations to ensure zero-based index to match screen output
   general_ni_count = general_ni_count + 1
-
+  
 end subroutine GeneralJacobian
 
 ! ************************************************************************** !

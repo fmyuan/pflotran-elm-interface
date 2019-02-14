@@ -25,6 +25,7 @@ module Characteristic_Curves_Base_module
     PetscReal :: Sr
     PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
+    PetscBool :: calc_int_tension
   contains
     procedure, public :: Init => SFBaseInit
     procedure, public :: Verify => SFBaseVerify
@@ -33,6 +34,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: D2SatDP2 => SFBaseD2SatDP2
+    procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
   end type sat_func_base_type
 
 !-----------------------------------------------------------------------------
@@ -96,6 +98,7 @@ subroutine SFBaseInit(this)
   this%Sr = UNINITIALIZED_DOUBLE
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
+  this%calc_int_tension = PETSC_FALSE
   
 end subroutine SFBaseInit
 
@@ -505,5 +508,41 @@ subroutine PermeabilityFunctionDestroy(rpf)
   nullify(rpf)
 
 end subroutine PermeabilityFunctionDestroy
+
+subroutine SFBaseSurfaceTension(this,T,sigma)
+  
+  !Surface tension of water equation from Revised Release on Surface
+  !Tension of Ordinary Water Substance, June 2014. Valid from -25C to
+  !373 C
+  
+  implicit none
+  
+  class(sat_func_base_type) :: this
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: sigma
+  
+  PetscReal, parameter :: Tc = 647.096
+  PetscReal, parameter :: B = 235.8
+  PetscReal, parameter :: b_2 = -0.625
+  PetscReal, parameter :: mu = 1.256
+  PetscReal, parameter :: sigma_base = 0.073
+  PetscReal :: Temp
+  PetscReal :: tao
+  
+  Temp=T+273.15
+  
+  if (T <= 373.d0) then
+    tao = 1-Temp/Tc
+    sigma = B*(tao**mu)*(1+b_2*tao)
+    sigma = sigma * 1.d-3
+  else
+    sigma = 0.d0
+  endif
+  sigma= sigma/sigma_base
+
+  !TOUGH3 way (not pressure-dependent)
+  !if (Temp >= 101) sigma = 0
+  
+end subroutine SFBaseSurfaceTension
   
 end module Characteristic_Curves_Base_module
