@@ -985,27 +985,33 @@ subroutine EOSWaterSaturationPressureIF97(T, calculate_derivatives, &
   if (T_temp > 623.15d0) then
     PS = 0.34805185628969d3 - 0.11671859879975d1*T_temp + &
             0.10192970039326d-2 * T_temp*T_temp
-  endif
+    if (calculate_derivatives) then
+      dPS_DT = -0.11671859879975d1 + 2.d0 * 0.10192970039326d-2 *T_temp
+    else
+      dPS_DT = UNINITIALIZED_DOUBLE
+    endif
+  else
 
-  if (T_temp < 273.15d0) T_temp = 273.15d0
+    if (T_temp < 273.15d0) T_temp = 273.15d0
 
-  theta = T_temp + n(9)/(T_temp-n(10))
-  A = theta*theta + n(1)*theta +n(2)
-  B = n(3)*theta*theta + n(4)*theta + n(5)
-  C = n(6)*theta*theta + n(7)*theta + n(8)
-  B2_4AC = (B*B-4.d0*A*C)**(0.5d0)
-  PS = 1.d6*(2.d0*C/((B2_4AC)-B))**4
-  if (calculate_derivatives) then
-    dtheta_dt = 1.d0 - n(9)/((T_temp - n(10))*(T_temp - n(10)))
-    da_dt = 2.d0*theta*dtheta_dt +n(1)*dtheta_dt
-    db_dt = 2.d0*n(3)*theta*dtheta_dt + n(4)*dtheta_dt
-    dc_dt = 2.d0*n(6)*theta*dtheta_dt + n(7)*dtheta_dt
+    theta = T_temp + n(9)/(T_temp-n(10))
+    A = theta*theta + n(1)*theta +n(2)
+    B = n(3)*theta*theta + n(4)*theta + n(5)
+    C = n(6)*theta*theta + n(7)*theta + n(8)
+    B2_4AC = (B*B-4.d0*A*C)**(0.5d0)
+    PS = 1.d6*(2.d0*C/((B2_4AC)-B))**4
+    if (calculate_derivatives) then
+      dtheta_dt = 1.d0 - n(9)/((T_temp - n(10))*(T_temp - n(10)))
+      da_dt = 2.d0*theta*dtheta_dt +n(1)*dtheta_dt
+      db_dt = 2.d0*n(3)*theta*dtheta_dt + n(4)*dtheta_dt
+      dc_dt = 2.d0*n(6)*theta*dtheta_dt + n(7)*dtheta_dt
 
-    dPS_DT = 1.d6*4.d0*(2.d0*C/(B2_4AC-B))**3 * (2.d0*dc_dt/(B2_4AC-B) + &
-             2.d0*C/(-(B2_4AC-B)*(B2_4AC-B))*(-db_dt + 0.5d0/B2_4AC * &
-             (2.d0*B*db_dt - 4.d0*(A*dc_dt + C*da_dt))))
-  else 
-    dPS_DT = UNINITIALIZED_DOUBLE
+      dPS_DT = 1.d6*4.d0*(2.d0*C/(B2_4AC-B))**3 * (2.d0*dc_dt/(B2_4AC-B) + &
+               2.d0*C/(-(B2_4AC-B)*(B2_4AC-B))*(-db_dt + 0.5d0/B2_4AC * &
+               (2.d0*B*db_dt - 4.d0*(A*dc_dt + C*da_dt))))
+    else 
+      dPS_DT = UNINITIALIZED_DOUBLE
+    endif
   endif
 
 end subroutine EOSWaterSaturationPressureIF97
