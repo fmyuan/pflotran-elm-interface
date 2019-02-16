@@ -211,7 +211,6 @@ misc_obj = \
 	${common_src}factory_subsurface.o \
 	${common_src}field.o \
 	${common_src}hydrostatic.o \
-	${common_src}hydrostatic_common.o \
 	${common_src}hydrostatic_multi_phase.o \
 	${common_src}init_common.o \
 	${common_src}init_subsurface.o \

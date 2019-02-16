@@ -368,7 +368,6 @@ set(MISC_SOURCES
 	factory_subsurface.F90
 	field.F90
 	hydrostatic.F90
-	hydrostatic_common.F90
 	hydrostatic_multi_phase.F90
 	init_common.F90
 	init_subsurface.F90
