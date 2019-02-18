@@ -160,25 +160,15 @@ COORDINATES
 
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_water
-  !UNITS Pa,C,M,yr
   TYPE
     PRESSURE hydrostatic
-    OIL_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  !GRADIENT
-  !  PRESSURE 0.d0 0.d0 -7845.44d0
-  !  SATURATION 0.d0 0.d0 0.0d0
-  !  TEMPERATURE 0.d0 0.d0 0.0d0
-  !/
   PRESSURE 9.81D6  !about 1000m below sea level
-  OIL_SATURATION 1.0d-6 
   TEMPERATURE 50.d0 C  !up to here it refers to primary vars
-  DATUM 0.d0 0.d0 0.d0
-  !define OWC and WATER_PRESSURE_GRAD as new optional sub_condition 
-  OWC 0.0d0 0.d0 64.0d0 ! oil water contact
-  !OWC 0.0d0 0.d0 150.0d0 ! oil water contact
-  !WATER_PRESSURE_GRAD 0.d0 0.d0 0.d0! might be neded when owc is defined 
+  DATUM_Z 0.d0
+  OWC_Z 64.0d0 ! oil water contact
+  PCOW_OWC 15226.47
 /
 
 

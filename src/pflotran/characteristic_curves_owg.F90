@@ -18,6 +18,7 @@ module Characteristic_Curves_OWG_module
 
   type, abstract, public :: sat_func_owg_base_type
     PetscReal :: pcmax
+    PetscReal :: pcmin
     class(sat_func_base_type), pointer :: sat_func_sl
     PetscBool :: analytical_derivative_available
     PetscBool :: sat_func_of_pc_available
@@ -29,6 +30,8 @@ module Characteristic_Curves_OWG_module
     procedure, public :: Test => SFOWGBaseTest     ! to be extended
     procedure, public :: SetupPolynomials => SFOWGBaseSetupPolynomials
     procedure, public :: ProcessTable => SFOWGBaseProcessTable
+    procedure, public :: GetPcMax
+    procedure, public :: GetPcMin
   end type sat_func_owg_base_type
 
   !-----------------------------------------------------------------------------
@@ -52,6 +55,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: GetConnateSaturation => SFXWGetConnateSatBase
     procedure, public :: SetCriticalSaturation => SFXWSetCriticalSatBase
     procedure, public :: GetCriticalSaturation => SFXWGetCriticalSatBase
+    procedure, public :: ComputePcMin => SFXWComputePcMin
   end type sat_func_xw_base_type  
   
   type, public, extends(sat_func_xw_base_type) :: sat_func_xw_constant_type
@@ -110,6 +114,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: GetConnateSaturation => SFOGGetConnateSatBase
     procedure, public :: SetCriticalSaturation => SFOGSetCriticalSatBase
     procedure, public :: GetCriticalSaturation => SFOGGetCriticalSatBase
+    procedure, public :: ComputePcMin => SFOGComputePcMin
   end type sat_func_og_base_type
 
   type,public,extends(sat_func_og_base_type) :: sat_func_og_constant_type
@@ -301,6 +306,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: SetupPolynomials => RPFOWOWGBaseSetupPoly
     procedure, public :: RelativePermeability => RPFOWOWGBaseRelPerm !defines argument template
     procedure, public :: GetCriticalSaturation => RPFOWGetCriticalSatOWGBase
+    procedure, public :: GetConnateSaturation => RPFOWGetConnateSaturation
   end type rel_perm_ow_owg_base_type  
 
   type,public,extends(rel_perm_ow_owg_base_type) :: rel_perm_ow_owg_linear_type
@@ -368,6 +374,7 @@ module Characteristic_Curves_OWG_module
   ! currently only one option: ECLIPSE model (shoud add here Stone, etc)
   type,abstract,public,extends(rel_perm_owg_base_type) :: &
                                                   rel_perm_oil_owg_base_type
+    PetscReal :: Soco !oil connate saturation
     PetscReal :: Socr !oil residual saturation
     class(rel_perm_ow_owg_base_type), pointer :: rel_perm_ow
     class(rel_perm_og_owg_base_type), pointer :: rel_perm_og    
@@ -382,6 +389,7 @@ module Characteristic_Curves_OWG_module
     procedure, public :: GetSogcr => RPFOilOWGBaseGetSogcr
     procedure, public :: RelativePermeability => RPFOilOWGBaseRelPerm !defines argument template
     procedure, public :: GetCriticalSaturation => GetCriticalSatOilOWGBase
+    procedure, public :: GetConnateSaturation => GetConnateSatOilOWGBase
     procedure, public :: Strip => RPFOilOWGBaseStrip
   end type rel_perm_oil_owg_base_type
 
@@ -965,6 +973,7 @@ subroutine SFOWGBaseInit(this)
   class(sat_func_owg_base_type) :: this
 
   this%pcmax = DEFAULT_PCMAX
+  this%pcmin = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   this%sat_func_of_pc_available = PETSC_FALSE
   
@@ -985,7 +994,6 @@ subroutine SFOWGBaseVerify(this,name,option)
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
   
-    
   if ((.not.this%analytical_derivative_available) .and. &
       (.not.option%flow%numerical_derivatives)) then
     option%io_buffer = 'Analytical derivatives are not available for the &
@@ -1061,15 +1069,42 @@ subroutine SFOWGBaseProcessTable(this,char_curves_tables,error_string,option)
      sf%Swco = sf%table%Swco
      sf%Swcr = sf%table%Swcr
      sf%pcmax = this%table%lookup_table%var_array(CCT_PCXW)%ptr%data(1)
+     sat_i_max = this%table%lookup_table%dims(1)
+     sf%pcmin = this%table%lookup_table%var_array(CCT_PCXW)%ptr%data(sat_i_max)
    class is(sat_func_og_base_type)
      call this%table%CheckCCTVariableExists(CCT_PCOG,error_string_lc,option)
      sf%Sgco = sf%table%Sgco
      sf%Sgcr = sf%table%Sgcr
      sat_i_max = this%table%lookup_table%dims(1)
      sf%pcmax = this%table%lookup_table%var_array(CCT_PCOG)%ptr%data(sat_i_max)
+     sf%pcmin = this%table%lookup_table%var_array(CCT_PCOG)%ptr%data(1)
 end select
 
 end subroutine SFOWGBaseProcessTable
+
+
+function GetPcMax(this)
+
+  implicit none
+
+  PetscReal :: GetPcMax
+  class(sat_func_owg_base_type) :: this
+
+  GetPcMax = this%pcmax
+
+end function GetPcMax
+
+
+function GetPcMin(this)
+
+  implicit none
+
+  PetscReal :: GetPcMin
+  class(sat_func_owg_base_type) :: this
+
+  GetPcMin = this%pcmin
+
+end function GetPcMin
 
 ! ************************************************************************** !
 ! *********** XW Saturaton functions  ************************************** !
@@ -1264,6 +1299,29 @@ type(option_type), intent(inout) :: option
 SFXWGetCriticalSatBase = this%Swcr
 
 end function SFXWGetCriticalSatBase
+
+
+subroutine SFXWComputePcMin(this,option)
+  
+  use Option_module
+
+  implicit none
+
+  class(sat_func_xw_base_type) :: this
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: sw_max, dpc_dsatw
+
+  sw_max = 1.0d0
+  
+  select type(sf => this)
+    class is(sat_func_xw_table_type)
+      !do not do anything - value loaded from table
+    class default
+       call sf%CapillaryPressure(sw_max,this%pcmin,dpc_dsatw,option)
+  end select
+
+end subroutine SFXWComputePcMin
 
 ! ************************************************************************** !
 
@@ -1899,6 +1957,28 @@ type(option_type), intent(inout) :: option
 SFOGGetCriticalSatBase = this%Sgcr
 
 end function SFOGGetCriticalSatBase
+
+
+subroutine SFOGComputePcMin(this,option)
+
+  use Option_module
+
+  implicit none
+  
+  class(sat_func_og_base_type) :: this
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: sg_min, dpc_dsatg
+  sg_min = 0.0d0
+  
+  select type(sf => this)
+    class is(sat_func_og_table_type)
+      !do not do anything - loaded in table post processing
+    class default
+      call this%CapillaryPressure(sg_min,sf%pcmin,dpc_dsatg,option)
+  end select  
+  
+end subroutine SFOGComputePcMin
 
 ! ************************************************************************** !
 
@@ -3576,6 +3656,18 @@ function RPFOWGetCriticalSatOWGBase(this,option)
   
 end function RPFOWGetCriticalSatOWGBase
 
+
+function RPFOWGetConnateSaturation(this)
+  
+  implicit none
+  
+  PetscReal :: RPFOWGetConnateSaturation
+  class(rel_perm_ow_owg_base_type) :: this
+  
+  RPFOWGetConnateSaturation = this%Soco
+  
+end function  
+
 !-----------------------------------------------------------------------------
 !-- RPF Oil-Water linear -----------------------------------------------------
 !-----------------------------------------------------------------------------
@@ -4177,6 +4269,7 @@ subroutine RPFOilOWGBaseInit(this)
   
   call RPFOWGBaseInit(this)
 
+  this%Soco = 0.0d0
   this%Socr = UNINITIALIZED_DOUBLE
   
   nullify(this%rel_perm_ow)
@@ -4306,6 +4399,18 @@ function GetCriticalSatOilOWGBase(this,option)
   GetCriticalSatOilOWGBase = this%Socr
   
 end function GetCriticalSatOilOWGBase
+
+
+function GetConnateSatOilOWGBase(this)
+
+  implicit none
+
+  PetscReal :: GetConnateSatOilOWGBase
+  class(rel_perm_oil_owg_base_type) :: this
+  
+  GetConnateSatOilOWGBase = this%Soco
+
+end function
 
 
 subroutine RPFOilOWGBaseStrip(this)

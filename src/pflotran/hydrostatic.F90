@@ -8,7 +8,6 @@ module Hydrostatic_module
 
   private
 
-
   public :: HydrostaticUpdateCoupler, &
             HydrostaticTest
  

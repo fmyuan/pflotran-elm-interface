@@ -1706,6 +1706,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
       if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
         CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
       end if
+      if (option%iflow_sub_mode == TOWG_SOLVENT_TL) then
+        CharCurvesGetGetResidualSats(option%solvent_phase) = 0.0d0
+      end if
     case(TOIL_IMS_MODE)
       call characteristic_curves%GetOWGCriticalAndConnateSats( &
                     CharCurvesGetGetResidualSats(option%liquid_phase), &
@@ -2141,6 +2144,8 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
         end if  
     end select
     call characteristic_curves%oil_wat_sat_func%verify(string,option)
+    !Pm min is computed after function verification
+    call characteristic_curves%oil_wat_sat_func%ComputePcMin(option)
     !check if swco and swcr defined in krw and pcw are the same
     if (characteristic_curves%oil_wat_sat_func%GetConnateSaturation(option) &
         /= swco ) then
@@ -2206,6 +2211,8 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
           end if          
       end select
       call characteristic_curves%oil_gas_sat_func%verify(string,option)
+      !Pcmin compute after fucntion vericifation
+      call characteristic_curves%oil_gas_sat_func%ComputePcMin(option)
       !check if sgco and sgcr defined in KRG and PC_OG have the same values
       if (characteristic_curves%oil_gas_sat_func%GetConnateSaturation(option) &
           /= sgco ) then
