@@ -749,11 +749,7 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
       lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
     enddo
     
-    if (lnQK <= 6.90776d0) then
-      QK = exp(lnQK)
-    else
-      QK = 1.d3
-    endif
+    QK = exp(lnQK)
     
     if (associated(mineral%kinmnrl_Temkin_const)) then
       if (associated(mineral%kinmnrl_min_scale_factor)) then

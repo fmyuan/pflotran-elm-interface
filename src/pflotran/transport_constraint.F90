@@ -1,5 +1,8 @@
 module Transport_Constraint_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
@@ -14,8 +17,6 @@ module Transport_Constraint_module
 
   private
   
-#include "petsc/finclude/petscsys.h"
-
   ! concentration subcondition types
   PetscInt, parameter, public :: CONSTRAINT_NULL = 0
   PetscInt, parameter, public :: CONSTRAINT_FREE = 1
@@ -27,6 +28,7 @@ module Transport_Constraint_module
   PetscInt, parameter, public :: CONSTRAINT_CHARGE_BAL = 7
   PetscInt, parameter, public :: CONSTRAINT_TOTAL_SORB = 9
   PetscInt, parameter, public :: CONSTRAINT_SUPERCRIT_CO2 = 10
+  PetscInt, parameter, public :: CONSTRAINT_TOTAL_AQ_PLUS_SORB = 11
 
   type, public :: tran_constraint_type
     PetscInt :: id
@@ -37,7 +39,7 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
-    PetscBool :: requires_equilibration
+    PetscBool :: equilibrate_at_each_cell
     type(tran_constraint_type), pointer :: next    
   end type tran_constraint_type
   
@@ -56,6 +58,7 @@ module Transport_Constraint_module
     character(len=MAXWORDLENGTH) :: constraint_name   
     PetscReal :: time
     PetscInt :: num_iterations
+    PetscBool :: equilibrate_at_each_cell
     character(len=MAXWORDLENGTH) :: time_units
     type(aq_species_constraint_type), pointer :: aqueous_species
     type(guess_constraint_type), pointer :: free_ion_guess
@@ -74,6 +77,7 @@ module Transport_Constraint_module
             TranConstraintGetPtrFromList, &
             TranConstraintCreate, &
             TranConstraintRead, &
+            TranConstraintMapToCoupler, &
             TranConstraintDestroy, &
             TranConstraintCouplerCreate, &
             TranConstraintCouplerDestroy
@@ -112,7 +116,7 @@ function TranConstraintCreate(option)
   nullify(constraint%next)
   constraint%id = 0
   constraint%name = ''
-  constraint%requires_equilibration = PETSC_FALSE
+  constraint%equilibrate_at_each_cell = PETSC_FALSE
   
   TranConstraintCreate => constraint
 
@@ -147,6 +151,7 @@ function TranConstraintCouplerCreate(option)
   nullify(coupler%immobile_species)
   
   coupler%num_iterations = 0
+  coupler%equilibrate_at_each_cell = PETSC_FALSE
   nullify(coupler%rt_auxvar)
   nullify(coupler%global_auxvar)
   
@@ -265,6 +270,15 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
               case('TOTAL_SORB')
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_SORB
+              case('TOTAL_AQ_PLUS_SORB')
+                if (reaction%neqsorb == 0) then
+                  option%io_buffer = 'TOTAL_AQ_PLUS_SORB constraint may not &
+                    &be used unless equilibrium sorption is employed within &
+                    &the CHEMISTRY block.'
+                  call printErrMsg(option)
+                endif
+                aq_species_constraint%constraint_type(icomp) = &
+                  CONSTRAINT_TOTAL_AQ_PLUS_SORB
               case('S')
                 option%io_buffer = '"S" constraint type no longer ' // &
                   'supported as of March 4, 2013.'
@@ -657,6 +671,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
         endif
         constraint%immobile_species => immobile_constraint 
         
+      case('EQUILIBRATE_AT_EACH_CELL')
+        constraint%equilibrate_at_each_cell = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,'CONSTRAINT',option)
     end select 
@@ -750,6 +766,32 @@ function TranConstraintGetPtrFromList(constraint_name,constraint_list)
   enddo
   
 end function TranConstraintGetPtrFromList
+
+! ************************************************************************** !
+
+subroutine TranConstraintMapToCoupler(constraint_coupler,constraint)
+  ! 
+  ! Maps members of a constraint object to a constraint coupler.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/18/17
+  ! 
+
+  implicit none
+
+  type(tran_constraint_coupler_type) :: constraint_coupler
+  type(tran_constraint_type) :: constraint
+  
+  constraint_coupler%aqueous_species => constraint%aqueous_species
+  constraint_coupler%free_ion_guess => constraint%free_ion_guess
+  constraint_coupler%minerals => constraint%minerals
+  constraint_coupler%surface_complexes => constraint%surface_complexes
+  constraint_coupler%colloids => constraint%colloids
+  constraint_coupler%immobile_species => constraint%immobile_species
+  constraint_coupler%equilibrate_at_each_cell = &
+    constraint%equilibrate_at_each_cell
+
+end subroutine TranConstraintMapToCoupler
 
 ! ************************************************************************** !
 

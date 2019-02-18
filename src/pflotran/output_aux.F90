@@ -97,6 +97,12 @@ module Output_Aux_module
     PetscBool :: print_hydrograph
     PetscInt :: surf_xmf_vert_len
 
+    PetscBool :: write_ecl = PETSC_FALSE
+    ! Write well mass rates and totals as well as surface volumes
+    ! Note this is not a Eclipse-file-only option
+    PetscBool :: write_masses = PETSC_FALSE
+    type(output_option_eclipse_type), pointer :: eclipse_options =>null()
+
   end type output_option_type
   
   type, public :: output_variable_list_type
@@ -127,6 +133,22 @@ module Output_Aux_module
     PetscReal :: total_mass
     type(mass_balance_region_type), pointer :: next
   end type mass_balance_region_type
+
+  type, public :: output_option_eclipse_type
+! Controls for Eclipse format input and output
+    PetscBool :: write_ecl_form         ! Indicates Eclipse files are formatted
+! For output of Eclipse summary and restart files, hold:
+! The interval in time or step count between writes
+! The last time or step count at which the file was written
+    PetscReal :: write_ecl_sum_deltat
+    PetscReal :: write_ecl_rst_deltat
+    PetscInt  :: write_ecl_sum_deltas
+    PetscInt  :: write_ecl_rst_deltas
+    PetscReal :: write_ecl_sum_lastt
+    PetscReal :: write_ecl_rst_lastt
+    PetscInt  :: write_ecl_sum_lasts
+    PetscInt  :: write_ecl_rst_lasts
+  end type
 
 !  type, public, EXTENDS (output_variable_type) :: aveg_output_variable_type
 !    PetscReal :: time_interval
@@ -172,7 +194,8 @@ module Output_Aux_module
             OutputOptionDestroy, &
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
-            CheckpointOptionDestroy
+            CheckpointOptionDestroy, &
+            CreateOutputOptionEclipse
 
 contains
 
@@ -1054,6 +1077,59 @@ end subroutine OutputMassBalRegDestroy
 
 ! ************************************************************************** !
 
+subroutine CreateOutputOptionEclipse(output_option)
+  !
+  ! Creates and initialises the Eclipse output option block
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/29/07
+  !
+
+  implicit none
+
+  type(output_option_type), pointer :: output_option
+
+  if (.not.associated(output_option%eclipse_options) ) then
+    allocate(output_option%eclipse_options)
+!  Initial defaults for Eclipse format input and output
+    output_option%eclipse_options%write_ecl_form  = PETSC_FALSE
+
+    output_option%eclipse_options%write_ecl_sum_deltat = -1.0
+    output_option%eclipse_options%write_ecl_rst_deltat = -1.0
+    output_option%eclipse_options%write_ecl_sum_deltas =  1
+    output_option%eclipse_options%write_ecl_rst_deltas =  10
+
+    output_option%eclipse_options%write_ecl_sum_lastt =  -1.0
+    output_option%eclipse_options%write_ecl_rst_lastt =  -1.0
+    output_option%eclipse_options%write_ecl_sum_lasts =  -1
+    output_option%eclipse_options%write_ecl_rst_lasts =  -1
+  endif
+
+end subroutine CreateOutputOptionEclipse
+
+! ************************************************************************** !
+
+subroutine DestroyOutputOptionEclipse(eclipse_options)
+  !
+  ! Deletes the Eclipse output option block
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/29/07
+  !
+
+  implicit none
+
+  type(output_option_eclipse_type), pointer :: eclipse_options
+
+  if (associated(eclipse_options) ) then
+    deallocate(eclipse_options)
+    nullify(eclipse_options)
+  endif
+
+end subroutine DestroyOutputOptionEclipse
+
+! ************************************************************************** !
+
 subroutine OutputOptionDestroy(output_option)
   ! 
   ! Deallocates an output option
@@ -1084,6 +1160,8 @@ subroutine OutputOptionDestroy(output_option)
   call OutputVariableListDestroy(output_option%aveg_output_variable_list)
   
   call OutputMassBalRegDestroy(output_option%mass_balance_region_list)
+
+  call DestroyOutputOptionEclipse(output_option%eclipse_options)
     
   deallocate(output_option)
   nullify(output_option)

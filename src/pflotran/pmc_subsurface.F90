@@ -191,7 +191,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = MIS: p, Xs")')
           case(TH_MODE)
             write(*,'(" mode = TH: p, T")')
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE)
             write(*,'(" mode = Richards: p")')
           case(G_MODE) 
             write(*,'(" mode = General: p, sg/X, T")')
@@ -1147,7 +1147,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
     case (MPH_MODE)
       pres_dof = MPH_PRESSURE_DOF
       temp_dof = MPH_TEMPERATURE_DOF
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       pres_dof = RICHARDS_PRESSURE_DOF
     case default
       this%option%io_buffer = 'PMCSubsurfaceSetAuxDataForGeomech() not ' // &
@@ -1177,7 +1177,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           ghosted_id = subsurf_grid%nL2G(local_id)
           pres_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &
                                       pres_dof)
-          if (this%option%iflowmode == RICHARDS_MODE) then
+          if (this%option%iflowmode == RICHARDS_MODE .or. &
+              this%option%iflowmode == RICHARDS_TS_MODE) then
             temp_p(local_id) = this%option%reference_temperature
           else
             temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + &

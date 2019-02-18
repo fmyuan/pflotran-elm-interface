@@ -253,6 +253,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY
   use HDF5_module
+  use Grid_Grdecl_module, only : GetPoroPermValues, &
+                                 WriteStaticDataAndCleanup, &
+                                 DeallocatePoroPermArrays, &
+                                 PermPoroExchangeAndSet, &
+                                 GetIsGrdecl
+  use Utility_module, only : DeallocateArray
   
   implicit none
 
@@ -281,12 +287,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(material_type), pointer :: Material
-  PetscInt :: local_id, ghosted_id, material_id
-  PetscInt :: i
+  PetscInt :: local_id, ghosted_id, material_id,natural_id,i
+  PetscReal :: tempreal,poro,permx,permy,permz
   PetscInt :: tempint
-  PetscReal :: tempreal
   PetscErrorCode :: ierr
   PetscViewer :: viewer
+  PetscInt ,pointer,dimension(:)::inatsend
+  PetscBool :: write_ecl
 
   option => realization%option
   discretization => realization%discretization
@@ -343,6 +350,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
   
+  if (GetIsGrdecl()) then
+    if (option%myrank .ne. option%io_rank) then
+      allocate(inatsend(  grid%nlmax))
+    endif
+  endif
   
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -398,7 +410,39 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
+
+    if (GetIsGrdecl()) then
+
+      natural_id = grid%nG2A(ghosted_id)
+
+      if (option%myrank == option%io_rank) then
+  !  Simply set up the values on the I/O proc
+        call GetPoroPermValues(natural_id,poro,permx,permy,permz)
+        por0_p(local_id)    = poro
+        perm_xx_p(local_id) = permx
+        perm_yy_p(local_id) = permy
+        perm_zz_p(local_id) = permz
+      else
+  !  Add to the request list on other procs
+        inatsend(local_id)=natural_id
+      endif
+
+    endif
   enddo
+
+  if (GetIsGrdecl()) then
+    call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p, &
+                                inatsend,grid%nlmax,option)
+    if (option%myrank .ne. option%io_rank) then
+      call DeallocateArray(inatsend)
+    endif
+    write_ecl = realization%output_option%write_ecl
+    call WriteStaticDataAndCleanup(write_ecl, &
+                                realization%output_option%eclipse_options, &
+                                option)
+    call DeallocatePoroPermArrays(option)
+  endif
+
   call MaterialPropertyDestroy(null_material_property)
 
   if (option%nflowdof > 0) then
@@ -1000,7 +1044,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
 #endif
     select case(option%iflowmode)
       !TODO(geh): refactors so that we don't need all these variants?
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%Richards%zero_rows_local, &
                       realization%patch%aux%Richards%zero_rows_local_ghosted, &

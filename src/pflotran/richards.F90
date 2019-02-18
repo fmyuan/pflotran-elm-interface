@@ -44,6 +44,7 @@ module Richards_module
          RichardsUpdateSurfacePress, &
          RichardsResidualInternalConn, &
          RichardsResidualBoundaryConn, &
+         RichardsResidualSourceSink, &
          RichardsJacobianInternalConn, &
          RichardsJacobianBoundaryConn, &
          RichardsJacobianSourceSink

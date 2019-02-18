@@ -12,7 +12,10 @@ END
 SUBSURFACE
 
 # m/s
-UNIFORM_VELOCITY 5.69333e-4 0.d0 0.d0
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 5.69333e-4 0.d0 0.d0 m/yr
+END
 
 #=========================== runtime ==========================================
 #CHECKPOINT 100

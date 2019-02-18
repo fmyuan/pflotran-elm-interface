@@ -150,7 +150,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
  
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
 !      if (option%ntrandof > 0) then
 !        allocate(auxvar%den_store(nphase,TWO_INTEGER))
 !        auxvar%den_store = 0.d0

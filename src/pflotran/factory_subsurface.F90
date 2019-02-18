@@ -1725,6 +1725,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use Reaction_Aux_module
   use Init_Common_module
 
+  use Grid_Grdecl_module, only : SetUGrdEclCmplLocation
+
   implicit none
 
   class(simulation_subsurface_type) :: simulation
@@ -1738,14 +1740,92 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
+  PetscInt :: ci,cj,ck,ckl,cku
+  PetscBool :: found
+  PetscBool,parameter::cijk_d_true =PETSC_TRUE
+  PetscBool,parameter::cijk_d_false=PETSC_FALSE
+  PetscBool :: qerr
+
+  character(len = MAXSTRINGLENGTH) :: wname
 
   realization => simulation%realization
   patch => realization%patch
   option => realization%option
   discretization => realization%discretization
 
+  qerr  = PETSC_FALSE
+  wname = '<missing>'
+  found = PETSC_FALSE
+
 ! Read in select required cards
 !.........................................................................
+
+!  Search for 'WELL_DATA' section and read well locations if found
+
+  string = "WELL_DATA"
+  call InputFindStringInFile(input,option,string,PETSC_FALSE,found)
+  if( found ) then
+
+! Read the WELL_DATA information
+
+    call InputReadWord(input,option,wname,PETSC_TRUE)
+
+! Search for completion locations
+
+    do
+      call InputReadPflotranString(input,option)
+      if (InputError(input)) exit
+
+      call InputReadWord(input,option,word,PETSC_FALSE)
+      call StringToUpper(word)
+      card = trim(word)
+
+      select case(trim(card))
+        case('CIJK','CIJK_Z')
+          ci  = 1
+          cj  = 1
+          ckl = 1
+          cku = 1
+          call InputReadInt(input,option,ci)
+          call InputErrorMsg(input,option,'cijk I','WELL_DATA')
+          call InputReadInt(input,option,cj)
+          call InputErrorMsg(input,option,'cijk I','WELL_DATA')
+          call InputReadInt(input,option,ckl)
+          call InputErrorMsg(input,option,'cijk KL','WELL_DATA')
+          call InputReadInt(input,option,cku)
+          call InputErrorMsg(input,option,'cijk KU','WELL_DATA')
+          do ck=ckl,cku
+            call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_false,qerr)
+          enddo
+          if( qerr ) then
+            input%ierr = 1
+            call InputErrorMsg(input,option,'cijk','same well more than once')
+          endif
+        case('CIJK_D')
+          ci  = 1
+          cj  = 1
+          ckl = 1
+          cku = 1
+          call InputReadInt(input,option,ci)
+          call InputErrorMsg(input,option,'cijk_d I','WELL_DATA')
+          call InputReadInt(input,option,cj)
+          call InputErrorMsg(input,option,'cijk_d I','WELL_DATA')
+          call InputReadInt(input,option,ckl)
+          call InputErrorMsg(input,option,'cijk_d KL','WELL_DATA')
+          call InputReadInt(input,option,cku)
+          call InputErrorMsg(input,option,'cijk_d KU','WELL_DATA')
+          do ck=ckl,cku
+            call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_true,qerr)
+          enddo
+          if( qerr ) then
+            input%ierr = 1
+            call InputErrorMsg(input,option,'cijk_d','same well more than once')
+          endif
+        case('WELL_DATA') ! May be more than one
+          call InputReadWord(input,option,wname,PETSC_TRUE)
+      end select
+    enddo
+  endif
 
   ! GRID information - GRID is a required card for every simulation
   string = "GRID"
@@ -1913,9 +1993,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_BE_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
   use Well_Data_class
 
 #ifdef SOLID_SOLUTION
@@ -1952,9 +2029,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
-#ifdef WELL_CLASS
-  class(well_spec_base_type), pointer :: well_spec
-#endif
   class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
   type(tran_constraint_type), pointer :: tran_constraint
@@ -1993,6 +2067,10 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(timestepper_base_type), pointer :: temp_timestepper
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
+
+  PetscInt::iwaytime,nwaytime,mwaytime
+  PetscReal,dimension(:),pointer :: waytime
+  PetscReal wtime
 
   internal_units = 'not_assigned'
 
@@ -2199,25 +2277,24 @@ subroutine SubsurfaceReadInput(simulation,input)
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
 
-!....................
-#ifdef WELL_CLASS
-      case ('WELL_SPEC')
-        well_spec => WellSpecBaseCreate()
-        call InputReadWord(input,option,well_spec%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'WELL_SPEC','name')
-        call printMsg(option,well_spec%name)
-        call well_spec%Read(input,option)
-        call WellSpecAddToList(well_spec,realization%well_specs)
-        nullify(well_spec)
-#endif
-
       case ('WELL_DATA')
         call WellDataSetFlag()
         well_data => WellDataCreate()
         call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'WELL_SPEC','name')
         call printMsg(option,well_data%w_name)
-        call well_data%Read(input,option)
+        nwaytime = 0
+        mwaytime = 1
+        allocate(waytime(mwaytime))
+        call well_data%Read(input,option,waytime,nwaytime,mwaytime)
+        do iwaytime=1,nwaytime
+           wtime=waytime(iwaytime)
+           waypoint => WaypointCreate()
+           waypoint%time = wtime
+           waypoint%update_conditions = PETSC_TRUE
+           call WaypointInsertInList(waypoint,waypoint_list)
+        enddo
+        deallocate(waytime)
         call WellDataAddToList(well_data,realization%well_data)
         nullify(well_data)
 
@@ -2600,7 +2677,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('CHARACTERISTIC_CURVES')
-
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
                   option%iflowmode == RICHARDS_TS_MODE .or. &
@@ -2757,6 +2833,12 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('MASS_BALANCE_FILE')
               call OutputFileRead(input,realization,output_option, &
                                   waypoint_list,trim(word))
+            case('ECLIPSE_FILE')
+              call CreateOutputOptionEclipse(output_option)
+              call OutputFileRead(input,realization,output_option, &
+                                  waypoint_list,trim(word))
+            case('LINEREPT')
+               option%linerept = PETSC_TRUE
             case('TIME_UNITS')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'Output Time Units','OUTPUT')
@@ -3376,9 +3458,10 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
         if (option%iflowmode /= TH_MODE .and. &
-            option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS &
-                             &and TH mode.'
+            option%iflowmode /= RICHARDS_MODE .and. &
+            option%iflowmode /= RICHARDS_TS_MODE) then
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS, &
+                              &RICHARDS_TSand TH mode.'
           call printErrMsg(option)
         endif
 
@@ -3386,8 +3469,10 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('QUASI_3D')
         option%flow%quasi_3d = PETSC_TRUE
         option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = 'QUASI_3D implemented in RICHARDS mode.'
+        if (option%iflowmode /= RICHARDS_MODE .and. &
+            option%iflowmode /= RICHARDS_TS_MODE) then
+          option%io_buffer = 'QUASI_3D implemented in RICHARDS and &
+                              &RICHARDS_TS mode.'
           call printErrMsg(option)
         endif
 

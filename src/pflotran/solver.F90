@@ -1,6 +1,10 @@
 module Solver_module
  
 #include "petsc/finclude/petscts.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define KSP_DIVERGED_PCSETUP_FAILED KSP_DIVERGED_PC_FAILED
+#define PCGetSetUpFailedReason PCGetFailedReason
+#endif
   use petscts
   use PFLOTRAN_Constants_module
   use CPR_Preconditioner_module

@@ -39,7 +39,7 @@
       Min:   2.8461899531035E-04
      Mean:   2.8462024949424E-04
         1:   2.8462339396857E-04
-      401:   2.8462061242194E-04
+      401:   2.8462061242193E-04
       801:   2.8461958889292E-04
      1201:   2.8461921265183E-04
      1601:   2.8461907428616E-04
@@ -71,10 +71,10 @@
      1201:         1
      1601:         1
 -- SOLUTION: Flow --
-   Time (seconds):   4.1433691978455E-01
+   Time (seconds):   4.9471282958984E-01
    Time Steps:           10
    Newton Iterations:           10
-   Solver Iterations:          120
+   Solver Iterations:          107
    Time Step Cuts:            0
    Solution 2-Norm:   1.2721381598334E+09
-   Residual 2-Norm:   1.8607184593332E-12
+   Residual 2-Norm:   1.8506547300672E-12

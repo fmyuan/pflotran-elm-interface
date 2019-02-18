@@ -1,6 +1,9 @@
 module Factory_Surf_Subsurf_module
 
 #include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define VecScatterCreate VecScatterCreateWithData
+#endif
   use petscsys
   use Simulation_Surf_Subsurf_class
 

@@ -132,6 +132,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Material_Aux_class
+  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -176,6 +178,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToLower(discretization%ctype)
+        if( discretization%ctype=='grdecl' ) then
+          call SetIsGrdecl()
+          discretization%ctype='unstructured_explicit'
+        endif
         select case(trim(discretization%ctype))
           case('structured')
             discretization%itype = STRUCTURED_GRID
@@ -254,6 +260,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   grid => GridCreate()
   select case(discretization%itype)
     case(UNSTRUCTURED_GRID)
+      ! For unstructured grids, we cannot use the default 
+      ! TENSOR_TO_SCALAR_LINEAR for mapping the permeability tensor to 
+      ! a scalar. This can be overriden by the user during second read.
+      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,option)
       un_str_grid => UGridCreate()
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
@@ -265,8 +275,13 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          call UGridExplicitRead(un_str_grid, &
-                                 discretization%filename,option)
+          if (GetIsGrdecl()) then
+            call UGrdEclExplicitRead(un_str_grid, &
+                                     discretization%filename,option)
+          else
+            call UGridExplicitRead(un_str_grid, &
+                                   discretization%filename,option)
+          endif
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
@@ -281,6 +296,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)      
+      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
       if (nx*ny*nz <= 0) &
         call printErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
@@ -537,9 +553,12 @@ subroutine DiscretizationRead(discretization,input,option)
         select case(word)
           case('LINEAR')
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
-          case('QUADRATIC')
-            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,&
-                                              option)
+          case('FLOW')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_FLOW,&
+                              option)
+          case('POTENTIAL')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,&
+                              option)
           case default
             call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)

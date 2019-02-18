@@ -1,17 +1,17 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   1.2271661305009E+05
-      Min:   8.6045418406753E+04
-     Mean:   1.0397353311961E+05
-        1:   8.6045418406753E+04
-        8:   1.1049283907921E+05
-       11:   8.9101341848071E+04
+      Max:   1.2271661347168E+05
+      Min:   8.6045418144576E+04
+     Mean:   1.0397353323432E+05
+        1:   8.6045418144576E+04
+        8:   1.1049283947598E+05
+       11:   8.9101342122100E+04
 -- SATURATION: Liquid Saturation --
       Max:   1.0000000000000E+00
-      Min:   6.5622813861924E-01
-     Mean:   8.8372818051357E-01
-        1:   6.5622813861924E-01
+      Min:   6.5622813556586E-01
+     Mean:   8.8372817660170E-01
+        1:   6.5622813556586E-01
         8:   1.0000000000000E+00
-       11:   6.9615386451178E-01
+       11:   6.9615386853113E-01
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
@@ -20,18 +20,18 @@
         8:         1
        11:         1
 -- SOLUTION: Flow --
-   Time (seconds):   3.5796165466309E-02
+   Time (seconds):   3.7864446640015E-02
    Time Steps:           23
    Newton Iterations:           34
-   Solver Iterations:          138
+   Solver Iterations:          129
    Time Step Cuts:            0
-   Solution 2-Norm:   4.0552714670739E+05
-   Residual 2-Norm:   1.6522653656710E-16
+   Solution 2-Norm:   4.0552714726822E+05
+   Residual 2-Norm:   7.6855914951438E-16
 -- SOLUTION: Transport --
-   Time (seconds):   1.6583681106567E-02
+   Time (seconds):   1.7425537109375E-02
    Time Steps:           23
    Newton Iterations:           23
    Solver Iterations:           23
    Time Step Cuts:            0
-   Solution 2-Norm:   6.7272845038952E-10
-   Residual 2-Norm:   2.0303017805379E-28
+   Solution 2-Norm:   6.7272845038491E-10
+   Residual 2-Norm:   1.8060608206934E-28

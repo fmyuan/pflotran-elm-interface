@@ -92,6 +92,8 @@ module PM_TOilIms_Aux_module
     !add bound-procedure
 
     procedure, public :: Init => InitTOilImsAuxVars
+    procedure, public :: FieldVolRefAve => TOilImsAuxFieldVolRefAve
+    procedure, public :: GetLocalSol    => TOilImsGetLocalSol
     !procedure, public :: Perturb => PerturbTOilIms
   end type pm_toil_ims_aux_type
 
@@ -1009,6 +1011,146 @@ subroutine TOilImsAuxVarArray2Strip(auxvars)
   enddo
 
 end subroutine TOilImsAuxVarArray2Strip
+
+! ************************************************************************** !
+
+subroutine TOilImsAuxFieldVolRefAve(this,grid,material,imat,option)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+
+  use Option_module
+  use Grid_module
+  use Material_Aux_class
+  use Well_Data_class,only : SetFieldData
+
+  implicit none
+
+  class(pm_toil_ims_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: pv,sh,pr
+  PetscReal :: rpv_sh_l,rpv_sh_g,rpv_l,rpv_g
+  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,fpav
+  PetscInt :: int_mpi
+  PetscErrorCode :: ierr
+
+!  Initial values for sums (with and without hydrocarbon fraction)
+
+  rpv_sh_l = 0.0d0
+  rpv_sh_g = 0.0d0
+  rpv_l    = 0.0d0
+  rpv_g    = 0.0d0
+
+  fhpav_l  = 0.0d0
+  fhpav_g  = 0.0d0
+  fpav_l   = 0.0d0
+  fpav_g   = 0.0d0
+
+  fpav = 0.0
+
+!  Do the summations on this rank
+
+  material_auxvars => material%auxvars
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+
+    pv = material_auxvars(ghosted_id)%porosity_base * &
+                            material_auxvars(ghosted_id)%volume
+    sh = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%oil_phase)
+    pr = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+
+    rpv_sh_l = rpv_sh_l + sh * pv
+    rpv_l    = rpv_l    +      pv
+
+    fhpav_l  = fhpav_l + sh * pv * pr
+     fpav_l  =  fpav_l +      pv * pr
+  end do
+
+!  Do the summations over ranks
+
+  int_mpi = ONE_INTEGER
+  call MPI_AllReduce(rpv_sh_l,rpv_sh_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fhpav_l,fhpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(rpv_l,rpv_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fpav_l,fpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+! Form the average pressure: use simpler form if no hydrocarbon volume
+
+  if (rpv_sh_g>0.0) then
+    fpav = fhpav_g/rpv_sh_g  !  Hydrocarbon volume exists
+  else if (rpv_g>0.0 ) then
+    fpav = fpav_g/rpv_g      ! No hydrocarbon, but pore volume exists
+  endif
+
+!  Set value
+
+  call SetFieldData(fpav)
+
+  nullify(material_auxvars)
+
+end subroutine TOilImsAuxFieldVolRefAve
+
+! ************************************************************************** !
+
+subroutine TOilImsGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+
+  use Grid_module
+  use Material_Aux_class
+  use Option_module
+  use String_module,only : StringCompareIgnoreCase
+
+  implicit none
+
+  class(pm_toil_ims_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+type(option_type) :: option
+  PetscReal :: vsoll(:,:)
+  PetscInt,intent(in)::isol
+  character(len=8)::zsol
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id,iphase
+  PetscBool :: ispres
+
+  material_auxvars => material%auxvars
+
+  ispres=PETSC_FALSE
+  iphase=0
+
+  if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
+  if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
+  if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+    if( ispres ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if ( iphase>0 ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    else
+      vsoll(local_id,isol)=0.0
+    endif
+  end do
+
+end subroutine TOilImsGetLocalSol
 
 ! ************************************************************************** !
 

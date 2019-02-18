@@ -112,13 +112,13 @@ subroutine OutputFileRead(input,realization,output_option, &
   character(len=MAXWORDLENGTH) :: units, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion
-  PetscInt :: k
+  PetscReal :: units_conversion,deltat
+  PetscInt :: k,deltas
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
 
   option => realization%option
   patch => realization%patch
@@ -140,6 +140,8 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
+    case('ECLIPSE_FILE')
+      output_option%write_ecl = PETSC_TRUE
   end select
 
   do
@@ -174,7 +176,18 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-        
+
+      case('WRITE_MASS_RATES')
+        select case(trim(block_name))
+          case('MASS_BALANCE_FILE')
+            output_option%write_masses = PETSC_TRUE
+        end select
+
+      case('FORMATTED')
+        select case(trim(block_name))
+          case('ECLIPSE_FILE')
+            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
+        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
@@ -355,6 +368,46 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
         end select
 
+      case('PERIOD_SUM','PERIOD_RST')
+        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
+        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
+        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'periodic time increment type',string)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('TIME')
+            deltat = -1.0
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
+            call InputReadDouble(input,option,temp_real)
+            call InputErrorMsg(input,option,'time increment',string)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'time increment units',string)
+            internal_units = 'sec'
+            units_conversion = UnitsConvertToInternal(word, &
+                 internal_units,option)
+            deltat = temp_real*units_conversion
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltat = deltat
+              output_option%eclipse_options%write_ecl_sum_deltas = -1
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltat = deltat
+              output_option%eclipse_options%write_ecl_rst_deltas = -1
+            endif
+          case('TIMESTEP')
+            deltas = -1
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
+              call InputReadInt(input,option,deltas)
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltas = deltas
+              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltas = deltas
+              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
+            endif
+        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -1291,12 +1344,19 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
     call OutputMassBalance(realization_base)
   endif
 
+  !  Output Eclipse files for this step if required
+  if( realization_base%output_option%write_ecl ) then
+    call OutputEclipseFiles(realization_base)
+  endif
+
+  ! Output single-line report for this step if required
+  if (option%linerept) then
+    option%print_to_screen = PETSC_FALSE
+    call OutputLineRept(realization_base,option)
+  endif
+
   ! Output temporally average variables 
   call OutputAvegVars(realization_base)
-
-#ifdef WELL_CLASS
-  call OutputWell(realization_base)
-#endif
 
   if (snapshot_plot_flag) then
     realization_base%output_option%plot_number = &
@@ -2102,7 +2162,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
@@ -2343,55 +2403,7 @@ subroutine OutputAvegVars(realization_base)
 
   endif
 
-
 end subroutine OutputAvegVars
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine OutputWell(realization_base)
-  ! 
-  ! Prints out the well variables
-  ! 
-  ! Author: Paolo Orsini - OpenGoSim
-  ! Date: 10/7/15
-  ! 
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-  use Coupler_module
-  use Patch_module
-  use Well_module
-
-  implicit none
-
-  class(realization_base_type) :: realization_base  
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch  
-  type(output_option_type), pointer :: output_option
-  type(coupler_type), pointer :: source_sink
-  !class(well_auxvar_base_type), pointer :: well_auxvar 
-
-  PetscInt :: iconn
-  PetscInt :: local_id, ghosted_id
-
-  patch => realization_base%patch
-  !grid => patch%grid
-  option => realization_base%option
-  output_option => realization_base%output_option
-
-  source_sink => patch%source_sink_list%first
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      if (source_sink%connection_set%num_connections > 0 ) then
-        !call WellOutput(source_sink%well,output_option,source_sink%name,option)
-        call WellOutput(source_sink%well,output_option,option)
-      end if 
-    end if
-    source_sink => source_sink%next
-  enddo
-
-end subroutine OutputWell
-#endif
 
 ! ************************************************************************** !
 

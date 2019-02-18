@@ -531,11 +531,15 @@ subroutine SFBaseSurfaceTension(this,T,sigma)
   
   Temp=T+273.15
   
-  tao = 1-Temp/Tc
-  sigma = B*(tao**mu)*(1+b_2*tao)
-  sigma = sigma * 1.d-3
-  
+  if (T <= 373.d0) then
+    tao = 1-Temp/Tc
+    sigma = B*(tao**mu)*(1+b_2*tao)
+    sigma = sigma * 1.d-3
+  else
+    sigma = 0.d0
+  endif
   sigma= sigma/sigma_base
+
   !TOUGH3 way (not pressure-dependent)
   !if (Temp >= 101) sigma = 0
   
