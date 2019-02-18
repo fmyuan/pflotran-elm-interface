@@ -258,14 +258,6 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetErrorIfNotConverged(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
   endif
 
-  ! allow override from command line
-  call KSPSetFromOptions(solver%ksp,ierr);CHKERRQ(ierr)
-  call PCSetFromOptions(solver%pc,ierr);CHKERRQ(ierr)
-    
-  ! get the ksp_type and pc_type incase of command line override.
-  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
-  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
-
   ! Set the tolerances for the Newton solver.
   call SNESSetTolerances(solver%snes, solver%newton_atol, solver%newton_rtol, &
                          solver%newton_stol,solver%newton_max_iterations, &
@@ -295,7 +287,14 @@ subroutine SolverSetSNESOptions(solver, option)
   
   ! allow override from command line; for some reason must come before
   ! LineSearchParams, or they crash
+  ! Note that SNESSetFromOptions() calls KSPSetFromOptions(), which calls
+  ! PCSetFromOptions(), so these should not be called separately (doing so
+  ! causes unintended results when PCCOMPOSITE is used).
   call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
+
+  ! get the ksp_type and pc_type incase of command line override.
+  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
+  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
 
   if (solver%linear_shift) then
     ! the below must come after SNESSetFromOptions
