@@ -2053,7 +2053,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       do ikinrxn = 1, surface_complexation%nkinsrfcplxrxn
         irxn = surface_complexation%kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
         isite = surface_complexation%srfcplxrxn_to_surf(irxn)
-        rt_auxvar%kinsrfcplx_free_site_conc(isite) = surface_complexation%srfcplxrxn_site_density(isite)
+        rt_auxvar%kinsrfcplx_free_site_conc(isite) = &
+          surface_complexation%srfcplxrxn_site_density(isite)
         ncplx = surface_complexation%srfcplxrxn_to_complex(0,irxn)
         do k = 1, ncplx ! ncplx in rxn
           icplx = surface_complexation%srfcplxrxn_to_complex(k,irxn)
