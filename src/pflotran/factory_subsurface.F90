@@ -3275,8 +3275,8 @@ subroutine SubsurfaceReadInput(simulation,input)
             call printErrMsg(option)
           endif
         endif
-        if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate &
-            .or.aveg_energy_flowrate) then
+        if (mass_flowrate .or. energy_flowrate .or. aveg_mass_flowrate .or. &
+            aveg_energy_flowrate .or. fluxes) then
           if (output_option%print_hdf5) then
             output_option%print_hdf5_mass_flowrate = mass_flowrate
             output_option%print_hdf5_energy_flowrate = energy_flowrate
@@ -3290,8 +3290,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                 call printErrMsg(option)
               endif
             endif
-           option%flow%store_fluxes = PETSC_TRUE
           endif
+          option%flow%store_fluxes = PETSC_TRUE
           if (associated(grid%unstructured_grid)) then
             if (associated(grid%unstructured_grid%explicit_grid)) then
               option%flow%store_fluxes = PETSC_TRUE

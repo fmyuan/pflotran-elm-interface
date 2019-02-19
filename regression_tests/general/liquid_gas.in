@@ -109,11 +109,8 @@ CHARACTERISTIC_CURVES cc1
 
 #=========================== output options ===================================
 OUTPUT
-#  PERIODIC TIME 20 h
-#  TIMES y 0.24
-#  PERIODIC_OBSERVATION TIMESTEP 1
-#  FORMAT TECPLOT POINT
-  VELOCITY_AT_CENTER
+  FORMAT TECPLOT BLOCK
+  FLUXES
 /
 
 #=========================== times ============================================
