@@ -230,7 +230,7 @@ CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log $(SRC_DIR)/p
 # please see pflotran_object_files.txt for a list of the object files. this 
 # approach of including the object files allows us to re-use the list in other
 # makefiles (e.g. clm-pflotran/makefile).
-include pflotran_object_files.txt
+include $(SRC_DIR)/pflotran_object_files.txt
 
 # End object file block
 
@@ -279,7 +279,7 @@ endif
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
 ifndef fast
-  include pflotran_dependencies.txt
+  include $(SRC_DIR)/pflotran_dependencies.txt
 endif
 ###############################################################################
 # End Dependencies
