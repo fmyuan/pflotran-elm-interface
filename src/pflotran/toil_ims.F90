@@ -407,7 +407,6 @@ subroutine TOilImsUpdateAuxVars(realization)
   use Material_Aux_class
   !use EOS_Water_module 
   !use Saturation_Function_module
-  use Appleyard_module
   
   implicit none
 
@@ -492,26 +491,6 @@ subroutine TOilImsUpdateAuxVars(realization)
     ! TOIL_IMS_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = TOIL_IMS_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
-
-#if 0
-    if(toil_appleyard) then
-      saturation_index = ghosted_start - 1 + TOIL_IMS_SATURATION_DOF
-      !print *, "sat index ", saturation_index
-      sat0 = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, ghosted_id)%sat(option%oil_phase)
-      !print *, "sat0 ", sat0
-      if (sat0 > 0.d0) then
-        sat1 = xx_loc_p(saturation_index)
-        !print *, "sat1 ", sat1
-        del_sat = sat0 - sat1 !! decrement assumed in appleyard code
-        !print *, "del sat ", del_sat
-        call TOilAppleyard(sat0, del_sat, ghosted_id, realization_p, &
-                           option%liquid_phase, option%oil_phase)
-        !print *, "del sat after ", del_sat
-        xx_loc_p(saturation_index) = sat0 - del_sat
-      endif
-    endif
-#endif
-
 
     call TOilImsAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), & 
