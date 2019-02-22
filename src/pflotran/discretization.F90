@@ -177,47 +177,48 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('TYPE')
         call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
-        call StringToLower(discretization%ctype)
-        if( discretization%ctype=='grdecl' ) then
+        call StringToUpper(discretization%ctype)
+        if (discretization%ctype == 'GRDECL') then
           call SetIsGrdecl()
-          discretization%ctype='unstructured_explicit'
+          discretization%ctype = 'UNSTRUCTURED_EXPLICIT'
         endif
         select case(trim(discretization%ctype))
-          case('structured')
+          case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
             call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
             call InputDefaultMsg(input,option,'grid_structured_type') 
-            call StringToLower(structured_grid_ctype)
+            call StringToUpper(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
-              case('cartesian')
+              case('CARTESIAN')
                 structured_grid_itype = CARTESIAN_GRID
-              case('cylindrical')
+              case('CYLINDRICAL')
                 structured_grid_itype = CYLINDRICAL_GRID
-              case('spherical')
+              case('SPHERICAL')
                 structured_grid_itype = SPHERICAL_GRID
               case default
                 structured_grid_itype = CARTESIAN_GRID
-                structured_grid_ctype = 'cartesian'
+                structured_grid_ctype = 'CARTESIAN'
             end select
-          case('unstructured','unstructured_explicit','unstructured_polyhedra')
+          case('UNSTRUCTURED','UNSTRUCTURED_EXPLICIT','UNSTRUCTURED_POLYHEDRA')
             discretization%itype = UNSTRUCTURED_GRID
             word = discretization%ctype
-            discretization%ctype = 'unstructured'
+            discretization%ctype = 'UNSTRUCTURED'
             select case(word)
-              case('unstructured')
+              case('UNSTRUCTURED')
                 unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'implicit unstructured'
-              case('unstructured_explicit')
+                unstructured_grid_ctype = 'IMPLICIT UNSTRUCTURED'
+              case('UNSTRUCTURED_EXPLICIT')
                 unstructured_grid_itype = EXPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'explicit unstructured'
-              case('unstructured_polyhedra')
+                unstructured_grid_ctype = 'EXPLICIT UNSTRUCTURED'
+              case('UNSTRUCTURED_POLYHEDRA')
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'polyhedra unstructured'
+                unstructured_grid_ctype = 'POLYHEDRA UNSTRUCTURED'
             end select
             call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
-            call InputKeywordUnrecognized(word,'discretization type',option)
+            call InputKeywordUnrecognized(discretization%ctype, &
+                                          'discretization type',option)
         end select    
       case('NXYZ')
         call InputReadInt(input,option,nx)
