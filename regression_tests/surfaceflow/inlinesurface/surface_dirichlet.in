@@ -67,7 +67,7 @@ SUBSURFACE
   FLOW_CONDITION initial
     UNITS Pa
     TYPE
-      PRESSURE hydrostatic
+      PRESSURE HYDROSTATIC
     END
     DATUM 0.0d0 0.0d0 0.0d0
     PRESSURE 101325.d0
@@ -82,7 +82,7 @@ SUBSURFACE
   
    FLOW_CONDITION source 
     TYPE 
-     PRESSURE surface_dirichlet
+     PRESSURE SURFACE_DIRICHLET
     END 
     PRESSURE 0.05d0 ! actually a water depth 
    END 

@@ -215,7 +215,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   GRADIENT
@@ -226,7 +226,7 @@ END
 
 FLOW_CONDITION boundary
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 36.d0 
   PRESSURE 101325 ! Pa

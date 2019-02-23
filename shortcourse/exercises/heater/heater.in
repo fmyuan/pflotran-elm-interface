@@ -17,7 +17,7 @@ SUBSURFACE
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured ./heater_usg.h5
+  TYPE UNSTRUCTURED ./heater_usg.h5
 END
 
 #=========================== newton solver ====================================

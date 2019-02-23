@@ -178,7 +178,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured ./gdsa_usg.h5
+  TYPE UNSTRUCTURED ./gdsa_usg.h5
 END
 
 #=========================== times ============================================
@@ -487,13 +487,13 @@ END
 
 #=========================== transport conditions and constraints =============================
 TRANSPORT_CONDITION bottom 
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /

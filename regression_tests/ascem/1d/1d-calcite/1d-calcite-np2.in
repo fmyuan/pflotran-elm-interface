@@ -129,21 +129,21 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION west
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 west
   /
 END
 
 TRANSPORT_CONDITION east
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 west
   /

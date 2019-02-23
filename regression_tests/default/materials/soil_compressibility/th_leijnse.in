@@ -128,8 +128,8 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
-    TEMPERATURE dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
   /
   DATUM 0.d0 0.d0 1.d0
   PRESSURE 101325.d0
@@ -139,7 +139,7 @@ END
 FLOW_CONDITION recharge
   TYPE
     FLUX neumann
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   FLUX 10 cm/y
   TEMPERATURE 25.D0

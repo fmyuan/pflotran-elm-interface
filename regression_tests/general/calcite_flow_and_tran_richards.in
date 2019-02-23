@@ -137,7 +137,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_pressure
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE 201325.d0
 END
@@ -151,14 +151,14 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION background_conc
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /
 END
 
 TRANSPORT_CONDITION inlet_conc
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 inlet_constraint
   /

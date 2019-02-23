@@ -276,7 +276,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   GRADIENT
@@ -287,7 +287,7 @@ END
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM LIST
@@ -316,7 +316,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION groundwater
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 groundwater
   /

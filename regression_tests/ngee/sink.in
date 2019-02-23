@@ -97,7 +97,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 -16.0d0

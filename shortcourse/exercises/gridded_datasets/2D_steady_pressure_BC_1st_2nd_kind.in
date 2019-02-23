@@ -11,7 +11,7 @@ SUBSURFACE
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 20 10 1
   DXYZ
    0.1
@@ -139,7 +139,7 @@ END
 #======================= flow conditions ======================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE 1 MPa
 END
@@ -153,21 +153,21 @@ END
 
 FLOW_CONDITION east_face
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE DATASET pressure_bc_east
 END
 
 FLOW_CONDITION north_face
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE DATASET pressure_bc_north
 END
 
 FLOW_CONDITION south_face
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE DATASET pressure_bc_south
 END

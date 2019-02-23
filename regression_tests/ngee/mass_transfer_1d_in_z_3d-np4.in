@@ -107,7 +107,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION background_conc
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /

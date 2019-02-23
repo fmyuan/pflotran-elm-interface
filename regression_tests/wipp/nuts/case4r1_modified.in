@@ -128,14 +128,14 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION media_initial
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 media_initial_constraint
   /
 END
 
 TRANSPORT_CONDITION inlet_conc
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 inlet_constraint
   /

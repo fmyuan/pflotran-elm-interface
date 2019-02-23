@@ -249,7 +249,7 @@ COORDINATES
 #=========================== flow conditions ==================================
 FLOW_CONDITION equilibration
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   PRESSURE 330.0 Bar
   DATUM_D 2480.0

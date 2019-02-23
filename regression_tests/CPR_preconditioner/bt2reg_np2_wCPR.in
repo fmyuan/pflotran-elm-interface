@@ -272,7 +272,7 @@ noskip
 FLOW_CONDITION gas_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0.0000000 0.000000 1000 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -280,10 +280,10 @@ FLOW_CONDITION gas_injector_cond
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   OIL_PRESSURE 20.0D6 !200bars
   OIL_SATURATION 0.9d0

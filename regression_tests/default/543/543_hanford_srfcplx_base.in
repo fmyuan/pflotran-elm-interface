@@ -466,7 +466,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   GRADIENT
@@ -477,7 +477,7 @@ END
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM LIST
@@ -506,21 +506,21 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION columbia_river
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 river_water
   /
 END
 
 TRANSPORT_CONDITION groundwater
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 groundwater
   /
 END
 
 TRANSPORT_CONDITION tracer_pulse
-  TYPE dirichlet
+  TYPE DIRICHLET
   TIME_UNITS d
   CONSTRAINT_LIST
     0.d0 well_tracer
@@ -529,14 +529,14 @@ TRANSPORT_CONDITION tracer_pulse
 END
 
 TRANSPORT_CONDITION rainwater
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 groundwater
   /
 END
 
 TRANSPORT_CONDITION source_zone
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 U_source
   /

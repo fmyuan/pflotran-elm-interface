@@ -255,7 +255,7 @@ END
 FLOW_CONDITION oil_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0 1000 0 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -263,10 +263,10 @@ FLOW_CONDITION oil_injector_cond
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
-    BUBBLE_POINT dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+    BUBBLE_POINT DIRICHLET
   /
   OIL_PRESSURE 20.0D6 !200bars
   OIL_SATURATION 1.0d0

@@ -114,8 +114,8 @@ REGION all
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial 
   TYPE
-    LIQUID_PRESSURE dirichlet
-    GAS_SATURATION dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
   /
   LIQUID_PRESSURE DATASET liquid_pressure
   GAS_SATURATION DATASET gas_saturation

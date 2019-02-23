@@ -177,9 +177,9 @@ OBSERVATION
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    GAS_PRESSURE dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   DATUM 0. 0. 0.d0
   GAS_PRESSURE 1.d6
@@ -189,9 +189,9 @@ FLOW_CONDITION initial
 
 FLOW_CONDITION outlet
   TYPE
-    GAS_PRESSURE dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   DATUM 0. 0. 0.d0
   GAS_PRESSURE 0.9d6

@@ -138,7 +138,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION groundwater
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 groundwater
   /

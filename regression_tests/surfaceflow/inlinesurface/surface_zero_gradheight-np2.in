@@ -75,7 +75,7 @@ SUBSURFACE
   FLOW_CONDITION initial
     UNITS Pa
     TYPE
-      PRESSURE dirichlet
+      PRESSURE DIRICHLET
     END
     PRESSURE DATASET initial_pressure
   END

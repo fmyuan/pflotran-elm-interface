@@ -321,21 +321,21 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION inlet
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 river_water
   /
 END
 
 TRANSPORT_CONDITION source_zone
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 U_source
   /
 END
 
 TRANSPORT_CONDITION groundwater
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 groundwater
   /

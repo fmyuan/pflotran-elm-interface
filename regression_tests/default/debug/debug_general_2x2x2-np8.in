@@ -140,7 +140,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT initial
     CONCENTRATIONS
       Tracer   1.e-3  F

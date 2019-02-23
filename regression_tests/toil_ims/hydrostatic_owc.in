@@ -167,8 +167,8 @@ COORDINATES
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_water
   TYPE
-    PRESSURE hydrostatic
-    TEMPERATURE dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 9.81D6  !about 1000m below sea level
   TEMPERATURE 50.d0 C  !up to here it refers to primary vars

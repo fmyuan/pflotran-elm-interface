@@ -76,7 +76,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 4.0d0
@@ -172,7 +172,7 @@ END
 
 SURF_FLOW_CONDITION surf_initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 1.0d0
@@ -181,7 +181,7 @@ END
 
 SURF_FLOW_CONDITION outflow
   TYPE
-    PRESSURE zero_gradient
+    PRESSURE ZERO_GRADIENT
   /
   PRESSURE 101325.d0
 END

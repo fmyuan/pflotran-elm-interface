@@ -252,7 +252,7 @@ END
 FLOW_CONDITION gas_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
 ! Inject gas and solvent
   RATE 0.0 0.0 500.0 500.0 0.0 m^3/day m^3/day m^3/day m^3/day kW
@@ -263,11 +263,11 @@ FLOW_CONDITION gas_injector_cond
 
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    GAS_SATURATION dirichlet
-    SOLVENT_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    GAS_SATURATION DIRICHLET
+    SOLVENT_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   OIL_PRESSURE 20.0D6 ! 200bars
   OIL_SATURATION 0.9999

@@ -126,7 +126,7 @@ noskip
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 2.5d0
   PRESSURE 101325.d0
@@ -134,7 +134,7 @@ END
 
 FLOW_CONDITION west
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM list
     TIME_UNITS d

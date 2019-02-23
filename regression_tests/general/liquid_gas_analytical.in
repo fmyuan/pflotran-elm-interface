@@ -170,9 +170,9 @@ OBSERVATION
 #=========================== flow conditions ==================================
 FLOW_CONDITION liquid_phase
   TYPE
-    LIQUID_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   DATUM 0. 0. 0.d0
   LIQUID_PRESSURE 111325.d0
@@ -182,9 +182,9 @@ FLOW_CONDITION liquid_phase
 
 FLOW_CONDITION gas_phase
   TYPE
-    GAS_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    GAS_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   GAS_PRESSURE 111325.d0
   ! psat at 25 C is 3165.9896022949661

@@ -119,7 +119,7 @@ OBSERVATION
 
 # == transport conditions =====================================================
 TRANSPORT_CONDITION Initial
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 Initial
   /

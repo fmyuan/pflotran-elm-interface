@@ -257,7 +257,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   PRESSURE 101325 ! Pa
@@ -265,7 +265,7 @@ FLOW_CONDITION initial
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION LINEAR
   DATUM LIST
@@ -287,14 +287,14 @@ FLOW_CONDITION injection_well
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION well_concentration
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 source
   /

@@ -111,7 +111,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
 #  TYPE equilibrium
   CONSTRAINT_LIST
     0.d0 initial_constraint
@@ -119,7 +119,7 @@ TRANSPORT_CONDITION initial
 END
 
 TRANSPORT_CONDITION inlet_conc
-#  TYPE dirichlet_zero_gradient
+#  TYPE DIRICHLET_ZERO_GRADIENT
 #  TYPE equilibrium
   TYPE mole_rate
   CONSTRAINT_LIST

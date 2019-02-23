@@ -166,10 +166,10 @@ END
 FLOW_CONDITION initial
   !UNITS Pa,C,M,yr
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   DATUM 0.d0 0.d0 0.d0
   !OIL_PRESSURE 1.D5
@@ -183,7 +183,7 @@ FLOW_CONDITION wat_injection
   !UNITS Pa,C,M,yr
   TYPE
     RATE mass_rate
-    ENTHALPY dirichlet !can use also temperature
+    ENTHALPY DIRICHLET !can use also temperature
   /
   !     Wat   oil   Gas  Energy [overwritten by Temp or Enth if specified]
   RATE 0.03d0 0.0d0 0.d0 0.0d0 kg/s kg/s kg/s J/s

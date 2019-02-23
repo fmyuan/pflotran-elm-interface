@@ -106,7 +106,7 @@ EXTERNAL_FILE 543_regions_ascii.txt
 EXTERNAL_FILE 543_transport_block.txt
 
 TRANSPORT_CONDITION columbia_river
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT groundwater
     CONCENTRATIONS
       Tracer   1.e-7            F
@@ -115,7 +115,7 @@ TRANSPORT_CONDITION columbia_river
 END
 
 TRANSPORT_CONDITION groundwater
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT river_water
     CONCENTRATIONS
       Tracer   1.e-3            F

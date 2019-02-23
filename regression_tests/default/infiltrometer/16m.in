@@ -180,7 +180,7 @@ MINIMUM_HYDROSTATIC_PRESSURE -1.d-6 MPa ! non-standard units for testing.
 
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 -10.d0
   PRESSURE 101325.d0
@@ -200,14 +200,14 @@ END
 #=========================== transport conditions =============================
 skip
 TRANSPORT_CONDITION initial
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION solute
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 solute_concentration
   /

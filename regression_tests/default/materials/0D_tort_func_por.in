@@ -106,14 +106,14 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE 101325.d0
 END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT initial
     CONCENTRATIONS
       Tracer 1.d-10  T
