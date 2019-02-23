@@ -33,7 +33,7 @@ REGRESSION
 
 #===================== Discretization =========================
 GRID
-TYPE structured
+TYPE STRUCTURED
 ORIGIN 0.d0 0.d0 0.d0
 NXYZ 1 1 100
 BOUNDS

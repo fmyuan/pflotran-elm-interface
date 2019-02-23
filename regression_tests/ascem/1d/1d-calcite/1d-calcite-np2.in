@@ -59,7 +59,7 @@ TIMESTEPPER TRANSPORT
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 20 1 1
   BOUNDS

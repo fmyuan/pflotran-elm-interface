@@ -41,7 +41,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured ./543.ugi
+  TYPE UNSTRUCTURED ./543.ugi
 END
 
 #=========================== fluid properties =================================

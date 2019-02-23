@@ -71,7 +71,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 99 1 1
   BOUNDS
     0.d0 0.d0 0.d0

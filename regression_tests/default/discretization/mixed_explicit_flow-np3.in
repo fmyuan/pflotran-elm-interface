@@ -32,7 +32,7 @@ END
 #=========================== chemistry ========================================
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured_explicit ./mixed.uge
+  TYPE UNSTRUCTURED_explicit ./mixed.uge
 END
 
 #=========================== solver options ===================================

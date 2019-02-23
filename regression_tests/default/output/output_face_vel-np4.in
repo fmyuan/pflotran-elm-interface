@@ -13,7 +13,7 @@ SUBSURFACE
 #=========================== solver options ===================================
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 4 4 4
   BOUNDS
     0.d0 0.d0 0.d0

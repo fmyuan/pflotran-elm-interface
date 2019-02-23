@@ -41,7 +41,7 @@ SUBSURFACE
   ! Domain and region information -----------------------------------
 
   GRID
-    TYPE unstructured ./simple.h5
+    TYPE UNSTRUCTURED ./simple.h5
   END
 
   REGION all

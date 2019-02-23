@@ -31,7 +31,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured dataset_map_grid.h5
+  TYPE UNSTRUCTURED dataset_map_grid.h5
 END
 
 #=========================== datasets =========================================

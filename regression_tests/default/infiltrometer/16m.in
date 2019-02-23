@@ -63,7 +63,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
 #changeme - change number of grid cells in each direction
   NXYZ 16 16 16

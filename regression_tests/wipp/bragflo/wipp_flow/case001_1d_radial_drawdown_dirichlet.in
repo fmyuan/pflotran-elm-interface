@@ -44,7 +44,7 @@ END
 
 !=========================== discretization ===================================
 GRID
-  TYPE structured cylindrical
+  TYPE STRUCTURED CYLINDRICAL
   NXYZ 50 1 1    ! 1D radial problem
   DXYZ
   0.1000000E-01  0.1300000E-01  0.1690000E-01  0.2197000E-01  0.2856100E-01 \

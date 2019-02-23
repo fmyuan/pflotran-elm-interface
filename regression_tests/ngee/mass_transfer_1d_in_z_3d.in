@@ -54,7 +54,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 2 2 10
   DXYZ
     1.d0

@@ -32,7 +32,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured_explicit dfn.uge
+  TYPE UNSTRUCTURED_explicit dfn.uge
 END
 
 #=========================== fluid properties =================================

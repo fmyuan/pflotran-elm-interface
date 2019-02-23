@@ -18,7 +18,7 @@ SUBSURFACE
 
   #=========================== discretization ===================================
   GRID
-    TYPE unstructured ./ugrid_sideset_mesh.h5
+    TYPE UNSTRUCTURED ./ugrid_sideset_mesh.h5
     MAX_CELLS_SHARING_A_VERTEX 100
   END
 

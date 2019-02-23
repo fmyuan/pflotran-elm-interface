@@ -11,7 +11,7 @@ END
 SUBSURFACE
 
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   BOUNDS
     0.0 0.0 0.0 
     1.0 1.0 10.0 
@@ -118,7 +118,7 @@ END_SUBSURFACE
 GEOMECHANICS
 
 GEOMECHANICS_GRID
-  TYPE unstructured geomech_dat/usg.mesh
+  TYPE UNSTRUCTURED geomech_dat/usg.mesh
   GRAVITY 0.0 0.0 0.0 
 END
 

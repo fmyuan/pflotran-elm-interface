@@ -32,7 +32,7 @@ END
 #=========================== chemistry ========================================
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured ./mixed.ugi
+  TYPE UNSTRUCTURED ./mixed.ugi
 END
 
 #=========================== solver options ===================================

@@ -34,7 +34,7 @@ REGRESSION
 END
 #=========================== discretization ===========================
 GRID
-  TYPE unstructured ./mesh_simple1D.h5
+  TYPE UNSTRUCTURED ./mesh_simple1D.h5
 END
 REGION all
   COORDINATES
@@ -163,7 +163,7 @@ SURFACE
 
 SURFACE_FLOW
 SURF_GRID
-  TYPE unstructured ./mesh_simple1D.h5
+  TYPE UNSTRUCTURED ./mesh_simple1D.h5
 END
 SURF_FLOW_FORMULATION diffusive
 SURF_SUBSURFACE_COUPLING

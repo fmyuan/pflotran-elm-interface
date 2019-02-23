@@ -37,7 +37,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured_polyhedra ./mixed.ugp
+  TYPE UNSTRUCTURED_polyhedra ./mixed.ugp
 END
 
 #=========================== solver options ===================================

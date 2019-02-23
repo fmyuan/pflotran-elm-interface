@@ -41,7 +41,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured_explicit ./543.uge
+  TYPE UNSTRUCTURED_explicit ./543.uge
 END
 
 #=========================== fluid properties =================================

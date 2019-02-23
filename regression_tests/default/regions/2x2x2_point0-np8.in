@@ -23,7 +23,7 @@ END
 #=========================== solver options ===================================
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 2 2 2
   BOUNDS
     0.d0 0.d0 0.d0

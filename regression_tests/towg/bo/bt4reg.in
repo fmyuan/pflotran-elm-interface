@@ -33,7 +33,7 @@ END
 #=========================== discretization ===================================
 ! PV~25*100*100*100*0.04~1E6 m3
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -1000.d0
   NXYZ 25 1 1
   DXYZ

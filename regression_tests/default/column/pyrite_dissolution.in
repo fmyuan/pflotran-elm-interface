@@ -96,7 +96,7 @@ LINEAR_SOLVER TRANSPORT
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 1 1 80 
   BOUNDS
     0.d0 0.d0 0.d0

@@ -40,7 +40,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured_explicit ./mixed.uge
+  TYPE UNSTRUCTURED_explicit ./mixed.uge
   UPWIND_FRACTION_METHOD FACE_CENTER_PROJECTION
 END
 

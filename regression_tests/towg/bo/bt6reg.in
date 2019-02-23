@@ -28,7 +28,7 @@ END
 #=========================== discretization ===================================
 ! PV=25000.10.10.2.0.1=0.5D6 rm3
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -1020.d0
   NXYZ 5 5 5
   DXYZ

@@ -45,7 +45,7 @@ SUBSURFACE
   ! Domain and region information -----------------------------------
 
   GRID
-    TYPE unstructured_explicit ./mesh2.uge 
+    TYPE UNSTRUCTURED_explicit ./mesh2.uge 
   END
 
   REGION all  
