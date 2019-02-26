@@ -23,7 +23,7 @@ module Debug_module
     PetscInt  :: output_format
     PetscBool :: verbose_filename
 
-    PetscBool :: print_numerical_derivatives
+    PetscBool :: print_which_derivatives
 
     PetscBool :: print_couplers
     PetscBool :: print_regions
