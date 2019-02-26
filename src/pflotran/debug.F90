@@ -67,7 +67,7 @@ function DebugCreate()
   debug%output_format = DEBUG_ASCII_FORMAT
   debug%verbose_filename = PETSC_FALSE
   
-  debug%print_numerical_derivatives = PETSC_FALSE
+  debug%print_which_derivatives = PETSC_FALSE
   
   debug%print_couplers = PETSC_FALSE
   debug%print_regions = PETSC_FALSE
@@ -129,8 +129,8 @@ subroutine DebugRead(debug,input,option)
       case('PRINT_JACOBIAN_DETAILED','MATVIEW_JACOBIAN_DETAILED', &
            'VIEW_JACOBIAN_DETAILED')
         debug%matview_Jacobian_detailed = PETSC_TRUE
-      case('PRINT_NUMERICAL_DERIVATIVES','VIEW_NUMERICAL_DERIVATIVES')
-        debug%print_numerical_derivatives = PETSC_TRUE
+      case('PRINT_WHICH_DERIVATIVES','VIEW_WHICH_DERIVATIVES')
+        debug%print_which_derivatives = PETSC_TRUE
       case('PRINT_WAYPOINTS')
         debug%print_waypoints = PETSC_TRUE
       case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
