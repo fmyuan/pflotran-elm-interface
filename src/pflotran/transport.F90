@@ -102,6 +102,9 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscReal :: hydrodynamic_dispersion_up(rt_parameter%naqcomp)
   PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
+  PetscReal :: v_up, v_dn
+  PetscReal :: vi2_over_v_up, vj2_over_v_up, vk2_over_v_up
+  PetscReal :: vi2_over_v_dn, vj2_over_v_dn, vk2_over_v_dn  
 
   nphase = rt_parameter%nphase
   
@@ -149,16 +152,43 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     endif
     q = qdarcy(iphase)
     if (rt_parameter%calculate_transverse_dispersion) then
-      velocity_dn = q*dist(1:3) + (1.d0-dist(1:3))* &
-                    cell_centered_velocity_dn(:,iphase)
       velocity_up = q*dist(1:3) + (1.d0-dist(1:3))* &
                     cell_centered_velocity_up(:,iphase)
-      Dxx_up = dispersivity_up(LONGITUDINAL)* &
-                 dabs(velocity_up(X_DIRECTION)) + &
-               dispersivity_up(TRANSVERSE_HORIZONTAL)* &
-                 dabs(velocity_up(Y_DIRECTION)) + &
-               dispersivity_up(TRANSVERSE_VERTICAL)* &
-                 dabs(velocity_up(Z_DIRECTION))
+      velocity_dn = q*dist(1:3) + (1.d0-dist(1:3))* &
+                    cell_centered_velocity_dn(:,iphase)
+#if 1
+      v_up = dot_product(velocity_up,velocity_up)
+      vi2_over_v_up = velocity_up(X_DIRECTION)**2/v_up
+      vj2_over_v_up = velocity_up(Y_DIRECTION)**2/v_up
+      vk2_over_v_up = velocity_up(Z_DIRECTION)**2/v_up
+      v_dn = dot_product(velocity_dn,velocity_dn)
+      vi2_over_v_dn = velocity_dn(X_DIRECTION)**2/v_dn
+      vj2_over_v_dn = velocity_dn(Y_DIRECTION)**2/v_dn
+      vk2_over_v_dn = velocity_dn(Z_DIRECTION)**2/v_dn
+      Dxx_up = dispersivity_up(LONGITUDINAL)*vi2_over_v_up + &
+               dispersivity_up(TRANSVERSE_HORIZONTAL)*vj2_over_v_up + &
+               dispersivity_up(TRANSVERSE_VERTICAL)*vk2_over_v_up
+      
+      Dxx_dn = dispersivity_dn(LONGITUDINAL)*vi2_over_v_dn + &
+               dispersivity_dn(TRANSVERSE_HORIZONTAL)*vj2_over_v_dn + &
+               dispersivity_dn(TRANSVERSE_VERTICAL)*vk2_over_v_dn
+      
+      Dyy_up = dispersivity_up(TRANSVERSE_HORIZONTAL)*vi2_over_v_up + &
+               dispersivity_up(LONGITUDINAL)*vj2_over_v_up + &
+               dispersivity_up(TRANSVERSE_VERTICAL)*vk2_over_v_up
+      
+      Dyy_dn = dispersivity_dn(TRANSVERSE_HORIZONTAL)*vi2_over_v_dn + &
+               dispersivity_dn(LONGITUDINAL)*vj2_over_v_dn + &
+               dispersivity_dn(TRANSVERSE_VERTICAL)*vk2_over_v_dn
+      
+      Dzz_up = dispersivity_up(TRANSVERSE_HORIZONTAL)*vi2_over_v_up + &
+               dispersivity_up(TRANSVERSE_HORIZONTAL)*vj2_over_v_up + &
+               dispersivity_up(LONGITUDINAL)*vk2_over_v_up
+      
+      Dzz_dn = dispersivity_dn(TRANSVERSE_HORIZONTAL)*vi2_over_v_dn + &
+               dispersivity_dn(TRANSVERSE_HORIZONTAL)*vj2_over_v_dn + &
+               dispersivity_dn(LONGITUDINAL)*vk2_over_v_dn
+#else
       Dxx_dn = dispersivity_dn(LONGITUDINAL)* &
                  dabs(velocity_dn(X_DIRECTION)) + &
                dispersivity_dn(TRANSVERSE_HORIZONTAL)* &
@@ -189,6 +219,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
                  dabs(velocity_dn(Y_DIRECTION)) + &
                dispersivity_dn(LONGITUDINAL)* &
                  dabs(velocity_dn(Z_DIRECTION))
+#endif
       ! dot product on unit direction vector
       mechanical_dispersion_up = &
         max(dist(1)*Dxx_up+dist(2)*Dyy_up+dist(3)*Dzz_up,1.d-40)
