@@ -5864,7 +5864,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   use Field_module
   use Option_module
   use Patch_module
-  use Appleyard_module
 
   implicit none
 
@@ -5910,13 +5909,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   slv_sat_truncate = TL4P_slv_sat_truncate
 
-# if 0
-  !! for appleyard:
-  PetscReal :: saturation0_oil, del_saturation_oil
-  PetscInt :: oid
-  PetscBool :: ayard_ch
-#endif
-
   grid => realization%patch%grid
   option => realization%option
   field => realization%field
@@ -5930,12 +5922,8 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)
 
-  !changed = PETSC_TRUE ! for appleyard
-
   max_pb_change=2.0*max_pressure_change
   !max_pb_change= 1.1D5
-
-  !oid = option%oil_phase ! for appleyard
 
   ! truncation
   ! Oil saturation must be truncated.  We do not use scaling
@@ -5958,20 +5946,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
       end if
     endif
   enddo
-
-
-#if 0
-    ! appleyard, not currently functional:
-    saturation0 = X_p(saturation_index)
-    del_saturation = dX_p(saturation_index)
-    call TOWGAppleyard(saturation0, del_sat_cand, ghosted_id, realization, oid, ayard_ch)
-    !if (del_saturation /= del_sat_cand) then
-    if (ayard_ch) then
-      print *, "appleyarding; d sat is ", dX_p(saturation_index), &
-                " will be ", del_sat_cand, " sat is ", saturation0
-      dX_p(saturation_index) = del_sat_cand
-    endif
-#endif
 
   scale = initial_scale
   if (max_it_before_damping > 0 .and. &

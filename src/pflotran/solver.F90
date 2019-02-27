@@ -842,6 +842,45 @@ subroutine SolverReadLinear(solver,input,option)
         call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
 
+      case('RESDEF')
+        ! Can be expanded on later.
+        ! Set to fgmres and cpr solver options, and some sensible
+        ! defaults for fgmres
+
+        option%io_buffer = 'LINEAR_SOLVER card: RESDEF selected '
+        call printMsg(option)
+        option%io_buffer = 'LINEAR_SOLVER: Will set commmon defaults for linear solver options (RESDEF)'
+        call printMsg(option)
+        ! 1) CPR preconditioner
+        solver%pc_type = PCSHELL
+        allocate(solver%cprstash)
+        call SolverCPRInitializeStorage(solver%cprstash)
+        option%io_buffer = 'LINEAR_SOLVER: PC has beeen set to CPR (RESDEF)'
+        call printMsg(option)
+        ! 2) FGMRES linear solver
+        solver%ksp_type = KSPFGMRES
+        call SolverCPRInitializeStorage(solver%cprstash)
+        option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set to FGMRES (RESDEF)'
+        call printMsg(option)
+        ! 3) ksp modified gs
+        string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
+        word = ''
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                  trim(string),trim(word),ierr);CHKERRQ(ierr)
+        option%io_buffer = 'LINEAR_SOLVER: FGMRES option modified Gram Scmidt enabled (RESDEF)'
+        call printMsg(option)
+        ! 4) ksp restart a bit bigger, say 100 - though note can be too big for limited memory systems/large models
+        string = trim(prefix) // 'ksp_gmres_restart'
+        word = '100'
+        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                                  trim(string),trim(word), &
+                                  ierr);CHKERRQ(ierr)
+        option%io_buffer = 'LINEAR_SOLVER: FGMRES restart value set to 100 (RESDEF)'
+        call printMsg(option)
+        option%io_buffer = 'LINEAR_SOLVER: end of setting RESDEF defaults. Note these may be overwritten &
+                            if there is other input in the LINEAR_SOLVER card.'
+        call printMsg(option)
+
       case default
         call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)
     end select 
