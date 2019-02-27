@@ -148,7 +148,6 @@ include_directories("${PROJECT_BINARY_DIR}")
 #link_directories("${PROJECT_BINARY_DIR}/lib")
 
 set(UTIL_SOURCES
-	appleyard.F90
 	generic.F90
 	input_aux.F90
 	logging.F90
