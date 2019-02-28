@@ -199,9 +199,22 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
+      if (option%flow%resdef) then
+        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, overwritting the RESERVOIR_DEFAULTS default'
+        call printMsg(option)
+      endif
 
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
+
+    case('RESERVOIR_DEFAULTS')
+      option%flow%resdef = PETSC_TRUE
+      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under process model options'
+      call printMsg(option)
+
+      option%flow%numerical_derivatives = PETSC_FALSE
+      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has been automatically selected (RESERVOIR_DEFAULTS)'
+      call printMsg(option)
 
     case('ANALYTICAL_DERIVATIVES')
       option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
