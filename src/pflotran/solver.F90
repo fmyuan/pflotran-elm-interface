@@ -436,8 +436,6 @@ subroutine SolverReadLinear(solver,input,option)
       prefix = '-tran_'
   end select
 
-  !!!!!! PROBLEM: linear solver card will be SKIPPED if not present at all in file - 
-  !!!!!!          making it difficult to set defaults in that case
   if(option%flow%resdef) then
     ! Can be expanded on later.
     ! Set to fgmres and cpr solver options, and some sensible
@@ -895,47 +893,6 @@ subroutine SolverReadLinear(solver,input,option)
         word = ''
         call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
-
-#if 0
-      case('RESERVOIR_DEFAULTS')
-        ! Can be expanded on later.
-        ! Set to fgmres and cpr solver options, and some sensible
-        ! defaults for fgmres
-
-        option%io_buffer = 'LINEAR_SOLVER card: RESERVOIR_DEFAULTS selected '
-        call printMsg(option)
-        option%io_buffer = 'LINEAR_SOLVER: Will set commmon defaults for linear solver options (RESERVOIR_DEFAULTS)'
-        call printMsg(option)
-        ! 1) CPR preconditioner
-        solver%pc_type = PCSHELL
-        allocate(solver%cprstash)
-        call SolverCPRInitializeStorage(solver%cprstash)
-        option%io_buffer = 'LINEAR_SOLVER: PC has beeen set to CPR (RESERVOIR_DEFAULTS)'
-        call printMsg(option)
-        ! 2) FGMRES linear solver
-        solver%ksp_type = KSPFGMRES
-        call SolverCPRInitializeStorage(solver%cprstash)
-        option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set to FGMRES (RESERVOIR_DEFAULTS)'
-        call printMsg(option)
-        ! 3) ksp modified gs
-        string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
-        word = ''
-        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                                  trim(string),trim(word),ierr);CHKERRQ(ierr)
-        option%io_buffer = 'LINEAR_SOLVER: FGMRES option modified Gram Scmidt enabled (RESERVOIR_DEFAULTS)'
-        call printMsg(option)
-        ! 4) ksp restart a bit bigger, say 100 - though note can be too big for limited memory systems/large models
-        string = trim(prefix) // 'ksp_gmres_restart'
-        word = '100'
-        call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                                  trim(string),trim(word), &
-                                  ierr);CHKERRQ(ierr)
-        option%io_buffer = 'LINEAR_SOLVER: FGMRES restart value set to 100 (RESERVOIR_DEFAULTS)'
-        call printMsg(option)
-        option%io_buffer = 'LINEAR_SOLVER: end of setting RESERVOIR_DEFAULTS defaults. Note these may be overwritten &
-                            if there is other input in the LINEAR_SOLVER card.'
-        call printMsg(option)
-#endif
 
       case default
         call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)

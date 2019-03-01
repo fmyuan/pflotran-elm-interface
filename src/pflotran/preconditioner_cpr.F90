@@ -168,7 +168,6 @@ subroutine CPRT1Apply(p, x, y,ierr)
     call PCApply(amg_pc,s,z,ierr); CHKERRQ(ierr)
 
     if (ctx%amg_report) then
-      !!!call PCView(amg_pc, PETSC_VIEWER_STDOUT_SELF, ierr);CHKERRQ(ierr)
       call PCView(amg_pc, PETSC_VIEWER_STDOUT_WORLD, ierr);CHKERRQ(ierr)
     endif
   endif
