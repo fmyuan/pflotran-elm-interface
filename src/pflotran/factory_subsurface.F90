@@ -2595,6 +2595,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word)
           case('FLOW')
             call flow_timestepper%ReadInput(input,option)
+            if (option%flow%resdef) then
+              option%flow%flowTimestepperDone = PETSC_TRUE
+            endif
           case('TRAN','TRANSPORT')
             call tran_timestepper%ReadInput(input,option)
           case default
@@ -2610,6 +2613,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word)
           case('FLOW')
             call SolverReadLinear(flow_timestepper%solver,input,option)
+            if (option%flow%resdef) then
+              option%flow%flowSolverLinearDone = PETSC_TRUE
+            endif
           case('TRAN','TRANSPORT')
             call SolverReadLinear(tran_timestepper%solver,input,option)
           case default
@@ -3226,6 +3232,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
         enddo
 
+
   ! If VARIABLES were not specified within the *_FILE blocks, point their
   ! variable lists to the master variable list, which can be specified within
   ! the OUTPUT block. If no VARIABLES are specified for the master list, the
@@ -3501,6 +3508,20 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('END_SUBSURFACE')
+
+        if (option%flow%resdef) then
+          ! it is possible for a card to be skipped when we would like to set defaults for it,
+          ! so we check that here
+          if (.NOT. option%flow%flowSolverLinearDone) then
+              call SolverReadLinear(flow_timestepper%solver,input,option)
+              option%flow%flowSolverLinearDone = PETSC_TRUE
+          endif
+          if (.NOT. option%flow%flowTimestepperDone) then
+            call flow_timestepper%ReadInput(input,option)
+            option%flow%flowTimestepperDone = PETSC_TRUE
+          endif
+        endif
+
         exit
 
 !....................

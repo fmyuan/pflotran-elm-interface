@@ -157,6 +157,15 @@ subroutine TimestepperBERead(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
+
+  if (option%flow%resdef) then
+    option%io_buffer = 'TIMESTEPPER CARD: applying common defaults (RESERVOIR_DEFAULTS)'
+    call printMsg(option)
+    this%iaccel=100
+    option%io_buffer = 'TIMESTEPPER CARD: TS_ACCELERATION as been set to 100 (RESERVOIR_DEFAULTS)'
+    call printMsg(option)
+  endif
+
   input%ierr = 0
   do
   
@@ -173,6 +182,10 @@ subroutine TimestepperBERead(this,input,option)
       case('TS_ACCELERATION')
         call InputReadInt(input,option,this%iaccel)
         call InputDefaultMsg(input,option,'iaccel')
+        if (option%flow%resdef) then
+          option%io_buffer = 'WARNING: TS_ACCELERATION has been changed, overwritting the RESERVOIR_DEFAULTS default'
+          call printMsg(option)
+        endif
 
       case('DT_FACTOR')
         string='time_step_factor'
