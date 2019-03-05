@@ -4268,7 +4268,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                   patch%aux%Richards%auxvars(ghosted_id)%kr / &
                   patch%aux%Richards%auxvars(ghosted_id)%kvr
             enddo
-            call printErrMsg(option,'LIQUID_VISCOSITY not supported by Richards')
           case(GAS_VISCOSITY)
             call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
           case(GAS_MOBILITY)
