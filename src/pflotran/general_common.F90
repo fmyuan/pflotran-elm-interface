@@ -4009,48 +4009,46 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
-    if (dabs(qsrc(energy_id)) < 1.d-40) then
-      if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
-        if (associated(gen_auxvar%d)) then
-          hw_dp = gen_auxvar_ss%d%Hl_pl
-          hw_dT = gen_auxvar_ss%d%Hl_T
-        endif
-        enthalpy = gen_auxvar_ss%h(wat_comp_id)
-        ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
-        if (analytical_derivatives) then
-          Je = 0.d0
-          Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT
-        endif
-        J = J + Je
+    if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
+      if (associated(gen_auxvar%d)) then
+        hw_dp = gen_auxvar_ss%d%Hl_pl          
+        hw_dT = gen_auxvar_ss%d%Hl_T
       endif
-      
-      if (dabs(qsrc(air_comp_id)) > 1.d-40) then
-        ! this is pure air, we use the enthalpy of air, NOT the air/water
-        ! mixture in gas
-        ! air enthalpy is only a function of temperature
-        if (associated(gen_auxvar%d)) then
-          ha_dp = gen_auxvar_ss%d%Ha_pg
-          ha_dT = gen_auxvar_ss%d%Ha_T
-        endif
-        
-        internal_energy = gen_auxvar_ss%u(air_comp_id)
-        enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
-        ! enthalpy units: MJ/kmol                       ! air component mass
-        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
-        if (analytical_derivatives) then
-          Je = 0.d0
-          Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
-          Je(3,2) = Jg(2,2) * enthalpy
-          Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
-        endif 
-        J = J + Je
+      enthalpy = gen_auxvar_ss%h(wat_comp_id)
+      ! enthalpy units: MJ/kmol                       ! water component mass
+      Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy       
+      if (analytical_derivatives) then
+        Je = 0.d0
+        Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
+        Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT        
       endif
-    else
-      Res(energy_id) = qsrc(energy_id)*scale ! MJ/s
-      ! no derivative
+      J = J + Je
     endif
+      
+    if (dabs(qsrc(air_comp_id)) > 1.d-40) then
+      ! this is pure air, we use the enthalpy of air, NOT the air/water
+      ! mixture in gas
+      ! air enthalpy is only a function of temperature
+      if (associated(gen_auxvar%d)) then
+        ha_dp = gen_auxvar_ss%d%Ha_pg
+        ha_dT = gen_auxvar_ss%d%Ha_T
+      endif
+        
+      internal_energy = gen_auxvar_ss%u(air_comp_id)
+      enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
+      ! enthalpy units: MJ/kmol                       ! air component mass
+      Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
+      if (analytical_derivatives) then
+        Je = 0.d0
+        Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
+        Je(3,2) = Jg(2,2) * enthalpy
+        Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
+      endif 
+      J = J + Je
+    endif
+    
+    Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
+    ! no derivative
   endif
   
 end subroutine GeneralSrcSink

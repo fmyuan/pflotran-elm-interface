@@ -1,7 +1,6 @@
 # this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
 
 util_obj  = \
-	${common_src}appleyard.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
