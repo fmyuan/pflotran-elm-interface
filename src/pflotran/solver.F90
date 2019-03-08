@@ -441,36 +441,43 @@ subroutine SolverReadLinear(solver,input,option)
     ! Set to fgmres and cpr solver options, and some sensible
     ! defaults for fgmres
 
-    option%io_buffer = 'LINEAR_SOLVER: applying common defaults (RESERVOIR_DEFAULTS)'
+    option%io_buffer = 'LINEAR_SOLVER: applying common defaults &
+                       &(RESERVOIR_DEFAULTS)'
     call printMsg(option)
     ! 1) CPR preconditioner
     solver%pc_type = PCSHELL
     allocate(solver%cprstash)
     call SolverCPRInitializeStorage(solver%cprstash)
-    option%io_buffer = 'LINEAR_SOLVER: PC has beeen set to CPR (RESERVOIR_DEFAULTS)'
+    option%io_buffer = 'LINEAR_SOLVER: PC has beeen set to CPR &
+                       &(RESERVOIR_DEFAULTS)'
     call printMsg(option)
     ! 2) FGMRES linear solver
     solver%ksp_type = KSPFGMRES
     call SolverCPRInitializeStorage(solver%cprstash)
-    option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set to FGMRES (RESERVOIR_DEFAULTS)'
+    option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set &
+                       &to FGMRES (RESERVOIR_DEFAULTS)'
     call printMsg(option)
     ! 3) ksp modified gs
     string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
     word = ''
     call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                               trim(string),trim(word),ierr);CHKERRQ(ierr)
-    option%io_buffer = 'LINEAR_SOLVER: FGMRES option modified Gram Scmidt enabled (RESERVOIR_DEFAULTS)'
+    option%io_buffer = 'LINEAR_SOLVER: FGMRES option modified Gram &
+                       &Schmidt enabled (RESERVOIR_DEFAULTS)'
     call printMsg(option)
-    ! 4) ksp restart a bit bigger, say 100 - though note can be too big for limited memory systems/large models
+    ! 4) ksp restart a bit bigger, say 100 - though note can be too 
+    !    big for limited memory systems/large models
     string = trim(prefix) // 'ksp_gmres_restart'
     word = '100'
     call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                               trim(string),trim(word), &
                               ierr);CHKERRQ(ierr)
-    option%io_buffer = 'LINEAR_SOLVER: FGMRES restart value set to 100 (RESERVOIR_DEFAULTS)'
+    option%io_buffer = 'LINEAR_SOLVER: FGMRES restart value set to &
+                       &100 (RESERVOIR_DEFAULTS)'
     call printMsg(option)
-    option%io_buffer = 'LINEAR_SOLVER: end of setting RESERVOIR_DEFAULTS defaults. Note these may be overwritten &
-                        if there is other input in the LINEAR_SOLVER card.'
+    option%io_buffer = 'LINEAR_SOLVER: end of setting RESERVOIR_DEFAULTS &
+      &defaults. Note these may be overwritten if there is other input &
+      &in the LINEAR_SOLVER card.'
     call printMsg(option)
    endif
 
@@ -519,7 +526,8 @@ subroutine SolverReadLinear(solver,input,option)
         end select
 
         if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: SOLVER TYPE has been changed, overwritting the RESERVOIR_DEFAULTS default'
+          option%io_buffer = 'WARNING: SOLVER TYPE has been changed, &
+            &overwritting the RESERVOIR_DEFAULTS default'
           call printMsg(option)
         endif
 
@@ -555,7 +563,8 @@ subroutine SolverReadLinear(solver,input,option)
         end select
 
         if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: PRECONDITIONER has been changed, overwritting the RESERVOIR_DEFAULTS default'
+          option%io_buffer = 'WARNING: PRECONDITIONER has been changed, &
+            &overwritting the RESERVOIR_DEFAULTS default'
           call printMsg(option)
         endif
 
@@ -1059,7 +1068,8 @@ subroutine SolverReadNewton(solver,input,option)
           case('SHELL')
              solver%Jpre_mat_type = MATSHELL
           case default
-            option%io_buffer  = 'Preconditioner Matrix type: ' // trim(word) // ' unknown.'
+            option%io_buffer  = 'Preconditioner Matrix type: ' // &
+              trim(word) // ' unknown.'
             call printErrMsg(option)
         end select
         
