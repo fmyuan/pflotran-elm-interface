@@ -6,6 +6,9 @@ import sys
 # and writes the dependencies to pflotran_dependencies.txt.  The developer
 # must then insert the contents of this file within the PFLOTRAN makefile.
 
+# YOU MUST RUN THIS SCRIPT FROM WITHIN PFLOTRAN_DIR/src/pflotran
+# > python ../python/pflotran_dependencies.py
+
 def get_filename(root,suffix):
   filename = []
   filename.append(root)
