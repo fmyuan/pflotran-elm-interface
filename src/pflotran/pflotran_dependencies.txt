@@ -163,7 +163,7 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        output_aux.o output_tecplot.o patch.o \
                        pflotran_constants.o pm_auxiliary.o pm_base.o \
                        pm_base_pointer.o pm_flash2.o pm_general.o pm_immis.o \
-                       pm_miscible.o pm_mphase.o pm_richards.o \
+                       pm_miscible.o pm_mphase.o pm_nwt.o pm_richards.o \
                        pm_richards_ts.o pm_rt.o pm_subsurface_flow.o pm_th.o \
                        pm_toil_ims.o pm_towg.o pm_towg_aux.o \
                        pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
@@ -402,6 +402,8 @@ mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
+nw_transport.o :
+nw_transport_aux.o : matrix_block_aux.o pflotran_constants.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
                 region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
@@ -520,6 +522,8 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               string.o utility.o
+pm_nwt.o : communicator_base.o input_aux.o nw_transport_aux.o option.o \
+           pflotran_constants.o pm_base.o realization_subsurface.o string.o
 pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
                 general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -629,10 +633,10 @@ pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
 pmc_subsurface.o : connection.o convergence.o coupler.o discretization.o \
                    eos_water.o field.o grid.o material.o material_aux.o \
                    option.o patch.o pflotran_constants.o pm_base.o \
-                   pm_base_pointer.o pm_general.o pm_richards.o pm_rt.o \
-                   pm_subsurface_flow.o pm_th.o pm_toil_ims.o pm_towg.o \
-                   pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o pmc_base.o \
-                   realization_base.o realization_subsurface.o \
+                   pm_base_pointer.o pm_general.o pm_nwt.o pm_richards.o \
+                   pm_rt.o pm_subsurface_flow.o pm_th.o pm_toil_ims.o \
+                   pm_towg.o pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o \
+                   pmc_base.o realization_base.o realization_subsurface.o \
                    secondary_continuum.o solver.o string.o timestepper_BE.o \
                    timestepper_TS.o timestepper_base.o variables.o
 pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \

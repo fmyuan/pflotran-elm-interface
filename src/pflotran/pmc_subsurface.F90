@@ -134,6 +134,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_Richards_class
   use PM_TH_class
   use PM_RT_class
+  use PM_NWT_class
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
   use PM_TOilIms_class
@@ -330,6 +331,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       call printMsg(option,"  Finished setting up FLOW SNES ")
 
+  ! jenn:todo I can't overload class is() select case, but it would be nice 
+  ! to reuse the initialization for transport here:
   ! ----- subsurface reactive transport
     class is(pm_rt_type)
       call printMsg(option,"  Beginning setup of TRAN SNES ")
