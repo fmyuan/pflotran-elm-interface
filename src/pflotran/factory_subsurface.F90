@@ -100,7 +100,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   ! process command line arguments specific to subsurface
   call SubsurfInitCommandLineSettings(option)
 
-  call ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_waste_form,&
+  call ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_nwt,pm_waste_form,&
                             pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary)
 
   call SubsurfaceSetFlowMode(pm_flow,option)
@@ -125,8 +125,7 @@ end subroutine SubsurfaceInitializePostPetsc
 
 ! ************************************************************************** !
 
-! jenn:todo add pm to ExtractPMsFromPMList
-subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_waste_form,&
+subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_nwt,pm_waste_form,&
                                 pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary)
   !
   ! Extracts all possible PMs from the PM list
@@ -178,6 +177,8 @@ subroutine ExtractPMsFromPMList(simulation,pm_flow,pm_rt,pm_waste_form,&
         pm_flow => cur_pm
       class is(pm_rt_type)
         pm_rt => cur_pm
+      class is(pm_nwt_type)
+        pm_nwt => cur_pm
       class is(pm_waste_form_type)
         pm_waste_form => cur_pm
       class is(pm_ufd_decay_type)
@@ -205,7 +206,6 @@ end subroutine ExtractPMsFromPMList
 
 ! ************************************************************************** !
 
-! jenn:todo Add pm to SetupPMCLinkages
 subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,pm_nwt,pm_waste_form,&
                             pm_ufd_decay,pm_ufd_biosphere,pm_auxiliary, &
                             realization)
