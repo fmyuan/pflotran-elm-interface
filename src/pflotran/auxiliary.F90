@@ -6,6 +6,7 @@ module Auxiliary_module
   use TH_Aux_module
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
   use Mphase_Aux_module
   use Immis_Aux_module
   use Miscible_Aux_module
@@ -29,6 +30,7 @@ module Auxiliary_module
   type, public :: auxiliary_type 
     type(global_type), pointer :: Global
     type(reactive_transport_type), pointer :: RT
+    type(nw_transport_type), pointer :: NWT
     type(th_type), pointer :: TH
     type(richards_type), pointer :: Richards
     type(mphase_type), pointer :: Mphase
@@ -66,6 +68,7 @@ subroutine AuxInit(aux)
   
   nullify(aux%Global)
   nullify(aux%RT)
+  nullify(aux%NWT)
   nullify(aux%TH)
   nullify(aux%Richards)
   
@@ -100,6 +103,7 @@ subroutine AuxDestroy(aux)
   
   call GlobalAuxDestroy(aux%Global)
   call RTAuxDestroy(aux%RT)
+  call NWTAuxDestroy(aux%NWT)
   call THAuxDestroy(aux%TH)
   call RichardsAuxDestroy(aux%Richards)
   call MphaseAuxDestroy(aux%Mphase)
@@ -115,6 +119,7 @@ subroutine AuxDestroy(aux)
   
   nullify(aux%Global)
   nullify(aux%RT)
+  nullify(aux%NWT)
   nullify(aux%Richards)
   nullify(aux%Mphase)
   nullify(aux%Immis)

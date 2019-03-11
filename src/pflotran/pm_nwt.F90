@@ -80,18 +80,27 @@ subroutine PMNWTSetup(this)
   ! Author: Jenn Frederick
   ! Date: 03/08/2019
   ! 
+  
+  use NW_Transport_Aux_module
 
   implicit none
   
   class(pm_nwt_type) :: this
   
+  type(nw_transport_param_type), pointer :: nwt_parameter
+  
+  ! jenn:todo get NWT in patch%aux pointed to correct place
+  nwt_parameter => this%realization%patch%aux%NWT%nwt_parameter
+  
+  ! pass down flags from PMNWT class
+  nwt_parameter%temperature_dependent_diffusion = &
+    this%temperature_dependent_diffusion
+  
   ! set the communicator
   this%comm1 => this%realization%comm1
   
-  allocate(this%max_concentration_change( &
-           this%realization%reaction%ncomp))
-  allocate(this%max_volfrac_change( &
-           this%realization%reaction%mineral%nkinmnrl))
+  allocate(this%max_concentration_change(nwt_parameter%ncomp))
+  allocate(this%max_volfrac_change(nwt_parameter%ncomp))
 
 end subroutine PMNWTSetup
 
