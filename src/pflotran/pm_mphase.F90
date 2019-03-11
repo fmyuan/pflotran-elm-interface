@@ -12,7 +12,7 @@ module PM_Mphase_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_mphase_type
   contains
-    procedure, public :: Read => PMMphaseRead
+    procedure, public :: ReadSimulationBlock => PMMphaseRead
     procedure, public :: InitializeTimestep => PMMphaseInitializeTimestep
     procedure, public :: Residual => PMMphaseResidual
     procedure, public :: Jacobian => PMMphaseJacobian

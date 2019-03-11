@@ -26,7 +26,7 @@ module PM_Richards_class
     PetscReal :: abs_update_inf_tol
     PetscReal :: rel_update_inf_tol
   contains
-    procedure, public :: Read => PMRichardsRead
+    procedure, public :: ReadSimulationBlock => PMRichardsRead
     procedure, public :: InitializeTimestep => PMRichardsInitializeTimestep
     procedure, public :: Residual => PMRichardsResidual
     procedure, public :: Jacobian => PMRichardsJacobian

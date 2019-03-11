@@ -11,7 +11,7 @@ module PM_Surface_Flow_class
 
   type, public, extends(pm_surface_type) :: pm_surface_flow_type
   contains
-    procedure, public :: Read => PMSurfaceFlowRead
+    procedure, public :: ReadSimulationBlock => PMSurfaceFlowRead
     procedure, public :: UpdateTimestep => PMSurfaceFlowUpdateTimestep
     procedure, public :: PreSolve => PMSurfaceFlowPreSolve
     procedure, public :: PostSolve => PMSurfaceFlowPostSolve

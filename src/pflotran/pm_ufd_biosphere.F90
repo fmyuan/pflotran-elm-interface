@@ -78,7 +78,7 @@ module PM_UFD_Biosphere_class
   contains
     procedure, public :: SetRealization => PMUFDBSetRealization
     procedure, public :: Setup => PMUFDBSetup
-    procedure, public :: Read => PMUFDBRead
+    procedure, public :: ReadPMBlock => PMUFDBRead
     procedure, public :: InitializeRun => PMUFDBInitializeRun
     procedure, public :: InitializeTimestep => PMUFDBInitializeTimestep
     procedure, public :: FinalizeTimestep => PMUFDBFinalizeTimestep

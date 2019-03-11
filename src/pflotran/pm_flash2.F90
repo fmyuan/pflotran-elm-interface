@@ -13,7 +13,7 @@ module PM_Flash2_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_flash2_type
   contains
-    procedure, public :: Read => PMFlash2Read
+    procedure, public :: ReadSimulationBlock => PMFlash2Read
     procedure, public :: InitializeTimestep => PMFlash2InitializeTimestep
     procedure, public :: Residual => PMFlash2Residual
     procedure, public :: Jacobian => PMFlash2Jacobian
