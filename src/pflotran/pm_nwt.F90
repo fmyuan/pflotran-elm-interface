@@ -89,7 +89,7 @@ subroutine PMNWTSetup(this)
   
   type(nw_transport_param_type), pointer :: nwt_parameter
   
-  ! jenn:todo get NWT in patch%aux pointed to correct place
+  ! jenn:todo get NWT in patch%aux pointed to correct place?
   nwt_parameter => this%realization%patch%aux%NWT%nwt_parameter
   
   ! pass down flags from PMNWT class

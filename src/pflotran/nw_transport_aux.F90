@@ -36,6 +36,9 @@ module NW_Transport_Aux_module
   type, public :: nw_transport_param_type
     PetscInt :: nphase
     PetscInt :: ncomp
+    PetscInt :: nsorb
+    PetscInt :: nmnrl
+    PetscInt :: nauxiliary
     PetscInt :: offset_auxiliary
     PetscReal, pointer :: diffusion_coefficient(:,:)
     PetscReal, pointer :: diffusion_activation_energy(:,:)
@@ -126,6 +129,9 @@ function NWTAuxCreate(ncomp,nphase)
   allocate(aux%nwt_parameter)
   aux%nwt_parameter%ncomp = ncomp
   aux%nwt_parameter%nphase = nphase
+  aux%nwt_parameter%nsorb = 0
+  aux%nwt_parameter%nmnrl = 0
+  aux%nwt_parameter%nauxiliary = 0
   allocate(aux%nwt_parameter%diffusion_coefficient(ncomp,nphase))
   allocate(aux%nwt_parameter%diffusion_activation_energy(ncomp,nphase))
   aux%nwt_parameter%diffusion_coefficient = 1.d-9
@@ -160,9 +166,53 @@ subroutine NWTAuxVarInit(auxvar,nwt_parameter,option)
 
   implicit none
   
-  type(nw_transport_type) :: auxvar
+  type(nw_transport_auxvar_type) :: auxvar
   type(nw_transport_param_type) :: nwt_parameter
   type(option_type) :: option
+  
+  PetscInt :: ncomp, nmnrl
+  
+  ncomp = nwt_parameter%ncomp
+  nmnrl = nwt_parameter%nmnrl
+  
+  allocate(auxvar%molality(ncomp))
+  auxvar%molality = 0.d0
+  
+  if (nwt_parameter%nsorb > 0) then
+    allocate(auxvar%total_sorb_eq(ncomp))
+    auxvar%total_sorb_eq = 0.d0
+    allocate(auxvar%dtotal_sorb_eq(ncomp,ncomp))
+    auxvar%dtotal_sorb_eq = 0.d0
+  else
+    nullify(auxvar%total_sorb_eq)
+    nullify(auxvar%dtotal_sorb_eq)
+  endif
+  
+  if (nwt_parameter%nmnrl > 0) then
+    allocate(auxvar%mnrl_volfrac0(nmnrl))
+    auxvar%mnrl_volfrac0 = 0.d0
+    allocate(auxvar%mnrl_volfrac(nmnrl))
+    auxvar%mnrl_volfrac = 0.d0
+    allocate(auxvar%mnrl_area0(nmnrl))
+    auxvar%mnrl_area0 = 0.d0
+    allocate(auxvar%mnrl_area(nmnrl))
+    auxvar%mnrl_area = 0.d0
+    allocate(auxvar%mnrl_rate(nmnrl))
+    auxvar%mnrl_rate = 0.d0
+  else
+    nullify(auxvar%mnrl_volfrac0)
+    nullify(auxvar%mnrl_volfrac)
+    nullify(auxvar%mnrl_area0)
+    nullify(auxvar%mnrl_area)
+    nullify(auxvar%mnrl_rate)
+  endif
+  
+  if (nwt_parameter%nauxiliary > 0) then
+    allocate(auxvar%auxiliary_data(nwt_parameter%nauxiliary))
+    auxvar%auxiliary_data = 0.d0
+  else
+    nullify(auxvar%auxiliary_data)
+  endif
   
 end subroutine NWTAuxVarInit
 
