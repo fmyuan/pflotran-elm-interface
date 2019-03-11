@@ -30,7 +30,7 @@ module PM_General_class
     PetscReal :: damping_factor
     PetscInt :: general_newton_max_iter
   contains
-    procedure, public :: Read => PMGeneralRead
+    procedure, public :: ReadSimulationBlock => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual

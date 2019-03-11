@@ -59,7 +59,7 @@ module PM_WIPP_Flow_class
     Vec :: scaling_vec
     PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
   contains
-    procedure, public :: Read => PMWIPPFloRead
+    procedure, public :: ReadSimulationBlock => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
     procedure, public :: InitializeTimestep => PMWIPPFloInitializeTimestep
     procedure, public :: Residual => PMWIPPFloResidual
@@ -503,7 +503,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   if (input%ierr == 0 .and. wippflo_use_gas_generation) then
     this%pmwss_ptr => PMWSSCreate()
     this%pmwss_ptr%option => this%option
-    call this%pmwss_ptr%Read(input)
+    call this%pmwss_ptr%ReadPMBlock(input)
   endif
   ! call setup/initialization of all WIPP process models
   if (associated(this%pmwss_ptr)) then

@@ -433,7 +433,7 @@ module PM_WIPP_SrcSink_class
   contains
     procedure, public :: PMWSSSetRealization
     procedure, public :: Setup => PMWSSSetup
-    procedure, public :: Read => PMWSSRead
+    procedure, public :: ReadPMBlock => PMWSSRead
     procedure, public :: InitializeRun => PMWSSInitializeRun
     procedure, public :: InitializeTimestep => PMWSSInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWSSFinalizeTimestep

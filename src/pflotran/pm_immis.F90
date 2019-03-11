@@ -12,7 +12,7 @@ module PM_Immis_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_immis_type
   contains
-    procedure, public :: Read => PMImmisRead
+    procedure, public :: ReadSimulationBlock => PMImmisRead
     procedure, public :: InitializeTimestep => PMImmisInitializeTimestep
     procedure, public :: Residual => PMImmisResidual
     procedure, public :: Jacobian => PMImmisJacobian

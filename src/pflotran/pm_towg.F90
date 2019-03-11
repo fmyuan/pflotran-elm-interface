@@ -31,7 +31,7 @@ module PM_TOWG_class
     !procedure(TOWGMaxChangeDummy), pointer :: MaxChange => null()
     !procedure(MaxChange), pointer :: MaxChange => null()
   contains
-    procedure, public :: Read => PMTOWGRead
+    procedure, public :: ReadSimulationBlock => PMTOWGRead
     procedure, public :: InitializeRun => PMTOWGInitializeRun
     procedure, public :: InitializeTimestep => PMTOWGInitializeTimestep
     procedure, public :: Residual => PMTOWGResidual

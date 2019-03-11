@@ -12,7 +12,7 @@ module PM_Miscible_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_miscible_type
   contains
-    procedure, public :: Read => PMMiscibleRead
+    procedure, public :: ReadSimulationBlock => PMMiscibleRead
     procedure, public :: InitializeTimestep => PMMiscibleInitializeTimestep
     procedure, public :: Residual => PMMiscibleResidual
     procedure, public :: Jacobian => PMMiscibleJacobian

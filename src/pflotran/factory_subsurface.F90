@@ -413,7 +413,7 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   string = 'WASTE_FORM_GENERAL'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  call pm_waste_form%Read(input)
+  call pm_waste_form%ReadPMBlock(input)
 
   if (.not.associated(simulation%rt_process_model_coupler)) then
      option%io_buffer = 'The Waste Form process model requires &
@@ -490,7 +490,7 @@ subroutine AddPMCUDFDecay(simulation,pm_ufd_decay,pmc_name,&
   string = 'UFD_DECAY'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  call pm_ufd_decay%Read(input)
+  call pm_ufd_decay%ReadPMBlock(input)
 
   if (.not.associated(simulation%rt_process_model_coupler)) then
      option%io_buffer = 'The UFD_DECAY process model requires reactive &
@@ -556,7 +556,7 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
   string = 'UFD_BIOSPHERE'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  call pm_ufd_biosphere%Read(input)
+  call pm_ufd_biosphere%ReadPMBlock(input)
   if (.not.associated(simulation%rt_process_model_coupler)) then
      option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
           &transport.'
@@ -1007,7 +1007,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
                              trim(error_string)
           call printErrMsg(option)
         endif
-        call pm%Read(input)
+        call pm%ReadSimulationBlock(input)
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
@@ -1052,7 +1052,7 @@ subroutine SubsurfaceReadRTPM(input,option,pm)
   pm => PMRTCreate()
   pm%option => option
 
-  call pm%Read(input)
+  call pm%ReadSimulationBlock(input)
 
 end subroutine SubsurfaceReadRTPM
 
