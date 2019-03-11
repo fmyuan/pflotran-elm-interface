@@ -17,6 +17,7 @@ module Factory_Subsurface_module
             ! move to init_subsurface
             SubsurfaceReadFlowPM, &
             SubsurfaceReadRTPM, &
+            SubsurfaceReadNWTPM, &
             SubsurfaceReadWasteFormPM, &
             SubsurfaceReadUFDDecayPM, &
             SubsurfaceReadUFDBiospherePM
@@ -1537,11 +1538,12 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
         call cur_pm%SetRealization(realization)
         
       class is(pm_nwt_type)
-        if (.not.associated(realization%reaction)) then
-          option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
-            &process model without the corresponding CHEMISTRY block.'
-          call printErrMsg(option)
-        endif
+      !  if (.not.associated(realization%reaction)) then
+      !    option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
+      !      &process model in the SIMULATION block without the corresponding &
+      !      &NUCLEAR_WASTE_TRANSPORT in the SUBSURFACE block.'
+      !    call printErrMsg(option)
+      !  endif
         call cur_pm%SetRealization(realization)
 
       class is(pm_subsurface_flow_type)
@@ -2038,7 +2040,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         !geh: for some reason, we need this with CHEMISTRY read for
         !     multicontinuum
  !       option%use_mc = PETSC_TRUE
-        call ReactionInit(realization%reaction,input,option)
+        call ReactionInit(realization%reaction,input,option)        
     end select
   enddo
 
@@ -2083,6 +2085,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Patch_module
   use Reaction_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Discretization_module
   use Input_Aux_module
   use String_module
@@ -2235,6 +2238,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('CHEMISTRY')
         call ReactionReadPass2(reaction,input,option)
+        
+!....................
+      case('NUCLEAR_WASTE_TRANSPORT')
+        if (.not.associated(simulation%nwt_process_model_coupler)) then
+          option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT card is included, but no &
+            &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
+          call printErrMsg(option)
+        endif
+        call simulation%nwt_process_model_coupler%pm_ptr%pm%Read(input)
 
 !....................
       case ('SPECIFIED_VELOCITY')

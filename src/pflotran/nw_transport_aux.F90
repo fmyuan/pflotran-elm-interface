@@ -34,42 +34,12 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
   end type nw_transport_auxvar_type
   
-  type, public :: species_type
-    PetscInt :: id
-    character(len=MAXWORDLENGTH) :: name
-    PetscReal :: a0  ! don't know what this is
-    PetscReal :: molar_weight
-    PetscReal :: Z  ! don't know what this is
-    PetscBool :: print_me
-    type(species_type), pointer :: next
-  end type species_type
-  
-  type, public :: radioactive_decay_rxn_type
-    PetscInt :: id
-    character(len=MAXSTRINGLENGTH) :: reaction
-    PetscReal :: rate_constant
-    PetscReal :: half_life
-    PetscBool :: print_me
-    type(radioactive_decay_rxn_type), pointer :: next
-  end type radioactive_decay_rxn_type
-  
-  type, public :: nw_transport_rxn_type
-    PetscInt :: offset_auxiliary
-    PetscReal, pointer :: diffusion_coefficient(:,:)
-    PetscReal, pointer :: diffusion_activation_energy(:,:)
-    character(len=MAXWORDLENGTH), pointer :: species_names(:)
-    PetscBool, pointer :: species_print(:)
-    type(species_type), pointer :: species_list
-    type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn_list
-  end type nw_transport_rxn_type
-  
   type, public :: nw_transport_param_type
     PetscInt :: nphase
     PetscInt :: ncomp
     PetscInt :: nsorb
     PetscInt :: nmnrl
     PetscInt :: nauxiliary
-    type(nw_transport_rxn_type), pointer :: nwt_rxn
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -114,7 +84,7 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
   
-  public :: NWTAuxCreate, SpeciesCreate, RadioactiveDecayRxnCreate, & 
+  public :: NWTAuxCreate, &
             NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip,&
             NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess
             
@@ -162,63 +132,6 @@ end function NWTAuxCreate
 
 ! ************************************************************************** !
 
-function SpeciesCreate()
-  ! 
-  ! Allocate and initialize a species object.
-  ! 
-  ! Author: Jenn Frederick      
-  ! Date: 03/11/2019
-  ! 
-    
-  implicit none
-  
-  type(species_type), pointer :: SpeciesCreate
-  
-  type(species_type), pointer :: species
-
-  allocate(species) 
-  species%id = 0 
-  species%name = ''
-  species%a0 = 0.d0
-  species%molar_weight = 0.d0
-  species%Z = 0.d0
-  species%print_me = PETSC_FALSE
-  nullify(species%next)
-
-  SpeciesCreate => species
-  
-end function SpeciesCreate
-
-! ************************************************************************** !
-
-function RadioactiveDecayRxnCreate()
-  ! 
-  ! Allocate and initialize a radioactive decay reaction object.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/11/2019
-  ! 
-  
-  implicit none
-    
-  type(radioactive_decay_rxn_type), pointer :: RadioactiveDecayRxnCreate
-
-  type(radioactive_decay_rxn_type), pointer :: rxn
-  
-  allocate(rxn)
-  rxn%id = 0
-  rxn%reaction = ''
-  rxn%rate_constant = 0.d0
-  rxn%half_life = 0.d0
-  rxn%print_me = PETSC_FALSE
-  nullify(rxn%next)
-  
-  RadioactiveDecayRxnCreate => rxn
-  
-end function RadioactiveDecayRxnCreate
-
-! ************************************************************************** !
-
 subroutine NWTParamInit(nwt_parameter,ncomp,nphase)
   !
   ! Initializes the nuclear waste transport parameter object.
@@ -251,45 +164,8 @@ subroutine NWTParamInit(nwt_parameter,ncomp,nphase)
   nwt_parameter%max_newton_iterations = 0
   nwt_parameter%overall_max_newton_iterations = 0
 #endif
-  allocate(nwt_parameter%nwt_rxn)
-  call NWTRxnInit(nwt_parameter%nwt_rxn,ncomp,nphase)
   
 end subroutine NWTParamInit
-
-! ************************************************************************** !
-
-subroutine NWTRxnInit(nwt_rxn,ncomp,nphase)
-  !
-  ! Initializes the nuclear waste transport reaction object.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 03/11/2019
-  !
-    
-  implicit none
-  
-  type(nw_transport_rxn_type) :: nwt_rxn
-  PetscInt :: ncomp
-  PetscInt :: nphase
-  
-  ! jenn:todo don't forget to destroy all this stuff
-  
-  allocate(nwt_rxn%diffusion_coefficient(ncomp,nphase))
-  nwt_rxn%diffusion_coefficient = 1.d-9
-  allocate(nwt_rxn%diffusion_activation_energy(ncomp,nphase))
-  nwt_rxn%diffusion_activation_energy = 0.d0
-  
-  allocate(nwt_rxn%species_names(ncomp))
-  nwt_rxn%species_names = ''
-  allocate(nwt_rxn%species_print(ncomp))
-  nwt_rxn%species_print = PETSC_FALSE
-  
-  nullify(nwt_rxn%species_list)
-  nullify(nwt_rxn%radioactive_decay_rxn_list)
-  
-  nwt_rxn%offset_auxiliary = 0 
-  
-end subroutine NWTRxnInit
 
 ! ************************************************************************** !
 
@@ -354,6 +230,55 @@ subroutine NWTAuxVarInit(auxvar,nwt_parameter,option)
   endif
   
 end subroutine NWTAuxVarInit
+
+
+! ************************************************************************** !
+
+subroutine NWTAuxReadSubsurface(input,option)
+  ! 
+  ! Reads input file parameters associated with the nuclear waste transport 
+  ! process model within the SUBSURFACE block of input deck.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+ 
+  implicit none
+  
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  
+  error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+    
+    select case(trim(keyword))
+      case('KEYWORD1')
+      case('KEYWORD2')
+        !call InputReadDouble(input,option,this%volfrac_change_governor)
+        !call InputErrorMsg(input,option,'MAX_VOLUME_FRACTION_CHANGE', &
+        !                   'NUCLEAR_WASTE_TRANSPORT OPTIONS')
+      case default
+        call InputKeywordUnrecognized(keyword,error_string,option)
+    end select
+  enddo
+  
+end subroutine NWTAuxReadSubsurface
 
 ! ************************************************************************** !
 
@@ -499,10 +424,6 @@ subroutine NWTAuxDestroy(aux)
   call DeallocateArray(aux%zero_rows_local_ghosted)
 
   if (associated(aux%nwt_parameter)) then
-    call DeallocateArray(aux%nwt_parameter%nwt_rxn%diffusion_coefficient)
-    call DeallocateArray(aux%nwt_parameter%nwt_rxn%diffusion_activation_energy)
-    call DeallocateArray(aux%nwt_parameter%nwt_rxn%species_names)
-    call DeallocateArray(aux%nwt_parameter%nwt_rxn%species_print)
     deallocate(aux%nwt_parameter)
   endif
   nullify(aux%nwt_parameter)

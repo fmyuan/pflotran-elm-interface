@@ -11,24 +11,81 @@ module PM_NWT_class
   
   private
   
-  type, public, extends(pm_base_type) :: pm_nwt_type
-    class(realization_subsurface_type), pointer :: realization
-    class(communicator_type), pointer :: comm1
-    ! local variables
-    PetscBool :: check_post_convergence
+  type, public :: species_type
+    PetscInt :: id
+    character(len=MAXWORDLENGTH) :: name
+    PetscReal :: a0  ! don't know what this is
+    PetscReal :: molar_weight
+    PetscReal :: Z  ! don't know what this is
+    PetscBool :: print_me
+    type(species_type), pointer :: next
+  end type species_type
+  
+  type, public :: radioactive_decay_rxn_type
+    PetscInt :: id
+    character(len=MAXSTRINGLENGTH) :: reaction
+    PetscReal :: rate_constant
+    PetscReal :: half_life
+    PetscBool :: print_me
+    type(radioactive_decay_rxn_type), pointer :: next
+  end type radioactive_decay_rxn_type
+  
+  type, public :: nw_transport_rxn_type
+    PetscInt :: offset_auxiliary
+    PetscReal, pointer :: diffusion_coefficient(:,:)
+    PetscReal, pointer :: diffusion_activation_energy(:,:)
+    character(len=MAXWORDLENGTH), pointer :: species_names(:)
+    type(species_type), pointer :: species_list
+    PetscBool, pointer :: species_print(:)
+    type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
+  end type nw_transport_rxn_type
+  
+  type, public :: pm_nwt_controls_type
     ! governs the size of subsequent time steps
     PetscReal, pointer :: max_concentration_change(:)
     PetscReal, pointer :: max_volfrac_change(:)
     PetscReal :: volfrac_change_governor
     PetscReal :: cfl_governor
+  end type pm_nwt_controls_type
+  
+  type, public :: pm_nwt_params_type
+    PetscInt :: nphase
+    PetscInt :: ncomp
+    PetscInt :: nsorb
+    PetscInt :: nmnrl
+    PetscInt :: nauxiliary
+#ifdef OS_STATISTICS
+! use PetscReal for large counts
+    PetscInt :: newton_call_count
+    PetscReal :: sum_newton_call_count
+    PetscInt :: newton_iterations
+    PetscReal :: sum_newton_iterations
+    PetscInt :: max_newton_iterations
+    PetscInt :: overall_max_newton_iterations
+#endif    
+    PetscReal :: newton_inf_rel_update_tol
+    PetscReal :: newton_inf_scaled_res_tol
+    PetscBool :: check_post_converged
+    PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
+  end type pm_nwt_params_type
+  
+  type, public, extends(pm_base_type) :: pm_nwt_type
+    class(realization_subsurface_type), pointer :: realization
+    class(communicator_type), pointer :: comm1
+    ! local variables
+    PetscBool :: check_post_convergence
+    PetscBool :: temperature_dependent_diffusion
+    type(pm_nwt_controls_type), pointer :: controls
+    type(pm_nwt_params_type), pointer :: params
+    type(nw_transport_rxn_type), pointer :: rxn 
   contains
     procedure, public :: Setup => PMNWTSetup 
     procedure, public :: Read => PMNWTRead
     procedure, public :: SetRealization => PMNWTSetRealization   
   end type pm_nwt_type
   
-  public :: PMNWTCreate
+  public :: PMNWTCreate, PMNWTSpeciesCreate, PMNWTRadDecayRxnCreate
   
   
 contains
@@ -57,11 +114,54 @@ function PMNWTCreate()
   
   ! local variables
   nwt_pm%check_post_convergence = PETSC_FALSE
-  nullify(nwt_pm%max_concentration_change)
-  nullify(nwt_pm%max_volfrac_change)
-  nwt_pm%volfrac_change_governor = 1.d0
-  nwt_pm%cfl_governor = UNINITIALIZED_DOUBLE
   nwt_pm%temperature_dependent_diffusion = PETSC_FALSE
+  
+  allocate(nwt_pm%controls)
+  nullify(nwt_pm%controls%max_concentration_change)
+  nullify(nwt_pm%controls%max_volfrac_change)
+  nwt_pm%controls%volfrac_change_governor = 1.d0
+  nwt_pm%controls%cfl_governor = UNINITIALIZED_DOUBLE
+  
+  allocate(nwt_pm%rxn)
+  nwt_pm%rxn%offset_auxiliary = 0
+  nullify(nwt_pm%rxn%diffusion_coefficient)
+  ! later on in setup:
+  ! allocate(nwt_rxn%diffusion_coefficient(ncomp,nphase))
+  ! nwt_rxn%diffusion_coefficient = 1.d-9
+  nullify(nwt_pm%rxn%diffusion_activation_energy)
+  ! later on in setup:
+  ! allocate(nwt_rxn%diffusion_activation_energy(ncomp,nphase))
+  ! nwt_rxn%diffusion_activation_energy = 0.d0
+  nullify(nwt_pm%rxn%species_names)
+  ! later on in setup:
+  ! allocate(nwt_rxn%species_names(ncomp))
+  ! nwt_rxn%species_names = ''
+  nullify(nwt_pm%rxn%species_list)
+  nullify(nwt_pm%rxn%species_print)
+  ! later on in setup:
+  ! allocate(nwt_rxn%species_print(ncomp))
+  ! nwt_rxn%species_print = PETSC_FALSE
+  nullify(nwt_pm%rxn%rad_decay_rxn_list)
+  
+  allocate(nwt_pm%params)
+  nwt_pm%params%ncomp = 0
+  nwt_pm%params%nphase = 0
+  nwt_pm%params%nsorb = 0
+  nwt_pm%params%nmnrl = 0
+  nwt_pm%params%nauxiliary = 0
+  nwt_pm%params%calculate_transverse_dispersion = PETSC_FALSE
+  nwt_pm%params%temperature_dependent_diffusion = PETSC_FALSE
+  nwt_pm%params%check_post_converged = PETSC_FALSE
+  nwt_pm%params%newton_inf_rel_update_tol = UNINITIALIZED_DOUBLE
+  nwt_pm%params%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
+#ifdef OS_STATISTICS
+  nwt_pm%params%newton_call_count = 0
+  nwt_pm%params%sum_newton_call_count = 0.d0
+  nwt_pm%params%newton_iterations = 0
+  nwt_pm%params%sum_newton_iterations = 0.d0
+  nwt_pm%params%max_newton_iterations = 0
+  nwt_pm%params%overall_max_newton_iterations = 0
+#endif
 
   call PMBaseInit(nwt_pm)
   nwt_pm%name = 'Nuclear Waste Transport'
@@ -70,6 +170,63 @@ function PMNWTCreate()
   PMNWTCreate => nwt_pm
   
 end function PMNWTCreate
+
+! ************************************************************************** !
+
+function PMNWTSpeciesCreate()
+  ! 
+  ! Allocate and initialize a species object.
+  ! 
+  ! Author: Jenn Frederick      
+  ! Date: 03/11/2019
+  ! 
+    
+  implicit none
+  
+  type(species_type), pointer :: PMNWTSpeciesCreate
+  
+  type(species_type), pointer :: species
+
+  allocate(species) 
+  species%id = 0 
+  species%name = ''
+  species%a0 = 0.d0
+  species%molar_weight = 0.d0
+  species%Z = 0.d0
+  species%print_me = PETSC_FALSE
+  nullify(species%next)
+
+  PMNWTSpeciesCreate => species
+  
+end function PMNWTSpeciesCreate
+
+! ************************************************************************** !
+
+function PMNWTRadDecayRxnCreate()
+  ! 
+  ! Allocate and initialize a radioactive decay reaction object.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  ! 
+  
+  implicit none
+    
+  type(radioactive_decay_rxn_type), pointer :: PMNWTRadDecayRxnCreate
+
+  type(radioactive_decay_rxn_type), pointer :: rxn
+  
+  allocate(rxn)
+  rxn%id = 0
+  rxn%reaction = ''
+  rxn%rate_constant = 0.d0
+  rxn%half_life = 0.d0
+  rxn%print_me = PETSC_FALSE
+  nullify(rxn%next)
+  
+  PMNWTRadDecayRxnCreate => rxn
+  
+end function PMNWTRadDecayRxnCreate
 
 ! ************************************************************************** !
   
@@ -99,8 +256,8 @@ subroutine PMNWTSetup(this)
   ! set the communicator
   this%comm1 => this%realization%comm1
   
-  allocate(this%max_concentration_change(nwt_parameter%ncomp))
-  allocate(this%max_volfrac_change(nwt_parameter%ncomp))
+  allocate(this%controls%max_concentration_change(nwt_parameter%ncomp))
+  allocate(this%controls%max_volfrac_change(nwt_parameter%ncomp))
 
 end subroutine PMNWTSetup
 
@@ -149,9 +306,10 @@ subroutine PMNWTRead(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+    !------ SIMULATION BLOCK READ ROUTINE ------
       case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
       case('MAX_VOLUME_FRACTION_CHANGE')
-        call InputReadDouble(input,option,this%volfrac_change_governor)
+        call InputReadDouble(input,option,this%controls%volfrac_change_governor)
         call InputErrorMsg(input,option,'MAX_VOLUME_FRACTION_CHANGE', &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('ITOL_RELATIVE_UPDATE')
@@ -168,11 +326,20 @@ subroutine PMNWTRead(this,input)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('MAX_CFL')
-        call InputReadDouble(input,option,this%cfl_governor)
+        call InputReadDouble(input,option,this%controls%cfl_governor)
         call InputErrorMsg(input,option,'MAX_CFL', &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
+    !------ PM BLOCK READ ROUTINE ------
+      case('SPECIES')
+        !do
+        !  call InputReadPflotranString(input,option)
+        !  if (InputError(input)) exit
+        !  if (InputCheckExit(input,option)) exit
+        ! do I have access to patch%aux%NWT right now!?  
+        !  reaction%ncomp = reaction%ncomp + 1
+          
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
@@ -209,5 +376,6 @@ end subroutine PMNWTSetRealization
 
 ! ************************************************************************** !
   
+! jenn:todo Remember to deallocate/destroy all PMNWT pointers and arrays
 
 end module PM_NWT_class
