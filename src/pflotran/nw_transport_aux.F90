@@ -5,6 +5,7 @@ module NW_Transport_Aux_module
   use Matrix_Block_Aux_module
 
   use PFLOTRAN_Constants_module
+  use petscsys
 
   implicit none
   
@@ -33,15 +34,42 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
   end type nw_transport_auxvar_type
   
+  type, public :: species_type
+    PetscInt :: id
+    character(len=MAXWORDLENGTH) :: name
+    PetscReal :: a0  ! don't know what this is
+    PetscReal :: molar_weight
+    PetscReal :: Z  ! don't know what this is
+    PetscBool :: print_me
+    type(species_type), pointer :: next
+  end type species_type
+  
+  type, public :: radioactive_decay_rxn_type
+    PetscInt :: id
+    character(len=MAXSTRINGLENGTH) :: reaction
+    PetscReal :: rate_constant
+    PetscReal :: half_life
+    PetscBool :: print_me
+    type(radioactive_decay_rxn_type), pointer :: next
+  end type radioactive_decay_rxn_type
+  
+  type, public :: nw_transport_rxn_type
+    PetscInt :: offset_auxiliary
+    PetscReal, pointer :: diffusion_coefficient(:,:)
+    PetscReal, pointer :: diffusion_activation_energy(:,:)
+    character(len=MAXWORDLENGTH), pointer :: species_names(:)
+    PetscBool, pointer :: species_print(:)
+    type(species_type), pointer :: species_list
+    type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn_list
+  end type nw_transport_rxn_type
+  
   type, public :: nw_transport_param_type
     PetscInt :: nphase
     PetscInt :: ncomp
     PetscInt :: nsorb
     PetscInt :: nmnrl
     PetscInt :: nauxiliary
-    PetscInt :: offset_auxiliary
-    PetscReal, pointer :: diffusion_coefficient(:,:)
-    PetscReal, pointer :: diffusion_activation_energy(:,:)
+    type(nw_transport_rxn_type), pointer :: nwt_rxn
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -57,7 +85,7 @@ module NW_Transport_Aux_module
     PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
   end type nw_transport_param_type
-  
+    
   type, public :: nw_transport_type
     ! number of nwt_auxvars objects for local and ghosted cells
     PetscInt :: num_aux  
@@ -86,9 +114,9 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
   
-  public :: NWTAuxCreate, NWTAuxDestroy, &
-            NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarDestroy, &
-            NWTAuxVarStrip, NWTAuxVarCopyInitialGuess
+  public :: NWTAuxCreate, SpeciesCreate, RadioactiveDecayRxnCreate, & 
+            NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip,&
+            NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess
             
 contains
 
@@ -104,12 +132,11 @@ function NWTAuxCreate(ncomp,nphase)
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-  use Option_module
-
   implicit none
   
   PetscInt :: ncomp
   PetscInt :: nphase
+  
   type(nw_transport_type), pointer :: NWTAuxCreate
   
   type(nw_transport_type), pointer :: aux
@@ -127,30 +154,142 @@ function NWTAuxCreate(ncomp,nphase)
   aux%inactive_cells_exist = PETSC_FALSE
 
   allocate(aux%nwt_parameter)
-  aux%nwt_parameter%ncomp = ncomp
-  aux%nwt_parameter%nphase = nphase
-  aux%nwt_parameter%nsorb = 0
-  aux%nwt_parameter%nmnrl = 0
-  aux%nwt_parameter%nauxiliary = 0
-  allocate(aux%nwt_parameter%diffusion_coefficient(ncomp,nphase))
-  allocate(aux%nwt_parameter%diffusion_activation_energy(ncomp,nphase))
-  aux%nwt_parameter%diffusion_coefficient = 1.d-9
-  aux%nwt_parameter%diffusion_activation_energy = 0.d0
-  aux%nwt_parameter%offset_auxiliary = 0
-  aux%nwt_parameter%calculate_transverse_dispersion = PETSC_FALSE
-  aux%nwt_parameter%temperature_dependent_diffusion = PETSC_FALSE
-#ifdef OS_STATISTICS
-  aux%nwt_parameter%newton_call_count = 0
-  aux%nwt_parameter%sum_newton_call_count = 0.d0
-  aux%nwt_parameter%newton_iterations = 0
-  aux%nwt_parameter%sum_newton_iterations = 0.d0
-  aux%nwt_parameter%max_newton_iterations = 0
-  aux%nwt_parameter%overall_max_newton_iterations = 0
-#endif  
+  call NWTParamInit(aux%nwt_parameter,ncomp,nphase) 
 
   NWTAuxCreate => aux
   
 end function NWTAuxCreate
+
+! ************************************************************************** !
+
+function SpeciesCreate()
+  ! 
+  ! Allocate and initialize a species object.
+  ! 
+  ! Author: Jenn Frederick      
+  ! Date: 03/11/2019
+  ! 
+    
+  implicit none
+  
+  type(species_type), pointer :: SpeciesCreate
+  
+  type(species_type), pointer :: species
+
+  allocate(species) 
+  species%id = 0 
+  species%name = ''
+  species%a0 = 0.d0
+  species%molar_weight = 0.d0
+  species%Z = 0.d0
+  species%print_me = PETSC_FALSE
+  nullify(species%next)
+
+  SpeciesCreate => species
+  
+end function SpeciesCreate
+
+! ************************************************************************** !
+
+function RadioactiveDecayRxnCreate()
+  ! 
+  ! Allocate and initialize a radioactive decay reaction object.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  ! 
+  
+  implicit none
+    
+  type(radioactive_decay_rxn_type), pointer :: RadioactiveDecayRxnCreate
+
+  type(radioactive_decay_rxn_type), pointer :: rxn
+  
+  allocate(rxn)
+  rxn%id = 0
+  rxn%reaction = ''
+  rxn%rate_constant = 0.d0
+  rxn%half_life = 0.d0
+  rxn%print_me = PETSC_FALSE
+  nullify(rxn%next)
+  
+  RadioactiveDecayRxnCreate => rxn
+  
+end function RadioactiveDecayRxnCreate
+
+! ************************************************************************** !
+
+subroutine NWTParamInit(nwt_parameter,ncomp,nphase)
+  !
+  ! Initializes the nuclear waste transport parameter object.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  !
+    
+  implicit none
+  
+  type(nw_transport_param_type) :: nwt_parameter
+  PetscInt :: ncomp
+  PetscInt :: nphase
+  
+  nwt_parameter%ncomp = ncomp
+  nwt_parameter%nphase = nphase
+  nwt_parameter%nsorb = 0
+  nwt_parameter%nmnrl = 0
+  nwt_parameter%nauxiliary = 0
+  nwt_parameter%calculate_transverse_dispersion = PETSC_FALSE
+  nwt_parameter%temperature_dependent_diffusion = PETSC_FALSE
+  nwt_parameter%check_post_converged = PETSC_FALSE
+  nwt_parameter%newton_inf_rel_update_tol = UNINITIALIZED_DOUBLE
+  nwt_parameter%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
+#ifdef OS_STATISTICS
+  nwt_parameter%newton_call_count = 0
+  nwt_parameter%sum_newton_call_count = 0.d0
+  nwt_parameter%newton_iterations = 0
+  nwt_parameter%sum_newton_iterations = 0.d0
+  nwt_parameter%max_newton_iterations = 0
+  nwt_parameter%overall_max_newton_iterations = 0
+#endif
+  allocate(nwt_parameter%nwt_rxn)
+  call NWTRxnInit(nwt_parameter%nwt_rxn,ncomp,nphase)
+  
+end subroutine NWTParamInit
+
+! ************************************************************************** !
+
+subroutine NWTRxnInit(nwt_rxn,ncomp,nphase)
+  !
+  ! Initializes the nuclear waste transport reaction object.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  !
+    
+  implicit none
+  
+  type(nw_transport_rxn_type) :: nwt_rxn
+  PetscInt :: ncomp
+  PetscInt :: nphase
+  
+  ! jenn:todo don't forget to destroy all this stuff
+  
+  allocate(nwt_rxn%diffusion_coefficient(ncomp,nphase))
+  nwt_rxn%diffusion_coefficient = 1.d-9
+  allocate(nwt_rxn%diffusion_activation_energy(ncomp,nphase))
+  nwt_rxn%diffusion_activation_energy = 0.d0
+  
+  allocate(nwt_rxn%species_names(ncomp))
+  nwt_rxn%species_names = ''
+  allocate(nwt_rxn%species_print(ncomp))
+  nwt_rxn%species_print = PETSC_FALSE
+  
+  nullify(nwt_rxn%species_list)
+  nullify(nwt_rxn%radioactive_decay_rxn_list)
+  
+  nwt_rxn%offset_auxiliary = 0 
+  
+end subroutine NWTRxnInit
 
 ! ************************************************************************** !
 
@@ -360,8 +499,10 @@ subroutine NWTAuxDestroy(aux)
   call DeallocateArray(aux%zero_rows_local_ghosted)
 
   if (associated(aux%nwt_parameter)) then
-    call DeallocateArray(aux%nwt_parameter%diffusion_coefficient)
-    call DeallocateArray(aux%nwt_parameter%diffusion_activation_energy)
+    call DeallocateArray(aux%nwt_parameter%nwt_rxn%diffusion_coefficient)
+    call DeallocateArray(aux%nwt_parameter%nwt_rxn%diffusion_activation_energy)
+    call DeallocateArray(aux%nwt_parameter%nwt_rxn%species_names)
+    call DeallocateArray(aux%nwt_parameter%nwt_rxn%species_print)
     deallocate(aux%nwt_parameter)
   endif
   nullify(aux%nwt_parameter)
