@@ -1158,7 +1158,7 @@ subroutine SubsurfaceReadNWTPM(input,option,pm)
   pm => PMNWTCreate()
   pm%option => option
 
-  call pm%Read(input)
+  call pm%ReadSimulationBlock(input)
 
 end subroutine SubsurfaceReadNWTPM
 
@@ -2246,7 +2246,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
           call printErrMsg(option)
         endif
-        call simulation%nwt_process_model_coupler%pm_ptr%pm%Read(input)
+        call simulation%nwt_process_model_coupler%pm_ptr%pm%ReadPMBlock(input)
 
 !....................
       case ('SPECIFIED_VELOCITY')

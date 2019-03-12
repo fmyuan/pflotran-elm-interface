@@ -81,7 +81,8 @@ module PM_NWT_class
     type(nw_transport_rxn_type), pointer :: rxn 
   contains
     procedure, public :: Setup => PMNWTSetup 
-    procedure, public :: Read => PMNWTRead
+    procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
+    procedure, public :: ReadPMBlock => PMNWTReadPMBlock
     procedure, public :: SetRealization => PMNWTSetRealization   
   end type pm_nwt_type
   
@@ -263,10 +264,10 @@ end subroutine PMNWTSetup
 
 ! ************************************************************************** !
 
-subroutine PMNWTRead(this,input)
+subroutine PMNWTReadSimulationBlock(this,input)
   ! 
   ! Reads input file parameters associated with the nuclear waste transport 
-  ! process model.
+  ! process model in the SIMULATION block.
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/08/2019
@@ -306,7 +307,6 @@ subroutine PMNWTRead(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-    !------ SIMULATION BLOCK READ ROUTINE ------
       case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
       case('MAX_VOLUME_FRACTION_CHANGE')
         call InputReadDouble(input,option,this%controls%volfrac_change_governor)
@@ -345,7 +345,63 @@ subroutine PMNWTRead(this,input)
     end select
   enddo
   
-end subroutine PMNWTRead
+end subroutine PMNWTReadSimulationBlock
+
+! ************************************************************************** !
+
+subroutine PMNWTReadPMBlock(this,input)
+  ! 
+  ! Reads input file parameters associated with the nuclear waste transport 
+  ! process model within the SUBSURFACE block.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use NW_Transport_Aux_module
+ 
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  type(input_type), pointer :: input
+  
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+  PetscBool :: found
+
+  option => this%option
+  
+  error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+    
+    select case(trim(keyword))
+      case('SPECIES')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          
+          this%params%ncomp = this%params%ncomp + 1
+        enddo
+      case default
+        call InputKeywordUnrecognized(keyword,error_string,option)
+    end select
+  enddo
+  
+end subroutine PMNWTReadPMBlock
 
 ! ************************************************************************** !
 
