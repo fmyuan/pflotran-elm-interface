@@ -1,7 +1,7 @@
 auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
-              pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
-              reactive_transport_aux.o richards_aux.o \
+              nw_transport_aux.o pflotran_constants.o pm_toil_ims_aux.o \
+              pm_towg_aux.o reactive_transport_aux.o richards_aux.o \
               secondary_continuum_aux.o th_aux.o wipp_flow_aux.o
 auxvars_base.o : option.o pflotran_constants.o
 auxvars_flow.o : auxvars_base.o option.o pflotran_constants.o utility.o
@@ -159,8 +159,8 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        grid_structured.o grid_unstructured_aux.o hdf5_aux.o \
                        init_common.o init_subsurface.o init_subsurface_flow.o \
                        init_subsurface_transport.o input_aux.o integral_flux.o \
-                       logging.o material.o observation.o option.o output.o \
-                       output_aux.o output_tecplot.o patch.o \
+                       logging.o material.o nw_transport_aux.o observation.o \
+                       option.o output.o output_aux.o output_tecplot.o patch.o \
                        pflotran_constants.o pm_auxiliary.o pm_base.o \
                        pm_base_pointer.o pm_flash2.o pm_general.o pm_immis.o \
                        pm_miscible.o pm_mphase.o pm_nwt.o pm_richards.o \
@@ -356,9 +356,10 @@ init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          patch.o pflotran_constants.o pm_richards_ts.o \
                          realization_subsurface.o richards.o th.o toil_ims.o \
                          towg.o wipp_flow.o
-init_subsurface_transport.o : condition_control.o global.o option.o \
-                              pflotran_constants.o reactive_transport.o \
-                              realization_subsurface.o variables.o
+init_subsurface_transport.o : condition_control.o global.o nw_transport.o \
+                              option.o pflotran_constants.o \
+                              reactive_transport.o realization_subsurface.o \
+                              variables.o
 init_surface.o : condition.o condition_control.o convergence.o \
                  discretization.o eos.o field.o grid.o grid_structured.o \
                  grid_unstructured.o grid_unstructured_aux.o hdf5.o \
@@ -402,8 +403,11 @@ mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
-nw_transport.o :
-nw_transport_aux.o : matrix_block_aux.o pflotran_constants.o
+nw_transport.o : field.o global.o global_aux.o material_aux.o \
+                 nw_transport_aux.o option.o pflotran_constants.o pm_nwt.o \
+                 realization_subsurface.o
+nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
+                     pflotran_constants.o string.o utility.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
                 region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o

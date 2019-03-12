@@ -1414,7 +1414,12 @@ subroutine SubsurfaceInitSimulation(simulation)
   ! set if no flow exists
   call InitSubsurfFlowSetupRealization(realization)
   if (option%ntrandof > 0) then
-    call InitSubsurfTranSetupRealization(realization)
+    if (associated(simulation%rt_process_model_coupler)) then
+      call InitSubsurfTranSetupRealization(realization)
+    endif
+    if (associated(simulation%nwt_process_model_coupler)) then
+      call InitNWTranSetupRealization(realization)
+    endif
   endif
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
   call InitSubsurfaceSetupZeroArrays(realization)

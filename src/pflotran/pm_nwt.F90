@@ -148,7 +148,7 @@ function PMNWTCreate()
   
   allocate(nwt_pm%params)
   nwt_pm%params%ncomp = 0
-  nwt_pm%params%nphase = 0
+  nwt_pm%params%nphase = 1  ! For WIPP, we always assume liquid phase only
   nwt_pm%params%nsorb = 0
   nwt_pm%params%nmnrl = 0
   nwt_pm%params%nauxiliary = 0
@@ -393,6 +393,7 @@ subroutine PMNWTReadPMBlock(this,input)
           if (InputCheckExit(input,option)) exit
           
           this%params%ncomp = this%params%ncomp + 1
+          option%ntrandof = this%params%ncomp
           k = k + 1
           if (k > 50) then
             option%io_buffer = 'More than 50 species are provided in the ' &
