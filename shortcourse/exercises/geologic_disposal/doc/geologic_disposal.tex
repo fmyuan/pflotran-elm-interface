@@ -55,8 +55,8 @@ Location of this example problem:
 > cd \$PFLOTRAN_DIR
 > cd shortcourse/exercises/geologic_disposal
 > ls
-gdsa.in
-gdsa.py
+geologic_disposal.in
+geologic_disposal.py
 gdsa_usg.h5
 hlw_heat.txt
 metallic_heat.txt
@@ -84,7 +84,7 @@ This problem might take a few minutes, so let's begin the simulation now.
 \begin{semiverbatim}
 > cd \$PFLOTRAN_DIR
 > cd shortcourse/exercises/geologic_disposal
-> pflotran -input_prefix gdsa
+> pflotran -input_prefix geologic_disposal
 \end{semiverbatim}
 
 \end{frame}
@@ -525,7 +525,7 @@ END \bluecomment{! UFD_BIOSPHERE}
 \end{itemize}
 
 \begin{semiverbatim}
-> python gdsa.py
+> python geologic_disposal.py
 \end{semiverbatim}
 
 \end{frame}

@@ -1,0 +1,188 @@
+#Description: Hot steam injection example in general mode
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL ! two-phase flow and energy
+      OPTIONS
+        ANALYTICAL_JACOBIAN
+        #LOGGING_VERBOSITY 1
+        RESTRICT_STATE_CHANGE
+        USE_INFINITY_NORM_CONVERGENCE
+        REL_UPDATE_INF_TOL 1.d-4
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 101 1 1
+  DXYZ
+    101@1.d0
+    1@1.d0
+    1@1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+END
+
+EOS GAS
+  DENSITY DEFAULT
+  VISCOSITY DEFAULT
+  HENRYS_CONSTANT DEFAULT 
+END
+
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.25
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2700.d0
+  THERMAL_CONDUCTIVITY_DRY 1.1d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.1d0 W/m-C
+  HEAT_CAPACITY 0.01 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-14 #1.d-14 #1.d-14 #1.d-13 #1.d-15
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION BROOKS_COREY
+    ALPHA 4.d-4
+    LAMBDA 2
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    CALCULATE_INTERFACIAL_TENSION
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    PHASE LIQUID
+    LAMBDA 2
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    PHASE GAS
+    LAMBDA 2
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    101.d0 1.d0 1.d0
+  /
+END
+
+REGION left
+  FACE WEST
+  COORDINATES
+    0.0d0 0.d0 0.d0
+    0.0d0 1.d0 1.d0
+  /
+END
+
+REGION right
+  FACE EAST
+  COORDINATES
+    101.d0 0.d0 0.d0
+    101.d0 1.d0 1.d0
+  /
+END
+
+REGION injector
+  COORDINATE 51.d0 0.5d0 0.5d0
+/
+
+#=========================== flow conditions ==================================
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_PRESSURE 1.d6 
+  MOLE_FRACTION 1.d-7 
+  TEMPERATURE 176.d0 
+END
+
+FLOW_CONDITION steam_injection
+  SYNC_TIMESTEP_WITH_UPDATE
+  TYPE
+    RATE MASS_RATE
+    TEMPERATURE DIRICHLET 
+  /
+ TEMPERATURE 240.d0  
+ RATE 1.d-3 1.d-5 0.d0 g/s g/s MW 
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION all
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION left
+  FLOW_CONDITION initial
+  REGION left
+END
+
+BOUNDARY_CONDITION right
+  FLOW_CONDITION initial
+  REGION right
+END
+
+SOURCE_SINK injector
+  FLOW_CONDITION steam_injection
+  REGION injector
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    TIMES y  .05d0 0.1d0 1.d0 5.d0
+    FORMAT TECPLOT POINT
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 5.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 5.d-1 y
+END
+
+END_SUBSURFACE
