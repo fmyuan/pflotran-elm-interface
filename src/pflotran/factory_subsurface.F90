@@ -3708,7 +3708,8 @@ subroutine SubsurfaceReadInput(simulation,input)
     deallocate(flow_timestepper)
     nullify(flow_timestepper)
   endif
-  if (associated(simulation%rt_process_model_coupler)) then
+  if (associated(simulation%rt_process_model_coupler) .or. &
+      associated(simulation%nwt_process_model_coupler)) then
     tran_timestepper%name = 'TRAN'
     if (option%steady_state) then
       ! transport is currently always BE
@@ -3719,24 +3720,12 @@ subroutine SubsurfaceReadInput(simulation,input)
       flow_timestepper => temp_timestepper
       nullify(temp_timestepper)
     endif
-    simulation%rt_process_model_coupler%timestepper => tran_timestepper
-  else
-    call tran_timestepper%Destroy()
-    deallocate(tran_timestepper)
-    nullify(tran_timestepper)
-  endif
-  if (associated(simulation%nwt_process_model_coupler)) then
-    tran_timestepper%name = 'TRAN'
-    if (option%steady_state) then
-      ! transport is currently always BE
-      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
-      call tran_timestepper%Destroy()
-      deallocate(tran_timestepper)
-      nullify(tran_timestepper)
-      flow_timestepper => temp_timestepper
-      nullify(temp_timestepper)
+    if (associated(simulation%rt_process_model_coupler)) then
+      simulation%rt_process_model_coupler%timestepper => tran_timestepper
     endif
-    simulation%nwt_process_model_coupler%timestepper => tran_timestepper
+    if (associated(simulation%nwt_process_model_coupler)) then
+      simulation%nwt_process_model_coupler%timestepper => tran_timestepper
+    endif
   else
     call tran_timestepper%Destroy()
     deallocate(tran_timestepper)
