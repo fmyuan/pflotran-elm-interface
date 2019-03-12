@@ -1399,6 +1399,12 @@ subroutine SubsurfaceInitSimulation(simulation)
         simulation%waypoint_list_subsurface%first
     endif
   endif
+  if (associated(simulation%nwt_process_model_coupler)) then
+    if (associated(simulation%nwt_process_model_coupler%timestepper)) then
+      simulation%nwt_process_model_coupler%timestepper%cur_waypoint => &
+        simulation%waypoint_list_subsurface%first
+    endif
+  endif
 
   !TODO(geh): refactor
   ! initialize global auxiliary variable object
@@ -3709,6 +3715,23 @@ subroutine SubsurfaceReadInput(simulation,input)
       nullify(temp_timestepper)
     endif
     simulation%rt_process_model_coupler%timestepper => tran_timestepper
+  else
+    call tran_timestepper%Destroy()
+    deallocate(tran_timestepper)
+    nullify(tran_timestepper)
+  endif
+  if (associated(simulation%nwt_process_model_coupler)) then
+    tran_timestepper%name = 'TRAN'
+    if (option%steady_state) then
+      ! transport is currently always BE
+      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
+      call tran_timestepper%Destroy()
+      deallocate(tran_timestepper)
+      nullify(tran_timestepper)
+      flow_timestepper => temp_timestepper
+      nullify(temp_timestepper)
+    endif
+    simulation%nwt_process_model_coupler%timestepper => tran_timestepper
   else
     call tran_timestepper%Destroy()
     deallocate(tran_timestepper)

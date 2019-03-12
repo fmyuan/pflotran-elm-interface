@@ -32,6 +32,7 @@ module PM_NWT_class
   
   type, public :: nw_transport_rxn_type
     PetscInt :: offset_auxiliary
+    PetscBool :: use_log_formulation
     PetscReal, pointer :: diffusion_coefficient(:,:)
     PetscReal, pointer :: diffusion_activation_energy(:,:)
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
@@ -125,6 +126,7 @@ function PMNWTCreate()
   
   allocate(nwt_pm%rxn)
   nwt_pm%rxn%offset_auxiliary = 0
+  nwt_pm%rxn%use_log_formulation = PETSC_FALSE
   nullify(nwt_pm%rxn%diffusion_coefficient)
   ! later on in setup:
   ! allocate(nwt_rxn%diffusion_coefficient(ncomp,nphase))
@@ -330,16 +332,7 @@ subroutine PMNWTReadSimulationBlock(this,input)
         call InputErrorMsg(input,option,'MAX_CFL', &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('MULTIPLE_CONTINUUM')
-        option%use_mc = PETSC_TRUE
-    !------ PM BLOCK READ ROUTINE ------
-      case('SPECIES')
-        !do
-        !  call InputReadPflotranString(input,option)
-        !  if (InputError(input)) exit
-        !  if (InputCheckExit(input,option)) exit
-        ! do I have access to patch%aux%NWT right now!?  
-        !  reaction%ncomp = reaction%ncomp + 1
-          
+        option%use_mc = PETSC_TRUE          
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
@@ -367,14 +360,18 @@ subroutine PMNWTReadPMBlock(this,input)
   class(pm_nwt_type) :: this
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
-  PetscBool :: found
+  PetscInt :: k
+  character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
 
   option => this%option
   
   error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
+  allocate(temp_species_names(50))
+  temp_species_names = ''
+  k = 0
   
   input%ierr = 0
   do
@@ -389,16 +386,39 @@ subroutine PMNWTReadPMBlock(this,input)
     
     select case(trim(keyword))
       case('SPECIES')
+        error_string = trim(error_string) // ',SPECIES'
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
           
           this%params%ncomp = this%params%ncomp + 1
+          k = k + 1
+          if (k > 50) then
+            option%io_buffer = 'More than 50 species are provided in the ' &
+                               // trim(error_string) // ', SPECIES block.'
+            call PrintErrMsgToDev('if reducing to less than 50 is not &
+                                  &an option.',option)
+          endif
+          
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'species name',error_string)
+          call StringToUpper(word)
+          temp_species_names(k) = trim(word)
         enddo
+        if (k == 0) then
+          option%io_buffer = 'ERROR: At least one radionuclide species &
+                              &must be provided in the ' // &
+                              trim(error_string) // ' block.'
+          call printErrMsg(option)
+        endif
+        allocate(this%rxn%species_names(k))
+        this%rxn%species_names(1:k) = temp_species_names(1:k)
+        deallocate(temp_species_names)
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
+    
   enddo
   
 end subroutine PMNWTReadPMBlock
@@ -421,7 +441,7 @@ subroutine PMNWTSetRealization(this,realization)
   this%realization => realization
   this%realization_base => realization
   
-  if (realization%reaction%use_log_formulation) then
+  if (this%rxn%use_log_formulation) then
     this%solution_vec = realization%field%tran_log_xx
   else
     this%solution_vec = realization%field%tran_xx
