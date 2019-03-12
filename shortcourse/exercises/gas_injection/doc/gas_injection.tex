@@ -569,4 +569,145 @@ END_SUBSURFACE \bluecomment{That's all!}
 \end{frame}
 
 %-----------------------------------------------------------------------------
+\subsection{Speed Up}
+\begin{frame}[fragile]\frametitle{Can We Speed it Up?}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL ! two-phase flow and energy
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\begin{semiverbatim}
+> python gas_injection.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Faster}
+\begin{frame}[fragile]\frametitle{Faster?}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\begin{semiverbatim}
+> python gas_injection.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Faster2}
+\begin{frame}[fragile]\frametitle{Faster!}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\end{frame}
+%-----------------------------------------------------------------------------
+\subsection{Faster3}
+\begin{frame}[fragile]\frametitle{Faster!!}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+        REL_UPDATE_INF_TOL 1.d-2
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0  
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\end{frame}
+%-----------------------------------------------------------------------------
+\subsection{Faster4}
+\begin{frame}[fragile]\frametitle{FASTER!!}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+        REL_UPDATE_INF_TOL 1.d0
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0  
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
 \end{document}
