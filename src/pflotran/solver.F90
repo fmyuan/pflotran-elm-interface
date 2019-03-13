@@ -453,7 +453,6 @@ subroutine SolverReadLinear(solver,input,option)
     call printMsg(option)
     ! 2) FGMRES linear solver
     solver%ksp_type = KSPFGMRES
-    call SolverCPRInitializeStorage(solver%cprstash)
     option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set &
                        &to FGMRES (RESERVOIR_DEFAULTS)'
     call printMsg(option)
