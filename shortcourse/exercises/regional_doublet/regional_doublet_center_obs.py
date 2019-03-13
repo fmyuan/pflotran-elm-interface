@@ -48,10 +48,10 @@ for i in range(len(icols)):
 #'center'       : 10,
 plt.legend(loc=1,title='Location')
 # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
-#plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
-#plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-#plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-#plt.setp(plt.gca().get_legend().draw_frame(False))
+plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
+plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
+plt.gca().get_legend().get_frame().set_fill(False)
+plt.gca().get_legend().draw_frame(False)
 #plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
 
 f.subplots_adjust(hspace=0.2,wspace=0.2,
