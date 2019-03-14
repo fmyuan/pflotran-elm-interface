@@ -254,8 +254,8 @@ END
 #=========================== observation points ===============================
 OBSERVATION
   REGION Obs_pt_center
-  AT_CELL_CENTER #is this necessary here?
-  VELOCITY #ditto?
+  AT_CELL_CENTER 
+  VELOCITY 
 END
  
 OBSERVATION

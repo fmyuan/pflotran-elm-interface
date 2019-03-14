@@ -103,10 +103,10 @@ make_subplots(1,3,3,filenames,columns,name,titles)
 #plt.legend(loc=(1.20,0.175),title='FRACTURE REALIZATION')
 plt.legend(loc=0)
 # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
-#plt.setp(plt.gca().get_legend().get_texts(),fontsize=14,fontweight='normal')
-#plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-#plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-#plt.setp(plt.gca().get_legend().draw_frame(False))
+plt.setp(plt.gca().get_legend().get_texts(),fontsize=14,fontweight='normal')
+plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
+plt.gca().get_legend().get_frame().set_fill(False)
+plt.gca().get_legend().draw_frame(False)
 #plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
 
 #adjust blank space and show/save the plot
