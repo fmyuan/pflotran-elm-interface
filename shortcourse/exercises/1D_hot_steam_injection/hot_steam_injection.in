@@ -25,12 +25,12 @@ END
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   PHASE LIQUID
-  DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_COEFFICIENT 2.d-9
 END
 
 FLUID_PROPERTY
   PHASE GAS
-  DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_COEFFICIENT 2.d-5 
 END
 
 #=========================== more fluid properties ============================
@@ -59,7 +59,7 @@ MATERIAL_PROPERTY soil1
   THERMAL_CONDUCTIVITY_WET 1.1d0 W/m-C
   HEAT_CAPACITY 0.01 J/kg-C
   PERMEABILITY
-    PERM_ISO 1.d-14 #1.d-14 #1.d-14 #1.d-13 #1.d-15
+    PERM_ISO 1.d-14 
   /
 END
 
@@ -121,7 +121,7 @@ FLOW_CONDITION initial
     TEMPERATURE DIRICHLET
   /
   LIQUID_PRESSURE 1.d6 
-  MOLE_FRACTION 1.d-7 
+  MOLE_FRACTION 0.d-7
   TEMPERATURE 176.d0 
 END
 
@@ -131,8 +131,8 @@ FLOW_CONDITION steam_injection
     RATE MASS_RATE
     TEMPERATURE DIRICHLET 
   /
- TEMPERATURE 240.d0  
- RATE 1.d-3 1.d-5 0.d0 g/s g/s MW 
+ TEMPERATURE 200.d0   
+ RATE 5.d-3 5.d-5 0.d0 g/s g/s MW 
 END
 
 #=========================== condition couplers ===============================
@@ -166,14 +166,14 @@ END
 #=========================== output options ===================================
 OUTPUT
   SNAPSHOT_FILE
-    TIMES y  .05d0 0.1d0 1.d0 5.d0
+    TIMES y .05d0 0.1d0 1.d0 5.d0 
     FORMAT TECPLOT POINT
   /
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 5.d0 y
+  FINAL_TIME 5.d0 y 
   INITIAL_TIMESTEP_SIZE 1.d0 h
   MAXIMUM_TIMESTEP_SIZE 5.d-1 y
 END
