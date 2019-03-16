@@ -11,6 +11,11 @@
 \usepackage{graphics}
 \definecolor{green}{RGB}{0,128,0}
 
+\newcommand{\bc}{\begin{center}}
+\newcommand{\ec}{\end{center}}
+\newcommand{\eq}{\ =\ }
+\newcommand{\degc}{$^\circ$C}
+
 \newcommand\gehcomment[1]{{{\color{orange} #1}}}
 \newcommand\add[1]{{{\color{blue} #1}}}
 \newcommand\remove[1]{\sout{{\color{red} #1}}}
@@ -19,6 +24,19 @@
 \newcommand\bluecomment[1]{{{\color{blue} #1}}}
 \newcommand\greencomment[1]{{{\color{green} #1}}}
 \newcommand\magentacomment[1]{{{\color{magenta} #1}}}
+
+\begin{comment}
+\tiny
+\scriptsize
+\footnotesize
+\small
+\normalsize
+\large
+\Large
+\LARGE
+\huge
+\Huge
+\end{comment}
 
 \begin{document}
 \title{1D Hot Steam Injection\ldots}
@@ -42,7 +60,7 @@ The ``1D Hot Steam Injection Scenario'' simulates injection of hot steam into th
   \item Problem domain: $101 \times 1 \times 1$ m (x $\times$ y $\times$ z)
   \item Grid resolution $1 \times 1 \times 1$ m
   \item Initial liquid pressure of 1 MPa, temperature of 176C
-  \item Inject water at a constant Mass Rate of 1 mg/sec, air at 0.01 mg/s  
+  \item Inject water at a constant Mass Rate of 5 mg/sec, air at 0.05 mg/s  
   \item Material properties
   \begin{itemize}
     \footnotesize
@@ -125,12 +143,12 @@ END  \bluecomment{! <-- closes out GRID card}
 \begin{semiverbatim}
 FLUID_PROPERTY
   PHASE LIQUID
-  DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_COEFFICIENT 2.d-9
 END
 
 FLUID_PROPERTY
   PHASE GAS
-  DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_COEFFICIENT 2.d-5
 END
 
 \newpage
@@ -283,7 +301,7 @@ FLOW_CONDITION initial
     TEMPERATURE DIRICHLET     \bluecomment{! phase state}
   /
   LIQUID_PRESSURE 1.d6
-  MOLE_FRACTION 1.d-7
+  MOLE_FRACTION 0.d0
   TEMPERATURE 176.d0
 END                      
 
@@ -295,8 +313,8 @@ FLOW_CONDITION steam_injection
     TEMPERATURE DIRICHLET  \bluecomment{! with a constant injection}
   /                        \bluecomment{! temperature}
 
-  TEMPERATURE 240.d0       \bluecomment{! Steam temperature is 240 C}     
-  RATE 1.d-3 1.d-5 0.d0 g/s g/s MW \bluecomment{Injecting mostly water,}
+  TEMPERATURE 200.d0       \bluecomment{! Steam temperature is 200 C}     
+  RATE 5.d-3 5.d-5 0.d0 g/s g/s MW \bluecomment{Injecting mostly water,}
 END                                \bluecomment{some air}
 \end{semiverbatim}
 
@@ -541,7 +559,6 @@ SIMULATION
       OPTIONS
         RESTRICT_STATE_CHANGE
         ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
@@ -582,7 +599,6 @@ SIMULATION
         RESTRICT_STATE_CHANGE
         ANALYTICAL_JACOBIAN
         USE_INFINITY_NORM_CONVERGENCE
-        LOGGING_VERBOSITY 1
       / 
     / 
   / 
@@ -591,88 +607,6 @@ END
 \end{semiverbatim}
 
 \end{frame}
-%-----------------------------------------------------------------------------
-\subsection{Ouput Messages 1}
-
-\begin{frame}[fragile]\frametitle{Screen Output}
-
-\begin{itemize}
-\item \redcomment{LOGGING\_VERBOSITY} shows which variables in each grid block failed to converge, and the corresponding metric. 
-\end{itemize}
-
-\begin{semiverbatim}
-\tiny
-1 2r: 1.62E-04 2x: 1.01E+07 2u: 6.82E+01 ir: 9.09E-05 iu: 1.23E+01 rsn:   0
-   Absolute Update, 2Phase State, Gas Saturation (61) : 2.54257E-04
-   Relative Update, 2Phase State, Gas Saturation (61) : 2.54257E+02
-   Residual, Liquid State, Energy (62) : 6.43174E-05
-   Residual, 2Phase State, Energy (41) : 1.00241E-04
-   Scaled Residual, Liquid State, Energy (62) : 6.43174E-05
-   Scaled Residual, 2Phase State, Energy (41) : 1.00241E-04
-  2 2r: 1.80E-04 2x: 1.01E+07 2u: 2.91E+03 ir: 1.00E-04 iu: 9.37E+02 rsn:   0
-   Absolute Update, 2Phase State, Gas Saturation (42) : 1.96877E-04
-   Relative Update, 2Phase State, Gas Saturation (61) : 1.13919E+35
-  3 2r: 7.08E-06 2x: 1.01E+07 2u: 3.57E+03 ir: 3.72E-06 iu: 7.71E+02 rsn:   0
-   Absolute Update, 2Phase State, Gas Saturation (60) : 3.63843E-05
-   Relative Update, 2Phase State, Gas Saturation (41) : 2.40301E+35
-  4 2r: 1.17E-06 2x: 1.01E+07 2u: 5.81E+02 ir: 8.24E-07 iu: 1.15E+02 rsn:   0
-   Absolute Update, 2Phase State, Gas Saturation (41) : 2.40471E-05
-   Relative Update, 2Phase State, Gas Saturation (41) : 2.40471E+35
-  5 2r: 1.17E-06 2x: 1.01E+07 2u: 1.99E-01 ir: 8.24E-07 iu: 3.92E-02 rsn:   0
-   Absolute Update, 2Phase State, Gas Saturation (41) : 2.40471E-05
-   Relative Update, 2Phase State, Gas Saturation (41) : 2.40471E+35
-
-\end{semiverbatim}
-\end{frame}
-
-%-----------------------------------------------------------------------------
-\subsection{Ouput Messages 2}
-
-\begin{frame}[fragile]\frametitle{Screen Output}
-
-\begin{itemize}
-\item \bluecomment{Down:} Residual, Scaled Residual, Absolute Update, Relative Update
-\item \bluecomment{Across (primary variables/residuals):} Liquid State, Gas State, 2-phase State 
-\end{itemize}
-
-\begin{semiverbatim}
-\scriptsize
-Converged
-     R: 4.8E-11 5.8E-16 6.5E-10 0.0E+00 0.0E+00 0.0E+00 6.5E-11 7.6E-15 8.8E-10
-    SR: 4.8E-11 5.8E-16 6.5E-10 0.0E+00 0.0E+00 0.0E+00 6.5E-11 7.6E-15 8.8E-10
-    AU: 6.5E+00 9.5E-09 4.6E-05 0.0E+00 0.0E+00 0.0E+00 6.7E+00 4.6E-05 3.2E-05
-    RU: 6.5E-06 8.7E-04 2.6E-07 0.0E+00 0.0E+00 0.0E+00 6.7E-06 2.6E-04 1.8E-07
-
-\end{semiverbatim}
-
-\end{frame}
-%-----------------------------------------------------------------------------
-\subsection{Edit the Input Deck 3}
-
-\begin{frame}[fragile]\frametitle{Edit the Input Deck (again)}
-
-\begin{semiverbatim}
-
-SIMULATION
-  SIMULATION_TYPE SUBSURFACE
-  PROCESS_MODELS
-    SUBSURFACE_FLOW flow
-      MODE GENERAL ! two-phase flow and energy
-      OPTIONS
-        RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
-        LOGGING_VERBOSITY 1
-        SAT_REL_UPDATE_INF_TOL 1.d-4
-      / 
-    / 
-  / 
-END 
-
-\end{semiverbatim}
-
-\end{frame}
-
 %-----------------------------------------------------------------------------
 \subsection{Running hot_steam_injection.in again}
 

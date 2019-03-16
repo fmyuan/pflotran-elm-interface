@@ -363,6 +363,7 @@ FLOW_CONDITION unsaturated
 
 END
 
+\newpage
 FLOW_CONDITION recharge
   TYPE
     LIQUID_FLUX NEUMANN
@@ -660,8 +661,8 @@ FLOW_CONDITION initial
     TEMPERATURE DIRICHLET
     GAS_PRESSURE DIRICHLET
     GAS_SATURATION DIRICHLET
-  / \bluecomment{! Here we use datasets to set initial conditions. PFLOTRAN} 
-    \bluecomment{! interpolates between values automatically.}
+  / \bluecomment{! Here we use datasets to set initial conditions.} 
+    \bluecomment{! PFLOTRAN interpolates between values automatically.}
   LIQUID_PRESSURE DATASET liquid_pressure 
   MOLE_FRACTION DATASET mole_fraction
   TEMPERATURE DATASET temperature
