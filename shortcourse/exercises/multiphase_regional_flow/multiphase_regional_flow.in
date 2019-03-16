@@ -1,0 +1,247 @@
+#Description: 2D general mode sloping water table with recharge
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== datasets ===================================
+DATASET liquid_pressure
+  FILENAME ./ic_dataset.h5
+  HDF5_DATASET_NAME bounding_liquid_pressure
+END
+
+DATASET mole_fraction
+  FILENAME ./ic_dataset.h5
+  HDF5_DATASET_NAME bounding_mole_fraction
+END
+
+DATASET gas_pressure
+  FILENAME ./ic_dataset.h5
+  HDF5_DATASET_NAME bounding_gas_pressure
+END
+
+DATASET gas_saturation
+  FILENAME ./ic_dataset.h5
+  HDF5_DATASET_NAME bounding_gas_saturation
+END 
+
+DATASET temperature
+  FILENAME ./ic_dataset.h5
+  HDF5_DATASET_NAME bounding_temperature
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 10 1 100
+  BOUNDS
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 10.d0
+  /
+END
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  CHARACTERISTIC_CURVES default
+  POROSITY 0.25
+  TORTUOSITY 1.0
+  ROCK_DENSITY 2700.
+  THERMAL_CONDUCTIVITY_DRY 1.1d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.1d0 W/m-C
+  HEAT_CAPACITY 0.01 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-12 
+  /
+END
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 1.d-5
+END
+
+#=========================== more fluid properties ============================
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+  STEAM_DENSITY IF97
+  STEAM_ENTHALPY IF97
+END
+
+EOS GAS
+  DENSITY DEFAULT
+  VISCOSITY DEFAULT
+  HENRYS_CONSTANT DEFAULT
+END
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_LIQ
+    PHASE LIQUID
+    LAMBDA 2
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION BURDINE_BC_GAS
+    PHASE GAS
+    LAMBDA 2
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    GAS_RESIDUAL_SATURATION 0.1d0
+  /
+END
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    PERIODIC TIME 10. d between 0. y and 1. y
+    PERIODIC TIME 100. d between 1. y and 2. y
+    PERIODIC TIME 365. d between 2. y and 20. y
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 20.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 10.d0
+  /
+END
+
+REGION top
+  FACE TOP
+  COORDINATES
+    0.d0 0.d0 10.d0
+    100.d0 1.d0 10.d0
+  /
+END
+
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    100.d0 1.d0 0.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    100.d0 0.d0 0.d0
+    100.d0 0.d0 10.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 0.d0 10.d0
+  /
+END
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE DATASET liquid_pressure
+  MOLE_FRACTION DATASET mole_fraction
+  TEMPERATURE DATASET temperature
+  GAS_PRESSURE DATASET gas_pressure
+  GAS_SATURATION DATASET gas_saturation
+END
+
+FLOW_CONDITION unsaturated
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    #GAS_SATURATION DIRICHLET
+    RELATIVE_HUMIDITY DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE DATASET gas_pressure 
+  RELATIVE_HUMIDITY 0.5
+  #GAS_SATURATION 8.9d-1 
+  TEMPERATURE DATASET temperature 
+
+END
+
+FLOW_CONDITION recharge
+  TYPE
+    LIQUID_FLUX NEUMANN
+    GAS_FLUX NEUMANN
+    TEMPERATURE DIRICHLET
+  /
+  LIQUID_FLUX 10.d0 cm/y
+  GAS_FLUX 0.d0 cm/y
+  TEMPERATURE 25.d0
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial
+  REGION bottom
+END
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION recharge
+  REGION top
+END
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION unsaturated 
+  REGION top
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION east
+END
+
+BOUNDARY_CONDITION west
+  FLOW_CONDITION initial
+  REGION west
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
+END_SUBSURFACE
