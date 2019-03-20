@@ -62,12 +62,12 @@ module Option_module
     PetscInt :: nflowspec
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
-    PetscInt :: nwells
     PetscInt :: num_table_indices
     PetscBool :: use_th_freezing
 
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
+    PetscInt  :: linpernl,nchperst,nnl
 
     PetscBool :: surf_flow_on
     PetscInt :: nsurfflowdof
@@ -447,11 +447,13 @@ subroutine OptionInitRealization(option)
   option%nflowdof = 0
   option%nmechdof = 0
   option%nsec_cells = 0
-  option%nwells = 0
   option%num_table_indices = 0
   option%use_th_freezing = PETSC_FALSE
 
   option%linerept = PETSC_FALSE
+  option%linpernl = 0
+  option%nchperst = 0
+  option%nnl      = 0
 
   option%nsurfflowdof = 0
   option%surf_flow_on = PETSC_FALSE
