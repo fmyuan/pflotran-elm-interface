@@ -1997,13 +1997,13 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       end do 
       deallocate(ele_g_lc_to_glb_by_rank)
       deallocate(ele_g_global_by_rank)
-      write(string,*) option%myrank
-      string = 'ele_local_m3_proc_' // trim(adjustl(string)) // '.out'
-      open(unit=IUNIT_TEMP,file=string)
-      do local_id=1, ugrid%ngmax * stride
-        write(IUNIT_TEMP,*) vec_ptr2(local_id)
-      end do
-      close(IUNIT_TEMP)      
+      !write(string,*) option%myrank
+      !string = 'ele_local_m3_proc_' // trim(adjustl(string)) // '.out'
+      !open(unit=IUNIT_TEMP,file=string)
+      !do local_id=1, ugrid%ngmax * stride
+      !  write(IUNIT_TEMP,*) vec_ptr2(local_id)
+      !end do
+      !close(IUNIT_TEMP)      
       call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     end if
   !end of Method 3 - pass ghost cell info only
