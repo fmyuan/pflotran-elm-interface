@@ -17,6 +17,8 @@ module Grid_Unstructured_Aux_module
   PetscInt, parameter, public :: UGRID_UPWIND_FRACTION_ABS_DIST = 3
 
 !#define PETSC_SCATTER_METHOD
+!#define MPI_SCATTER_GLOBAL
+#define MPI_SCATTER_GHOST_ONLY
   
   type, public :: grid_unstructured_type
     ! variables for all unstructured grids
@@ -1208,7 +1210,12 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt :: ghost_offset_new
   PetscInt :: dual_id
   PetscInt :: global_num_cells
+  PetscInt :: global_num_g_cells
+  PetscInt :: ghost_global_offset
+  PetscInt :: lc_g_count
+  PetscInt :: ghost_to_scatter_glb_offset
   PetscInt :: global_petsc_id
+  PetscInt :: istart1, iend1, istart2, iend2
   PetscBool :: found
   PetscReal, pointer :: vec_ptr(:)  
   PetscReal, pointer :: vec_ptr2(:)  
@@ -1217,7 +1224,15 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   PetscInt, allocatable :: int_array3(:)
   PetscInt, allocatable :: int_array4(:)
   PetscInt, allocatable :: int_array5(:)
+  PetscInt, allocatable :: ele_g_glb_petsc_ids(:)
+  PetscInt, allocatable :: ele_g_glb_rank_to_petsc(:)
+  PetscInt, allocatable :: ele_g_lc_rank_to_petsc(:)
+  PetscInt, allocatable :: ele_g_glb_petsc_to_rank(:)
+  PetscInt, allocatable :: ele_g_lc_petsc_to_rank(:)
+  PetscInt, allocatable :: ele_g_lc_to_glb_by_rank(:)
   PetscReal, allocatable :: elements_global_petsc(:)
+  PetscReal, allocatable :: ele_g_global_by_rank(:)
+  PetscReal, allocatable :: ele_g_local_by_rank(:)
   PetscInt, pointer :: int_array_pointer(:)
   PetscMPIInt :: send_size_mpi, send_displ_mpi
   PetscMPIInt, allocatable :: rcv_sizes_mpi(:),disp_mpi(:)
@@ -1712,92 +1727,291 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   !call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)  
   !end of Method 1
 #else
-  !gather off-proc ghost cell infomation into local elements - Method 2
-  call MPI_Allreduce(ugrid%nlmax,global_num_cells,ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-  if ( ugrid%nmax /= global_num_cells ) then
-    option%io_buffer = 'number of cells after partitioning /= &
-                        &number of cells read in the grid'
-    call printErrMsg(option)
-  end if
-  
-  allocate(elements_global_petsc(1:global_num_cells*stride))
-  elements_global_petsc = 0.0d0
-  
-  !
-  ! global_offset_new = 0
-  ! call MPI_Exscan(num_cells_local_new,global_offset_new, &
-  !                 ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-  
-  send_size_mpi = ugrid%nlmax*stride
-  !allocate(rcv_sizes_mpi(option%mycommsize))
-  allocate(rcv_sizes_mpi(0:(option%mycommsize-1)))
-  rcv_sizes_mpi = 0
-  call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
-                     MPIU_INTEGER, &
-                     rcv_sizes_mpi, &
-                     ONE_INTEGER_MPI, &
-                     MPIU_INTEGER,option%mycomm,ierr)
 
-  !allocate(disp_mpi(option%mycommsize))
-  allocate(disp_mpi(0:(option%mycommsize-1)))
-  disp_mpi = 0
+#ifdef MPI_SCATTER_GLOBAL
+    !gather off-proc ghost cell infomation into local elements - Method 2
+    call MPI_Allreduce(ugrid%nlmax,global_num_cells,ONE_INTEGER_MPI, &
+                       MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+    if ( ugrid%nmax /= global_num_cells ) then
+      option%io_buffer = 'number of cells after partitioning /= &
+                          &number of cells read in the grid'
+      call printErrMsg(option)
+    end if
+    
+    allocate(elements_global_petsc(1:global_num_cells*stride))
+    elements_global_petsc = 0.0d0
+    
+    !
+    ! global_offset_new = 0
+    ! call MPI_Exscan(num_cells_local_new,global_offset_new, &
+    !                 ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+    
+    send_size_mpi = ugrid%nlmax*stride
+    !allocate(rcv_sizes_mpi(option%mycommsize))
+    allocate(rcv_sizes_mpi(0:(option%mycommsize-1)))
+    rcv_sizes_mpi = 0
+    call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
+                       MPIU_INTEGER, &
+                       rcv_sizes_mpi, &
+                       ONE_INTEGER_MPI, &
+                       MPIU_INTEGER,option%mycomm,ierr)
 
-  !displacement with 0-based index
-  send_displ_mpi = global_offset_new * stride
-  call MPI_Allgather( send_displ_mpi, ONE_INTEGER_MPI, MPIU_INTEGER, &
-                      disp_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
-                      option%mycomm,ierr)
+    !allocate(disp_mpi(option%mycommsize))
+    allocate(disp_mpi(0:(option%mycommsize-1)))
+    disp_mpi = 0
 
-  !
-  !call MPI_Allgather(vec_ptr(1:ugrid%nlmax*stride),ugrid%nlmax*stride, &
-  !                   MPI_DOUBLE_PRECISION, &
-  !                   elements_global_petsc(1:global_num_cells*stride), &
-  !                   global_num_cells*stride, &
-  !                   MPI_DOUBLE_PRECISION,option%mycomm,ierr)
+    !displacement with 0-based index
+    send_displ_mpi = global_offset_new * stride
+    call MPI_Allgather( send_displ_mpi, ONE_INTEGER_MPI, MPIU_INTEGER, &
+                        disp_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                        option%mycomm,ierr)
 
-  call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    !
+    !call MPI_Allgather(vec_ptr(1:ugrid%nlmax*stride),ugrid%nlmax*stride, &
+    !                   MPI_DOUBLE_PRECISION, &
+    !                   elements_global_petsc(1:global_num_cells*stride), &
+    !                   global_num_cells*stride, &
+    !                   MPI_DOUBLE_PRECISION,option%mycomm,ierr)
 
-  !Garther elements_petsc strided arrays into
-  send_size_mpi = ugrid%nlmax*stride
-  call MPI_Allgatherv(vec_ptr,&
-                      send_size_mpi, &
-                      MPI_DOUBLE_PRECISION, &
-                      elements_global_petsc, &
-                      rcv_sizes_mpi, &
-                      disp_mpi, &
-                      MPI_DOUBLE_PRECISION, &
-                      option%mycomm,ierr)
+    call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+
+    !Garther elements_petsc strided arrays into
+    send_size_mpi = ugrid%nlmax*stride
+    call MPI_Allgatherv(vec_ptr,&
+                        send_size_mpi, &
+                        MPI_DOUBLE_PRECISION, &
+                        elements_global_petsc, &
+                        rcv_sizes_mpi, &
+                        disp_mpi, &
+                        MPI_DOUBLE_PRECISION, &
+                        option%mycomm,ierr)
+    
+    deallocate(rcv_sizes_mpi)
+    deallocate(disp_mpi)
+    
+    call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    !copy local portion of array first - no off-proc ghost here
+    vec_ptr2(1:ugrid%nlmax*stride) = vec_ptr(1:ugrid%nlmax*stride)
+    !copy ghost cell information from elements_global_petsc
+    count = 0
+    do ghosted_id = ugrid%nlmax + 1, ugrid%ngmax
+      count = count + 1
+      global_petsc_id = ugrid%ghost_cell_ids_petsc(count)
+      vec_ptr2( 1 + (ghosted_id-1)*stride : ghosted_id*stride ) = &
+                    elements_global_petsc( 1 + (global_petsc_id -1)*stride : &
+                                           global_petsc_id*stride )
+    end do
+
+    !write(string,*) option%myrank
+    !string = 'ele_local_m2_proc_' // trim(adjustl(string)) // '.out'
+    !open(unit=IUNIT_TEMP,file=string)
+    !do local_id=1, ugrid%ngmax * stride
+    !  write(IUNIT_TEMP,*) vec_ptr2(local_id)
+    !end do
+    !close(IUNIT_TEMP)
+    
+    call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    deallocate(elements_global_petsc)
+    call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    !end of Method 2
+#endif
+#ifdef MPI_SCATTER_GHOST_ONLY
+    !Method 3 - pass ghost cell info only
+    !load non-ghosted cells
+    call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    !copy local portion of array first - no off-proc ghost here
+    vec_ptr2(1:ugrid%nlmax*stride) = vec_ptr(1:ugrid%nlmax*stride)
+    call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    !compute global number of ghosted cells
+    global_num_g_cells = 0
+    call MPI_Allreduce(ugrid%num_ghost_cells,global_num_g_cells, &
+                       ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                       option%mycomm,ierr)
+    if (global_num_g_cells > 0) then
+      allocate(ele_g_glb_petsc_ids(global_num_g_cells))
+      ele_g_glb_petsc_ids = 0
+      allocate(ele_g_global_by_rank(global_num_g_cells*stride))
+      ele_g_global_by_rank = 0.0d0
+      allocate(ele_g_glb_rank_to_petsc(global_num_g_cells))
+      ele_g_glb_rank_to_petsc = 0
+      allocate(ele_g_glb_petsc_to_rank(global_num_g_cells))
+      ele_g_glb_petsc_to_rank = 0
+
+      !build array of number of ghost of each proc for use in MPI_Allgatherv
+      send_size_mpi = ugrid%num_ghost_cells
+      allocate(rcv_sizes_mpi(0:(option%mycommsize-1)))
+      rcv_sizes_mpi = 0
+      call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
+                         MPIU_INTEGER, &
+                         rcv_sizes_mpi, &
+                         ONE_INTEGER_MPI, &
+                         MPIU_INTEGER,option%mycomm,ierr)
+      !
+      !build array of pointers to ghost section petsc ids for each proc
+      allocate(disp_mpi(0:(option%mycommsize-1)))
+      disp_mpi = 0
+      !displacement with 0-based index
+      ghost_global_offset = 0
+      call MPI_Exscan(ugrid%num_ghost_cells,ghost_global_offset, &
+                      ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+
+      send_displ_mpi = ghost_global_offset
+      call MPI_Allgather( send_displ_mpi, ONE_INTEGER_MPI, MPIU_INTEGER, &
+                          disp_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                          option%mycomm,ierr)
+
+      send_size_mpi = ugrid%num_ghost_cells
+      call MPI_Allgatherv(ugrid%ghost_cell_ids_petsc,send_size_mpi,&
+            MPIU_INTEGER,ele_g_glb_petsc_ids, rcv_sizes_mpi, disp_mpi, &
+            MPIU_INTEGER,option%mycomm,ierr)
+      !ele_g_glb_petsc_ids - arrays with petsc_ids of all ghost cells
+      !cell info for petsc_ids of ghost cells in proc 1 stored in other procs
+
+      !scanning ele_g_glb_petsc_ids on each proc to load up ghost cell info
+      !first count the local ghosted to scatter from current rank to other ranks
+      lc_g_count = 0
+      do ghosted_id = 1,global_num_g_cells
+        global_petsc_id = ele_g_glb_petsc_ids(ghosted_id)
+        !check if the ghost cell belongs to the presnet rank
+        !if (dual_id <= global_offset_new .or. &
+        !    dual_id > global_offset_new + num_cells_local_new) then
+        if (global_petsc_id > global_offset_new .and. &
+            global_petsc_id <= global_offset_new + ugrid%nlmax) then  
+          lc_g_count = lc_g_count + 1
+          !ele_g_global_by_rank((lc_g_count-1)*stride+1:lc_g_count*stride) = &
+          !      vec_ptr( ((global_petsc_id-global_offset_new)-1)*stride+1: &
+          !               (global_petsc_id-global_offset_new)*stride )
+          !ele_g_glb_rank_to_petsc(lc_g_count) = ghosted_id
+          !ele_g_glb_petsc_to_rank(lc_g_count) = lc_g_count 
+        end if
+      end do
   
-  deallocate(rcv_sizes_mpi)
-  deallocate(disp_mpi)
+      ghost_to_scatter_glb_offset = 0
+      call MPI_Exscan(lc_g_count,ghost_to_scatter_glb_offset, &
+                      ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+      !allocate local array for the ghost scatter (myrank to all other procs)
+      allocate(ele_g_local_by_rank(lc_g_count*stride))
+      ele_g_local_by_rank = 0.0d0
+      allocate(ele_g_lc_rank_to_petsc(lc_g_count))
+      ele_g_lc_rank_to_petsc = 0
+      allocate(ele_g_lc_petsc_to_rank(lc_g_count))
+      ele_g_lc_petsc_to_rank = 0
   
-  call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
-  !copy local portion of array first - no off-proc ghost here
-  vec_ptr2(1:ugrid%nlmax*stride) = vec_ptr(1:ugrid%nlmax*stride)
-  !copy ghost cell information from elements_global_petsc
-  count = 0
-  do ghosted_id = ugrid%nlmax + 1, ugrid%ngmax
-    count = count + 1
-    global_petsc_id = ugrid%ghost_cell_ids_petsc(count)
-    vec_ptr2( 1 + (ghosted_id-1)*stride : ghosted_id*stride ) = &
-                  elements_global_petsc( 1 + (global_petsc_id -1)*stride : &
-                                         global_petsc_id*stride )
-  end do
+      call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
 
-  !write(string,*) option%myrank
-  !string = 'ele_local_m2_proc_' // trim(adjustl(string)) // '.out'
-  !open(unit=IUNIT_TEMP,file=string)
-  !do local_id=1, ugrid%ngmax * stride
-  !  write(IUNIT_TEMP,*) vec_ptr2(local_id)
-  !end do
-  !close(IUNIT_TEMP)
-  
-  call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
-  deallocate(elements_global_petsc)
-  !end of Method 2
-#endif  
+      lc_g_count = 0
+      do ghosted_id = 1,global_num_g_cells
+        global_petsc_id = ele_g_glb_petsc_ids(ghosted_id)
+        if (global_petsc_id > global_offset_new .and. &
+            global_petsc_id <= global_offset_new + ugrid%nlmax) then
+          lc_g_count = lc_g_count + 1
+          ele_g_local_by_rank((lc_g_count-1)*stride+1:lc_g_count*stride) = &
+                vec_ptr( ((global_petsc_id-global_offset_new)-1)*stride+1: &
+                         (global_petsc_id-global_offset_new)*stride )
+          ele_g_lc_rank_to_petsc(lc_g_count) = ghosted_id
+          ele_g_lc_petsc_to_rank(lc_g_count) = lc_g_count + &
+                                               ghost_to_scatter_glb_offset
+        end if
+      end do
+      
+      call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
+      deallocate(ele_g_glb_petsc_ids)
+
+      !scattering = assembling of:
+      !ele_g_lc_rank_to_petsc,ele_g_lc_petsc_to_rank, ele_g_local_by_rank
+
+      !assemble: ele_g_lc_rank_to_petsc,ele_g_lc_petsc_to_rank
+      !compute rcv_sizes_mpi
+      send_size_mpi = lc_g_count
+      rcv_sizes_mpi = 0
+      call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
+                         MPIU_INTEGER, &
+                         rcv_sizes_mpi, &
+                         ONE_INTEGER_MPI, &
+                         MPIU_INTEGER,option%mycomm,ierr)
+      !compute disp_mpi
+      disp_mpi = 0
+      send_displ_mpi = ghost_to_scatter_glb_offset
+      call MPI_Allgather( send_displ_mpi, ONE_INTEGER_MPI, MPIU_INTEGER, &
+                          disp_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                          option%mycomm,ierr)
+      !
+      send_size_mpi = lc_g_count
+      call MPI_Allgatherv(ele_g_lc_rank_to_petsc,send_size_mpi,&
+            MPIU_INTEGER,ele_g_glb_rank_to_petsc, rcv_sizes_mpi, disp_mpi, &
+            MPIU_INTEGER,option%mycomm,ierr)
+      call MPI_Allgatherv(ele_g_lc_petsc_to_rank,send_size_mpi,&
+            MPIU_INTEGER,ele_g_glb_petsc_to_rank, rcv_sizes_mpi, disp_mpi, &
+            MPIU_INTEGER,option%mycomm,ierr)
+      deallocate(ele_g_lc_rank_to_petsc)
+      deallocate(ele_g_lc_petsc_to_rank)
+      
+      !assemble ele_g_local_by_rank
+      !compute rcv_sizes_mpi
+      send_size_mpi = lc_g_count*stride
+      rcv_sizes_mpi = 0
+      call MPI_Allgather(send_size_mpi,ONE_INTEGER_MPI, &
+                         MPIU_INTEGER, &
+                         rcv_sizes_mpi, &
+                         ONE_INTEGER_MPI, &
+                         MPIU_INTEGER,option%mycomm,ierr)
+      !compute disp_mpi
+      disp_mpi = 0
+      send_displ_mpi = ghost_to_scatter_glb_offset*stride
+      call MPI_Allgather( send_displ_mpi, ONE_INTEGER_MPI, MPIU_INTEGER, &
+                          disp_mpi,ONE_INTEGER_MPI,MPIU_INTEGER, &
+                          option%mycomm,ierr)
+      !
+      send_size_mpi = lc_g_count*stride
+      call MPI_Allgatherv(ele_g_local_by_rank,send_size_mpi,&
+           MPI_DOUBLE_PRECISION,ele_g_global_by_rank,rcv_sizes_mpi,disp_mpi, &
+           MPI_DOUBLE_PRECISION,option%mycomm,ierr)
+      deallocate(ele_g_local_by_rank)
+      deallocate(rcv_sizes_mpi)
+      deallocate(disp_mpi)
+      !load idx to map ghosted local to global ghosted info ordered by rank
+      allocate(ele_g_lc_to_glb_by_rank(ugrid%num_ghost_cells))
+      ele_g_lc_to_glb_by_rank = 0
+      do temp_int =1,global_num_g_cells
+        ghosted_id = ele_g_glb_rank_to_petsc(temp_int)
+        if ( ghosted_id > ghost_global_offset .and. &
+             ghosted_id <= ghost_global_offset + ugrid%num_ghost_cells ) then
+          local_id = ghosted_id - ghost_global_offset
+          ele_g_lc_to_glb_by_rank(local_id) = &
+                                         ele_g_glb_petsc_to_rank(temp_int)
+        end if
+      end do
+      deallocate(ele_g_glb_rank_to_petsc)
+      deallocate(ele_g_glb_petsc_to_rank)
+      !load ghosted cells
+      call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+      do ghosted_id =1,ugrid%num_ghost_cells
+        istart1 = ugrid%nlmax*stride + (ghosted_id-1)*stride + 1
+        iend1 = ugrid%nlmax*stride + ghosted_id*stride
+        temp_int = ele_g_lc_to_glb_by_rank(ghosted_id)
+        istart2 = (temp_int - 1) * stride + 1
+        iend2 = temp_int * stride
+        vec_ptr2(istart1:iend1) = ele_g_global_by_rank(istart2:iend2)
+      end do 
+      deallocate(ele_g_lc_to_glb_by_rank)
+      deallocate(ele_g_global_by_rank)
+      write(string,*) option%myrank
+      string = 'ele_local_m3_proc_' // trim(adjustl(string)) // '.out'
+      open(unit=IUNIT_TEMP,file=string)
+      do local_id=1, ugrid%ngmax * stride
+        write(IUNIT_TEMP,*) vec_ptr2(local_id)
+      end do
+      close(IUNIT_TEMP)      
+      call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
+    end if
+  !end of Method 3 - pass ghost cell info only
+#endif
+
+  !closes if then else PETSC_SCATTER_METHOD
+#endif
+ 
   call VecDestroy(elements_petsc,ierr);CHKERRQ(ierr)
     
 #if UGRID_DEBUG
