@@ -82,6 +82,7 @@ module Patch_module
     type(integral_flux_list_type), pointer :: integral_flux_list
 
     ! Pointers to objects in mother realization object
+    ! jenn:todo Make a pointer to nw_transport here too - seems clunky
     type(field_type), pointer :: field
     type(reaction_type), pointer :: reaction
     class(dataset_base_type), pointer :: datasets
@@ -4087,8 +4088,8 @@ end subroutine PatchUpdateUniformVelocity
 
 ! ************************************************************************** !
 
-subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
-                             ivar,isubvar,isubvar2)
+subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
+                             output_option,vec,ivar,isubvar,isubvar2)
   !
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
   !
@@ -4110,6 +4111,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
   use Reaction_Mineral_module
   use Reaction_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
@@ -4122,6 +4124,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
 
   type(option_type), pointer :: option
   type(reaction_type), pointer :: reaction
+  type(nw_trans_realization_type) :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -5238,6 +5241,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
 
       endif
 
+    ! jenn:todo Add patch%aux%NWT to PatchGetVariable
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY,TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_RATE,MINERAL_VOLUME_FRACTION,MINERAL_SATURATION_INDEX, &
@@ -5744,7 +5748,7 @@ end subroutine PatchGetVariable1
 
 ! ************************************************************************** !
 
-function PatchGetVariableValueAtCell(patch,field,reaction,option, &
+function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
                                      output_option,ghosted_id, &
                                      ivar,isubvar,isubvar2)
   !
@@ -5766,6 +5770,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
   use Richards_Aux_module
   use Miscible_Aux_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
   use Reaction_Mineral_module
   use Reaction_module
   use Reaction_Mineral_Aux_module
@@ -5783,6 +5788,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
   PetscReal :: PatchGetVariableValueAtCell
   type(option_type), pointer :: option
   type(reaction_type), pointer :: reaction
+  type(nw_trans_realization_type), pointer :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -6459,6 +6465,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
 
       endif
 
+    ! jenn:todo Add patch%aux%NWT to PatchGetVariableValueAtCell
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &

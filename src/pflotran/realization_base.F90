@@ -9,6 +9,7 @@ module Realization_Base_class
   use Output_Aux_module
   use Field_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Data_Mediator_Base_class
   use Communicator_Base_module
   use Waypoint_module
@@ -36,6 +37,7 @@ module Realization_Base_class
     class(data_mediator_base_type), pointer :: tran_data_mediator_list
     
     type(reaction_type), pointer :: reaction
+    type(nw_trans_realization_type), pointer :: nw_trans
     
   end type realization_base_type
   
@@ -79,6 +81,7 @@ subroutine RealizationBaseInit(realization_base,option)
   realization_base%patch_list => PatchCreateList()
 
   nullify(realization_base%reaction)
+  nullify(realization_base%nw_trans)
 
   nullify(realization_base%patch)
   nullify(realization_base%flow_data_mediator_list)
@@ -116,9 +119,9 @@ subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar, &
   if (present(isubsubvar)) isubsubvar_temp = isubsubvar
   
   call PatchGetVariable(realization_base%patch,realization_base%field, &
-                       realization_base%reaction,realization_base%option, &
-                       realization_base%output_option,vec,ivar,isubvar, &
-                       isubsubvar_temp)
+                       realization_base%reaction,realization_base%nw_trans, &
+                       realization_base%option,realization_base%output_option, &
+                       vec,ivar,isubvar,isubsubvar_temp)
 
 end subroutine RealizationGetVariable
 
@@ -154,6 +157,7 @@ function RealizGetVariableValueAtCell(realization_base,ghosted_id, &
   value = PatchGetVariableValueAtCell(realization_base%patch, &
                                       realization_base%field, &
                                       realization_base%reaction, &
+                                      realization_base%nw_trans, &
                                       realization_base%option, &
                                       realization_base%output_option, &
                                       ghosted_id,ivar,isubvar,isubsubvar_temp)

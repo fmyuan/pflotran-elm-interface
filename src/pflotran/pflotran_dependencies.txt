@@ -406,8 +406,8 @@ multisimulation.o : input_aux.o option.o pflotran_constants.o
 nw_transport.o : field.o global.o global_aux.o material_aux.o \
                  nw_transport_aux.o option.o pflotran_constants.o pm_nwt.o \
                  realization_subsurface.o
-nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
-                     pflotran_constants.o string.o utility.o
+nw_transport_aux.o : matrix_block_aux.o option.o pflotran_constants.o \
+                     utility.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
                 region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
@@ -478,7 +478,7 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           eos_water.o field.o general_aux.o geometry.o global_aux.o grid.o \
           grid_unstructured_cell.o hydrostatic.o hydrostatic_multi_phase.o \
           immis_aux.o integral_flux.o material.o material_aux.o miscible_aux.o \
-          mphase_aux.o observation.o option.o output_aux.o \
+          mphase_aux.o nw_transport_aux.o observation.o option.o output_aux.o \
           pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o reaction.o \
           reaction_aux.o reaction_mineral.o reaction_mineral_aux.o \
           reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
@@ -786,9 +786,9 @@ reactive_transport_aux.o : matrix_block_aux.o option.o pflotran_constants.o \
                            reaction_aux.o reaction_surf_complex_aux.o \
                            utility.o
 realization_base.o : communicator_base.o data_mediator.o data_mediator_base.o \
-                     debug.o discretization.o field.o input_aux.o option.o \
-                     output_aux.o patch.o pflotran_constants.o reaction_aux.o \
-                     waypoint.o
+                     debug.o discretization.o field.o input_aux.o \
+                     nw_transport_aux.o option.o output_aux.o patch.o \
+                     pflotran_constants.o reaction_aux.o waypoint.o
 realization_subsurface.o : characteristic_curves.o communicator_structured.o \
                            communicator_unstructured.o condition.o coupler.o \
                            data_mediator_base.o data_mediator_dataset.o \

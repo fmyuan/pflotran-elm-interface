@@ -312,8 +312,13 @@ subroutine RealizationCreateDiscretization(realization)
       ! ndof degrees of freedom, local
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx_loc, &
                                       LOCAL,option)
-                                      
-      if (realization%reaction%use_log_formulation) then
+      
+      ! jenn:todo Check that realization%reaction is associated before trying to 
+      ! access it. This is in general and not specific to below code.
+      if ( (associated(realization%reaction) .and. &
+           realization%reaction%use_log_formulation) .or. &
+           (associated(realization%reaction) .and. &
+           realization%reaction%use_log_formulation) ) then
         call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                            field%tran_log_xx)
         call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
