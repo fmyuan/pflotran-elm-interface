@@ -1874,6 +1874,15 @@ subroutine UGridExplicitDestroy(explicit_grid)
   if (associated(explicit_grid%face_centroids)) &
     deallocate(explicit_grid%face_centroids)
   nullify(explicit_grid%face_centroids)
+
+  if (associated(explicit_grid%cell_vertices)) then
+    deallocate(explicit_grid%cell_vertices)
+    nullify   (explicit_grid%cell_vertices)
+  endif
+  if (associated(explicit_grid%vertex_coordinates)) then
+    deallocate(explicit_grid%vertex_coordinates)
+    nullify   (explicit_grid%vertex_coordinates)
+  endif
   
   deallocate(explicit_grid)
   nullify(explicit_grid)
