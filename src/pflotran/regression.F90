@@ -1,9 +1,6 @@
 module Regression_module
  
 #include "petsc/finclude/petscvec.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscvec
   use Output_Aux_module
   
