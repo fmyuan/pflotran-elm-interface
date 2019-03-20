@@ -2070,7 +2070,7 @@ subroutine OutputMassBalance(realization_base)
                                        'kg','',icol)
               call OutputWriteToHeader(fid,'Global Gas Mass', &
                                        'kg','',icol)
-              if(towg_miscibility_model == TOWG_SOLVENT_TL) then
+              if (towg_miscibility_model == TOWG_SOLVENT_TL) then
                 call OutputWriteToHeader(fid,'Global Solvent Mass', &
                                          'kg','',icol)
               endif
@@ -2293,7 +2293,7 @@ subroutine OutputMassBalance(realization_base)
            class is(realization_subsurface_type)
              call WriteWellHeaders(fid,icol, &
                                    realization_base,towg_miscibility_model,wecl)
-             if( output_option%write_masses ) then
+             if (output_option%write_masses) then
                call WriteWellMassHeaders(fid,icol, &
                                          realization_base,towg_miscibility_model)
              endif
@@ -3001,14 +3001,14 @@ subroutine OutputMassBalance(realization_base)
 !  Write out well rates and totals if required
 
   if (WellDataGetFlag()) then
-    if(     option%iflowmode == TOIL_IMS_MODE &
-       .or. option%iflowmode == TOWG_MODE       ) then
+    if (     option%iflowmode == TOIL_IMS_MODE &
+        .or. option%iflowmode == TOWG_MODE       ) then
     if (option%myrank == option%io_rank) then
         select type(realization_base)
          class is(realization_subsurface_type)
           call WriteWellValues(fid,realization_base, &
                                output_option%tconv,towg_miscibility_model,option,wecl)
-          if( output_option%write_masses ) then
+          if (output_option%write_masses) then
             call WriteWellMassValues(fid,realization_base, &
                                      output_option%tconv,towg_miscibility_model)
           endif

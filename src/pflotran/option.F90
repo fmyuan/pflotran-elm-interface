@@ -1419,7 +1419,8 @@ subroutine OptionEndTiming(option)
         (timex_wall-option%start_time)/3600.d0
     endif
     if (option%linerept) then
-100 format('----- ------- ------- ------- ------- ------- ------- ------- ------- -------- -------')
+100 format('----- ------- ------ -------- -------- -------- ', &
+           '-------- -------- -------- ------- -------- ------- -- -- --')
 101 format('Run completed, wall clock time =',1pe12.4,' s,',1pe12.4,' min')
       write(*,100)
       write(*,101) timex_wall-option%start_time, (timex_wall-option%start_time)/60.d0

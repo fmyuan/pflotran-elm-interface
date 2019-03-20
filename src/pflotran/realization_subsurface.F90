@@ -2580,7 +2580,7 @@ subroutine RealizationDestroyLegacy(realization)
   call FlowConditionDestroyList(realization%flow_conditions)
 
   !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(realization%well_data,realization%option)
+  call WellDataDestroyList(realization%well_data, realization%option)
   !  Release output buffers held by Output_Eclipse_module
   if (realization%output_option%write_ecl) then
     call ReleaseEwriterBuffers()
@@ -2644,7 +2644,7 @@ subroutine RealizationStrip(this)
   call FlowConditionDestroyList(this%flow_conditions)
 
   !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(this%well_data,this%option)
+  call WellDataDestroyList(this%well_data, this%option)
   !  Release output buffers held by Output_Eclipse_module
   call ReleaseEwriterBuffers()
 
