@@ -51,22 +51,6 @@ TIME
   MAXIMUM_TIMESTEP_SIZE 20 d at 0. d
 END
 
-#=========================== output options ===================================
-OUTPUT
-  FORMAT HDF5
-  TIMES d 0.0 500 
-  PRINT_PRIMAL_GRID
-  EXPLICIT_GRID_PRIMAL_GRID_TYPE cell_centered
-  MASS_BALANCE_FILE
-    PERIODIC TIMESTEP 1
-  END
-  ECLIPSE_FILE
-    PERIOD_SUM TIMESTEP 5
-    PERIOD_RST TIME 50 d
-  END
-  LINEREPT
-END
-
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation
