@@ -58,6 +58,8 @@ module Material_Aux_class
   contains
     procedure, public :: PermeabilityTensorToScalar => &
                            MaterialDiagPermTensorToScalar
+    procedure, public :: PermeabilityTensorToScalarSafe => &
+                           MaterialDiagPermTensorToScalarSafe
   end type material_auxvar_type
   
   type, public :: fracture_auxvar_type
@@ -321,6 +323,43 @@ end subroutine MaterialDiagPermTensorToScalar
 
 ! ************************************************************************** !
 
+subroutine MaterialDiagPermTensorToScalarSafe(material_auxvar,dist, &
+                                      scalar_permeability)
+  !
+  ! Transforms a diagonal perm. tensor to a scalar through a dot product.
+  ! This version will not generate NaNs for zero permeabilities
+  !
+  ! Author: Dave Ponting
+  ! Date: 03/19/19
+  !
+
+  implicit none
+
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal, intent(out) :: scalar_permeability
+
+  PetscReal :: kx, ky, kz
+
+  kx = material_auxvar%permeability(perm_xx_index)
+  ky = material_auxvar%permeability(perm_yy_index)
+  kz = material_auxvar%permeability(perm_zz_index)
+
+  select case(perm_tens_to_scal_model)
+    case(TENSOR_TO_SCALAR_LINEAR)
+      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_FLOW)
+      scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL)
+      scalar_permeability = DiagPermTensortoScalar_PotentialSafe(kx,ky,kz,dist)
+    case default
+      scalar_permeability = DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
+  end select
+
+end subroutine MaterialDiagPermTensorToScalarSafe
+! ************************************************************************** !
+
 function DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
   implicit none
   PetscReal :: DiagPermTensorToScalar_Linear
@@ -365,6 +404,49 @@ function DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
                                          dist(3)*dist(3)/kz)
 
 end function DiagPermTensorToScalar_Potential
+
+! ************************************************************************** !
+
+function DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
+
+  ! Permeability in the direction of the potential gradient
+  ! This version will not generate NaNs for zero permeabilities
+  !
+  ! Author: Dave Ponting
+  ! Date: 03/19/19
+  !
+
+  implicit none
+  PetscReal :: DiagPermTensorToScalar_PotentialSafe
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: kx, ky, kz, kxi, kyi, kzi, den, deni
+
+  !  Form safe inverse permeabilities
+
+  kxi = 0.0
+  kyi = 0.0
+  kzi = 0.0
+
+  if (kx>0.0) kxi = 1.0/kx
+  if (ky>0.0) kyi = 1.0/ky
+  if (kz>0.0) kzi = 1.0/kz
+
+  !  Form denominator
+
+  den = dist(1)*dist(1)*kxi + &
+        dist(2)*dist(2)*kyi + &
+        dist(3)*dist(3)*kzi
+
+  !  Form safe inverse denominator
+
+  deni = 0.0
+  if (den>0.0) deni=1.0/den
+
+  !  Store final value
+
+  DiagPermTensorToScalar_PotentialSafe = deni
+
+end function DiagPermTensorToScalar_PotentialSafe
 
 ! ************************************************************************** !
 
