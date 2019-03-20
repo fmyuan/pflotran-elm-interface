@@ -2018,7 +2018,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: energy_flowrate
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
-  PetscBool :: bool_flag
+  PetscBool :: bool_flag,unsupported_output
 
   PetscInt :: flag1, flag2
 
@@ -3308,7 +3308,15 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         if (associated(grid%unstructured_grid)) then
           if (associated(grid%unstructured_grid%explicit_grid)) then
-            if ( (.not.output_option%print_hdf5) .and.  &
+            if( output_option%write_ecl .or. option%linerept ) then
+              unsupported_output =       output_option%print_mad &
+                                    .or. output_option%print_tecplot &
+                                    .or. output_option%print_vtk
+            else
+              unsupported_output = .not.output_option%print_hdf5
+            endif
+
+            if ( unsupported_output .and.  &
                  (grid%unstructured_grid%explicit_grid%output_mesh_type == &
                  CELL_CENTERED_OUTPUT_MESH) &
                ) then
