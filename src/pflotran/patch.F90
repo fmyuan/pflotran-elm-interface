@@ -13,6 +13,7 @@ module Patch_module
   use Strata_module
   use Region_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Dataset_Base_class
   use Material_module
   use Field_module
@@ -82,9 +83,9 @@ module Patch_module
     type(integral_flux_list_type), pointer :: integral_flux_list
 
     ! Pointers to objects in mother realization object
-    ! jenn:todo Make a pointer to nw_transport here too - seems clunky
     type(field_type), pointer :: field
     type(reaction_type), pointer :: reaction
+    type(nw_trans_realization_type), pointer :: nw_trans
     class(dataset_base_type), pointer :: datasets
 
     type(auxiliary_type) :: aux
@@ -207,6 +208,7 @@ function PatchCreate()
 
   nullify(patch%field)
   nullify(patch%reaction)
+  nullify(patch%nw_trans)
   nullify(patch%datasets)
 
   nullify(patch%next)

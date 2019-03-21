@@ -1848,6 +1848,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use General_module
   use Reaction_module
   use Reaction_Aux_module
+  use NW_Transport_module
+  use NW_Transport_Aux_module
   use Init_Common_module
 
   use Grid_Grdecl_module, only : SetUGrdEclCmplLocation
@@ -2040,7 +2042,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             call printErrMsg(option)
           endif
         endif
-
+        
 !....................
       case('CHEMISTRY')
         if (.not.associated(simulation%rt_process_model_coupler)) then
@@ -2051,7 +2053,20 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         !geh: for some reason, we need this with CHEMISTRY read for
         !     multicontinuum
  !       option%use_mc = PETSC_TRUE
-        call ReactionInit(realization%reaction,input,option)        
+        call ReactionInit(realization%reaction,input,option)  
+        
+!....................
+      case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
+           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO')  ! its so long, it gets cut off
+        if (.not.associated(simulation%nwt_process_model_coupler)) then
+          option%io_buffer = 'SUBSURFACE_NUCLEAR_WASTE_TRANSPORT card is &
+            &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
+            &in the SIMULATION block.'
+          call printErrMsg(option)
+        endif     
+        realization%nw_trans => NWTRealizCreate()
+        call NWTRead(realization%nw_trans,input,option)
+        
     end select
   enddo
 
@@ -2096,6 +2111,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Patch_module
   use Reaction_module
   use Reaction_Aux_module
+  use NW_Transport_module
   use NW_Transport_Aux_module
   use Discretization_module
   use Input_Aux_module
@@ -2251,13 +2267,14 @@ subroutine SubsurfaceReadInput(simulation,input)
         call ReactionReadPass2(reaction,input,option)
         
 !....................
-      case('NUCLEAR_WASTE_TRANSPORT')
+      case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
+           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO') ! so long it gets cut off
         if (.not.associated(simulation%nwt_process_model_coupler)) then
           option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT card is included, but no &
             &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
           call printErrMsg(option)
         endif
-        call simulation%nwt_process_model_coupler%pm_ptr%pm%ReadPMBlock(input)
+        call NWTReadPass2(realization%nw_trans,input,option)
 
 !....................
       case ('SPECIFIED_VELOCITY')
@@ -2435,11 +2452,13 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('TRANSPORT_CONDITION')
-        if (.not.associated(reaction)) then
+        if ( (.not.associated(reaction)) .and. &
+             (.not.associated(realization%nw_trans)) ) then
           option%io_buffer = 'TRANSPORT_CONDITIONs not supported without &
-            &CHEMISTRY.'
+                             &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call printErrMsg(option)
         endif
+        ! jenn:todo Review TRANSPORT_CONDITION because it seems "reaction specific"
         tran_condition => TranConditionCreate(option)
         call InputReadWord(input,option,tran_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name')
@@ -2453,10 +2472,13 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case('CONSTRAINT')
-        if (.not.associated(reaction)) then
-          option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY.'
+        if ( (.not.associated(reaction)) .and. &
+             (.not.associated(realization%nw_trans)) ) then
+          option%io_buffer = 'CONSTRAINTs not supported without &
+                             &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call printErrMsg(option)
         endif
+        ! jenn:todo Review CONSTRAINT because it seems "reaction specific"
         tran_constraint => TranConstraintCreate(option)
         call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'constraint','name')

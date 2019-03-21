@@ -50,7 +50,6 @@ module PM_NWT_class
   contains
     procedure, public :: Setup => PMNWTSetup 
     procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
-    procedure, public :: ReadPMBlock => PMNWTReadPMBlock
     procedure, public :: SetRealization => PMNWTSetRealization   
   end type pm_nwt_type
   
@@ -195,94 +194,6 @@ subroutine PMNWTReadSimulationBlock(this,input)
 end subroutine PMNWTReadSimulationBlock
 
 ! ************************************************************************** !
-
-subroutine PMNWTReadPMBlock(this,input)
-  ! 
-  ! Reads input file parameters associated with the nuclear waste transport 
-  ! process model within the SUBSURFACE block.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/11/2019
-  !
-  use Input_Aux_module
-  use String_module
-  use Option_module
-  use NW_Transport_Aux_module
- 
-  implicit none
-  
-  class(pm_nwt_type) :: this
-  type(input_type), pointer :: input
-  
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: error_string
-  type(option_type), pointer :: option
-  PetscInt :: k
-  type(species_type), pointer :: new_species
-  character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
-
-  option => this%option
-  
-  error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
-  allocate(temp_species_names(50))
-  temp_species_names = ''
-  k = 0
-  
-  input%ierr = 0
-  do
-  
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    if (InputCheckExit(input,option)) exit
-    
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(keyword)
-    
-    select case(trim(keyword))
-      case('SPECIES')
-        error_string = trim(error_string) // ',SPECIES'
-        do
-          call InputReadPflotranString(input,option)
-          if (InputError(input)) exit
-          if (InputCheckExit(input,option)) exit
-          
-          this%params%ncomp = this%params%ncomp + 1
-          option%ntrandof = this%params%ncomp
-          this%realization%nw_trans%params%ncomp = this%params%ncomp
-          k = k + 1
-          if (k > 50) then
-            option%io_buffer = 'More than 50 species are provided in the ' &
-                               // trim(error_string) // ', SPECIES block.'
-            call PrintErrMsgToDev('if reducing to less than 50 is not &
-                                  &an option.',option)
-          endif
-          ! new_species => NWTSpeciesCreate()
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'species name',error_string)
-          call StringToUpper(word)
-          temp_species_names(k) = trim(word)
-          ! read more species things, add to new_species
-          ! add new_species to the species_list
-        enddo
-        if (k == 0) then
-          option%io_buffer = 'ERROR: At least one radionuclide species &
-                              &must be provided in the ' // &
-                              trim(error_string) // ' block.'
-          call printErrMsg(option)
-        endif
-        allocate(this%realization%nw_trans%species_names(k))
-        this%realization%nw_trans%species_names(1:k) = temp_species_names(1:k)
-        deallocate(temp_species_names)
-      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
-    end select
-    
-  enddo
-  
-end subroutine PMNWTReadPMBlock
-
-! ************************************************************************** !
   
 subroutine PMNWTSetup(this)
   ! 
@@ -297,6 +208,8 @@ subroutine PMNWTSetup(this)
   implicit none
   
   class(pm_nwt_type) :: this
+  
+  ! jenn:todo NOTE: Has this%realization been associated yet?
   
   PetscInt :: ncomp, nphase
   type(nw_trans_realization_type), pointer :: nw_trans

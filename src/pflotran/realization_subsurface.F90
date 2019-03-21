@@ -546,6 +546,7 @@ subroutine RealizationPassPtrsToPatches(realization)
   realization%patch%field => realization%field
   realization%patch%datasets => realization%datasets
   realization%patch%reaction => realization%reaction
+  realization%patch%nw_trans => realization%nw_trans
   
 end subroutine RealizationPassPtrsToPatches
 
@@ -1075,6 +1076,7 @@ subroutine RealProcessTranConditions(realization)
   enddo
   
   ! initialize constraints
+  ! jenn:todo Decide how to do constraints.
   cur_constraint => realization%transport_constraints%first
   do
     if (.not.associated(cur_constraint)) exit

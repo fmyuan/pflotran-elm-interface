@@ -105,6 +105,7 @@ module NW_Transport_Aux_module
   end interface NWTAuxVarDestroy
   
   public :: NWTAuxCreate, NWTSpeciesCreate, NWTRadDecayRxnCreate, &
+            NWTRealizCreate, NWTRead, NWTReadPass2, &
             NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip,&
             NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess
             
@@ -240,6 +241,7 @@ function NWTRealizCreate()
   nullify(nwtr%rad_decay_rxn_list)
   
   nullify(nwtr%params)
+  allocate(nwtr%params)
   nwtr%params%ncomp = 0
   nwtr%params%nphase = 1  ! For WIPP, we always assume liquid phase only
   nwtr%params%nsorb = 0
@@ -251,6 +253,155 @@ function NWTRealizCreate()
   NWTRealizCreate => nwtr
 
 end function NWTRealizCreate
+
+! ************************************************************************** !
+
+subroutine NWTRead(nw_trans,input,option)
+  ! 
+  ! Reads input file parameters associated with the nuclear waste transport 
+  ! process model within the SUBSURFACE block.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/11/2019
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+ 
+  implicit none
+  
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  
+  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscInt :: k
+  type(species_type), pointer :: new_species, prev_species
+  character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
+  
+  error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
+  nullify(prev_species)
+  allocate(temp_species_names(50))
+  temp_species_names = ''
+  k = 0
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+    
+    select case(trim(keyword))
+      case('SPECIES')
+        nullify(prev_species)
+        error_string = trim(error_string) // ',SPECIES'
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          
+          nw_trans%params%ncomp = nw_trans%params%ncomp + 1
+          option%ntrandof = nw_trans%params%ncomp
+          k = k + 1
+          if (k > 50) then
+            option%io_buffer = 'More than 50 species are provided in the ' &
+                               // trim(error_string) // ', SPECIES block.'
+            call PrintErrMsgToDev('if reducing to less than 50 is not &
+                                  &an option.',option)
+          endif
+          new_species => NWTSpeciesCreate()
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'species name',error_string)
+          call StringToUpper(word)
+          temp_species_names(k) = trim(word)
+          new_species%name = trim(word)
+          if (.not.associated(nw_trans%species_list)) then
+            nw_trans%species_list => new_species
+            new_species%id = 1
+          endif
+          if (associated(prev_species)) then
+            prev_species%next => new_species
+            new_species%id = prev_species%id + 1
+          endif
+          prev_species => new_species
+          nullify(new_species)
+        enddo
+        if (k == 0) then
+          option%io_buffer = 'ERROR: At least one radionuclide species &
+                              &must be provided in the ' // &
+                              trim(error_string) // ' block.'
+          call printErrMsg(option)
+        endif
+        allocate(nw_trans%species_names(k))
+        nw_trans%species_names(1:k) = temp_species_names(1:k)
+        deallocate(temp_species_names)
+      case('LOG_FORMULATION')
+        nw_trans%use_log_formulation = PETSC_TRUE
+      case default
+        call InputKeywordUnrecognized(keyword,error_string,option)
+    end select
+    
+  enddo
+  
+end subroutine NWTRead
+
+! ************************************************************************** !
+
+subroutine NWTReadPass2(nw_trans,input,option)
+  ! 
+  ! Reads input file parameters associated with the nuclear waste transport 
+  ! process model within the SUBSURFACE block for a second pass.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/20/2019
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+ 
+  implicit none
+  
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  
+  error_string = 'SUBSURFACE,SUBSURFACE_NUCLEAR_WASTE_TRANSPORT'
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+    
+    select case(trim(keyword))
+      case('SPECIES')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+      case('LOG_FORMULATION')
+      case default
+        call InputKeywordUnrecognized(keyword,error_string,option)
+    end select
+    
+  enddo
+  
+end subroutine NWTReadPass2
 
 ! ************************************************************************** !
 
