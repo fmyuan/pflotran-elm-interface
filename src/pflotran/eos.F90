@@ -86,6 +86,15 @@ subroutine EOSRead(input,option)
         call InputErrorMsg(input,option,'keyword','EOS,WATER')
         call StringToUpper(keyword)
         select case(trim(keyword))
+          case('WATERTAB')
+            call EOSWaterSetWaterTab(input,option)
+          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+            call InputReadDouble(input,option,tempreal)
+            call InputErrorMsg(input,option,'VALUE', &
+                               'EOS,WATER,REFERENCE_DENSITY')
+            call InputReadAndConvertUnits(input,tempreal, &
+                             'kg/m^3','EOS,WATER,REFERENCE_DENSITY',option)
+            call EOSWaterSetReferenceDensity(tempreal)
           case('DENSITY')
             temparray = 0.d0
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -985,6 +994,7 @@ subroutine EOSProcess(option)
 
   type(option_type) :: option
 
+  call EOSWaterTableProcess(option)
   call EOSOilTableProcess(option,EOSGasGetFMW(),EOSGasGetReferenceDensity())
   call EOSGasTableProcess(option)
   call EOSSlvTableProcess(option)
