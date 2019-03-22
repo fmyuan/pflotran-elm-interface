@@ -679,7 +679,6 @@ subroutine RealizationProcessConditions(realization)
   if (realization%option%nflowdof > 0) then
     call RealProcessFlowConditions(realization)
   endif
-  ! jenn:todo Must make your own version of RealProcessTranConditions
   if (realization%option%ntrandof > 0) then
     call RealProcessTranConditions(realization)
   endif

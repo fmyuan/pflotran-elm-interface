@@ -1482,6 +1482,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   !     surface complexation is scaled correctly.  Yes, these will get 
   !     overwrittent with the same values when called from 
   !     CondControlAssignTranInitCond(), but big deal.
+  !jmf: OMG that's a huge deal!
   if (associated(mineral_constraint)) then
     do imnrl = 1, mineral_reaction%nkinmnrl
       ! if read from a dataset, the mineral volume frac has already been set.

@@ -845,6 +845,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Connection_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
   use Global_Aux_module
   use Condition_module
   use Transport_Constraint_module
@@ -1060,10 +1061,17 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
           allocate(cur_constraint_coupler%global_auxvar)
           call GlobalAuxVarInit(cur_constraint_coupler%global_auxvar,option)
         endif
-        if (.not.associated(cur_constraint_coupler%rt_auxvar)) then
+        if ( (associated(patch%reaction)) .and. &
+             (.not.associated(cur_constraint_coupler%rt_auxvar)) ) then
           allocate(cur_constraint_coupler%rt_auxvar)
           call RTAuxVarInit(cur_constraint_coupler%rt_auxvar,patch%reaction, &
                             option)
+        endif
+        if ( (associated(patch%nw_trans)) .and. &
+             (.not.associated(cur_constraint_coupler%nwt_auxvar)) ) then
+          allocate(cur_constraint_coupler%nwt_auxvar)
+          call NWTAuxVarInit(cur_constraint_coupler%nwt_auxvar,patch%nw_trans, &
+                             option)
         endif
         cur_constraint_coupler => cur_constraint_coupler%next
       enddo
@@ -3900,6 +3908,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
 
   use Reaction_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
   use Material_Aux_class
@@ -3914,6 +3923,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
   type(reaction_type), pointer :: reaction
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   class(material_auxvar_type), allocatable :: material_auxvar
   type(coupler_type), pointer :: cur_coupler
@@ -3943,8 +3953,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
     do
       if (.not.associated(cur_constraint_coupler)) exit
       global_auxvar => cur_constraint_coupler%global_auxvar
-      ! jenn:todo Need to point this here to nwt_auxvar, or add type to constraint_coupler
       rt_auxvar => cur_constraint_coupler%rt_auxvar
+      nwt_auxvar => cur_constraint_coupler%nwt_auxvar
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then
@@ -4000,6 +4010,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
                             PETSC_FALSE,option)
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
+      ! jenn:todo Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
         case(MPH_MODE,FLASH2_MODE)
           if (cur_coupler%flow_condition%iphase == 1) then
             dum1 = RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
