@@ -3696,7 +3696,8 @@ end subroutine FlowConditionCommonRead
 
 ! ************************************************************************** !
 
-subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
+subroutine TranConditionRead(condition,constraint_list,reaction,nw_trans, &
+                             rt_on,input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -3710,12 +3711,15 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
   use Logging_module
   use Units_module
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: constraint_list
   type(reaction_type) :: reaction
+  type(nw_trans_realization_type) :: nw_trans
+  PetscBool :: rt_on
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -3829,7 +3833,11 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
         call InputErrorMsg(input,option,'constraint','name')
         option%io_buffer = 'Constraint: ' // trim(constraint%name)
         call printMsg(option)
-        call TranConstraintRead(constraint,reaction,input,option)
+        if (rt_on) then
+          call TranConstraintReadRT(constraint,reaction,input,option)
+        else
+          call TranConstraintReadNWT(constraint,nw_trans,input,option)
+        endif
         call TranConstraintAddToList(constraint,constraint_list)
         call TranConstraintMapToCoupler(constraint_coupler,constraint)
         constraint_coupler%time = 0.d0

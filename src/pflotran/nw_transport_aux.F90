@@ -77,6 +77,14 @@ module NW_Transport_Aux_module
     type(species_type), pointer :: next
   end type species_type
   
+  type, public :: nwt_species_constraint_type
+    ! Any changes here must be incorporated within ReactionProcessConstraint()
+    ! where constraints are reordered??????????
+    character(len=MAXWORDLENGTH), pointer :: names(:)
+    PetscReal, pointer :: constraint_conc(:)
+    PetscInt, pointer :: constraint_spec_id(:)
+  end type nwt_species_constraint_type
+  
   type, public :: radioactive_decay_rxn_type
     PetscInt :: id
     character(len=MAXSTRINGLENGTH) :: reaction
@@ -97,6 +105,7 @@ module NW_Transport_Aux_module
     PetscBool, pointer :: species_print(:)
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
     type(nwt_params_type), pointer :: params
+    PetscBool :: nw_trans_on
   end type nw_trans_realization_type
 
   interface NWTAuxVarDestroy
@@ -105,9 +114,11 @@ module NW_Transport_Aux_module
   end interface NWTAuxVarDestroy
   
   public :: NWTAuxCreate, NWTSpeciesCreate, NWTRadDecayRxnCreate, &
-            NWTRealizCreate, NWTRead, NWTReadPass2, &
-            NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip,&
-            NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess
+            NWTRealizCreate, NWTSpeciesConstraintCreate, &
+            NWTRead, NWTReadPass2, &
+            NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess, &
+            NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip, &
+            NWTSpeciesConstraintDestroy
             
 contains
 
@@ -239,6 +250,7 @@ function NWTRealizCreate()
   nullify(nwtr%species_list)
   nullify(nwtr%species_print)
   nullify(nwtr%rad_decay_rxn_list)
+  nwtr%nw_trans_on = PETSC_TRUE
   
   nullify(nwtr%params)
   allocate(nwtr%params)
@@ -434,6 +446,37 @@ end function NWTSpeciesCreate
 
 ! ************************************************************************** !
 
+function NWTSpeciesConstraintCreate(nw_trans,option)
+  ! 
+  ! Creates a nuclear waste transport species constraint object
+  ! 
+  ! Author: Jenn Frederick      
+  ! Date: 03/21/2019
+  ! 
+  use Option_module
+  
+  implicit none
+  
+  type(nw_trans_realization_type) :: nw_trans
+  type(option_type) :: option
+  type(nwt_species_constraint_type), pointer :: NWTSpeciesConstraintCreate
+
+  type(nwt_species_constraint_type), pointer :: constraint
+  
+  allocate(constraint)
+  allocate(constraint%names(nw_trans%params%ncomp))
+  constraint%names = ''
+  allocate(constraint%constraint_conc(nw_trans%params%ncomp))
+  constraint%constraint_conc = 0.d0
+  allocate(constraint%constraint_spec_id(nw_trans%params%ncomp))
+  constraint%constraint_spec_id = 0
+
+  NWTSpeciesConstraintCreate => constraint
+
+end function NWTSpeciesConstraintCreate
+
+! ************************************************************************** !
+
 function NWTRadDecayRxnCreate()
   ! 
   ! Allocate and initialize a radioactive decay reaction object.
@@ -607,6 +650,33 @@ subroutine NWTAuxDestroy(aux)
   nullify(aux)
 
 end subroutine NWTAuxDestroy
+
+! ************************************************************************** !
+
+subroutine NWTSpeciesConstraintDestroy(constraint)
+  ! 
+  ! Deallocates a nuclear waste transport species constraint object
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/21/2019
+  ! 
+
+  use Utility_module, only: DeallocateArray
+  
+  implicit none
+  
+  type(nwt_species_constraint_type), pointer :: constraint
+  
+  if (.not.associated(constraint)) return
+  
+  call DeallocateArray(constraint%names)
+  call DeallocateArray(constraint%constraint_conc)
+  call DeallocateArray(constraint%constraint_spec_id)
+
+  deallocate(constraint)
+  nullify(constraint)
+
+end subroutine NWTSpeciesConstraintDestroy
 
 ! ************************************************************************** !
 

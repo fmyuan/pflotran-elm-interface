@@ -3943,6 +3943,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
     do
       if (.not.associated(cur_constraint_coupler)) exit
       global_auxvar => cur_constraint_coupler%global_auxvar
+      ! jenn:todo Need to point this here to nwt_auxvar, or add type to constraint_coupler
       rt_auxvar => cur_constraint_coupler%rt_auxvar
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then

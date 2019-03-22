@@ -679,6 +679,7 @@ subroutine RealizationProcessConditions(realization)
   if (realization%option%nflowdof > 0) then
     call RealProcessFlowConditions(realization)
   endif
+  ! jenn:todo Must make your own version of RealProcessTranConditions
   if (realization%option%ntrandof > 0) then
     call RealProcessTranConditions(realization)
   endif
@@ -1180,6 +1181,7 @@ subroutine RealizationInitConstraints(realization)
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
+    ! jenn:todo PatchInitConstraints here is "reaction specific"
     call PatchInitConstraints(cur_patch,realization%reaction, &
                               realization%option)
     cur_patch => cur_patch%next

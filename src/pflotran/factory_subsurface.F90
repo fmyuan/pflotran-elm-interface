@@ -2166,6 +2166,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
   PetscBool :: bool_flag
+  PetscBool :: rt_on
 
   PetscInt :: flag1, flag2
 
@@ -2239,6 +2240,9 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
+                          
+  rt_on = PETSC_FALSE
+  if (associated(realization%reaction)) rt_on = PETSC_TRUE
 
   call InputRewind(input)
   string = 'SUBSURFACE'
@@ -2458,14 +2462,13 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call printErrMsg(option)
         endif
-        ! jenn:todo Review TRANSPORT_CONDITION because it seems "reaction specific"
         tran_condition => TranConditionCreate(option)
         call InputReadWord(input,option,tran_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name')
         call printMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
-                               realization%transport_constraints, &
-                               reaction,input,option)
+                               realization%transport_constraints,reaction, &
+                               realization%nw_trans,rt_on,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
         nullify(tran_condition)
@@ -2483,7 +2486,11 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'constraint','name')
         call printMsg(option,tran_constraint%name)
-        call TranConstraintRead(tran_constraint,reaction,input,option)
+        if (associated(reaction)) &
+          call TranConstraintReadRT(tran_constraint,reaction,input,option)
+        if (associated(realization%nw_trans)) &
+          call TranConstraintReadNWT(tran_constraint,realization%nw_trans, &
+                                     input,option)
         call TranConstraintAddToList(tran_constraint, &
                                      realization%transport_constraints)
         nullify(tran_constraint)
@@ -2678,7 +2685,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'secondary constraint','name')
         call printMsg(option,sec_tran_constraint%name)
-        call TranConstraintRead(sec_tran_constraint,reaction,input,option)
+        call TranConstraintReadRT(sec_tran_constraint,reaction,input,option)
         realization%sec_transport_constraint => sec_tran_constraint
         nullify(sec_tran_constraint)
 

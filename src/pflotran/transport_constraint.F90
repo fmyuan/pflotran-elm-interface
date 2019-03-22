@@ -5,6 +5,7 @@ module Transport_Constraint_module
 
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_Aux_module
   use Global_Aux_module
   
   use Reaction_Surface_Complexation_Aux_module  
@@ -39,6 +40,7 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
+    type(nwt_species_constraint_type), pointer :: nwt_species
     PetscBool :: equilibrate_at_each_cell
     type(tran_constraint_type), pointer :: next    
   end type tran_constraint_type
@@ -67,6 +69,7 @@ module Transport_Constraint_module
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
     type(global_auxvar_type), pointer :: global_auxvar
+    ! jenn:todo Add member pointer nwt_auxvar to tran_constraint_coupler_type
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
     type(tran_constraint_coupler_type), pointer :: next   
   end type tran_constraint_coupler_type
@@ -76,7 +79,8 @@ module Transport_Constraint_module
             TranConstraintDestroyList, &
             TranConstraintGetPtrFromList, &
             TranConstraintCreate, &
-            TranConstraintRead, &
+            TranConstraintReadRT, &
+            TranConstraintReadNWT, &
             TranConstraintMapToCoupler, &
             TranConstraintDestroy, &
             TranConstraintCouplerCreate, &
@@ -113,6 +117,7 @@ function TranConstraintCreate(option)
   nullify(constraint%surface_complexes)
   nullify(constraint%colloids)
   nullify(constraint%immobile_species)
+  nullify(constraint%nwt_species)
   nullify(constraint%next)
   constraint%id = 0
   constraint%name = ''
@@ -166,7 +171,7 @@ end function TranConstraintCouplerCreate
 
 ! ************************************************************************** !
 
-subroutine TranConstraintRead(constraint,reaction,input,option)
+subroutine TranConstraintReadRT(constraint,reaction,input,option)
   ! 
   ! Reads a transport constraint from the input file
   ! 
@@ -681,7 +686,119 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
   
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 
-end subroutine TranConstraintRead
+end subroutine TranConstraintReadRT
+
+! ************************************************************************** !
+
+subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
+  ! 
+  ! Reads a transport constraint from the input file
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/14/08
+  ! 
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  use Option_module
+  use NW_Transport_Aux_module
+  use Input_Aux_module
+  use String_module
+  use Logging_module
+
+  implicit none
+  
+  type(tran_constraint_type) :: constraint
+  type(nw_trans_realization_type) :: nw_trans
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: block_string
+  PetscInt :: icomp
+  type(nwt_species_constraint_type), pointer :: nwt_species_constraint
+  PetscErrorCode :: ierr
+
+  call PetscLogEventBegin(logging%event_tran_constraint_read, &
+                          ierr);CHKERRQ(ierr)
+
+  ! read the constraint
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    call InputReadStringErrorMsg(input,option,'CONSTRAINT')
+        
+    if (InputCheckExit(input,option)) exit  
+
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
+      
+    select case(trim(word))
+
+      case('CONC','CONCENTRATIONS')
+
+        nwt_species_constraint => &
+          NWTSpeciesConstraintCreate(nw_trans,option)
+
+        block_string = 'CONSTRAINT, CONCENTRATIONS'
+        icomp = 0
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,block_string)
+          
+          if (InputCheckExit(input,option)) exit  
+          
+          icomp = icomp + 1        
+          
+          if (icomp > nw_trans%params%ncomp) then
+            option%io_buffer = 'Number of concentration constraints exceeds &
+                               &the number of species given in the &
+                               &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT block. &
+                               &Error in constraint: ' // trim(constraint%name)
+            call printErrMsg(option)
+          endif
+          
+          call InputReadWord(input,option,nwt_species_constraint%names(icomp), &
+                          PETSC_TRUE)
+          call InputErrorMsg(input,option,'species name',block_string)
+          option%io_buffer = 'Constraint Species: ' // &
+                             trim(nwt_species_constraint%names(icomp))
+          call printMsg(option)
+          
+          call InputReadDouble(input,option, &
+                               nwt_species_constraint%constraint_conc(icomp))
+          call InputErrorMsg(input,option,'concentration',block_string)
+                  
+        enddo  
+        
+        if (icomp < nw_trans%params%ncomp) then
+          option%io_buffer = &
+                   'Number of concentration constraints is less than ' // &
+                   'number of species in species constraint.'
+          call printErrMsg(option)        
+        endif
+        if (icomp > nw_trans%params%ncomp) then
+          option%io_buffer = &
+                   'Number of concentration constraints is greater than ' // &
+                   'number of species in species constraint.'
+          call printWrnMsg(option)        
+        endif
+        
+        if (associated(constraint%nwt_species)) &
+          call NWTSpeciesConstraintDestroy(constraint%nwt_species)
+        constraint%nwt_species => nwt_species_constraint 
+               
+        
+      case default
+        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
+    end select 
+  
+  enddo  
+  
+  call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
+
+end subroutine TranConstraintReadNWT
 
 ! ************************************************************************** !
 
