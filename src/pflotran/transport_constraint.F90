@@ -68,8 +68,9 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
+    type(nwt_species_constraint_type), pointer :: nwt_species
     type(global_auxvar_type), pointer :: global_auxvar
-    ! jenn:todo Add member pointer nwt_auxvar to tran_constraint_coupler_type
+    type(nw_transport_auxvar_type), pointer :: nwt_auxvar
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
     type(tran_constraint_coupler_type), pointer :: next   
   end type tran_constraint_coupler_type
@@ -154,10 +155,12 @@ function TranConstraintCouplerCreate(option)
   nullify(coupler%surface_complexes)
   nullify(coupler%colloids)
   nullify(coupler%immobile_species)
+  nullify(coupler%nwt_species)
   
   coupler%num_iterations = 0
   coupler%equilibrate_at_each_cell = PETSC_FALSE
   nullify(coupler%rt_auxvar)
+  nullify(coupler%nwt_auxvar)
   nullify(coupler%global_auxvar)
   
   nullify(coupler%next)
@@ -905,6 +908,7 @@ subroutine TranConstraintMapToCoupler(constraint_coupler,constraint)
   constraint_coupler%surface_complexes => constraint%surface_complexes
   constraint_coupler%colloids => constraint%colloids
   constraint_coupler%immobile_species => constraint%immobile_species
+  constraint_coupler%nwt_species => constraint%nwt_species
   constraint_coupler%equilibrate_at_each_cell = &
     constraint%equilibrate_at_each_cell
 

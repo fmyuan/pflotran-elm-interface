@@ -1038,7 +1038,7 @@ subroutine RealProcessTranConditions(realization)
 
   use String_module
   use Reaction_module
-  use NW_Transport_module
+  use NW_Transport_Aux_module
   use Transport_Constraint_module
   
   implicit none
@@ -1046,13 +1046,14 @@ subroutine RealProcessTranConditions(realization)
   class(realization_subsurface_type) :: realization
   
   
-  PetscBool :: found
+  PetscBool :: found, coupling_needed
   type(option_type), pointer :: option
   type(tran_condition_type), pointer :: cur_condition
   type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
   type(tran_constraint_type), pointer :: cur_constraint, another_constraint
   
   option => realization%option
+  coupling_needed = PETSC_FALSE
   
   ! check for duplicate constraint names
   cur_constraint => realization%transport_constraints%first
@@ -1115,13 +1116,17 @@ subroutine RealProcessTranConditions(realization)
   ! tie constraints to couplers, if not already associated
   cur_condition => realization%transport_conditions%first
   do
-
     if (.not.associated(cur_condition)) exit
     cur_constraint_coupler => cur_condition%constraint_coupler_list
     do
       if (.not.associated(cur_constraint_coupler)) exit
       ! if aqueous_species exists, it was coupled during the embedded read.
-      if (.not.associated(cur_constraint_coupler%aqueous_species)) then
+      if ( ((associated(realization%reaction)) .and. &
+           (.not.associated(cur_constraint_coupler%aqueous_species))) &
+           .or. &
+           ((associated(realization%nw_trans)) .and. &
+           (.not.associated(cur_constraint_coupler%nwt_species))) ) then
+          
         cur_constraint => realization%transport_constraints%first
         do
           if (.not.associated(cur_constraint)) exit
@@ -1134,7 +1139,11 @@ subroutine RealProcessTranConditions(realization)
           endif
           cur_constraint => cur_constraint%next
         enddo
-        if (.not.associated(cur_constraint_coupler%aqueous_species)) then
+        if ( ((associated(realization%reaction)) .and. &
+           (.not.associated(cur_constraint_coupler%aqueous_species))) &
+           .or. &
+           ((associated(realization%nw_trans)) .and. &
+           (.not.associated(cur_constraint_coupler%nwt_species))) ) then
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'
