@@ -1821,7 +1821,9 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     !copy local portion of array first - no off-proc ghost here
-    vec_ptr2(1:ugrid%nlmax*stride) = vec_ptr(1:ugrid%nlmax*stride)
+    do temp_int = 1,ugrid%nlmax*stride
+      vec_ptr2(temp_int) = vec_ptr(temp_int)
+    end do
     call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(elements_local,vec_ptr2,ierr);CHKERRQ(ierr)
     !compute global number of ghosted cells
