@@ -1038,6 +1038,7 @@ subroutine RealProcessTranConditions(realization)
 
   use String_module
   use Reaction_module
+  use NW_Transport_module
   use Transport_Constraint_module
   
   implicit none
@@ -1077,24 +1078,29 @@ subroutine RealProcessTranConditions(realization)
   enddo
   
   ! initialize constraints
-  ! jenn:todo Decide how to do constraints.
   cur_constraint => realization%transport_constraints%first
   do
     if (.not.associated(cur_constraint)) exit
-    call ReactionProcessConstraint(realization%reaction, &
-                                   cur_constraint%name, &
-                                   cur_constraint%aqueous_species, &
-                                   cur_constraint%free_ion_guess, &
-                                   cur_constraint%minerals, &
-                                   cur_constraint%surface_complexes, &
-                                   cur_constraint%colloids, &
-                                   cur_constraint%immobile_species, &
-                                   realization%option)
+    if (associated(realization%reaction)) &
+      call ReactionProcessConstraint(realization%reaction, &
+                                     cur_constraint%name, &
+                                     cur_constraint%aqueous_species, &
+                                     cur_constraint%free_ion_guess, &
+                                     cur_constraint%minerals, &
+                                     cur_constraint%surface_complexes, &
+                                     cur_constraint%colloids, &
+                                     cur_constraint%immobile_species, &
+                                     realization%option)
+    if (associated(realization%nw_trans)) &
+      call NWTProcessConstraint(realization%nw_trans,cur_constraint%name, &
+                                cur_constraint%nwt_species,realization%option)
+   
     cur_constraint => cur_constraint%next
   enddo
   
   if (option%use_mc) then
-    call ReactionProcessConstraint(realization%reaction, &
+    if (associated(realization%reaction)) &
+      call ReactionProcessConstraint(realization%reaction, &
                      realization%sec_transport_constraint%name, &
                      realization%sec_transport_constraint%aqueous_species, &
                      realization%sec_transport_constraint%free_ion_guess, &
@@ -1103,6 +1109,7 @@ subroutine RealProcessTranConditions(realization)
                      realization%sec_transport_constraint%colloids, &
                      realization%sec_transport_constraint%immobile_species, &
                      realization%option)
+  ! jenn:todo Make NWT work with sec_transport_constraint?
   endif
   
   ! tie constraints to couplers, if not already associated

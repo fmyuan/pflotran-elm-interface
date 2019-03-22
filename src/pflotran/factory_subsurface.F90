@@ -1654,6 +1654,7 @@ subroutine SubsurfaceSetupRealization(simulation)
     else
       ! turn off activity coefficients since the database has not been read
       realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
+      ! jenn:todo Should I turn on print here too?
       allocate(realization%reaction%primary_species_print(option%ntrandof))
       realization%reaction%primary_species_print = PETSC_TRUE
     endif
@@ -2481,7 +2482,6 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call printErrMsg(option)
         endif
-        ! jenn:todo Review CONSTRAINT because it seems "reaction specific"
         tran_constraint => TranConstraintCreate(option)
         call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'constraint','name')
