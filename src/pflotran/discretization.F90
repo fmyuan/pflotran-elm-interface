@@ -203,7 +203,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             discretization%itype = UNSTRUCTURED_GRID
             word = discretization%ctype
             discretization%ctype = 'UNSTRUCTURED'
-            select case(word)
+            select case(trim(word))
               case('UNSTRUCTURED')
                 unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
                 unstructured_grid_ctype = 'IMPLICIT UNSTRUCTURED'
@@ -532,7 +532,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
         call StringToUpper(word)
-        select case(word)
+        select case(trim(word))
           case('FACE_CENTER_PROJECTION')
             discretization%grid%unstructured_grid%upwind_fraction_method = &
               UGRID_UPWIND_FRACTION_PT_PROJ
@@ -551,7 +551,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
         call StringToUpper(word)
-        select case(word)
+        select case(trim(word))
           case('LINEAR')
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
           case('FLOW')
