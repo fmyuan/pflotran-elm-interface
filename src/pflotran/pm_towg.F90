@@ -17,7 +17,7 @@ module PM_TOWG_class
     PetscInt, pointer :: max_change_isubvar(:)
     ! A) and B) could be moved to pm_subsurface
     !A) used for truncation within CheckUpdatePre
-    PetscReal :: trunc_max_pressure_change = 5.d10
+    PetscReal :: trunc_max_pressure_change = 5.5d6
     PetscInt ::  max_it_before_damping = UNINITIALIZED_INTEGER
     PetscReal :: damping_factor = 0.6d0
     !B) used for convergence criteria within CheckUpdatePost
