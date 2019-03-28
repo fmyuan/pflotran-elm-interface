@@ -3997,7 +3997,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
           1.d0 - global_auxvar%sat(option%liquid_phase)
       endif
 
-      call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
+      if (associated(reaction)) then
+        call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                             material_auxvar, &
                             reaction,cur_constraint_coupler%constraint_name, &
                             cur_constraint_coupler%aqueous_species, &
@@ -4008,11 +4009,13 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
                             cur_constraint_coupler%immobile_species, &
                             cur_constraint_coupler%num_iterations, &
                             PETSC_FALSE,option)
+      endif
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
       ! jenn:todo Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
         case(MPH_MODE,FLASH2_MODE)
-          if (cur_coupler%flow_condition%iphase == 1) then
+          if ( (cur_coupler%flow_condition%iphase == 1) .and. &
+               (associated(reaction)) ) then
             dum1 = RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
             cur_coupler%flow_condition%concentration%dataset%rarray(1) = dum1
             if (associated(cur_coupler%flow_aux_real_var)) then
