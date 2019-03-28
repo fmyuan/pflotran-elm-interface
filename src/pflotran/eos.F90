@@ -623,8 +623,6 @@ subroutine EOSRead(input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'EOS,OIL','DATABASE filename')
             call EOSOilSetEOSDBase(word,option)
-          case('VISCOSITY_LINLOG_INTERPOLATION')
-            call EOSOilSetVisLinLogInterp(option)
           case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
             call InputReadDouble(input,option,tempreal)
             call InputErrorMsg(input,option,'VALUE', &

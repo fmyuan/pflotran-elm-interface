@@ -671,6 +671,7 @@ subroutine EOSDatabaseRead(this,option)
   PetscInt :: data_idx
   PetscReal :: tempreal
   PetscBool :: pres_present, temp_present
+  PetscBool :: set_visc_lin_log
   type(lookup_table_var_type), pointer :: db_var => null()
 
   type(input_type), pointer :: input_table
@@ -693,6 +694,9 @@ subroutine EOSDatabaseRead(this,option)
   !set deafult user units - identical to internal units
   this%press_user_units = 'Pa'
   this%temp_user_units = 'C'  
+
+  !as default the viscosity is interpolated like other vars
+  set_visc_lin_log = PETSC_FALSE
 
   !reading the database file header
   do
@@ -778,6 +782,8 @@ subroutine EOSDatabaseRead(this,option)
           option%io_buffer = 'TEMPERATURE must be present in any EOS_DATABASE.'
           call printErrMsg(option)
         end if
+      case('VISCOSITY_LINLOG_INTERPOLATION')
+        set_visc_lin_log = PETSC_TRUE
       case('DATA')
         exit
       case default
@@ -847,6 +853,10 @@ subroutine EOSDatabaseRead(this,option)
   call this%EOSSetConstGradExtrap(option)
   !allocate lookup var gradients 
   call this%lookup_table_uni%LookupTableVarInitGradients(option)
+
+  if (set_visc_lin_log) then
+    call this%SetupVarLinLogInterp(EOS_VISCOSITY,option)
+  end if
 
   call InputDestroy(input_table)
 
@@ -1049,6 +1059,7 @@ subroutine EOSTableRead(this,input,option)
   PetscInt :: n_press_count, n_press_count_first, n_press_count_cur
   PetscInt :: temp_array_size, press_array_size
   PetscReal, pointer :: temp_array(:)
+  PetscBool :: set_visc_lin_log
 
   n_press_count_first = 0
   n_temp_count = 0
@@ -1061,6 +1072,9 @@ subroutine EOSTableRead(this,input,option)
   ! num_prop+1 = + 1 make space for the pressure
   allocate(press_data_array(this%num_prop+1,press_array_size))
   press_data_array = UNINITIALIZED_DOUBLE
+
+  !viscosity interpolated as any other variable by default
+  set_visc_lin_log = PETSC_FALSE
 
   !reading pvt table
   do
@@ -1112,15 +1126,24 @@ subroutine EOSTableRead(this,input,option)
                 end if
               end if
             case default
-              option%io_buffer = 'PVT Table DATA block must contain ' // &
-                                 'TEMPERATURE blocks'
-              call printErrMsg(option)
+              error_string = trim(error_string) // ': ' // trim(this%name) // &
+                             ', DATA'
+              call InputKeywordUnrecognized(word,error_string,option)
           end select
         end do
+      case('VISCOSITY_LINLOG_INTERPOLATION')
+        set_visc_lin_log = PETSC_TRUE
       case default
-        option%io_buffer = 'PVT Table = ' // 'this%name'
+        error_string = trim(error_string) // ': ' // this%name
+        call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   end do
+
+  if (n_temp_count == 0) then
+    option%io_buffer = 'PVT Table DATA block must contain at least one ' // &
+                       'TEMPERATURE block'
+    call printErrMsg(option)
+  endif
 
   this%num_t = n_temp_count
   this%num_p = n_press_count
@@ -1181,6 +1204,10 @@ subroutine EOSTableRead(this,input,option)
   call this%EOSSetConstGradExtrap(option)
   !allocate lookup var gradients 
   call this%lookup_table_gen%LookupTableVarInitGradients(option)
+
+  if (set_visc_lin_log) then
+    call this%SetupVarLinLogInterp(EOS_VISCOSITY,option)
+  end if
 
   nullify(var_data)
 

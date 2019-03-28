@@ -214,7 +214,6 @@ module EOS_Oil_module
             EOSOilSetVisQuadPresCoef, &
             EOSOilSetVisQuadTempCoef, &
             EOSOilSetVisDBase, &
-            EOSOilSetVisLinLogInterp, &
             EOSOilSetDensityConstant, &
             EOSOilSetDensityLinear, &
             EOSOilSetDensityInverseLinear, &
@@ -577,32 +576,6 @@ subroutine EOSOilSetVisDBase(filename,option)
   EOSOilViscosityPtr => EOSOilViscosityVisDBase
 
 end subroutine EOSOilSetVisDBase
-
-! ************************************************************************** !
-
-subroutine EOSOilSetVisLinLogInterp(option)
-
-  use Option_module
-
-  implicit none
-
-  type(option_type) :: option
-
-  if ( associated(eos_dbase) ) then
-    call eos_dbase%SetupVarLinLogInterp(EOS_VISCOSITY,option)
-  end if
-
-  if ( associated(eos_vis_dbase) ) then
-    call eos_vis_dbase%SetupVarLinLogInterp(EOS_VISCOSITY,option)
-  end if
-  
-  if ( associated(pvt_table) ) then
-    call pvt_table%SetupVarLinLogInterp(EOS_VISCOSITY,option)
-  end if  
-
-end subroutine EOSOilSetVisLinLogInterp
-
-! ************************************************************************** !
 
 ! ************************************************************************** !
 

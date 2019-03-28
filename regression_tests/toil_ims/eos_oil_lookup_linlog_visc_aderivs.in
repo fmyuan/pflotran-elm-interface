@@ -133,8 +133,7 @@ CHARACTERISTIC_CURVES ch1
 !END
 
 EOS OIL
-  DATABASE eos_oil_database_ext.dat
-  VISCOSITY_LINLOG_INTERPOLATION
+  DATABASE eos_oil_database_visc_log.dat
 END
 
 #=========================== regions ==========================================
