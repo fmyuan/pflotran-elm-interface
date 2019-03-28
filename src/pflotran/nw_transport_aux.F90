@@ -68,6 +68,11 @@ module NW_Transport_Aux_module
     PetscBool :: temperature_dependent_diffusion
   end type nwt_params_type
   
+  type, public :: nwt_print_type
+    PetscBool :: molality
+    PetscBool :: thingB
+  end type nwt_print_type
+  
   type, public :: species_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
@@ -106,6 +111,7 @@ module NW_Transport_Aux_module
     PetscBool, pointer :: species_print(:)
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
     type(nwt_params_type), pointer :: params
+    type(nwt_print_type), pointer :: print 
     PetscBool :: nw_trans_on
   end type nw_trans_realization_type
 
@@ -262,6 +268,11 @@ function NWTRealizCreate()
   nwtr%params%nauxiliary = 0
   nwtr%params%calculate_transverse_dispersion = PETSC_FALSE
   nwtr%params%temperature_dependent_diffusion = PETSC_FALSE
+  
+  nullify(nwtr%print)
+  allocate(nwtr%print)
+  nwtr%print%molality = PETSC_FALSE
+  nwtr%print%thingB = PETSC_FALSE
   
   NWTRealizCreate => nwtr
 

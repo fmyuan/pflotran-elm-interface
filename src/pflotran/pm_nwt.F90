@@ -53,7 +53,7 @@ module PM_NWT_class
     procedure, public :: SetRealization => PMNWTSetRealization   
   end type pm_nwt_type
   
-  public :: PMNWTCreate
+  public :: PMNWTCreate, PMNWTSetPlotVariables
   
   
 contains
@@ -260,6 +260,46 @@ subroutine PMNWTSetRealization(this,realization)
   this%residual_vec = realization%field%tran_r
   
 end subroutine PMNWTSetRealization
+
+! ************************************************************************** !
+
+subroutine PMNWTSetPlotVariables(list,nw_trans,option,time_unit)
+  ! 
+  ! Adds variables to be printed for plotting.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 03/28/2019
+  !
+  
+  use Option_module
+  use Output_Aux_module
+  use Variables_module
+  use NW_Transport_Aux_module
+    
+  implicit none
+  
+  type(output_variable_list_type), pointer :: list
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH) :: time_unit
+  
+  character(len=MAXWORDLENGTH) :: name,  units
+  PetscInt :: i
+  
+  ! jenn:todo Where should I be setting nw_trans%print ? In an equivalent
+  ! block like CHEMISTRY,OUTPUT?
+  if (nw_trans%print%molality) then
+    do i=1,nw_trans%params%ncomp
+      if (nw_trans%species_print(i)) then
+        name = 'Molality ' // trim(nw_trans%species_names(i))
+        units = 'm'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     PRIMARY_MOLALITY,i)
+      endif
+    enddo
+  endif 
+  
+end subroutine PMNWTSetPlotVariables
 
 ! ************************************************************************** !
   
