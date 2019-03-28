@@ -48,10 +48,10 @@ basecolors = ['red','blue']
 
 #Upper aquifer obs points
 titles.append('Shallow Sandstone Aquifer')
-files.append('./gdsa-obs-0.tec')
+files.append('./geologic_disposal-obs-0.tec')
 columns.append(29)
 name.append('Near')
-files.append('./gdsa-obs-0.tec')
+files.append('./geologic_disposal-obs-0.tec')
 columns.append(41)
 name.append('Far')
 
@@ -60,10 +60,10 @@ colors.extend(basecolors)
 
 #Shale host rock obs points
 titles.append('Shale Host Rock')
-files.append('./gdsa-obs-0.tec')
+files.append('./geologic_disposal-obs-0.tec')
 columns.append(5)
 name.append('Near')
-files.append('./gdsa-obs-0.tec')
+files.append('./geologic_disposal-obs-0.tec')
 columns.append(17)
 name.append('Far')
 
@@ -72,10 +72,10 @@ colors.extend(basecolors)
 
 #Lower aquifer obs points
 titles.append('Deep Limestone Aquifer')
-files.append('./gdsa-obs-0.tec')
+files.append('./geologic_disposal-obs-0.tec')
 columns.append(53)
 name.append('Near')
-files.append('./gdsa-obs-0.tec')
+files.append('./geologic_disposal-obs-0.tec')
 columns.append(65)
 name.append('Far')
 
@@ -105,11 +105,11 @@ plt.legend(loc=0)
 # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
 plt.setp(plt.gca().get_legend().get_texts(),fontsize=14,fontweight='normal')
 plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-plt.setp(plt.gca().get_legend().draw_frame(False))
+plt.gca().get_legend().get_frame().set_fill(False)
+plt.gca().get_legend().draw_frame(False)
 #plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
 
 #adjust blank space and show/save the plot
 f.subplots_adjust(hspace=0.2,wspace=0.2, bottom=.12,top=.9, left=.14,right=.9)
-plt.savefig('gdsa_i129.png',bbox_inches='tight')
+plt.savefig('geologic_disposal_i129.png',bbox_inches='tight')
 plt.show()

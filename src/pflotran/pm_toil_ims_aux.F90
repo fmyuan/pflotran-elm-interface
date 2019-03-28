@@ -15,7 +15,7 @@ module PM_TOilIms_Aux_module
   PetscReal, public :: toil_ims_window_epsilon = 1.d-4
   PetscReal, public :: toil_ims_fmw_comp(2) = & ! initialised after EOSread
                         [UNINITIALIZED_DOUBLE,UNINITIALIZED_DOUBLE]
-  PetscReal, public :: toil_ims_max_pressure_change = 5.d10
+  PetscReal, public :: toil_ims_max_pressure_change = 5.5d6
   PetscInt, public :: toil_ims_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: toil_ims_damping_factor = 0.6d0
   PetscReal, public :: toil_ims_itol_rel_update = UNINITIALIZED_DOUBLE

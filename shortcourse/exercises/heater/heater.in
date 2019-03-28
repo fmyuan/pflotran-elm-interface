@@ -1,5 +1,5 @@
-#Description: 3D test problem for unstructured richards equation with mixed
-#             elements in explicit format
+#Description: 3D test problem for unstructured general mode with mixed
+#             elements in implicit format
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -7,7 +7,8 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        ANALYTICAL_DERIVATIVES
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
@@ -264,7 +265,7 @@ FLOW_CONDITION initial_buffer
     TEMPERATURE DIRICHLET
   /
   GAS_PRESSURE 101325.d0 ! Pa
-  GAS_SATURATION 0.80
+  GAS_SATURATION 0.8d0
   TEMPERATURE 25.d0
 END
 
