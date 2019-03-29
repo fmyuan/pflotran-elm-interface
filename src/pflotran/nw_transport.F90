@@ -101,13 +101,16 @@ subroutine NWTSetup(realization)
   PetscInt :: iconn, sum_connection 
   PetscInt :: iphase
   PetscInt :: flag(3)
+  PetscInt :: ncomp, nphase
   
   patch => realization%patch
   grid => patch%grid
   nw_trans => realization%nw_trans
   option => realization%option
+  ncomp = nw_trans%params%ncomp
+  nphase = option%transport%nphase
   
-  patch%aux%NWT => NWTAuxCreate(nw_trans%params%ncomp,option%transport%nphase)
+  patch%aux%NWT => NWTAuxCreate(ncomp,nphase)
   
   cur_material_property => realization%material_properties
   do                                      
@@ -194,14 +197,21 @@ subroutine NWTSetup(realization)
   option%iflag = 0
   
   ! initialize parameters
+  allocate(nw_trans%diffusion_coefficient(ncomp,nphase))
+  nw_trans%diffusion_coefficient = 1.d-9
+  allocate(nw_trans%diffusion_activation_energy(ncomp,nphase))
+  nw_trans%diffusion_activation_energy = 0.d0
+  allocate(nw_trans%species_print(ncomp))
+  nw_trans%species_print = PETSC_FALSE
+  
   cur_fluid_property => realization%fluid_properties
   do 
     if (.not.associated(cur_fluid_property)) exit
     iphase = cur_fluid_property%phase_id
     ! setting of phase diffusion coefficients must come before individual
     ! species below
-    ! jenn:todo Problem: nw_trans%diffusion_coefficient is not allocated yet!
-    if (iphase <= option%transport%nphase) then
+    ! jenn:todo Problem: nw_trans%diffusion_coefficient is zero! Is that right?
+    if (iphase <= nphase) then
       nw_trans%diffusion_coefficient(:,iphase) = &
         cur_fluid_property%diffusion_coefficient
       nw_trans%diffusion_activation_energy(:,iphase) = &
@@ -214,7 +224,6 @@ subroutine NWTSetup(realization)
   ! If so, look at reactive_transport.F90, beginning line 338 in RTSetup().
   
   ! setup output
-  ! jenn:todo Problem: nw_trans%species_print is not allocated yet!
   list => realization%output_option%output_snap_variable_list
   call PMNWTSetPlotVariables(list,nw_trans,option, &
                              realization%output_option%tunit)

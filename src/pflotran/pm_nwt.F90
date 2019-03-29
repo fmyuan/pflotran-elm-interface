@@ -225,12 +225,6 @@ subroutine PMNWTSetup(this)
   
   allocate(this%controls%max_concentration_change(ncomp))
   allocate(this%controls%max_volfrac_change(ncomp))
-  allocate(nw_trans%diffusion_coefficient(ncomp,nphase))
-  nw_trans%diffusion_coefficient = 1.d-9
-  allocate(nw_trans%diffusion_activation_energy(ncomp,nphase))
-  nw_trans%diffusion_activation_energy = 0.d0
-  allocate(nw_trans%species_print(ncomp))
-  nw_trans%species_print = PETSC_FALSE
 
 end subroutine PMNWTSetup
 
