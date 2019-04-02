@@ -981,29 +981,11 @@ subroutine EOSGasViscosityEOSDBase(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
-
-  !ierr initialised in EOSEOSProp 
-  !call eos_dbase%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,ierr)
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas,ierr)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = InitToNan()
-  ! 
-  ! dV_dT = NaN
-  ! dV_dPcomp = NaN
-  ! dV_dPgas = NaN
-  ! dV_dRhocomp = NaN
-  ! 
-  ! if (calculate_derivative) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet. 
-  !   print*, "EOSGasViscosityEOSDBase - Viscosity derivatives not supported"
-  !   stop
-  ! end if
   
 end subroutine EOSGasViscosityEOSDBase
 
@@ -1027,29 +1009,12 @@ subroutine EOSGasViscosityTable(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
-
-  !call pvt_table%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,table_idxs,ierr)
-  
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas, &
                              ierr,table_idxs)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = InitToNan()
-  ! 
-  ! dV_dT = NaN
-  ! dV_dPcomp = NaN
-  ! dV_dPgas = NaN
-  ! dV_dRhocomp = NaN
-  ! 
-  ! if (calculate_derivative) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSGasViscosityTable - Viscosity derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSGasViscosityTable
 
@@ -1497,8 +1462,7 @@ subroutine EOSGasDensityEOSDBase(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSEOSProp 
-  !call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho_gas,ierr)
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP,ierr)
 
   !PO todo: conversion when loaidng database to do this operation only once
@@ -1529,10 +1493,8 @@ subroutine EOSGasDensityTable(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-
+  ierr = 0
   !Rho from pvt table is in kmol/m3
-  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_gas,table_idxs,ierr)
-
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP, &
                              ierr,table_idxs)
 
@@ -1668,10 +1630,8 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
 
   PetscReal :: NaN
 
-  !ierr initialised in EOSProp - PO: should do only one lookup here
-  !call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-  !call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
-
+  !PO: should do only one lookup here
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
   
