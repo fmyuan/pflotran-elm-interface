@@ -38,13 +38,13 @@ module EOS_Oil_module
 
 
   ! EOS databases
-  class(eos_database_type), pointer :: eos_dbase
-  class(eos_database_type), pointer :: eos_den_dbase
-  class(eos_database_type), pointer :: eos_ent_dbase
-  class(eos_database_type), pointer :: eos_vis_dbase
+  class(eos_database_type), pointer :: eos_dbase => null()
+  class(eos_database_type), pointer :: eos_den_dbase => null()
+  class(eos_database_type), pointer :: eos_ent_dbase => null()
+  class(eos_database_type), pointer :: eos_vis_dbase => null()
 
   ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvt_table
+  class(eos_table_type), pointer :: pvt_table => null()
 
   ! when adding a new eos_database, remember to add it to EOSOilDBaseDestroy()
 

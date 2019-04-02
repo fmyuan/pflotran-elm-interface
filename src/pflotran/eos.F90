@@ -1044,6 +1044,7 @@ subroutine AllEOSDBaseDestroy()
 
   call EOSOilDBaseDestroy()
   call EOSGasDBaseDestroy()
+  call EOSSlvDBaseDestroy()
 
 end subroutine AllEOSDBaseDestroy
 

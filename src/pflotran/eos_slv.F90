@@ -29,10 +29,10 @@ module EOS_Slv_module
 #endif
 
   ! EOS databases
-  class(eos_database_type), pointer :: eos_dbase
+  class(eos_database_type), pointer :: eos_dbase => null()
 
 ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvt_table
+  class(eos_table_type), pointer :: pvt_table => null()
 
 ! Set null initial values for proceedure pointers of three types
 
@@ -121,7 +121,8 @@ module EOS_Slv_module
             EOSSlvGetReferenceDensity, &
             EOSSlvSetPVDS, &
             EOSSlvSetEOSDBase, &
-            EOSSlvTableProcess
+            EOSSlvTableProcess, &
+            EOSSlvDBaseDestroy
 
   contains
 
@@ -1039,6 +1040,19 @@ subroutine throwDerivativeError()
   call printErrMsg(option)
 
 end subroutine throwDerivativeError
+
+! ************************************************************************** !
+
+subroutine EOSSlvDBaseDestroy()
+
+  implicit none
+
+  !destroy databases
+  call EOSDatabaseDestroy(eos_dbase)
+
+  nullify(pvt_table)
+
+end subroutine EOSSlvDBaseDestroy
 
 ! ************************************************************************** !
 

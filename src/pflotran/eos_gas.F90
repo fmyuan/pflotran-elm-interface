@@ -43,10 +43,10 @@ module EOS_Gas_module
 #endif
 
   ! EOS databases
-  class(eos_database_type), pointer :: eos_dbase
+  class(eos_database_type), pointer :: eos_dbase => null()
 
   ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvt_table
+  class(eos_table_type), pointer :: pvt_table => null()
 
   ! In order to support generic EOS subroutines, we need the following:
   ! 1. An interface declaration that defines the argument list (best to have 
