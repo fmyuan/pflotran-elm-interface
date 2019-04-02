@@ -262,19 +262,18 @@ subroutine EOSSlvEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
 
   ierr=0
 
-  call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-  call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
 
 ! J/kg * kg/Kmol = J/Kmol
   H = H  * fmw_slv
+  dH_dT = dH_dT * fmw_slv
+  dH_dP = dH_dP * fmw_slv
+
+! J/kg * kg/Kmol = J/Kmol
   U = U  * fmw_slv
-
-! No derivatives at present
-
-  dH_dT=0.0
-  dH_dP=0.0
-  dU_dT=0.0
-  dU_dP=0.0
+  dU_dT = dU_dT * fmw_slv
+  dU_dP = dU_dP * fmw_slv
 
 end subroutine EOSSlvEnergyEOSDBase
 
@@ -297,11 +296,7 @@ subroutine EOSSlvViscosityEOSDBase(T, P, V_mix, &
 
   ierr=0
 
-  call eos_dbase%EOSProp(T,P,EOS_VISCOSITY,V_mix,ierr)
-
-  dV_dT=0.0d0
-  dV_dP=0.0d0
-  if (calculate_derivative) call throwDerivativeError()
+  call eos_dbase%EOSPropGrad(T,P,EOS_VISCOSITY,V_mix,dV_dT,dV_dP,ierr)
 
 end subroutine EOSSlvViscosityEOSDBase
 
@@ -454,17 +449,8 @@ subroutine EOSSlvViscosityTable(T,P,V, &
 
   ierr=0
 
-#if 0
-  call pvt_table%EOSProp(T,P,EOS_VISCOSITY,V,table_idxs,ierr)
-
-  dV_dT=0.0d0
-  dV_dP=0.0d0
-  if (calculate_derivative) call throwDerivativeError()
-#endif
-
   call pvt_table%EOSPropGrad(T,P,EOS_VISCOSITY,V,dV_dT,dV_dP, &
                              ierr,table_idxs)
-
 
 end subroutine EOSSlvViscosityTable
 
@@ -663,11 +649,12 @@ subroutine EOSSlvDensityEOSDBase(T,P,Rhs_slv,dRhs_dT,dRhs_dP,ierr,table_idxs)
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   ierr=0
-  call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rhs_slv,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rhs_slv,dRhs_dT,dRhs_dP,ierr)
 
   Rhs_slv= Rhs_slv / fmw_slv ! kmol/m^3
-  dRhs_dT=0.0
-  dRhs_dP=0.0
+
+  dRhs_dT = dRhs_dT / fmw_slv
+  dRhs_dP = dRhs_dP / fmw_slv
 
 end subroutine EOSSlvDensityEOSDBase
 
@@ -684,16 +671,9 @@ subroutine EOSSlvDensityTable(T, P, Rho_slv, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !Rho from pvt table is in kmol/m3
-  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_slv,table_idxs,ierr)
-
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_slv,dRho_dT,dRho_dP, &
                              ierr,table_idxs)
-
-#if 0
-  dRho_dT = 0.0
-  dRho_dP = 0.0
-#endif
 
 end subroutine EOSSlvDensityTable
 
