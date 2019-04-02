@@ -73,7 +73,7 @@ subroutine InitNWTranSetupRealization(realization)
   call InitFlowGlobalAuxVar(realization,option)
   
   ! initial concentrations must be assigned after densities are set !!!
-  call CondControlAssignTranInitCond(realization)
+  call CondControlAssignNWTranInitCond(realization)
   
 end subroutine InitNWTranSetupRealization
 

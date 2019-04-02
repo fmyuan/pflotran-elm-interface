@@ -62,11 +62,12 @@ condition_control.o : condition.o connection.o coupler.o dataset_base.o \
                       dataset_common_hdf5.o dataset_gridded_hdf5.o \
                       discretization.o eos_water.o field.o general_aux.o \
                       global.o global_aux.o grid.o hdf5.o material_aux.o \
-                      option.o patch.o pflotran_constants.o pm_toil_ims_aux.o \
-                      pm_towg_aux.o reaction.o reaction_aux.o \
-                      reactive_transport.o reactive_transport_aux.o \
-                      realization_subsurface.o realization_surface.o region.o \
-                      surface_field.o surface_global_aux.o surface_th_aux.o \
+                      nw_transport.o nw_transport_aux.o option.o patch.o \
+                      pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
+                      reaction.o reaction_aux.o reactive_transport.o \
+                      reactive_transport_aux.o realization_subsurface.o \
+                      realization_surface.o region.o surface_field.o \
+                      surface_global_aux.o surface_th_aux.o \
                       transport_constraint.o variables.o wipp_flow_aux.o
 connection.o : pflotran_constants.o utility.o
 convergence.o : grid.o option.o pflotran_constants.o solver.o string.o
@@ -403,9 +404,11 @@ mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
-nw_transport.o : field.o global.o global_aux.o material_aux.o \
-                 nw_transport_aux.o option.o pflotran_constants.o pm_nwt.o \
-                 realization_subsurface.o
+nw_transport.o : condition.o connection.o coupler.o field.o fluid.o global.o \
+                 global_aux.o grid.o material.o material_aux.o \
+                 nw_transport_aux.o option.o output_aux.o patch.o \
+                 pflotran_constants.o pm_nwt.o realization_subsurface.o \
+                 transport_constraint.o
 nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
                      pflotran_constants.o string.o utility.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
@@ -527,7 +530,8 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               string.o utility.o
 pm_nwt.o : communicator_base.o input_aux.o nw_transport_aux.o option.o \
-           pflotran_constants.o pm_base.o realization_subsurface.o string.o
+           output_aux.o pflotran_constants.o pm_base.o \
+           realization_subsurface.o string.o variables.o
 pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
                 general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \

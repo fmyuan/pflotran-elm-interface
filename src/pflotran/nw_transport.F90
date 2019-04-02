@@ -16,7 +16,8 @@ module NW_Transport_module
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
   public :: NWTTimeCut, &
-            NWTSetup
+            NWTSetup, &
+            NWTUpdateAuxVars
             
 contains
 
@@ -235,6 +236,160 @@ subroutine NWTSetup(realization)
   endif
   
 end subroutine NWTSetup
+
+! ************************************************************************** !
+
+subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
+  ! 
+  ! Updates the auxiliary variables associated with
+  ! nuclear waste transport mode.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/02/2019
+  ! 
+
+  use Realization_Subsurface_class
+  use Patch_module
+  use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Option_module
+  use Field_module
+  use Logging_module
+  use Global_Aux_module
+  
+  implicit none
+
+  type(realization_subsurface_type) :: realization
+  PetscBool :: update_bcs
+  PetscBool :: update_cells
+  
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_type), pointer :: cur_connection_set
+
+  PetscInt :: ghosted_id, local_id, sum_connection, iconn
+  PetscInt :: istart, iend, istart_loc, iend_loc
+  PetscReal, pointer :: xx_loc_p(:)
+  PetscInt, parameter :: iphase = 1
+  PetscInt :: offset
+  PetscErrorCode :: ierr
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
+  PetscInt, save :: icall
+  
+  data icall/0/
+
+  option => realization%option
+  patch => realization%patch  
+  grid => patch%grid
+  field => realization%field
+  nw_trans => realization%nw_trans
+  nwt_auxvars => patch%aux%NWT%auxvars
+  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
+  global_auxvars => patch%aux%Global%auxvars
+
+  
+  call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+
+  if (update_cells) then
+
+    ! jenn:todo make a logging%event_nwt_auxvars?
+    call PetscLogEventBegin(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
+  
+    do ghosted_id = 1, grid%ngmax
+      if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
+      !geh - Ignore inactive cells with inactive materials
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      offset = (ghosted_id-1)*nw_trans%params%ncomp
+      istart = offset + 1
+      iend = offset + nw_trans%params%ncomp
+      
+      nwt_auxvars(ghosted_id)%molality = xx_loc_p(istart:iend)
+
+      ! jenn:todo Create your own NWTAuxVarCompute().
+      !call RTAuxVarCompute(rt_auxvars(ghosted_id), &
+      !                     global_auxvars(ghosted_id), &
+      !                     patch%aux%Material%auxvars(ghosted_id), &
+      !                     reaction,option)
+
+    enddo
+
+    call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
+  endif
+
+  if (update_bcs) then
+
+    call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
+
+    boundary_condition => patch%boundary_condition_list%first
+    sum_connection = 0    
+    do 
+      if (.not.associated(boundary_condition)) exit
+      cur_connection_set => boundary_condition%connection_set
+
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
+        
+        if (patch%imat(ghosted_id) <= 0) cycle
+
+        offset = (ghosted_id-1)*nw_trans%params%ncomp
+        istart_loc =  1
+        iend_loc = nw_trans%params%ncomp
+        istart = offset + istart_loc
+        iend = offset + iend_loc
+        
+        select case(boundary_condition%tran_condition%itype)
+          case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
+            ! don't need to do anything as the constraint below provides all
+            ! the concentrations, etc.
+              
+            ! jenn:todo Is this kludge still needed?
+            !geh: terrible kludge, but should work for now.
+            !geh: the problem is that ...%pri_molal() on first call is 
+            !      zero and PETSC_TRUE is passed into 
+            !      ReactionEquilibrateConstraint() below for 
+            !      use_prev_soln_as_guess.  If the previous solution is 
+            !      zero, the code will crash.
+            if (nwt_auxvars_bc(sum_connection)%molality(1) < 1.d-200) then
+              nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)
+            endif
+          case(DIRICHLET_ZERO_GRADIENT_BC)
+            if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
+                  ! don't need to do anything as the constraint below 
+                  ! provides all the concentrations, etc.
+              if (nwt_auxvars_bc(sum_connection)%molality(1) < 1.d-200) then
+                nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)
+              endif
+            else
+              ! same as zero_gradient below
+              nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)
+            endif
+          case(ZERO_GRADIENT_BC)
+            nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)               
+        end select
+          
+      enddo ! iconn
+      boundary_condition => boundary_condition%next
+    enddo
+
+    call PetscLogEventEnd(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
+
+  endif 
+
+  call VecRestoreArrayReadF90(field%tran_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  icall = icall+ 1
+  
+end subroutine NWTUpdateAuxVars
+
 
 
 
