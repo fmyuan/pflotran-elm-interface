@@ -17,7 +17,8 @@ module NW_Transport_module
   
   public :: NWTTimeCut, &
             NWTSetup, &
-            NWTUpdateAuxVars
+            NWTUpdateAuxVars, &
+            NWTAuxVarCompute
             
 contains
 
@@ -313,11 +314,9 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
       
       nwt_auxvars(ghosted_id)%molality = xx_loc_p(istart:iend)
 
-      ! jenn:todo Create your own NWTAuxVarCompute().
-      !call RTAuxVarCompute(rt_auxvars(ghosted_id), &
-      !                     global_auxvars(ghosted_id), &
-      !                     patch%aux%Material%auxvars(ghosted_id), &
-      !                     reaction,option)
+      call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
+                           global_auxvars(ghosted_id), &
+                           nw_trans,option)
 
     enddo
 
@@ -390,6 +389,30 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   
 end subroutine NWTUpdateAuxVars
 
+! ************************************************************************** !
+
+subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,nw_trans,option)
+  ! 
+  ! Do I actually need this? I'm just going to keep it as a placeholder.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/02/2019
+  ! 
+
+  use Option_module
+  
+  implicit none
+  
+  type(nw_transport_auxvar_type) :: nwt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(nw_trans_realization_type) :: nw_trans
+  type(option_type) :: option
+
+  PetscReal :: ln_conc(nw_trans%params%ncomp)
+
+  ln_conc = log(nwt_auxvar%molality)
+
+end subroutine NWTAuxVarCompute
 
 
 

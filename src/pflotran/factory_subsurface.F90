@@ -1157,6 +1157,7 @@ subroutine SubsurfaceReadNWTPM(input,option,pm)
 
   pm => PMNWTCreate()
   pm%option => option
+  option%itranmode = NW_TRANSPORT
 
   call pm%ReadSimulationBlock(input)
 
@@ -1549,12 +1550,12 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
         call cur_pm%SetRealization(realization)
         
       class is(pm_nwt_type)
-      !  if (.not.associated(realization%reaction)) then
-      !    option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
-      !      &process model in the SIMULATION block without the corresponding &
-      !      &NUCLEAR_WASTE_TRANSPORT in the SUBSURFACE block.'
-      !    call printErrMsg(option)
-      !  endif
+        if (.not.associated(realization%nw_trans)) then
+          option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
+            &process model in the SIMULATION block without the corresponding &
+            &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT in the SUBSURFACE block.'
+          call printErrMsg(option)
+        endif
         call cur_pm%SetRealization(realization)
 
       class is(pm_subsurface_flow_type)

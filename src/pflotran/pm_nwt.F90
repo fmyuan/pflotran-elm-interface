@@ -161,7 +161,9 @@ subroutine PMNWTReadSimulationBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
+      case('GLOBAL_IMPLICIT')
+        option%transport%nw_transport_coupling = GLOBAL_IMPLICIT
+      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
       case('MAX_VOLUME_FRACTION_CHANGE')
         call InputReadDouble(input,option,this%controls%volfrac_change_governor)
         call InputErrorMsg(input,option,'MAX_VOLUME_FRACTION_CHANGE', &
@@ -208,23 +210,26 @@ subroutine PMNWTSetup(this)
   implicit none
   
   class(pm_nwt_type) :: this
-  
-  ! jenn:todo NOTE: Has this%realization been associated yet?
-  
-  PetscInt :: ncomp, nphase
+    
   type(nw_trans_realization_type), pointer :: nw_trans
   
-  ncomp = this%params%ncomp
-  nphase = this%params%nphase
   nw_trans => this%realization%nw_trans
-    
-  ! jenn:todo get NWT in patch%aux pointed to correct place?
-    
+  
+  this%params%nphase = nw_trans%params%nphase
+  this%params%ncomp = nw_trans%params%ncomp
+  this%params%nsorb = nw_trans%params%nsorb
+  this%params%nmnrl = nw_trans%params%nmnrl
+  this%params%nauxiliary = nw_trans%params%nauxiliary
+  this%params%calculate_transverse_dispersion = &
+                               nw_trans%params%calculate_transverse_dispersion
+  this%params%temperature_dependent_diffusion = &
+                               nw_trans%params%temperature_dependent_diffusion
+        
   ! set the communicator
   this%comm1 => this%realization%comm1
   
-  allocate(this%controls%max_concentration_change(ncomp))
-  allocate(this%controls%max_volfrac_change(ncomp))
+  allocate(this%controls%max_concentration_change(this%params%ncomp))
+  allocate(this%controls%max_volfrac_change(this%params%ncomp))
 
 end subroutine PMNWTSetup
 

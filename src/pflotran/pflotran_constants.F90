@@ -162,6 +162,7 @@ module PFLOTRAN_Constants_module
 
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
+  PetscInt, parameter, public :: NW_TRANSPORT = 2
   
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
