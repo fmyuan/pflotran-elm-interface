@@ -20,6 +20,7 @@ module PM_NWT_class
     PetscReal :: newton_inf_scaled_res_tol
     PetscBool :: check_post_converged
     PetscBool :: check_post_convergence
+    PetscBool :: check_update
 #ifdef OS_STATISTICS
 ! use PetscReal for large counts
     PetscInt :: newton_call_count
@@ -50,7 +51,8 @@ module PM_NWT_class
   contains
     procedure, public :: Setup => PMNWTSetup 
     procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
-    procedure, public :: SetRealization => PMNWTSetRealization   
+    procedure, public :: SetRealization => PMNWTSetRealization 
+    procedure, public :: InitializeRun => PMNWTInitializeRun  
   end type pm_nwt_type
   
   public :: PMNWTCreate, PMNWTSetPlotVariables
@@ -89,6 +91,7 @@ function PMNWTCreate()
   nwt_pm%controls%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   nwt_pm%controls%check_post_convergence = PETSC_FALSE
+  nwt_pm%controls%check_update = PETSC_FALSE
 #ifdef OS_STATISTICS
   nwt_pm%controls%newton_call_count = 0
   nwt_pm%controls%sum_newton_call_count = 0.d0
@@ -259,6 +262,31 @@ subroutine PMNWTSetRealization(this,realization)
   this%residual_vec = realization%field%tran_r
   
 end subroutine PMNWTSetRealization
+
+! ************************************************************************** !
+
+subroutine PMNWTInitializeRun(this)
+  ! 
+  ! Initializes process model time stepping.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/02/2019
+  ! 
+  
+  use NW_Transport_module
+  
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  
+  ! check for uninitialized flow variables
+  call RealizUnInitializedVarsTran(this%realization)
+  
+  ! update boundary conditions (don't know if this is necessary)
+  ! jenn:todo Is updating BCs necessary in PMNWTInitializeRun()?
+  call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
+  
+end subroutine PMNWTInitializeRun
 
 ! ************************************************************************** !
 

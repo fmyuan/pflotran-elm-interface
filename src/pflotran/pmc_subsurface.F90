@@ -124,6 +124,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use petscsnes
   use Convergence_module
   use Discretization_module
+  use Realization_Subsurface_class
   use Option_module
   use PMC_Base_class
   use PM_Base_Pointer_module
@@ -150,9 +151,13 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
   type(solver_type), pointer :: solver
   type(option_type), pointer :: option
+  type(discretization_type), pointer :: discretization
+  class(realization_subsurface_type), pointer :: realization
   SNESLineSearch :: linesearch  
   character(len=MAXSTRINGLENGTH) :: string  
-  PetscBool :: add_pre_check
+  PetscBool :: add_pre_check, check_update, check_post_convergence
+  PetscInt :: itransport, RT, NWT
+  PetscInt :: trans_coupling
   PetscErrorCode :: ierr
 
 #ifdef DEBUG
@@ -161,6 +166,12 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
   option => this%option
   solver => this%timestepper%solver
+  
+  check_update = PETSC_FALSE
+  itransport = 0
+  trans_coupling = 10000 ! set to high value (not 0 or 1)
+  RT = 1
+  NWT = 2
 
   call SolverCreateSNES(solver,option%mycomm)
   call SNESGetLineSearch(this%timestepper%solver%snes,linesearch, &
@@ -330,89 +341,104 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         endif
 
       call printMsg(option,"  Finished setting up FLOW SNES ")
-
-  ! jenn:todo I can't overload class is() select case, but it would be nice 
-  ! to reuse the initialization for transport here:
   ! ----- subsurface reactive transport
     class is(pm_rt_type)
-      call printMsg(option,"  Beginning setup of TRAN SNES ")
-      call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
-      call SolverCheckCommandLine(solver)
+      itransport = RT
+      check_post_convergence = pm%check_post_convergence
+      trans_coupling = option%transport%reactive_transport_coupling
+      check_update = pm%realization%reaction%check_update
+      discretization => pm%realization%discretization
+      realization => pm%realization
+      if (OptionPrintToScreen(option)) then
+        write(*,'(" mode = Reactive Transport")')
+      endif
+  ! ----- nuclear waste transport
+    class is(pm_nwt_type)
+      itransport = NWT
+      check_post_convergence = pm%controls%check_post_convergence
+      trans_coupling = option%transport%nw_transport_coupling
+      check_update = pm%controls%check_update
+      discretization => pm%realization%discretization
+      realization => pm%realization
+      if (OptionPrintToScreen(option)) then
+        write(*,'(" mode = Nuclear Waste Transport")')
+      endif
+  end select
+  
+  if ( (itransport == RT) .or. (itransport == NWT) ) then
+    call printMsg(option,"  Beginning setup of TRAN SNES ")
+    call SNESSetOptionsPrefix(solver%snes, "tran_",ierr);CHKERRQ(ierr)
+    call SolverCheckCommandLine(solver)
     
-      if (option%transport%reactive_transport_coupling == &
-          GLOBAL_IMPLICIT) then
-        if (solver%Jpre_mat_type == '') then
-          if (solver%J_mat_type /= MATMFFD) then
-            solver%Jpre_mat_type = solver%J_mat_type
-          else
-            solver%Jpre_mat_type = MATBAIJ
-          endif
+    if (trans_coupling == GLOBAL_IMPLICIT) then
+      if (solver%Jpre_mat_type == '') then
+        if (solver%J_mat_type /= MATMFFD) then
+          solver%Jpre_mat_type = solver%J_mat_type
+        else
+          solver%Jpre_mat_type = MATBAIJ
         endif
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          NTRANDOF, &
-                                          solver%Jpre_mat_type, &
-                                          solver%Jpre,option)
-      else
-        solver%J_mat_type = MATAIJ
-        solver%Jpre_mat_type = MATAIJ
-
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          ONEDOF, &
-                                          solver%Jpre_mat_type, &
-                                          solver%Jpre,option)
       endif
+      call DiscretizationCreateJacobian(discretization, &
+                                        NTRANDOF, &
+                                        solver%Jpre_mat_type, &
+                                        solver%Jpre,option)
+    else
+      solver%J_mat_type = MATAIJ
+      solver%Jpre_mat_type = MATAIJ
+      call DiscretizationCreateJacobian(discretization, &
+                                        ONEDOF, &
+                                        solver%Jpre_mat_type, &
+                                        solver%Jpre,option)
+    endif
 
-      if (solver%J_mat_type /= MATMFFD) then
-        solver%J = solver%Jpre
-      endif
+    if (solver%J_mat_type /= MATMFFD) then
+      solver%J = solver%Jpre
+    endif
     
-      call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
+    call MatSetOptionsPrefix(solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
     
-      if (solver%use_galerkin_mg) then
-        call DiscretizationCreateInterpolation( &
-                       pm%realization%discretization,NTRANDOF, &
-                       solver%interpolation, &
-                       solver%galerkin_mg_levels_x, &
-                       solver%galerkin_mg_levels_y, &
-                       solver%galerkin_mg_levels_z, &
-                       option)
+    if (solver%use_galerkin_mg) then
+      call DiscretizationCreateInterpolation(discretization,NTRANDOF, &
+                                             solver%interpolation, &
+                                             solver%galerkin_mg_levels_x, &
+                                             solver%galerkin_mg_levels_y, &
+                                             solver%galerkin_mg_levels_z, &
+                                             option)
+    endif
+
+    if (trans_coupling == GLOBAL_IMPLICIT) then
+
+      if (solver%J_mat_type == MATMFFD) then
+        call MatCreateSNESMF(solver%snes,solver%J, &
+                             ierr);CHKERRQ(ierr)
+      endif
+      
+      ! this could be changed in the future if there is a way to 
+      ! ensure that the linesearch update does not perturb 
+      ! concentrations negative.
+      call SNESGetLineSearch(solver%snes, linesearch, &
+                             ierr);CHKERRQ(ierr)
+      call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
+                                  ierr);CHKERRQ(ierr)
+      
+      if (option%use_mc .and. (itransport == RT)) then
+        call SNESLineSearchSetPostCheck(linesearch, &
+                              SecondaryRTUpdateIterate, &
+                              realization,ierr);CHKERRQ(ierr)
+      endif
+      
+      ! Have PETSc do a SNES_View() at the end of each solve if 
+      ! verbosity > 0.
+      if (option%verbosity >= 2) then
+        string = '-tran_snes_view'
+        call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
+                                      string, ierr);CHKERRQ(ierr)
       endif
 
-      if (option%transport%reactive_transport_coupling == &
-          GLOBAL_IMPLICIT) then
+    endif
 
-        if (solver%J_mat_type == MATMFFD) then
-          call MatCreateSNESMF(solver%snes,solver%J, &
-                                ierr);CHKERRQ(ierr)
-        endif
-      
-        ! this could be changed in the future if there is a way to 
-        ! ensure that the linesearch update does not perturb 
-        ! concentrations negative.
-        call SNESGetLineSearch(solver%snes, linesearch, &
-                               ierr);CHKERRQ(ierr)
-        call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                                    ierr);CHKERRQ(ierr)
-      
-        if (option%use_mc) then
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                      SecondaryRTUpdateIterate, &
-                                      pm%realization,ierr);CHKERRQ(ierr)
-        endif
-      
-        ! Have PETSc do a SNES_View() at the end of each solve if 
-        ! verbosity > 0.
-        if (option%verbosity >= 2) then
-          string = '-tran_snes_view'
-          call PetscOptionsInsertString(PETSC_NULL_OPTIONS, &
-                                        string, ierr);CHKERRQ(ierr)
-        endif
-
-      endif
-
-      if (option%transport%reactive_transport_coupling == &
-          GLOBAL_IMPLICIT) then
-        call SNESSetConvergenceTest(solver%snes, &
+    if (trans_coupling == GLOBAL_IMPLICIT) then
+      call SNESSetConvergenceTest(solver%snes, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
                                   PMCheckConvergence, &
                                   this%pm_ptr%pm, &
@@ -421,35 +447,38 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                   this%pm_ptr, &
 #endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-      endif
-      if (pm%print_EKG .or. option%use_mc .or. &
-          pm%check_post_convergence) then
-        call SNESLineSearchSetPostCheck(linesearch, &
+    endif
+    if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
+        check_post_convergence) then
+      call SNESLineSearchSetPostCheck(linesearch, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
-                                        PMCheckUpdatePost, &
-                                        this%pm_ptr%pm, &
+                                      PMCheckUpdatePost, &
+                                      this%pm_ptr%pm, &
 #else
-                                        PMCheckUpdatePostPtr, &
-                                        this%pm_ptr, &
+                                      PMCheckUpdatePostPtr, &
+                                      this%pm_ptr, &
 #endif
-                                        ierr);CHKERRQ(ierr)
-        if (pm%print_EKG) then
-          pm%check_post_convergence = PETSC_TRUE
-        endif
+                                      ierr);CHKERRQ(ierr)
+      if (this%pm_ptr%pm%print_EKG) then
+        check_post_convergence = PETSC_TRUE
       endif
-      if (pm%realization%reaction%check_update) then
-        call SNESLineSearchSetPreCheck(linesearch, &
+    endif
+    if (check_update) then
+      call SNESLineSearchSetPreCheck(linesearch, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
-                                       PMCheckUpdatePre, &
-                                       this%pm_ptr%pm, &
+                                     PMCheckUpdatePre, &
+                                     this%pm_ptr%pm, &
 #else
-                                       PMCheckUpdatePrePtr, &
-                                       this%pm_ptr, &
+                                     PMCheckUpdatePrePtr, &
+                                     this%pm_ptr, &
 #endif
-                                       ierr);CHKERRQ(ierr)
-      endif
-      call printMsg(option,"  Finished setting up TRAN SNES ")
-  end select
+                                     ierr);CHKERRQ(ierr)
+    endif
+    call printMsg(option,"  Finished setting up TRAN SNES ")
+      
+  endif ! RT or NWT
+      
+
   call SNESSetFunction(this%timestepper%solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
@@ -470,7 +499,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                        PMJacobianPtr, &
                        this%pm_ptr, &
 #endif
-                             ierr);CHKERRQ(ierr)
+                       ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
 
 end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE

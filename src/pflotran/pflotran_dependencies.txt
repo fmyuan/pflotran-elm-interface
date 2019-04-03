@@ -405,7 +405,7 @@ mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
 nw_transport.o : condition.o connection.o coupler.o field.o fluid.o global.o \
-                 global_aux.o grid.o material.o material_aux.o \
+                 global_aux.o grid.o logging.o material.o material_aux.o \
                  nw_transport_aux.o option.o output_aux.o patch.o \
                  pflotran_constants.o pm_nwt.o realization_subsurface.o \
                  transport_constraint.o
@@ -529,8 +529,8 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               string.o utility.o
-pm_nwt.o : communicator_base.o input_aux.o nw_transport_aux.o option.o \
-           output_aux.o pflotran_constants.o pm_base.o \
+pm_nwt.o : communicator_base.o input_aux.o nw_transport.o nw_transport_aux.o \
+           option.o output_aux.o pflotran_constants.o pm_base.o \
            realization_subsurface.o string.o variables.o
 pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
                 general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \

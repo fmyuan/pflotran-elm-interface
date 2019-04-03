@@ -248,6 +248,9 @@ subroutine SubsurfaceSimulationJumpStart(this)
   if (associated(this%rt_process_model_coupler)) then
     tran_timestepper => this%rt_process_model_coupler%timestepper
   endif
+  if (associated(this%nwt_process_model_coupler)) then
+    tran_timestepper => this%nwt_process_model_coupler%timestepper
+  endif
   
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
   if (master_timestepper%max_time_step < 0) then
@@ -289,7 +292,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
   endif
 
   ! increment plot number so that 000 is always the initial condition, 
-  !and nothing else
+  ! and nothing else
   if (output_option%plot_number == 0) output_option%plot_number = 1
 
   if (associated(flow_timestepper)) then
