@@ -3723,9 +3723,7 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
   type(tran_constraint_coupler_type), pointer :: constraint_coupler, cur_coupler
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
-  PetscReal :: default_time
   character(len=MAXWORDLENGTH) :: default_time_units
-  PetscInt :: default_iphase
   PetscInt :: default_itype
   PetscBool :: found
   PetscInt :: icomp
@@ -3736,8 +3734,6 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
   call PetscLogEventBegin(logging%event_tran_condition_read, &
                           ierr);CHKERRQ(ierr)
 
-  default_time = 0.d0
-  default_iphase = 0
   default_time_units = ''
 
   ! read the condition
@@ -3775,9 +3771,6 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
               call InputKeywordUnrecognized(word,'transport condition type', &
                                             option)
         end select
-      case('TIME')
-        call InputReadDouble(input,option,default_time)
-        call InputErrorMsg(input,option,'TIME','CONDITION')
       case('TIME_UNITS')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'UNITS','CONDITION')
@@ -3839,7 +3832,7 @@ subroutine TranConditionRead(condition,constraint_list,reaction,input,option)
         call TranConstraintRead(constraint,reaction,input,option)
         call TranConstraintAddToList(constraint,constraint_list)
         call TranConstraintMapToCoupler(constraint_coupler,constraint)
-        constraint_coupler%time = default_time
+        constraint_coupler%time = 0.d0
         ! add to end of coupler list
         if (.not.associated(condition%constraint_coupler_list)) then
           condition%constraint_coupler_list => constraint_coupler

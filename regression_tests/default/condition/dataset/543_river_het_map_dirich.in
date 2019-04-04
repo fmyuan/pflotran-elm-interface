@@ -37,7 +37,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 5 4 3
   DXYZ
@@ -257,7 +257,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   GRADIENT
@@ -268,7 +268,7 @@ END
 
 FLOW_CONDITION east_2
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE HETEROGENEOUS_DIRICHLET  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_2
@@ -276,7 +276,7 @@ END
 
 FLOW_CONDITION east_3
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE HETEROGENEOUS_DIRICHLET  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_3
@@ -284,7 +284,7 @@ END
 
 FLOW_CONDITION east_4
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE HETEROGENEOUS_DIRICHLET  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_4
@@ -292,7 +292,7 @@ END
 
 FLOW_CONDITION east_6
   TYPE
-    PRESSURE heterogeneous_dirichlet  
+    PRESSURE HETEROGENEOUS_DIRICHLET  
   /
   INTERPOLATION LINEAR
   PRESSURE DATASET Pressure_6

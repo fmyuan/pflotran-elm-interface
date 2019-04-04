@@ -28,7 +28,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 9 1 10
   BOUNDS
     0.d0 0.d0 0.d0
@@ -214,9 +214,9 @@ OBSERVATION
 #=========================== flow conditions ==================================
 FLOW_CONDITION bottom_pressure
   TYPE
-    LIQUID_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   LIQUID_PRESSURE 200159.412d0
   MOLE_FRACTION 1.d-10
@@ -225,9 +225,9 @@ FLOW_CONDITION bottom_pressure
 
 FLOW_CONDITION atmosphere
   TYPE
-    GAS_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    GAS_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   GAS_PRESSURE 101325.d0
   ! psat at 25 C is 3165.9896022949661

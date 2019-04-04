@@ -30,7 +30,7 @@ END
 #=========================== discretization ===================================
 
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -2500.0
   NXYZ 1 1 10
   DXYZ
@@ -170,7 +170,7 @@ COORDINATES
 #=========================== flow conditions ==================================
 FLOW_CONDITION equilibration
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   PRESSURE 330 Bar
   DATUM_Z -2480.0

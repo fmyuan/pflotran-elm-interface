@@ -31,7 +31,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-TYPE structured
+TYPE STRUCTURED
 ORIGIN 0.d0 0.d0 0.d0
 NXYZ 1 1 1
 BOUNDS
@@ -148,8 +148,8 @@ END
 FLOW_CONDITION initial
   UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   IPHASE 1
   PRESSURE 1.01325d5

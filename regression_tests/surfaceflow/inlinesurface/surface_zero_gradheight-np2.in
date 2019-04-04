@@ -45,7 +45,7 @@ SUBSURFACE
   ! Domain and region information -----------------------------------
 
   GRID
-    TYPE unstructured_explicit ./mesh2.uge 
+    TYPE UNSTRUCTURED_explicit ./mesh2.uge 
   END
 
   REGION all  
@@ -75,7 +75,7 @@ SUBSURFACE
   FLOW_CONDITION initial
     UNITS Pa
     TYPE
-      PRESSURE dirichlet
+      PRESSURE DIRICHLET
     END
     PRESSURE DATASET initial_pressure
   END

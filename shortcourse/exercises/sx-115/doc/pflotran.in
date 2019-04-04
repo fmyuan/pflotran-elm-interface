@@ -34,7 +34,7 @@ TS_ACCELERATION 8
 
 # == discretization ===========================================================
 GRID
-TYPE structured
+TYPE STRUCTURED
 NXYZ 1 1 136
 #DXYZ
 #1.
@@ -271,7 +271,7 @@ FLUX 2.53678e-10 ![m/s] (8 mm/y)
 
 FLOW_CONDITION Initial
 TYPE
-PRESSURE hydrostatic
+PRESSURE HYDROSTATIC
 /
 DATUM 0.d0 0.d0 6.d0
 PRESSURE 101325.d0
@@ -289,21 +289,21 @@ noskip
 
 # == transport conditions =====================================================
 TRANSPORT_CONDITION Inlet
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 Inlet
 /
 /
 
 TRANSPORT_CONDITION Initial
-TYPE zero_gradient
+TYPE ZERO_GRADIENT
 CONSTRAINT_LIST
 0.d0 Initial
 /
 /
 
 TRANSPORT_CONDITION source
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 well
 /

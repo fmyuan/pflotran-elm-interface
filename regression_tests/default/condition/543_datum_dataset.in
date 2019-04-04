@@ -81,7 +81,7 @@ LINEAR_SOLVER TRANSPORT
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 5 4 3
   DXYZ
@@ -273,7 +273,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 35.d0
   PRESSURE 101325 ! Pa
@@ -281,7 +281,7 @@ FLOW_CONDITION initial
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
 #  DATUM 0.d0 0.d0 25.d0
   DATUM DATASET surface
@@ -290,7 +290,7 @@ FLOW_CONDITION east
 
 FLOW_CONDITION west_condition
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
 #  GRADIENT
 #    PRESSURE file gradient.txt
@@ -303,7 +303,7 @@ FLOW_CONDITION west_condition
 
 FLOW_CONDITION south_condition
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
 #  GRADIENT
 #    PRESSURE file gradient.txt
@@ -323,14 +323,14 @@ FLOW_CONDITION injection_well
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION well_concentration
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 source
   /

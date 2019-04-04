@@ -1,4 +1,3 @@
-appleyard.o : realization_subsurface.o
 auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
               pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
@@ -572,11 +571,11 @@ pm_th.o : communicator_base.o communicator_structured.o \
           input_aux.o option.o patch.o pflotran_constants.o pm_base.o \
           pm_subsurface_flow.o realization_subsurface.o saturation_function.o \
           string.o th.o th_aux.o utility.o
-pm_toil_ims.o : appleyard.o auxvars_toil_ims.o checkpoint.o field.o global.o \
-                global_aux.o grid.o input_aux.o material.o material_aux.o \
-                option.o patch.o pflotran_constants.o pm_base.o \
-                pm_subsurface_flow.o pm_toil_ims_aux.o realization_base.o \
-                realization_subsurface.o string.o toil_ims.o variables.o
+pm_toil_ims.o : auxvars_toil_ims.o checkpoint.o field.o global.o global_aux.o \
+                grid.o input_aux.o material.o material_aux.o option.o patch.o \
+                pflotran_constants.o pm_base.o pm_subsurface_flow.o \
+                pm_toil_ims_aux.o realization_base.o realization_subsurface.o \
+                string.o toil_ims.o variables.o
 pm_toil_ims_aux.o : auxvars_toil_ims.o characteristic_curves.o \
                     derivative_tests.o eos_oil.o eos_water.o global_aux.o \
                     grid.o material_aux.o option.o pflotran_constants.o \
@@ -948,22 +947,20 @@ timestepper_steady.o : convergence.o option.o output.o pflotran_constants.o \
 timestepper_surface.o : option.o output.o pflotran_constants.o pm_base.o \
                         pm_surface_flow.o solver.o surface_flow.o \
                         timestepper_base.o utility.o waypoint.o
-toil_ims.o : appleyard.o auxvars_flow.o auxvars_toil_ims.o condition.o \
-             connection.o coupler.o debug.o discretization.o eos_oil.o \
-             eos_water.o field.o global_aux.o grid.o material.o material_aux.o \
-             option.o output_aux.o output_tecplot.o patch.o \
-             pflotran_constants.o pm_toil_ims_aux.o realization_subsurface.o \
-             saturation_function.o toil_ims_derivs.o utility.o variables.o \
-             well_data.o well_solver.o
+toil_ims.o : auxvars_flow.o auxvars_toil_ims.o condition.o connection.o \
+             coupler.o debug.o discretization.o eos_oil.o eos_water.o field.o \
+             global_aux.o grid.o material.o material_aux.o option.o \
+             output_aux.o output_tecplot.o patch.o pflotran_constants.o \
+             pm_toil_ims_aux.o realization_subsurface.o saturation_function.o \
+             toil_ims_derivs.o utility.o variables.o well_data.o well_solver.o
 toil_ims_derivs.o : auxvars_toil_ims.o global_aux.o pflotran_constants.o \
                     pm_toil_ims_aux.o
-towg.o : appleyard.o auxvars_flow.o auxvars_towg.o condition.o connection.o \
-         coupler.o debug.o derivatives_utilities.o discretization.o eos_gas.o \
-         eos_oil.o eos_slv.o eos_water.o field.o global_aux.o grid.o \
-         material.o material_aux.o option.o output_aux.o patch.o \
-         pflotran_constants.o pm_towg_aux.o realization_base.o \
-         realization_subsurface.o saturation_function.o utility.o variables.o \
-         well_data.o well_solver.o
+towg.o : auxvars_flow.o auxvars_towg.o condition.o connection.o coupler.o \
+         debug.o derivatives_utilities.o discretization.o eos_gas.o eos_oil.o \
+         eos_slv.o eos_water.o field.o global_aux.o grid.o material.o \
+         material_aux.o option.o output_aux.o patch.o pflotran_constants.o \
+         pm_towg_aux.o realization_base.o realization_subsurface.o \
+         saturation_function.o utility.o variables.o well_data.o well_solver.o
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
               option.o pflotran_constants.o reactive_transport_aux.o
 transport_constraint.o : global_aux.o input_aux.o logging.o option.o \

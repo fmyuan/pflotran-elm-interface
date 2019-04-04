@@ -295,7 +295,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
               case('SC','CONSTRAINT_SUPERCRIT_CO2') 
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_SUPERCRIT_CO2
-              case('Z','CHG') 
+              case('Z','CHARGE_BALANCE') 
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_CHARGE_BAL
               case default

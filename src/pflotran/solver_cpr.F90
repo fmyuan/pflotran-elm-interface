@@ -427,10 +427,28 @@ subroutine SolverCPRInit(J, stash, pcin, ierr, option)
   MPI_Comm :: C
   PetscErrorCode :: ierr
   type(option_type) :: option
+  MatType :: Jtype
+
+  ! Unfortunately we cannot guarantee currently compatibilty with AIJ type
+  ! matrices. For most modes there will already be an error thrown
+  ! if type is set to AIJ *by the infile* but it is possible to 
+  ! get around this with a command line option, which causes assorted
+  ! problems. For CPR specifically we have that the indexing calculations
+  ! for extracting the pressure subsystem break with AIJ so for now just
+  ! refuse to run with both CPR and AIJ:
+  call MatGetType(J,Jtype,ierr); CHKERRQ(ierr)
+  if (.NOT.(Jtype == MATMPIBAIJ .OR. Jtype == MATBAIJ .OR. Jtype == MATSEQBAIJ )) then
+    option%io_buffer  = 'CPR preconditioner: not compatible with matrix type: ' // trim(Jtype) // &
+                        ' -  Please try again with blocked matrix type BAIJ '                  // &
+                        '(for most modes this should be the default).'
+    call printErrMsg(option)
+  endif
+
+
 
   call PetscObjectGetComm(pcin, C, ierr); CHKERRQ(ierr)
 
-  call CPRmake(pcin, stash, C, ierr, option)
+  call CPRMake(pcin, stash, C, ierr, option)
 
   ! set the A matrix in the stash to J:
   stash%A = J

@@ -18,7 +18,7 @@ CO2_DATABASE ../../../database/co2data0.dat
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 21 21 20 
   BOUNDS
@@ -248,10 +248,10 @@ END
 FLOW_CONDITION initial
   UNITS Pa,C,M,yr
   TYPE
-    PRESSURE hydrostatic
-    TEMPERATURE dirichlet
-    CONCENTRATION dirichlet
-    ENTHALPY dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
+    CONCENTRATION DIRICHLET
+    ENTHALPY DIRICHLET
   /
   DATUM 0.d0 0.d0 1000.d0
   GRADIENT
@@ -269,10 +269,10 @@ FLOW_CONDITION src
   SYNC_TIMESTEP_WITH_UPDATE
   TYPE
     RATE mass_rate
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
-    CONCENTRATION dirichlet
-    ENTHALPY dirichlet
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+    CONCENTRATION DIRICHLET
+    ENTHALPY DIRICHLET
   /
   RATE LIST
     TIME_UNITS y

@@ -30,7 +30,7 @@ SUBSURFACE
 
 !=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 10 1 20      
   DXYZ
     10.d0 # [m]

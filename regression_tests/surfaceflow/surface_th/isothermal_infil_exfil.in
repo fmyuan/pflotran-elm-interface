@@ -34,7 +34,7 @@ REGRESSION
 END
 #=========================== discretization ===========================
 GRID
-  TYPE unstructured ./mesh_simple1D.h5
+  TYPE UNSTRUCTURED ./mesh_simple1D.h5
 END
 REGION all
   COORDINATES
@@ -57,8 +57,8 @@ END
 #=========================== flow conditions ==========================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 1.d0
   TEMPERATURE 10.d0
@@ -66,7 +66,7 @@ END
 FLOW_CONDITION from_surface
   TYPE
     PRESSURE heterogeneous_surface_seepage
-    TEMPERATURE heterogeneous_dirichlet
+    TEMPERATURE HETEROGENEOUS_DIRICHLET
   /
   PRESSURE 101325.d0
   TEMPERATURE 10.d0
@@ -74,15 +74,15 @@ END
 FLOW_CONDITION from_atm_subsurface
   TYPE
     PRESSURE neumann
-    TEMPERATURE heterogeneous_dirichlet
+    TEMPERATURE HETEROGENEOUS_DIRICHLET
   /
   FLUX 0.d0
   TEMPERATURE 10.d0
 END
 FLOW_CONDITION cycle
   TYPE
-    PRESSURE hydrostatic
-    TEMPERATURE dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
   /
   INTERPOLATION linear
   CYCLIC
@@ -163,7 +163,7 @@ SURFACE
 
 SURFACE_FLOW
 SURF_GRID
-  TYPE unstructured ./mesh_simple1D.h5
+  TYPE UNSTRUCTURED ./mesh_simple1D.h5
 END
 SURF_FLOW_FORMULATION diffusive
 SURF_SUBSURFACE_COUPLING
@@ -192,7 +192,7 @@ END
 SURF_FLOW_CONDITION atm_rain_forcing
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0.d0
   TEMPERATURE 10.d0
@@ -200,15 +200,15 @@ END
 SURF_FLOW_CONDITION atm_energy_forcing
   TYPE
     RATE volumetric_rate
-    TEMPERATURE heterogeneous_dirichlet
+    TEMPERATURE HETEROGENEOUS_DIRICHLET
   /
   RATE 0.d0
   TEMPERATURE 10.d0
 END
 SURF_FLOW_CONDITION surf_initial
   TYPE
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 101325.d0
   TEMPERATURE 10.d0

@@ -131,16 +131,24 @@ subroutine DebugRead(debug,input,option)
         debug%matview_Jacobian_detailed = PETSC_TRUE
       case('PRINT_NUMERICAL_DERIVATIVES','VIEW_NUMERICAL_DERIVATIVES')
         debug%print_numerical_derivatives = PETSC_TRUE
-      case('WAYPOINTS')
+      case('PRINT_WAYPOINTS')
         debug%print_waypoints = PETSC_TRUE
-      case('BINARY_FORMAT')
-        debug%output_format = DEBUG_BINARY_FORMAT
       case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
         debug%verbose_filename = PETSC_TRUE
-      case('MATLAB_FORMAT')
-        debug%output_format = DEBUG_MATLAB_FORMAT
-      case('NATIVE_FORMAT','PARALLEL_FORMAT')
-        debug%output_format = DEBUG_NATIVE_FORMAT
+      case('FORMAT')
+        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword','DEBUG,FORMAT')   
+        call StringToUpper(keyword)
+        select case(keyword)
+          case('ASCII')
+            debug%output_format = DEBUG_ASCII_FORMAT
+          case('BINARY')
+            debug%output_format = DEBUG_BINARY_FORMAT
+          case('MATLAB')
+            debug%output_format = DEBUG_MATLAB_FORMAT
+          case('NATIVE','PARALLEL')
+            debug%output_format = DEBUG_NATIVE_FORMAT
+        end select
       case default
         call InputKeywordUnrecognized(keyword,'DEBUG',option)
     end select 

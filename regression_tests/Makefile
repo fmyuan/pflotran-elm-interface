@@ -43,6 +43,7 @@ STANDARD_CFG = \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
 	default/batch/batch.cfg \
+	default/debug/debug.cfg \
 	default/eos/eos.cfg \
 	default/dispersion/dispersion.cfg \
 	default/materials/materials.cfg \

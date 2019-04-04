@@ -115,6 +115,7 @@ class RegressionTest(object):
         self._num_failed = 0
         self._test_name = None
         self._ascii_output_filenames = None
+        self._output_files = None
         # assign default tolerances for different classes of variables
         # absolute min and max thresholds for determining whether to
         # compare to baseline, i.e. if (min_threshold <= abs(value) <=
@@ -386,7 +387,19 @@ class RegressionTest(object):
             if h5py is not None:
                 self._check_hdf5(status, testlog)
             else:
-                print("    h5py not in python path. Skipping hdf5 check.", file=testlog)
+                print("    h5py not in python path. Skipping hdf5 check.",
+                      file=testlog)
+
+        if self._output_files is not None:
+            filenames = self._output_files.split(',')
+            for current_filename in filenames:
+                if not os.path.isfile(current_filename):
+                    message = self._txtwrap.fill(
+                        "FAIL: could not find expected output file "
+                        "'{0}'. Please check simulation output for "
+                        "errors.".format(current_filename))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    status.fail = 1
 
     def _check_gold(self, status, run_id, testlog):
         """
@@ -1076,8 +1089,13 @@ class RegressionTest(object):
         if timeout:
             self._timeout = float(timeout[0])
 
+        # compare these ascii output files wiht gold standards
         self._ascii_output_filenames = test_data.pop('compare_ascii_output', 
                                                      None)
+
+        # list of output files that must exist at end of simulation
+        self._output_files = test_data.pop('output_files_must_exist', 
+                                           None)
 
         self._set_criteria(self._TIME, cfg_criteria, test_data)
 

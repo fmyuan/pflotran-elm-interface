@@ -2053,7 +2053,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       do ikinrxn = 1, surface_complexation%nkinsrfcplxrxn
         irxn = surface_complexation%kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
         isite = surface_complexation%srfcplxrxn_to_surf(irxn)
-        rt_auxvar%kinsrfcplx_free_site_conc(isite) = surface_complexation%srfcplxrxn_site_density(isite)
+        rt_auxvar%kinsrfcplx_free_site_conc(isite) = &
+          surface_complexation%srfcplxrxn_site_density(isite)
         ncplx = surface_complexation%srfcplxrxn_to_complex(0,irxn)
         do k = 1, ncplx ! ncplx in rxn
           icplx = surface_complexation%srfcplxrxn_to_complex(k,irxn)
@@ -2364,13 +2365,13 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
 
     write(option%fid_out,90)
 
-    102 format(/,'  primary               free        total')  
-    103 format('  species               molal       molal       act coef     constraint')  
+    102 format(/,'  primary                   free        total')  
+    103 format('  species                   molal       molal       act coef     constraint')  
     write(option%fid_out,102)
     write(option%fid_out,103)
     write(option%fid_out,90)
   
-    104 format(2x,a20,es12.4,es12.4,es12.4,4x,a)
+    104 format(2x,a24,es12.4,es12.4,es12.4,4x,a)
     do icomp = 1, reaction%naqcomp
       select case(aq_species_constraint%constraint_type(icomp))
         case(CONSTRAINT_NULL,CONSTRAINT_TOTAL)
@@ -2420,10 +2421,10 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       if (finished) exit
     enddo
             
-    110 format(/,'  complex               molality    act coef        logK')  
+    110 format(/,'  complex                   molality    act coef        logK')
     write(option%fid_out,110)
     write(option%fid_out,90)
-    111 format(2x,a20,es12.4,es12.4,2x,es12.4)
+    111 format(2x,a24,es12.4,es12.4,2x,es12.4)
     do i = 1, reaction%neqcplx ! for each secondary species
       icplx = eqcplxsort(i)
       write(option%fid_out,111) reaction%secondary_species_names(icplx), &
@@ -2435,9 +2436,9 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     !print speciation precentages
     write(option%fid_out,92)
     92 format(/)
-    134 format(2x,'complex species       percent   molality')
-    135 format(2x,'primary species: ',a20,2x,' total conc: ',1pe12.4)
-    136 format(2x,a20,2x,f6.2,2x,1pe12.4,1p2e12.4)
+    134 format(2x,'complex species           percent   molality')
+    135 format(2x,'primary species: ',a24,2x,' total conc: ',1pe12.4)
+    136 format(2x,a24,2x,f6.2,2x,1pe12.4,1p2e12.4)
     do icomp = 1, reaction%naqcomp
     
       eqcplxsort = 0
@@ -2572,9 +2573,9 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     enddo
     deallocate(eqsrfcplxsort)
 
-    120 format(/,'  surf complex          mol/m^3 blk logK')  
-    121 format(2x,a20,es12.4,es12.4)
-    122 format(2x,a20,es12.4,'  free site')
+    120 format(/,'  surf complex              mol/m^3 blk logK')  
+    121 format(2x,a24,es12.4,es12.4)
+    122 format(2x,a24,es12.4,'  free site')
 
 #if 0    
     write(option%fid_out,120)
@@ -2621,8 +2622,8 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
         enddo
         write(option%fid_out,124) reaction%primary_species_names(j),retardation
       enddo
-      123 format(/,'  primary species  retardation')  
-      124 format(2x,a12,4x,1pe12.4)
+      123 format(/,'  primary species          retardation')  
+      124 format(2x,a24,1pe12.4)
 
 #ifdef DOUBLE_LAYER
       call ReactionDoubleLayer (constraint_coupler,reaction,option)
@@ -2670,9 +2671,9 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       write(option%fid_out,129) reaction%primary_species_names(jcomp), &
         totj,retardation
     enddo
-   1128 format(/,2x,'primary species     total(aq+sorbed)    total retardation', &
-               /,25x,'[mol/L]',15x,'1+Kd')
-    129 format(2x,a12,8x,1pe12.4,8x,1pe12.4)
+   1128 format(/,2x,'primary species         total(aq+sorbed)    total retardation', &
+               /,29x,'[mol/L]',15x,'1+Kd')
+    129 format(2x,a24,1pe12.4,8x,1pe12.4)
   endif
   
   if (mineral_reaction%nmnrl > 0) then

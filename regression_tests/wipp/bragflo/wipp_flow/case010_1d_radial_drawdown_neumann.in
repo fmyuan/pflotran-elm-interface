@@ -40,7 +40,7 @@ END
 
 !=========================== discretization ===================================
 GRID
-  TYPE structured cylindrical
+  TYPE STRUCTURED CYLINDRICAL
   NXYZ 50 1 1
   DXYZ
     1.0000000E-02  2.0679264E-03  2.4955584E-03  3.0116215E-03  3.6344026E-03 \

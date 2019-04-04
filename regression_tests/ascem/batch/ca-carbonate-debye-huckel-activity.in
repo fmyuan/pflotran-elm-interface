@@ -69,7 +69,7 @@ LINEAR_SOLVER TRANSPORT
 
 #=========================== discretization ===================================
 GRID
-TYPE structured
+TYPE STRUCTURED
 ORIGIN 0.d0 0.d0 0.d0
 NXYZ 1 1 1
 BOUNDS
@@ -113,7 +113,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-TYPE zero_gradient
+TYPE ZERO_GRADIENT
 CONSTRAINT_LIST
 0.d0 initial
 /

@@ -37,7 +37,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured_polyhedra ./mixed.ugp
+  TYPE UNSTRUCTURED_polyhedra ./mixed.ugp
 END
 
 #=========================== solver options ===================================
@@ -140,7 +140,7 @@ noskip
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 2.5d0
   PRESSURE 101325.d0
@@ -148,7 +148,7 @@ END
 
 FLOW_CONDITION west
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM list
     TIME_UNITS d
@@ -177,7 +177,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT initial
     CONCENTRATIONS
       Tracer  1.d-10  T
@@ -188,7 +188,7 @@ TRANSPORT_CONDITION initial
 END
 
 TRANSPORT_CONDITION tracer1
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT tracer1
     CONCENTRATIONS
       Tracer  1.d-3  T
@@ -199,7 +199,7 @@ TRANSPORT_CONDITION tracer1
 END
 
 TRANSPORT_CONDITION tracer2
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT tracer2
     CONCENTRATIONS
       Tracer  1.d-10 T
@@ -210,7 +210,7 @@ TRANSPORT_CONDITION tracer2
 END
 
 TRANSPORT_CONDITION tracer3
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT tracer3
     CONCENTRATIONS
       Tracer  1.d-10 T

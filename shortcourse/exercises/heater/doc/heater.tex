@@ -127,7 +127,8 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL \bluecomment{! two-phase flow and energy}
       OPTIONS
-        ANALYTICAL_DERIVATIVES
+        ANALYTICAL_JACOBIAN
+	USE_INFINITY_NORM_CONVERGENCE
       /   
     /   
   /

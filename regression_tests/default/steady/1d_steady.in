@@ -33,7 +33,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 100 1 1 
   BOUNDS
@@ -113,14 +113,14 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE dirichlet 
+    PRESSURE DIRICHLET 
   /
   PRESSURE 101325.d0
 END
 
 FLOW_CONDITION west 
   TYPE
-    PRESSURE dirichlet 
+    PRESSURE DIRICHLET 
   /
   PRESSURE 201325.d0
 END

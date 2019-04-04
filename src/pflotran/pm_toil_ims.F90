@@ -16,7 +16,7 @@ module PM_TOilIms_class
     PetscInt, pointer :: max_change_isubvar(:)
   contains
     ! all the routines below needs to be replaced, uncomment as I develop them
-    procedure, public :: Read => PMTOilImsRead
+    procedure, public :: ReadSimulationBlock => PMTOilImsRead
     procedure, public :: InitializeRun => PMTOilImsInitializeRun
     procedure, public :: InitializeTimestep => PMTOilImsInitializeTimestep
     procedure, public :: Residual => PMTOilImsResidual
@@ -471,7 +471,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Option_module
   use Patch_module
   use AuxVars_TOilIms_module
-  use Appleyard_module
 
   implicit none
   
@@ -608,18 +607,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     saturation0 = X_p(saturation_index)
     saturation1 = saturation0 - del_saturation
 
-
-#if 0
-    !! appleyard for scaling
-    del_sat_cand = del_saturation
-    call TOilAppleyard(saturation0, del_sat_cand, ghosted_id, this%realization, lid, oid)
-    if (del_saturation /= del_sat_cand) then
-       temp_real = dabs(del_sat_cand/del_saturation)
-       temp_scale = min(temp_scale,temp_real)
-    endif
-#endif
-
-
 #ifdef LIMIT_MAX_PRESSURE_CHANGE
     if (dabs(del_pressure) > toil_ims_max_pressure_change) then
       temp_real = dabs(toil_ims_max_pressure_change/del_pressure)
@@ -656,23 +643,6 @@ subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   if (scale < 0.9999d0) then
     dX_p = scale*dX_p
   endif
-
-#if 0
-  ! post scaling appleyard chopping
-  if (toil_appleyard) then
-    do local_id = 1, grid%nlmax
-
-      ghosted_id = grid%nL2G(local_id)
-      offset = (local_id-1)*option%nflowdof
-      saturation_index = offset + TOIL_IMS_SATURATION_DOF
-      del_saturation = dX_p(saturation_index)
-      saturation0 = X_p(saturation_index)
-
-      call TOilAppleyard(saturation0, dX_p(saturation_index), ghosted_id, this%realization, lid, oid)
-
-    enddo
-  endif
-#endif
 
   call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)

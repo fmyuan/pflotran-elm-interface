@@ -28,7 +28,7 @@ END
 #=========================== discretization ===================================
 ! PV=25000.10.10.2.0.1=0.5D6 rm3
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -1020.d0
   NXYZ 5 5 5
   DXYZ
@@ -257,7 +257,7 @@ END
 FLOW_CONDITION gas_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0.0 0.0 200 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -266,7 +266,7 @@ FLOW_CONDITION gas_injector_cond
 FLOW_CONDITION water_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 300 0.0 0 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -275,11 +275,11 @@ FLOW_CONDITION water_injector_cond
 
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-   ! GAS_SATURATION dirichlet
-    BUBBLE_POINT dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+   ! GAS_SATURATION DIRICHLET
+    BUBBLE_POINT DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   OIL_PRESSURE  20.0D6 !200bars
   OIL_SATURATION 0.93d0

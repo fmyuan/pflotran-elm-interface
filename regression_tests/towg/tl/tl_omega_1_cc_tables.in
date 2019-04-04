@@ -32,7 +32,7 @@ END
 
 ! PV~10E5 m3
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -1000.d0
   NXYZ 10 1 1
   DXYZ
@@ -209,7 +209,7 @@ noskip
 FLOW_CONDITION gas_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0.0000000 0.000000 100 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -218,10 +218,10 @@ FLOW_CONDITION gas_injector_cond
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   OIL_PRESSURE 20.0D6 !200bars
   OIL_SATURATION 1.0d0 !With this accounts for connate water

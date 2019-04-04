@@ -30,7 +30,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 30 1 1 
   BOUNDS
@@ -205,9 +205,9 @@ END
 FLOW_CONDITION initial_press
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 17.0D6 !170bars 
   OIL_SATURATION 0.85d0 !With this accounts for connate water 
@@ -217,9 +217,9 @@ FLOW_CONDITION initial_press
 FLOW_CONDITION inject_press
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 30.0D6 !300bars 
   OIL_SATURATION 0.15d0 !model a water injector
@@ -229,9 +229,9 @@ FLOW_CONDITION inject_press
 FLOW_CONDITION prod_press
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 10.0D6 !100bars 
   OIL_SATURATION 0.65d0 !model a well with water and oil  both mobile

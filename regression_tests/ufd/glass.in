@@ -114,7 +114,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 1 1 3
   BOUNDS
     0.d0 0.d0 0.d0
@@ -184,14 +184,14 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE dirichlet
+    PRESSURE DIRICHLET
   /
   PRESSURE 201325 Pa
 END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION groundwater
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 groundwater
   /

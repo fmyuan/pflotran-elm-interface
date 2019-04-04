@@ -168,7 +168,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
     call PCApply(amg_pc,s,z,ierr); CHKERRQ(ierr)
 
     if (ctx%amg_report) then
-      call PCView(amg_pc, PETSC_VIEWER_STDOUT_SELF, ierr);CHKERRQ(ierr)
+      call PCView(amg_pc, PETSC_VIEWER_STDOUT_WORLD, ierr);CHKERRQ(ierr)
     endif
   endif
 
@@ -674,12 +674,12 @@ subroutine DeallocateWorkersInCPRStash(ctx)
 
   type(cpr_pc_type) :: ctx
 
-  deallocate(ctx%vals)
-  deallocate(ctx%insert_vals)
-  deallocate(ctx%colIdx)
-  deallocate(ctx%colIdx_keep)
-  deallocate(ctx%insert_colIdx)
-  deallocate(ctx%all_vals)
+  if (allocated(ctx%vals))deallocate(ctx%vals)
+  if (allocated(ctx%insert_vals))deallocate(ctx%insert_vals)
+  if (allocated(ctx%colIdx))deallocate(ctx%colIdx)
+  if (allocated(ctx%colIdx_keep))deallocate(ctx%colIdx_keep)
+  if (allocated(ctx%insert_colIdx))deallocate(ctx%insert_colIdx)
+  if (allocated(ctx%all_vals))deallocate(ctx%all_vals)
 
   !! also the pointers:
   nullify(ctx%option)
