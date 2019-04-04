@@ -5820,7 +5820,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
 
   select case(ivar)
     case(TEMPERATURE,LIQUID_PRESSURE,GAS_PRESSURE, &
-         LIQUID_SATURATION,GAS_SATURATION,ICE_SATURATION, &
+         LIQUID_SATURATION,GAS_SATURATION,ICE_SATURATION,HYDRATE_SATURATION, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
@@ -6164,6 +6164,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(EFFECTIVE_POROSITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       effective_porosity
+          case(ICE_SATURATION)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      sat(option%ice_phase)
+          case(HYDRATE_SATURATION)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      sat(option%hydrate_phase)
         end select
 
       else if (associated(patch%aux%WIPPFlo)) then

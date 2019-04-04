@@ -162,4 +162,6 @@ module Variables_module
   PetscInt, parameter, public :: LIQUID_REL_PERM         = 131
   PetscInt, parameter, public :: GAS_REL_PERM            = 132
 
+  PetscInt, parameter, public :: HYDRATE_SATURATION      = 133
+
 end module Variables_module
