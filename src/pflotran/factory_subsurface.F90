@@ -1735,7 +1735,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  PetscInt :: ci,cj,ck,ckl,cku
+  PetscInt :: ci,cj,ck,ckl,cku,ckll,ckuu
   PetscBool :: found
   PetscBool,parameter::cijk_d_true =PETSC_TRUE
   PetscBool,parameter::cijk_d_false=PETSC_FALSE
@@ -1789,7 +1789,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputErrorMsg(input,option,'cijk KL','WELL_DATA')
           call InputReadInt(input,option,cku)
           call InputErrorMsg(input,option,'cijk KU','WELL_DATA')
-          do ck=ckl,cku
+          ckll=min(ckl,cku)
+          ckuu=max(ckl,cku)
+          do ck=ckll,ckuu
             call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_false,qerr)
           enddo
           if( qerr ) then
@@ -1809,7 +1811,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputErrorMsg(input,option,'cijk_d KL','WELL_DATA')
           call InputReadInt(input,option,cku)
           call InputErrorMsg(input,option,'cijk_d KU','WELL_DATA')
-          do ck=ckl,cku
+          ckll=min(ckl,cku)
+          ckuu=max(ckl,cku)
+          do ck=ckll,ckuu
             call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_true,qerr)
           enddo
           if( qerr ) then
@@ -2018,7 +2022,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: energy_flowrate
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
-  PetscBool :: bool_flag
+  PetscBool :: bool_flag,unsupported_output
 
   PetscInt :: flag1, flag2
 
@@ -2276,7 +2280,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call WellDataSetFlag()
         well_data => WellDataCreate()
         call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'WELL_SPEC','name')
+        call InputErrorMsg(input,option,'WELL_DATA','name')
         call printMsg(option,well_data%w_name)
         nwaytime = 0
         mwaytime = 1
@@ -3308,7 +3312,15 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         if (associated(grid%unstructured_grid)) then
           if (associated(grid%unstructured_grid%explicit_grid)) then
-            if ( (.not.output_option%print_hdf5) .and.  &
+            if( output_option%write_ecl .or. option%linerept ) then
+              unsupported_output =       output_option%print_mad &
+                                    .or. output_option%print_tecplot &
+                                    .or. output_option%print_vtk
+            else
+              unsupported_output = .not.output_option%print_hdf5
+            endif
+
+            if ( unsupported_output .and.  &
                  (grid%unstructured_grid%explicit_grid%output_mesh_type == &
                  CELL_CENTERED_OUTPUT_MESH) &
                ) then

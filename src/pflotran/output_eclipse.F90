@@ -104,7 +104,7 @@ module Output_Eclipse_module
 
 contains
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 subroutine SelectFormattedFiles()
   !
@@ -119,7 +119,7 @@ subroutine SelectFormattedFiles()
 
 end subroutine SelectFormattedFiles
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, &
                                  coord, zcorn, gtoa, nw, mcpw)
@@ -199,7 +199,7 @@ subroutine WriteEclipseFilesGrid(efilename, nx, ny, nz, &
 
 end subroutine WriteEclipseFilesGrid
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteEclipseFilesInit(kx, ky, kz, mx, my, mz, &
                                  depth, poro, ntg, bvol, gtoa, atoc)
@@ -231,7 +231,7 @@ subroutine WriteEclipseFilesInit(kx, ky, kz, mx, my, mz, &
 
 end subroutine WriteEclipseFilesInit
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 subroutine WriteEclipseFilesSpec(zm, zn, zu, ni)
   !
@@ -243,7 +243,7 @@ subroutine WriteEclipseFilesSpec(zm, zn, zu, ni)
   implicit none
 
   character(len = 8), intent(in) :: zm(:), zn(:), zu(:)
-  PetscInt, intent(in):: ni
+  PetscInt, intent(in) :: ni
 
   if (e_opened) then
 
@@ -259,7 +259,7 @@ subroutine WriteEclipseFilesSpec(zm, zn, zu, ni)
 
 end subroutine WriteEclipseFilesSpec
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteEclipseFilesSumm(vd, nd)
   !
@@ -288,9 +288,9 @@ subroutine WriteEclipseFilesSumm(vd, nd)
 
 end subroutine WriteEclipseFilesSumm
 
-!*****************************************************************************!
+! *************************************************************************** !
 
-subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, tconv, time, is_ioproc, &
+subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, time, is_ioproc, &
                                   wname, wtype, wncmpl, &
                                   ixcmpl, iycmpl, izcmpl, idcmpl, option)
   !
@@ -309,7 +309,7 @@ subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, tconv, time, is_ioproc, &
   PetscReal, pointer :: vsoll(:,:)
   PetscInt           :: nsol
   character(len = 8), pointer :: zsol(:)
-  PetscReal, intent(in) :: tconv, time
+  PetscReal, intent(in) :: time
   PetscBool, intent(in) :: is_ioproc
   character(len = 8), intent(in) :: wname(:)
   PetscInt, intent(in) :: wtype(:), wncmpl(:), &
@@ -318,7 +318,7 @@ subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, tconv, time, is_ioproc, &
 
   ! Write the file
 
-  call WriteRestFile( vsoll, nsol, zsol, tconv, time, is_ioproc, &
+  call WriteRestFile( vsoll, nsol, zsol, time, is_ioproc, &
                       wname, wtype, wncmpl, &
                       ixcmpl, iycmpl, izcmpl, idcmpl, option )
 
@@ -328,7 +328,7 @@ subroutine WriteEclipseFilesRest( vsoll, nsol, zsol, tconv, time, is_ioproc, &
 
 end subroutine WriteEclipseFilesRest
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine SetProblemSize(nx, ny, nz, nw, ncpw)
   !
@@ -361,7 +361,7 @@ subroutine SetProblemSize(nx, ny, nz, nw, ncpw)
 
 end subroutine SetProblemSize
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
   !
@@ -373,7 +373,7 @@ subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
   implicit none
 
   character(len = 8), intent(in) :: vmnem(:), vwgname(:), vunits(:)
-  PetscInt, intent(in):: ni
+  PetscInt, intent(in) :: ni
 
   PetscInt, parameter :: nDimens    = 6
   PetscInt, parameter :: nStartData = 6
@@ -424,7 +424,7 @@ subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
 
 end subroutine WriteSpecFile
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteSummFile(vd, nd)
   !
@@ -465,7 +465,7 @@ subroutine WriteSummFile(vd, nd)
 
 end subroutine WriteSummFile
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteGridFile(coord, zcorn, gtoa)
   !
@@ -577,7 +577,7 @@ subroutine WriteGridFile(coord, zcorn, gtoa)
 
 end subroutine WriteGridFile
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteInitFile(kx, ky, kz, &
                          mx, my, mz, depth, poro, ntg, bvol, gtoa, atoc)
@@ -705,9 +705,9 @@ subroutine WriteInitFile(kx, ky, kz, &
 
 end subroutine WriteInitFile
 
-!*****************************************************************************!
+! *************************************************************************** !
 
-subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
+subroutine WriteRestFile(vsoll, nsol, zsol, time, is_ioproc, &
                          wname, wtype, wncmpl, &
                          ixcmpl, iycmpl, izcmpl, idcmpl, option)
   !
@@ -725,7 +725,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
   PetscReal, pointer        :: vsoll(:,:)
   PetscInt                  :: nsol
   character(len = 8), pointer :: zsol(:)
-  PetscReal :: tconv, time, tdays
+  PetscReal :: time, tdays
   PetscBool, intent(in)       :: is_ioproc
   character(len = 8), intent(in) :: wname(:)
   PetscInt, intent(in) :: wtype(:), wncmpl(:), &
@@ -742,7 +742,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
   PetscReal, allocatable :: varr(:)
   PetscReal, allocatable :: vbuf(:)
 
-  PetscReal :: conv
+  PetscReal :: conv, tconv
   PetscBool :: is_pressure
 
   PetscInt :: isol, hours, mins, microsecs, years, months, days, &
@@ -759,6 +759,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
   lioproc = ioproc+1
   liproct = iproct+1
   nproc   = option%mycommsize
+  tconv   = 3600.0*24.0
 
   ! Write headers and wells on the I/O proc only
 
@@ -863,7 +864,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, tconv, time, is_ioproc, &
 
 end subroutine WriteRestFile
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
   !
@@ -873,7 +874,7 @@ subroutine WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
   ! Date: 01/15/19
 
   use String_module
-  use Well_Type_class
+  use Well_Type_Class
 
   implicit none
 
@@ -1100,7 +1101,7 @@ subroutine WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
 
 end subroutine WriteWells
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteBlockI(a, mnem, n)
   !
@@ -1133,7 +1134,7 @@ subroutine WriteBlockI(a, mnem, n)
 
     do il = 1, n, blksize
       iu = min(il+blksize-1, n)
-      write(e_fileunit,'(6(1x,i11))') (a(j), j = il, iu)
+      write(e_fileunit, '(6(1x,i11))') (a(j), j = il, iu)
     enddo
 
   else
@@ -1161,7 +1162,7 @@ subroutine WriteBlockI(a, mnem, n)
 
 end subroutine WriteBlockI
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteBlockS(a, mnem, n)
   !
@@ -1194,7 +1195,7 @@ subroutine WriteBlockS(a, mnem, n)
 
     do il = 1, n, blksize
       iu = min(il+blksize-1, n)
-      write(e_fileunit,'(4(1x,e16.8))') (a(j), j = il, iu)
+      write(e_fileunit, '(4(1x,e16.8))') (a(j), j = il, iu)
     enddo
 
   else
@@ -1222,7 +1223,7 @@ subroutine WriteBlockS(a, mnem, n)
 
 end subroutine WriteBlockS
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteBlockD(a, mnem, n)
   !
@@ -1255,7 +1256,7 @@ subroutine WriteBlockD(a, mnem, n)
 
     do il = 1, n, blksize
       iu = min(il+blksize-1, n)
-      write(e_fileunit,'(3(1x,e22.14))') (a(j), j = il,iu)
+      write(e_fileunit, '(3(1x,e22.14))') (a(j), j = il,iu)
     enddo
 
   else
@@ -1284,7 +1285,7 @@ subroutine WriteBlockD(a, mnem, n)
 
 end subroutine WriteBlockD
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteBlockB(a, mnem, n)
   !
@@ -1317,7 +1318,7 @@ subroutine WriteBlockB(a, mnem, n)
 
     do il = 1, n, blksize
       iu = min(il+blksize-1, n)
-      write(e_fileunit,'(25(1X,L2))') (a(j), j = il,iu)
+      write(e_fileunit, '(25(1X,L2))') (a(j), j = il,iu)
     enddo
 
   else
@@ -1335,7 +1336,7 @@ subroutine WriteBlockB(a, mnem, n)
       ! Copy to buffer
       call CopyToBufferB(a, ibuf, il, iu)
       ! Write out the record
-      write(e_fileunit) (ibuf(j), j = 1,ninrec)
+      write(e_fileunit) (ibuf(j), j = 1, ninrec)
     enddo
 
     ! Delete the buffer
@@ -1345,7 +1346,7 @@ subroutine WriteBlockB(a, mnem, n)
 
 end subroutine WriteBlockB
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteBlockC(a, mnem, n)
   !
@@ -1365,7 +1366,7 @@ subroutine WriteBlockC(a, mnem, n)
 
   PetscInt :: il, iu, j, irec, nrec, ninrec
 
-10 format(7(1X,"'",A8, "'"))
+10 format(7(1X, "'", A8, "'"))
 
   ! Write out an integer header line or record
 
@@ -1379,7 +1380,7 @@ subroutine WriteBlockC(a, mnem, n)
 
     do il = 1, n, blksize
       iu = min(il+blksize-1, n)
-      write(e_fileunit,10) (a(j), j = il,iu)
+      write(e_fileunit, 10) (a(j), j = il,iu)
     enddo
 
   else
@@ -1391,14 +1392,14 @@ subroutine WriteBlockC(a, mnem, n)
   ! Get record details
       call GetRecordDetails(irec, n, mrecsize, il, iu, ninrec)
   ! Write out the record
-      write(e_fileunit) (a(j), j = il,iu)
+      write(e_fileunit) (a(j), j = il, iu)
     enddo
 
   endif
 
 end subroutine WriteBlockC
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine WriteHeader(itype, mnem, n)
   !
@@ -1417,7 +1418,7 @@ subroutine WriteHeader(itype, mnem, n)
   PetscInt, intent(in) :: n
   integer(kind = int32) :: n4
 
-10 format(1X,"'",A8,"'",1X,I11,1X,"'",A4,"'")
+10 format(1X, "'", A8, "'", 1X, I11, 1X, "'", A4, "'")
 
   zmnem8 = mnem
 
@@ -1438,7 +1439,7 @@ subroutine WriteHeader(itype, mnem, n)
 
 end subroutine WriteHeader
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine CmpToCNOBuf(buff, arr, porv, flip, conv)
   !
@@ -1476,7 +1477,7 @@ subroutine CmpToCNOBuf(buff, arr, porv, flip, conv)
 
 end subroutine CmpToCNOBuf
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine CopyToBufferI(a, ibuf, il, iu)
   !
@@ -1488,7 +1489,7 @@ subroutine CopyToBufferI(a, ibuf, il, iu)
   implicit none
 
   PetscInt, intent(in) :: a(:)
-  integer(kind = int32), intent(out):: ibuf(:)
+  integer(kind = int32), intent(out) :: ibuf(:)
   PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
@@ -1499,7 +1500,7 @@ subroutine CopyToBufferI(a, ibuf, il, iu)
 
 end subroutine CopyToBufferI
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine CopyToBufferS(a, sbuf, il, iu)
   !
@@ -1511,7 +1512,7 @@ subroutine CopyToBufferS(a, sbuf, il, iu)
   implicit none
 
   PetscReal, intent(in) :: a(:)
-  real(kind = real32), intent(out):: sbuf(:)
+  real(kind = real32), intent(out) :: sbuf(:)
   PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
@@ -1522,7 +1523,7 @@ subroutine CopyToBufferS(a, sbuf, il, iu)
 
 end subroutine CopyToBufferS
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine CopyToBufferD(a, dbuf, il, iu)
   !
@@ -1534,7 +1535,7 @@ subroutine CopyToBufferD(a, dbuf, il, iu)
   implicit none
 
   PetscReal, intent(in) :: a(:)
-  real(kind = real64), intent(out):: dbuf(:)
+  real(kind = real64), intent(out) :: dbuf(:)
   PetscInt, intent(in) :: il, iu
 
   PetscInt :: i
@@ -1545,7 +1546,7 @@ subroutine CopyToBufferD(a, dbuf, il, iu)
 
 end subroutine CopyToBufferD
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine CopyToBufferB(a, ibuf, il, iu)
   !
@@ -1572,7 +1573,7 @@ subroutine CopyToBufferB(a, ibuf, il, iu)
 
 end subroutine CopyToBufferB
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine GetRecordDetails(iRec, n, mInRec, il, iu, nInRec)
   !
@@ -1596,7 +1597,7 @@ subroutine GetRecordDetails(iRec, n, mInRec, il, iu, nInRec)
 
 end subroutine GetRecordDetails
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 function GetNumberOfRecords(n, mrecsize)
   !
@@ -1615,7 +1616,7 @@ function GetNumberOfRecords(n, mrecsize)
 
 end function GetNumberOfRecords
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine SetInteHead(intehead)
   !
@@ -1661,7 +1662,7 @@ subroutine SetInteHead(intehead)
 
 end subroutine SetInteHead
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine ReleaseEwriterBuffers()
   !
@@ -1688,7 +1689,7 @@ subroutine ReleaseEwriterBuffers()
 
 end subroutine ReleaseEwriterBuffers
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
   !
@@ -1794,7 +1795,7 @@ subroutine SetupRestMaps(ltoa, option, nlmax, mlmax)
 
 end subroutine SetupRestMaps
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 function GetMlmax()
   !
@@ -1811,7 +1812,7 @@ function GetMlmax()
 
 end function GetMlmax
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 subroutine GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
   !
@@ -1909,7 +1910,7 @@ subroutine GetYMDHMMS(tdays, years, months, days, hours, mins, microsecs)
 
 end subroutine GetYMDHMMS
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine DeleteAtoC()
   !
@@ -1927,7 +1928,7 @@ subroutine DeleteAtoC()
 
 end subroutine DeleteAtoC
 
-!*****************************************************************************!
+! *************************************************************************** !
 
 subroutine ThrowEwriterException(message)
   !

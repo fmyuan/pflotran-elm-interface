@@ -518,7 +518,7 @@ subroutine SolveWell(aux, option, well_data, r_p)
   PetscBool :: welltargetsfound
   PetscReal :: mw, sd, pw, jwwi, tactpw
   PetscInt  :: itertt, itt, jtt, rank, iphase, status
-  PetscBool :: possible, well_solution_set, onproc
+  PetscBool :: possible, well_solution_set, onproc, wellisdead
 
   ! Basic setup
 
@@ -529,6 +529,7 @@ subroutine SolveWell(aux, option, well_data, r_p)
   welllocationfound = PETSC_FALSE
   welltargetsfound  = PETSC_FALSE
   possible          = PETSC_FALSE
+  wellisdead        = PETSC_FALSE
 
   ws_nphase = option%nphase
   ws_ncomp  = option%nphase
@@ -761,7 +762,7 @@ subroutine SolveWell(aux, option, well_data, r_p)
     ! Loop over attempts to find the well target type
 
     do iterTT = 1, max_iterTT
-      finished = solveForWellTarget(pw, option, itt, jwwi)
+      finished = solveForWellTarget(well_data,pw, option, itt, jwwi,wellisdead)
       if (finished) exit
     enddo
 
@@ -769,49 +770,60 @@ subroutine SolveWell(aux, option, well_data, r_p)
 
     if (.not.finished) ws_unconv_t = ws_unconv_t + 1
 
+    if (wellisdead) then
+      call well_data%zeroActuals()
+      call well_data%zeroCmplFlows(w_ncmpl , ws_ncompe, &
+                                   w_ncmplg, ws_ndof  )
+    else
+
     ! Find full derivative of flows
 
-    call findFullFlowDerivatives(jwwi)
+      call findFullFlowDerivatives(jwwi)
 
     ! Update residual
 
-    call updateMainResidual(option, r_p)
+      call updateMainResidual(option, r_p)
 
     ! Get actuals for each target for this proc
     ! (will be globalised in well_data)
 
-    do jTT = 1, N_WELL_TT
-      ws_actuals(jTT) = &
-      getActualFlowForTargetType(pw, option, jTT, possible, tactpw)
-    enddo
+      do jtt = 1, N_WELL_TT
+        ws_actuals(jtt) = &
+        getActualFlowForTargetType(pw, option, jtt, possible, tactpw)
+      enddo
 
     ! Update stored well status
 
-    call well_data%setTT(itt)
-    call well_data%setNComp(ws_ncomp)
-    call well_data%setWellFlows(w_flows, ws_ncompe)
-    call well_data%setCmplFlows(c_flows, c_flowsxc, &
-                                w_ncmpl, ws_ncompe, &
-                                w_ncmplg, ws_ndof, ws_isothermal)
-    call well_data%setActuals(ws_actuals)
+      call well_data%setTT(itt)
+      call well_data%setNComp(ws_ncomp)
+      call well_data%setCmplFlows(c_flows, c_flowsxc, &
+                                  w_ncmpl, ws_ncompe, &
+                                  w_ncmplg, ws_ndof, ws_isothermal)
+      call well_data%setActuals(ws_actuals)
 
     ! Update stored well solution
 
-    call IncrementWellWarningCount(ws_unconv_t, ws_unconv_w, ws_unconv_b)
-    call well_data%SetWellSolution(pw, w_pb, w_sp, w_issat, w_trel)
-    call well_data%SetWellSolutionSet()
+      call IncrementWellWarningCount(ws_unconv_t, ws_unconv_w, ws_unconv_b)
+      call well_data%SetWellSolution(pw, w_pb, w_sp, w_issat, w_trel)
+      call well_data%SetWellSolutionSet()
+
+    endif
 
     ! Free the work arrays
 
     call freeWorkArrays()
 
+  else
+    call well_data%zeroActuals()
+    call well_data%zeroCmplFlows(w_ncmpl , ws_ncompe, &
+                                 w_ncmplg, ws_ndof  )
   endif
 
 end subroutine SolveWell
 
 ! *************************************************************************** !
 
-function solveForWellTarget(pw, option, itt, jwwi)
+function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
   !
   ! Solve for a given well target
   !
@@ -821,17 +833,19 @@ function solveForWellTarget(pw, option, itt, jwwi)
   implicit none
 
   PetscBool :: solveForWellTarget
+  class(well_data_type), pointer :: well_data
   PetscReal, intent(inout) :: pw
   type(option_type), pointer :: option
   PetscInt, intent(inout) :: itt
   PetscReal, intent(out)  :: jwwi
+  PetscBool, intent(out) :: wellisdead
 
-  PetscInt  :: iterpw, jTT, nconv, ierr
+  PetscInt  :: iterpw, jtt, nconv, ierr
   PetscBool :: finished, possible, usediff
   ! fpsc: flow with positive sign convention
   PetscReal :: conv_crit, rw, jww, fpsc, ftarg, pwtarg, &
                tactpw, eps, anal, diff, rat, rwe, &
-               bl(1), bg(1)
+               bl(1), bg(1), ftot
 
   ! Initialize
 
@@ -841,58 +855,7 @@ function solveForWellTarget(pw, option, itt, jwwi)
   rw        = 0.0
   jww       = 1.0
   usediff   = PETSC_FALSE
-
-  ! Set up a prediction value of the well gravity density
-
-  call findWellboreGravityDensityPredictor()
-
-  ! Do the iteration in pw for the well solution when on this target
-
-  finished = PETSC_FALSE
-  nconv    = 0
-  do iterpw = 1, max_iterPW
-
-    if (usediff) then
-      call getRwAndJw(option, itt, pw+eps, rwe, jww)
-      call getRwAndJw(option, itt, pw    , rw , jww)
-      anal = jww
-      diff = (rwe-rw)/eps
-      rat = (anal+1.0E-10)/(diff+1.0E-10)
-      if (abs(rat-1.0)>0.1) then
-        print *, 'ws_name, itt, pw, anal, diff, rat, rw ', &
-                  ws_name(1:10), itt, pw, anal, diff, rat, rw
-      endif
-    else
-      call getRwAndJw(option, itt, pw, rw, jww)
-    endif
-
-    if (w_crossproc) then
-      ierr = 0
-      bl(1) = Rw
-      call MPI_Allreduce(bl, bg, ONE_INTEGER, &
-                         MPI_DOUBLE_PRECISION, MPI_MAX, w_comm, ierr)
-      Rw = bg(1)
-    endif
-
-    if (abs(rw) < conv_crit) nconv = nconv+1
-    if (nconv > 1) then
-      finished = PETSC_TRUE
-      exit
-    endif
-    if (abs(jww)>0.0) then
-      jwwi = 1.0/jww
-    else
-      jwwi = 0.0
-    endif
-    pw = pw-rw*jwwi
-    if (pw < ws_pwmin) pw = ws_pwmin
-  enddo
-
-  ! Check for convergence error
-
-  if (.not.finished) ws_unconv_w = ws_unconv_w + 1
-
-  ! Check if all other targets satisfied
+  wellisdead = PETSC_FALSE
 
   pwtarg = ws_targets(W_BHP_LIMIT)
   if (pwtarg<0.0) then
@@ -900,34 +863,103 @@ function solveForWellTarget(pw, option, itt, jwwi)
     if (ws_isinjector) pwtarg = 1000.0*ws_atm
   endif
 
-  solveForWellTarget = PETSC_TRUE
-  do jTT = 1, N_WELL_TT
-    ! No need to check current type
-    if (jtt == itt) cycle
-    ! Case of bhp control
-    if (jTT == W_BHP_LIMIT) then
-      if (      (ws_isproducer .and. ( pw < 0.999999*pwtarg )) &
-           .or. (ws_isinjector .and. ( pw > 1.000001*pwtarg ))) then
-        ! Switch to bhp control
-        itt = jtt
-        solveForWellTarget = PETSC_FALSE
+  ! Set up a prediction value of the well gravity density
+
+  call findWellboreGravityDensityPredictor()
+
+  ! Check that the well is active by finding total rate (allowing for sign)
+
+  call getRwAndJw(option, W_BHP_LIMIT, pwtarg, rw, jww)
+  ftot = w_sign*( getActualFlowForTargetType(pwtarg, option, W_TARG_OSV, &
+                  possible, tactpw) &
+                 +getActualFlowForTargetType(pwtarg, option, W_TARG_GSV, &
+                  possible, tactpw) &
+                 +getActualFlowForTargetType(pwtarg, option, W_TARG_WSV, &
+                  possible, tactpw) &
+                 +getActualFlowForTargetType(pwtarg, option, W_TARG_SSV, &
+                  possible, tactpw) )
+  if (ftot < 0.0) wellisdead = PETSC_TRUE
+  if (wellisdead) then
+   solveForWellTarget = PETSC_TRUE
+  else
+
+  ! Do the iteration in pw for the well solution when on this target
+
+    finished = PETSC_FALSE
+    nconv    = 0
+    do iterpw = 1, max_iterPW
+
+      if (usediff) then
+        call getRwAndJw(option, itt, pw+eps, rwe, jww)
+        call getRwAndJw(option, itt, pw    , rw , jww)
+        anal = jww
+        diff = (rwe-rw)/eps
+        rat = (anal+1.0E-10)/(diff+1.0E-10)
+        if (abs(rat-1.0)>0.1) then
+          print *, 'ws_name, itt, pw, anal, diff, rat, rw ', &
+                    ws_name(1:10), itt, pw, anal, diff, rat, rw
+        endif
+      else
+        call getRwAndJw(option, itt, pw, rw, jww)
       endif
-    else
+
+      if (w_crossproc) then
+        ierr = 0
+        bl(1) = Rw
+        call MPI_Allreduce(bl, bg, ONE_INTEGER, &
+                           MPI_DOUBLE_PRECISION, MPI_MAX, w_comm, ierr)
+        Rw = bg(1)
+      endif
+
+      if (abs(rw) < conv_crit) nconv = nconv+1
+      if (nconv > 1) then
+        finished = PETSC_TRUE
+        exit
+      endif
+      if (abs(jww)>0.0) then
+        jwwi = 1.0/jww
+      else
+        jwwi = 0.0
+      endif
+      pw = pw-rw*jwwi
+      if (pw < ws_pwmin) pw = ws_pwmin
+    enddo
+
+  ! Check for convergence error
+
+    if (.not.finished) ws_unconv_w = ws_unconv_w + 1
+
+  ! Check if all other targets satisfied
+
+    solveForWellTarget = PETSC_TRUE
+    do jtt = 1, N_WELL_TT
+      ! No need to check current type
+      if (jtt == itt) cycle
+      ! Case of bhp control
+      if (jtt == W_BHP_LIMIT) then
+        if (      (ws_isproducer .and. ( pw < 0.999999*pwtarg )) &
+             .or. (ws_isinjector .and. ( pw > 1.000001*pwtarg ))) then
+          ! Switch to bhp control
+          itt = jtt
+          solveForWellTarget = PETSC_FALSE
+        endif
+      else
       ! Case of rate control - get positive convention flow
-      fpsc = &
-        w_sign*getActualFlowForTargetType(pw, option, jTT, possible, tactpw)
-      if (possible) then
-        ftarg = ws_targets(jTT)
-        if (ftarg >-0.5) then
-          ! If non-defaulted flow target exceeded - switch to this target
-          if (fpsc > 1.000001*ftarg) then
-            itt = jtt
-            solveForWellTarget = PETSC_FALSE
+        fpsc = &
+          w_sign*getActualFlowForTargetType(pw, option, jtt, possible, tactpw)
+        if (possible) then
+          ftarg = ws_targets(jtt)
+          if (ftarg >-0.5) then
+            ! If non-defaulted flow target exceeded - switch to this target
+            if (fpsc > 1.000001*ftarg) then
+              itt = jtt
+              solveForWellTarget = PETSC_FALSE
+            endif
           endif
         endif
       endif
-    endif
-  enddo
+    enddo
+  endif
 
 end function solveForWellTarget
 
@@ -1026,7 +1058,8 @@ function getActualFlowForTargetType(pw, option, itt, possible, tactpw)
 
   ! Initialise
 
-  tact = 0.0
+  tact   = 0.0
+  tactpw = 0.0
   possible = PETSC_FALSE
 
   ipoil = option%oil_phase
@@ -3360,19 +3393,19 @@ function invertGauss(j, jinv, n)
   implicit none
 
   PetscReal :: invertGauss
-  PetscReal, intent(in) ::j(:,:)
-  PetscReal, intent(out)::jinv(:,:)
-  PetscInt , intent(in) ::n
+  PetscReal, intent(in)  :: j(:,:)
+  PetscReal, intent(out) :: jinv(:,:)
+  PetscInt , intent(in)  :: n
 
-  PetscReal::det
-  PetscBool::firstdet
-  PetscReal,allocatable:: a(:,:)
-  PetscReal,allocatable:: e(:,:)
-  PetscInt,allocatable :: ip(:)
+  PetscReal :: det
+  PetscBool :: firstdet
+  PetscReal, allocatable :: a(:,:)
+  PetscReal, allocatable :: e(:,:)
+  PetscInt, allocatable  :: ip(:)
 
   PetscInt :: ir, ic, iclast, iclastp, irbest &
              , irbestp, irp, irap, irbp, icp, jcp, jc
-  PetscReal:: fabsFinal, best, fval, pivot, pivotinv, fabsPivot, v, d, dinv
+  PetscReal :: fabsFinal, best, fval, pivot, pivotinv, fabsPivot, v, d, dinv
 
   allocate(a(n, n))
   allocate(e(n, n))
@@ -3681,8 +3714,8 @@ subroutine checkSurfaceDensities(option)
 
   type (option_type), pointer :: option
 
-  PetscInt:: iphase, ierr
-  PetscReal:: mw, sd
+  PetscInt  :: iphase, ierr
+  PetscReal :: mw, sd
 
   ierr = 0
 
@@ -3755,7 +3788,7 @@ subroutine checkSolverAvailable(option)
 
   type (option_type), pointer :: option
   PetscInt  :: ncmp, iphase, nphase, wsnx
-  PetscBool :: water_found, mode_ok,is_grdecl
+  PetscBool :: water_found, mode_ok, is_grdecl
 
   ncmp   = option%nphase+1
   nphase = option%nphase

@@ -1228,13 +1228,16 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_up%PermeabilityTensorToScalarSafe(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
-  
+  if ((perm_up>0.0) .and. (perm_dn>0.0)) then
     perm_ave_over_dist(:) = (perm_up * perm_dn) / &
                             (dist_up*perm_dn + dist_dn*perm_up)
-      
+  else
+    perm_ave_over_dist(:) = 0.0
+  endif
+
   Res = 0.d0
   
   v_darcy = 0.d0
@@ -1606,8 +1609,8 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_up%PermeabilityTensorToScalarSafe(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
   !determine if the connection is horixontal or not - 
   !TODO - PO: should this method work move this operation to pre-processing
@@ -1632,13 +1635,19 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
     dist_hrz_projection = dsqrt(dist_hrz_projection_sq)
     dist_hrz_up = dist_hrz_projection * dist(-1)
     dist_hrz_dn = dist_hrz_projection - dist_hrz_up
-    perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-                            (dist_hrz_up*perm_dn + dist_hrz_dn*perm_up)
-    !perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-    !                        (dist_up*perm_dn + dist_dn*perm_up)
+    if ((perm_up>0.0) .and. (perm_dn>0.0)) then
+      perm_ave_over_dist(:) = (perm_up * perm_dn) / &
+                              (dist_hrz_up*perm_dn + dist_hrz_dn*perm_up)
+    else
+      perm_ave_over_dist(:) = 0.0
+    endif
   else 
-    perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-                            (dist_up*perm_dn + dist_dn*perm_up)
+    if ((perm_up>0.0) .and. (perm_dn>0.0)) then
+      perm_ave_over_dist(:) = (perm_up * perm_dn) / &
+                              (dist_up*perm_dn + dist_dn*perm_up)
+    else
+      perm_ave_over_dist(:) = 0.0
+    endif
   end if
 
   !write(*,*) "dip_corr = ", dip_corr
@@ -1875,7 +1884,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
   neumann_bc_present = PETSC_FALSE
   
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
   ! currently no fractures considered 
   ! Fracture permeability change only available for structured grid (Heeho)
