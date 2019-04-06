@@ -203,6 +203,8 @@ subroutine EOSGasInit()
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_henry = UNINITIALIZED_DOUBLE
 
+  reference_density_kg = UNINITIALIZED_DOUBLE
+
   ! exponential
   exponent_reference_density = UNINITIALIZED_DOUBLE
   exponent_reference_pressure = UNINITIALIZED_DOUBLE

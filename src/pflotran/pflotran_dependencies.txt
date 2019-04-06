@@ -40,7 +40,8 @@ checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
 checkpoint_surface.o : discretization.o grid.o option.o output_aux.o \
                        pflotran_constants.o realization_surface.o \
                        surface_field.o
-co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o utility.o
+co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o string.o \
+                    utility.o
 co2_span_wagner_spline.o : pflotran_constants.o spline.o
 co2_sw.o : co2_span_wagner.o co2_span_wagner_spline.o option.o \
            pflotran_constants.o

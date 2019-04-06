@@ -136,6 +136,8 @@ subroutine EOSSlvInit()
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
 
+  reference_density_kg = UNINITIALIZED_DOUBLE
+
   exponent_reference_density = UNINITIALIZED_DOUBLE
   exponent_reference_pressure = UNINITIALIZED_DOUBLE
   exponent_slv_compressibility = UNINITIALIZED_DOUBLE
