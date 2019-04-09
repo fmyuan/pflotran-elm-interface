@@ -233,6 +233,7 @@ module EOS_Water_module
             EOSWaterSetSteamEnthalpy, &
             EOSWaterSetWaterTab, &
             EOSWaterSetReferenceDensity, &
+            EOSWaterGetReferenceDensity, &
             EOSWaterTableProcess
 
   public :: TestEOSWaterBatzleAndWang, &
@@ -357,15 +358,6 @@ subroutine EOSWaterVerify(ierr,error_string)
     endif
     ierr = 1
   endif
-  
-  if ( associated(pvt_table) ) then
-    if(Uninitialized(reference_density_kg)) then
-      error_string = trim(error_string) // &
-      'A reference (e.g. Surface) density must be specified ' // &
-      'using either REFERENCE_DENSITY, SURFACE_DENSITY or STANDARD_DENSITY '
-      ierr = 1
-    end if
-  end if
   
 end subroutine EOSWaterVerify
 
@@ -648,6 +640,18 @@ subroutine EOSWaterSetReferenceDensity(input_ref_density)
   reference_density_kg = input_ref_density
 
 end subroutine EOSWaterSetReferenceDensity
+
+
+! ************************************************************************** !
+function EOSWaterGetReferenceDensity()
+
+  implicit none
+
+  PetscReal :: EOSWaterGetReferenceDensity
+
+  EOSWaterGetReferenceDensity= reference_density_kg
+
+end function EOSWaterGetReferenceDensity
 
 ! ************************************************************************** !
 

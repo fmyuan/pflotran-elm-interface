@@ -127,14 +127,13 @@ CHARACTERISTIC_CURVES ch1
 
 #=========================== EOSs =============================================
 
-! if all commented, initialised IFC67 for density, enthaplty and viscosity  
-!EOS WATER
-!  DENSITY CONSTANT 997.16d0
-!  ENTHALPY CONSTANT 1.8890d0
-!  VISCOSITY CONSTANT 8.904156d-4
-!END
+! if den, enth and visc models not specified default to IFC67
+EOS WATER
+  SURFACE_DENSITY 1000.0 kg/m^3 !not used in this dataset as no wells
+END
 
 EOS OIL
+  SURFACE_DENSITY 800.0d0 !kg/m3 !not used in this dataset as no wells
   DENSITY CONSTANT 800.0d0 !kg/m3
   ENTHALPY LINEAR_TEMP 1.d3 !J/kg/°C h=cp_oil*T 
   VISCOSITY CONSTANT 0.5d-3

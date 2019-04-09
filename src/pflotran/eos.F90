@@ -949,31 +949,77 @@ subroutine EOSReferenceDensity(option)
   PetscReal :: air_density_kmol
   PetscReal :: dum1, dum2
   PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: error_string
 
-  if (Initialized(option%liquid_phase)) then
-    if (option%reference_density(option%liquid_phase) < 1.d-40) then
-      call EOSWaterDensity(option%reference_temperature, &
-                           option%reference_pressure, &
-                           option%reference_density(option%liquid_phase), &
-                           dum1,ierr)
+  error_string = ''
+
+  select case(option%iflowmode)
+    case(TOWG_MODE,TOIL_IMS_MODE)
+      error_string = 'Reference Density must be input using either ' // &
+                     ' REFERENCE_DENSITY, SURFACE_DENSITY or STANDARD_DENSITY'
+      if (Initialized(option%liquid_phase)) then
+        if ( Uninitialized( EOSWaterGetReferenceDensity() ) ) then
+          option%io_buffer = 'EOS Water, ' // trim(error_string)
+          call printErrMsg(option)
+        else
+          option%reference_density(option%liquid_phase) = &
+                                                EOSWaterGetReferenceDensity()
+        end if
+      end if
+      if (Initialized(option%gas_phase)) then
+        if ( Uninitialized( EOSGasGetReferenceDensity() ) ) then
+          option%io_buffer = 'EOS Gas, ' // trim(error_string)
+          call printErrMsg(option)
+        else
+          option%reference_density(option%gas_phase) = &
+                                                EOSGasGetReferenceDensity()
+        end if
+      end if
+      if (Initialized(option%oil_phase)) then
+        if ( Uninitialized( EOSOilGetReferenceDensity() ) ) then
+          option%io_buffer = 'EOS Oil, ' // trim(error_string)
+          call printErrMsg(option)
+        else
+          option%reference_density(option%oil_phase) = &
+                                                EOSOilGetReferenceDensity()
+        end if
+      end if
+      if (Initialized(option%solvent_phase)) then
+        if ( Uninitialized( EOSSlvGetReferenceDensity() ) ) then
+          option%io_buffer = 'EOS Solvent, ' // trim(error_string)
+          call printErrMsg(option)
+        else
+          option%reference_density(option%solvent_phase) = &
+                                                EOSSlvGetReferenceDensity()
+        end if
+      end if
+  case default
+    if (Initialized(option%liquid_phase)) then
+      if (option%reference_density(option%liquid_phase) < 1.d-40) then
+        call EOSWaterDensity(option%reference_temperature, &
+                             option%reference_pressure, &
+                             option%reference_density(option%liquid_phase), &
+                             dum1,ierr)
+        write(*,*) option%reference_density(option%liquid_phase)
+      endif
     endif
-  endif
-  if (Initialized(option%gas_phase)) then
-    if (option%reference_density(option%gas_phase) < 1.d-40) then
-      ! assume saturated vapor pressure
-      call EOSWaterSaturationPressure(option%reference_temperature, &
-                                      vapor_saturation_pressure,dum1,ierr)
-      call EOSWaterSteamDensityEnthalpy(option%reference_temperature, &
-                                        vapor_saturation_pressure, &
-                                        vapor_density_kg,dum1,dum2,ierr)
-      ! call no-derivative version of EOSGasDensity
-      call EOSGasDensity(option%reference_temperature, &
-                         option%reference_pressure-vapor_saturation_pressure, &
-                         air_density_kmol,ierr)
-      option%reference_density(option%gas_phase) = &
-        vapor_density_kg + air_density_kmol*FMWAIR
+    if (Initialized(option%gas_phase)) then
+      if (option%reference_density(option%gas_phase) < 1.d-40) then
+        ! assume saturated vapor pressure
+        call EOSWaterSaturationPressure(option%reference_temperature, &
+                                        vapor_saturation_pressure,dum1,ierr)
+        call EOSWaterSteamDensityEnthalpy(option%reference_temperature, &
+                                          vapor_saturation_pressure, &
+                                          vapor_density_kg,dum1,dum2,ierr)
+        ! call no-derivative version of EOSGasDensity
+        call EOSGasDensity(option%reference_temperature, &
+                           option%reference_pressure-vapor_saturation_pressure, &
+                           air_density_kmol,ierr)
+        option%reference_density(option%gas_phase) = &
+          vapor_density_kg + air_density_kmol*FMWAIR
+      endif
     endif
-  endif
+  end select
 
 end subroutine EOSReferenceDensity
 

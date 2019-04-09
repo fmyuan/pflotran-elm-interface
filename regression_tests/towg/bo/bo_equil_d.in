@@ -170,6 +170,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 996.95710 kg/m^3
   DENSITY CONSTANT 996.95710
   VISCOSITY CONSTANT 0.31d-3 ! 1 cp
 END

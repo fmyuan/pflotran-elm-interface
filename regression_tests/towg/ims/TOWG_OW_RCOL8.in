@@ -123,14 +123,19 @@ CHARACTERISTIC_CURVES ch1
 
 #=========================== EOSs =============================================
 
+EOS WATER
+  SURFACE_DENSITY 1000.0 kg/m^3
+END
+
 EOS OIL
+  SURFACE_DENSITY 800.0d0 kg/m^3
   DENSITY CONSTANT 800.0d0
-  !ENTHALPY CONSTANT 5.680d6 !J/Kmol (t=40°C, with TOUGH2-EOS8 linear model)
   ENTHALPY LINEAR_TEMP 1.d3 !J/kg/°C
   VISCOSITY CONSTANT 0.5d-3
 END
 
 EOS GAS
+  SURFACE_DENSITY 1.0 kg/m^3 !not used as no wells
 END
 
 

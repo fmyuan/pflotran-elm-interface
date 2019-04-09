@@ -131,6 +131,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 1000.00d0 kg/m^3 !not used as no wells
   DENSITY CONSTANT 1000.00d0
   VISCOSITY CONSTANT 1.0d-3 ! 1 cp
 END

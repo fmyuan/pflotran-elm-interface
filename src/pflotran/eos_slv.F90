@@ -189,15 +189,6 @@ subroutine EOSSlvVerify(ierr,error_string)
     fmw_slv = FMWCO2
   end if
 
-  if ( associated(pvt_table) ) then
-    if(Uninitialized(reference_density_kg)) then
-      error_string = trim(error_string) // &
-      'A reference (e.g. Surface) density must be specified ' // &
-      'using either REFERENCE_DENSITY, SURFACE_DENSITY or STANDARD_DENSITY '
-      ierr = 1
-    end if
-  end if
-
 end subroutine EOSSlvVerify
 
 ! ************************************************************************** !

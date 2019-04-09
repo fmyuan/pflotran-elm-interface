@@ -143,17 +143,13 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 ! if all commented, initialised IFC67 for density, enthaplty and viscosity  
 EOS WATER
-  !if ref_den and wat_compress not specified default values are used
-  !DENSITY QUADRATIC  !e300 quadratic model
-  !  !REFERENCE_DENSITY 999.014d0 !kg/m3
-  !  !REFERENCE_PRESSURE 1.0d5    !Pa
-  !  !WATER_COMPRESSIBILITY 3.94769306686405d-10 !1/Pa
-  !END
+  SURFACE_DENSITY 1000.0 kg/m^3 !not used in this dataset as no wells
   DENSITY TRANGENSTEIN !E300 thermal default model 
   VISCOSITY GRABOWSKI
 END
 
 EOS OIL
+  SURFACE_DENSITY 995.98d0 kg/m^3 !not used in this dataset as no wells
   !heavy oil
   FORMULA_WEIGHT 508.0d0
   DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]

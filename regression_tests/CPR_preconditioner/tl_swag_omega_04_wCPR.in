@@ -140,11 +140,13 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 1000.0d0 !kg/m3 !not used in this model
   DENSITY CONSTANT 1000.00d0
   VISCOSITY CONSTANT 1.0d-3 ! 1 cp
 END
 
 EOS OIL
+  SURFACE_DENSITY 1000.0d0 !kg/m3 !not used in this model
   FORMULA_WEIGHT 1000.0d0
   DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]
     REFERENCE_VALUE 1000.00d0           !den0 [kg/m3]
@@ -161,6 +163,7 @@ EOS OIL
 END
 
 EOS GAS
+  SURFACE_DENSITY 1.0d0 !kg/m3 !not used in this model
   FORMULA_WEIGHT 16.04d0
   DENSITY   DEFAULT
   VISCOSITY CONSTANT 2.0d-5 ! 0.02 cp

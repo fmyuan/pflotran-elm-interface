@@ -211,6 +211,7 @@ EOS WATER
 END
 
 EOS OIL
+  SURFACE_DENSITY 995.98 kg/m^3 !not used in this dataset as no wells
   !heavy oil
   FORMULA_WEIGHT 508.0d0
   DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]

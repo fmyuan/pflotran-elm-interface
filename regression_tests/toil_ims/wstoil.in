@@ -97,6 +97,8 @@ CHARACTERISTIC_CURVES ch1
 # Converted to reference 5000 psi, Bw=1.01, and density=64/1.01 lbs/cuft
 
 EOS WATER
+  !Surf den computed with exponential model for P= 1.0D5 Pa abd T = 15 C
+  SURFACE_DENSITY 999.96296212005427 kg/m^3
   DENSITY EXPONENTIAL 1015.0313 34473786 4.351132E-10
   VISCOSITY CONSTANT  0.0003   ! 0.3 cp
 END
