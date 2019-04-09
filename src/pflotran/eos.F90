@@ -962,40 +962,24 @@ subroutine EOSReferenceDensity(option)
           option%io_buffer = 'EOS Water, ' // trim(error_string)
           call printErrMsg(option)
         end if  
-        ! else
-        !   option%reference_density(option%liquid_phase) = &
-        !                                         EOSWaterGetSurfaceDensity()
-        ! end if
       end if
       if (Initialized(option%gas_phase)) then
         if ( Uninitialized( EOSGasGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Gas, ' // trim(error_string)
           call printErrMsg(option)
         end if
-        ! else
-        !   option%reference_density(option%gas_phase) = &
-        !                                         EOSGasGetSurfaceDensity()
-        ! end if
       end if
       if (Initialized(option%oil_phase)) then
         if ( Uninitialized( EOSOilGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Oil, ' // trim(error_string)
           call printErrMsg(option)
         end if
-        ! else
-        !   option%reference_density(option%oil_phase) = &
-        !                                         EOSOilGetSurfaceDensity()
-        ! end if
       end if
       if (Initialized(option%solvent_phase)) then
         if ( Uninitialized( EOSSlvGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Solvent, ' // trim(error_string)
           call printErrMsg(option)
         end if
-        ! else
-        !   option%reference_density(option%solvent_phase) = &
-        !                                         EOSSlvGetSurfaceDensity()
-        ! end if
       end if
   case default
     if (Initialized(option%liquid_phase)) then
