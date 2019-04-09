@@ -24,7 +24,7 @@ module EOS_Oil_module
   PetscReal :: quad_vis_pres_coef(2)
   PetscReal :: quad_vis_temp_coef(2)
   !Reference Oil Density (e.g. used as surface density)
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
   ! parameters for linear density
   PetscReal :: compress_coeff      ! [kg/m3/Pa]
   PetscReal :: th_expansion_coeff  ! [kg/m3/°C]
@@ -204,8 +204,8 @@ module EOS_Oil_module
 
   public :: EOSOilSetFMWConstant, &
             EOSOilGetFMW, &
-            EOSOilSetReferenceDensity, &
-            EOSOilGetReferenceDensity, &
+            EOSOilSetSurfaceDensity, &
+            EOSOilGetSurfaceDensity, &
             EOSOilSetViscosityConstant, &
             EOSOilSetViscosityQuad, &
             EOSOilSetVisQuadRefVis, &
@@ -253,7 +253,7 @@ subroutine EOSOilInit()
   quad_vis_pres_coef(1:2) = UNINITIALIZED_DOUBLE
   quad_vis_temp_coef(1:2) = UNINITIALIZED_DOUBLE
 
-  reference_density_kg = UNINITIALIZED_DOUBLE
+  surface_density_kg = UNINITIALIZED_DOUBLE
 
   compress_coeff = UNINITIALIZED_DOUBLE
   th_expansion_coeff = UNINITIALIZED_DOUBLE
@@ -440,27 +440,27 @@ end function EOSOilGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSOilSetReferenceDensity(input_ref_density)
+subroutine EOSOilSetSurfaceDensity(input_ref_density)
 
   implicit none
 
   PetscReal :: input_ref_density
 
-  reference_density_kg = input_ref_density
+  surface_density_kg = input_ref_density
 
-end subroutine EOSOilSetReferenceDensity
+end subroutine EOSOilSetSurfaceDensity
 
 ! ************************************************************************** !
 
-function EOSOilGetReferenceDensity()
+function EOSOilGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSOilGetReferenceDensity
+  PetscReal :: EOSOilGetSurfaceDensity
 
-  EOSOilGetReferenceDensity= reference_density_kg
+  EOSOilGetSurfaceDensity= surface_density_kg
 
-end function EOSOilGetReferenceDensity
+end function EOSOilGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -1789,7 +1789,7 @@ subroutine EOSOilTableProcess(option,FMW_gas,ref_den_gas_kg)
 
   select case(pvt_table%name)
     case("PVDO","PVCO")
-      call pvt_table%ConvertFVFtoMolarDensity(fmw_oil,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_oil,surface_density_kg)
   end select
 
   select case(pvt_table%name)
@@ -1826,7 +1826,7 @@ subroutine ConvertRSVoltoRSMolar(FMW_gas,ref_den_gas_kg)
   data_idx = var_array(EOS_RS)%ptr%data_idx
   !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
   var_data(data_idx,:) = &
-           (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
+           (ref_den_gas_kg / FMW_gas) / (surface_density_kg / fmw_oil) * &
             var_data(data_idx,:)
   
   !from this point on in the data_idx there is not FVF but EOS_DENSITY

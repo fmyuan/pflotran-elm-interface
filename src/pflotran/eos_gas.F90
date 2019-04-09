@@ -18,7 +18,7 @@ module EOS_Gas_module
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
   !density at reference P and T
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
   ! specific to RKS EOS
   PetscBool :: rks_use_hydrogen
   PetscBool :: rks_use_effect_critical_props
@@ -183,8 +183,8 @@ module EOS_Gas_module
             EOSGasSetHenry, &
             EOSGasSetHenryConstant, &
             EOSGasSetEOSDBase, &
-            EOSGasSetReferenceDensity, &
-            EOSGasGetReferenceDensity, &
+            EOSGasSetSurfaceDensity, &
+            EOSGasGetSurfaceDensity, &
             EOSGasSetPVDG, &
             EOSGasTableProcess, &
             EOSGasDBaseDestroy
@@ -203,7 +203,7 @@ subroutine EOSGasInit()
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_henry = UNINITIALIZED_DOUBLE
 
-  reference_density_kg = UNINITIALIZED_DOUBLE
+  surface_density_kg = UNINITIALIZED_DOUBLE
 
   ! exponential
   exponent_reference_density = UNINITIALIZED_DOUBLE
@@ -422,27 +422,27 @@ end function EOSGasGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetReferenceDensity(input_ref_density_kg)
+subroutine EOSGasSetSurfaceDensity(input_ref_density_kg)
 
   implicit none
 
   PetscReal :: input_ref_density_kg
 
-  reference_density_kg = input_ref_density_kg
+  surface_density_kg = input_ref_density_kg
 
-end subroutine EOSGasSetReferenceDensity
+end subroutine EOSGasSetSurfaceDensity
 
 ! ************************************************************************** !
 
-function EOSGasGetReferenceDensity()
+function EOSGasGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSGasGetReferenceDensity
+  PetscReal :: EOSGasGetSurfaceDensity
 
-  EOSGasGetReferenceDensity = reference_density_kg
+  EOSGasGetSurfaceDensity = surface_density_kg
 
-end function EOSGasGetReferenceDensity
+end function EOSGasGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -1945,7 +1945,7 @@ subroutine EOSGasTableProcess(option)
 
   select case(pvt_table%name)
   case("PVDG")
-      call pvt_table%ConvertFVFtoMolarDensity(fmw_gas,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_gas,surface_density_kg)
   end select
 
 end subroutine EOSGasTableProcess

@@ -743,12 +743,10 @@ subroutine SolveWell(aux, option, well_data, r_p)
       if (iphase == option%liquid_phase ) mw = FMWH2O
       if (iphase == option%solvent_phase) mw = EOSSlvGetFMW()
 
-      if (iphase == option%oil_phase    ) sd = EOSOilGetReferenceDensity()
-      if (iphase == option%gas_phase    ) sd = EOSGasGetReferenceDensity()
-      if (iphase == option%liquid_phase ) then
-        sd = option%reference_density(option%liquid_phase)
-      endif
-      if (iphase == option%solvent_phase) sd = EOSSlvGetReferenceDensity()
+      if (iphase == option%oil_phase    ) sd = EOSOilGetSurfaceDensity()
+      if (iphase == option%gas_phase    ) sd = EOSGasGetSurfaceDensity()
+      if (iphase == option%liquid_phase ) sd = EOSWaterGetSurfaceDensity()
+      if (iphase == option%solvent_phase) sd = EOSSlvGetSurfaceDensity()
 
       ws_svpm(iphase) = mw/sd
       ws_mspm(iphase) = mw
@@ -3729,7 +3727,7 @@ subroutine checkSurfaceDensities(option)
       if (mw<0.0) then
         option%io_buffer = 'Oil molecular weight not set';ierr = 1
       endif
-      sd = EOSOilGetReferenceDensity()
+      sd = EOSOilGetSurfaceDensity()
       if (sd<0.0) then
         option%io_buffer = 'Oil surface reference density not set';ierr = 1
       endif
@@ -3739,7 +3737,7 @@ subroutine checkSurfaceDensities(option)
       if (mw<0.0) then
         option%io_buffer = 'Gas molecular weight not set';ierr = 1
       endif
-      sd = EOSGasGetReferenceDensity()
+      sd = EOSGasGetSurfaceDensity()
       if (sd<0.0) then
         option%io_buffer = 'Gas surface reference density not set';ierr = 1
       endif
@@ -3749,7 +3747,7 @@ subroutine checkSurfaceDensities(option)
       if (mw<0.0) then
         option%io_buffer = 'Water molecular weight not set';ierr = 1
       endif
-      sd = option%reference_density(option%liquid_phase)
+      sd = EOSWaterGetSurfaceDensity()
       if (sd<0.0) then
         option%io_buffer = 'Water surface reference density not set';ierr = 1
       endif
@@ -3759,7 +3757,7 @@ subroutine checkSurfaceDensities(option)
       if (mw<0.0) then
         option%io_buffer = 'Solvent molecular weight not set';ierr = 1
       endif
-      sd = EOSSlvGetReferenceDensity()
+      sd = EOSSlvGetSurfaceDensity()
       if (sd<0.0) then
         option%io_buffer = 'Solvent surface reference density not set';ierr = 1
       endif

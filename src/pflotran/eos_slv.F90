@@ -14,7 +14,7 @@ module EOS_Slv_module
   PetscReal :: fmw_slv           !kg/Kmol
   PetscReal :: constant_density
   PetscReal :: constant_viscosity
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
 
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
@@ -117,8 +117,8 @@ module EOS_Slv_module
             EOSSlvSetFMW, &
             EOSSlvGetFMW, &
             EOSSlvSetViscosityConstant, &
-            EOSSlvSetReferenceDensity, &
-            EOSSlvGetReferenceDensity, &
+            EOSSlvSetSurfaceDensity, &
+            EOSSlvGetSurfaceDensity, &
             EOSSlvSetPVDS, &
             EOSSlvSetEOSDBase, &
             EOSSlvTableProcess, &
@@ -136,7 +136,7 @@ subroutine EOSSlvInit()
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
 
-  reference_density_kg = UNINITIALIZED_DOUBLE
+  surface_density_kg = UNINITIALIZED_DOUBLE
 
   exponent_reference_density = UNINITIALIZED_DOUBLE
   exponent_reference_pressure = UNINITIALIZED_DOUBLE
@@ -329,27 +329,27 @@ end function EOSSlvGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSSlvSetReferenceDensity(input_ref_density_kg)
+subroutine EOSSlvSetSurfaceDensity(input_ref_density_kg)
 
   implicit none
 
   PetscReal,intent(in) :: input_ref_density_kg
 
-  reference_density_kg = input_ref_density_kg
+  surface_density_kg = input_ref_density_kg
 
-end subroutine EOSSlvSetReferenceDensity
+end subroutine EOSSlvSetSurfaceDensity
 
 ! ************************************************************************** !
 
-function EOSSlvGetReferenceDensity()
+function EOSSlvGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSSlvGetReferenceDensity
+  PetscReal :: EOSSlvGetSurfaceDensity
 
-  EOSSlvGetReferenceDensity = reference_density_kg
+  EOSSlvGetSurfaceDensity = surface_density_kg
 
-end function EOSSlvGetReferenceDensity
+end function EOSSlvGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -802,7 +802,7 @@ subroutine EOSSlvTableProcess(option)
 
   select case(pvt_table%name)
   case("PVDS")
-      call pvt_table%ConvertFVFtoMolarDensity(fmw_slv,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_slv,surface_density_kg)
   end select
 
 end subroutine EOSSlvTableProcess

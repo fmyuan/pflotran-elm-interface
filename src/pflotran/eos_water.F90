@@ -16,7 +16,7 @@ module EOS_Water_module
   PetscReal :: constant_viscosity
   PetscReal :: constant_steam_density
   PetscReal :: constant_steam_enthalpy
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
 
   ! exponential
   PetscReal :: exponent_reference_density
@@ -232,8 +232,8 @@ module EOS_Water_module
             EOSWaterSetSteamDensity, &
             EOSWaterSetSteamEnthalpy, &
             EOSWaterSetWaterTab, &
-            EOSWaterSetReferenceDensity, &
-            EOSWaterGetReferenceDensity, &
+            EOSWaterSetSurfaceDensity, &
+            EOSWaterGetSurfaceDensity, &
             EOSWaterTableProcess
 
   public :: TestEOSWaterBatzleAndWang, &
@@ -253,7 +253,7 @@ subroutine EOSWaterInit()
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_steam_density = UNINITIALIZED_DOUBLE
   constant_steam_enthalpy = UNINITIALIZED_DOUBLE
-  reference_density_kg = UNINITIALIZED_DOUBLE
+  surface_density_kg = UNINITIALIZED_DOUBLE
   exponent_reference_density = UNINITIALIZED_DOUBLE
   exponent_reference_pressure = UNINITIALIZED_DOUBLE
   exponent_water_compressibility = UNINITIALIZED_DOUBLE
@@ -631,27 +631,27 @@ end subroutine EOSWaterSetWaterTab
 
 ! ************************************************************************** !
 
-subroutine EOSWaterSetReferenceDensity(input_ref_density)
+subroutine EOSWaterSetSurfaceDensity(input_ref_density)
 
   implicit none
 
   PetscReal :: input_ref_density
 
-  reference_density_kg = input_ref_density
+  surface_density_kg = input_ref_density
 
-end subroutine EOSWaterSetReferenceDensity
+end subroutine EOSWaterSetSurfaceDensity
 
 
 ! ************************************************************************** !
-function EOSWaterGetReferenceDensity()
+function EOSWaterGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSWaterGetReferenceDensity
+  PetscReal :: EOSWaterGetSurfaceDensity
 
-  EOSWaterGetReferenceDensity= reference_density_kg
+  EOSWaterGetSurfaceDensity= surface_density_kg
 
-end function EOSWaterGetReferenceDensity
+end function EOSWaterGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -729,7 +729,7 @@ subroutine EOSWaterTableProcess(option)
 
   select case(pvt_table%name)
     case("WATERTAB")
-      call pvt_table%ConvertFVFtoMolarDensity(FMWH2O,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(FMWH2O,surface_density_kg)
   end select
 
 end subroutine EOSWaterTableProcess
