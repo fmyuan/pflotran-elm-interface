@@ -1,9 +1,6 @@
 module Patch_module
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscsys
   use Option_module
   use Grid_module

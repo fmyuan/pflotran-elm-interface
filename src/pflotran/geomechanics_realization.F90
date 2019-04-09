@@ -1,9 +1,6 @@
 module Geomechanics_Realization_class
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscsys
   use Realization_Base_class
   use Geomechanics_Discretization_module

@@ -2,9 +2,6 @@ module Grid_Unstructured_Aux_module
 
 !  use Connection_module
 #include "petsc/finclude/petscvec.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscvec
   use Grid_Unstructured_Cell_module
   use Geometry_module

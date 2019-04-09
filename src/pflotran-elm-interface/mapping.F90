@@ -1736,7 +1736,7 @@ contains
 #endif
 
     ! Create 'vscat'
-    call VecScatterCreate(nindex, is_from, N2P, is_to, vscat, ierr)
+    call VecScatterCreate(nindex, is_from, N2P, is_to, vscat,ierr);CHKERRQ(ierr)
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from,ierr)
 #ifdef MAP_DEBUG
