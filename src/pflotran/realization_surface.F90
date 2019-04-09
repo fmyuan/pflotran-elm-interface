@@ -21,7 +21,6 @@ module Realization_Surface_class
   
 private
 
-
 #include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: eps       = 1.D-8
