@@ -1,5 +1,4 @@
-# Well solver regression tests: TOWG with ANALYTICAL_JACOBIAN
-# Based on the SPE1
+#  Simple case to test satnum input
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -19,7 +18,7 @@ SUBSURFACE
 #=========================== discretization ===================================
 
 GRID
-  TYPE grdecl wstowg.grdecl
+  TYPE grdecl satn.grdecl
 END
 
 #=========================set up standard conditions ==========================
@@ -41,14 +40,17 @@ NEWTON_SOLVER FLOW
 END
 
 LINEAR_SOLVER FLOW
+  KSP_TYPE FGMRES
+  PC_TYPE CPR
+  RTOL 1e-5
 END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 500 d
-  INITIAL_TIMESTEP_SIZE 1.0d-2 d
+  FINAL_TIME 100 d
+  INITIAL_TIMESTEP_SIZE 10 d
   MINIMUM_TIMESTEP_SIZE 1.0D-10 d
-  MAXIMUM_TIMESTEP_SIZE 20 d at 0. d
+  MAXIMUM_TIMESTEP_SIZE 50 d at 0. d
 END
 
 #=========================== material properties ==============================
@@ -82,7 +84,139 @@ CHARACTERISTIC_CURVES ch1
    PRESSURE_UNITS Pa
    SWFN
     0.12  0       0
-    1.0   0.0000  0  
+    1.0   1       0  
+   /
+ END
+
+ TABLE sgfn_table
+  PRESSURE_UNITS Pa
+   SGFN
+    0     0       0
+    0.02  0       0
+    0.05  0.005   0
+    0.12  0.025   0
+    0.2   0.075   0
+    0.25  0.125   0
+    0.3   0.19    0
+    0.4   0.41    0
+    0.45  0.6     0
+    0.5   0.72    0
+    0.6   0.87    0
+    0.7   0.94    0
+    0.85  0.98    0
+    1.0   1.0     0
+   /
+ END
+
+ TABLE sof3_table1
+   SOF3
+    0        0.0      0.0
+    0.88     1.0      1.0
+   /
+ END
+
+ TABLE sof3_table2
+   SOF3
+    0        0        0
+    0.18     0        0
+    0.28     0.0001   0.0001
+    0.38     0.001    0.001
+    0.43     0.01     0.01
+    0.48     0.021    0.021
+    0.58     0.09     0.09
+    0.63     0.2      0.2
+    0.68     0.35     0.35
+    0.76     0.7      0.7
+    0.83     0.98     0.98
+    0.86     0.997    0.997
+    0.879    1        1
+    0.88     1        1    
+   /
+ END
+ !TEST 
+/
+
+CHARACTERISTIC_CURVES ch2
+
+!tables to match EX1 solution
+ KRW_TABLE swfn_table
+ KRG_TABLE sgfn_table
+ KRO ECLIPSE
+   KROW_TABLE sof3_table1
+   KROG_TABLE sof3_table2
+ END
+
+ TABLE swfn_table
+   PRESSURE_UNITS Pa
+   SWFN
+    0.0   0       0
+    1.0   1  0  
+   /
+ END
+
+ TABLE sgfn_table
+  PRESSURE_UNITS Pa
+   SGFN
+    0     0       0
+    0.02  0       0
+    0.05  0.005   0
+    0.12  0.025   0
+    0.2   0.075   0
+    0.25  0.125   0
+    0.3   0.19    0
+    0.4   0.41    0
+    0.45  0.6     0
+    0.5   0.72    0
+    0.6   0.87    0
+    0.7   0.94    0
+    0.85  0.98    0
+    1.0   1.0     0
+   /
+ END
+
+ TABLE sof3_table1
+   SOF3
+    0        0.0      0.0
+    0.88     1.0      1.0
+   /
+ END
+
+ TABLE sof3_table2
+   SOF3
+    0        0        0
+    0.18     0        0
+    0.28     0.0001   0.0001
+    0.38     0.001    0.001
+    0.43     0.01     0.01
+    0.48     0.021    0.021
+    0.58     0.09     0.09
+    0.63     0.2      0.2
+    0.68     0.35     0.35
+    0.76     0.7      0.7
+    0.83     0.98     0.98
+    0.86     0.997    0.997
+    0.879    1        1
+    0.88     1        1    
+   /
+ END
+ !TEST 
+/
+
+CHARACTERISTIC_CURVES ch3
+
+!tables to match EX1 solution
+ KRW_TABLE swfn_table
+ KRG_TABLE sgfn_table
+ KRO ECLIPSE
+   KROW_TABLE sof3_table1
+   KROG_TABLE sof3_table2
+ END
+
+ TABLE swfn_table
+   PRESSURE_UNITS Pa
+   SWFN
+    0.0  0       0
+    1.0   1.0000  0  
    /
  END
 
@@ -170,7 +304,7 @@ EOS OIL
   END !end PVDO
   ENTHALPY QUADRATIC_TEMP ! h = c1*(t-t1) + 0.5*c2*(t-t2)
     TEMP_REF_VALUES   15.6d0  15.6d0    !t1, t2 [°C]
-    TEMP_COEFFICIENTS  0.0     0.0d0    !c1, c2 [J/kg/°C]
+    TEMP_COEFFICIENTS 2.224D3 0.0d0  !c1, c2 [J/kg/Â°C]
   END !end Enthlapy
 END !end EOS OIL
 
@@ -209,31 +343,14 @@ COORDINATES
 /
 /
 
-#=========================== wells ==================================
-
-WELL_DATA injg
-  RADIUS 0.0762 m
-  WELL_TYPE GAS_INJECTOR
-  BHPL     1000    Bar
-  TARG_GSV 2831684 m^3/day
-  CIJK 1 1 3 3   
-END
-
-WELL_DATA prod
-  RADIUS 0.0762 m
-  WELL_TYPE PRODUCER
-  BHPL      68.9476 Bar
-  TARG_OSV  3179.7 m^3/day
-  CIJK 3 3 1 1 
-END
 
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE DIRICHLET
-    OIL_SATURATION DIRICHLET
-    BUBBLE_POINT DIRICHLET
-    TEMPERATURE DIRICHLET
+    OIL_PRESSURE dirichlet
+    OIL_SATURATION dirichlet
+    BUBBLE_POINT dirichlet
+    TEMPERATURE dirichlet
   /
   OIL_PRESSURE 33.094D6 !331 bars
   OIL_SATURATION 0.88d0
@@ -242,15 +359,6 @@ FLOW_CONDITION initial_press
   DATUM 0.d0 0.d0 -2540.508
 /
 
-#=========================== regression data =================================
-
-REGRESSION
-  CELLS
-    1
-    27
-  /
-END
-
 #=========================== condition couplers ==============================
 
 INITIAL_CONDITION initial
@@ -258,8 +366,22 @@ FLOW_CONDITION initial_press
 REGION all
 /
 
-#=========================== stratigraphy couplers ============================
+#=========================== regression values ==============================
 
+REGRESSION
+
+  CELLS
+
+    1
+
+    300
+  
+  /
+
+END
+
+
+#=========================== stratigraphy couplers ============================
 STRATA
   REGION all
   MATERIAL formation

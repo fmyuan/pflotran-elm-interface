@@ -1,9 +1,6 @@
 module Patch_module
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscsys
   use Option_module
   use Grid_module
@@ -772,11 +769,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     if (option%nflowdof > 0) then
       allocate(patch%ss_flow_fluxes(option%nflowdof,temp_int))
       patch%ss_flow_fluxes = 0.d0
-      if (option%nwells > 0) then
-        ! needed by wells
-        allocate(patch%ss_flow_vol_fluxes(nphase,temp_int))
-        patch%ss_flow_vol_fluxes = 0.d0
-      end if
     endif
     ! transport
     if (option%ntrandof > 0) then

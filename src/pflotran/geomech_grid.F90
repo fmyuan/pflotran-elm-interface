@@ -1,9 +1,6 @@
 module Geomechanics_Grid_module
 
 #include "petsc/finclude/petscvec.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscvec
   use Geomechanics_Grid_Aux_module
   use Grid_Unstructured_Cell_module

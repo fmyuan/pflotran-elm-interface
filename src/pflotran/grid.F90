@@ -1,9 +1,6 @@
 module Grid_module
 
 #include "petsc/finclude/petscmat.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscmat
   use Grid_Structured_module
   use Grid_Unstructured_module

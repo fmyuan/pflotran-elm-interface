@@ -930,17 +930,21 @@ subroutine RealProcessFluidProperties(realization)
   ! Author: Glenn Hammond
   ! Date: 01/21/09
   ! 
-  
+
+  use Grid_Grdecl_module, only : GetSatnumSet
+
   implicit none
-  
+
   class(realization_subsurface_type) :: realization
-  
+
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  
+  PetscInt :: icc, ncc, maxsatn
+  PetscBool :: satnum_set, ccset
+
   option => realization%option
-  
+
   found = PETSC_FALSE
   cur_fluid_property => realization%fluid_properties                            
   do                                      
@@ -956,12 +960,35 @@ subroutine RealProcessFluidProperties(realization)
     end select
     cur_fluid_property => cur_fluid_property%next
   enddo
-  
+
   if (option%ntrandof > 0 .and. .not.found) then
     option%io_buffer = 'A fluid property must be present in input file' // &
                        ' for solute transport'
   endif
-  
+
+  ! If saturation table numbers set,
+  ! check that matches characteristic curves count
+
+  satnum_set = GetSatnumSet(maxsatn)
+  if( satnum_set ) then
+    ccset = associated(realization%patch%characteristic_curves_array)
+    if (ccset) then
+      ncc = size(realization%patch%characteristic_curves_array(:))
+      if( maxsatn > ncc ) then
+        option%io_buffer = &
+         'SATNUM data does not match CHARACTERISTIC CURVES count'
+        call printErrMsg(option)
+      endif
+      do icc = 1, ncc
+        call CharCurvesProcessTables( &
+          realization%patch%characteristic_curves_array(icc)%ptr,option)
+      end do
+    else
+      option%io_buffer = 'SATNUM data but no CHARACTERISTIC CURVES'
+      call printErrMsg(option)
+    end if
+  endif
+
 end subroutine RealProcessFluidProperties
 
 ! ************************************************************************** !
@@ -2553,7 +2580,7 @@ subroutine RealizationDestroyLegacy(realization)
   call FlowConditionDestroyList(realization%flow_conditions)
 
   !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(realization%well_data,realization%option)
+  call WellDataDestroyList(realization%well_data, realization%option)
   !  Release output buffers held by Output_Eclipse_module
   if (realization%output_option%write_ecl) then
     call ReleaseEwriterBuffers()
@@ -2617,7 +2644,7 @@ subroutine RealizationStrip(this)
   call FlowConditionDestroyList(this%flow_conditions)
 
   !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(this%well_data,this%option)
+  call WellDataDestroyList(this%well_data, this%option)
   !  Release output buffers held by Output_Eclipse_module
   call ReleaseEwriterBuffers()
 

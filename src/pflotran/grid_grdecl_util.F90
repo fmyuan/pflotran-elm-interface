@@ -8,9 +8,9 @@ module Grid_Grdecl_Util_module
 
   implicit none
 
-  public:: GetCorners
-  public:: GetMDtoM2Conv
-  public:: GetM2toMDConv
+  public :: GetCorners, GetOtherDirections, GetIntersection
+  public :: GetMDtoM2Conv, GetTriangleArea
+  public :: GetM2toMDConv, qarea
 
   PetscReal, parameter :: e_atm = 1.01325
 
@@ -31,8 +31,8 @@ subroutine GetCorners( ix, iy, iz, &
   implicit none
 
   PetscInt , intent(in)  :: ix, iy, iz
-  PetscReal:: x000(3), x100(3), x010(3), x110(3), &
-              x001(3), x101(3), x011(3), x111(3)
+  PetscReal :: x000(3), x100(3), x010(3), x110(3), &
+               x001(3), x101(3), x011(3), x111(3)
   PetscReal, intent(in) :: coord(:)
   PetscReal, intent(in) :: zcorn(:)
   PetscInt , intent(in)  :: nx, ny
@@ -104,7 +104,7 @@ end subroutine GetCorners
 
 ! *************************************************************************** !
 
-subroutine fillGeoCorner(x0, x1, d0, d1, xl, yl, zl, xu ,yu ,zu)
+subroutine fillGeoCorner(x0, x1, d0, d1, xl, yl, zl, xu , yu, zu)
   !
   ! For coordinate line from xl,yl,zl to xu,yu,zu,
   ! find xyz locations at depths d0 and d1
@@ -145,6 +145,11 @@ end subroutine fillGeoCorner
 ! *************************************************************************** !
 
 function GetLocationInDepthBlock(icx, icy, icz, nx, ny)
+  !
+  ! Get location of a node (icx,icy,icz) in the ZCORN 8.nx.ny.nzblock of depths
+  !
+  ! Author: Dave Ponting
+  ! Date: 01/21/19
 
   implicit none
 
@@ -161,7 +166,7 @@ function GetLocationInDepthBlock(icx, icy, icz, nx, ny)
 
 end function GetLocationInDepthBlock
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 function GetMDtoM2Conv()
   !
@@ -178,7 +183,7 @@ function GetMDtoM2Conv()
 
 end function GetMDtoM2Conv
 
-! ************************************************************************** !
+! *************************************************************************** !
 
 function GetM2toMDConv()
   !
@@ -194,5 +199,237 @@ function GetM2toMDConv()
   GetM2toMDConv = (1.0E+15)*e_atm
 
 end function GetM2toMDConv
+
+! *************************************************************************** !
+
+subroutine GetIntersection(alx, aly, aux, auy, &
+                           blx, bly, bux, buy, px, py, qinter)
+
+  !
+  ! Given two lines in two dimensions, one from (alx,aly) to (aux,auy) and
+  ! one from (blx,bly) to (bux,buy), determine if they intersect and return
+  ! intersection point (px,py) and flag indicating intersection
+  !
+  ! Author: Dave Ponting
+  ! Date: 02/05/18
+
+  implicit none
+
+  PetscReal, intent(in)  :: alx, aly, aux, auy, blx, bly, bux, buy
+  PetscReal, intent(out) :: px, py
+  PetscBool, intent(out) :: qinter
+
+  PetscReal :: apx, apy, bpx, bpy, den, t, p, pxc, pyc
+  PetscReal :: eps = 0.001
+
+  !  Initialise returned values
+
+  px     = 0.0
+  py     = 0.0
+  qinter = PETSC_FALSE
+
+  !  Find gradients wrt x and y
+
+  apx = aux - alx
+  apy = auy - aly
+
+  bpx = bux - blx
+  bpy = buy - bly
+
+  !  Check determinant - will be zero if parallel
+
+  den = apx*bpy - apy*bpx
+
+  if (abs(den) > 0.0) then
+
+    !  Parameter values
+
+    t = ( (aly-bly)*bpx - (alx-blx)*bpy )/den
+    p = ( (blx-alx)*apy - (bly-aly)*apx )/den
+
+    !  Check for intersection within (0,1)
+
+    if (      (t >= -eps) .and. (t <= 1.0+eps) &
+        .and. (p >= -eps) .and. (p <= 1.0+eps)) qinter = PETSC_TRUE
+
+    !  Find intersection (two methods)
+
+    px  = alx + t*apx
+    py  = aly + t*apy
+    pxc = blx + p*bpx
+    pyc = bly + p*bpy
+
+  endif
+
+end subroutine GetIntersection
+
+! *************************************************************************** !
+
+function GetTriangleArea(xa, ya, xb, yb, xc, yc)
+
+  !
+  ! Utility routine to get area of 2D triangle with corners a,b,c
+  ! Uses the cross product expression
+  !
+  !         | 1  1  1  |
+  ! A = 1/2*| xa xb xc | = 1/2*|xb.yc-xc.yb - xa.yc + xc.ya + xa.yb - xb.ya|
+  !         | ya yb yc !
+  !
+  ! But (xa-xc).(yb-ya)-(xa-xb).(yc-ya) = xa.yb-xa.ya-xc.yb+xc.ya
+  !                                      -xa.yc+xa.ya+xb.yc-xb.ya
+  !                                     = xa.yb-xc.yb+xc.ya-xa.yc+xb.yc-xb.ya
+  !                                     = xb.yc-xc.yb-xa.yc+xc.ya+xa.yb-xb.ya
+  !
+  ! Author: Dave Ponting
+  ! Date: 02/05/18
+
+  implicit none
+
+  PetscReal GetTriangleArea
+  PetscReal, intent(in) :: xa, ya, xb, yb, xc, yc
+
+  GetTriangleArea = 0.5 * abs((xa-xc)*(yb-ya)-(xa-xb)*(yc-ya))
+
+end function GetTriangleArea
+
+! *************************************************************************** !
+
+subroutine GetOtherDirections(idir, jdir, kdir)
+  !
+  ! Given three directions in cyclic order, retun the two following idir
+  !
+  ! Author: Dave Ponting
+  ! Date: 02/05/18
+
+  implicit none
+
+  PetscInt, intent(in)  :: idir
+  PetscInt, intent(out) :: jdir, kdir
+
+  jdir = idir + 1
+  if (jdir>3) jdir = 1
+  kdir = jdir +1
+  if (kdir>3) kdir = 1
+
+end subroutine GetOtherDirections
+
+! *************************************************************************** !
+
+function qarea(f, idir)
+
+  !
+  ! Routine to get component id of the vector area of the quadrilateral f
+  !
+  ! Author: Dave Ponting
+  ! Date: 02/05/18
+
+  implicit none
+
+  PetscReal qarea
+  PetscReal, intent(in) :: f(0:1, 0:1, 3)
+  PetscInt , intent(in) :: idir
+  PetscReal :: x00, x01, x10, x11
+  PetscReal :: y00, y01, y10, y11
+  PetscReal :: at1, at2
+
+  PetscInt :: jdir, kdir
+
+  !  Find other directions
+
+  call GetOtherDirections(idir, jdir, kdir)
+
+  !  Get projection into the 2-plane orthogonal to e(idir)
+
+  x00 = f(0, 0, jdir);y00 = f(0, 0, kdir)
+  x10 = f(1, 0, jdir);y10 = f(1, 0, kdir)
+  x01 = f(0, 1, jdir);y01 = f(0, 1, kdir)
+  x11 = f(1, 1, jdir);y11 = f(1, 1, kdir)
+
+  !  Obtain the area as two triangles
+
+  at1 = GetTriangleArea(x00, y00, x01, y01, x11, y11)
+  at2 = GetTriangleArea(x00, y00, x11, y11, x10, y10)
+
+  !  Sum to get result
+
+  qarea = at1+at2
+
+end function qarea
+
+! *************************************************************************** !
+
+subroutine GetQuadSegment(iseg, idir, f, alx, aly, aux, auy)
+
+  !
+  ! Given a quadrilateral stored in terms of offsets io,jo
+  ! return idir th projection of the iseg th segment from al to au
+  !
+  ! Author: Dave Ponting
+  ! Date: 02/05/18
+
+  implicit none
+
+  PetscInt , intent(in) :: iseg, idir
+  PetscReal, intent(in) :: f(0:1, 0:1, 3)
+  PetscReal, intent(out) :: alx, aly, aux, auy
+  PetscInt :: jdir, kdir
+
+  ! Want idir direction projection, so find the two other transverse directions
+
+  call GetOtherDirections(idir, jdir, kdir)
+
+  ! Get segments going cyclically around the quadrilateral
+
+  if (iseg == 1) then
+    ! Segment 1 is (0,0) to (1,0)
+    alx = f(0, 0, jdir);aly = f(0, 0 , kdir)
+    aux = f(1, 0, jdir);auy = f(1, 0 , kdir)
+  endif
+
+  if (iseg == 2) then
+    ! Segment 2 is (1,0) to (1,1)
+    alx = f(1, 0, jdir);aly = f(1, 0, kdir)
+    aux = f(1, 1, jdir);auy = f(1, 1, kdir)
+  endif
+
+  if (iseg == 3) then
+    ! Segment 3 is (1,1) to (0,1)
+    alx = f(1, 1, jdir);aly = f(1, 1, kdir)
+    aux = f(0, 1, jdir);auy = f(0, 1, kdir)
+  endif
+
+  if (iseg == 4) then
+    ! Segment 1 is (0,1) to (0,0)
+    alx = f(0, 1, jdir);aly = f(0, 1, kdir)
+    aux = f(0, 0, jdir);auy = f(0, 0, kdir)
+  endif
+
+end subroutine GetQuadSegment
+
+! *************************************************************************** !
+
+subroutine getCentre( x000, x100, x010, x110, &
+                      x001, x101, x011, x111, centre )
+  !
+  ! Obtain the centre of a hexahederal grid cell
+  !  with corners x000,..,x111
+  !
+  ! Author: Dave Ponting
+  ! Date: 02/03/18
+
+  implicit none
+
+  PetscReal, intent(in) :: x000(3), x100(3), x010(3), x110(3), &
+                           x001(3), x101(3), x011(3), x111(3)
+  PetscReal,  intent(out) :: centre(3)
+
+  PetscInt :: id
+
+  do id = 1, 3
+    centre(id) = 0.125*( x000(id) + x100(id) + x010(id) + x110(id) + &
+                         x001(id) + x101(id) + x011(id) + x111(id) )
+  enddo
+
+end subroutine getCentre
 
 end module Grid_Grdecl_Util_module
