@@ -38,8 +38,8 @@ END
 
 #=========================set up standard conditions ==========================
 #  these are used for the computation of the gas surface volumes
-REFERENCE_PRESSURE 1.0D5 Pa   !used in this case to assign Pb in oil injector
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE 1.0D5 Pa   !used in this case to assign Pb in oil injector
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 

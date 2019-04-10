@@ -3676,7 +3676,8 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   dof_temp = towg_energy_dof
 
 
-  ref_pressure=option%reference_pressure
+  !ref_pressure=option%reference_pressure
+  ref_pressure = 1.0D5 !used as Pb for dead oil injection
 
   if (analytical_derivatives) then
     j = 0.d0
