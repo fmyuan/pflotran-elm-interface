@@ -101,8 +101,6 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: energy_flux
     type(flow_sub_condition_type), pointer :: temperature
     type(flow_sub_condition_type), pointer :: enthalpy
-    type(flow_sub_condition_type), pointer :: gas_in_oil_mole_fraction
-    type(flow_sub_condition_type), pointer :: gas_in_gas_mole_fraction
     type(flow_sub_condition_type), pointer :: rate
     type(flow_sub_condition_type), pointer :: bhp_pressure
     type(flow_sub_condition_type), pointer :: owc_z
@@ -371,8 +369,6 @@ function FlowTOWGConditionCreate(option)
   nullify(towg_condition%energy_flux)
   nullify(towg_condition%temperature)
   nullify(towg_condition%enthalpy)
-  nullify(towg_condition%gas_in_oil_mole_fraction)
-  nullify(towg_condition%gas_in_gas_mole_fraction)
   nullify(towg_condition%rate)
   nullify(towg_condition%bhp_pressure)
   nullify(towg_condition%owc_z)
@@ -586,14 +582,6 @@ function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
         sub_condition_ptr => FlowSubConditionCreate(THREE_INTEGER)
         toil_ims%rate => sub_condition_ptr
       endif
-    !a condition can have either RATE or WELL_RATE (target/limits)
-    case('WELL_RATE')
-      if (associated(toil_ims%rate)) then
-        sub_condition_ptr => toil_ims%rate
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        toil_ims%rate => sub_condition_ptr
-      endif
     case('OWC_Z','OWC_D')
       if (associated(toil_ims%owc_z)) then
         sub_condition_ptr => toil_ims%owc_z
@@ -697,20 +685,6 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
       else
         sub_condition_ptr => FlowSubConditionCreate(option%nphase)
         towg%enthalpy => sub_condition_ptr
-      endif
-    case('GAS_IN_OIL_MOLE_FRACTION')
-      if (associated(towg%gas_in_oil_mole_fraction)) then
-        sub_condition_ptr => towg%gas_in_oil_mole_fraction
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        towg%gas_in_oil_mole_fraction => sub_condition_ptr
-      endif
-    case('GAS_IN_GAS_MOLE_FRACTION')
-      if (associated(towg%gas_in_gas_mole_fraction)) then
-        sub_condition_ptr => towg%gas_in_gas_mole_fraction
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        towg%gas_in_gas_mole_fraction => sub_condition_ptr
       endif
     case('LIQUID_FLUX')
       if (associated(towg%liquid_flux)) then
@@ -2535,14 +2509,6 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             input%force_units = PETSC_TRUE
             internal_units = 'J/kg'
             !internal_units = 'MJ/mol'
-          case('WELL_RATE')
-            input%force_units = PETSC_TRUE
-            input%err_buf = word
-            internal_units = trim(rate_string)
-          case('WELL_PRESSURE')
-            internal_units = 'Pa'
-          case('WELL_TEMPERATURE')
-            internal_units = 'C'
         end select
         call ConditionReadValues(input,option,word, &
                                  sub_condition_ptr%dataset, &
@@ -3009,7 +2975,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         towg%is_wg_equilibration = PETSC_TRUE
       case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','OIL_SATURATION', &
           'GAS_SATURATION','SOLVENT_SATURATION','BUBBLE_POINT','TEMPERATURE', &
-          'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION', &
           'RATE','BHP_PRESSURE', 'LIQUID_FLUX','OIL_FLUX','GAS_FLUX', &
           'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', &
           'OWC_Z','OWC_D','PCOW_OWC', 'OGC_Z','OGC_D', 'PCOG_OGC', &
@@ -3024,8 +2989,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                'DATUM_Z','DATUM_D')
             internal_units_string = 'meter' 
             input%force_units = PETSC_TRUE
-          case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION', &
-               'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION')
+          case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION')
             internal_units_string = 'unitless'
           case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
             internal_units_string = 'C'
@@ -3328,16 +3292,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,towg%bubble_point, &
                               default_time_storage, &
                               PETSC_TRUE)
-  word = 'gas in oil mole fraction'
-  call FlowSubConditionVerify(option,condition,word, &
-                              towg%gas_in_oil_mole_fraction, &
-                              default_time_storage, &
-                              PETSC_TRUE)
-  word = 'gas in gas mole fraction'
-  call FlowSubConditionVerify(option,condition,word, &
-                              towg%gas_in_gas_mole_fraction, &
-                              default_time_storage, &
-                              PETSC_TRUE)
   word = 'temperature'
   call FlowSubConditionVerify(option,condition,word,towg%temperature, &
                               default_time_storage, &
@@ -3405,10 +3359,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     i = i + 1
   if (associated(towg%bubble_point)) &
     i = i + 1
-  if (associated(towg%gas_in_oil_mole_fraction)) &
-    i = i + 1
-  if (associated(towg%gas_in_gas_mole_fraction)) &
-    i = i + 1
   if (associated(towg%temperature)) &
     i = i + 1
   if (associated(towg%enthalpy)) &
@@ -3465,14 +3415,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   if (associated(towg%bubble_point)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => towg%bubble_point
-  endif
-  if (associated(towg%gas_in_oil_mole_fraction)) then
-    i = i + 1
-    condition%sub_condition_ptr(i)%ptr => towg%gas_in_oil_mole_fraction
-  endif
-  if (associated(towg%gas_in_gas_mole_fraction)) then
-    i = i + 1
-    condition%sub_condition_ptr(i)%ptr => towg%gas_in_gas_mole_fraction
   endif
   if (associated(towg%temperature)) then
     i = i + 1
@@ -4751,8 +4693,6 @@ function FlowConditionTOWGIsTransient(condition)
       FlowSubConditionIsTransient(condition%energy_flux) .or. &
       FlowSubConditionIsTransient(condition%temperature) .or. &
       FlowSubConditionIsTransient(condition%enthalpy) .or. &
-      FlowSubConditionIsTransient(condition%gas_in_oil_mole_fraction) .or. &
-      FlowSubConditionIsTransient(condition%gas_in_gas_mole_fraction) .or. &
       FlowSubConditionIsTransient(condition%rate) .or. &
       FlowSubConditionIsTransient(condition%bhp_pressure) ) then
     FlowConditionTOWGIsTransient = PETSC_TRUE
@@ -5237,8 +5177,6 @@ subroutine FlowTOWGConditionDestroy(towg_condition)
   call FlowSubConditionDestroy(towg_condition%energy_flux)
   call FlowSubConditionDestroy(towg_condition%temperature)
   call FlowSubConditionDestroy(towg_condition%enthalpy)
-  call FlowSubConditionDestroy(towg_condition%gas_in_oil_mole_fraction)
-  call FlowSubConditionDestroy(towg_condition%gas_in_gas_mole_fraction)
   call FlowSubConditionDestroy(towg_condition%rate)
   call FlowSubConditionDestroy(towg_condition%owc_z)
   call FlowSubConditionDestroy(towg_condition%pcow_owc)
