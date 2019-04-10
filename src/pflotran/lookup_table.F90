@@ -1730,9 +1730,9 @@ subroutine LookupTableBaseDestroy(lookup_table)
 
   implicit none
 
-  PetscInt :: i
-
   class(lookup_table_base_type) :: lookup_table
+
+  PetscInt :: i
 
   call LookupTableAxisDestroy(lookup_table%axis1)
 
@@ -2389,7 +2389,7 @@ subroutine LookupTableVarDestroy(lookup_table_var)
 
   implicit none
 
-  type(lookup_table_var_type) :: lookup_table_var
+  type(lookup_table_var_type), pointer :: lookup_table_var
 
   if (associated(lookup_table_var%data)) then
     !data is only a pointer to a slice of var_data
@@ -2397,6 +2397,9 @@ subroutine LookupTableVarDestroy(lookup_table_var)
   end if
   call DeallocateArray(lookup_table_var%sample_grad)
   nullify(lookup_table_var%next)
+
+  deallocate(lookup_table_var)
+  nullify(lookup_table_var)
 
 end subroutine LookupTableVarDestroy
 

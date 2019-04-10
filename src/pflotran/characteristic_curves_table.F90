@@ -801,6 +801,7 @@ recursive subroutine CharCurvesTableDestroy(cc_table)
   call LookupTableDestroy(cc_table%pc_inv_lookup_table)
   call LookupTableDestroy(cc_table%lookup_table)
 
+  nullify(cc_table%next)
   deallocate(cc_table)
   nullify(cc_table)
   
