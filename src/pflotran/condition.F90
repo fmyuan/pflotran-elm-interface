@@ -2611,17 +2611,22 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
        &have either temp or enthalpy'
       call printErrMsg(option)
     end if
+
     ! only dirich condition supported for src/sink temp or enthalpy
-    if ( ( associated(toil_ims%temperature).and. &
-          (toil_ims%temperature%itype /= DIRICHLET_BC) &
-         ) .or. &
-         ( associated(toil_ims%enthalpy).and. &
-          (toil_ims%enthalpy%itype /= DIRICHLET_BC ) &
-         ) &
-       ) then
-      option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
-       &is supported for temperature and enthalpy conditions'
-      call printErrMsg(option)
+    if ( associated(toil_ims%temperature) ) then
+      if (toil_ims%temperature%itype /= DIRICHLET_BC) then
+        option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
+         &is supported for temperature conditions'
+        call printErrMsg(option)
+      end if
+    end if
+
+    if ( associated(toil_ims%enthalpy) ) then
+      if (toil_ims%enthalpy%itype /= DIRICHLET_BC) then
+        option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
+         &is supported for enthalpy conditions'
+        call printErrMsg(option)
+      end if
     end if
 
   end if ! end if rate
@@ -3275,17 +3280,21 @@ subroutine FlowConditionTOWGRead(condition,input,option)
       call printErrMsg(option)
     end if
     ! only dirich condition supported for src/sink temp or enthalpy
-    if ( ( associated(towg%temperature).and. &
-          (towg%temperature%itype /= DIRICHLET_BC) &
-         ) .or. &
-         ( associated(towg%enthalpy).and. &
-          (towg%enthalpy%itype /= DIRICHLET_BC ) &
-         ) &
-       ) then
-      option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
-       &is supported for temperature and enthalpy conditions'
-      call printErrMsg(option)
+    if (associated(towg%temperature)) then
+      if (towg%temperature%itype /= DIRICHLET_BC) then
+         option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
+                             &is supported for temperature conditions'
+         call printErrMsg(option)
+      end if
     end if
+    if (associated(towg%enthalpy)) then
+      if (towg%enthalpy%itype /= DIRICHLET_BC ) then
+        option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
+                            &is supported for enthalpy conditions'
+        call printErrMsg(option)
+      end if
+    end if
+
   end if ! end if rate
 
   if (condition%iphase == TOWG_NULL_STATE) then
