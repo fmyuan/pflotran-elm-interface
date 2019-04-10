@@ -1,6 +1,12 @@
 module Solver_module
  
+#include "petsc/finclude/petscsys.h"
+#if PETSC_VERSION_GE(3,11,0)
+#define KSP_DIVERGED_PCSETUP_FAILED KSP_DIVERGED_PC_FAILED
+#define PCGetSetUpFailedReason PCGetFailedReason
+#endif
 #include "petsc/finclude/petscts.h"
+  use petscsys
   use petscts
   use PFLOTRAN_Constants_module
   use CPR_Preconditioner_module
@@ -282,7 +288,12 @@ subroutine SolverSetSNESOptions(solver, option)
     do i=1,solver%galerkin_mg_levels-1
       call PCMGSetInterpolation(solver%pc, i, solver%interpolation(i), &
                                 ierr);CHKERRQ(ierr)
+#if (PETSC_VERSION_MINOR >= 10)
+      !geh: not sure if this is the right type....
+      call PCMGSetGalerkin(solver%pc,PC_MG_GALERKIN_MAT,ierr);CHKERRQ(ierr)
+#else
       call PCMGSetGalerkin(solver%pc,ierr);CHKERRQ(ierr)
+#endif
     enddo
   endif
   
