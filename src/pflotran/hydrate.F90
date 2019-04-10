@@ -58,30 +58,33 @@ module Hydrate_module
 
   PetscReal, parameter :: lambda_hyd = 0.49 !W/m-K
   
-!  type, public :: methanogenesis_type
-!    character(len=MAXWORDLENGTH) :: source_name
-!    PetscReal, parameter :: alpha 
-!    PetscReal, parameter :: k_alpha
-!    PetscReal, parameter :: lambda
-!    PetscReal, parameter :: omega
-!    PetscReal, parameter :: z_smt
-!    type(methanogenesis_type), pointer :: next
-!  end type methanogenesis_type
+  type, public :: methanogenesis_type
+    character(len=MAXWORDLENGTH) :: source_name
+    PetscReal :: alpha 
+    PetscReal :: k_alpha
+    PetscReal :: lambda
+    PetscReal :: omega
+    PetscReal :: z_smt
+    type(methanogenesis_type), pointer :: next
+  end type methanogenesis_type
   
-!  type, public :: methanogenesis_mediator_type
-!    type(methanogenesis_type), pointer :: methanogenesis_list
-!    class(data_mediator_vec_type), pointer :: data_mediator
-!    PetscInt :: total_num_cells
-!  end type criticality_mediator_type
+  type, public :: methanogenesis_mediator_type
+    type(methanogenesis_type), pointer :: methanogenesis_list
+    class(data_mediator_vec_type), pointer :: data_mediator
+    PetscInt :: total_num_cells
+  end type methanogenesis_mediator_type
 
   public :: HydrateSetFlowMode, &
             HydrateUpdateState, &
             HydrateAuxVarCompute, &
             HydrateAccumulation, &
             HydrateAuxVarPerturb, &
+            HydrateCheckUpdatePost, &
             HydratePE
 
 contains
+
+! ************************************************************************** !
 
 subroutine HydrateSetFlowMode(option)
 !
@@ -120,6 +123,8 @@ subroutine HydrateSetFlowMode(option)
   option%hydrate_flag = PETSC_TRUE
 
 end subroutine HydrateSetFlowMode
+
+! ************************************************************************** !
 
 subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
                               characteristic_curves,natural_id,option)
@@ -848,11 +853,14 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
 
 end subroutine HydrateUpdateState
 
+! ************************************************************************** !
+
 subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                 characteristic_curves,natural_id,option)
   !
   ! Computes auxiliary variables for each grid cell, with gas hydrate physics
-  !
+  ! Author: Michael Nole
+  ! Date: 04/04/19
   !
 
   use Option_module
@@ -1687,15 +1695,17 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
 end subroutine HydrateAuxVarCompute
 
+! ************************************************************************** !
+
 subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                                soil_heat_capacity,option,Res,Jac, &
                                analytical_derivatives,debug_cell)
   !
   ! Computes the non-fixed portion of the accumulation
-  ! term for the residual
+  ! term for the residual, for the hydrate sub-pm
   !
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 03/01/19
   !
 
   use Option_module
@@ -1792,6 +1802,7 @@ subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
 
 end subroutine HydrateAccumulation
 
+! ************************************************************************** !
 
 subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
                                 material_auxvar, &
@@ -2196,8 +2207,23 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
 
 end subroutine HydrateAuxVarPerturb
 
+! ************************************************************************** !
+
+subroutine HydrateCheckUpdatePost()
+
+
+end subroutine HydrateCheckUpdatePost
+
+! ************************************************************************** !
+
 subroutine HydratePE(T, PE)
 
+  !This subroutine calculates the 3-phase equilibrium pressure of methane
+  !hydrate in pure water, from polynomial fit (Moridis, 2002)
+  !
+  !Author: Michael Nole
+  !Date: 01/22/19
+  !
   implicit none
 
   PetscReal, intent(in) :: T
@@ -2222,8 +2248,16 @@ subroutine HydratePE(T, PE)
 
 end subroutine HydratePE
 
+! ************************************************************************** !
+
 subroutine HenrysConstantMethane(T,K_H)
 
+  !Calculates the Henry's constant of methane as a function of temperature
+  !(Carroll and Mather, 1997)
+  !
+  !Author: Michael Nole
+  !Date: 01/22/19
+  !
   implicit none
 
   PetscReal, intent(in) :: T
@@ -2240,8 +2274,15 @@ subroutine HenrysConstantMethane(T,K_H)
  
 end subroutine HenrysConstantMethane
 
+! ************************************************************************** !
+
 subroutine EOSHydrateEnergy(T,U)
 
+  !Internal energy of gas hydrate as f(Temperature) (Handa, 1998)
+  !
+  !Author: Michael Nole
+  !Date: 01/22/19
+  !
   implicit none
 
   PetscReal, intent(in):: T
@@ -2264,7 +2305,15 @@ subroutine EOSHydrateEnergy(T,U)
 
 end subroutine EOSHydrateEnergy
 
+! ************************************************************************** !
+
 subroutine EOSIceEnergy(T,U)
+  
+  !Internal energy of ice as f(Temperature) (Fukusako and Yamamoto, 1993)
+  !
+  !Author: Michael Nole
+  !Date: 04/04/19
+  !
 
   implicit none
 
@@ -2287,7 +2336,16 @@ subroutine EOSIceEnergy(T,U)
        
 end subroutine EOSIceEnergy
 
+! ************************************************************************** !
+
 subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,option)
+
+  !This subroutine ties the capillary pressure function to a Gibbs-Thomson
+  !subcooling required to precipitate a solid in pores.
+  !
+  !Author: Michael Nole
+  !Date: 04/04/19
+  !
 
   use Characteristic_Curves_module
   use Option_module
@@ -2312,56 +2370,63 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,option)
 
 end subroutine GibbsThomsonFreezing
 
-!subroutine Methanogenesis(depth, q_meth)
+! ************************************************************************** !
+
+subroutine Methanogenesis(depth, q_meth)
+  
   ! A simple methanogenesis source parameterized as a function of depth
-  
-!#include "petsc/finclude/petscvec.h"
-!  use petscvec
-!  use Realization_Subsurface_class
-  
-!  implicit none
-  
-!  type(criticality_mediator_type), pointer :: this
-!  class(realization_subsurface_type), pointer :: realization
-!  PetscReal :: time
-!  PetscErrorCode :: ierr
-  
-!  PetscInt :: i,j
-!  type(criticality_type), pointer :: cur_criticality
-!  PetscReal, pointer :: heat_source(:)
-  
-!  PetscReal, intent(in) :: depth
-!  PetscReal, intent(out) :: q_meth
-  
-!  PetscReal, parameter :: alpha = 0.005
-!  PetscReal, parameter :: k_alpha = 2241 ! Maliverno, 2010, corrected
-!  PetscReal, parameter :: lambda = 1.d-13
-!  PetscReal, parameter :: omega = 3.17d-11
-!  PetscReal, parameter :: z_smt = 15.d0
-  
-  
-!  if (depth > zsmt) then
-!    q_meth = k_alpha * lamda * exp(-lambda/omega * (depth - zsmt))
-!  endif
-  
-!  call VecGetArrayF90(this%data_mediator%vec,heat_source, &
-!                      ierr);CHKERRQ(ierr)
-  
-!  cur_criticality => this%criticality_list
-!  j = 0
-!  do
-!    if (.not. associated(cur_criticality)) exit
-!    do i = 1, cur_criticality%region%num_cells
-!      j = j + 1
-!      heat_source(j) = -cur_criticality%crit_mech%heat_released
-!    enddo
-!    cur_criticality => cur_criticality%next
-!  enddo
-  
-!  call VecRestoreArrayF90(this%data_mediator%vec,heat_source, &
-!                          ierr);CHKERRQ(ierr)
-  
-  
-!end subroutine Methanogenesis
+  !
+  ! Author: Michael Nole
+  ! Date: 03/05/19
+  !
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
+  implicit none
+
+  !type(methanogenesis_mediator_type), pointer :: this
+  !PetscReal :: time
+  !PetscErrorCode :: ierr
+
+  !PetscInt :: i,j
+  !type(methanogenesis_type), pointer :: cur_methanogenesis
+  !PetscReal, pointer :: heat_source(:)
+
+  PetscReal, intent(in) :: depth
+  PetscReal, intent(out) :: q_meth
+
+  PetscReal, parameter :: alpha = 0.005
+  PetscReal, parameter :: k_alpha = 2241 ! Maliverno, 2010, corrected
+  PetscReal, parameter :: lambda = 1.d-13
+  PetscReal, parameter :: omega = 3.17d-11
+  PetscReal, parameter :: z_smt = 15.d0
+
+
+  if (depth > z_smt) then
+    q_meth = k_alpha * lambda * exp(-lambda/omega * (depth - z_smt))
+  endif
+
+  !call VecGetArrayF90(this%data_mediator%vec,methane_source, &
+  !                    ierr);CHKERRQ(ierr)
+  !
+  !cur_methanogenesis => this%methanogenesis_list
+  !j = 0
+  !do
+  !  if (.not. associated(cur_methanogenesis)) exit
+  !  do i = 1, cur_methanogenesis%region%num_cells
+  !    j = j + 1
+  !    methane_source(j) = cur_methanogenesis%source
+  !  enddo
+  !  cur_methanogenesis => cur_methanogenesis%next
+  !enddo
+  !
+  !call VecRestoreArrayF90(this%data_mediator%vec,methane_source, &
+  !                        ierr);CHKERRQ(ierr)
+
+
+end subroutine Methanogenesis
+
+! ************************************************************************** !
 
 end module Hydrate_module

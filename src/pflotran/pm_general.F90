@@ -27,6 +27,8 @@ module PM_General_class
     PetscReal :: residual_scaled_inf_tol(3)
     PetscReal :: abs_update_inf_tol(3,3)
     PetscReal :: rel_update_inf_tol(3,3)
+    PetscReal :: hyd_abs_update_inf_tol(3,15)
+    PetscReal :: hyd_rel_update_inf_tol(3,15)
     PetscReal :: damping_factor
     PetscInt :: general_newton_max_iter
   contains
@@ -118,6 +120,44 @@ function PMGeneralCreate()
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
+  PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-8 !1.d-10
+  !For convergence using hydrate and ice formation capability
+  PetscReal, parameter :: hyd_abs_update_inf_tol(3,15) = &
+    reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol,  &
+             pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
+             pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,xmol_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
+             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
+             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol], &
+            shape(hyd_abs_update_inf_tol)) * &
+            1.d0 ! change to 0.d0 to zero tolerances
+  PetscReal, parameter :: hyd_rel_update_inf_tol(3,15) = &
+    reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,xmol_rel_inf_tol,sat_rel_inf_tol, &
+             sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
+             pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
+             sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol], &
+            shape(hyd_rel_update_inf_tol)) * &
+            1.d0 ! change to 0.d0 to zero tolerances
 #ifdef PM_GENERAL_DEBUG  
   print *, 'PMGeneralCreate()'
 #endif  
@@ -151,6 +191,10 @@ function PMGeneralCreate()
   this%abs_update_inf_tol = abs_update_inf_tol
   this%rel_update_inf_tol = rel_update_inf_tol
 
+  !For hydrate/ice module
+  this%hyd_abs_update_inf_tol = hyd_abs_update_inf_tol
+  this%hyd_rel_update_inf_tol = hyd_rel_update_inf_tol
+
   PMGeneralCreate => this
   
 end function PMGeneralCreate
@@ -169,7 +213,7 @@ subroutine PMGeneralRead(this,input)
   use Input_Aux_module
   use String_module
   use Option_module
-
+  
   implicit none
   
   type(input_type), pointer :: input
@@ -210,6 +254,7 @@ subroutine PMGeneralRead(this,input)
       !man: hydrate
       case('WITH_HYDRATE')
         this%hydrate_flag = PETSC_TRUE
+        
       !man: phase change
       case('MAX_NEWTON_ITERATIONS')
         call InputReadDouble(input,option,tempreal)
@@ -975,6 +1020,8 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
+    if (option%hydrate_flag) istate = global_auxvars(ghosted_id)%hstate
+    
     do idof = 1, option%nflowdof
       
       ival = offset+idof
@@ -989,24 +1036,38 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
         dX_X0 = dabs(dX_abs/1.d-40)
       endif
       
-      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-        converged_absolute = PETSC_FALSE
-      endif
-      if (converged_abs_update_real(idof,istate) < dX_abs) then
-        converged_abs_update_real(idof,istate) = dX_abs
-        converged_abs_update_cell(idof,istate) = natural_id
-      endif
-      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-        converged_relative = PETSC_FALSE
-      endif
-      if (converged_rel_update_real(idof,istate) < dX_X0) then
-        converged_rel_update_real(idof,istate) = dX_X0
-        converged_rel_update_cell(idof,istate) = natural_id
+      if (option%hydrate_flag) then
+        if (dX_abs > this%hyd_abs_update_inf_tol(idof,istate)) then
+          converged_absolute = PETSC_FALSE
+        endif
+        if (dX_X0 > this%hyd_rel_update_inf_tol(idof,istate)) then
+          converged_relative = PETSC_FALSE
+        endif
+      else
+        if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
+          converged_absolute = PETSC_FALSE
+        endif
+        if (converged_abs_update_real(idof,istate) < dX_abs) then
+          converged_abs_update_real(idof,istate) = dX_abs
+          converged_abs_update_cell(idof,istate) = natural_id
+        endif
+        if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+          converged_relative = PETSC_FALSE
+        endif
+        if (converged_rel_update_real(idof,istate) < dX_X0) then
+          converged_rel_update_real(idof,istate) = dX_X0
+          converged_rel_update_cell(idof,istate) = natural_id
+        endif
       endif
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
-        converged_abs_update_flag(idof,istate) = PETSC_FALSE
-        converged_rel_update_flag(idof,istate) = PETSC_FALSE
+        if (option%hydrate_flag) then
+          converged_abs_update_flag(idof,1) = PETSC_FALSE
+          converged_rel_update_flag(idof,1) = PETSC_FALSE
+        else
+          converged_abs_update_flag(idof,istate) = PETSC_FALSE
+          converged_rel_update_flag(idof,istate) = PETSC_FALSE
+        endif
       endif
     enddo
   enddo
@@ -1224,6 +1285,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   
     if (it >= this%general_newton_max_iter) then
       option%convergence = CONVERGENCE_CUT_TIMESTEP
+    
       if (this%logging_verbosity > 0) then
         string = '    Exceeded General Mode Max Newton Iterations'
         call OptionPrint(string,option)
