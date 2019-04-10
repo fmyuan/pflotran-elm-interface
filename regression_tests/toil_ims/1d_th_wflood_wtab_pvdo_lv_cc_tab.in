@@ -298,7 +298,7 @@ FLOW_CONDITION inject_press
     OIL_SATURATION dirichlet
     TEMPERATURE dirichlet
   /
-  PRESSURE 30.0D6 !300bars 
+  PRESSURE 30.0D6 Pa !300bars 
   OIL_SATURATION 0.15d0 !model a water injector
   TEMPERATURE 200.0d0 C
 /

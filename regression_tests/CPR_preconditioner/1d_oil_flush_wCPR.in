@@ -188,7 +188,7 @@ FLOW_CONDITION initial
     TEMPERATURE DIRICHLET
   /
   !DATUM 0.d0 0.d0 0.d0
-  PRESSURE 1.D5
+  PRESSURE 1.D5 Pa
   OIL_SATURATION 0.6d0 
   TEMPERATURE 15.d0 C
 /
@@ -201,7 +201,7 @@ FLOW_CONDITION wat_injection
   /
   !Wat(kg/s), oil(kg/s), Energy rate (J/sec) - overwritten by Temp or Enthalpy 
   RATE 0.03d0 0.d0 0.0d0 kg/s kg/s MW
-  ENTHALPY 2.d5 !(J/kg)
+  ENTHALPY 2.d5 J/kg !(J/kg)
 /
 #=========================== condition couplers ===============================
 # initial condition

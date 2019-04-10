@@ -41,8 +41,8 @@ END
 
 #=========================set up standard conditions ==========================
 
-REFERENCE_PRESSURE    1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE    1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -252,11 +252,11 @@ FLOW_CONDITION equilibration
     PRESSURE HYDROSTATIC
   /
   PRESSURE 330.0 Bar
-  DATUM_D 2480.0
-  OGC_D 2440.0
-  PCOG_OGC 5.0D4 !0.5 Bar 
-  OWC_D 2470.0
-  PCOW_OWC 5.0D4 !0.5 Bar
+  DATUM_D 2480.0 m
+  OGC_D 2440.0 m
+  PCOG_OGC 5.0D4 Pa !0.5 Bar 
+  OWC_D 2470.0 m
+  PCOW_OWC 5.0D4 Pa !0.5 Bar
   BUBBLE_POINT_TABLE
    Z_UNITS m !D_UNITS
    PRESSURE_UNITS Bar

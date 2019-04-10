@@ -177,9 +177,8 @@ FLOW_CONDITION initial
     GAS_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  DATUM 0.d0 0.d0 0.d0
-  !OIL_PRESSURE 1.D5
-  OIL_PRESSURE 85426.0 !to match TOUGH IC on gas pressure
+  !DATUM 0.d0 0.d0 0.d0
+  OIL_PRESSURE 85426.0 Pa !to match TOUGH IC on gas pressure
   OIL_SATURATION 0.5d0
   GAS_SATURATION 0.2d0
   TEMPERATURE 15.d0 C
@@ -193,7 +192,7 @@ FLOW_CONDITION wat_injection
   /
   !     Wat   oil   Gas  Energy [overwritten by Temp or Enth if specified]
   RATE 0.03d0 0.0d0 0.d0 0.0d0 kg/s kg/s kg/s J/s
-  ENTHALPY 2.d5 0.0d0 0.0d0 !(J/kg)
+  ENTHALPY 2.d5 0.0d0 0.0d0 J/kg J/kg J/kg !(J/kg)
 /
 #=========================== condition couplers ===============================
 # initial condition

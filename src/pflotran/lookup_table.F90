@@ -39,6 +39,7 @@ module Lookup_Table_module
     procedure, public :: SetupConstValExtrap
     procedure, public :: LookupTableVarInitGradients
     procedure, public :: SetupVarLinLogInterp
+    procedure, public :: SetupVarUserUnits
   end type lookup_table_base_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_uniform_type
@@ -2311,6 +2312,36 @@ subroutine SetupVarLinLogInterp(this,var_iname,option)
 end subroutine SetupVarLinLogInterp
 
 ! ************************************************************************** !
+
+subroutine SetupVarUserUnits(this,var_iname,var_user_units,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 04/09/19
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  character(len=MAXWORDLENGTH), intent(in) :: var_user_units
+  type(option_type) :: option
+
+  if ( associated(this%var_array) ) then
+    if ( associated(this%var_array(var_iname)%ptr) ) then
+      this%var_array(var_iname)%ptr%user_units = var_user_units
+    else
+      option%io_buffer = "SetupVarUserUnits: cannot setup " // &
+            "User Units for a var not defined as lookupvar"
+      call printErrMsg(option)
+    end if
+  end if
+
+end subroutine SetupVarUserUnits
+
+! ************************************************************************** !
+
 
 subroutine LookupTableVarListDestroy(lookup_table_vars_list)
   !

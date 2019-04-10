@@ -211,7 +211,7 @@ FLOW_CONDITION initial_press
     OIL_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 17.0D6 !170bars 
+  PRESSURE 17.0D6 Pa !170bars 
   OIL_SATURATION 0.85d0 !With this accounts for connate water 
   TEMPERATURE 80.0d0 C  !up to here it refers to primary vars
 /
@@ -223,7 +223,7 @@ FLOW_CONDITION inject_press
     OIL_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 30.0D6 !300bars 
+  PRESSURE 30.0D6 Pa !300bars 
   OIL_SATURATION 0.15d0 !model a water injector
   TEMPERATURE 200.0d0 C  !up to here it refers to primary vars
 /
@@ -235,7 +235,7 @@ FLOW_CONDITION prod_press
     OIL_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 10.0D6 !100bars 
+  PRESSURE 10.0D6 Pa !100bars 
   OIL_SATURATION 0.65d0 !model a well with water and oil  both mobile
   TEMPERATURE 80.0d0 C  !up to here it refers to primary vars
 /

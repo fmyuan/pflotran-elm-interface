@@ -43,8 +43,8 @@ END
 
 #=========================set up standard conditions ==========================
 
-REFERENCE_PRESSURE    1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE    1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -346,11 +346,11 @@ FLOW_CONDITION equilibration
   GRADIENT_D
     TEMPERATURE 0.d0 0.d0 3.0d-2
   /
-  DATUM_D 2480.0
-  OGC_D 2430.0
-  PCOG_OGC 0.0D0 !ensure ogc at a depth of 2430.0 as Pcog(sg) = 0 in upper region
-  OWC_D 2470.0
-  PCOW_OWC 5.0D4 !0.5 Bar
+  DATUM_D 2480.0 m
+  OGC_D 2430.0 m
+  PCOG_OGC 0.0D0 Pa !ensure ogc at a depth of 2430.0 as Pcog(sg) = 0 in upper region
+  OWC_D 2470.0 m
+  PCOW_OWC 5.0D4 Pa !0.5 Bar
   BUBBLE_POINT_TABLE
    D_UNITS m
    PRESSURE_UNITS Bar

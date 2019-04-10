@@ -160,11 +160,11 @@ FLOW_CONDITION initial_water
     PRESSURE HYDROSTATIC
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 9.81D6  !about 1000m below sea level
+  PRESSURE 9.81D6 Pa !about 1000m below sea level
   TEMPERATURE 50.d0 C  !up to here it refers to primary vars
-  DATUM_Z 0.d0
-  OWC_Z 64.0d0 ! oil water contact
-  PCOW_OWC 15226.47
+  DATUM_Z 0.d0 m
+  OWC_Z 64.0d0 m ! oil water contact
+  PCOW_OWC 15226.47 Pa
 /
 
 
