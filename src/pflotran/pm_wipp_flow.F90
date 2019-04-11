@@ -54,6 +54,11 @@ module PM_WIPP_Flow_class
     PetscReal :: convergence_reals(MIN_GAS_PRES)
     character(len=MAXWORDLENGTH) :: alpha_dataset_name
     character(len=MAXWORDLENGTH) :: elevation_dataset_name
+    PetscReal :: rotation_angle
+    PetscReal :: rotation_origin(3)
+    PetscReal :: rotation_ceiling  ! elevation in z
+    PetscReal :: rotation_basement ! elevation in z
+    character(len=MAXWORDLENGTH), pointer :: rotation_region_names(:)
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
@@ -161,6 +166,11 @@ subroutine PMWIPPFloInitObject(this)
   this%stored_residual_vec = PETSC_NULL_VEC
   this%alpha_dataset_name = ''
   this%elevation_dataset_name = ''
+  this%rotation_angle = UNINITIALIZED_DOUBLE
+  this%rotation_origin = UNINITIALIZED_DOUBLE
+  this%rotation_ceiling = UNINITIALIZED_DOUBLE
+  this%rotation_basement = UNINITIALIZED_DOUBLE
+  nullify(this%rotation_region_names)
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
@@ -369,6 +379,20 @@ subroutine PMWIPPFloRead(this,input)
         call InputReadNChars(input,option,this%elevation_dataset_name,&
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('DIP_ROTATION_ANGLE')
+        call InputReadDouble(input,option,this%rotation_angle)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DIP_ROTATION_ORIGIN')
+        call InputReadNDoubles(input,option,this%rotation_origin,THREE_INTEGER)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DIP_ROTATION_CEILING')
+        call InputReadDouble(input,option,this%rotation_ceiling)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DIP_ROTATION_BASEMENT')
+        call InputReadDouble(input,option,this%rotation_basement)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DIP_ROTATION_REGIONS')
+        this%rotation_region_names = StringSplit(input%buf,' ')
       case('JACOBIAN_PRESSURE_DERIV_SCALE')
         call InputReadDouble(input,option,this%linear_system_scaling_factor)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -463,6 +487,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   use HDF5_module
   use Option_module
   use Discretization_module
+  use Region_module
   
   implicit none
   
@@ -476,9 +501,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   type(field_type), pointer :: field
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(grid_type), pointer :: grid
+  type(region_type), pointer :: region
   character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscReal, pointer :: work_p(:)
   PetscReal, pointer :: work_loc_p(:)
-  PetscInt :: idof, ghosted_id
+  PetscReal :: offset
+  PetscReal :: z
+  PetscInt :: idof, icell, iregion
+  PetscInt :: ghosted_id, local_id
 
   grid => this%realization%patch%grid
 
@@ -585,6 +615,61 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           &Elevation.'
         call printErrMsg(this%option)
     end select
+  else if (Initialized(this%rotation_angle)) then
+    if (.not.Initialized(this%rotation_origin(3))) then
+      this%option%io_buffer = 'An origin must be defined for dip rotation.'
+      call PrintErrMsg(this%option)
+    endif
+    call VecGetArrayF90(this%realization%field%work,work_p,ierr);CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      z = grid%z(ghosted_id)
+      if (z > this%rotation_ceiling .or. z < this%rotation_basement) then
+        offset = 0.d0
+      else
+        ! from PA.33 in CRA2014 appendix
+        offset = (grid%x(ghosted_id)-this%rotation_origin(1))* &
+                 sin(this%rotation_angle) + &
+                 (z-this%rotation_origin(3))* &
+                 cos(this%rotation_angle)
+      endif
+      work_p(local_id) = z + offset
+    enddo
+    if (associated(this%rotation_region_names)) then
+      do iregion = 1, size(this%rotation_region_names)
+        region => RegionGetPtrFromList(this%rotation_region_names(iregion), &
+                                       this%realization%patch%region_list)
+        if (.not.associated(region)) then
+          this%option%io_buffer = 'Region "' // &
+               trim(this%rotation_region_names(iregion)) // &
+               '" in WIPP FLOW Elevation definition not found in region list'
+        endif
+        do icell = 1, region%num_cells
+          local_id = region%cell_ids(icell)
+          ghosted_id = grid%nL2G(local_id)
+          z = grid%z(ghosted_id)
+          ! from PA.33 in CRA2014 appendix
+          offset = (grid%x(ghosted_id)-this%rotation_origin(1))* &
+                   sin(this%rotation_angle) + &
+                   (z-this%rotation_origin(3))* &
+                   cos(this%rotation_angle)
+          
+          work_p(local_id) = z + offset
+        enddo
+      enddo
+    endif
+    call VecRestoreArrayF90(this%realization%field%work,work_p, &
+                            ierr);CHKERRQ(ierr)
+    call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
+    call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
+                            ierr);CHKERRQ(ierr)
+    do ghosted_id = 1, grid%ngmax 
+      do idof = 0, this%option%nflowdof
+        wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
+      enddo
+    enddo
+    call VecRestoreArrayReadF90(this%realization%field%work_loc,work_loc_p, &
+                                ierr);CHKERRQ(ierr)
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
       do idof = 0, this%option%nflowdof
@@ -2049,6 +2134,7 @@ subroutine PMWIPPFloDestroy(this)
   ! 
 
   use WIPP_Flow_module, only : WIPPFloDestroy
+  use Utility_module, only : DeallocateArray
 
   implicit none
   
@@ -2060,8 +2146,8 @@ subroutine PMWIPPFloDestroy(this)
     call this%next%Destroy()
   endif
 
-  deallocate(this%max_change_ivar)
-  nullify(this%max_change_ivar)
+  call DeallocateArray(this%max_change_ivar)
+  call DeallocateArray(this%rotation_region_names)
   if (this%stored_residual_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%stored_residual_vec,ierr);CHKERRQ(ierr)
   endif
