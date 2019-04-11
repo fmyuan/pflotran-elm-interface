@@ -47,6 +47,12 @@ module WIPP_Flow_Aux_module
   PetscBool, public :: wippflo_use_fracture = PETSC_TRUE
   PetscBool, public :: wippflo_use_creep_closure = PETSC_TRUE
   PetscBool, public :: wippflo_use_bragflo_cc = PETSC_FALSE
+
+  ! debugging
+  PetscInt, public :: wippflo_ni_count
+  PetscInt, public :: wippflo_ts_cut_count
+  PetscInt, public :: wippflo_ts_count 
+
   !TODO(geh): hardwire gas to H2
   PetscReal, public :: fmw_comp(2) = [FMWH2O,2.01588d0]
 
