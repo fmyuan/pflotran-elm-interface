@@ -3083,7 +3083,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                       internal_units_word,usr_tbl_press_units,data_idx,option)
               string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name)  &
                                          // '/reading PBVZ or PBVD table'
-              call towg%pbvz_table%VarDataRead(input,TWO_INTEGER,string,option)
+              call towg%pbvz_table%VarDataRead(input,TWO_INTEGER,TWO_INTEGER, &
+                                               string,option)
               !table input for decreasing z (or decreasing depth) - needs reversing
               call towg%pbvz_table%VarDataReverse(option)
               ! PO todo: move this error to table general reads
@@ -3638,7 +3639,8 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
                             internal_units_word,usr_temp_units,data_idx,option)
             string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name)  &
                       // '/reading RTEMPVZ or RTEMPVD table'
-            call lkp_table%VarDataRead(input,TWO_INTEGER,string,option)
+            call lkp_table%VarDataRead(input,TWO_INTEGER,TWO_INTEGER, &
+                                       string,option)
             !table input for decreasing z (or decreasing depth) - needs reversing
             call lkp_table%VarDataReverse(option)
             ! PO todo: move this error to table general reads
