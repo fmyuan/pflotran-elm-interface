@@ -943,14 +943,11 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
           !PO correction when the user enter Pb > Po for oil region
           if( (sg < eps_gas) .and. (pb >= po) .and. (so > eps_oil) ) then
-            if (Initialized(po_ogc)) then
-              pb = po_ogc
-            else
-              pb = po - epsp
-            end if
-            write(word,*) z
+            pb = po - epsp
+            write(word,*) -z
             option%io_buffer = 'MP Equilibration warning: oil saturated cell &
-                  &found below OGC, resetting to undersaturated z = ' // word
+                &found below OGC, resetting to undersaturated depth (-z) = ' &
+                // word
             call printMsg(option)
           end if
           ! ---- to go on pm_towg_aux
