@@ -18,7 +18,7 @@ module Grid_Unstructured_Aux_module
 
 !#define PETSC_SCATTER_METHOD
 !#define MPI_SCATTER_GLOBAL
-#define MPI_SCATTER_GHOST_ONLY
+!#define MPI_SCATTER_GHOST_ONLY
   
   type, public :: grid_unstructured_type
     ! variables for all unstructured grids
@@ -1667,7 +1667,8 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecSetBlockSize(elements_local,stride,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(elements_local,ierr);CHKERRQ(ierr)
   
-#ifdef PETSC_SCATTER_METHOD  
+!#ifdef PETSC_SCATTER_METHOD 
+#if !defined(MPI_SCATTER_GLOBAL) && !defined(MPI_SCATTER_GHOST_ONLY)
   !gather off-proc ghost cell infomation into local elements - Method 1
   allocate(int_array(ugrid%ngmax))
   int_array(1:ugrid%nlmax) = &
