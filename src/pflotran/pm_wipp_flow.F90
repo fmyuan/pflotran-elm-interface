@@ -54,7 +54,7 @@ module PM_WIPP_Flow_class
     PetscReal :: convergence_reals(MIN_GAS_PRES)
     character(len=MAXWORDLENGTH) :: alpha_dataset_name
     character(len=MAXWORDLENGTH) :: elevation_dataset_name
-    PetscReal :: rotation_angle
+    PetscReal :: rotation_angle ! radians
     PetscReal :: rotation_origin(3)
     PetscReal :: rotation_ceiling  ! elevation in z
     PetscReal :: rotation_basement ! elevation in z
@@ -195,6 +195,7 @@ subroutine PMWIPPFloRead(this,input)
   use Input_Aux_module
   use String_module
   use Option_module
+  use Utility_module
 
   implicit none
   
@@ -205,6 +206,7 @@ subroutine PMWIPPFloRead(this,input)
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
   PetscInt, parameter :: max_dirichlet_bc = 1000
   PetscInt :: int_array(max_dirichlet_bc)
@@ -382,6 +384,9 @@ subroutine PMWIPPFloRead(this,input)
       case('DIP_ROTATION_ANGLE')
         call InputReadDouble(input,option,this%rotation_angle)
         call InputErrorMsg(input,option,keyword,error_string)
+        ! convert to radians
+        ! acos(-1) = pi
+        this%rotation_angle = this%rotation_angle * acos(-1.d0) / 180.d0
       case('DIP_ROTATION_ORIGIN')
         call InputReadNDoubles(input,option,this%rotation_origin,THREE_INTEGER)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -392,7 +397,11 @@ subroutine PMWIPPFloRead(this,input)
         call InputReadDouble(input,option,this%rotation_basement)
         call InputErrorMsg(input,option,keyword,error_string)
       case('DIP_ROTATION_REGIONS')
-        this%rotation_region_names = StringSplit(input%buf,' ')
+        strings => StringSplit(adjustl(input%buf),' ')
+        allocate(this%rotation_region_names(size(strings)))
+        this%rotation_region_names(:) = strings(:)
+        deallocate(strings)
+        nullify(strings)
       case('JACOBIAN_PRESSURE_DERIV_SCALE')
         call InputReadDouble(input,option,this%linear_system_scaling_factor)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -505,8 +514,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscReal, pointer :: work_p(:)
   PetscReal, pointer :: work_loc_p(:)
-  PetscReal :: offset
-  PetscReal :: z
+  PetscReal :: h
+  PetscReal :: x, z
   PetscInt :: idof, icell, iregion
   PetscInt :: ghosted_id, local_id
 
@@ -607,6 +616,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           do idof = 0, this%option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
+print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
         enddo
         call VecRestoreArrayReadF90(this%realization%field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
@@ -625,15 +635,17 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       ghosted_id = grid%nL2G(local_id)
       z = grid%z(ghosted_id)
       if (z > this%rotation_ceiling .or. z < this%rotation_basement) then
-        offset = 0.d0
+        h = z
       else
+        x = grid%x(ghosted_id)
         ! from PA.33 in CRA2014 appendix
-        offset = (grid%x(ghosted_id)-this%rotation_origin(1))* &
-                 sin(this%rotation_angle) + &
-                 (z-this%rotation_origin(3))* &
-                 cos(this%rotation_angle)
+        h = (x-this%rotation_origin(1))* &
+            sin(this%rotation_angle) + &
+            (z-this%rotation_origin(3))* &
+            cos(this%rotation_angle) + &
+            this%rotation_origin(3)
       endif
-      work_p(local_id) = z + offset
+      work_p(local_id) = h
     enddo
     if (associated(this%rotation_region_names)) then
       do iregion = 1, size(this%rotation_region_names)
@@ -643,18 +655,21 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           this%option%io_buffer = 'Region "' // &
                trim(this%rotation_region_names(iregion)) // &
                '" in WIPP FLOW Elevation definition not found in region list'
+          call PrintErrMsg(this%option)
         endif
         do icell = 1, region%num_cells
           local_id = region%cell_ids(icell)
           ghosted_id = grid%nL2G(local_id)
+          x = grid%x(ghosted_id)
           z = grid%z(ghosted_id)
           ! from PA.33 in CRA2014 appendix
-          offset = (grid%x(ghosted_id)-this%rotation_origin(1))* &
-                   sin(this%rotation_angle) + &
-                   (z-this%rotation_origin(3))* &
-                   cos(this%rotation_angle)
+          h = (x-this%rotation_origin(1))* &
+              sin(this%rotation_angle) + &
+              (z-this%rotation_origin(3))* &
+              cos(this%rotation_angle) + &
+              this%rotation_origin(3)
           
-          work_p(local_id) = z + offset
+          work_p(local_id) = h
         enddo
       enddo
     endif
@@ -667,6 +682,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       do idof = 0, this%option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
       enddo
+print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
     enddo
     call VecRestoreArrayReadF90(this%realization%field%work_loc,work_loc_p, &
                                 ierr);CHKERRQ(ierr)
