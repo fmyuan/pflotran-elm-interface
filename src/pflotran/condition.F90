@@ -3138,7 +3138,10 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           towg%pbvz_table%dims(1) = size(towg%pbvz_table%axis1%values(:))
         else
           option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
-                              &PBVZ or PBVD tables not found'
+                              &defined but pressure table (PBVZ or PBVD) &
+                              &not found.If you are trying to run without &
+                              &PBVD table, please remove the entire &
+                              BUBBLE_POINT_TABLE card'
           call printErrMsg(option)
         end if
       case default
