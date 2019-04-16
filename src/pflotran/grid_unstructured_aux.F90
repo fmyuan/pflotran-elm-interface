@@ -1667,7 +1667,6 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecSetBlockSize(elements_local,stride,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(elements_local,ierr);CHKERRQ(ierr)
   
-!#ifdef PETSC_SCATTER_METHOD 
 #if !defined(MPI_SCATTER_GLOBAL) && !defined(MPI_SCATTER_GHOST_ONLY)
   !gather off-proc ghost cell infomation into local elements - Method 1
   allocate(int_array(ugrid%ngmax))
