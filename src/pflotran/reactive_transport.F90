@@ -2842,7 +2842,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscInt :: icomp, iactgas
 
 #ifdef CLM_PFLOTRAN
-  ! temporarily changing option%iflag to pass 'ghosted_id' from CLM to PF RT bgc
+  ! temporarily changing option%iflag to pass 'ghosted_id or local_id' from CLM to PF RT bgc
   PetscInt :: option_iflag
 #endif
 
@@ -3121,10 +3121,15 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 !F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
 ! clm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
-! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
+! it should be upon what exactly defined in 'clm_pf_idata%???' as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
     option_iflag = option%iflag
+#ifdef COLUMN_MODE
+    ! PETSc seq. vecs NOT include ghost cells
+    option%iflag = local_id
+#else
     option%iflag = ghosted_id
+#endif
 #endif
 
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
@@ -3133,6 +3138,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                      reaction,option)
 
 #ifdef CLM_PFLOTRAN
+    ! copy-back the original 'option%iflag' so that not changed at all
     option%iflag = option_iflag
 #endif
 
@@ -3873,10 +3879,15 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 !F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
 ! clm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
-! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
+! it should be upon what exactly defined in 'clm_pf_idata%???' as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
-    option_iflag = option%iflag
-    option%iflag = ghosted_id
+      option_iflag = option%iflag
+#ifdef COLUMN_MODE
+      ! PETSc seq. vecs NOT include ghost cells
+      option%iflag = local_id
+#else
+      option%iflag = ghosted_id
+#endif
 #endif
 
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &
@@ -3885,6 +3896,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
                                reaction,option)
 
 #ifdef CLM_PFLOTRAN
+    ! copy-back the original 'option%iflag' so that not changed at all
     option%iflag = option_iflag
 #endif
 

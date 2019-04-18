@@ -1,5 +1,9 @@
 module Mapping_module
 
+#ifdef CLM_PFLOTRAN
+
+! ************************************************************************** !
+
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscis.h"
@@ -9,7 +13,7 @@ module Mapping_module
   use petscsys
   use petscvec
   use petscmat
-
+  use Utility_module, only : where_checkerr
 
   use PFLOTRAN_Constants_module
 
@@ -74,16 +78,16 @@ module Mapping_module
 
     ! Source mesh
     PetscInt           :: s_ncells_loc              ! # of local source mesh cells present
-    PetscInt,pointer   :: s_ids_loc_nidx(:)         ! IDs of local source mesh cells
-    PetscInt,pointer   :: s_locids_loc_nidx(:)      ! loal IDs of local source mesh cells
+    PetscInt,pointer   :: s_natids_loc_nidx(:)      ! natural-IDs of local source mesh cells
+    PetscInt,pointer   :: s_locids_loc_nidx(:)      ! localed IDs of local source mesh cells
+    PetscInt,pointer   :: s_ghdids_loc_nidx(:)      ! ghosted IDs of local source mesh cells
 
     ! Destination mesh
     PetscInt           :: d_ncells_loc              ! # of local destination mesh cells present
     PetscInt           :: d_ncells_gh               ! # of ghost destination mesh cells present
-    PetscInt           :: d_ncells_ghd              ! local+ghost=ghosted destination mesh cells
+    PetscInt           :: d_ncells_ghd              ! # of local+ghost=ghosted destination mesh cells
 
-    ! natuaral-index starting with 0
-    PetscInt,pointer   :: d_ids_ghd_nidx(:)         ! IDs of ghosted destination mesh cells present
+    PetscInt,pointer   :: d_ids_ghd_nidx(:)         ! natural-IDs of ghosted destination mesh cells present
     PetscInt,pointer   :: d_ids_nidx_sor(:)         ! Sorted Ghosted IDs of destination mesh cells
     PetscInt,pointer   :: d_nGhd2Sor(:)             ! Ghosted to Sorted
     PetscInt,pointer   :: d_nSor2Ghd(:)             ! Sorted to Ghosted
@@ -122,7 +126,6 @@ module Mapping_module
             MappingSetDestinationMeshCellIds, &
             MappingFromCLMGrids, &
             MappingReadTxtFile, &
-            MappingReadHDF5, &
             MappingDecompose, &
             MappingFindDistinctSourceMeshCellIds, &
             MappingCreateWeightMatrix, &
@@ -130,6 +133,9 @@ module Mapping_module
             MappingFreeNotNeeded, &
             MappingSourceToDestination, &
             MappingDestroy
+
+  character(len=MAXWORDLENGTH) :: subname = ""
+
 contains
 
 ! ************************************************************************** !
@@ -152,15 +158,14 @@ contains
     map%filename = ''
     map%id = -999
     map%s_ncells_loc = 0
-    nullify(map%s_ids_loc_nidx)
+    nullify(map%s_natids_loc_nidx)
     nullify(map%s_locids_loc_nidx)
+    nullify(map%s_ghdids_loc_nidx)
 
     ! Destination mesh
     map%d_ncells_loc = 0
     map%d_ncells_gh  = 0
     map%d_ncells_ghd = 0
-
-    ! natuaral-index starting with 0
     nullify(map%d_ids_ghd_nidx)
     nullify(map%d_ids_nidx_sor)
     nullify(map%d_nGhd2Sor)
@@ -583,7 +588,7 @@ contains
             map%s2d_nwts = nread
             allocate(map%s2d_icsr(map%s2d_nwts))
             allocate(map%s2d_jcsr(map%s2d_nwts))
-            allocate(map%s2d_wts( map%s2d_nwts))
+            allocate(map%s2d_wts(map%s2d_nwts))
             
             do ii = 1,map%s2d_nwts
               map%s2d_icsr(ii) = wts_row_tmp(ii)
@@ -653,320 +658,14 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingReadHDF5(map,map_filename,option)
-  ! 
-  ! This routine reads a mapping file in HDF5 format.
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 4/8/2013
-  ! 
-  
-#if defined(PETSC_HAVE_HDF5)
-  use hdf5
-#endif
-
-! 64-bit stuff
-#ifdef PETSC_USE_64BIT_INDICES
-#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
-#else
-#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
-#endif
-
-    use Input_Aux_module
-    use Option_module
-    
-    implicit none
-    
-    ! argument
-    type(mapping_type), pointer :: map
-    character(len=MAXSTRINGLENGTH) :: map_filename
-    type(option_type), pointer :: option
-    
-    ! local
-    PetscMPIInt       :: hdf5_err
-    PetscMPIInt       :: rank_mpi
-    PetscInt          :: ndims
-    PetscInt          :: istart, iend, ii, jj
-    PetscInt          :: num_cells_local
-    PetscInt          :: num_cells_local_save
-    PetscInt          :: num_vertices_local
-    PetscInt          :: num_vertices_local_save
-    PetscInt          :: remainder
-    PetscInt,pointer  :: int_buffer(:)
-    PetscReal,pointer :: double_buffer(:)
-    PetscInt, parameter :: max_nvert_per_cell = 8  
-    PetscErrorCode    :: ierr
-
-    character(len=MAXSTRINGLENGTH) :: group_name
-    character(len=MAXSTRINGLENGTH) :: dataset_name
-
-#if defined(PETSC_HAVE_HDF5)
-    integer(HID_T) :: file_id
-    integer(HID_T) :: grp_id, grp_id2
-    integer(HID_T) :: prop_id
-    integer(HID_T) :: data_set_id
-    integer(HID_T) :: file_space_id
-    integer(HID_T) :: data_space_id
-    integer(HID_T) :: memory_space_id
-    integer(HSIZE_T) :: num_data_in_file
-    integer(HSIZE_T) :: dims_h5(1), max_dims_h5(1)
-    integer(HSIZE_T) :: offset(1), length(1), stride(1), block(1), dims(1)
-#endif
-
-    ! Initialize FORTRAN predefined datatypes
-    call h5open_f(hdf5_err)
-
-    ! Setup file access property with parallel I/O access
-    call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-
-#ifndef SERIAL_HDF5
-    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-
-    ! Open the file collectively
-    call h5fopen_f(map_filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
-    call h5pclose_f(prop_id,hdf5_err)
-    
-    !
-    ! /row
-    !
-    
-    ! Open group
-    group_name = "/row"
-    option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)
-
-    ! Open dataset
-    call h5dopen_f(file_id,"row",data_set_id,hdf5_err)
-
-    ! Get dataset's dataspace
-    call h5dget_space_f(data_set_id,data_space_id,hdf5_err)
-    
-    ! Get number of dimensions and check
-    call h5sget_simple_extent_ndims_f(data_space_id,ndims,hdf5_err)
-    if (ndims /= 1) then
-      option%io_buffer='Dimension of row dataset in ' // trim(map_filename) // &
-            ' is not equal to 1.'
-      call printErrMsg(option)
-    endif
-
-    ! Get dimensions of dataset
-    call h5sget_simple_extent_dims_f(data_space_id,dims_h5,max_dims_h5, &
-                                     hdf5_err)
-    
-    ! Determine the number of cells each that will be saved on each processor
-    map%s2d_nwts=INT(dims_h5(1))/option%mycommsize
-    remainder=INT(dims_h5(1))-map%s2d_nwts*option%mycommsize
-    if (option%myrank < remainder) map%s2d_nwts=map%s2d_nwts + 1
-    
-    ! allocate array to store vertices for each cell
-    allocate(map%s2d_icsr(map%s2d_nwts))
-    allocate(map%s2d_jcsr(map%s2d_nwts))
-    allocate(map%s2d_wts( map%s2d_nwts))
-
-    ! Find istart and iend
-    istart = 0
-    iend   = 0
-    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI, &
-                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    
-    ! Determine the length and offset of data to be read by each processor
-    length(1) = iend-istart
-    offset(1) = istart
-    
-    !
-    rank_mpi = 1
-    memory_space_id = -1
-    
-    ! Create data space for dataset
-    call h5screate_simple_f(rank_mpi,length,memory_space_id,hdf5_err)
-
-    ! Select hyperslab
-    call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
-    call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
-                               hdf5_err)
-    
-    ! Initialize data buffer
-    allocate(int_buffer(length(1)))
-    
-    ! Create property list
-    call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-    call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
-#endif
-    
-    ! Read the dataset collectively
-    call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, int_buffer, &
-                   dims_h5, hdf5_err, memory_space_id, data_space_id)
-    
-    ! Convert 1-based to 0-based
-    map%s2d_icsr = int_buffer-1
-
-    call h5dclose_f(data_set_id, hdf5_err)
-
-    !
-    ! /col
-    !
-    
-    ! Open group
-    group_name = "/col"
-    option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)
-
-    ! Open dataset
-    call h5dopen_f(file_id,"col",data_set_id,hdf5_err)
-
-    ! Get dataset's dataspace
-    call h5dget_space_f(data_set_id,data_space_id,hdf5_err)
-    
-    ! Get number of dimensions and check
-    call h5sget_simple_extent_ndims_f(data_space_id,ndims,hdf5_err)
-    if (ndims /= 1) then
-      option%io_buffer='Dimension of row dataset in ' // trim(map_filename) // &
-            ' is not equal to 1.'
-      call printErrMsg(option)
-    endif
-
-    ! Get dimensions of dataset
-    call h5sget_simple_extent_dims_f(data_space_id,dims_h5,max_dims_h5, &
-                                     hdf5_err)
-    
-    ! Determine the number of cells each that will be saved on each processor
-    map%s2d_nwts=INT(dims_h5(1))/option%mycommsize
-    remainder=INT(dims_h5(1))-map%s2d_nwts*option%mycommsize
-    if (option%myrank < remainder) map%s2d_nwts=map%s2d_nwts + 1
-    
-    ! Find istart and iend
-    istart = 0
-    iend   = 0
-    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI, &
-                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    
-    ! Determine the length and offset of data to be read by each processor
-    length(1) = iend-istart
-    offset(1) = istart
-    
-    !
-    rank_mpi = 1
-    memory_space_id = -1
-    
-    ! Create data space for dataset
-    call h5screate_simple_f(rank_mpi,length,memory_space_id,hdf5_err)
-
-    ! Select hyperslab
-    call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
-    call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
-                               hdf5_err)
-    
-    ! Create property list
-    call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-    call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
-#endif
-    
-    ! Read the dataset collectively
-    call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, int_buffer, &
-                   dims_h5, hdf5_err, memory_space_id, data_space_id)
-    
-    ! Convert 1-based to 0-based
-    map%s2d_jcsr = int_buffer-1
-
-    call h5dclose_f(data_set_id, hdf5_err)
-
-    !
-    ! /S
-    !
-    
-    ! Open group
-    group_name = "/S"
-    option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)
-
-    ! Open dataset
-    call h5dopen_f(file_id,"S",data_set_id,hdf5_err)
-
-    ! Get dataset's dataspace
-    call h5dget_space_f(data_set_id,data_space_id,hdf5_err)
-    
-    ! Get number of dimensions and check
-    call h5sget_simple_extent_ndims_f(data_space_id,ndims,hdf5_err)
-    if (ndims /= 1) then
-      option%io_buffer='Dimension of row dataset in ' // trim(map_filename) // &
-            ' is not equal to 1.'
-      call printErrMsg(option)
-    endif
-
-    ! Get dimensions of dataset
-    call h5sget_simple_extent_dims_f(data_space_id,dims_h5,max_dims_h5, &
-                                     hdf5_err)
-    
-    ! Determine the number of cells each that will be saved on each processor
-    map%s2d_nwts=INT(dims_h5(1))/option%mycommsize
-    remainder=INT(dims_h5(1))-map%s2d_nwts*option%mycommsize
-    if (option%myrank < remainder) map%s2d_nwts=map%s2d_nwts + 1
-    
-    ! Find istart and iend
-    istart = 0
-    iend   = 0
-    call MPI_Exscan(map%s2d_nwts,istart,ONE_INTEGER_MPI, &
-                    MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    call MPI_Scan(map%s2d_nwts,iend,ONE_INTEGER_MPI, &
-                  MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
-    
-    ! Determine the length and offset of data to be read by each processor
-    length(1) = iend-istart
-    offset(1) = istart
-    
-    !
-    rank_mpi = 1
-    memory_space_id = -1
-    
-    ! Create data space for dataset
-    call h5screate_simple_f(rank_mpi,length,memory_space_id,hdf5_err)
-
-    ! Select hyperslab
-    call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
-    call h5sselect_hyperslab_f(data_space_id, H5S_SELECT_SET_F, offset, length, &
-                               hdf5_err)
-    
-    ! Initialize data buffer
-    allocate(double_buffer(length(1)))
-    
-    ! Create property list
-    call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
-#ifndef SERIAL_HDF5
-    call h5pset_dxpl_mpio_f(prop_id, H5FD_MPIO_COLLECTIVE_F, hdf5_err)
-#endif
-    
-    ! Read the dataset collectively
-    call h5dread_f(data_set_id, H5T_NATIVE_DOUBLE, double_buffer, &
-                   dims_h5, hdf5_err, memory_space_id, data_space_id)
-    
-    map%s2d_wts = double_buffer
-
-    call h5dclose_f(data_set_id, hdf5_err)
-
-    ! Close file
-    call h5fclose_f(file_id, hdf5_err)
-    call h5close_f(hdf5_err)
-
-    ! Free memory
-    deallocate(int_buffer)
-    deallocate(double_buffer)
-
-  end subroutine MappingReadHDF5
-
 ! ************************************************************************** !
 
   subroutine MappingSetSourceMeshCellIds( map,                           &
                                           option,                        &
                                           ncells_loc, ncells_gh,         &
                                           cell_ids_ghd,                  &
-                                          local_ids_ghd                  &
+                                          local_ids_ghd,                 &
+                                          ghosted_ids_ghd                &
                                         )
   !
   ! This routine sets cell ids source mesh.
@@ -982,18 +681,20 @@ contains
     type(option_type),  pointer :: option
 
     PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
-    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
+    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:), ghosted_ids_ghd(:)
 
     map%s_ncells_loc = ncells_loc
-    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_natids_loc_nidx(map%s_ncells_loc))
     allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_ghdids_loc_nidx(map%s_ncells_loc))
 
     iloc = 0
     do ii = 1,ncells_loc+ncells_gh
       if (local_ids_ghd(ii)>=1) then
-        iloc = iloc+1
-        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
+        iloc = iloc+1                                   ! all 3 arrays are 1-based indexing
+        map%s_natids_loc_nidx(iloc) = cell_ids_ghd(ii)
         map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
+        map%s_ghdids_loc_nidx(iloc) = ghosted_ids_ghd(ii)
       endif
     enddo
 
@@ -1452,8 +1153,8 @@ contains
 
     ! Allocate memory
     if(associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
-    ! it has been allocated before (when reading mesh file either in txt or in hdf5)
-    allocate(map%s2d_jcsr( map%s2d_s_ncells))
+    ! it has been allocated before (when reading mesh file either in txt or from CLM)
+    allocate(map%s2d_jcsr(map%s2d_s_ncells))
     allocate(int_array (map%s2d_s_ncells))
     allocate(int_array2(map%s2d_s_ncells))
     allocate(int_array3(map%s2d_s_ncells))
@@ -1623,6 +1324,7 @@ contains
     PetscErrorCode               :: ierr
 
     character(len=MAXSTRINGLENGTH)     :: string
+    subname = 'MappingCreateScatterOfSourceMesh'
 
     !
     ! Example:
@@ -1675,7 +1377,7 @@ contains
     ! Initialize 'nindex' vector
     call VecGetArrayF90(nindex,v_loc,ierr)
     do ii=1,map%s_ncells_loc
-       v_loc(ii) = map%s_ids_loc_nidx(ii)
+       v_loc(ii) = map%s_natids_loc_nidx(ii)
     enddo
     call VecRestoreArrayF90(nindex,v_loc,ierr)
 #ifdef MAP_DEBUG
@@ -1718,7 +1420,7 @@ contains
 
     ! Create 'is_to'
     do ii=1,map%s_ncells_loc
-       tmp_int_array(ii) = map%s_ids_loc_nidx(ii)
+       tmp_int_array(ii) = map%s_natids_loc_nidx(ii)
     enddo
     call ISCreateBlock(option%mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
@@ -1732,7 +1434,9 @@ contains
 #endif
 
     ! Create 'vscat'
-    call VecScatterCreate(nindex, is_from, N2P, is_to, vscat, ierr)
+    call VecScatterCreate(nindex, is_from, N2P, is_to, vscat,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from,ierr)
 #ifdef MAP_DEBUG
@@ -1872,12 +1576,6 @@ contains
 
     type(mapping_type), pointer :: map
 
-    if(associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
-          ! allocated in L187, last used in L1409.
-
-    if(associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
-          ! allocated in L234, last used in L968
-
     ! in 'MappingSetDestinationMeshCellIds', the following may not really used
     if(associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)   ! allocated in L235, last used in L255
     if(associated(map%d_loc_or_gh)) deallocate(map%d_loc_or_gh)         ! allocated in L236, last used in L244
@@ -1913,10 +1611,11 @@ contains
   ! Author: Gautam Bisht, ORNL
   ! Date: 2011
   ! 
+  ! Modified by Fengming Yuan, CCSI/ORNL @2019-04
   
     use Option_module
     implicit none
-    
+
     ! argument
     type(mapping_type), pointer :: map
     type(option_type), pointer  :: option
@@ -1926,38 +1625,63 @@ contains
     ! local variables
     PetscErrorCode              :: ierr
 
+    subname = 'MappingSourceToDestination'
+
     ! a note here:
     ! what needed after initializing mapping is as following,
     ! the rest map%??? can be deallocated, if allocated memory before,
     ! so that free memory not needed any more.
     ! map%s_disloc_vec
     ! map%s2d_scat_s_gb2disloc
-    ! map%wts_mat
+    ! map%wts_mat - this also includes cell/grid ordering information
 
-    if (map%s2d_s_ncells > 0) then  
+    if (map%s2d_s_ncells > 0) then
        ! Initialize local vector
-       call VecSet(map%s_disloc_vec, 0.d0, ierr);CHKERRQ(ierr)
+       call VecSet(map%s_disloc_vec, 0.d0, ierr)
+       call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-       call VecSet(d_vec, 0.d0, ierr);CHKERRQ(ierr)
+       call VecSet(d_vec, 0.d0, ierr)
+       call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     end if
 
+#ifdef COLUMN_MODE
+    ! in this case, no lateral connections and each column totally on 1 processor, implying that NO need to scatter vecs.
+    ! AND, vecs DON'T include ghost_cells if any
+    ! WHY bother? - it appears that PETSc 'VecScatterEnd' below involving call to 'MPI_Waitany', which takes a lot of computing time (making sense).
+
+    call VecGetLocalVectorRead(s_vec, map%s_disloc_vec, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    if (map%s2d_s_ncells > 0) then
+       ! Perform Matrix-Vector product
+       call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
+       call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    end if
+
+    call VecRestoreLocalVectorRead(s_vec, map%s_disloc_vec, ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+#else
     ! Scatter the source vector
     call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-    if (map%s2d_s_ncells > 0) then  
+    if (map%s2d_s_ncells > 0) then
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
-       CHKERRQ(ierr)
+       call where_checkerr(ierr, subname, __FILE__, __LINE__)
     end if
 
-  end subroutine MappingSourceToDestination
+#endif
+
+ end subroutine MappingSourceToDestination
+
 
 ! ************************************************************************** !
 
@@ -1974,8 +1698,10 @@ contains
     ! argument
     type(mapping_type), pointer :: map
 
-    if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+    if (associated(map%s_natids_loc_nidx)) deallocate(map%s_natids_loc_nidx)
     if (associated(map%s_locids_loc_nidx)) deallocate(map%s_locids_loc_nidx)
+    if (associated(map%s_ghdids_loc_nidx)) deallocate(map%s_ghdids_loc_nidx)
+
     if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
     if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
     if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)
@@ -1988,7 +1714,10 @@ contains
     if (associated(map%s2d_icsr)) deallocate(map%s2d_icsr)
     if (associated(map%s2d_nonzero_rcount_csr)) deallocate(map%s2d_nonzero_rcount_csr)
 
-    nullify(map%s_ids_loc_nidx)
+    nullify(map%s_natids_loc_nidx)
+    nullify(map%s_locids_loc_nidx)
+    nullify(map%s_ghdids_loc_nidx)
+
     nullify(map%d_ids_ghd_nidx)
     nullify(map%d_ids_nidx_sor)
     nullify(map%d_nGhd2Sor)
@@ -2003,5 +1732,9 @@ contains
 
   end subroutine MappingDestroy
 
+! ************************************************************************** !
+#endif
+
 end module Mapping_module
+
 
