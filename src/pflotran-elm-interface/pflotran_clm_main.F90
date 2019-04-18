@@ -1,5 +1,12 @@
-module pflotran_clm_main_module
 
+module pflotran_clm_main_module
+!
+#ifdef CLM_PFLOTRAN
+
+
+! ************************************************************************** !
+!
+!
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
   use petscsys
@@ -628,6 +635,7 @@ contains
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, i, j, k
+    PetscInt           :: veclocal_id
 
     PetscScalar, pointer :: dlon_pf_loc(:),dlat_pf_loc(:), dzsoil_pf_loc(:)           ! soil cell length/width/thickness (deg/deg/m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
@@ -763,8 +771,16 @@ contains
          call printErrMsg(option)
     end select
 
-    do ghosted_id = 1, grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+
+#ifdef COLUMN_MODE
+      ! vecs NOT include ghost cells
+      veclocal_id = local_id
+#else
+      veclocal_id = ghosted_id
+#endif
+
 
       ! hack cell's 3-D dimensions
 
@@ -783,21 +799,22 @@ contains
         !  /                 |                \        |
         ! 1---------(lonc, latc-1/2*dy)--------2       V
 
-        lon_c = lonc_pf_loc(ghosted_id)
-        lat_c = latc_pf_loc(ghosted_id)
-        if(dlon_pf_loc(ghosted_id) >0.d0 .and. dlat_pf_loc(ghosted_id) >0.d0) then
+        lon_c = lonc_pf_loc(veclocal_id)
+        lat_c = latc_pf_loc(veclocal_id)
+        if(dlon_pf_loc(veclocal_id) >0.d0 .and. dlat_pf_loc(veclocal_id) >0.d0) then
           ! the following assumes an isoceles trapezoid grid from CLM unstructured or 1-D gridcells
           ! may have distortion for area estimation, but should be good for distance calculation
-          lon_e = lon_c + dlon_pf_loc(ghosted_id)/2.0d0  ! East
-          lon_w = lon_c - dlon_pf_loc(ghosted_id)/2.0d0  ! West
-          lat_s = lat_c - dlat_pf_loc(ghosted_id)/2.0d0  ! South
-          lat_n = lat_c + dlat_pf_loc(ghosted_id)/2.0d0  ! North
+          lon_e = lon_c + dlon_pf_loc(veclocal_id)/2.0d0  ! East
+          lon_w = lon_c - dlon_pf_loc(veclocal_id)/2.0d0  ! West
+          lat_s = lat_c - dlat_pf_loc(veclocal_id)/2.0d0  ! South
+          lat_n = lat_c + dlat_pf_loc(veclocal_id)/2.0d0  ! North
 
         else
           lon_e = lon_c + grid%structured_grid%dxg_local(i)/2.0d0  ! East
           lon_w = lon_c - grid%structured_grid%dxg_local(i)/2.0d0  ! West
           lat_s = lat_c - grid%structured_grid%dyg_local(j)/2.0d0  ! South
           lat_n = lat_c + grid%structured_grid%dyg_local(j)/2.0d0  ! North
+
         endif
 
         lats(1) = lat_s
@@ -882,8 +899,8 @@ contains
       end if ! if (clm_pf_idata%nxclm_mapped >= 1 .and. clm_pf_idata%nyclm_mapped >= 1 .and. .not.mapping_files)
 
       ! vertical (z-axis) (always from CLM to PF)
-      grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
-      grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
+      grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(veclocal_id)
+      grid%z(ghosted_id)   = zisoil_pf_loc(veclocal_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
     enddo
 
     if ( (clm_pf_idata%nxclm_mapped >= 1 .and. clm_pf_idata%nyclm_mapped >= 1) .and. &
@@ -944,7 +961,7 @@ contains
         local_id = grid%nG2L(ghosted_id)
         if (ghosted_id <= 0 .or. local_id <= 0) cycle
 
-        if (topface_pf_loc(ghosted_id)<=1.d-20 .and. associated(patch%imat)) then
+        if (topface_pf_loc(veclocal_id)<=1.d-20 .and. associated(patch%imat)) then
           patch%imat(ghosted_id) = -999
         endif
       end do
@@ -965,7 +982,7 @@ contains
 
       if(ghosted_id>0) &
         write(option%myrank+200,*) 'PF: natural id -', option%myrank, ghosted_id, local_id, &
-        cellid_pf_loc(local_id),grid%nG2A(ghosted_id), cellid_clm_loc(ghosted_id)
+        cellid_pf_loc(local_id),grid%nG2A(ghosted_id), cellid_clm_loc(veclocal_id)
 
     end do
     call VecRestoreArrayF90(clm_pf_idata%cellid_pfp, cellid_pf_loc, ierr)
@@ -1053,6 +1070,7 @@ contains
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, iconn, sum_connection, material_id
+    PetscInt           :: veclocal_id
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
@@ -1246,6 +1264,14 @@ contains
         if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
       endif
 
+#ifdef COLUMN_MODE
+      ! vecs NOT include ghost cells
+      veclocal_id = local_id
+#else
+      veclocal_id = ghosted_id
+#endif
+
+
       !(TODO) need a better way to generate MVG parameters from CLM inputs
 
       !F.-M. Yuan: (1) the following IS to pass CLM soil hydraulic data into 'saturation_function';
@@ -1273,8 +1299,8 @@ contains
             !             relative_perm = Se**power, with power = 3+2/lamda
 
 
-            sf%alpha  = 1.d0/(9.81d0*sucsat_pf_loc(ghosted_id))
-            sf%lambda = 1.d0/bsw_pf_loc(ghosted_id)
+            sf%alpha  = 1.d0/(9.81d0*sucsat_pf_loc(veclocal_id))
+            sf%lambda = 1.d0/bsw_pf_loc(veclocal_id)
             ! A NOTE here:
             ! 'lambda' of < 0.16 (or 'bsw'>6) causes large residual saturation(Sr/pcmax) in SF_BC function.
             ! one unreasonable result of this may be large liq. water saturation under frozen condition
@@ -1302,7 +1328,7 @@ contains
           class is(rpf_Burdine_BC_liq_type)
             rpf_func_type = BURDINE
 
-            rpf%lambda = 1.d0/bsw_pf_loc(ghosted_id)
+            rpf%lambda = 1.d0/bsw_pf_loc(veclocal_id)
             ! A NOTE here:
             ! 'lambda' of < 0.16 (or 'bsw'>6) causes large residual saturation(Sr/pcmax) in SF_BC function.
             ! one unreasonable result of this may be large liq. water saturation under frozen condition
@@ -1331,13 +1357,13 @@ contains
             ithrm = int(ithrm_loc_p(ghosted_id))
             icap  = int(icap_loc_p(ghosted_id))
 
-            th_parameter%alpha(ithrm)    = 1.d0/(9.81d0*sucsat_pf_loc(ghosted_id))
-            th_parameter%ckwet(ithrm)    = tkwet_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
+            th_parameter%alpha(ithrm)    = 1.d0/(9.81d0*sucsat_pf_loc(veclocal_id))
+            th_parameter%ckwet(ithrm)    = tkwet_pf_loc(veclocal_id)*option%scale   ! W/m/K --> MW/m/K
             !(note: option%scale multiplier is done in TH.F90: setuppatch(), so it's needed here too)
-            th_parameter%ckdry(ithrm)    = tkdry_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
-            th_parameter%ckfrozen(ithrm) = tkfrz_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
+            th_parameter%ckdry(ithrm)    = tkdry_pf_loc(veclocal_id)*option%scale   ! W/m/K --> MW/m/K
+            th_parameter%ckfrozen(ithrm) = tkfrz_pf_loc(veclocal_id)*option%scale   ! W/m/K --> MW/m/K
 
-            th_parameter%dencpr(ithrm)   = hcapvs_pf_loc(ghosted_id)*option%scale  ! J/m3-particle/K --> MJ/m3-particle/K
+            th_parameter%dencpr(ithrm)   = hcapvs_pf_loc(veclocal_id)*option%scale  ! J/m3-particle/K --> MJ/m3-particle/K
 
         end select
 
@@ -1348,12 +1374,12 @@ contains
       ! [m^2]          [mm/sec]
       if(option%iflowmode==TH_MODE) then
            ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
-           perm_xx_loc_p(local_id) = hksat_x_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
-           perm_yy_loc_p(local_id) = hksat_y_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
-           perm_zz_loc_p(local_id) = hksat_z_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
+           perm_xx_loc_p(local_id) = hksat_x_pf_loc(veclocal_id)*vis/(den*grav)/1000.d0
+           perm_yy_loc_p(local_id) = hksat_y_pf_loc(veclocal_id)*vis/(den*grav)/1000.d0
+           perm_zz_loc_p(local_id) = hksat_z_pf_loc(veclocal_id)*vis/(den*grav)/1000.d0
       endif
 
-      porosity_loc_p(local_id) = watsat_pf_loc(ghosted_id)
+      porosity_loc_p(local_id) = watsat_pf_loc(veclocal_id)
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
@@ -1365,7 +1391,7 @@ contains
         'rank=',option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
-        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
+        'clms_watsat(ghosted_id)=',watsat_pf_loc(veclocal_id)
 #endif
 
       ! material_property updates from CLM
@@ -1376,21 +1402,22 @@ contains
 
       ! have to do one by one as needed
       material_property%rock_density = &
-        bd_dry_pf_loc(ghosted_id)/(1.d0-watsat_pf_loc(ghosted_id))      ! kg soil particle /m3 bulk soils
+        bd_dry_pf_loc(veclocal_id)/(1.d0-watsat_pf_loc(veclocal_id))      ! kg soil particle /m3 bulk soils
 
-      material_property%permeability(1,1) = hksat_x_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
-      material_property%permeability(2,2) = hksat_y_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
-      material_property%permeability(3,3) = hksat_z_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
+      material_property%permeability(1,1) = hksat_x_pf_loc(veclocal_id)*vis/(den*grav)/1000.d0
+      material_property%permeability(2,2) = hksat_y_pf_loc(veclocal_id)*vis/(den*grav)/1000.d0
+      material_property%permeability(3,3) = hksat_z_pf_loc(veclocal_id)*vis/(den*grav)/1000.d0
 
-      material_property%porosity =  watsat_pf_loc(ghosted_id)
+      material_property%porosity =  watsat_pf_loc(veclocal_id)
 
-      material_property%specific_heat = hcapvs_pf_loc(ghosted_id)/ &
+      material_property%specific_heat = hcapvs_pf_loc(veclocal_id)/ &
                                         material_property%rock_density  ! J/m^3-K ==> J/kg rock-K
 
-      material_property%thermal_conductivity_dry = tkdry_pf_loc(ghosted_id)
-      material_property%thermal_conductivity_wet = tkwet_pf_loc(ghosted_id)
-      material_property%alpha = 1.d0/(9.81d0*sucsat_pf_loc(ghosted_id))
-      material_property%thermal_conductivity_frozen = tkfrz_pf_loc(ghosted_id)
+      material_property%thermal_conductivity_dry = tkdry_pf_loc(veclocal_id)
+      material_property%thermal_conductivity_wet = tkwet_pf_loc(veclocal_id)
+      material_property%alpha = 1.d0/(9.81d0*sucsat_pf_loc(veclocal_id))
+      material_property%thermal_conductivity_frozen = tkfrz_pf_loc(veclocal_id)
+      !material_property%alpha_fr = material_property_default%alpha_fr
 
     enddo
 
@@ -1542,11 +1569,13 @@ contains
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: porosity0_loc_p(:)    ! this is from 'field%porosity0'
+    PetscInt           :: veclocal_id    ! uppon COLUMN_MODE, either 'local_id' or 'ghosted_id'
+
+    PetscReal, pointer :: porosity0_loc_p(:)    ! these are from 'field%porosity0' (mpi vec)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: unitconv, perm_adj, tempreal
 
-    PetscScalar, pointer :: porosity_pfs_loc(:)  ! these are from 'clm-pf-idata%'
+    PetscScalar, pointer :: porosity_pfs_loc(:)  ! these are from 'clm-pf-idata%' (seq vec, passing from mpi vec of CLM)
     PetscScalar, pointer :: hksat_x_pf_loc(:), hksat_y_pf_loc(:), hksat_z_pf_loc(:)
     PetscScalar, pointer :: watsat_pf_loc(:), bsw_pf_loc(:)
 
@@ -1578,7 +1607,7 @@ contains
                                     clm_pf_idata%effporosity_pfs)
     ! for adjusting porosity
     call VecGetArrayF90(clm_pf_idata%effporosity_pfs,  porosity_pfs_loc,  ierr)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)   !seq. vec (to receive '_clmp' vec)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
@@ -1612,6 +1641,14 @@ contains
       if (ghosted_id <= 0 .or. local_id <= 0) cycle
       if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
 
+#ifdef COLUMN_MODE
+      ! vecs NOT include ghost cells
+      veclocal_id = local_id
+#else
+      veclocal_id = ghosted_id
+#endif
+
+
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
@@ -1620,21 +1657,21 @@ contains
       write(option%myrank+200,*) 'checking pflotran-model prior to resetting porosity:', &
         'rank=',option%myrank, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'porosity0(local_id)=',porosity0_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
+        'porosity0(local_id)=',porosity0_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(veclocal_id)
 #endif
 
-      porosity0_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
+      porosity0_loc_p(local_id) = porosity_pfs_loc(veclocal_id)
 
       if(option%iflowmode==TH_MODE) then
            ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
            ! This will prevent large hydraulic conductivity in PFLOTRAN when shrinking pore size
            ! because PFLOTRAN uses pressure (saturation) in its rel. perm calculation.
-           tempreal = porosity_pfs_loc(ghosted_id)/watsat_pf_loc(ghosted_id)
-           perm_adj = tempreal**(2.0d0*bsw_pf_loc(ghosted_id)+3.0d0)        ! assuming shrunk pore as VWC to estimate K, by Clapp-Hornberger Eq.
+           tempreal = porosity_pfs_loc(veclocal_id)/watsat_pf_loc(veclocal_id)
+           perm_adj = tempreal**(2.0d0*bsw_pf_loc(veclocal_id)+3.0d0)        ! assuming shrunk pore as VWC to estimate K, by Clapp-Hornberger Eq.
            perm_adj = max(0.d0, min(perm_adj*perm_adj, 1.0d0))
-           perm_xx_loc_p(local_id) = perm_adj*hksat_x_pf_loc(ghosted_id)*unitconv
-           perm_yy_loc_p(local_id) = perm_adj*hksat_y_pf_loc(ghosted_id)*unitconv
-           perm_zz_loc_p(local_id) = perm_adj*hksat_z_pf_loc(ghosted_id)*unitconv
+           perm_xx_loc_p(local_id) = perm_adj*hksat_x_pf_loc(veclocal_id)*unitconv
+           perm_yy_loc_p(local_id) = perm_adj*hksat_y_pf_loc(veclocal_id)*unitconv
+           perm_zz_loc_p(local_id) = perm_adj*hksat_z_pf_loc(veclocal_id)*unitconv
 
       endif
 
@@ -1666,6 +1703,7 @@ contains
     endif
 
     !
+    ! must re-do soil properties scattering to ghost cells
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1881,12 +1919,14 @@ contains
     PetscErrorCode     :: ierr
 
     PetscInt           :: local_id, ghosted_id
+    PetscInt           :: veclocal_id    ! uppon COLUMN_MODE, either 'local_id' or 'ghosted_id'
+
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
     PetscReal, pointer :: soilliq_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
     PetscReal, pointer :: soilpress_pf_loc(:)
 
-    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
+    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0 (mpi vec)
     PetscReal          :: liq_kgm3, ice_kgm3
 
     subname = 'pflotranModelUpdateTHfromCLM'
@@ -1942,10 +1982,18 @@ contains
         call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-        do ghosted_id=1, grid%ngmax
-          local_id=grid%nG2L(ghosted_id)
+        do local_id=1, grid%nlmax
+          ghosted_id=grid%nL2G(local_id)
           if (ghosted_id<=0 .or. local_id <=0) cycle
           !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
+
+#ifdef COLUMN_MODE
+          ! vecs NOT include ghost cells
+          veclocal_id = local_id
+#else
+          veclocal_id = ghosted_id
+#endif
+
 
 #ifdef CLM_PF_DEBUG
        ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
@@ -1953,10 +2001,17 @@ contains
           write(option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
               'local_id=',local_id, 'ghosted_id=',ghosted_id, &
               'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
-              'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
+              'sat_pfs(ghosted_id)=',soillsat_pf_loc(veclocal_id)
 #endif
-          global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
-          global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
+          !global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(veclocal_id)
+          ! alternatively, calculate sat from water mass (kgH2O/m3 bulk soil)
+          liq_kgm3 = global_auxvars(ghosted_id)%den_kg(1) ! water den = kg/m^3
+          global_auxvars(ghosted_id)%sat(1)=soilliq_pf_loc(local_id)/liq_kgm3/ &
+                                            porosity0_loc_p(local_id)
+
+          ! water pressure (pa)
+          global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(veclocal_id)
+
         enddo
 
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
@@ -1997,12 +2052,19 @@ contains
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
-        do ghosted_id=1, grid%ngmax
-            local_id=grid%nG2L(ghosted_id)
+        do local_id=1, grid%nlmax
+            ghosted_id=grid%nL2G(local_id)
             if (ghosted_id<=0 .or. local_id<=0) cycle
             !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
-            global_auxvars(ghosted_id)%temp=soilt_pf_loc(ghosted_id)
+#ifdef COLUMN_MODE
+            ! vecs NOT include ghost cells
+            veclocal_id = local_id
+#else
+            veclocal_id = ghosted_id
+#endif
+
+            global_auxvars(ghosted_id)%temp=soilt_pf_loc(veclocal_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         call where_checkerr(ierr, subname, __FILE__, __LINE__)
@@ -2854,9 +2916,10 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     type(global_auxvar_type), pointer :: global_auxvars(:)
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id
-    PetscInt           :: ghosted_id
-    PetscReal, pointer :: xx_p(:)
+    PetscInt           :: local_id, ghosted_id
+    PetscInt           :: veclocal_id    ! uppon COLUMN_MODE, either 'local_id' or 'ghosted_id'
+
+    PetscReal, pointer   :: xx_p(:)
 
     PetscScalar, pointer :: decomp_cpools_vr_pf_loc(:)      ! (molesC/m3)
     PetscScalar, pointer :: decomp_npools_vr_pf_loc(:)      ! (molesN/m3)
@@ -2899,28 +2962,30 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !-----------------------------------------------------------------
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
+    vec_clmp = PETSC_NULL_VEC
     call VecDuplicate(clm_pf_idata%zsoil_clmp, vec_clmp,ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    vec_pfs = PETSC_NULL_VEC
     call VecDuplicate(clm_pf_idata%zsoil_pfs, vec_pfs,ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! decomp'C'
     if (associated(clm_pf_idata%ispec_decomp_c)) then
-      ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
 
         call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec for one species
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2931,37 +2996,34 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_pfs' vec
-      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! decomp_'N'
     if (associated(clm_pf_idata%ispec_decomp_n)) then
-      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. Vec
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2972,26 +3034,24 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_pfs' vec, which then pass to PF's field%
-      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_clmp,ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-    call VecDestroy(vec_pfs,ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    if(vec_clmp /= PETSC_NULL_VEC) call VecDestroy(vec_clmp,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    if(vec_pfs /= PETSC_NULL_VEC) call VecDestroy(vec_pfs,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
 
     !-----------------------------------------------------------------
@@ -3053,6 +3113,13 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
       !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
+#ifdef COLUMN_MODE
+      ! vecs NOT include ghost cells
+      veclocal_id = local_id
+#else
+      veclocal_id = ghosted_id
+#endif
+
       offset = (local_id - 1)*realization%reaction%ncomp
 
       saturation = global_auxvars(ghosted_id)%sat(1)          ! using 'ghosted_id' if from 'global_auxvars'
@@ -3070,23 +3137,23 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
       if(clm_pf_idata%ispec_no3 > 0) then
          xx_p(offset + clm_pf_idata%ispec_no3) = max(xeps0_n,                     &      ! from 'ghosted_id' to field%xx_p's local
-                                                smin_no3_vr_pf_loc(ghosted_id)    &
+                                                smin_no3_vr_pf_loc(veclocal_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
 
       elseif (clm_pf_idata%ispec_no3s > 0) then  ! in immobile form
          xx_p(offsetim + clm_pf_idata%ispec_no3s) = max(xeps0_n,                  &
-                                        smin_no3_vr_pf_loc(ghosted_id) )
+                                        smin_no3_vr_pf_loc(veclocal_id) )
 
       endif
 
       if(clm_pf_idata%ispec_nh4 > 0) then
          xx_p(offset + clm_pf_idata%ispec_nh4) = max(xeps0_n,                     &
-                                                smin_nh4_vr_pf_loc(ghosted_id)    &
+                                                smin_nh4_vr_pf_loc(veclocal_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )
 
       elseif (clm_pf_idata%ispec_nh4s > 0) then  ! in immobile form
          xx_p(offsetim + clm_pf_idata%ispec_nh4s) = max(xeps0_n,                  &
-                                        smin_nh4_vr_pf_loc(ghosted_id) )
+                                        smin_nh4_vr_pf_loc(veclocal_id) )
 
       endif
 
@@ -3095,7 +3162,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
       if(clm_pf_idata%ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
          xx_p(offsetim + clm_pf_idata%ispec_nh4sorb) = max(xeps0_n,               &
-                                        smin_nh4sorb_vr_pf_loc(ghosted_id) )
+                                        smin_nh4sorb_vr_pf_loc(veclocal_id) )
       endif
 
       !
@@ -3104,12 +3171,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
         if(clm_pf_idata%ispec_decomp_c(k) > 0) then
           xx_p(offsetim + clm_pf_idata%ispec_decomp_c(k)) = max( xeps0_c,    &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
-                       decomp_cpools_vr_pf_loc(vec_offset+ghosted_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+                       decomp_cpools_vr_pf_loc(vec_offset+veclocal_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         endif
 
         if(clm_pf_idata%ispec_decomp_n(k) > 0) then
           xx_p(offsetim + clm_pf_idata%ispec_decomp_n(k)) = max( xeps0_n,    &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
-                       decomp_npools_vr_pf_loc(vec_offset+ghosted_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+                       decomp_npools_vr_pf_loc(vec_offset+veclocal_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         endif
 
 
@@ -3123,7 +3190,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
           write(option%myrank+200,*) 'rank=',option%myrank, &
           'local_id=',local_id, 'ghosted_id=',ghosted_id, &
           'xxp_som4_id', (offsetim+clm_pf_idata%ispec_decomp_c(k)), &
-          'som4_pfs(ghosted_id)=', decomp_cpools_vr_pf_loc(vec_offset+ghosted_id), &
+          'som4_pfs(ghosted_id)=', decomp_cpools_vr_pf_loc(vec_offset+veclocal_id), &
           'xx_p(xxp_som4_id)=',xx_p(offsetim + clm_pf_idata%ispec_decomp_c(k))
         endif
 #endif
@@ -3209,7 +3276,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     class(data_mediator_base_type), pointer :: cur_data_mediator
 
     PetscErrorCode      :: ierr
-    PetscInt            :: ghosted_id,local_id
+    PetscInt            :: ghosted_id,local_id,veclocal_id
     PetscInt            :: offset, offsetim
 
     Vec                  :: vec_clmp
@@ -3243,26 +3310,30 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !-----------------------------------------------------------------
 
     ! create temporary vecs/arrays for rate of each 'decomp_pool''s data-mapping
+    vec_clmp = PETSC_NULL_VEC
     call VecDuplicate(clm_pf_idata%zsoil_clmp, vec_clmp,ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    vec_pfs = PETSC_NULL_VEC
     call VecDuplicate(clm_pf_idata%zsoil_pfs, vec_pfs,ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! rate of decomp_'C' pools from CLM-CN
     if (associated(clm_pf_idata%ispec_decomp_c)) then
-      ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%rate_decomp_c_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_c_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3273,39 +3344,38 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%rate_decomp_c_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%rate_decomp_c_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_pfs' vec
-      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! rate of decomp_'N' pools from CLM-CN
     if (associated(clm_pf_idata%ispec_decomp_n)) then
 
-      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%rate_decomp_n_clmp, array_temp, ierr)
-        call VecGetArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_clmp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_n_clmp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. Vec
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3316,26 +3386,26 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%rate_decomp_n_pfs, array_temp, ierr)
-        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%rate_decomp_n_pfs, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_pfs' vec, which then pass to PF's field%
-      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_pfs, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_clmp,ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-    call VecDestroy(vec_pfs,ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    if(vec_clmp /= PETSC_NULL_VEC) call VecDestroy(vec_clmp,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    if(vec_pfs /= PETSC_NULL_VEC) call VecDestroy(vec_pfs,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !-----------------------------------------------------------------
     ! the following is a site-scalar to adjust decomposition rate constants
@@ -3438,6 +3508,13 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
              if (local_id<=0 .or. ghosted_id<=0) cycle
              !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
+#ifdef COLUMN_MODE
+             ! local vecs NOT include ghost cells
+             veclocal_id = local_id
+#else
+             veclocal_id = ghosted_id
+#endif
+
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
@@ -3446,12 +3523,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       if (cur_data_mediator%idof == clm_pf_idata%ispec_nh4) &
       write(option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
+        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(veclocal_id), &
         'masstransfer_nh4_predataset(local_id)=',cur_data_mediator%dataset%rarray(local_id)/volume_p(local_id)
 #endif
 
                cur_data_mediator%dataset%rarray(local_id) = &
-                         rate_pf_loc(vec_offset+ghosted_id) &    ! for 'decomp' species, must be offset the vecs' starting location
+                         rate_pf_loc(vec_offset+veclocal_id) &    ! for 'decomp' species, must be offset the vecs' starting location
                        * volume_p(local_id)                      ! from moles/m3/s --> moles/s
 
            enddo  !do local_id = 1, grid%nlmax
@@ -3695,6 +3772,8 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
+    PetscInt           :: veclocal_id    ! uppon COLUMN_MODE, either 'local_id' or 'ghosted_id'
+
     PetscReal, pointer :: xx_p(:)
 
     PetscScalar, pointer :: gco2_vr_pf_loc(:)              ! (molC/m3 bulk soil)
@@ -3768,19 +3847,26 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
            if (patch%imat(ghosted_id) < 0) cycle
         endif
 
+#ifdef COLUMN_MODE
+        ! vecs NOT include ghost cells
+        veclocal_id = local_id
+#else
+        veclocal_id = ghosted_id
+#endif
+
         offset = (local_id-1) * realization%reaction%ncomp &
                 + realization%reaction%offset_immobile
 
         if(clm_pf_idata%ispec_co2 > 0) then
-            xx_p(offset + clm_pf_idata%ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), xeps0_c)
+            xx_p(offset + clm_pf_idata%ispec_co2) = max(gco2_vr_pf_loc(veclocal_id), xeps0_c)
         endif
 
         if(clm_pf_idata%ispec_n2 > 0) then
-            xx_p(offset + clm_pf_idata%ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), xeps0_n)
+            xx_p(offset + clm_pf_idata%ispec_n2) = max(gn2_vr_pf_loc(veclocal_id), xeps0_n)
         endif
 
         if(clm_pf_idata%ispec_n2o > 0) then
-            xx_p(offset + clm_pf_idata%ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), xeps0_n)
+            xx_p(offset + clm_pf_idata%ispec_n2o) = max(gn2o_vr_pf_loc(veclocal_id), xeps0_n)
         endif
 
     enddo
@@ -4329,26 +4415,30 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     ! for 'decomp_pools', NEED to do looping over each pool
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
+    vec_pfp = PETSC_NULL_VEC
     call VecDuplicate(clm_pf_idata%zsoil_pfp, vec_pfp,ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
+
+    vec_clms = PETSC_NULL_VEC
     call VecDuplicate(clm_pf_idata%zsoil_clms, vec_clms,ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     ! decomp'C'
     if (associated(clm_pf_idata%ispec_decomp_c)) then
-      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4359,38 +4449,37 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_clms' vec, after k compositing pools updated
-      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n)) then
-      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4401,38 +4490,37 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_clms' vec, after k compositing pools updated
-      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! HR from decomp'C'
     if (associated(clm_pf_idata%ispec_decomp_c) .and. clm_pf_idata%ispec_hrimm<=0) then
-      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%acchr_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%acchr_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%acchr_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%acchr_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4443,38 +4531,37 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%acchr_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%acchr_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+         call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_clms' vec, after k compositing pools updated
-      call VecAssemblyBegin(clm_pf_idata%acchr_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%acchr_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! NMIN from decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nmin<=0) then
-      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%accnmin_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%accnmin_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%accnmin_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%accnmin_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4485,38 +4572,37 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%accnmin_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_clms' vec, after k compositing pools updated
-      call VecAssemblyBegin(clm_pf_idata%accnmin_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%accnmin_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! NIMP from decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nimp<=0) then
-      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%accnimmp_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%accnimmp_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4527,38 +4613,37 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%accnimmp_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_clms' vec, after k compositing pools updated
-      call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! NIMM from decomp'N'
     if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nimm<=0) then
-      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      call VecAssemblyBegin(clm_pf_idata%accnimm_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%accnimm_vr_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
         call VecGetArrayReadF90(clm_pf_idata%accnimm_vr_pfp, array_temp, ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_pfp = array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlpf_sub)
 
         call VecRestoreArrayReadF90(clm_pf_idata%accnimm_vr_pfp, array_temp, ierr)
-        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         ! mapping from MPI vec to Seq. vec
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -4569,26 +4654,26 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
         call VecGetArrayF90(clm_pf_idata%accnimm_vr_clms, array_temp, ierr)
-        call VecGetArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecGetArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
         array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngclm_sub) = array_clms
 
         call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_clms, array_temp, ierr)
-        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
+        call VecRestoreArrayReadF90(vec_clms, array_clms, ierr)
+        call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
       enddo
-
-      ! assembly the whole '_clms' vec, after k compositing pools updated
-      call VecAssemblyBegin(clm_pf_idata%accnimm_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
-      call VecAssemblyEnd(clm_pf_idata%accnimm_vr_clms, ierr)
-      call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_pfp,ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
-    call VecDestroy(vec_clms,ierr); call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    if(vec_pfp /= PETSC_NULL_VEC) call VecDestroy(vec_pfp,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
+    if(vec_clms /= PETSC_NULL_VEC) call VecDestroy(vec_clms,ierr)
+    call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     !-----------------------------------------------------------------
     ! for single element, mapping approach directly
@@ -4852,6 +4937,8 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, istart, iend
+    PetscInt           :: veclocal_id    ! uppon COLUMN_MODE, either 'local_id' or 'ghosted_id'
+
     PetscInt           :: cur_sat_func_id
     PetscReal          :: liquid_saturation, capillary_pressure, dx, porosity
     PetscReal          :: liq_kgm3
@@ -4942,7 +5029,6 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilice_pfs, soilice_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
-    call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilisat_pfs, soilisat_pf_loc, ierr)
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
@@ -4956,6 +5042,13 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
           if (patch%imat(ghosted_id) < 0) cycle
        endif
 
+#ifdef COLUMN_MODE
+       ! vecs NOT include ghost cells
+       veclocal_id = local_id
+#else
+       veclocal_id = ghosted_id
+#endif
+
        iend = local_id*option%nflowdof
        istart = iend-option%nflowdof+1
 
@@ -4968,7 +5061,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
          characteristic_curves_array(cur_sat_func_id)%ptr
 
        if (PRESSURE_DATAPASSING) then
-         xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
+         xx_loc_p(istart)  = soilpress_pf_loc(veclocal_id)
 
          ! may need to recalculate 'saturation' from pressure
          capillary_pressure = option%reference_pressure - xx_loc_p(istart)
@@ -4986,8 +5079,8 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
 
        else
          ! need to recalculate 'pressure' from saturation/water-mass
-         !liquid_saturation = soillsat_pf_loc(ghosted_id)
-         liquid_saturation = soilliq_pf_loc(ghosted_id)/liq_kgm3/porosity
+         !liquid_saturation = soillsat_pf_loc(veclocal_id)
+         liquid_saturation = soilliq_pf_loc(veclocal_id)/liq_kgm3/porosity
          select type(sf => characteristic_curves%saturation_function)
            !class is(sat_func_VG_type)
              ! not-yet (TODO)
@@ -5008,12 +5101,12 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model, PRESSURE_DATA
        global_auxvars(ghosted_id)%sat(1)  = liquid_saturation
        global_auxvars(ghosted_id)%pres(1) = option%reference_pressure - capillary_pressure
        if (option%iflowmode .eq. TH_MODE)  then
-         xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
+         xx_loc_p(istart+1)= soilt_pf_loc(veclocal_id)
        end if
 
 
        !
-       sum_kg(1,1)= sum_kg(1,1)+ soilliq_pf_loc(ghosted_id)*material_auxvars(ghosted_id)%volume
+       sum_kg(1,1)= sum_kg(1,1)+ soilliq_pf_loc(veclocal_id)*material_auxvars(ghosted_id)%volume
 
     enddo
 
@@ -5392,10 +5485,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     class(realization_subsurface_type), pointer :: realization
 
     type(connection_set_type), pointer        :: cur_connection_set
+    PetscInt                                  :: iconn, sum_connection
+    PetscInt                                  :: local_id, ghosted_id
+    PetscInt                                  :: veclocal_id    ! uppon COLUMN_MODE, either 'local_id' or 'ghosted_id'
 
     PetscScalar, pointer                      :: qflx_pf_loc(:), qflxt_pf_loc(:)
     PetscBool                                 :: found
-    PetscInt                                  :: iconn, local_id, ghosted_id, sum_connection
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof, temperature_dof
 
@@ -5469,16 +5564,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           local_id = cur_connection_set%id_dn(iconn)
           ghosted_id = grid%nL2G(local_id)
 
-          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id) &
+#ifdef COLUMN_MODE
+          ! vecs NOT include ghost cells
+          veclocal_id = local_id
+#else
+          veclocal_id = ghosted_id
+#endif
+
+          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(veclocal_id) &
                                *material_auxvars(ghosted_id)%volume                    ! kg/m3/sec --> kg/sec
 
           if(option%iflowmode == TH_MODE) then
 
             if(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == DIRICHLET_BC) then
-              source_sink%flow_condition%temperature%dataset%rarray(1) = qflxt_pf_loc(ghosted_id)
+              source_sink%flow_condition%temperature%dataset%rarray(1) = qflxt_pf_loc(veclocal_id)
 
             elseif(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_DIRICHLET_BC) then
-              source_sink%flow_aux_real_var(TWO_INTEGER,iconn) = qflxt_pf_loc(ghosted_id)
+              source_sink%flow_aux_real_var(TWO_INTEGER,iconn) = qflxt_pf_loc(veclocal_id)
 
             elseif(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) /= ZERO_GRADIENT_BC) then
               call printErrMsg(option,'clm_et_ss is not of ' // &
@@ -5492,7 +5594,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       write(option%myrank+200,*) 'checking H-et ss. -pf_model-UpdateSrcSink:', &
         'rank=',option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'iconn=',iconn, 'qflx_pfs_loc(iconn)=',qflx_pf_loc(iconn), &
-        'qflx_pfs_loc(ghosted_id)=',qflx_pf_loc(ghosted_id)
+        'qflx_pfs_loc(veclocal_id)=',qflx_pf_loc(veclocal_id)
 #endif
 
         enddo
@@ -6216,6 +6318,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   end subroutine pflotranModelGetBCMassBalanceDeltaFromPF
 
   ! ************************************************************************** !
+#endif
   
 end module pflotran_clm_main_module
 
