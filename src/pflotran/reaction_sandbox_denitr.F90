@@ -243,7 +243,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: porosity
   PetscReal :: volume   ! m3 bulk
   PetscReal :: L_water  ! (kg)L/m3 bulk
-  PetscInt :: ghosted_id
+  PetscInt :: veclocal_id
   PetscErrorCode :: ierr
 
   PetscReal :: temp_real
@@ -287,10 +287,10 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
 #ifdef CLM_PFLOTRAN
-  ghosted_id = option%iflag
+  veclocal_id = option%iflag
   call VecGetArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
   CHKERRQ(ierr)
-  temp_real = bsw(ghosted_id)
+  temp_real = bsw(veclocal_id)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
   CHKERRQ(ierr)
 
@@ -379,7 +379,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
     write(option%fid_out, *) '----------------------------------------------'
     write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
     write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
-    write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' c_no3=',c_no3, &
+    write(option%fid_out, *) 'veclocal_id=',veclocal_id, ' c_no3=',c_no3, &
     ' ratedt_denitri=',rate_deni*option%dt, ' drate_dno3=',drate_deni_dno3
   endif
 
