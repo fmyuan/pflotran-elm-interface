@@ -392,7 +392,6 @@ subroutine PMRTInitializeTimestep(this)
   implicit none
   
   class(pm_rt_type) :: this
-  PetscReal :: time
  
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%InitializeTimestep()')

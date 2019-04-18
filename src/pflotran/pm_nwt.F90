@@ -6,6 +6,8 @@ module PM_NWT_class
   use Communicator_Base_module  
   use Option_module
   use PFLOTRAN_Constants_module
+  use NW_Transport_module
+  use NW_Transport_Aux_module
   
   implicit none
   
@@ -38,8 +40,12 @@ module PM_NWT_class
     PetscInt :: nsorb
     PetscInt :: nmnrl
     PetscInt :: nauxiliary
+    PetscReal :: tran_weight_t0
+    PetscReal :: tran_weight_t1
     PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
+    PetscBool :: transient_porosity
+    PetscBool :: steady_flow
   end type pm_nwt_params_type
   
   type, public, extends(pm_base_type) :: pm_nwt_type
@@ -53,6 +59,9 @@ module PM_NWT_class
     procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
     procedure, public :: SetRealization => PMNWTSetRealization 
     procedure, public :: InitializeRun => PMNWTInitializeRun  
+    procedure, public :: InitializeTimestep => PMNWTInitializeTimestep
+    procedure, public :: SetTranWeights => PMNWTSetTranWeights
+    procedure, public :: PreSolve => PMNWTPreSolve
   end type pm_nwt_type
   
   public :: PMNWTCreate, PMNWTSetPlotVariables
@@ -107,8 +116,12 @@ function PMNWTCreate()
   nwt_pm%params%nsorb = 0
   nwt_pm%params%nmnrl = 0
   nwt_pm%params%nauxiliary = 0
+  nwt_pm%params%tran_weight_t0 = 0.d0
+  nwt_pm%params%tran_weight_t1 = 0.d0
+  nwt_pm%params%transient_porosity = PETSC_FALSE
   nwt_pm%params%calculate_transverse_dispersion = PETSC_FALSE
   nwt_pm%params%temperature_dependent_diffusion = PETSC_FALSE
+  nwt_pm%params%steady_flow = PETSC_FALSE
   
 
   call PMBaseInit(nwt_pm)
@@ -132,7 +145,6 @@ subroutine PMNWTReadSimulationBlock(this,input)
   use Input_Aux_module
   use String_module
   use Option_module
-  use NW_Transport_Aux_module
  
   implicit none
   
@@ -207,8 +219,6 @@ subroutine PMNWTSetup(this)
   ! Author: Jenn Frederick
   ! Date: 03/08/2019
   ! 
-  
-  use NW_Transport_Aux_module
 
   implicit none
   
@@ -244,8 +254,6 @@ subroutine PMNWTSetRealization(this,realization)
   ! Date: 03/08/2019
   ! 
 
-  use Realization_Subsurface_class  
-
   implicit none
   
   class(pm_nwt_type) :: this
@@ -273,8 +281,6 @@ subroutine PMNWTInitializeRun(this)
   ! Date: 04/02/2019
   ! 
   
-  use NW_Transport_module
-  
   implicit none
   
   class(pm_nwt_type) :: this
@@ -290,6 +296,99 @@ end subroutine PMNWTInitializeRun
 
 ! ************************************************************************** !
 
+subroutine PMNWTInitializeTimestep(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/03/2019
+  ! 
+  
+  use Global_module
+  use Material_module
+  use Option_module
+  
+  implicit none
+  
+  class(pm_nwt_type) :: this
+    
+  this%option%tran_dt = this%option%dt
+
+  call PMBasePrintHeader(this)
+  
+  ! interpolate flow parameters/data
+  ! this must remain here as these weighted values are used by both
+  ! NWTInitializeTimestep and NWTTimeCut (which calls NWTInitializeTimestep)
+  if ((this%option%nflowdof > 0) .and. (.not.this%params%steady_flow)) then
+    call this%SetTranWeights()
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 this%params%tran_weight_t0, &
+                                 this%realization%field,this%comm1)
+    endif
+    ! set densities and saturations to t
+    call GlobalWeightAuxVars(this%realization,this%params%tran_weight_t0)
+  else if (this%params%transient_porosity) then
+    this%params%tran_weight_t0 = 0.d0
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               this%params%tran_weight_t0, &
+                               this%realization%field,this%comm1)
+  endif
+  
+  call NWTInitializeTimestep(this%realization)
+  
+end subroutine PMNWTInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMNWTPreSolve(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/18/2019
+  ! 
+
+  use Global_module  
+  use Material_module
+  use Data_Mediator_module
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  
+  PetscErrorCode :: ierr
+   
+  ! set densities and saturations to t+dt
+  if (this%option%nflowdof > 0 .and. .not. this%params%steady_flow) then
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 this%params%tran_weight_t1, &
+                                 this%realization%field,this%comm1)
+    endif
+    call GlobalWeightAuxVars(this%realization,this%params%tran_weight_t1)
+  else if (this%params%transient_porosity) then
+    this%params%tran_weight_t1 = 1.d0
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               this%params%tran_weight_t1, &
+                               this%realization%field,this%comm1)
+  endif
+
+  call NWTUpdateTransportCoefs(this%realization)
+
+  if (this%realization%nw_trans%use_log_formulation) then
+    call VecCopy(this%realization%field%tran_xx, &
+                 this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
+    call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
+  endif
+  
+  call DataMediatorUpdate(this%realization%tran_data_mediator_list, &
+                          this%realization%field%tran_mass_transfer, &
+                          this%realization%option)
+  
+end subroutine PMNWTPreSolve
+
+
+! ************************************************************************** !
+
 subroutine PMNWTSetPlotVariables(list,nw_trans,option,time_unit)
   ! 
   ! Adds variables to be printed for plotting.
@@ -298,10 +397,8 @@ subroutine PMNWTSetPlotVariables(list,nw_trans,option,time_unit)
   ! Date: 03/28/2019
   !
   
-  use Option_module
   use Output_Aux_module
   use Variables_module
-  use NW_Transport_Aux_module
     
   implicit none
   
@@ -327,6 +424,35 @@ subroutine PMNWTSetPlotVariables(list,nw_trans,option,time_unit)
   endif 
   
 end subroutine PMNWTSetPlotVariables
+
+! ************************************************************************** !
+
+subroutine PMNWTSetTranWeights(this)
+  ! 
+  ! Sets the weights at t0 or t1 for transport
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/17/11; 04/03/13
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+
+  PetscReal :: flow_dt
+  PetscReal :: flow_t0
+  PetscReal :: flow_t1
+
+  ! option%tran_time is the time at beginning of transport step
+  flow_t0 = this%realization%patch%aux%Global%time_t
+  flow_t1 = this%realization%patch%aux%Global%time_tpdt
+  flow_dt = flow_t1-flow_t0
+  this%params%tran_weight_t0 = max(0.d0,(this%option%time-flow_t0)/flow_dt)
+  this%params%tran_weight_t1 = min(1.d0, &
+                            (this%option%time+this%option%tran_dt-flow_t0)/ &
+                            flow_dt)
+
+end subroutine PMNWTSetTranWeights
 
 ! ************************************************************************** !
   

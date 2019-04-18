@@ -404,10 +404,10 @@ mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
-nw_transport.o : condition.o connection.o coupler.o field.o fluid.o global.o \
-                 global_aux.o grid.o logging.o material.o material_aux.o \
-                 nw_transport_aux.o option.o output_aux.o patch.o \
-                 pflotran_constants.o pm_nwt.o realization_subsurface.o \
+nw_transport.o : condition.o connection.o coupler.o discretization.o field.o \
+                 fluid.o global.o global_aux.o grid.o logging.o material.o \
+                 material_aux.o nw_transport_aux.o option.o output_aux.o \
+                 patch.o pflotran_constants.o realization_subsurface.o \
                  transport_constraint.o
 nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
                      pflotran_constants.o string.o utility.o
@@ -529,9 +529,10 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               string.o utility.o
-pm_nwt.o : communicator_base.o input_aux.o nw_transport.o nw_transport_aux.o \
-           option.o output_aux.o pflotran_constants.o pm_base.o \
-           realization_subsurface.o string.o variables.o
+pm_nwt.o : communicator_base.o data_mediator.o global.o input_aux.o material.o \
+           nw_transport.o nw_transport_aux.o option.o output_aux.o \
+           pflotran_constants.o pm_base.o realization_subsurface.o string.o \
+           variables.o
 pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
                 general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -971,7 +972,8 @@ towg.o : auxvars_flow.o auxvars_towg.o condition.o connection.o coupler.o \
          pm_towg_aux.o realization_base.o realization_subsurface.o \
          saturation_function.o utility.o variables.o well_data.o well_solver.o
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
-              option.o pflotran_constants.o reactive_transport_aux.o
+              option.o pflotran_constants.o reactive_transport_aux.o \
+              realization_subsurface.o
 transport_constraint.o : global_aux.o input_aux.o logging.o nw_transport_aux.o \
                          option.o pflotran_constants.o reaction_aux.o \
                          reaction_immobile_aux.o reaction_mineral_aux.o \
