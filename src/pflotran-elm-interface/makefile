@@ -59,7 +59,15 @@ ifdef debugbuild
   MYFLAGS += -g -O0
 endif
 
+# always in coupling with CLM
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
+
+ifdef column_mode
+  # in this case, no lateral connections and each column totally on 1 processor, implying that NO need to do mpi scatter/gather 
+  # AND, vecs DON'T include ghost_cells if any
+  # WHY bother? - it appears that PETSc 'VecScatterEnd' in many modules involving call to 'MPI_Waitany', which takes a lot of computing time (making sense although).   
+  MYFLAGS += ${FC_DEFINE_FLAG}COLUMN_MODE
+endif
 
 # calculate the jacobians for tracking variables if coupled with CLM-CN
 ifdef nojacboian_track_vars
