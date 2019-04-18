@@ -259,7 +259,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: volume, porosity, saturation, tc
   PetscReal :: theta, L_water
-  PetscInt :: ghosted_id
+  PetscInt :: veclocal_id
   PetscErrorCode :: ierr
 
   character(len=MAXWORDLENGTH) :: word
@@ -428,12 +428,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   !--------------------------------------------------------------------------------------------
   ! plant N demand rates
 #ifdef CLM_PFLOTRAN
-  ghosted_id = option%iflag
+  veclocal_id = option%iflag
 
   call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
 
-  this%rate_plantndemand = max(0.d0, rate_plantndemand_pf_loc(ghosted_id) * volume)          ! moles/m3/s * m3
+  this%rate_plantndemand = max(0.d0, rate_plantndemand_pf_loc(veclocal_id) * volume)          ! moles/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
@@ -625,7 +625,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
         write(option%fid_out, *) '----------------------------------------------'
         write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
         write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
-        write(option%fid_out, *) 'ghosted_id=',ghosted_id, &
+        write(option%fid_out, *) 'veclocal_id=',veclocal_id, &
           ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
           'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &
           'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt

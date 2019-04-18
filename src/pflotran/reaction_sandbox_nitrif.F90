@@ -266,7 +266,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: volume
   PetscReal :: saturation
   PetscReal :: tc
-  PetscInt :: ghosted_id
+  PetscInt :: veclocal_id
   PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1
@@ -375,11 +375,11 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
 ! N2O production during nitrification (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
-  ghosted_id = option%iflag
+  veclocal_id = option%iflag
 
   call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
   CHKERRQ(ierr)
-  rho_b = bulkdensity(ghosted_id) ! kg/m3
+  rho_b = bulkdensity(veclocal_id) ! kg/m3
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
   CHKERRQ(ierr)
 #else
@@ -477,7 +477,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     write(option%fid_out, *) '----------------------------------------------'
     write(option%fid_out, *) 'Reaction Sandbox: NITRIFICATION'
     write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
-    write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, &
+    write(option%fid_out, *) 'veclocal_id=',veclocal_id, ' c_nh4=',c_nh4, &
     ' ratedt_nitri=',rate_nitri*option%dt,' ratedt_nit_n2o=',rate_n2o*option%dt, &
     ' drate_dnh4=',drate_nitri_dnh4,' drate_n2o_dnh4=',drate_n2o_dnh4
   endif

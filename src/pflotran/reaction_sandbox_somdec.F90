@@ -954,7 +954,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: saturation
   PetscReal :: theta
   PetscReal :: psi
-  PetscInt  :: ghosted_id
+  PetscInt  :: veclocal_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
 #ifdef CLM_PFLOTRAN
@@ -999,7 +999,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   psi = min(global_auxvar%pres(1) - option%flow%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
 
 #ifdef CLM_PFLOTRAN
-  ghosted_id = option%iflag
+  veclocal_id = option%iflag
 
   ! put an error checking for C/N unit conversion here
   ! because it may cause CLM-CN mass-balance error due to conversion btw mass (CLM-CN) and mole (PF)
@@ -1030,7 +1030,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
 #ifdef CLM_PF_DEBUG
 ! for testing data passing
-  write(option%fid_out, *) 'ghosted_id=', ghosted_id
+  write(option%fid_out, *) 'veclocal_id=', veclocal_id
   do irxn = 1, this%nrxn
     ispec_uc = this%upstream_c_id(irxn)
     if(this%upstream_is_aqueous(irxn)) then
@@ -1047,22 +1047,22 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #ifdef CLM_PFLOTRAN
   if(option%nflowspec>0) then
     if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLMCN) then
-      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+      f_w = GetMoistureResponse(theta, veclocal_id, this%moisture_response_function)
     elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
-      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+      f_w = GetMoistureResponse(theta, veclocal_id, this%moisture_response_function)
     endif
 
   else
     ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
     call VecGetArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
     CHKERRQ(ierr)
-    f_w = xfactor_pf_loc(ghosted_id)
+    f_w = xfactor_pf_loc(veclocal_id)
     call VecRestoreArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
     CHKERRQ(ierr)
     !multiplying O-Scalar as well
     call VecGetArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
     CHKERRQ(ierr)
-    f_w = f_w * xfactor_pf_loc(ghosted_id)
+    f_w = f_w * xfactor_pf_loc(veclocal_id)
     call VecRestoreArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
     CHKERRQ(ierr)
 
@@ -1083,7 +1083,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
     call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
     CHKERRQ(ierr)
-    f_t = xfactor_pf_loc(ghosted_id)
+    f_t = xfactor_pf_loc(veclocal_id)
     call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
     CHKERRQ(ierr)
   endif
@@ -1100,7 +1100,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   if (this%decomp_depth_efolding > 0.d0) then
     call VecGetArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
-    f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
+    f_depth = exp(-zsoi_pf_loc(veclocal_id)/this%decomp_depth_efolding)
     f_depth = min(1.0d0, max(1.d-20, f_depth))
     call VecRestoreArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -1111,7 +1111,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! the following is an additional scalar to relate SOM decomposition rate with location (site)
   call VecGetArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
   CHKERRQ(ierr)
-  kd_scalar = kd_scalar_pf_loc(ghosted_id)
+  kd_scalar = kd_scalar_pf_loc(veclocal_id)
 
   call VecRestoreArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
   CHKERRQ(ierr)
