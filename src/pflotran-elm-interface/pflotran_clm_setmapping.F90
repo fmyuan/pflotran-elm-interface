@@ -2,6 +2,7 @@
 
 module pflotran_clm_setmapping_module
 #ifdef CLM_PFLOTRAN
+
 ! ************************************************************************** !
 
 #include "petsc/finclude/petscsys.h"
@@ -345,8 +346,8 @@ contains
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
-    PetscInt, pointer                  :: grid_pf_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_nindex(:)
+    PetscInt, pointer                  :: grid_pf_local_nindex(:), grid_pf_ghosted_nindex(:)
+    PetscInt, pointer                  :: grid_clm_local_nindex(:), grid_clm_ghosted_nindex(:)
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
@@ -388,10 +389,11 @@ contains
 
     if (len(trim(map%filename)) > 0) then
       ! Read mapping file
-      if (index(map%filename, '.h5') > 0) then
-        call MappingReadHDF5(map, map%filename, option)
-      else
+      if (index(map%filename, '.txt') > 0) then
         call MappingReadTxtFile(map, map%filename, option)
+      else
+        option%io_buffer = 'Invalid mapping file name (must be in *.txt) between CLM and PFLOTRAN!'
+        call printErrMsg(option)
       endif
 
       ! checking if the CLM-PF has same number of soil layers for mapping
@@ -421,42 +423,65 @@ contains
     ! Allocate memory to identify if CLM cells are local or ghosted.
     ! Note: Presently all CLM cells are local
     allocate(grid_clm_local_nindex(grid_clm_npts_local))
+    allocate(grid_clm_ghosted_nindex(grid_clm_npts_local))
     do local_id = 1, grid_clm_npts_local
       grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
+      grid_clm_ghosted_nindex(local_id) = local_id   ! same as local ID
     enddo
 
     ! Find cell IDs for PFLOTRAN grid
     grid_pf_npts_local = grid%nlmax
-    grid_pf_npts_ghost = grid%ngmax - grid%nlmax
+#ifdef COLUMN_MODE
+    ! in this case, no lateral connections and each column totally on 1 processor, implying that NO need to scattering/gathering
+    ! AND, vecs/mats DON'T include ghost_cells if any
+    grid_pf_npts_ghost = 0
 
+    allocate(grid_pf_cell_ids_nindex(grid_pf_npts_local))
+    allocate(grid_pf_local_nindex(grid_pf_npts_local))
+    allocate(grid_pf_ghosted_nindex(grid_pf_npts_local))
+    do local_id = 1, grid_pf_npts_local
+      ghosted_id = grid%nL2G(local_id)
+      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(ghosted_id)-1
+      grid_pf_local_nindex(local_id) = local_id        ! LOCAL ID
+      grid_pf_ghosted_nindex(local_id) = ghosted_id
+    enddo
+
+#else
+    ! fully 3-D
+    grid_pf_npts_ghost = grid%ngmax - grid%nlmax
 
     allocate(grid_pf_cell_ids_nindex(grid%ngmax))
     allocate(grid_pf_local_nindex(grid%ngmax))
+    allocate(grid_pf_ghosted_nindex(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       grid_pf_cell_ids_nindex(ghosted_id) = grid%nG2A(ghosted_id)-1
       if (local_id <= 0) then
-        grid_pf_local_nindex(ghosted_id) = 0        ! GHOST
+        grid_pf_local_nindex(ghosted_id) = 0               ! GHOST cell
       else
         grid_pf_local_nindex(ghosted_id) = local_id        ! LOCAL ID
       endif
+      grid_pf_ghosted_nindex(ghosted_id) = ghosted_id
     enddo
+#endif
 
     select case(source_mesh_id)
       case(CLM_3DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_npts_ghost, &
+                                         grid_clm_npts_ghost,      &
                                          grid_clm_cell_ids_nindex, &
-                                         grid_clm_local_nindex)
+                                         grid_clm_local_nindex,    &
+                                         grid_clm_ghosted_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
-                                              grid_pf_npts_ghost, &
+                                              grid_pf_npts_ghost,      &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_3DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_npts_ghost, &
-                                        grid_pf_cell_ids_nindex, &
-                                        grid_pf_local_nindex)
+                                        grid_pf_npts_ghost,        &
+                                        grid_pf_cell_ids_nindex,   &
+                                        grid_pf_local_nindex,      &
+                                        grid_pf_ghosted_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex, &
@@ -474,7 +499,9 @@ contains
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_pf_ghosted_nindex)
     deallocate(grid_clm_local_nindex)
+    deallocate(grid_clm_ghosted_nindex)
 
     ! Setting the number of cells constituting the 3D
     ! subsurface domain for each model.
@@ -595,7 +622,7 @@ contains
     call where_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
+                                    option, &
                                     clm_pf_idata%area_top_face_pfp, &
                                     clm_pf_idata%area_top_face_clms)
 
@@ -647,7 +674,7 @@ contains
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
-    PetscInt, pointer                  :: grid_pf_local_nindex(:)
+    PetscInt, pointer                  :: grid_pf_local_nindex(:), grid_pf_ghosted_nindex(:)
     PetscInt, pointer                  :: grid_clm_local_nindex(:)
     PetscInt, pointer                  :: grid_clm_cell_ids_nindex_copy(:)
     PetscInt                           :: count
@@ -726,10 +753,10 @@ contains
 
     if (len(trim(map%filename)) > 0) then
       ! Read mapping file
-      if (index(map%filename, '.h5') > 0) then
-        call MappingReadHDF5(map, map%filename, option)
-      else
+      if (index(map%filename, '.txt') > 0) then
         call MappingReadTxtFile(map, map%filename, option)
+      else
+        !
       endif
 
     elseif(.not.option%mapping_files) then
@@ -775,6 +802,7 @@ contains
           ! Allocate memory to save cell ids and flag for local cells
           allocate(grid_pf_cell_ids_nindex(cur_region%num_cells))
           allocate(grid_pf_local_nindex(cur_region%num_cells))
+          allocate(grid_pf_ghosted_nindex(cur_region%num_cells))
           grid_pf_npts_local = cur_region%num_cells
 
           do icell = 1, grid_pf_npts_local
@@ -782,8 +810,9 @@ contains
             ghosted_id = grid%nL2G(local_id)
             natural_id = grid%nG2A(ghosted_id)
 
-            grid_pf_cell_ids_nindex(icell) = natural_id - 1
+            grid_pf_cell_ids_nindex(icell) = natural_id - 1  ! zero-based NATURAL ID
             grid_pf_local_nindex(icell)    = local_id        ! LOCAL ID
+            grid_pf_ghosted_nindex(icell)  = ghosted_id      ! GHOSTED ID
 
           end do
 
@@ -1136,20 +1165,22 @@ contains
     select case(source_mesh_id)
       case(CLM_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_npts_ghost, &
+                                         grid_clm_npts_ghost,           &
                                          grid_clm_cell_ids_nindex_copy, &
+                                         grid_clm_local_nindex,         &
                                          grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
-                                              grid_pf_npts_ghost, &
+                                              grid_pf_npts_ghost,      &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                         grid_pf_npts_ghost, &
+                                         grid_pf_npts_ghost,      &
                                          grid_pf_cell_ids_nindex, &
-                                         grid_pf_local_nindex)
+                                         grid_pf_local_nindex,    &
+                                         grid_pf_ghosted_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
-                                              grid_clm_npts_ghost, &
+                                              grid_clm_npts_ghost,           &
                                               grid_clm_cell_ids_nindex_copy, &
                                               grid_clm_local_nindex)
       case default
@@ -1160,6 +1191,7 @@ contains
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_pf_ghosted_nindex)
     deallocate(grid_clm_cell_ids_nindex_copy)
     deallocate(grid_clm_local_nindex)
 
