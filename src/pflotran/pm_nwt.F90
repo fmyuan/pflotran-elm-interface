@@ -60,6 +60,8 @@ module PM_NWT_class
     procedure, public :: SetRealization => PMNWTSetRealization 
     procedure, public :: InitializeRun => PMNWTInitializeRun  
     procedure, public :: InitializeTimestep => PMNWTInitializeTimestep
+    procedure, public :: FinalizeTimestep => PMNWTFinalizeTimestep
+    procedure, public :: Residual => PMNWTResidual
     procedure, public :: SetTranWeights => PMNWTSetTranWeights
     procedure, public :: PreSolve => PMNWTPreSolve
   end type pm_nwt_type
@@ -340,6 +342,53 @@ end subroutine PMNWTInitializeTimestep
 
 ! ************************************************************************** !
 
+subroutine PMNWTFinalizeTimestep(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/18/2019
+  ! 
+
+  use Variables_module, only : POROSITY
+  use Material_module, only : MaterialGetAuxVarVecLoc
+  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Global_module
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  PetscReal :: time  
+  PetscErrorCode :: ierr
+
+  if (this%params%transient_porosity) then
+    call VecCopy(this%realization%field%porosity_tpdt, &
+                 this%realization%field%porosity_t,ierr);CHKERRQ(ierr)
+    call RealizationUpdatePropertiesTS(this%realization)
+    call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 POROSITY,POROSITY_MINERAL)
+    call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                  this%realization%field%porosity_tpdt)
+  endif
+  
+  call NWTMaxChange(this%realization,this%controls%max_concentration_change)
+  if (this%option%print_screen_flag) then
+    write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
+            &" [mol/s]")') &
+      maxval(this%controls%max_concentration_change), &
+      maxval(this%controls%max_concentration_change)/this%option%tran_dt
+  endif
+  if (this%option%print_file_flag) then  
+    write(this%option%fid_out,&
+            '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
+            &" [mol/s]")') &
+      maxval(this%controls%max_concentration_change), &
+      maxval(this%controls%max_concentration_change)/this%option%tran_dt
+  endif
+  
+end subroutine PMNWTFinalizeTimestep
+
+! ************************************************************************** !
+
 subroutine PMNWTPreSolve(this)
   ! 
   ! Author: Jenn Frederick
@@ -386,6 +435,46 @@ subroutine PMNWTPreSolve(this)
   
 end subroutine PMNWTPreSolve
 
+! ************************************************************************** !
+
+subroutine PMNWTResidual(this,snes,xx,r,ierr)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/14/13
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  SNES :: snes
+  Vec :: xx
+  Vec :: r
+  PetscErrorCode :: ierr
+    
+  call NWTResidual(snes,xx,r,this%realization,ierr)
+
+end subroutine PMNWTResidual
+
+! ************************************************************************** !
+
+function PMNWTAcceptSolution(this)
+  ! 
+  ! Right now this does nothing.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/14/13
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  
+  PetscBool :: PMNWTAcceptSolution
+  
+  ! do nothing
+  PMNWTAcceptSolution = PETSC_TRUE
+  
+end function PMNWTAcceptSolution
 
 ! ************************************************************************** !
 

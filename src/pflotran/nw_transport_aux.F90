@@ -33,6 +33,8 @@ module NW_Transport_Aux_module
     ! auxiliary array to store miscellaneous data (e.g. reaction rates, 
     ! cumulative mass, etc.
     PetscReal, pointer :: auxiliary_data(:)
+    PetscReal, pointer :: mass_balance(:,:)
+    PetscReal, pointer :: mass_balance_delta(:,:)
   end type nw_transport_auxvar_type
     
   type, public :: nw_transport_type
@@ -185,12 +187,13 @@ subroutine NWTAuxVarInit(auxvar,nw_trans,option)
   type(nw_trans_realization_type) :: nw_trans
   type(option_type) :: option
   
-  PetscInt :: ncomp, nmnrl, nsorb, nauxiliary
+  PetscInt :: ncomp, nmnrl, nsorb, nauxiliary, nphase
   
   ncomp = nw_trans%params%ncomp
   nmnrl = nw_trans%params%nmnrl
   nsorb = nw_trans%params%nsorb
   nauxiliary = nw_trans%params%nauxiliary
+  nphase = nw_trans%params%nphase
   
   allocate(auxvar%molality(ncomp))
   auxvar%molality = 0.d0
@@ -229,6 +232,16 @@ subroutine NWTAuxVarInit(auxvar,nw_trans,option)
     auxvar%auxiliary_data = 0.d0
   else
     nullify(auxvar%auxiliary_data)
+  endif
+  
+  if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
+    allocate(auxvar%mass_balance(ncomp,nphase))
+    auxvar%mass_balance = 0.d0
+    allocate(auxvar%mass_balance_delta(ncomp,nphase))
+    auxvar%mass_balance_delta = 0.d0
+  else
+    nullify(auxvar%mass_balance)
+    nullify(auxvar%mass_balance_delta)
   endif
   
 end subroutine NWTAuxVarInit

@@ -14,15 +14,53 @@ module NW_Transport_module
   
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
-  public :: NWTTimeCut, &
+  public :: NWTMaxChange, &
+            NWTTimeCut, &
             NWTSetup, &
             NWTUpdateAuxVars, &
             NWTAuxVarCompute, &
             NWTInitializeTimestep, &
             NWTUpdateTransportCoefs, &
-            NWTUpdateFixedAccumulation
+            NWTUpdateFixedAccumulation, &
+            NWTAccumulation, &
+            NWTResidual
             
 contains
+
+! ************************************************************************** !
+
+subroutine NWTMaxChange(realization,dcmax)
+  ! 
+  ! Computes the maximum change in the solution vector
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/18/2019
+  ! 
+
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Patch_module
+  use Grid_module
+  
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  PetscReal :: dcmax(:)
+  
+  type(field_type), pointer :: field 
+  PetscErrorCode :: ierr
+  
+  field => realization%field
+
+  dcmax = 0.d0
+  
+  call VecWAXPY(field%tran_dxx,-1.d0,field%tran_xx,field%tran_yy, &
+                ierr);CHKERRQ(ierr)
+  
+  call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
+      
+end subroutine NWTMaxChange
 
 ! ************************************************************************** !
 
@@ -305,8 +343,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
   if (update_cells) then
 
-    ! jenn:todo make a logging%event_nwt_auxvars?
-    call PetscLogEventBegin(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
+    call PetscLogEventBegin(logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)
   
     do ghosted_id = 1, grid%ngmax
       if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -744,5 +781,294 @@ subroutine NWTAccumulation(nwt_auxvar,global_auxvar,material_auxvar, &
   !Res(istart:iend) = psv_t*nwt_auxvar%total(:,iphase) 
 
 end subroutine NWTAccumulation
+
+! ************************************************************************** !
+
+subroutine NWTResidual(snes,xx,r,realization,ierr)
+  ! 
+  ! Computes the residual equation
+  ! 
+  ! Author: Jennifer Frederick
+  ! Date: 04/18/2019
+  ! 
+
+  use Realization_Subsurface_class
+  use Field_module
+  use Patch_module
+  use Discretization_module
+  use Option_module
+  use Grid_module
+  use Logging_module
+  use Debug_module
+
+  implicit none
+
+  SNES :: snes
+  Vec :: xx
+  Vec :: r
+  type(realization_subsurface_type) :: realization
+  PetscReal, pointer :: xx_p(:), log_xx_p(:)
+  PetscErrorCode :: ierr
+  
+  type(discretization_type), pointer :: discretization
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  PetscViewer :: viewer  
+  
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call PetscLogEventBegin(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
+
+  patch => realization%patch
+  field => realization%field
+  discretization => realization%discretization
+  option => realization%option
+
+  ! Communication -----------------------------------------
+  if (realization%nw_trans%use_log_formulation) then
+    ! have to convert the log concentration to non-log form
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
+    xx_p(:) = exp(log_xx_p(:))
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
+    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                     field%tran_xx_loc,NTRANDOF)
+  else
+    call DiscretizationGlobalToLocal(discretization,xx,field%tran_xx_loc, &
+                                     NTRANDOF)
+  endif
+
+  ! pass #1 for internal and boundary flux terms
+  call NWTResidualFlux(snes,xx,r,realization,ierr)
+
+  ! pass #2 for everything else
+  ! jenn:todo Create NWTResidualNonFlux()
+  !call NWTResidualNonFlux(snes,xx,r,realization,ierr)
+
+  if (realization%debug%vecview_residual) then
+    string = 'NWTresidual'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (realization%debug%vecview_solution) then
+    string = 'NWTxx'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  
+  call PetscLogEventEnd(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
+
+end subroutine NWTResidual
+
+! ************************************************************************** !
+
+subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
+  ! 
+  ! Computes the flux terms in the residual function for
+  ! nuclear waste transport
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 02/14/08
+  ! 
+
+  use Realization_Subsurface_class
+  use Patch_module
+  use Transport_module
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Connection_module
+  use Coupler_module  
+  use Debug_module
+  
+  implicit none
+
+  type :: flux_ptrs
+    PetscReal, dimension(:), pointer :: flux_p 
+  end type
+
+  type (flux_ptrs), dimension(0:2) :: fluxes
+  SNES, intent(in) :: snes
+  Vec, intent(inout) :: xx
+  Vec, intent(inout) :: r
+  type(realization_subsurface_type) :: realization  
+  PetscErrorCode :: ierr
+  
+  PetscReal, pointer :: r_p(:)
+  PetscInt :: local_id, ghosted_id
+  PetscInt, parameter :: iphase = 1
+  PetscInt :: i, istart, iend                        
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:), nwt_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
+  
+  PetscReal, pointer :: face_fluxes_p(:)
+
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: sum_connection, iconn
+  PetscInt :: ghosted_id_up, ghosted_id_dn, local_id_up, local_id_dn
+  PetscReal :: fraction_upwind, distance, dist_up, dist_dn
+  PetscInt :: axis, side, nlx, nly, nlz, ngx, ngxy, pstart, pend, flux_id
+  PetscInt :: direction, max_x_conn, max_y_conn
+    
+  PetscReal :: coef_up(realization%patch%aux%RT%rt_parameter%naqcomp, &
+                       realization%option%transport%nphase)
+  PetscReal :: coef_dn(realization%patch%aux%RT%rt_parameter%naqcomp, &
+                       realization%option%transport%nphase)
+  PetscReal :: Res(realization%reaction%ncomp)
+
+  option => realization%option
+  field => realization%field
+  patch => realization%patch
+  grid => patch%grid
+  nwt_auxvars => patch%aux%NWT%auxvars
+  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  
+  if (option%compute_mass_balance_new) then
+    ! jenn:todo Create NWTZeroMassBalanceDelta(realization)
+    !call RTZeroMassBalanceDelta(realization)
+  endif
+  
+  ! Get pointer to Vector data
+  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+ 
+  r_p = 0.d0
+
+  ! Interior Flux Terms -----------------------------------
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0  
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+
+      if (patch%imat(ghosted_id_up) <= 0 .or.  &
+          patch%imat(ghosted_id_dn) <= 0) cycle
+
+      ! TFluxCoef will eventually be moved to another routine where it should be
+      ! called only once per flux interface at the beginning of a transport
+      ! time step.
+      
+      ! jenn:todo Should I be making my own TFluxCoef and TFlux, since the 
+      ! governing equation will be different?
+      
+      !call TFluxCoef(rt_parameter, &
+      !          global_auxvars(ghosted_id_up), &
+      !          global_auxvars(ghosted_id_dn), &
+      !          option,cur_connection_set%area(iconn), &
+      !          patch%internal_velocities(:,sum_connection), &
+      !          patch%internal_tran_coefs(:,:,sum_connection), &
+      !          cur_connection_set%dist(-1,iconn), &
+      !          coef_up,coef_dn)
+                      
+      !call TFlux(rt_parameter, &
+      !            rt_auxvars(ghosted_id_up), &
+      !            global_auxvars(ghosted_id_up), &
+      !            rt_auxvars(ghosted_id_dn), &
+      !            global_auxvars(ghosted_id_dn), &
+      !            coef_up,coef_dn,option,Res)
+
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+      nwt_auxvars(local_id_up)%mass_balance_delta(:,iphase) = &
+        nwt_auxvars(local_id_up)%mass_balance_delta(:,iphase) - Res        
+#endif
+      if (local_id_up>0) then
+        iend = local_id_up*nw_trans%params%ncomp
+        istart = iend-nw_trans%params%ncomp+1
+        r_p(istart:iend) = r_p(istart:iend) + Res(1:nw_trans%params%ncomp)
+      endif
+      
+      if (local_id_dn>0) then
+        iend = local_id_dn*nw_trans%params%ncomp
+        istart = iend-nw_trans%params%ncomp+1
+        r_p(istart:iend) = r_p(istart:iend) - Res(1:nw_trans%params%ncomp)
+      endif
+
+      if (associated(patch%internal_tran_fluxes)) then
+        patch%internal_tran_fluxes(1:nw_trans%params%ncomp,iconn) = &
+            Res(1:nw_trans%params%ncomp)
+      endif
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+    
+! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    
+    cur_connection_set => boundary_condition%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      if (patch%imat(ghosted_id) <= 0) cycle
+      
+      !call TFluxCoef(rt_parameter, &
+      !            global_auxvars_bc(sum_connection), &
+      !            global_auxvars(ghosted_id), &
+      !            option,cur_connection_set%area(iconn), &
+      !            patch%boundary_velocities(:,sum_connection), &
+      !            patch%boundary_tran_coefs(:,:,sum_connection), &
+      !            0.5d0, &
+      !            coef_up,coef_dn)
+                  
+      !call TFlux(rt_parameter, &
+      !           rt_auxvars_bc(sum_connection), &
+      !           global_auxvars_bc(sum_connection), &
+      !           rt_auxvars(ghosted_id), &
+      !           global_auxvars(ghosted_id), &
+      !           coef_up,coef_dn,option,Res)
+                  
+      iend = local_id*nw_trans%params%ncomp
+      istart = iend-nw_trans%params%ncomp+1
+      r_p(istart:iend)= r_p(istart:iend) - Res(1:nw_trans%params%ncomp)
+
+      if (option%compute_mass_balance_new) then
+      ! contribution to boundary 
+        nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
+          nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
+!     ! contribution to internal 
+!       nwt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
+!         nwt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
+      endif  
+                 
+      if (associated(patch%boundary_tran_fluxes)) then
+        patch%boundary_tran_fluxes(1:nw_trans%params%ncomp,sum_connection) = &
+            Res(1:nw_trans%params%ncomp)
+      endif
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  ! Restore vectors
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+ 
+end subroutine NWTResidualFlux
+
+! ************************************************************************** !
 
 end module NW_Transport_module
