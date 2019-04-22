@@ -412,18 +412,18 @@ subroutine WIPPFloAuxVarCompute(x,wippflo_auxvar,global_auxvar, &
   ! permeability used in characteristic curves is unmodified.
   perm_for_cc = material_auxvar%permeability(perm_xx_index)
   if (.not.wippflo_use_bragflo_cc) then
-  select type(sf => characteristic_curves%saturation_function)
-    class is(sat_func_WIPP_type)
-      sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
-      option%pct_updated = PETSC_TRUE
-    class default
-      option%pct_updated = PETSC_FALSE
-  end select
-  call characteristic_curves%saturation_function% &
+    select type(sf => characteristic_curves%saturation_function)
+      class is(sat_func_WIPP_type)
+        sf%pct = sf%pct_a * perm_for_cc ** sf%pct_exp
+        option%pct_updated = PETSC_TRUE
+      class default
+        option%pct_updated = PETSC_FALSE
+    end select
+    call characteristic_curves%saturation_function% &
           CapillaryPressure(wippflo_auxvar%sat(lid),wippflo_auxvar%pres(cpid), &
                             dummy,option)                             
   else
-  call WIPPCharacteristicCurves(wippflo_auxvar%sat,perm_for_cc, &
+    call WIPPCharacteristicCurves(wippflo_auxvar%sat,perm_for_cc, &
                                 characteristic_curves%saturation_function, &
                                 characteristic_curves%liq_rel_perm_function, &
                                 characteristic_curves%gas_rel_perm_function, &
