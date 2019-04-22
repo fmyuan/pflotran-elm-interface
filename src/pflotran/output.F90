@@ -524,12 +524,6 @@ subroutine OutputFileRead(input,realization,output_option, &
 
 !......................
       case('VARIABLES')
-        select case (option%iflowmode)
-          case(FLASH2_MODE,MPH_MODE)
-            option%io_buffer = 'A variable list cannot be specified for &
-                  &the CO2 flow modes. Variables are determined internally.'
-            call printErrMsg(option)
-        end select
         select case(trim(block_name))
           case('SNAPSHOT_FILE')           
             call OutputVariableRead(input,option, &

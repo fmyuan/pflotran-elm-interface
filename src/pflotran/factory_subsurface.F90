@@ -2852,12 +2852,6 @@ subroutine SubsurfaceReadInput(simulation,input)
               output_option%tconv = &
                 UnitsConvertToInternal(word,internal_units,option)
             case('VARIABLES')
-              select case (option%iflowmode)
-                case(FLASH2_MODE,MPH_MODE)
-                  option%io_buffer = 'A variable list cannot be specified for &
-                    &the CO2 flow modes. Variables are determined internally.'
-                  call printErrMsg(option)
-              end select
               call OutputVariableRead(input,option, &
                                       output_option%output_variable_list)
             case('AVERAGE_VARIABLES')

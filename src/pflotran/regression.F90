@@ -538,6 +538,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   do 
     if (.not.associated(cur_variable)) exit
     
+    call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
     call OutputGetVariableArray(realization,global_vec,cur_variable)
     
     call VecMax(global_vec,PETSC_NULL_INTEGER,max,ierr);CHKERRQ(ierr)
