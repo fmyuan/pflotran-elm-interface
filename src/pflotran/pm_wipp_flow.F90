@@ -616,7 +616,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           do idof = 0, this%option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
-print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
+          !geh: remove after 9/30/19
+          !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
         enddo
         call VecRestoreArrayReadF90(this%realization%field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
@@ -682,7 +683,8 @@ print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
       do idof = 0, this%option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
       enddo
-print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
+      !geh: remove after 9/30/19
+      !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
     enddo
     call VecRestoreArrayReadF90(this%realization%field%work_loc,work_loc_p, &
                                 ierr);CHKERRQ(ierr)
