@@ -215,17 +215,6 @@ subroutine GeneralSetup(realization)
   general_ts_count = 0
   general_ts_cut_count = 0
   general_ni_count = 0
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_flag = 0
-  debug_iteration_count = 0
-  debug_timestep_cut_count = 0
-  debug_timestep_count = 0
-  ! create new file
-  open(debug_info_unit, file='debug_info.txt', action="write", &
-       status="unknown")
-  write(debug_info_unit,*) 'type timestep cut iteration'
-  close(debug_info_unit)
-#endif  
 
   call PatchSetupUpwindDirection(patch,option)
 
@@ -257,16 +246,6 @@ subroutine GeneralInitializeTimestep(realization)
   call GeneralUpdateFixedAccum(realization)
   
   general_ni_count = 0
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_flag = 0
-!  if (realization%option%time >= 35.6d0*3600d0*24.d0*365.d0 - 1.d-40) then
-!  if (.false.) then
-  if (.true.) then
-    debug_iteration_count = 0
-    debug_flag = 1
-  endif
-  debug_iteration_count = 0
-#endif
 
 end subroutine GeneralInitializeTimestep
 
@@ -325,11 +304,6 @@ subroutine GeneralUpdateSolution(realization)
   general_ts_count = general_ts_count + 1
   general_ts_cut_count = 0
   general_ni_count = 0
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_iteration_count = 0
-  debug_timestep_cut_count = 0
-  debug_timestep_count = debug_timestep_count + 1
-#endif   
   
 end subroutine GeneralUpdateSolution
 
@@ -378,9 +352,6 @@ subroutine GeneralTimeCut(realization)
   enddo
 
   general_ts_cut_count = general_ts_cut_count + 1
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_timestep_cut_count = debug_timestep_cut_count + 1
-#endif 
 
   call GeneralInitializeTimestep(realization)  
 
@@ -809,13 +780,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     call GeneralOutputAuxVars(gen_auxvars(0,ghosted_id), &
                               global_auxvars(ghosted_id),natural_id,word, &
                               PETSC_TRUE,option)
-#endif
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-    if (debug_flag > 0) then
-      write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', natural_id, &
-                        global_auxvars(ghosted_id)%istate, &
-                        xx_loc_p(ghosted_start:ghosted_end)
-    endif
 #endif
   enddo
 
@@ -1329,24 +1293,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   
   
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    debug_iteration_count = debug_iteration_count + 1
-    write(word,*) debug_timestep_count
-    string = 'residual_debug_data_' // trim(adjustl(word))
-    write(word,*) debug_timestep_cut_count
-    string = trim(string) // '_' // trim(adjustl(word))
-    write(word,*) debug_iteration_count
-    debug_filename = trim(string) // '_' // trim(adjustl(word)) // '.txt'
-    open(debug_unit, file=debug_filename, action="write", status="unknown")
-    open(debug_info_unit, file='debug_info.txt', action="write", &
-         position="append", status="unknown")
-    write(debug_info_unit,*) 'residual ', debug_timestep_count, &
-      debug_timestep_cut_count, debug_iteration_count
-    close(debug_info_unit)
-  endif
-#endif
-
   general_newton_iteration_number = general_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop
@@ -1656,23 +1602,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif  
 
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
-    write(debug_unit,'(a,i5,7es24.15)') 'fixed residual:', local_id, &
-      accum_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
-  enddo
-  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
-    write(debug_unit,'(a,i5,7es24.15)') 'residual:', local_id, &
-      r_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
-  enddo
-  
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-#endif
-  
-  
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Gresidual','', &
                             general_ts_count,general_ts_cut_count, &
@@ -1689,12 +1618,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call DebugViewerDestroy(realization%debug,viewer)
   endif
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    close(debug_unit)
-  endif
-#endif
 
   update_upwind_direction = PETSC_FALSE
   
@@ -1795,23 +1718,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(word,*) debug_timestep_count
-    string = 'jacobian_debug_data_' // trim(adjustl(word))
-    write(word,*) debug_timestep_cut_count
-    string = trim(string) // '_' // trim(adjustl(word))
-    write(word,*) debug_iteration_count
-    debug_filename = trim(string) // '_' // trim(adjustl(word)) // '.txt'
-    open(debug_unit, file=debug_filename, action="write", status="unknown")
-    open(debug_info_unit, file='debug_info.txt', action="write", &
-         position="append", status="unknown")
-    write(debug_info_unit,*) 'jacobian ', debug_timestep_count, &
-      debug_timestep_cut_count, debug_iteration_count
-    close(debug_info_unit)
-  endif
-#endif
 
   if (.not.general_analytical_derivatives) then
     ! Perturb aux vars
@@ -2106,21 +2012,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
 #endif
 
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(word,*) debug_timestep_count
-    string = 'jacobian_' // trim(adjustl(word))
-    write(word,*) debug_timestep_cut_count
-    string = trim(string) // '_' // trim(adjustl(word))
-    write(word,*) debug_iteration_count
-    string = trim(string) // '_' // trim(adjustl(word)) // '.out'
-    call PetscViewerASCIIOpen(realization%option%mycomm,trim(string), &
-                              viewer,ierr);CHKERRQ(ierr)
-    call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    close(debug_unit)
-  endif
-#endif
   ! update after evaluations to ensure zero-based index to match screen output
   general_ni_count = general_ni_count + 1
   
