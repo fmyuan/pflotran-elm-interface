@@ -96,10 +96,10 @@ function PMGeneralCreate()
             shape(abs_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
             
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3
-  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3
+  PetscReal, parameter :: pres_rel_inf_tol = 1.d-3 !1.d-5 !1.d-3
+  PetscReal, parameter :: temp_rel_inf_tol = 1.d-3 !1.d-5 !1.d-3
+  PetscReal, parameter :: sat_rel_inf_tol = 1.d-3 !1.d-4 !1.d-3
+  PetscReal, parameter :: xmol_rel_inf_tol = 1.d-3 !1.d-5 !1.d-3
   PetscReal, parameter :: rel_update_inf_tol(3,3) = &
     reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
              pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
@@ -120,7 +120,7 @@ function PMGeneralCreate()
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
-  PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-8 !1.d-10
+  PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-5 !1.d-10
   !For convergence using hydrate and ice formation capability
   PetscReal, parameter :: hyd_abs_update_inf_tol(3,15) = &
     reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
@@ -254,6 +254,20 @@ subroutine PMGeneralRead(this,input)
       !man: hydrate
       case('WITH_HYDRATE')
         this%hydrate_flag = PETSC_TRUE
+      case('HYDRATE_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%hyd_abs_update_inf_tol(2,3) = tempreal
+        this%hyd_abs_update_inf_tol(2,6) = tempreal
+        this%hyd_abs_update_inf_tol(2,7) = tempreal
+        this%hyd_abs_update_inf_tol(2,8) = tempreal
+        this%hyd_abs_update_inf_tol(2,9) = tempreal
+        this%hyd_abs_update_inf_tol(3,10) = tempreal
+        this%hyd_abs_update_inf_tol(1:2,11) = tempreal
+        this%hyd_abs_update_inf_tol(2:3,12) = tempreal
+        this%hyd_abs_update_inf_tol(1:2,13) = tempreal
+        this%hyd_abs_update_inf_tol(2:3,14) = tempreal
+        this%hyd_abs_update_inf_tol(:,15) = tempreal
         
       !man: phase change
       case('MAX_NEWTON_ITERATIONS')

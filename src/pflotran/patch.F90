@@ -4833,6 +4833,16 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
             enddo
+          case(HYDRATE_SATURATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%sat(option%hydrate_phase)
+            enddo
+          case(ICE_SATURATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%sat(option%ice_phase)
+            enddo
           case(EFFECTIVE_POROSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
@@ -6941,7 +6951,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
          GAS_SATURATION,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
-         GAS_VISCOSITY, &
+         GAS_VISCOSITY,HYDRATE_SATURATION,ICE_SATURATION, &
          LIQUID_MOBILITY,GAS_MOBILITY,STATE)
 
       if (associated(patch%aux%TH)) then
@@ -7605,6 +7615,16 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             do local_id=1,grid%nlmax
               patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
                 xmol(isubvar,option%gas_phase) = vec_ptr(local_id)
+            enddo
+          case(HYDRATE_SATURATION)
+            do local_id=1,grid%nlmax
+              patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                sat(option%hydrate_phase) = vec_ptr(local_id)
+            enddo
+          case(ICE_SATURATION)
+            do local_id=1,grid%nlmax
+              patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                sat(option%ice_phase) = vec_ptr(local_id)
             enddo
         end select
       else if (associated(patch%aux%WIPPFlo)) then

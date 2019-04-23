@@ -79,7 +79,6 @@ module Hydrate_module
             HydrateAuxVarCompute, &
             HydrateAccumulation, &
             HydrateAuxVarPerturb, &
-            HydrateCheckUpdatePost, &
             HydratePE
 
 contains
@@ -158,7 +157,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
   PetscReal :: ga_epsilon, ha_epsilon
   PetscReal :: x(option%nflowdof)
-  PetscReal :: PE_hyd, K_H, Tf_ice, dTf
+  PetscReal :: PE_hyd, K_H, Tf_ice, dTf, h_sat_eff, i_sat_eff
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, hid, iid, acid, wid
   PetscBool :: istatechng
@@ -194,18 +193,27 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
   if (global_auxvar%hstate == ZERO_INTEGER .and. gen_auxvar%sat(gid) &
        < 0.d0) then
     global_auxvar%hstate = HA_STATE
-    gen_auxvar%sat(hid) = 0.d0 !-1.d0 * gen_auxvar%sat(gid)
+    gen_auxvar%sat(hid) = -1.d0 * gen_auxvar%sat(gid)
     gen_auxvar%sat(gid) = 0.d0
   endif
 
   if (global_auxvar%hstate == ZERO_INTEGER) global_auxvar% &
                               hstate = global_auxvar%istate 
   gen_auxvar%hstate_store(PREV_IT) = global_auxvar%hstate
+  
+  if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
+    h_sat_eff = gen_auxvar%sat(hid)+gen_auxvar%sat(iid)
+    i_sat_eff = 2.d0 * gen_auxvar%sat(iid)
+  else
+    h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
+    i_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
+  endif
 
-  call HydratePE(gen_auxvar%temp,PE_hyd)
- 
-  call GibbsThomsonFreezing(1.d0-gen_auxvar%sat(iid),6017.1d0,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,option) 
+  call HydratePE(gen_auxvar%temp,h_sat_eff, PE_hyd, &
+          characteristic_curves, option)
+
+  call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
+                            characteristic_curves,option)
 
   Tf_ice = TQD + dTf
   !Update State
@@ -215,7 +223,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
       if (gen_auxvar%temp > Tf_ice) then
         if (gen_auxvar%pres(apid) >= gen_auxvar% &
              pres(lid)*(1.d0-window_epsilon)) then
-          if (gen_auxvar%pres(apid) >= PE_hyd) then
+          if (gen_auxvar%pres(gid) >= PE_hyd) then
             istatechng = PETSC_TRUE
             global_auxvar%hstate = HA_STATE
             global_auxvar%istate = TWO_PHASE_STATE
@@ -228,13 +236,18 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
         else
           istatechng = PETSC_FALSE
         endif
-      elseif (gen_auxvar%pres(apid) >= gen_auxvar%pres(lid)) then
-        if (gen_auxvar%pres(apid) < PE_hyd) then
+      elseif (gen_auxvar%pres(apid) >= gen_auxvar%pres(lid)* &
+              (1.d0-window_epsilon)) then
+        if (gen_auxvar%pres(gid) < PE_hyd) then
           istatechng = PETSC_TRUE
           global_auxvar%hstate = GAI_STATE
           global_auxvar%istate = TWO_PHASE_STATE
           liq_epsilon = option%phase_chng_epsilon
-        else
+        elseif (gen_auxvar%pres(apid) > PE_hyd) then
+          istatechng = PETSC_TRUE
+          global_auxvar%hstate = HAI_STATE
+          global_auxvar%istate = TWO_PHASE_STATE
+        else 
           istatechng = PETSC_TRUE
           global_auxvar%hstate = QUAD_STATE
           global_auxvar%istate = TWO_PHASE_STATE
@@ -305,7 +318,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
       endif 
 
     case(GA_STATE)
-      if (gen_auxvar%pres(apid) < PE_hyd) then
+      if (gen_auxvar%pres(gid) < PE_hyd) then
         if (gen_auxvar%temp > Tf_ice) then
           if (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) > 0.d0) then
             istatechng = PETSC_FALSE
@@ -451,9 +464,9 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
       endif
 
     case(AI_STATE)
-      if (gen_auxvar%pres(apid) >= gen_auxvar% &
-             pres(lid)*(1.d0-window_epsilon)) then 
-        if (gen_auxvar%pres(apid) < PE_hyd) then
+      
+      if (gen_auxvar%pres(apid) > PE_hyd*(1.d0-window_epsilon)) then
+        if (gen_auxvar%pres(lid) < PE_hyd*(1.d0+window_epsilon)) then
           istatechng = PETSC_TRUE
           global_auxvar%hstate = GAI_STATE
           global_auxvar%istate = TWO_PHASE_STATE
@@ -471,11 +484,11 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
           global_auxvar%istate = LIQUID_STATE
         else
           istatechng = PETSC_TRUE
-          global_auxvar%hstate = ICE_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
+         global_auxvar%hstate = ICE_STATE
+         global_auxvar%istate = TWO_PHASE_STATE
         endif
       endif
-
+    
     case(HGA_STATE)
       if (gen_auxvar%temp > Tf_ice) then
         if (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(gid) > 0.d0 &
@@ -516,7 +529,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
       endif
 
     case(HAI_STATE)
-      if (gen_auxvar%pres(apid) > PE_hyd) then
+      if (gen_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
         if (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(hid) > 0.d0 &
             .and. gen_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -593,7 +606,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
       endif
       
     case(GAI_STATE)
-      if (gen_auxvar%pres(apid) < PE_hyd) then
+      if (gen_auxvar%pres(gid) < PE_hyd) then
         if (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) > 0.d0 &
             .and. gen_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_FALSE
@@ -922,7 +935,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   character(len=8) :: state_char
   PetscErrorCode :: ierr
   PetscReal, parameter :: TQD = 0.d0 
-  PetscReal :: dTf
+  PetscReal :: dTf, h_sat_eff, i_sat_eff
   PetscReal :: sigma
 
   lid = option%liquid_phase
@@ -1001,6 +1014,8 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%xmol(acid,lid) = x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
       gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
 
+      gen_auxvar%xmol(acid,lid) = max(0.d0,gen_auxvar%xmol(acid,lid))
+
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
       gen_auxvar%xmol(wid,gid) = 0.d0
       gen_auxvar%xmol(acid,gid) = 0.d0
@@ -1077,8 +1092,9 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(gid) = 0.d0
       gen_auxvar%sat(hid) = 1.d0
       gen_auxvar%sat(iid) = 0.d0
-      
-      call HydratePE(gen_auxvar%temp,PE_hyd)
+
+      call HydratePE(gen_auxvar%temp,gen_auxvar%sat(hid),PE_hyd, &
+              characteristic_curves, option)
       gen_auxvar%pres(apid) = PE_hyd
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
       
@@ -1179,8 +1195,15 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(lid) = 0.d0
       gen_auxvar%sat(hid) = 1.d0 - gen_auxvar%sat(gid)
       gen_auxvar%sat(iid) = 0.d0
-      
-      call HydratePE(gen_auxvar%temp,PE_hyd)
+     
+      if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
+        call HydratePE(gen_auxvar%temp, gen_auxvar%sat(hid)+ &
+                gen_auxvar%sat(gid), PE_hyd, characteristic_curves, option)
+      else
+        call HydratePE(gen_auxvar%temp, 2.d0 * gen_auxvar%sat(hid), &
+                PE_hyd, characteristic_curves, option)
+      endif
+
       gen_auxvar%pres(apid) = PE_hyd
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
       
@@ -1212,7 +1235,8 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(gid) = 0.d0
       gen_auxvar%sat(iid) = 0.d0
       
-      call HydratePE(gen_auxvar%temp,PE_hyd)
+      call HydratePE(gen_auxvar%temp,gen_auxvar%sat(hid), PE_hyd, &
+              characteristic_curves, option)
       gen_auxvar%pres(apid) = PE_hyd
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
       call EOSWaterSaturationPressure(gen_auxvar%temp, &
@@ -1243,7 +1267,14 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(gid) = 0.d0
       gen_auxvar%sat(iid) = 1.d0 - gen_auxvar%sat(hid)
       
-      call HydratePE(gen_auxvar%temp,PE_hyd)
+      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
+        call HydratePE(gen_auxvar%temp, gen_auxvar%sat(hid)+ &
+                gen_auxvar%sat(iid), PE_hyd, characteristic_curves, option)
+      else
+        call HydratePE(gen_auxvar%temp, 2.d0 * gen_auxvar%sat(hid), PE_hyd, &
+                characteristic_curves, option)
+      endif
+
       gen_auxvar%pres(apid) = PE_hyd
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
       
@@ -1292,8 +1323,12 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
       gen_auxvar%xmol(acid,lid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%sat(lid) = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = max(0.d0,min(1.d0,gen_auxvar%sat(lid)))
+     
+      gen_auxvar%xmol(acid,lid) = max(0.d0,gen_auxvar%xmol(acid,lid))
+
+      if (global_auxvar%istatechng) then
+        gen_auxvar%sat(lid) = max(0.d0,min(1.d0,gen_auxvar%sat(lid)))
+      endif
 
       gen_auxvar%sat(gid) = 0.d0
       gen_auxvar%sat(hid) = 0.d0
@@ -1311,7 +1346,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
       gen_auxvar%pres(cpid) = 0.d0
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
+      gen_auxvar%pres(vpid) = 0d0 !gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
 
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
@@ -1332,7 +1367,13 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(iid) = 0.d0
       
       
-      call HydratePE(gen_auxvar%temp,PE_hyd)
+      if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
+        call HydratePE(gen_auxvar%temp, gen_auxvar%sat(hid) + &
+                gen_auxvar%sat(gid), PE_hyd, characteristic_curves, option)
+      else
+        call HydratePE(gen_auxvar%temp, 2.d0 * gen_auxvar%sat(hid), PE_hyd, &
+                characteristic_curves, option)
+      endif
       
       gen_auxvar%pres(apid) = PE_hyd
 
@@ -1372,23 +1413,33 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
       gen_auxvar%sat(lid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%sat(iid) = x(GENERAL_ENERGY_DOF)
-      
+
       gen_auxvar%sat(gid) = 0.d0
       gen_auxvar%sat(hid) = 1.d0 - gen_auxvar%sat(lid) - gen_auxvar%sat(iid)
-     
-      call GibbsThomsonFreezing(1.d0-gen_auxvar%sat(iid), 6017.1d0, &
-                   ICE_DENSITY, TQD, dTf,characteristic_curves,option)
-      gen_auxvar%temp = TQD+dTf 
+
+      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
+        h_sat_eff = gen_auxvar%sat(hid)+gen_auxvar%sat(iid)
+        i_sat_eff = 2.d0 * gen_auxvar%sat(iid)
+      else
+        h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
+        i_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
+      endif
+
+      call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
+                            characteristic_curves,option)
+
+      gen_auxvar%temp = TQD+dTf
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-      
+      call HydratePE(gen_auxvar%temp,h_sat_eff, PE_hyd, &
+          characteristic_curves, option)
       call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
 
       gen_auxvar%pres(cpid) = 0.d0
       gen_auxvar%pres(spid) = 1.d-6
-      gen_auxvar%pres(apid) = gen_auxvar%pres(gid)
+      gen_auxvar%pres(apid) = PE_hyd !gen_auxvar%pres(gid)
       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
+      gen_auxvar%pres(vpid) = 0.d0 !gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
 
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
@@ -1405,8 +1456,25 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
       gen_auxvar%sat(lid) = 0.d0
       gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(hid) - gen_auxvar%sat(iid)
+     
+      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
+        if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
+          call HydratePE(gen_auxvar%temp, 1.d0, PE_hyd, &
+                  characteristic_curves, option)
+        else
+          call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(iid) + &
+                  2.d0 * (gen_auxvar%sat(hid)-gen_auxvar%sat(iid)), PE_hyd, &
+                  characteristic_curves, option)
+        endif
+      elseif (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
+        call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(gid) + &
+          2.d0 * (gen_auxvar%sat(hid) - gen_auxvar%sat(gid)), PE_hyd, &
+          characteristic_curves, option)
+      else
+        call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(hid), PE_hyd, &
+              characteristic_curves, option)
+      endif  
       
-      call HydratePE(gen_auxvar%temp,PE_hyd)
       gen_auxvar%pres(apid) = PE_hyd
       
       call EOSWaterSaturationPressure(gen_auxvar%temp, &
@@ -1430,10 +1498,13 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(lid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%sat(iid) = x(GENERAL_ENERGY_DOF)
       
-      gen_auxvar%temp = TQD
-      
       gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(lid) - gen_auxvar%sat(iid)
       gen_auxvar%sat(hid) = 0.d0
+
+      call GibbsThomsonFreezing(1.d0-gen_auxvar%sat(iid),6017.1d0, &
+              ICE_DENSITY,TQD,dTf,characteristic_curves,option)
+
+      gen_auxvar%temp = TQD+dTf
 
       call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                     gen_auxvar%pres(spid),ierr)
@@ -1470,14 +1541,55 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       gen_auxvar%sat(gid) = x(GENERAL_GAS_PRESSURE_DOF)
       gen_auxvar%sat(lid) = x(GENERAL_GAS_SATURATION_DOF)
       gen_auxvar%sat(iid) = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%temp = TQD
-      
-      call HydratePE(gen_auxvar%temp,PE_hyd)
+     
+      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
+        h_sat_eff = gen_auxvar%sat(hid)+gen_auxvar%sat(iid)
+        i_sat_eff = 2.d0 * gen_auxvar%sat(iid)
+      else
+        h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
+        i_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
+      endif
+
+      call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
+                            characteristic_curves,option)
+
+      !if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
+      !  if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
+      !    call HydratePE(gen_auxvar%temp, 1.d0 - gen_auxvar%sat(lid), &
+      !            PE_hyd, characteristic_curves, option)
+      !  else
+      !    call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(iid) + &
+      !            2.d0 * (gen_auxvar%sat(hid) - gen_auxvar%sat(iid)), PE_hyd, &
+      !            characteristic_curves, option)
+      !    call GibbsThomsonFreezing(3.d0 * gen_auxvar%sat(iid), 6017.1d0, &
+      !            ICE_DENSITY, TQD, dTf, characteristic_curves, option)
+      !  endif
+      !elseif (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
+      !  call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(gid) + &
+      !          2.d0 * (gen_auxvar%sat(hid) - gen_auxvar%sat(gid)), &
+      !          PE_hyd, characteristic_curves, option)
+      !  call GibbsThomsonFreezing(1.d0-gen_auxvar%sat(lid), 6017.1d0, &
+      !          ICE_DENSITY, TQD, dTf, characteristic_curves, option)
+      !else
+      !  call HydratePE(gen_auxvar%temp, 3.d0 *gen_auxvar%sat(hid), &
+      !          PE_hyd, characteristic_curves, option)
+      !  if (gen_auxvar%sat(iid) < gen_auxvar%sat(gid)) then
+      !    call GibbsThomsonFreezing(3.d0 * gen_auxvar%sat(hid) + &
+      !            2.d0 * (gen_auxvar%sat(iid) - gen_auxvar%sat(hid)), &
+      !            6017.1d0, ICE_DENSITY, TQD, dTf, characteristic_curves, &
+      !            option)
+      !  endif
+      !endif
+
+      gen_auxvar%temp = TQD + dTf
+
+      call HydratePE(gen_auxvar%temp,h_sat_eff, PE_hyd, &
+          characteristic_curves, option)
       gen_auxvar%pres(apid) = PE_hyd
       
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                    gen_auxvar%pres(spid),ierr)
+      !call EOSWaterSaturationPressure(gen_auxvar%temp, &
+      !                              gen_auxvar%pres(spid),ierr)
+      
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
       
       gen_auxvar%pres(spid) = 1.d-6
@@ -1522,7 +1634,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     gen_auxvar%effective_porosity = material_auxvar%porosity_base
 #if 0
 !geh this code is no longer valid
-    if (associated(material_auxvar%fracture) .and. & 
+    if (associated(material_auxvar%fracture) .and. &
       material_auxvar%fracture%setup) then
       ! The initiating pressure and maximum pressure must be calculated
       ! before fracture function applies - Heeho
@@ -1543,7 +1655,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         if (option%iflag /= GENERAL_UPDATE_FOR_FIXED_ACCUM) then
           creep_closure_time = creep_closure_time + option%flow_dt
         endif
-        
+
         gen_auxvar%effective_porosity = &
           creep_closure%Evaluate(creep_closure_time,cell_pressure)
       else if (associated(material_auxvar%fracture)) then
@@ -1566,8 +1678,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   endif
   if (associated(gen_auxvar%d)) then
     gen_auxvar%d%por_p = dpor_dp
-  endif                      
-                      
+  endif
   !MAN: Need to add permeability change as function of hydrate saturation.
 
   ! ALWAYS UPDATE THERMODYNAMIC PROPERTIES
@@ -1647,26 +1758,25 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   endif ! istate /= LIQUID_STATE
 
-  if (global_auxvar%hstate == LIQUID_STATE .or. &
-      global_auxvar%istate == TWO_PHASE_STATE) then
-    call characteristic_curves%liq_rel_perm_function% &
-           RelativePermeability(gen_auxvar%sat(lid),krl,dkrl_dsatl,option)
-    dkrl_dsatg = -1.d0 * dkrl_dsatl
-    if (.not.option%flow%density_depends_on_salinity) then
-      call EOSWaterViscosity(gen_auxvar%temp,cell_pressure, &
-                               gen_auxvar%pres(spid),visl,ierr)
+  if (gen_auxvar%sat(lid) > 0.d0) then
+    if (gen_auxvar%sat(lid) >= 1.d0) then
+      krl = 1.d0
     else
-      aux(1) = global_auxvar%m_nacl(1)
-      call EOSWaterViscosityExt(gen_auxvar%temp,cell_pressure, &
-                                  gen_auxvar%pres(spid),aux,visl,ierr)
+      call characteristic_curves%liq_rel_perm_function% &
+           RelativePermeability(gen_auxvar%sat(lid),krl,dkrl_dsatl,option)
     endif
+    call EOSWaterViscosity(gen_auxvar%temp,cell_pressure, &
+                               gen_auxvar%pres(spid),visl,ierr)
     gen_auxvar%mobility(lid) = krl/visl
   endif
 
-  if (global_auxvar%hstate == GA_STATE) then
-    call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(gen_auxvar%sat(lid),krg,dkrg_dsatl,option)
-    dkrg_dsatg = -1.d0 * dkrg_dsatl
+  if (gen_auxvar%sat(gid) > 0.d0) then
+    if (gen_auxvar%sat(gid) >=1.d0) then
+      krg = 1.d0
+    else
+      call characteristic_curves%gas_rel_perm_function% &
+           RelativePermeability(1.d0-gen_auxvar%sat(gid),krg,dkrg_dsatl,option)
+    endif
     call EOSGasViscosity(gen_auxvar%temp,gen_auxvar%pres(apid), &
                            gen_auxvar%pres(gid),den_air,visg,ierr)
     gen_auxvar%mobility(gid) = krg/visg
@@ -1684,10 +1794,10 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   call EOSIceEnergy(gen_auxvar%temp, U_ice)
   gen_auxvar%xmol(wid,iid) = 1.d0
   gen_auxvar%xmol(gid,iid) = 0.d0
-  call EOSWaterDensityIcePainter(gen_auxvar%temp,gen_auxvar%pres(lid), &
-                    PETSC_FALSE, gen_auxvar%den(iid), &
-                    dden_ice_dT, dden_ice_dP, ierr)
-  !gen_auxvar%den(iid) = ICE_DENSITY
+  !call EOSWaterDensityIcePainter(gen_auxvar%temp,gen_auxvar%pres(lid), &
+  !                  PETSC_FALSE, gen_auxvar%den(iid), &
+  !                  dden_ice_dT, dden_ice_dP, ierr)
+  gen_auxvar%den(iid) = ICE_DENSITY
   gen_auxvar%den_kg(iid) = ICE_DENSITY_KG
   gen_auxvar%U(iid) = U_ice
   gen_auxvar%H(iid) = U_ice
@@ -1836,14 +1946,8 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
 
   PetscReal :: tempreal
   PetscInt :: lid, gid, hid
-!#define LEGACY_PERTURBATION
-#ifdef LEGACY_PERTURBATION
-  PetscReal, parameter :: perturbation_tolerance = 1.d-5
-#else
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
-! 1.d-11 works well for Emily's 1D nacl2
 !  PetscReal, parameter :: perturbation_tolerance = 1.d-11
-#endif
   PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
   PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
@@ -1861,201 +1965,162 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
 
   select case(global_auxvar%hstate)
     case(LIQUID_STATE)
-       x(GENERAL_LIQUID_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
-       x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
-       x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%temp
-#ifdef LEGACY_PERTURBATION
-       ! if the liquid state, the liquid pressure will always be greater
-       ! than zero.
-       pert(GENERAL_LIQUID_PRESSURE_DOF) = &
-         max(perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF), &
-             perturbation_tolerance)
-       ! if the air mole fraction perturbation is too small, the derivatives
-       ! can be poor.
-       pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
-         -1.d0*max(perturbation_tolerance*x(GENERAL_LIQUID_STATE_X_MOLE_DOF), &
-                   min_mole_fraction_pert)
-       pert(GENERAL_ENERGY_DOF) = &
-         -1.d0*perturbation_tolerance*x(GENERAL_ENERGY_DOF)
-#else
-       pert(GENERAL_LIQUID_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF) + &
-         min_perturbation
-       if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
-           1.d3 * perturbation_tolerance) then
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
-       else
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
-       endif
-       pert(GENERAL_ENERGY_DOF) = -1.d0 * &
-         (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
-#endif
+      x(GENERAL_LIQUID_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
+      x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
+      x(GENERAL_ENERGY_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%temp
+      
+      pert(GENERAL_LIQUID_PRESSURE_DOF) = &
+        perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF) + &
+        min_perturbation
+      if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
+          1.d3 * perturbation_tolerance) then
+        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
+      endif
+      pert(GENERAL_ENERGY_DOF) = -1.d0 * &
+        (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
+
     case(GAS_STATE)
-       x(GENERAL_GAS_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-       x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-       x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
-#ifdef LEGACY_PERTURBATION
-       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
-       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
-       ! perturb air pressure towards gas pressure unless the perturbed
-       ! air pressure exceeds the gas pressure
-       if (x(GENERAL_GAS_PRESSURE_DOF) - &
-           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
-           perturbation_tolerance* &
-           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)) then
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-           perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
-       else
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-           -1.d0*perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
-       endif
-       pert(GENERAL_ENERGY_DOF) = &
-         perturbation_tolerance*x(GENERAL_ENERGY_DOF)
-#else
-       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
-       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-       pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
-         (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
-       ! perturb air pressure towards gas pressure unless the perturbed
-       ! air pressure exceeds the gas pressure
-       tempreal = perturbation_tolerance* &
-                  x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
-       if (x(GENERAL_GAS_PRESSURE_DOF) - &
-           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
-       else
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
-       endif
-       pert(GENERAL_ENERGY_DOF) = &
-         perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
-#endif
-    case(H_STATE)
-   
-    case(ICE_STATE)        
-       x(GENERAL_GAS_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-       x(GENERAL_GAS_SATURATION_DOF) = 0.d0
-       x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
-
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
-       pert(GENERAL_GAS_SATURATION_DOF) = 0.d0
-       pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)
-       
-    case(GA_STATE)
-       x(GENERAL_GAS_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-!       x(GENERAL_AIR_PRESSURE_DOF) = &
-!         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-       x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-#ifdef LEGACY_PERTURBATION
-       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%temp
-         pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)
-       else
-         ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-         ! perturb air pressure towards gas pressure unless the perturbed
-         ! air pressure exceeds the gas pressure
-         if (x(GENERAL_GAS_PRESSURE_DOF) - &
-             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > &
-             perturbation_tolerance*x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)) then
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
-             perturbation_tolerance*x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)
-         else
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
-             -1.d0*perturbation_tolerance*x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)
-         endif
-       endif
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
-       ! always perturb toward 0.5
-       if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-         pert(GENERAL_GAS_SATURATION_DOF) = &
-           -1.d0*perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)
-       else
-         pert(GENERAL_GAS_SATURATION_DOF) = &
-           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)
-       endif
-#else
-       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%temp
-         pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-       else
-         ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-         ! perturb air pressure towards gas pressure unless the perturbed
-         ! air pressure exceeds the gas pressure
-         tempreal = perturbation_tolerance* &
-                    x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) + min_perturbation
-         if (x(GENERAL_GAS_PRESSURE_DOF) - &
-             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > tempreal) then
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = tempreal
-         else
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
-         endif
-       endif
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
-       if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-       else
-         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-       endif
-#endif
-    case(HG_STATE)
-
-    case(HA_STATE)
       x(GENERAL_GAS_PRESSURE_DOF) = &
         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(hid)
-      if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%temp
-         pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+      x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
+      x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+      ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+      ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
+    
+      pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+        (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+      ! perturb air pressure towards gas pressure unless the perturbed
+      ! air pressure exceeds the gas pressure
+      tempreal = perturbation_tolerance* &
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
+      if (x(GENERAL_GAS_PRESSURE_DOF) - &
+          x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+        pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
       else
-         ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-         ! perturb air pressure towards gas pressure unless the perturbed
-         ! air pressure exceeds the gas pressure
-         tempreal = perturbation_tolerance* &
-                    x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) + min_perturbation
-         if (x(GENERAL_GAS_PRESSURE_DOF) - &
-             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > tempreal) then
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = tempreal
-         else
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
-         endif
+        pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
       endif
-        pert(GENERAL_GAS_PRESSURE_DOF) = &
+      pert(GENERAL_ENERGY_DOF) = &
+        perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
+
+    case(H_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = MOL_RATIO_METH
+      x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+
+      pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+         (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+      pert(GENERAL_GAS_SATURATION_DOF) = x(GENERAL_GAS_SATURATION_DOF) 
+      pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
+
+    case(ICE_STATE)        
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = 0.d0
+      x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+        perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
+      pert(GENERAL_GAS_SATURATION_DOF) = 0.d0
+      pert(GENERAL_ENERGY_DOF) = &
+          perturbation_tolerance*x(GENERAL_ENERGY_DOF)
+       
+    case(GA_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+       gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+      x(GENERAL_ENERGY_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%temp
+       
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
       if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
+      pert(GENERAL_ENERGY_DOF) = &
+        perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+
+    case(HG_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+      x(GENERAL_ENERGY_DOF) = &
+           gen_auxvar(ZERO_INTEGER)%temp
+     
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      pert(GENERAL_ENERGY_DOF) = &
+           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+
+    case(HA_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(hid)
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%temp
+
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+        perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
 
     case(HI_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(hid)
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%temp 
+
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      pert(GENERAL_ENERGY_DOF) = &
+           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
 
     case(GI_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(iid)
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%temp
+
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      pert(GENERAL_ENERGY_DOF) = &
+           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
 
     case(AI_STATE)
       x(GENERAL_LIQUID_PRESSURE_DOF) = &
@@ -2067,6 +2132,7 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
       pert(GENERAL_LIQUID_PRESSURE_DOF) = &
          perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF) + &
          min_perturbation
+ 
       if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
            1.d3 * perturbation_tolerance) then
         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
@@ -2084,27 +2150,11 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
         gen_auxvar(ZERO_INTEGER)%sat(lid)
       x(GENERAL_GAS_SATURATION_DOF) = &
          gen_auxvar(ZERO_INTEGER)%sat(hid)
-      if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%temp
-         pert(GENERAL_ENERGY_DOF) = &
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%temp
+    
+      pert(GENERAL_ENERGY_DOF) = &
            perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-      else
-         ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
-         x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-         ! perturb air pressure towards gas pressure unless the perturbed
-         ! air pressure exceeds the gas pressure
-         tempreal = perturbation_tolerance* &
-                    x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) + min_perturbation
-         if (x(GENERAL_GAS_PRESSURE_DOF) - &
-             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > tempreal) then
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = tempreal
-         else
-           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
-         endif
-      endif
-      
       if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
@@ -2140,10 +2190,71 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
       endif
 
     case(HGI_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%sat(hid)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(iid)
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%temp
+
+      if (x(GENERAL_GAS_PRESSURE_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance
+      endif
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      pert(GENERAL_ENERGY_DOF) = &
+           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
 
     case(GAI_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%pres(gid)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(lid)
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(iid)
+
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + &
+         min_perturbation
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      if (x(GENERAL_ENERGY_DOF) > 0.5d0) then
+        pert(GENERAL_ENERGY_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_ENERGY_DOF) = perturbation_tolerance
+      endif
 
     case(QUAD_STATE)
+      x(GENERAL_GAS_PRESSURE_DOF) = &
+        gen_auxvar(ZERO_INTEGER)%sat(gid)
+      x(GENERAL_GAS_SATURATION_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(lid)
+      x(GENERAL_ENERGY_DOF) = &
+         gen_auxvar(ZERO_INTEGER)%sat(iid)
+
+      if (x(GENERAL_GAS_PRESSURE_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance
+      endif
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      if (x(GENERAL_ENERGY_DOF) > 0.5d0) then
+        pert(GENERAL_ENERGY_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(GENERAL_ENERGY_DOF) = perturbation_tolerance
+      endif
 
   end select
 
@@ -2170,7 +2281,8 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
         gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert / &
         GENERAL_PRESSURE_SCALE
     case(H_STATE)
-
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(ICE_STATE)
       gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
         gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
@@ -2183,24 +2295,30 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
           GENERAL_PRESSURE_SCALE
       endif
     case(HG_STATE)
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(HA_STATE)
       gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
         gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(HI_STATE)
-
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(GI_STATE)
-
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(AI_STATE)
       gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
         gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(HGA_STATE)
 
     case(HAI_STATE)
-
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(HGI_STATE)
 
     case(GAI_STATE)
-
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
     case(QUAD_STATE)
   end select
 
@@ -2209,14 +2327,7 @@ end subroutine HydrateAuxVarPerturb
 
 ! ************************************************************************** !
 
-subroutine HydrateCheckUpdatePost()
-
-
-end subroutine HydrateCheckUpdatePost
-
-! ************************************************************************** !
-
-subroutine HydratePE(T, PE)
+subroutine HydratePE(T,sat, PE, characteristic_curves, option)
 
   !This subroutine calculates the 3-phase equilibrium pressure of methane
   !hydrate in pure water, from polynomial fit (Moridis, 2002)
@@ -2224,15 +2335,28 @@ subroutine HydratePE(T, PE)
   !Author: Michael Nole
   !Date: 01/22/19
   !
+
+  use Characteristic_Curves_module
+  use Option_module
+
   implicit none
 
   PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: sat
   PetscReal, intent(out) :: PE
 
-  PetscReal :: T_temp
+  class(characteristic_curves_type) :: characteristic_curves
+  type(option_type) :: option
+
+  PetscReal :: T_temp, dTf
   PetscReal, parameter :: TQD = 273.15 ! K
 
-  T_temp = T + TQD
+  call GibbsThomsonFreezing(1.d0-sat, 54734.d0, HYDRATE_DENSITY, T, dTf, &
+          characteristic_curves, option)
+
+  !MAN: debugging
+  !dTf = 0.d0
+  T_temp = T + TQD + dTf
 
   if (T_temp < TQD) then
     PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
@@ -2289,7 +2413,7 @@ subroutine EOSHydrateEnergy(T,U)
   PetscReal, intent(out) :: U
 
   PetscReal, parameter :: TQD = 237.15d0 ! K
-  PetscReal, parameter :: Hh0 = -54734d0 ! J/mol
+  PetscReal, parameter :: Hh0 = -54734.d0 ! J/mol
   PetscReal, parameter :: MWH = 82.187d0 ! g/mol
   PetscReal :: Cph, T_temp
 
@@ -2367,7 +2491,8 @@ subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,option)
 
   dTf = -(Tb+273.15)*Pc/(Hf * rho * 1000.d0)
   
-
+  !MAN debugging
+  !dTf = 0.d0
 end subroutine GibbsThomsonFreezing
 
 ! ************************************************************************** !

@@ -57,6 +57,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: liquid_pressure
     type(flow_sub_condition_type), pointer :: gas_pressure
     type(flow_sub_condition_type), pointer :: gas_saturation
+    !type(flow_sub_condition_type), pointer :: hydrate_saturation
     type(flow_sub_condition_type), pointer :: mole_fraction
     type(flow_sub_condition_type), pointer :: relative_humidity
     type(flow_sub_condition_type), pointer :: temperature
@@ -431,6 +432,13 @@ function FlowGeneralSubConditionPtr(sub_condition_name,general, &
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         general%gas_saturation => sub_condition_ptr
       endif
+    !case('HYDRATE_SATURATION')
+    !  if (associated(general%hydrate_saturation)) then
+    !    sub_condition_ptr => general%hydrate_saturation
+    !  else
+    !    sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+    !    general%hydrate_saturation => sub_condition_ptr
+    !  endif
     case('TEMPERATURE')
       if (associated(general%temperature)) then
         sub_condition_ptr => general%temperature
@@ -1977,7 +1985,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
       case('LIQUID_PRESSURE','GAS_PRESSURE','LIQUID_SATURATION', &
-           'GAS_SATURATION','TEMPERATURE','MOLE_FRACTION','RATE', &
+           'GAS_SATURATION','HYDRATE_SATURATION','TEMPERATURE','MOLE_FRACTION','RATE', &
            'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
@@ -1988,8 +1996,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         select case(trim(word))
           case('LIQUID_PRESSURE','GAS_PRESSURE')
             internal_units = 'Pa'
-          case('LIQUID_SATURATION','GAS_SATURATION','MOLE_FRACTION', &
-               'RELATIVE_HUMIDITY')
+          case('LIQUID_SATURATION','GAS_SATURATION','HYDRATE_SATURATION', &
+               'MOLE_FRACTION','RELATIVE_HUMIDITY')
             internal_units = 'unitless'
           case('TEMPERATURE')
             internal_units = 'C'
@@ -2092,7 +2100,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           ! multiphase condition
           condition%iphase = MULTI_STATE
         else if (associated(general%gas_pressure) .and. &
-                 associated(general%gas_saturation)) then
+                associated(general%gas_saturation)) then ! .or. &
+                !associated(general%hydrate_saturation))) then
           ! two phase condition
           condition%iphase = TWO_PHASE_STATE
         else if (associated(general%liquid_pressure) .and. &
@@ -2139,6 +2148,9 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   call FlowSubConditionVerify(option,condition,word,general%gas_saturation, &
                               default_time_storage, &
                               PETSC_TRUE)
+  !word = 'hydrate_saturation'
+  !call FlowSubConditionVerify(option,condition,word,general% &
+  !        hydrate_saturation,default_time_storage, PETSC_TRUE)
   word = 'relative humidity'
   call FlowSubConditionVerify(option,condition,word,general%relative_humidity, &
                               default_time_storage, &
@@ -2176,6 +2188,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
   if (associated(general%gas_saturation)) &
     i = i + 1
+  !if (associated(general%hydrate_saturation)) &
+  !  i = i + 1 
   if (associated(general%relative_humidity)) &
     i = i + 1
   if (associated(general%mole_fraction)) &
@@ -2208,6 +2222,10 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%gas_saturation
   endif
+  !if (associated(general%hydrate_saturation)) then
+  !  i = i + 1
+  !  condition%sub_condition_ptr(i)%ptr => general%hydrate_saturation
+  !endif
   if (associated(general%relative_humidity)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%relative_humidity
