@@ -342,7 +342,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
 
     call SNESSolve(solver%snes,PETSC_NULL_VEC, &
-                   process_model%solution_vec,ierr);
+                   process_model%solution_vec,ierr);CHKERRQ(ierr)
 
     if (ierr .ne. 0) then
 
