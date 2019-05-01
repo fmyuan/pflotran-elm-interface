@@ -24,8 +24,8 @@ END
 
 #=========================set up standard conditions ==========================
 
-REFERENCE_PRESSURE    1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE    1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -137,6 +137,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 996.95710 kg/m^3
   DENSITY CONSTANT 996.95710
   VISCOSITY CONSTANT 0.31d-3 ! 1 cp
 END
@@ -235,11 +236,10 @@ FLOW_CONDITION initial_press
     BUBBLE_POINT DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  OIL_PRESSURE 33.094D6 !331 bars
+  OIL_PRESSURE 33.094D6 Pa !331 bars
   OIL_SATURATION 0.88d0
-  BUBBLE_POINT 27.6804D6 !276 bars
+  BUBBLE_POINT 27.6804D6 Pa !276 bars
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
-  DATUM 0.d0 0.d0 -2540.508
 /
 
 #=========================== regression data =================================

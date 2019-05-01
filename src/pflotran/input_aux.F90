@@ -2441,7 +2441,8 @@ subroutine InputCheckMandatoryUnits(input,option)
     option%io_buffer = 'Missing units'
     if (len_trim(input%err_buf) > 1) then
       option%io_buffer = trim(option%io_buffer) // ' in ' // &
-                         trim(input%err_buf) // '.'
+                         trim(input%err_buf) // ',' // &
+                         trim(input%err_buf2) // '.'
     endif
     call printErrMsg(option)
   endif

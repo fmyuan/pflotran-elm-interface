@@ -23,8 +23,8 @@ END
 
 #=========================set up standard conditions ==========================
 
-REFERENCE_PRESSURE    1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE    1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -139,7 +139,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
-!  DENSITY EXPONENTIAL 999.5 101325 4.79E-10
+  SURFACE_DENSITY 995.5 kg/m^3
   DENSITY CONSTANT 995.5
   VISCOSITY CONSTANT 0.0007 ! 0.7 cp
 END
@@ -299,12 +299,12 @@ FLOW_CONDITION initial_press
     BUBBLE_POINT dirichlet
     TEMPERATURE dirichlet
   /
-  OIL_PRESSURE 2.7579E7 !275.7 Bars
+  OIL_PRESSURE 2.7579E7 Pa !275.7 Bars
   OIL_SATURATION 0.8d0
   SOLVENT_SATURATION 0.0
-  BUBBLE_POINT 1.587D7 ! 158 bars
+  BUBBLE_POINT 1.587D7 Pa! 158 bars
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
-  DATUM 0.d0 0.d0 -2540.508
+  !DATUM 0.d0 0.d0 -2540.508
 /
 
 #=========================== condition couplers ==============================

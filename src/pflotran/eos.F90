@@ -86,6 +86,15 @@ subroutine EOSRead(input,option)
         call InputErrorMsg(input,option,'keyword','EOS,WATER')
         call StringToUpper(keyword)
         select case(trim(keyword))
+          case('WATERTAB')
+            call EOSWaterSetWaterTab(input,option)
+          case('SURFACE_DENSITY','STANDARD_DENSITY')
+            call InputReadDouble(input,option,tempreal)
+            call InputErrorMsg(input,option,'VALUE', &
+                               'EOS,WATER,REFERENCE_DENSITY')
+            call InputReadAndConvertUnits(input,tempreal, &
+                             'kg/m^3','EOS,WATER,REFERENCE_DENSITY',option)
+            call EOSWaterSetSurfaceDensity(tempreal)
           case('DENSITY')
             temparray = 0.d0
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -294,13 +303,13 @@ subroutine EOSRead(input,option)
         call InputErrorMsg(input,option,'keyword','EOS,GAS')
         call StringToUpper(keyword)
         select case(trim(keyword))
-          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+          case('SURFACE_DENSITY','STANDARD_DENSITY')
             call InputReadDouble(input,option,tempreal)
             call InputErrorMsg(input,option,'VALUE', &
                                'EOS,GAS,REFERENCE_DENSITY')
             call InputReadAndConvertUnits(input,tempreal, &
                            'kg/m^3','EOS,GAS,REFERENCE_DENSITY',option)
-            call EOSGasSetReferenceDensity(tempreal)
+            call EOSGasSetSurfaceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
@@ -614,15 +623,13 @@ subroutine EOSRead(input,option)
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'EOS,OIL','DATABASE filename')
             call EOSOilSetEOSDBase(word,option)
-          case('VISCOSITY_LINLOG_INTERPOLATION')
-            call EOSOilSetVisLinLogInterp(option)
-          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+          case('SURFACE_DENSITY','STANDARD_DENSITY')
             call InputReadDouble(input,option,tempreal)
             call InputErrorMsg(input,option,'VALUE', &
                                'EOS,OIL,REFERENCE_DENSITY')
             call InputReadAndConvertUnits(input,tempreal, &
                              'kg/m^3','EOS,OIL,REFERENCE_DENSITY',option)
-            call EOSOilSetReferenceDensity(tempreal)
+            call EOSOilSetSurfaceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,OIL')
@@ -837,13 +844,13 @@ subroutine EOSRead(input,option)
         call InputErrorMsg(input,option,'keyword','EOS,SLV')
         call StringToUpper(keyword)
         select case(trim(keyword))
-          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+          case('SURFACE_DENSITY','STANDARD_DENSITY')
             call InputReadDouble(input,option,tempreal)
             call InputErrorMsg(input,option,'VALUE', &
                                'EOS,SLV,REFERENCE_DENSITY')
             call InputReadAndConvertUnits(input,tempreal, &
                            'kg/m^3','EOS,SLV,REFERENCE_DENSITY',option)
-            call EOSSlvSetReferenceDensity(tempreal)
+            call EOSSlvSetSurfaceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
@@ -942,31 +949,65 @@ subroutine EOSReferenceDensity(option)
   PetscReal :: air_density_kmol
   PetscReal :: dum1, dum2
   PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: error_string
 
-  if (Initialized(option%liquid_phase)) then
-    if (option%reference_density(option%liquid_phase) < 1.d-40) then
-      call EOSWaterDensity(option%reference_temperature, &
-                           option%reference_pressure, &
-                           option%reference_density(option%liquid_phase), &
-                           dum1,ierr)
+  error_string = ''
+
+  select case(option%iflowmode)
+    case(TOWG_MODE,TOIL_IMS_MODE)
+      error_string = 'Reference Density must be input using either ' // &
+                     'SURFACE_DENSITY or STANDARD_DENSITY'
+      if (Initialized(option%liquid_phase)) then
+        if ( Uninitialized( EOSWaterGetSurfaceDensity() ) ) then
+          option%io_buffer = 'EOS Water, ' // trim(error_string)
+          call printErrMsg(option)
+        end if  
+      end if
+      if (Initialized(option%gas_phase)) then
+        if ( Uninitialized( EOSGasGetSurfaceDensity() ) ) then
+          option%io_buffer = 'EOS Gas, ' // trim(error_string)
+          call printErrMsg(option)
+        end if
+      end if
+      if (Initialized(option%oil_phase)) then
+        if ( Uninitialized( EOSOilGetSurfaceDensity() ) ) then
+          option%io_buffer = 'EOS Oil, ' // trim(error_string)
+          call printErrMsg(option)
+        end if
+      end if
+      if (Initialized(option%solvent_phase)) then
+        if ( Uninitialized( EOSSlvGetSurfaceDensity() ) ) then
+          option%io_buffer = 'EOS Solvent, ' // trim(error_string)
+          call printErrMsg(option)
+        end if
+      end if
+  case default
+    if (Initialized(option%liquid_phase)) then
+      if (option%reference_density(option%liquid_phase) < 1.d-40) then
+        call EOSWaterDensity(option%reference_temperature, &
+                             option%reference_pressure, &
+                             option%reference_density(option%liquid_phase), &
+                             dum1,ierr)
+        write(*,*) option%reference_density(option%liquid_phase)
+      endif
     endif
-  endif
-  if (Initialized(option%gas_phase)) then
-    if (option%reference_density(option%gas_phase) < 1.d-40) then
-      ! assume saturated vapor pressure
-      call EOSWaterSaturationPressure(option%reference_temperature, &
-                                      vapor_saturation_pressure,dum1,ierr)
-      call EOSWaterSteamDensityEnthalpy(option%reference_temperature, &
-                                        vapor_saturation_pressure, &
-                                        vapor_density_kg,dum1,dum2,ierr)
-      ! call no-derivative version of EOSGasDensity
-      call EOSGasDensity(option%reference_temperature, &
-                         option%reference_pressure-vapor_saturation_pressure, &
-                         air_density_kmol,ierr)
-      option%reference_density(option%gas_phase) = &
-        vapor_density_kg + air_density_kmol*FMWAIR
+    if (Initialized(option%gas_phase)) then
+      if (option%reference_density(option%gas_phase) < 1.d-40) then
+        ! assume saturated vapor pressure
+        call EOSWaterSaturationPressure(option%reference_temperature, &
+                                        vapor_saturation_pressure,dum1,ierr)
+        call EOSWaterSteamDensityEnthalpy(option%reference_temperature, &
+                                          vapor_saturation_pressure, &
+                                          vapor_density_kg,dum1,dum2,ierr)
+        ! call no-derivative version of EOSGasDensity
+        call EOSGasDensity(option%reference_temperature, &
+                           option%reference_pressure-vapor_saturation_pressure, &
+                           air_density_kmol,ierr)
+        option%reference_density(option%gas_phase) = &
+          vapor_density_kg + air_density_kmol*FMWAIR
+      endif
     endif
-  endif
+  end select
 
 end subroutine EOSReferenceDensity
 
@@ -985,7 +1026,8 @@ subroutine EOSProcess(option)
 
   type(option_type) :: option
 
-  call EOSOilTableProcess(option,EOSGasGetFMW(),EOSGasGetReferenceDensity())
+  call EOSWaterTableProcess(option)
+  call EOSOilTableProcess(option,EOSGasGetFMW(),EOSGasGetSurfaceDensity())
   call EOSGasTableProcess(option)
   call EOSSlvTableProcess(option)
 
@@ -1036,6 +1078,7 @@ subroutine AllEOSDBaseDestroy()
 
   call EOSOilDBaseDestroy()
   call EOSGasDBaseDestroy()
+  call EOSSlvDBaseDestroy()
 
 end subroutine AllEOSDBaseDestroy
 
