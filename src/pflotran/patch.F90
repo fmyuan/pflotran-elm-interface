@@ -4145,6 +4145,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  vec_ptr(:) = UNINITIALIZED_DOUBLE
 
   iphase = 1
   select case(ivar)
