@@ -37,6 +37,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Gridded_HDF5_class
   use Dataset_Common_HDF5_class
   use Dataset_Ascii_class
+  use String_module
   
   use General_Aux_module
   use WIPP_Flow_Aux_module
@@ -325,20 +326,17 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     dist_z = grid%z_min_global-max(datum_dataset_rmax,datum(Z_DIRECTION))
     ipressure = idatum+int(dist_z/delta_z)
     if (ipressure < 1) then
-      write(word,*) ipressure
       option%io_buffer = 'Minimum index for pressure array outside of &
-        &bounds (' // trim(adjustl(word)) // ') for hydrostatic FLOW_&
-        &CONDITION "' // trim(condition%name) // '".'
+        &bounds (' // trim(StringWrite(ipressure)) // ') for hydrostatic &
+        &FLOW_CONDITION "' // trim(condition%name) // '".'
       call PrintErrMsgToDev('include your input deck',option)
     endif
     dist_z = grid%z_max_global-min(datum_dataset_rmin,datum(Z_DIRECTION))
     ipressure = idatum+int(dist_z/delta_z)
     if (ipressure > num_pressures) then
-      write(option%io_buffer,*) num_pressures
-      write(word,*) ipressure
       option%io_buffer = 'Maximum index for pressure array outside of &
-        &bounds (' // trim(adjustl(word)) // ' > ' // &
-        trim(adjustl(option%io_buffer)) // ') for hydrostatic FLOW_&
+        &bounds (' // trim(StringWrite(ipressure)) // ' > ' // &
+        trim(StringWrite(num_pressures)) // ') for hydrostatic FLOW_&
         &CONDITION "' // trim(condition%name) // '".'
       call PrintErrMsgToDev('include your input deck',option)
     endif
@@ -489,6 +487,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     if (associated(pressure_array)) then
       ipressure = idatum+int(dist_z/delta_z)
+      if (ipressure < 1 .or. ipressure > num_pressures) then
+        option%io_buffer = 'Hydrostatic pressure array sampled outside &
+          &bounds: ' // trim(StringWrite(ipressure))
+        call printErrMsg(option)
+      endif
       dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-(z(ipressure) + z_offset)
       pressure = pressure_array(ipressure) + &
                  density_array(ipressure)*option%gravity(Z_DIRECTION) * &
