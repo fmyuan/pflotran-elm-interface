@@ -815,7 +815,8 @@ subroutine SolveWell(aux, option, well_data, r_p)
 
     ! Update stored well solution
 
-      call IncrementWellWarningCount(ws_unconv_t, ws_unconv_w, ws_unconv_b,ws_MPI_errs)
+      call IncrementWellWarningCount(ws_unconv_t, ws_unconv_w, &
+                                     ws_unconv_b, ws_MPI_errs)
       call well_data%SetWellSolution(pw, w_pb, w_sp, w_issat, w_trel)
       call well_data%SetWellSolutionSet()
 

@@ -3170,7 +3170,8 @@ subroutine OutputEclipseFiles(realization_base)
           call TOWGComputeMassBalance(realization_base,sum_kg(:,:))
       end select
     class default
-      option%io_buffer = 'Unrecognized realization class in OutputEclipseFiles().'
+      option%io_buffer = &
+        'Unrecognized realization class in OutputEclipseFiles().'
       call printErrMsg(option)
   end select
 
@@ -3341,7 +3342,7 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   ! Solvent rates and totals if required
 
     if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-      if( wecl ) then
+      if (wecl) then
         ! Eclipse uses n for solvent as s is salt
         call WrtHrd(fid, 'wnpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
         call WrtHrd(fid, 'wnpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
@@ -3381,17 +3382,25 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   call WrtHrd(fid, 'fwit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
   if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-    if( wecl ) then
+    if (wecl) then
       ! Eclipse uses n for solvent as s is salt
-      call WrtHrd(fid, 'fnpr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'fnpt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'fnir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'fnit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnpr', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnpt', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnir', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnit', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
     else
-      call WrtHrd(fid, 'fspr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'fspt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'fsir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'fsit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fspr', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fspt', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fsir', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fsit', 'field', 'm^3'  , &
+                 icol, zm, zn, zu, ni, mi, wecl)
     endif
   endif
 
@@ -3405,7 +3414,7 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   call WrtHrd(fid, 'fgip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
   call WrtHrd(fid, 'fwip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
   if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-    if( wecl ) then
+    if (wecl) then
       ! Eclipse uses n for solvent as s is salt
       call WrtHrd(fid, 'fnip', 'field', 'm^3', icol, zm, zn, zu, ni, mi, wecl)
     else
