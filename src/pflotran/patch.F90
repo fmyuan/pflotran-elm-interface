@@ -4164,6 +4164,10 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
+          case(CAPILLARY_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%pc
+            enddo
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -4277,6 +4281,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
+            enddo
+          case(CAPILLARY_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Richards%auxvars(grid%nL2G(local_id))%pc
             enddo
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
@@ -5913,6 +5922,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             else
               value = 0.d0
             endif
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%TH%auxvars(ghosted_id)%pc
           case(ICE_SATURATION)
             if (option%use_th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
@@ -5955,6 +5966,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                           option)
           case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%Richards%auxvars(ghosted_id)%pc
           case(LIQUID_HEAD)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
                     EARTH_GRAVITY/ &
