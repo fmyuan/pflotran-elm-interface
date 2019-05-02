@@ -3354,11 +3354,12 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
             call EOSWaterDensity(temperature,cell_pressure, &
                                   den_kg,den, &
                                   dx_dcpres, &
-                                  dx_dtcell, ierr)
+                                  dx_dtcell, ierr, auxvar%table_idx)
             D_den = D_cpres*dx_dcpres
             D_den(dof_temp) = D_den(dof_temp) + dx_dtcell*dT_dTcell
           else
-            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr, &
+                                 auxvar%table_idx)
           endif
         case(OIL_PHASE)
           if (analytical_derivatives) then
@@ -3675,7 +3676,8 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   dof_temp = towg_energy_dof
 
 
-  ref_pressure=option%reference_pressure
+  !ref_pressure=option%reference_pressure
+  ref_pressure = 1.0D5 !used as Pb for dead oil injection
 
   if (analytical_derivatives) then
     j = 0.d0
@@ -3763,13 +3765,14 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         case(LIQUID_PHASE)
 ! Case of water
           if (.NOT. analytical_derivatives) then
-            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr, &
+                                                           auxvar%table_idx)
           else
             ! there is a density deriv w.r.t. pressure and temp
             call EOSWaterDensity(temperature,cell_pressure, &
                                  den_kg,den, &
                                  dx_dcpres, &
-                                 dx_dtcell, ierr)
+                                 dx_dtcell, ierr, auxvar%table_idx)
             D_den = D_cpres*dx_dcpres
 
 

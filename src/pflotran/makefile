@@ -172,6 +172,14 @@ ifdef towg_debug
   MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
 endif
 
+ifdef ug_mpi_scatter_glb
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GLOBAL
+endif
+
+ifdef ug_mpi_scatter_ghost
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GHOST_ONLY
+endif
+
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif

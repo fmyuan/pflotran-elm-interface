@@ -14,7 +14,7 @@ module EOS_Slv_module
   PetscReal :: fmw_slv           !kg/Kmol
   PetscReal :: constant_density
   PetscReal :: constant_viscosity
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
 
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
@@ -29,10 +29,10 @@ module EOS_Slv_module
 #endif
 
   ! EOS databases
-  class(eos_database_type), pointer :: eos_dbase
+  class(eos_database_type), pointer :: eos_dbase => null()
 
 ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvt_table
+  class(eos_table_type), pointer :: pvt_table => null()
 
 ! Set null initial values for proceedure pointers of three types
 
@@ -117,11 +117,12 @@ module EOS_Slv_module
             EOSSlvSetFMW, &
             EOSSlvGetFMW, &
             EOSSlvSetViscosityConstant, &
-            EOSSlvSetReferenceDensity, &
-            EOSSlvGetReferenceDensity, &
+            EOSSlvSetSurfaceDensity, &
+            EOSSlvGetSurfaceDensity, &
             EOSSlvSetPVDS, &
             EOSSlvSetEOSDBase, &
-            EOSSlvTableProcess
+            EOSSlvTableProcess, &
+            EOSSlvDBaseDestroy
 
   contains
 
@@ -134,6 +135,8 @@ subroutine EOSSlvInit()
   fmw_slv = UNINITIALIZED_DOUBLE
   constant_density = UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
+
+  surface_density_kg = UNINITIALIZED_DOUBLE
 
   exponent_reference_density = UNINITIALIZED_DOUBLE
   exponent_reference_pressure = UNINITIALIZED_DOUBLE
@@ -184,15 +187,6 @@ subroutine EOSSlvVerify(ierr,error_string)
 
   if (Uninitialized(fmw_slv)) then
     fmw_slv = FMWCO2
-  end if
-
-  if ( associated(pvt_table) ) then
-    if(Uninitialized(reference_density_kg)) then
-      error_string = trim(error_string) // &
-      'A reference (e.g. Surface) density must be specified ' // &
-      'using either REFERENCE_DENSITY, SURFACE_DENSITY or STANDARD_DENSITY '
-      ierr = 1
-    end if
   end if
 
 end subroutine EOSSlvVerify
@@ -261,19 +255,18 @@ subroutine EOSSlvEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
 
   ierr=0
 
-  call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-  call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
 
 ! J/kg * kg/Kmol = J/Kmol
   H = H  * fmw_slv
+  dH_dT = dH_dT * fmw_slv
+  dH_dP = dH_dP * fmw_slv
+
+! J/kg * kg/Kmol = J/Kmol
   U = U  * fmw_slv
-
-! No derivatives at present
-
-  dH_dT=0.0
-  dH_dP=0.0
-  dU_dT=0.0
-  dU_dP=0.0
+  dU_dT = dU_dT * fmw_slv
+  dU_dP = dU_dP * fmw_slv
 
 end subroutine EOSSlvEnergyEOSDBase
 
@@ -296,11 +289,7 @@ subroutine EOSSlvViscosityEOSDBase(T, P, V_mix, &
 
   ierr=0
 
-  call eos_dbase%EOSProp(T,P,EOS_VISCOSITY,V_mix,ierr)
-
-  dV_dT=0.0d0
-  dV_dP=0.0d0
-  if (calculate_derivative) call throwDerivativeError()
+  call eos_dbase%EOSPropGrad(T,P,EOS_VISCOSITY,V_mix,dV_dT,dV_dP,ierr)
 
 end subroutine EOSSlvViscosityEOSDBase
 
@@ -340,27 +329,27 @@ end function EOSSlvGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSSlvSetReferenceDensity(input_ref_density_kg)
+subroutine EOSSlvSetSurfaceDensity(input_ref_density_kg)
 
   implicit none
 
   PetscReal,intent(in) :: input_ref_density_kg
 
-  reference_density_kg = input_ref_density_kg
+  surface_density_kg = input_ref_density_kg
 
-end subroutine EOSSlvSetReferenceDensity
+end subroutine EOSSlvSetSurfaceDensity
 
 ! ************************************************************************** !
 
-function EOSSlvGetReferenceDensity()
+function EOSSlvGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSSlvGetReferenceDensity
+  PetscReal :: EOSSlvGetSurfaceDensity
 
-  EOSSlvGetReferenceDensity = reference_density_kg
+  EOSSlvGetSurfaceDensity = surface_density_kg
 
-end function EOSSlvGetReferenceDensity
+end function EOSSlvGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -453,17 +442,8 @@ subroutine EOSSlvViscosityTable(T,P,V, &
 
   ierr=0
 
-#if 0
-  call pvt_table%EOSProp(T,P,EOS_VISCOSITY,V,table_idxs,ierr)
-
-  dV_dT=0.0d0
-  dV_dP=0.0d0
-  if (calculate_derivative) call throwDerivativeError()
-#endif
-
   call pvt_table%EOSPropGrad(T,P,EOS_VISCOSITY,V,dV_dT,dV_dP, &
                              ierr,table_idxs)
-
 
 end subroutine EOSSlvViscosityTable
 
@@ -662,11 +642,12 @@ subroutine EOSSlvDensityEOSDBase(T,P,Rhs_slv,dRhs_dT,dRhs_dP,ierr,table_idxs)
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   ierr=0
-  call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rhs_slv,ierr)
+  call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rhs_slv,dRhs_dT,dRhs_dP,ierr)
 
   Rhs_slv= Rhs_slv / fmw_slv ! kmol/m^3
-  dRhs_dT=0.0
-  dRhs_dP=0.0
+
+  dRhs_dT = dRhs_dT / fmw_slv
+  dRhs_dP = dRhs_dP / fmw_slv
 
 end subroutine EOSSlvDensityEOSDBase
 
@@ -683,16 +664,9 @@ subroutine EOSSlvDensityTable(T, P, Rho_slv, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !Rho from pvt table is in kmol/m3
-  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_slv,table_idxs,ierr)
-
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_slv,dRho_dT,dRho_dP, &
                              ierr,table_idxs)
-
-#if 0
-  dRho_dT = 0.0
-  dRho_dP = 0.0
-#endif
 
 end subroutine EOSSlvDensityTable
 
@@ -828,7 +802,7 @@ subroutine EOSSlvTableProcess(option)
 
   select case(pvt_table%name)
   case("PVDS")
-      call pvt_table%ConvertFVFtoMolarDensity(fmw_slv,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_slv,surface_density_kg)
   end select
 
 end subroutine EOSSlvTableProcess
@@ -1039,6 +1013,19 @@ subroutine throwDerivativeError()
   call printErrMsg(option)
 
 end subroutine throwDerivativeError
+
+! ************************************************************************** !
+
+subroutine EOSSlvDBaseDestroy()
+
+  implicit none
+
+  !destroy databases
+  call EOSDatabaseDestroy(eos_dbase)
+
+  nullify(pvt_table)
+
+end subroutine EOSSlvDBaseDestroy
 
 ! ************************************************************************** !
 
