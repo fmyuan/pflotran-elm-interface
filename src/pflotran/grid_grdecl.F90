@@ -4023,7 +4023,7 @@ end subroutine GetCmplData
 
 subroutine IsCPG()
   !
-  ! If a keyword encountered indicatig corner point input, (ZORN or COORD)
+  ! If a keyword encountered indicating corner point input, (ZORN or COORD)
   ! set flags and allocate the ccord and zcorn arrays
   !
   ! Author: Dave Ponting
