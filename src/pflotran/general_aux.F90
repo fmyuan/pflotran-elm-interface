@@ -101,6 +101,7 @@ module General_Aux_module
 !    PetscReal, pointer :: dden_dp(:,:)
 !    PetscReal, pointer :: dsat_dT(:)
 !    PetscReal, pointer :: dden_dT(:)
+    PetscReal, pointer :: kr(:)
     PetscReal, pointer :: mobility(:) ! relative perm / kinematic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
     PetscReal :: pert
@@ -315,6 +316,8 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   auxvar%U = 0.d0
   allocate(auxvar%mobility(option%nphase))
   auxvar%mobility = 0.d0
+  allocate(auxvar%kr(option%nphase))
+  auxvar%kr = 0.d0
   if (allocate_derivative) then
     allocate(auxvar%d)
     auxvar%d%pc_satg = 0.d0
@@ -413,6 +416,7 @@ subroutine GeneralAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%H = auxvar%H
   auxvar2%U = auxvar%U
   auxvar2%mobility = auxvar%mobility
+  auxvar2%kr = auxvar%kr
   auxvar2%effective_porosity = auxvar%effective_porosity
   auxvar2%pert = auxvar%pert
 
@@ -578,6 +582,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%effective_porosity = 0.d0
 #endif  
   gen_auxvar%mobility = 0.d0
+  gen_auxvar%kr = 0.d0
 
 #if 0
   if (option%iflag >= GENERAL_UPDATE_FOR_ACCUM) then
@@ -1129,6 +1134,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
     endif
     gen_auxvar%mobility(lid) = krl/visl
+    gen_auxvar%kr(lid) = krl
     if (associated(gen_auxvar%d)) then
       ! use chainrule for derivative
       tempreal = -1.d0*krl/(visl*visl)
@@ -1162,6 +1168,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            gen_auxvar%pres(gid),den_air,visg,ierr)
     endif
     gen_auxvar%mobility(gid) = krg/visg
+    gen_auxvar%kr(gid) = krg
     if (associated(gen_auxvar%d)) then
       ! use chainrule for derivative
       tempreal = -1.d0*krg/(visg*visg)

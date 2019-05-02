@@ -1098,7 +1098,6 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%source_sink_list, &
                                  force_update_flag,option)
 
-!  stop
 end subroutine PatchUpdateAllCouplerAuxVars
 
 ! ************************************************************************** !
@@ -4269,7 +4268,12 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(GAS_ENERGY)
             call PatchUnsupportedVariable('RICHARDS','GAS_ENERGY',option)
           case(LIQUID_VISCOSITY)
-            call PatchUnsupportedVariable('RICHARDS','LIQUID_VISCOSITY',option)
+            do local_id = 1, grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  patch%aux%Richards%auxvars(ghosted_id)%kr / &
+                  patch%aux%Richards%auxvars(ghosted_id)%kvr
+            enddo
           case(GAS_VISCOSITY)
             call PatchUnsupportedVariable('RICHARDS','GAS_VISCOSITY',option)
           case(GAS_MOBILITY)
@@ -4795,6 +4799,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%liquid_phase)
             enddo
+          case(LIQUID_VISCOSITY)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%kr(option%liquid_phase) / &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%mobility(option%liquid_phase)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
@@ -4841,6 +4854,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
+            enddo
+          case(GAS_VISCOSITY)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%kr(option%gas_phase) / &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%mobility(option%gas_phase)
             enddo
           case(EFFECTIVE_POROSITY)
             do local_id=1,grid%nlmax
@@ -4936,6 +4958,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%liquid_phase)
             enddo
+          case(LIQUID_VISCOSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mu(option%liquid_phase)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
@@ -4955,6 +4982,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
+            enddo
+          case(GAS_VISCOSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mu(option%gas_phase)
             enddo
           case(EFFECTIVE_POROSITY)
             do local_id=1,grid%nlmax
@@ -5744,8 +5776,25 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                                   vec_ptr(local_id),ivar)
           enddo
       end select
-    case(LIQUID_REL_PERM)
+    case(LIQUID_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(RICHARDS_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%Richards%auxvars(grid%nL2G(local_id))%kr
+          enddo
+        case(TH_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%TH%auxvars(grid%nL2G(local_id))%kvr * &
+              patch%aux%TH%auxvars(grid%nL2G(local_id))%vis
+          enddo
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                kr(option%liquid_phase)
+          enddo
         case(WF_MODE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
@@ -5756,8 +5805,14 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           option%io_buffer = 'Output of liquid phase relative permeability &
             &not supported for current flow mode.'
       end select
-    case(GAS_REL_PERM)
+    case(GAS_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                kr(option%gas_phase)
+          enddo
         case(WF_MODE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
@@ -5796,6 +5851,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
     case(NATURAL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
+      enddo
+    case(SALINITY)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%Aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
       enddo
     case(RESIDUAL)
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -5978,6 +6038,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
           case(LIQUID_MOBILITY)
             value = patch%aux%Richards%auxvars(ghosted_id)%kvr
+          case(LIQUID_VISCOSITY)
+            value = patch%aux%Richards%auxvars(ghosted_id)%kr / &
+                    patch%aux%Richards%auxvars(ghosted_id)%kvr
           case default
             call PatchUnsupportedVariable('RICHARDS',ivar,option)
         end select
@@ -6218,6 +6281,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(LIQUID_MOBILITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%liquid_phase)
+          case(LIQUID_VISCOSITY)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      kr(option%liquid_phase) / &
+                    patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mobility(option%liquid_phase)
           case(GAS_SATURATION)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%gas_phase)
@@ -6250,6 +6318,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             endif
           case(GAS_MOBILITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mobility(option%gas_phase)
+          case(GAS_VISCOSITY)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      kr(option%gas_phase) / &
+                    patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
           case(EFFECTIVE_POROSITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
@@ -6306,6 +6379,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(LIQUID_MOBILITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%liquid_phase)
+          case(LIQUID_VISCOSITY)
+            value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mu(option%liquid_phase)
           case(GAS_SATURATION)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%gas_phase)
@@ -6318,6 +6394,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOBILITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
+          case(GAS_VISCOSITY)
+            value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mu(option%gas_phase)
           case(EFFECTIVE_POROSITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       effective_porosity
@@ -6825,8 +6904,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                 material_auxvars(ghosted_id), &
                                 value,ivar)
       end select
-    case(LIQUID_REL_PERM)
+    case(LIQUID_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(RICHARDS_MODE)
+          value = patch%aux%Richards%auxvars(ghosted_id)%kr
+        case(TH_MODE)
+          value = patch%aux%TH%auxvars(ghosted_id)%kvr / &
+                  patch%aux%TH%auxvars(ghosted_id)%vis
+        case(G_MODE)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    kr(option%liquid_phase)
         case(WF_MODE)
           value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                     kr(option%liquid_phase)
@@ -6834,8 +6921,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           option%io_buffer = 'Output of liquid phase relative permeability &
             &not supported for current flow mode.'
       end select
-    case(GAS_REL_PERM)
+    case(GAS_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(G_MODE)
+          value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    kr(option%gas_phase)
         case(WF_MODE)
           value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                     kr(option%gas_phase)
@@ -6882,6 +6972,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                       sec_rt_auxvar(isubvar), &
                                       patch%aux%Global%auxvars(ghosted_id),&
                                       reaction,option)
+    case(SALINITY)
+      value = patch%Aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
