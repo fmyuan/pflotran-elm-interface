@@ -853,20 +853,13 @@ subroutine EOSRead(input,option)
             call EOSSlvSetSurfaceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
+            call InputErrorMsg(input,option,'DENSITY','EOS,SLV')
             call StringToUpper(word)
             select case(trim(word))
-              case('CONSTANT')
-                call InputReadDouble(input,option,tempreal)
-                call InputErrorMsg(input,option,'VALUE', &
-                                   'EOS,GAS,DENSITY,CONSTANT')
-                call InputReadAndConvertUnits(input,tempreal, &
-                            'kmol/m^3','EOS,GAS,DENSITY,CONSTANT',option)
-                call EOSGasSetDensityConstant(tempreal)
               case('IDEAL','DEFAULT')
                 call EOSSlvSetDensityIdeal()
               case default
-                call InputKeywordUnrecognized(word,'EOS,GAS,DENSITY',option)
+                call InputKeywordUnrecognized(word,'EOS,SLV,DENSITY',option)
             end select
           case('ENTHALPY')
             call InputReadWord(input,option,word,PETSC_TRUE)
@@ -876,11 +869,11 @@ subroutine EOSRead(input,option)
               case('IDEAL','DEFAULT')
                 call EOSSlvSetEnergyIdeal()
               case default
-                call InputKeywordUnrecognized(word,'EOS,GAS,ENTHALPY',option)
+                call InputKeywordUnrecognized(word,'EOS,SLV,ENTHALPY',option)
             end select
           case('VISCOSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'VISCOSITY','EOS,GAS')
+            call InputErrorMsg(input,option,'VISCOSITY','EOS,SLV')
             call StringToUpper(word)
             select case(trim(word))
               case('CONSTANT')
@@ -888,7 +881,7 @@ subroutine EOSRead(input,option)
                 call InputErrorMsg(input,option,'VALUE', &
                                    'EOS,SLV,VISCOSITY,CONSTANT')
                 call InputReadAndConvertUnits(input,tempreal, &
-                                 'Pa-s','SLV,GAS,VISCOSITY,CONSTANT',option)
+                                 'Pa-s','EOS,SLV,VISCOSITY,CONSTANT',option)
                 call EOSSlvSetViscosityConstant(tempreal)
               case('DEFAULT')
               case default

@@ -188,7 +188,8 @@ module Well_Solver_module
 
     character(len = MAXSTRINGLENGTH) :: ws_name       ! Well name
 
-    PetscInt :: w_comm                                ! Well MPI communicator
+    MPI_Comm :: w_comm                                ! Well MPI communicator
+    PetscBool :: w_ismp=PETSC_FALSE                   ! Is multi-proc
 
     PetscReal, allocatable :: xwbs    (:    )  ! Wellbore sol.
     PetscReal, allocatable :: rwbs    (:    )  ! Wellbore res.
@@ -215,6 +216,7 @@ module Well_Solver_module
     PetscInt :: ws_unconv_t = 0
     PetscInt :: ws_unconv_w = 0
     PetscInt :: ws_unconv_b = 0
+    PetscInt :: ws_MPI_errs = 0
 
   public ::  SolveWell, InitialiseWell, doWellMPISetup
 
@@ -402,10 +404,12 @@ subroutine doWellMPISetup(option, num_well, well_data_list)
   PetscInt :: comm_size, iwell, ncmpl, nipr, irankp
   PetscMPIInt :: myrank, ierr, nrankw, nCmplG
   PetscBool :: ismp
-  PetscMPIInt :: comm, group
+  MPI_Group :: group,world_group
+  MPI_Comm  :: comm
 
   comm_size = option%mycommsize
   myrank    = option%myrank
+  world_group = 0
 
   ! Allocate the completion count buffers
 
@@ -439,6 +443,7 @@ subroutine doWellMPISetup(option, num_well, well_data_list)
     ierr = 0
     call MPI_Allreduce(ncpr, ncprall, comm_size, &
                        MPI_INTEGER, MPI_SUM, option%mycomm, ierr)
+    call checkErr(ierr)
 
   ! Is this a multi-proc well?
 
@@ -460,11 +465,15 @@ subroutine doWellMPISetup(option, num_well, well_data_list)
 
   ! If multi-proc, create the group and communicator
 
+    group=0
+    comm =0
     if (ismp) then
-
-      call MPI_Group_incl (option%mygroup, nrankw, rfortw, group, ierr)
-      call MPI_Comm_create(option%mycomm, option%mygroup, comm, ierr)
-
+      call MPI_Comm_group (option%mycomm, world_group,ierr);
+      call checkErr(ierr)
+      call MPI_Group_incl (world_group  , nrankw, rfortw, group, ierr)
+      call checkErr(ierr)
+      call MPI_Comm_create(option%mycomm, group, comm, ierr)
+      call checkErr(ierr)
     endif
 
     ! Set global number of completions, multi-proc flag, group and communicator
@@ -525,6 +534,7 @@ subroutine SolveWell(aux, option, well_data, r_p)
   ws_unconv_t = 0
   ws_unconv_w = 0
   ws_unconv_b = 0
+  ws_MPI_errs = 0
 
   welllocationfound = PETSC_FALSE
   welltargetsfound  = PETSC_FALSE
@@ -540,6 +550,8 @@ subroutine SolveWell(aux, option, well_data, r_p)
   else
     ws_nxw = ws_ncompe-1
   endif
+
+  w_ismp = PETSC_FALSE
 
   ws_ndof = option%nflowdof
 
@@ -622,7 +634,7 @@ subroutine SolveWell(aux, option, well_data, r_p)
 
   w_ncmpl  = well_data%getNCmpl ()
   w_ncmplg = well_data%getNCmplG()
-  w_comm   = well_data%getWellComm()
+  w_comm   = well_data%getWellComm(w_ismp)
 
   if (w_ncmplg > w_ncmpl) then
     w_crossproc = PETSC_TRUE
@@ -766,7 +778,9 @@ subroutine SolveWell(aux, option, well_data, r_p)
 
     ! Check for lack of convergence
 
-    if (.not.finished) ws_unconv_t = ws_unconv_t + 1
+    if (.not.finished) then
+      ws_unconv_t = ws_unconv_t + 1
+    endif
 
     if (wellisdead) then
       call well_data%zeroActuals()
@@ -801,7 +815,8 @@ subroutine SolveWell(aux, option, well_data, r_p)
 
     ! Update stored well solution
 
-      call IncrementWellWarningCount(ws_unconv_t, ws_unconv_w, ws_unconv_b)
+      call IncrementWellWarningCount(ws_unconv_t, ws_unconv_w, &
+                                     ws_unconv_b, ws_MPI_errs)
       call well_data%SetWellSolution(pw, w_pb, w_sp, w_issat, w_trel)
       call well_data%SetWellSolutionSet()
 
@@ -854,6 +869,7 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
   jww       = 1.0
   usediff   = PETSC_FALSE
   wellisdead = PETSC_FALSE
+  solveForWellTarget = PETSC_FALSE
 
   pwtarg = ws_targets(W_BHP_LIMIT)
   if (pwtarg<0.0) then
@@ -877,8 +893,13 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
                  +getActualFlowForTargetType(pwtarg, option, W_TARG_SSV, &
                   possible, tactpw) )
   if (ftot < 0.0) wellisdead = PETSC_TRUE
+
+  ! Check that we all agree
+
+  wellisdead = allTrue(wellisdead)
+
   if (wellisdead) then
-   solveForWellTarget = PETSC_TRUE
+    solveForWellTarget = PETSC_TRUE
   else
 
   ! Do the iteration in pw for the well solution when on this target
@@ -895,7 +916,7 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
         rat = (anal+1.0E-10)/(diff+1.0E-10)
         if (abs(rat-1.0)>0.1) then
           print *, 'ws_name, itt, pw, anal, diff, rat, rw ', &
-                    ws_name(1:10), itt, pw, anal, diff, rat, rw
+                    trim(ws_name), itt, pw, anal, diff, rat, rw
         endif
       else
         call getRwAndJw(option, itt, pw, rw, jww)
@@ -903,17 +924,27 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
 
       if (w_crossproc) then
         ierr = 0
-        bl(1) = Rw
+        bl(1) = rw
         call MPI_Allreduce(bl, bg, ONE_INTEGER, &
                            MPI_DOUBLE_PRECISION, MPI_MAX, w_comm, ierr)
-        Rw = bg(1)
+        call checkErr(ierr)
+        rw = bg(1)
       endif
 
       if (abs(rw) < conv_crit) nconv = nconv+1
-      if (nconv > 1) then
-        finished = PETSC_TRUE
-        exit
-      endif
+
+      !  Check if finished
+      finished = PETSC_FALSE
+      if (nconv > 1)  finished = PETSC_TRUE
+
+      !  Check that we all agree
+      finished = allTrue(finished)
+
+      !  Exit iteration iff all finished
+      if (finished) exit
+
+      !  Not finished - continue iterating
+
       if (abs(jww)>0.0) then
         jwwi = 1.0/jww
       else
@@ -921,11 +952,14 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
       endif
       pw = pw-rw*jwwi
       if (pw < ws_pwmin) pw = ws_pwmin
+
     enddo
 
   ! Check for convergence error
 
-    if (.not.finished) ws_unconv_w = ws_unconv_w + 1
+    if (.not.finished) then
+      ws_unconv_w = ws_unconv_w + 1
+    endif
 
   ! Check if all other targets satisfied
 
@@ -945,6 +979,7 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
       ! Case of rate control - get positive convention flow
         fpsc = &
           w_sign*getActualFlowForTargetType(pw, option, jtt, possible, tactpw)
+
         if (possible) then
           ftarg = ws_targets(jtt)
           if (ftarg >-0.5) then
@@ -957,6 +992,11 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
         endif
       endif
     enddo
+
+    ! Check that we all agree
+
+    solveForWellTarget = allTrue(solveForWellTarget)
+
   endif
 
 end function solveForWellTarget
@@ -1162,6 +1202,7 @@ subroutine updateMainResidual(option, r_p)
     do icompe = 1, ws_ncompe
       res(icompe) = c_flows(icmpl, icompe)
     enddo
+
 
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
@@ -1837,12 +1878,16 @@ subroutine buildWellFlows1()
   if (w_crossproc) then
     call MPI_Allreduce( w_flows   , w_flowsG   , ws_ncompe,                  &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
     call MPI_Allreduce( w_flowspw , w_flowsGpw , ws_ncompe,                  &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
     call MPI_Allreduce( w_flowsxw , w_flowsGxw , ws_ncompe*ws_nxw,           &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
     call MPI_Allreduce( w_flowsxc , w_flowsGxc , ws_ncompe*w_ncmplg*ws_ndof, &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
   else
     w_flowsG    = w_flows
     w_flowsGpw  = w_flowspw
@@ -1894,10 +1939,13 @@ subroutine buildWellFlows2()
   if (w_crossproc) then
     call MPI_Allreduce( w_flows   , w_flowsG   , ws_ncompe,                  &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
     call MPI_Allreduce( w_flowspw , w_flowsGpw , ws_ncompe,                  &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
     call MPI_Allreduce( w_flowsxc , w_flowsGxc , ws_ncompe*w_ncmplg*ws_ndof, &
                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr          )
+    call checkErr(ierr)
   else
     w_flowsG    = w_flows
     w_flowsGpw  = w_flowspw
@@ -1920,15 +1968,20 @@ subroutine findWellboreSolution(pw, option)
   PetscReal, intent(in) :: pw
   type(option_type), pointer :: option
 
-  PetscInt  :: iterwbs, ir, irw, ixw, icmpl, icompe, jdof, jcmplg, ierr
-  PetscReal :: eps, Rnorm, so, sg, pb, deti, diff, anal, rat, pwe, sum
-  PetscReal :: bl(1), bg(1)
-  PetscBool :: finished, usediff, usediff2
+  PetscInt  :: iterwbs, ir, irw, ixw, icmpl, icompe, jdof, jcmplg, ierr, &
+               itry, mtry
+  PetscReal :: epsconv,epsdiff,epssoln, Rnorm, so, sg, pb, deti, &
+               diff, anal, rat, pwe, sum
+  PetscReal :: lam, rNormhold
+  PetscBool :: finished, usediff, usediff2, issathold
 
   ! Initialise
 
   ierr = 0
-  eps  = 1.0E-6
+  sum = 0.0
+  epsconv = 1.0E-6
+  epsdiff = 1.0E-6
+  epssoln = 1.0E-6
   finished = PETSC_FALSE
   usediff  = PETSC_FALSE
   usediff2 = PETSC_FALSE
@@ -1941,27 +1994,29 @@ subroutine findWellboreSolution(pw, option)
 
   do iterwbs = 1, max_iterWBS
 
-   ! Get residuals
+   ! Get residuals for difference checks
 
-    call getRwbsAndJwbs(pw, option)
-    do ir = 1, ws_nxw
-      rwbshold(ir) = rwbs(ir)
-      xwbshold(ir) = xwbs(ir)
-    enddo
+    if (usediff .or. usediff2) then
+      call getRwbsAndJwbs(pw, option,sum)
+      do ir = 1, ws_nxw
+        rwbshold(ir) = rwbs(ir)
+        xwbshold(ir) = xwbs(ir)
+      enddo
+    endif
 
     if (usediff) then
       do ixw = 1, ws_nxw
 
        xwbs(ixw) = xwbshold(ixw)
 
-        eps = 1.0E-6
-        if (ixw == 1 .and. (xwbs(ixw)>0.5) ) eps = -1.0E-6
-        if (ixw == 2 ) eps = 1.0E-2
+        epsdiff = 1.0E-6
+        if (ixw == 1 .and. (xwbs(ixw)>0.5) ) epsdiff = -1.0E-6
+        if (ixw == 2 ) epsdiff = 1.0E-2
 
-        xwbs(ixw) = xwbs(ixw)+eps
-        call getRwbsAndJwbs(pw, option)
+        xwbs(ixw) = xwbs(ixw)+epsdiff
+        call getRwbsAndJwbs(pw, option,sum)
         do ir = 1, ws_nxw
-          diff = (rwbs(ir)-rwbshold(ir))/eps
+          diff = (rwbs(ir)-rwbshold(ir))/epsdiff
           anal = jwbs(ir, ixw)
           rat  = (diff+1.0E-20)/(anal+1.0E-20)
           print *, 'RwbsXw:ir, ix, d, a, rat ' , ir, ixw, diff, anal, rat
@@ -1971,37 +2026,34 @@ subroutine findWellboreSolution(pw, option)
       enddo
     endif
     if (usediff2) then
-      eps = 1.0
-      pwe = pw+eps
-      call getRwbsAndJwbs(pwe, option)
+      epsdiff = 1.0
+      pwe = pw+epsdiff
+      call getRwbsAndJwbs(pwe, option,sum)
       do ir = 1, ws_nxw
-        diff = (rwbs(ir)-rwbshold(ir))/eps
+        diff = (rwbs(ir)-rwbshold(ir))/epsdiff
         anal =  rwbspw(ir)
         rat  = (diff+1.0E-20)/(anal+1.0E-20)
         print *, 'dRwbsPw:ir, d, a, r ', ir, diff, anal, rat
       enddo
     endif
 
-    call getRwbsAndJwbs(pw, option)
+    ! Get residual and norm
 
-    ! Find norm
+    call getRwbsAndJwbs(pw, option,sum)
+    Rnorm = getRnormwbs()
 
-    Rnorm = 0.0
-    do ixw = 1, ws_nxw
-      Rnorm = Rnorm+rwbs(ixw)*rwbs(ixw)
-    enddo
+    !  Does this norm indicate we are finished?
 
-    if (w_crossproc) then
-      ierr = 0
-      bl(1) = Rnorm
-      call MPI_Allreduce(bl, bg, ONE_INTEGER, &
-                         MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr)
-      Rnorm = bg(1)
-    endif
+    finished = PETSC_FALSE
+    if (Rnorm < epsconv .and. iterwbs>1 ) finished = PETSC_TRUE
 
-    Rnorm = sqrt(Rnorm)
-    if (Rnorm < eps .and. iterwbs>1 ) then
-      finished = PETSC_TRUE
+    !  Check that we all agree
+
+    finished = allTrue(finished)
+
+    ! Exit if finished
+
+    if (finished) then
       call invertJacobian(deti)
       exit
     endif
@@ -2022,49 +2074,76 @@ subroutine findWellboreSolution(pw, option)
 
     ! Do update
 
-    do ixw = 1, ws_nxw
-      xwbs(ixw) = xwbs(ixw)+dxwbs(ixw)
-    enddo
+    xwbshold  = xwbs
+    issathold = w_issat
+    Rnormhold = Rnorm
 
-    if (xwbs(1) < 0.0) xwbs(1) = 0.0
-    if (xwbs(1) > 1.0) xwbs(1) = 1.0
+    ! Loop over attempts to update using a backtracker
 
-    ! Check for state change
+    lam=1.0
+    mtry = 4
+    do itry=1,mtry
 
-    if (ws_is_black_oil) then
-      so = xwbs(1)
-      if (w_issat) then
-        sg = xwbs(2)
-        pb = pw
-        if (sg < 0.0 .and. so > eps) then
-          w_issat = PETSC_FALSE
-          xwbs(2) = pb - eps
-        endif
-        if (sg>1.0) then
-          sg = 1.0
-          xwbs(2) = sg
-        endif
-      else
-        sg = 0.0
-        pb = xwbs(2)
-        if (pb > pw .or. so <= eps) then
-          w_issat = PETSC_TRUE
-          xwbs(2) = eps
+      do ixw = 1, ws_nxw
+        xwbs(ixw) = xwbs(ixw)+lam*dxwbs(ixw)
+      enddo
+
+      if (xwbs(1) < 0.0) xwbs(1) = 0.0
+      if (xwbs(1) > 1.0) xwbs(1) = 1.0
+
+      ! Check for state change
+
+      if (ws_is_black_oil) then
+        so = xwbs(1)
+        if (w_issat) then
+          sg = xwbs(2)
+          pb = pw
+          if (sg < 0.0 .and. so > epssoln) then
+            w_issat = PETSC_FALSE
+            xwbs(2) = pb - epssoln
+          endif
+          if (sg>1.0) then
+            sg = 1.0
+            xwbs(2) = sg
+          endif
+        else
+          sg = 0.0
+          pb = xwbs(2)
+          if (pb > pw .or. so <= epssoln) then
+            w_issat = PETSC_TRUE
+            xwbs(2) = epssoln
+          endif
         endif
       endif
-    endif
 
-    ! Limit to positive now change detected
+      ! Limit to positive now change detected
 
-    do ixw = 1, ws_nxw
-      if (xwbs(ixw) < 0.0) xwbs(ixw) = 0.0
+      do ixw = 1, ws_nxw
+        if (xwbs(ixw) < 0.0) xwbs(ixw) = 0.0
+      enddo
+
+      ! Get residual and norm
+
+      call getRwbsAndJwbs(pw, option,sum)
+      Rnorm = getRnormwbs()
+
+      ! Check if gain, leave if so
+
+      if ((Rnorm < epsconv ) .or. (Rnorm<Rnormhold) .or. (itry==mtry)) exit
+
+      lam=0.5*lam
+
+      xwbs    =  xwbshold
+      w_issat = issathold
+
     enddo
-
   enddo
 
   ! Check for lack of convergence
 
-  if (.not.finished) ws_unconv_b = ws_unconv_b + 1
+  if (.not.finished) then
+    ws_unconv_b = ws_unconv_b + 1
+  endif
 
   ! Use implicit function theorem to find derivatives of Xw wrt Pw and Xc
 
@@ -2261,7 +2340,7 @@ end subroutine unpackWellboreSolution
 
 ! *************************************************************************** !
 
-subroutine getRwbsAndJwbs(pw, option)
+subroutine getRwbsAndJwbs(pw, option, sum)
   !
   ! Get the residual and Jacobian for the wellbore solution
   !
@@ -2272,9 +2351,10 @@ subroutine getRwbsAndJwbs(pw, option)
 
   PetscReal, intent(in) :: pw
   type(option_type), pointer :: option
+  PetscReal, intent(out) :: sum
 
   PetscReal :: so, sg, sw, ss, pb, t
-  PetscReal :: sum, sumpw
+  PetscReal :: sumpw
   PetscInt  :: icomp, icompc, icomph, nic, &
                ixw, ipoil, ipgas, ipwat, ipslv, eid
   PetscInt  :: jcmplg, jdof, ippref
@@ -2544,6 +2624,7 @@ subroutine findWellboreGravityDensityPredictor()
     sl(4) = sums
     call MPI_Allreduce(sl, sg, FOUR_INTEGER, &
                        MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr)
+    call checkErr(ierr)
     sumgdm = sg(1)
     sumgds = sg(2)
     summ   = sg(3)
@@ -2600,8 +2681,8 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
   PetscReal :: spX, mdpX, hpX
 
   PetscReal :: rsm, rsmt, rsmpb
-  PetscReal :: den, deni, deni2, dent, denpb
-  PetscReal :: xo, xg, xot, xopb, xgt, xgpb
+  PetscReal :: den, deni, deni2, dent, denpb, denpw
+  PetscReal :: xo, xg, xot, xopw, xopb, xgt, xgpw , xgpb
   PetscReal :: mwo, mwg, mws, mww, sum, sumi, sumpw
 
   PetscInt :: ierr, iphase, icomp, icoil, icgas
@@ -2702,8 +2783,16 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
 
   xot  = 0.0
   xopb = 0.0
+  xopw = 0.0
+
   xgt  = 0.0
   xgpb = 0.0
+  xgpw = 0.0
+
+  den   = 0.0
+  dent  = 0.0
+  denpb = 0.0
+  denpw = 0.0
 
   ! Initialise the output properties and derivatives
 
@@ -2799,23 +2888,36 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
 
       dent  = rsmt
       denpb = rsmpb
+      denpw = 0.0
 
       xo =     deni
       xg = rsm*deni
 
       xot  = -deni2*dent
       xopb = -deni2*denpb
+      xopw = 0.0
 
       xgt  = (rsmt -xg*dent )*deni
       xgpb = (rsmpb-xg*denpb)*deni
+      xgpw = 0.0
+
+      if (w_issat) then
+        xopw  = xopb
+        xgpw  = xgpb
+        denpw = denpb
+        xopb  = 0.0
+        xgpb  = 0.0
+        denpb = 0.0
+      endif
 
       call EOSOilDensity        (t, pb, mdos, mdost, mdospb, ierr, table_idx)
       call EOSOilCompressibility(t, pb, cr  , crt  , crpb  , ierr, table_idx)
 
       if (w_issat) then
 
-        mdo   = mdos
-        mdopw = mdospb
+        mdo   = mdos  *den
+        mdot  = mdost *den+mdos*dent
+        mdopw = mdospb*den+mdos*denpw
 
       else
 
@@ -2829,10 +2931,15 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
         usfpw = (1.0+crusp)*crusppw
         usfpb = (1.0+crusp)*crusppb
 
-        mdo   = mdos*usf
-        mdot  = mdos*usft +mdost *usf
-        mdopw = mdos*usfpw
-        mdopb = mdos*usfpb+mdospb*usf
+        mdo   =  mdos  *usf  *den
+        mdot  =  mdost *usf  *den   &
+               + mdos  *usft *den   &
+               + mdos  *usf  *dent
+        mdopw =  mdos  *usfpw*den   &
+               + mdos  *usf  *denpw
+        mdopb =  mdospb*usf  *den   &
+               + mdos  *usfpb*den   &
+               + mdos  *usf  *denpb
 
       endif
 
@@ -2847,20 +2954,21 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
       if (ixwt >0) w_mdpxw (ipoil, ixwt ) = mdot
       if (ixwpb>0) w_mdpxw (ipoil, ixwpb) = mdopb
 
-                   w_kgdp  (ipoil)        = mdo  *(xo*mwo+xg*mwg)
-                   w_kgdppw(ipoil)        = mdopw*(xo*mwo+xg*mwg)
-      if (ixwt >0) w_kgdpxw(ipoil, ixwt ) = mdot *(xo *mwo+xg *mwg) &
-                                            +mdo  *(xot*mwo+xgt*mwg)
-      if (ixwpb>0) w_kgdpxw(ipoil, ixwpb) = mdopb*(xo  *mwo+xg  *mwg) &
-                                           +mdo  *(xopb*mwo+xgpb*mwg)
+                   w_kgdp  (ipoil)        = mdo  *( xo  *mwo + xg  *mwg)
+                   w_kgdppw(ipoil)        = mdopw*( xo  *mwo + xg  *mwg) &
+                                           +mdo  *( xopw*mwo + xgpw*mwg)
+      if (ixwt >0) w_kgdpxw(ipoil, ixwt ) = mdot *( xo  *mwo + xg  *mwg) &
+                                           +mdo  *( xot *mwo + xgt *mwg)
+      if (ixwpb>0) w_kgdpxw(ipoil, ixwpb) = mdopb*( xo  *mwo + xg  *mwg) &
+                                           +mdo  *( xopb*mwo + xgpb*mwg)
     else
                    w_mdp   (ipoil)        = mdo
                    w_mdppw (ipoil)        = mdopw
       if (ixwt >0) w_mdpxw (ipoil, ixwt ) = mdot
 
-                  w_kgdp  (ipoil)         = mdo  *mwo
-                  w_kgdppw(ipoil)         = mdopw*mwo
-      if (ixwt >0) w_kgdpxw(ipoil, ixwt ) = mdot *mwo
+                   w_kgdp  (ipoil)         = mdo  *mwo
+                   w_kgdppw(ipoil)         = mdopw*mwo
+      if (ixwt >0) w_kgdpxw(ipoil, ixwt )  = mdot *mwo
 
     endif
 
@@ -2892,6 +3000,17 @@ subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
                 w_hp   (ipgas)        = hg
                 w_hpdpw(ipgas)        = hgp
     if (ixwt>0) w_hpdxw(ipgas, ixwt)  = hgt
+
+! Correct the oil phase enphalpy for dissolved gas
+
+    if (ws_is_black_oil) then
+                   w_hp   (ipoil)        = ho *xo   + hg *xg
+                   w_hpdpw(ipoil)        = hop*xo   + hgp*xg   &
+                                          +ho *xopw + hg *xgpw
+      if (ixwt>0)  w_hpdxw(ipoil, ixwt)  = hot*xo   + hgt*xg   &
+                                          +ho *xot  + hg *xgt
+      if (ixwpb>0) w_hpdxw(ipoil, ixwpb) = ho *xopb + hg *xgpb
+    endif
 
   endif
 
@@ -3833,5 +3952,110 @@ subroutine checkSolverAvailable(option)
   endif
 
 end subroutine checkSolverAvailable
+
+! *************************************************************************** !
+
+function getRnormwbs()
+
+  !
+  ! Find norm for well bore solution
+  !
+  ! Author: Dave Ponting
+  ! Date  : 04/04/19
+
+  implicit none
+
+  PetscReal :: getRnormwbs,Rnorm
+  PetscInt  :: ierr,ixw
+
+  PetscReal :: bl(1), bg(1)
+
+  ierr = 0
+
+  Rnorm = 0.0
+  do ixw = 1, ws_nxw
+    Rnorm = Rnorm + rwbs(ixw)*rwbs(ixw)
+  enddo
+
+  if (w_crossproc) then
+    ierr = 0
+    bl(1) = Rnorm
+    call MPI_Allreduce(bl, bg, ONE_INTEGER, &
+                       MPI_DOUBLE_PRECISION, MPI_SUM, w_comm, ierr)
+    call checkErr(ierr)
+    Rnorm = bg(1)
+  endif
+
+  getRnormwbs = sqrt(Rnorm)
+
+end function getRnormwbs
+
+! *************************************************************************** !
+
+function allTrue(vote)
+
+  !
+  ! Check that all the procs solving this well agree on a true value
+  !
+  ! Author: Dave Ponting
+  ! Date  : 03/28/19
+
+  implicit none
+
+  PetscBool:: alltrue
+  PetscBool, intent(in) :: vote
+
+  PetscInt :: il(1),ig(1),ierr
+
+  il(1) = 1
+  ig(1) = 0
+  ierr  = 0
+
+  if (w_crossproc) then
+
+    ! Is cross-proc, so only return true iff all votes true
+
+    allTrue = PETSC_FALSE
+
+    ! Increment local to 1 if vote is true
+
+    if (vote) il(1)=1
+
+    !  Get the minimum value (i.e. 0 if any vote is false)
+
+    call MPI_Allreduce(il, ig, ONE_INTEGER, &
+                        MPI_INTEGER, MPI_MIN, w_comm, ierr)
+    call checkErr(ierr)
+
+    !  Set allTrue to true iff all votes are true
+
+    if (ig(1)==1) allTrue = PETSC_TRUE
+
+else
+
+  ! Not cross-proc, so output follows vote
+
+  allTrue = vote
+endif
+
+end function allTrue
+
+! *************************************************************************** !
+
+subroutine checkErr(ierr)
+
+  !
+  ! Check for an MPI error
+  !
+  ! Author: Dave Ponting
+  ! Date  : 03/29/19
+
+  implicit none
+
+  PetscInt,intent(in)::ierr
+
+  if (ierr /= 0) ws_MPI_errs = ws_MPI_errs + 1
+
+end subroutine checkErr
 
 end module Well_Solver_module
