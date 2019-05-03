@@ -40,7 +40,8 @@ checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
 checkpoint_surface.o : discretization.o grid.o option.o output_aux.o \
                        pflotran_constants.o realization_surface.o \
                        surface_field.o
-co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o utility.o
+co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o string.o \
+                    utility.o
 co2_span_wagner_spline.o : pflotran_constants.o spline.o
 co2_sw.o : co2_span_wagner.o co2_span_wagner_spline.o option.o \
            pflotran_constants.o
@@ -123,7 +124,8 @@ eos_oil.o : eos_database.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o utility.o
 eos_slv.o : eos_database.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o
-eos_water.o : geometry.o pflotran_constants.o utility.o
+eos_water.o : eos_database.o geometry.o input_aux.o lookup_table.o option.o \
+              pflotran_constants.o utility.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          factory_subsurface.o geomech_grid.o \
                          geomech_grid_aux.o geomechanics_condition.o \

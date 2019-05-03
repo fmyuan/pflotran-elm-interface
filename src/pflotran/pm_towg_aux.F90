@@ -483,7 +483,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Liquid phase thermodynamic properties
   ! using cell_pressure (which is the max press)? or %pres(wid)?
   call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                       auxvar%den_kg(wid),auxvar%den(wid),ierr, &
+                       auxvar%table_idx)
   call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
 
@@ -541,7 +542,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
   ! use cell_pressure; cell_pressure - psat calculated internally
-  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr, &
+                                                           auxvar%table_idx)
 
   auxvar%mobility(wid) = krw/visw
 
@@ -1027,7 +1029,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
                       auxvar%den_kg(wid),auxvar%den(wid), &
                       auxvar%D_den(wid,dof_op), &
-                      auxvar%D_den(wid,dof_temp), ierr)
+                      auxvar%D_den(wid,dof_temp),ierr,auxvar%table_idx)
 
         ! pressure deriv is a a cell pressure derivative:
         auxvar%D_den(wid,dof_osat) = D_cell_pres(dof_osat)*auxvar%D_den(wid,dof_op)
@@ -1057,7 +1059,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                 auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
   else
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                      auxvar%den_kg(wid),auxvar%den(wid),ierr,auxvar%table_idx)
     call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -1283,7 +1285,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
     call EOSWaterViscosity(auxvar%temp, cell_pressure, &
                            wat_sat_pres, dps_dt, visw, &
-                           dvw_dt,  dvw_dp, ierr)
+                           dvw_dt,  dvw_dp, ierr, auxvar%table_idx)
 
         ! pressure deriv (dvw_dp) is a a cell pressure derivative:
         D_visc = 0.d0
@@ -1296,7 +1298,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
   ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr, &
+                                                             auxvar%table_idx)
   endif
 
   auxvar%mobility(wid) = krw/visw
@@ -1982,7 +1985,7 @@ endif
     call EOSWaterDensity(t,cell_pressure, &
                          auxvar%den_kg(wid),auxvar%den(wid), &
                          dx_dcell_pres, &
-                         dx_dt,ierr)
+                         dx_dt,ierr,auxvar%table_idx)
 
     auxvar%D_den(wid,:) =  dx_dcell_pres * D_cell_pres
     auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + dx_dt
@@ -2011,7 +2014,7 @@ endif
                                 auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
   else
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                     auxvar%den_kg(wid),auxvar%den(wid),ierr,auxvar%table_idx)
     call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   endif
 
@@ -2267,7 +2270,7 @@ endif
 
     call EOSWaterViscosity(auxvar%temp, cell_pressure, &
                            wat_sat_pres, dps_dt, visw, &
-                           dx_dt,  dx_dcell_pres, ierr)
+                           dx_dt,  dx_dcell_pres, ierr, auxvar%table_idx)
 
     ! pressure deriv (dvw_dp) is a a cell pressure derivative:
     D_visc = 0.d0
@@ -2278,7 +2281,8 @@ endif
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
     ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr, &
+                                                             auxvar%table_idx)
   endif
 
   auxvar%mobility(wid) = krw/visw
@@ -3094,7 +3098,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
                       auxvar%den_kg(wid),auxvar%den(wid), &
                       d_x_d_cp, &
-                      d_x_d_T, ierr)
+                      d_x_d_T, ierr,auxvar%table_idx)
 
     ! den = den( cell_pressure, temp)
     ! chain rule for cell pressure part:
@@ -3128,7 +3132,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   else
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                     auxvar%den_kg(wid),auxvar%den(wid),ierr,auxvar%table_idx)
     call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -3213,13 +3217,15 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,d_ps_d_T,ierr)
     ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,d_ps_d_T,visw,d_x_d_T,d_x_d_cp,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,d_ps_d_T, & 
+                           visw,d_x_d_T,d_x_d_cp,ierr,auxvar%table_idx)
     D_visc = d_x_d_T*D_cell_pres
     D_visc(dof_temp) = D_visc(dof_temp) + d_x_d_T
   else
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
     ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw, &
+                           ierr,auxvar%table_idx)
   endif
 
   auxvar%mobility(wid) = krw/visw

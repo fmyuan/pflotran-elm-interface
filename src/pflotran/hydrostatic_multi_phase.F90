@@ -246,7 +246,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   end if
 
   !detect single phase cases
-  if ( (.not.oil_wat_zone) .and. (.not.oil_wat_zone) .and. &
+  if ( (.not.oil_wat_zone) .and. (.not.oil_gas_zone) .and. &
      (  .not.wat_gas_equil) ) then
     if ( owc_z < z_min .and. ogc_z > z_max ) then
       oil_present = PETSC_TRUE
@@ -553,15 +553,15 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
       po_cell = pg_cell
       pw_cell = pg_cell
     else if ( wat_present .and. oil_present .and. (.not.gas_present) ) then
-      so_cell =  1.0 - sw_cell
+      so_cell =  1.0 - sw_cell - sg_min
       sg_cell = sg_min
       pg_cell = po_cell
     else if ( oil_present .and. gas_present .and. (.not.wat_present) ) then
-      so_cell =  1.0 - sg_cell
+      so_cell =  1.0 - sg_cell - sw_min
       sw_cell =  sw_min
       pw_cell = po_cell
     else if ( wat_present .and. gas_present .and. (.not.oil_present) ) then
-      sg_cell = 1.0 - sw_cell
+      sg_cell = 1.0 - sw_cell - so_min
       so_cell = so_min
       po_cell = pg_cell !should not be needed
     else if ( wat_present .and. oil_present .and. gas_present ) then
@@ -943,14 +943,11 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
         case(TOWG_BLACK_OIL,TOWG_SOLVENT_TL)
           !PO correction when the user enter Pb > Po for oil region
           if( (sg < eps_gas) .and. (pb >= po) .and. (so > eps_oil) ) then
-            if (Initialized(po_ogc)) then
-              pb = po_ogc
-            else
-              pb = po - epsp
-            end if
-            write(word,*) z
+            pb = po - epsp
+            write(word,*) -z
             option%io_buffer = 'MP Equilibration warning: oil saturated cell &
-                  &found below OGC, resetting to undersaturated z = ' // word
+                &found below OGC, resetting to undersaturated depth (-z) = ' &
+                // word
             call printMsg(option)
           end if
           ! ---- to go on pm_towg_aux

@@ -3007,7 +3007,8 @@ subroutine OutputMassBalance(realization_base)
         select type(realization_base)
          class is(realization_subsurface_type)
           call WriteWellValues(fid,realization_base, &
-                               output_option%tconv,towg_miscibility_model,option,wecl)
+                               output_option%tconv, towg_miscibility_model, &
+                               option, wecl, sum_kg_global)
           if (output_option%write_masses) then
             call WriteWellMassValues(fid,realization_base, &
                                      output_option%tconv,towg_miscibility_model)
@@ -3118,11 +3119,12 @@ subroutine OutputEclipseFiles(realization_base)
   use PM_TOWG_Aux_module, only: towg_miscibility_model
   use Grid_Grdecl_module, only : GetIsGrdecl
   use Well_Data_class
+  use TOilIms_module, only : TOilImsComputeMassBalance
+  use TOWG_module, only : TOWGComputeMassBalance
 
   implicit none
 
   class(realization_base_type), target :: realization_base
-
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -3134,6 +3136,13 @@ subroutine OutputEclipseFiles(realization_base)
   PetscInt  :: sum_ds, rst_ds, sum_ls, rst_ls
   PetscReal :: sum_dt, rst_dt, sum_lt, rst_lt, time
   PetscReal, parameter :: eps = 0.001
+
+  PetscReal :: sum_kg(realization_base%option%nflowspec, &
+               realization_base%option%nphase)
+  PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
+               realization_base%option%nphase)
+  PetscMPIInt :: int_mpi
+  PetscErrorCode :: ierr
 
   patch => realization_base%patch
   grid => patch%grid
@@ -3148,6 +3157,28 @@ subroutine OutputEclipseFiles(realization_base)
     option%io_buffer = 'Eclipse file output requires grdecl type input'
     call printErrMsg(option)
   endif
+
+  !  Find mass balance
+
+  sum_kg = 0.d0
+  select type(realization_base)
+    class is(realization_subsurface_type)
+      select case(option%iflowmode)
+        case(TOIL_IMS_MODE)
+          call TOilImsComputeMassBalance(realization_base,sum_kg(:,:))
+        case(TOWG_MODE)
+          call TOWGComputeMassBalance(realization_base,sum_kg(:,:))
+      end select
+    class default
+      option%io_buffer = &
+        'Unrecognized realization class in OutputEclipseFiles().'
+      call printErrMsg(option)
+  end select
+
+  int_mpi = option%nflowspec*option%nphase
+  call MPI_Reduce(sum_kg,sum_kg_global, &
+                  int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                  option%io_rank,option%mycomm,ierr)
 
   !  Set useful scalars (negative fid prevents writing to -mas files)
 
@@ -3200,7 +3231,8 @@ subroutine OutputEclipseFiles(realization_base)
          class is(realization_subsurface_type)
            call WriteWellValues(fid, realization_base, &
                                 output_option%tconv, &
-                                towg_miscibility_model, option, wecl)
+                                towg_miscibility_model, &
+                                option, wecl, sum_kg_global)
         end select
 
       endif ! IMS or TOWG
@@ -3310,10 +3342,18 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   ! Solvent rates and totals if required
 
     if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-      call WrtHrd(fid, 'wspr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'wspt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'wsir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'wsit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      if (wecl) then
+        ! Eclipse uses n for solvent as s is salt
+        call WrtHrd(fid, 'wnpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wnpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wnir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wnit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      else
+        call WrtHrd(fid, 'wspr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wspt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wsir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wsit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      endif
     endif
 
   ! Liquid rates and totals
@@ -3342,10 +3382,26 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   call WrtHrd(fid, 'fwit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
   if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-    call WrtHrd(fid, 'fspr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHrd(fid, 'fspt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHrd(fid, 'fsir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHrd(fid, 'fsit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    if (wecl) then
+      ! Eclipse uses n for solvent as s is salt
+      call WrtHrd(fid, 'fnpr', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnpt', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnir', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnit', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+    else
+      call WrtHrd(fid, 'fspr', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fspt', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fsir', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fsit', 'field', 'm^3'  , &
+                 icol, zm, zn, zu, ni, mi, wecl)
+    endif
   endif
 
   call WrtHrd(fid, 'flpr', 'field', 'm^3/d'  , icol, zm, zn, zu, ni, mi, wecl)
@@ -3353,6 +3409,18 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   call WrtHrd(fid, 'fgor', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
   call WrtHrd(fid, 'fwct', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
   call WrtHrd(fid, 'fpav', 'field', 'Bar    ', icol, zm, zn, zu, ni, mi, wecl)
+
+  call WrtHrd(fid, 'foip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (wecl) then
+      ! Eclipse uses n for solvent as s is salt
+      call WrtHrd(fid, 'fnip', 'field', 'm^3', icol, zm, zn, zu, ni, mi, wecl)
+    else
+      call WrtHrd(fid, 'fsip', 'field', 'm^3', icol, zm, zn, zu, ni, mi, wecl)
+    endif
+  endif
 
   ! Write out Eclipse files if required
 
@@ -3459,7 +3527,7 @@ end subroutine WriteWellMassHeaders
 ! *************************************************************************** !
 
 subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
-                           option, wecl)
+                           option, wecl, sum_kg_global)
   !
   ! Used to write out mas file values specific to TOIL and TOWG modes
   ! This routine must match the headers written by WriteWellHeaders
@@ -3468,10 +3536,15 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
   ! Date  : 09/15/18
 
   use Realization_Subsurface_class
+  use Realization_Base_class, only : realization_base_type
   use Well_Type_Class
   use Well_Data_class
   use Output_Eclipse_module, only:WriteEclipseFilesSumm
   use Option_module
+  use EOS_Oil_module,  only : EOSOilGetSurfaceDensity
+  use EOS_Gas_module,  only : EOSGasGetSurfaceDensity
+  use EOS_Water_module,only : EOSWaterGetSurfaceDensity
+  use EOS_Slv_module,  only : EOSSlvGetSurfaceDensity
 
   implicit none
 
@@ -3479,6 +3552,7 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
   type(realization_subsurface_type) :: realization
   type(option_type), intent(in), pointer :: option
   PetscBool, intent(in) :: wecl
+  PetscReal :: sum_kg_global(:,:)
 
   PetscReal :: tconv, sign
   PetscInt :: towg_miscibility_model
@@ -3497,10 +3571,11 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
                fgpr, fgpt, fgir, fgit, &
                fwpr, fwpt, fwir, fwit, &
                fspr, fspt, fsir, fsit, &
-               flpr, flpt, fgor, fwct, fpav
+               flpr, flpt, fgor, fwct, fpav, &
+               foip, fgip, fwip, fsip, sd
 
   PetscReal, pointer :: vd(:)
-  PetscInt           :: nd, md
+  PetscInt           :: nd, md, iphase
 
   nd = 0
 
@@ -3684,35 +3759,80 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
   call GetFieldData(fpav)
   fpav = fpav*1.0D-5
 
+  !  Get field mass-in-place values
+
+  foip = 0.0
+  fgip = 0.0
+  fwip = 0.0
+  fsip = 0.0
+
+  do iphase = 1, option%nphase
+    ! Oil phase
+    if (iphase == option%oil_phase) then
+      sd = EOSOilGetSurfaceDensity()
+      if (sd>0.0) then
+        foip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+    ! Gas phase
+    if (iphase == option%gas_phase) then
+      sd = EOSGasGetSurfaceDensity()
+      if (sd>0.0) then
+        fgip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+    !  Water (called liquid) phase
+    if (iphase == option%liquid_phase) then
+      sd = EOSWaterGetSurfaceDensity()
+      if (sd>0.0) then
+        fwip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+    !  Solvent phase
+    if (iphase == option%solvent_phase) then
+      sd = EOSSlvGetSurfaceDensity()
+      if (sd>0.0) then
+        fsip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+  enddo
+
   !  Write out field values
 
-   call wrtToTableAndSumm(fid, fopr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fopt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, foir, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, foit, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fopr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fopt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, foir, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, foit, vd, nd, md, wecl)
 
-   call wrtToTableAndSumm(fid, fgpr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgpt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgir, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgit, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgpr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgpt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgir, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgit, vd, nd, md, wecl)
 
-   call wrtToTableAndSumm(fid, fwpr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwpt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwir, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwit, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwpr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwpt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwir, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwit, vd, nd, md, wecl)
 
-   if (towg_miscibility_model == TOWG_SOLVENT_TL) then
-     call wrtToTableAndSumm(fid, fspr, vd, nd, md, wecl)
-     call wrtToTableAndSumm(fid, fspt, vd, nd, md, wecl)
-     call wrtToTableAndSumm(fid, fsir, vd, nd, md, wecl)
-     call wrtToTableAndSumm(fid, fsit, vd, nd, md, wecl)
-   endif
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    call wrtToTableAndSumm(fid, fspr, vd, nd, md, wecl)
+    call wrtToTableAndSumm(fid, fspt, vd, nd, md, wecl)
+    call wrtToTableAndSumm(fid, fsir, vd, nd, md, wecl)
+    call wrtToTableAndSumm(fid, fsit, vd, nd, md, wecl)
+  endif
 
-   call wrtToTableAndSumm(fid, flpr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, flpt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgor, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwct, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fpav, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, flpr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, flpt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgor, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwct, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fpav, vd, nd, md, wecl)
+
+  call wrtToTableAndSumm(fid, foip, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgip, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwip, vd, nd, md, wecl)
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    call wrtToTableAndSumm(fid, fsip, vd, nd, md, wecl)
+  endif
 
   ! Write out Eclipse files if required
 

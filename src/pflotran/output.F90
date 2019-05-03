@@ -1100,17 +1100,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
       case ('LIQUID_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Liquid Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     LIQUID_REL_PERM)
+                                     LIQUID_RELATIVE_PERMEABILITY)
       case ('GAS_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Gas Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     GAS_REL_PERM)
+                                     GAS_RELATIVE_PERMEABILITY)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1174,6 +1174,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable_list%flow_vars = PETSC_FALSE
       case('NO_ENERGY_VARIABLES')
         output_variable_list%energy_vars = PETSC_FALSE
+      case ('SALINITY')
+        if (.not.option%flow%density_depends_on_salinity) then
+          option%io_buffer = 'SALINITY output only supported when the &
+            &SALINITY auxiliary process model is used.'
+          call PrintErrMsg(option)
+        endif
+        units = ''
+        name = 'Salinity (mass fraction)'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SALINITY)
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select

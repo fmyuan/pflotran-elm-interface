@@ -133,17 +133,13 @@ CHARACTERISTIC_CURVES ch1
 
 #=========================== EOSs =============================================
 
-! if all commented, initialised IFC67 for density, enthaplty and viscosity  
-!EOS WATER
-!  DENSITY CONSTANT 997.16d0
-!  ENTHALPY CONSTANT 1.8890d0
-!  VISCOSITY CONSTANT 8.904156d-4
-!   VISCOSITY CONSTANT 0.3d-3
-!END
+! if den, enth and visc models not specified default to IFC67
+EOS WATER
+  SURFACE_DENSITY 1000.0 kg/m^3 !not used in this dataset as no wells
+END
 
 EOS OIL
-  !DENSITY CONSTANT 300.00d0 !kg/m3
-  !DENSITY CONSTANT 734.29d0 !kg/m3
+  SURFACE_DENSITY 734.29d0 kg/m^3 !not used in this dataset as no wells
   ! den = den0 + C(p-p1) - E(t-t1)
   DENSITY LINEAR
     REFERENCE_VALUE 734.29d0        !den0 [kg/m3]  
@@ -170,11 +166,11 @@ FLOW_CONDITION initial_water
     PRESSURE HYDROSTATIC
     TEMPERATURE DIRICHLET
   /
-  PRESSURE 9.81D6  !about 1000m below sea level
+  PRESSURE 9.81D6 Pa !about 1000m below sea level
   TEMPERATURE 50.d0 C  !up to here it refers to primary vars
   DATUM 0.d0 0.d0 0.d0
-  OWC_Z 64.0d0
-  PCOW_OWC 15226.46933
+  OWC_Z 64.0d0 m
+  PCOW_OWC 15226.46933 Pa
 /
 
 

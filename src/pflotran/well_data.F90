@@ -53,6 +53,7 @@ module Well_Data_class
   PetscInt :: w_unconv_t = 0
   PetscInt :: w_unconv_w = 0
   PetscInt :: w_unconv_b = 0
+  PetscInt :: w_mpierr   = 0
 
   ! This module contains a list of instances of the well_data_type type
   ! The definition of well_data_type follows
@@ -137,8 +138,8 @@ module Well_Data_class
 
       PetscBool :: w_ismp   ! Multi-processor well flag
 
-      PetscMPIInt :: w_group  ! MPI group for this well
-      PetscMPIInt :: w_comm   ! MPI communicator for this well
+      MPI_Group :: w_group  ! MPI group for this well
+      MPI_Comm  :: w_comm   ! MPI communicator for this well
 
  ! Completions marked for deletion
       PetscBool , pointer :: c_mfd(:) => null()
@@ -723,8 +724,8 @@ subroutine WellDataDestroyList(well_data_list, option)
 
   class(well_data_type), pointer :: well_data, prev_well_data
 
-  PetscInt :: nwarn, unconv_tg, unconv_wg, unconv_bg
-  PetscMPIInt :: ibufl(3), ibufg(3), ierr
+  PetscInt :: nwarn, unconv_tg, unconv_wg, unconv_bg, mpierr_g
+  PetscMPIInt :: ibufl(4), ibufg(4), ierr
 
   ! If wells used, check for warnings
 
@@ -735,26 +736,29 @@ subroutine WellDataDestroyList(well_data_list, option)
     ibufl(1) = w_unconv_t
     ibufl(2) = w_unconv_w
     ibufl(3) = w_unconv_b
+    ibufl(4) = w_mpierr
     ibufg    = 0
     ierr     = 0
 
-    call MPI_Reduce(ibufl, ibufg, THREE_INTEGER_MPI, &
+    call MPI_Reduce(ibufl, ibufg, FOUR_INTEGER_MPI, &
                     MPI_INTEGER, MPI_SUM, &
                     option%io_rank, option%mycomm, ierr)
 
     unconv_tg = ibufg(1)
     unconv_wg = ibufg(2)
     unconv_bg = ibufg(3)
+    mpierr_g  = ibufg(4)
 
     ! Report warnings
 
     if (option%io_rank == option%myrank) then
-      nwarn = unconv_tg+unconv_wg+unconv_bg
+      nwarn = unconv_tg+unconv_wg+unconv_bg+mpierr_g
       if (nwarn>0) then
         print *, 'Well model convergence failure counts:'
         if (unconv_tg > 0) print *, unconv_tg, ' mode selection'
         if (unconv_wg > 0) print *, unconv_wg, ' bhp solution'
         if (unconv_bg > 0) print *, unconv_bg, ' wellbore composition'
+        if (mpierr_g  > 0) print *, mpierr_g , ' well solver MPI errors'
       endif
     endif
 
@@ -1169,7 +1173,8 @@ subroutine WellSetGlobalInfo(iwell, nrankw, ncmplg, ismp, group, comm, list)
 
   PetscInt   , intent(in) :: iwell, ncmplg
   PetscBool  , intent(in) :: ismp
-  PetscMPIInt, intent(in) :: group, comm
+  MPI_Group, intent(in) :: group
+  MPI_Comm , intent(in) :: comm
   type(well_data_list_type), pointer :: list
 
   class(well_data_type), pointer :: well_data
@@ -1477,7 +1482,7 @@ end subroutine SetWellSolutionSetInList
 
 function GetWellSolutionSetInList(this)
   !
-  ! Get the flag indicatig that a wellbore solution stored for this well
+  ! Get the flag indicating that a wellbore solution stored for this well
   !
   ! Author: Dave Ponting
   ! Date: 08/15/18
@@ -1930,7 +1935,7 @@ end function GetNCmplGInList
 
 ! *************************************************************************** !
 
-function GetCommInList(this)
+function GetCommInList(this,ismp)
   !
   ! Returns MPI communicator index for this well
   !
@@ -1939,11 +1944,13 @@ function GetCommInList(this)
 
   implicit none
 
-  PetscInt :: GetCommInList
+  MPI_Comm :: GetCommInList
+  PetscBool,intent(out) :: ismp
 
   class(well_data_type) :: this
 
   GetCommInList = this%w_comm
+  ismp          = this%w_ismp
 
 end function GetCommInList
 
@@ -2953,7 +2960,8 @@ end subroutine FindGroupTotals
 
 subroutine IncrementWellWarningCount( unconv_t, &
                                       unconv_w, &
-                                      unconv_b )
+                                      unconv_b, &
+                                      mpierr )
   !
   ! Increment the well iteratin convergence failure counts
   !
@@ -2962,11 +2970,12 @@ subroutine IncrementWellWarningCount( unconv_t, &
 
   implicit none
 
-  PetscInt, intent(in) :: unconv_t, unconv_w, unconv_b
+  PetscInt, intent(in) :: unconv_t, unconv_w, unconv_b,mpierr
 
   w_unconv_t = w_unconv_t + unconv_t
   w_unconv_w = w_unconv_w + unconv_w
   w_unconv_b = w_unconv_b + unconv_b
+  w_mpierr   = w_mpierr   + mpierr
 
 end subroutine IncrementWellWarningCount
 

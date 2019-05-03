@@ -128,6 +128,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 1000.00d0 kg/m^3
   DENSITY CONSTANT 1000.00d0
   VISCOSITY CONSTANT 1.0d-3 ! 1 cp
 END
@@ -268,13 +269,11 @@ FLOW_CONDITION initial_press
     GAS_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  OIL_PRESSURE 20.0D6 !200bars
+  OIL_PRESSURE 20.0D6 Pa !200bars
   OIL_SATURATION 1.0d0 !With this accounts for connate water
   GAS_SATURATION 0.0d0 !
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
-  DATUM 0.d0 0.d0 -1530.0d0
-  !define OWC and WATER_PRESSURE_GRAD as new optional sub_condition
-  !OWC 0.0d0 0.d0 -3000.0d0 ! oil water contact below domain, e.g. oil region
+  !DATUM 0.d0 0.d0 -1530.0d0
 /
 
 #=========================== condition couplers ===============================

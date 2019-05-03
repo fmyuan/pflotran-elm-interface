@@ -27,6 +27,7 @@ module Lookup_Table_module
   contains
     procedure(LookupTableEvaluateDummy), deferred, public :: Sample
     procedure(LookupTableValAndGradDummy),deferred,public :: SampleAndGradient
+    procedure(LookupTableAxesAreSMIncDummy), deferred,public :: AxesAreSMInc
     procedure, public :: LookupTableVarConvFactors  
     procedure, public :: LookupTableVarsInit
     procedure, public :: LookupTableVarIsPresent
@@ -39,6 +40,7 @@ module Lookup_Table_module
     procedure, public :: SetupConstValExtrap
     procedure, public :: LookupTableVarInitGradients
     procedure, public :: SetupVarLinLogInterp
+    procedure, public :: SetupVarUserUnits
   end type lookup_table_base_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_uniform_type
@@ -47,6 +49,7 @@ module Lookup_Table_module
   contains
     procedure, public :: Sample => LookupTableEvaluateUniform
     procedure, public :: SampleAndGradient => ValAndGradUniform
+    procedure, public :: AxesAreSMInc => AxesAreSMIncUniform
   end type lookup_table_uniform_type
   
   type, public, extends(lookup_table_base_type) :: lookup_table_general_type
@@ -54,6 +57,7 @@ module Lookup_Table_module
   contains
     procedure, public :: Sample => LookupTableEvaluateGeneral
     procedure, public :: SampleAndGradient => ValAndGradGeneral
+    procedure, public :: AxesAreSMInc => AxesAreSMIncGeneral
   end type lookup_table_general_type
   
   type, public :: lookup_table_axis_type
@@ -112,7 +116,14 @@ module Lookup_Table_module
       PetscReal, optional :: lookup2
       PetscReal, optional :: lookup3
     end subroutine LookupTableValAndGradDummy
-    
+
+    subroutine LookupTableAxesAreSMIncDummy(this,AxisIsSMInc)
+      import lookup_table_base_type
+      implicit none
+      class(lookup_table_base_type) :: this
+      PetscBool, intent(out) :: AxisIsSMInc(this%dim)
+    end subroutine LookupTableAxesAreSMIncDummy
+
   end interface
   
   interface LookupTableTest
@@ -439,6 +450,30 @@ end subroutine ValAndGradUniform
 
 ! ************************************************************************** !
 
+subroutine AxesAreSMIncUniform(this,AxisIsSMInc)
+
+  use Utility_module, only : ArrayIsSMonotonicInc
+
+  implicit none
+
+  class(lookup_table_uniform_type) :: this
+  PetscBool, intent(out) :: AxisIsSMInc(this%dim)
+
+  AxisIsSMInc(:) = PETSC_FALSE
+  if (associated(this%axis1%values)) then
+    AxisIsSMInc(ONE_INTEGER) = ArrayIsSMonotonicInc(this%axis1%values)
+  end if
+
+  if (this%dim == 2) then
+    if (associated(this%axis2%values)) then
+      AxisIsSMInc(TWO_INTEGER) = ArrayIsSMonotonicInc(this%axis2%values)
+    end if
+  end if
+
+end subroutine AxesAreSMIncUniform
+
+! ************************************************************************** !
+
 function LookupTableEvaluateGeneral(this,lookup1,lookup2,lookup3)
   ! 
   ! Author: Glenn Hammond
@@ -491,6 +526,40 @@ subroutine ValAndGradGeneral(this,var_iname,lookup1,lookup2,lookup3)
   
   
 end subroutine ValAndGradGeneral
+
+! ************************************************************************** !
+
+subroutine AxesAreSMIncGeneral(this,AxisIsSMInc)
+
+  use Utility_module, only : ArrayIsSMonotonicInc
+
+  implicit none
+
+  class(lookup_table_general_type) :: this
+  PetscBool, intent(out) :: AxisIsSMInc(this%dim)
+
+  PetscInt :: i_tmp
+  PetscInt :: i1, i2
+
+  AxisIsSMInc(:) = PETSC_FALSE
+
+  if (associated(this%axis1%values)) then
+    AxisIsSMInc(ONE_INTEGER) = ArrayIsSMonotonicInc(this%axis1%values)
+  end if
+
+  if (this%dim == 2) then
+    if (associated(this%axis2%values)) then
+      AxisIsSMInc(TWO_INTEGER) = PETSC_TRUE
+      do i_tmp = 1,this%dims(1)
+        i1 = (i_tmp - 1) * this%dims(2) + 1
+        i2 = i_tmp * this%dims(2)
+        AxisIsSMInc(TWO_INTEGER) = &
+            ArrayIsSMonotonicInc(this%axis2%values(i1:i2))
+      end do
+    end if
+  end if
+
+end subroutine AxesAreSMIncGeneral
 
 ! ************************************************************************** !
 
@@ -1729,9 +1798,9 @@ subroutine LookupTableBaseDestroy(lookup_table)
 
   implicit none
 
-  PetscInt :: i
-
   class(lookup_table_base_type) :: lookup_table
+
+  PetscInt :: i
 
   call LookupTableAxisDestroy(lookup_table%axis1)
 
@@ -2071,7 +2140,7 @@ end subroutine LookupTableVarInitGradients
 
 ! ************************************************************************** !
 
-subroutine VarDataRead(this,input,num_fields,error_string,option)
+subroutine VarDataRead(this,input,num_fields,min_entries,error_string,option)
   !
   ! Reads in table data from input
   !
@@ -2089,12 +2158,14 @@ subroutine VarDataRead(this,input,num_fields,error_string,option)
   class(lookup_table_base_type) :: this
   type(input_type), pointer, intent(inout) :: input
   PetscInt, intent(in) :: num_fields
+  PetscInt, intent(in) :: min_entries
   character(len=MAXSTRINGLENGTH), intent(in) :: error_string
   type(option_type), intent(inout) :: option
 
   PetscInt :: tmp_array_size 
   PetscReal, pointer :: tmp_data_array(:,:)
   PetscInt :: i_data, num_entries, i_entry
+  character(len=MAXWORDLENGTH) :: word1
 
   tmp_array_size = 1000 !estimate max table points
   allocate(tmp_data_array(num_fields,tmp_array_size))
@@ -2130,6 +2201,13 @@ subroutine VarDataRead(this,input,num_fields,error_string,option)
       call InputErrorMsg(input,option,'VALUE',error_string)
     end do
   end do
+
+  if ( num_entries < min_entries ) then
+    write(word1,*) min_entries
+    option%io_buffer = trim(error_string) // &
+                       ', number of entries less than = ' // trim(word1)
+    call printErrMsg(option)
+  end if
 
   allocate(this%var_data(num_fields,num_entries))
   do i_entry = 1,num_entries
@@ -2312,6 +2390,36 @@ end subroutine SetupVarLinLogInterp
 
 ! ************************************************************************** !
 
+subroutine SetupVarUserUnits(this,var_iname,var_user_units,option)
+  !
+  ! Author: Paolo Orsini
+  ! Date: 04/09/19
+  !
+
+  use Option_module
+
+  implicit none
+
+  class(lookup_table_base_type) :: this
+  PetscInt, intent(in) :: var_iname
+  character(len=MAXWORDLENGTH), intent(in) :: var_user_units
+  type(option_type) :: option
+
+  if ( associated(this%var_array) ) then
+    if ( associated(this%var_array(var_iname)%ptr) ) then
+      this%var_array(var_iname)%ptr%user_units = var_user_units
+    else
+      option%io_buffer = "SetupVarUserUnits: cannot setup " // &
+            "User Units for a var not defined as lookupvar"
+      call printErrMsg(option)
+    end if
+  end if
+
+end subroutine SetupVarUserUnits
+
+! ************************************************************************** !
+
+
 subroutine LookupTableVarListDestroy(lookup_table_vars_list)
   !
   ! Deallocates a list of lookup table vars
@@ -2358,7 +2466,7 @@ subroutine LookupTableVarDestroy(lookup_table_var)
 
   implicit none
 
-  type(lookup_table_var_type) :: lookup_table_var
+  type(lookup_table_var_type), pointer :: lookup_table_var
 
   if (associated(lookup_table_var%data)) then
     !data is only a pointer to a slice of var_data
@@ -2366,6 +2474,9 @@ subroutine LookupTableVarDestroy(lookup_table_var)
   end if
   call DeallocateArray(lookup_table_var%sample_grad)
   nullify(lookup_table_var%next)
+
+  deallocate(lookup_table_var)
+  nullify(lookup_table_var)
 
 end subroutine LookupTableVarDestroy
 
