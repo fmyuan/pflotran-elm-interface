@@ -3537,7 +3537,7 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
 
   use Realization_Subsurface_class
   use Realization_Base_class, only : realization_base_type
-  use Well_Type_Class
+  use Well_Type_class
   use Well_Data_class
   use Output_Eclipse_module, only:WriteEclipseFilesSumm
   use Option_module
@@ -3855,7 +3855,7 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
   ! Date  : 09/15/18
 
   use Realization_Subsurface_class
-  use Well_Type_Class
+  use Well_Type_class
   use Well_Data_class
 
   implicit none
@@ -4143,7 +4143,7 @@ subroutine WriteLineRept(realization, option)
   ! Date  : 01/15/19
 
   use Realization_Subsurface_class
-  use Well_Type_Class
+  use Well_Type_class
   use Well_Data_class
   use Option_module
 

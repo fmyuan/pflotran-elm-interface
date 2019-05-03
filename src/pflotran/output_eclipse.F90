@@ -874,7 +874,7 @@ subroutine WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
   ! Date: 01/15/19
 
   use String_module
-  use Well_Type_Class
+  use Well_Type_class
 
   implicit none
 
