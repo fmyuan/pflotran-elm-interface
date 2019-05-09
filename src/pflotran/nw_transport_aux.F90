@@ -19,19 +19,16 @@ module NW_Transport_Aux_module
   PetscReal, public :: nwt_min_saturation = 0.d0
   
   type, public :: nw_transport_auxvar_type
-    ! molality
-    PetscReal, pointer :: molality(:)     ! mol/kg water
-    ! sorbed totals
-    PetscReal, pointer :: total_sorb_eq(:)    ! mol/m^3 bulk
-    PetscReal, pointer :: dtotal_sorb_eq(:,:) ! kg water/m^3 bulk
-    ! mineral reactions
-    PetscReal, pointer :: mnrl_volfrac0(:)
-    PetscReal, pointer :: mnrl_volfrac(:)
-    PetscReal, pointer :: mnrl_area0(:)
-    PetscReal, pointer :: mnrl_area(:)
-    PetscReal, pointer :: mnrl_rate(:)
-    ! auxiliary array to store miscellaneous data (e.g. reaction rates, 
-    ! cumulative mass, etc.
+    ! total mass as bulk concentration
+    PetscReal, pointer :: total_bulk_conc(:)   ! mol-species/m^3-bulk
+    ! dissolved 
+    PetscReal, pointer :: aqueous_eq_conc(:)   ! mol-species/m^3-liq
+    ! sorbed 
+    PetscReal, pointer :: sorb_eq_conc(:)      ! mol-species/m^3-sorb
+    ! precipitated 
+    PetscReal, pointer :: mnrl_eq_conc(:)      ! mol-species/m^3-mnrl 
+    PetscReal, pointer :: mnrl_vol_frac(:)     ! m^3-mnrl/m^3-vod 
+    ! auxiliary array to store miscellaneous data 
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
@@ -51,7 +48,6 @@ module NW_Transport_Aux_module
     ! number of zeroed rows in Jacobian for inactive cells
     PetscInt :: n_zero_rows
     PetscBool :: inactive_cells_exist
-    !type(nw_transport_param_type), pointer :: nwt_parameter
     ! nwt_auxvars for local and ghosted grid cells
     type(nw_transport_auxvar_type), pointer :: auxvars(:)
     ! nwt_auxvars for boundary connections
@@ -61,10 +57,12 @@ module NW_Transport_Aux_module
   end type nw_transport_type
   
   type, public :: nwt_params_type
+    ! number of fluid phases (1=liquid, 2=gas)
     PetscInt :: nphase
+    ! number of species
+    PetscInt :: nspecies
+    ! number of mass components (1=aqueous, 2=precip, 3=sorbed)
     PetscInt :: ncomp
-    PetscInt :: nsorb
-    PetscInt :: nmnrl
     PetscInt :: nauxiliary
     PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
@@ -76,11 +74,10 @@ module NW_Transport_Aux_module
   end type nwt_print_type
   
   type, public :: species_type
-    PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
-    PetscReal :: a0  ! don't know what this is
+    PetscInt :: id
     PetscReal :: molar_weight
-    PetscReal :: Z  ! don't know what this is
+    PetscBool :: radioactive
     PetscBool :: print_me
     type(species_type), pointer :: next
   end type species_type
@@ -94,8 +91,9 @@ module NW_Transport_Aux_module
   end type nwt_species_constraint_type
   
   type, public :: radioactive_decay_rxn_type
-    PetscInt :: id
-    character(len=MAXSTRINGLENGTH) :: reaction
+    character(len=MAXWORDLENGTH) :: name
+    PetscInt :: species_id
+    PetscInt :: parent_id
     PetscReal :: rate_constant
     PetscReal :: half_life
     PetscBool :: print_me
@@ -133,7 +131,7 @@ contains
 
 ! ************************************************************************** !
 
-function NWTAuxCreate(ncomp,nphase)
+function NWTAuxCreate()
   ! 
   ! Allocate and initialize nuclear waste transport auxiliary objects.
   ! 
@@ -144,10 +142,6 @@ function NWTAuxCreate(ncomp,nphase)
   use petscsys
 
   implicit none
-  
-  ! jenn:todo Why do we need these here? ncomp, nphase
-  PetscInt :: ncomp
-  PetscInt :: nphase
   
   type(nw_transport_type), pointer :: NWTAuxCreate
   
@@ -187,46 +181,23 @@ subroutine NWTAuxVarInit(auxvar,nw_trans,option)
   type(nw_trans_realization_type) :: nw_trans
   type(option_type) :: option
   
-  PetscInt :: ncomp, nmnrl, nsorb, nauxiliary, nphase
+  PetscInt :: nspecies, nauxiliary, nphase
   
-  ncomp = nw_trans%params%ncomp
-  nmnrl = nw_trans%params%nmnrl
-  nsorb = nw_trans%params%nsorb
+  nspecies = nw_trans%params%nspecies
   nauxiliary = nw_trans%params%nauxiliary
   nphase = nw_trans%params%nphase
   
-  allocate(auxvar%molality(ncomp))
-  auxvar%molality = 0.d0
-  
-  if (nsorb > 0) then
-    allocate(auxvar%total_sorb_eq(ncomp))
-    auxvar%total_sorb_eq = 0.d0
-    allocate(auxvar%dtotal_sorb_eq(ncomp,ncomp))
-    auxvar%dtotal_sorb_eq = 0.d0
-  else
-    nullify(auxvar%total_sorb_eq)
-    nullify(auxvar%dtotal_sorb_eq)
-  endif
-  
-  if (nmnrl > 0) then
-    allocate(auxvar%mnrl_volfrac0(nmnrl))
-    auxvar%mnrl_volfrac0 = 0.d0
-    allocate(auxvar%mnrl_volfrac(nmnrl))
-    auxvar%mnrl_volfrac = 0.d0
-    allocate(auxvar%mnrl_area0(nmnrl))
-    auxvar%mnrl_area0 = 0.d0
-    allocate(auxvar%mnrl_area(nmnrl))
-    auxvar%mnrl_area = 0.d0
-    allocate(auxvar%mnrl_rate(nmnrl))
-    auxvar%mnrl_rate = 0.d0
-  else
-    nullify(auxvar%mnrl_volfrac0)
-    nullify(auxvar%mnrl_volfrac)
-    nullify(auxvar%mnrl_area0)
-    nullify(auxvar%mnrl_area)
-    nullify(auxvar%mnrl_rate)
-  endif
-  
+  allocate(auxvar%total_bulk_conc(nspecies))
+  auxvar%total_bulk_conc = 0.d0
+  allocate(auxvar%aqueous_eq_conc(nspecies))
+  auxvar%aqueous_eq_conc = 0.d0
+  allocate(auxvar%sorb_eq_conc(nspecies))
+  auxvar%sorb_eq_conc = 0.d0
+  allocate(auxvar%mnrl_eq_conc(nspecies))
+  auxvar%mnrl_eq_conc = 0.d0
+  allocate(auxvar%mnrl_vol_frac(nspecies))
+  auxvar%mnrl_vol_frac = 0.d0
+
   if (nauxiliary > 0) then
     allocate(auxvar%auxiliary_data(nauxiliary))
     auxvar%auxiliary_data = 0.d0
@@ -235,9 +206,9 @@ subroutine NWTAuxVarInit(auxvar,nw_trans,option)
   endif
   
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
-    allocate(auxvar%mass_balance(ncomp,nphase))
+    allocate(auxvar%mass_balance(nspecies,nphase))
     auxvar%mass_balance = 0.d0
-    allocate(auxvar%mass_balance_delta(ncomp,nphase))
+    allocate(auxvar%mass_balance_delta(nspecies,nphase))
     auxvar%mass_balance_delta = 0.d0
   else
     nullify(auxvar%mass_balance)
@@ -275,9 +246,8 @@ function NWTRealizCreate()
   nullify(nwtr%params)
   allocate(nwtr%params)
   nwtr%params%ncomp = 0
-  nwtr%params%nphase = 1  ! For WIPP, we always assume liquid phase only
-  nwtr%params%nsorb = 0
-  nwtr%params%nmnrl = 0
+  nwtr%params%nphase = 0
+  nwtr%params%nspecies = 0
   nwtr%params%nauxiliary = 0
   nwtr%params%calculate_transverse_dispersion = PETSC_FALSE
   nwtr%params%temperature_dependent_diffusion = PETSC_FALSE
@@ -316,11 +286,13 @@ subroutine NWTRead(nw_trans,input,option)
   PetscInt :: k
   type(species_type), pointer :: new_species, prev_species
   character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
+  type(radioactive_decay_rxn_type), pointer :: new_rad_rxn, prev_rad_rxn
   
   error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
   nullify(prev_species)
   allocate(temp_species_names(50))
   temp_species_names = ''
+  nullify(prev_rad_rxn)
   k = 0
   
   input%ierr = 0
@@ -343,8 +315,8 @@ subroutine NWTRead(nw_trans,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
           
-          nw_trans%params%ncomp = nw_trans%params%ncomp + 1
-          option%ntrandof = nw_trans%params%ncomp
+          nw_trans%params%nspecies = nw_trans%params%nspecies + 1
+          option%ntrandof = nw_trans%params%nspecies
           k = k + 1
           if (k > 50) then
             option%io_buffer = 'More than 50 species are provided in the ' &
@@ -370,7 +342,7 @@ subroutine NWTRead(nw_trans,input,option)
           nullify(new_species)
         enddo
         if (k == 0) then
-          option%io_buffer = 'ERROR: At least one radionuclide species &
+          option%io_buffer = 'ERROR: At least one species &
                               &must be provided in the ' // &
                               trim(error_string) // ' block.'
           call printErrMsg(option)
@@ -378,6 +350,7 @@ subroutine NWTRead(nw_trans,input,option)
         allocate(nw_trans%species_names(k))
         nw_trans%species_names(1:k) = temp_species_names(1:k)
         deallocate(temp_species_names)
+      case('RADIOACTIVE_DECAY')
       case('LOG_FORMULATION')
         nw_trans%use_log_formulation = PETSC_TRUE
       case default
@@ -459,9 +432,8 @@ function NWTSpeciesCreate()
   allocate(species) 
   species%id = 0 
   species%name = ''
-  species%a0 = 0.d0
   species%molar_weight = 0.d0
-  species%Z = 0.d0
+  species%radioactive = PETSC_FALSE
   species%print_me = PETSC_FALSE
   nullify(species%next)
 
@@ -489,11 +461,11 @@ function NWTSpeciesConstraintCreate(nw_trans,option)
   type(nwt_species_constraint_type), pointer :: constraint
   
   allocate(constraint)
-  allocate(constraint%names(nw_trans%params%ncomp))
+  allocate(constraint%names(nw_trans%params%nspecies))
   constraint%names = ''
-  allocate(constraint%constraint_conc(nw_trans%params%ncomp))
+  allocate(constraint%constraint_conc(nw_trans%params%nspecies))
   constraint%constraint_conc = 0.d0
-  allocate(constraint%constraint_spec_id(nw_trans%params%ncomp))
+  allocate(constraint%constraint_spec_id(nw_trans%params%nspecies))
   constraint%constraint_spec_id = 0
 
   NWTSpeciesConstraintCreate => constraint
@@ -517,8 +489,9 @@ function NWTRadDecayRxnCreate()
   type(radioactive_decay_rxn_type), pointer :: rxn
   
   allocate(rxn)
-  rxn%id = 0
-  rxn%reaction = ''
+  rxn%species_id = 0
+  rxn%parent_id = -1
+  rxn%name = ''
   rxn%rate_constant = 0.d0
   rxn%half_life = 0.d0
   rxn%print_me = PETSC_FALSE
@@ -553,32 +526,34 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
   type(option_type) :: option
   
   PetscBool :: found
-  PetscInt :: icomp, jcomp
-  PetscReal :: constraint_conc(nw_trans%params%ncomp)
+  PetscInt :: ispecies, jspecies
+  PetscReal :: constraint_conc(nw_trans%params%nspecies)
   character(len=MAXWORDLENGTH) :: constraint_species_names( &
-                                                         nw_trans%params%ncomp)
+                                                     nw_trans%params%nspecies)
   
   constraint_conc = 0.d0
   constraint_species_names = ''
   
-  do icomp = 1, nw_trans%params%ncomp
+  do ispecies = 1, nw_trans%params%nspecies
     found = PETSC_FALSE
-    do jcomp = 1, nw_trans%params%ncomp
-      if (StringCompare(nwt_species_constraint%names(icomp), &
-                        nw_trans%species_names(jcomp),MAXWORDLENGTH)) then
+    do jspecies = 1, nw_trans%params%nspecies
+      if (StringCompare(nwt_species_constraint%names(ispecies), &
+                        nw_trans%species_names(jspecies),MAXWORDLENGTH)) then
         found = PETSC_TRUE
         exit
       endif
     enddo
     if (.not.found) then
       option%io_buffer = &
-               'Species ' // trim(nwt_species_constraint%names(icomp)) // &
+               'Species ' // trim(nwt_species_constraint%names(ispecies)) // &
                ' from CONSTRAINT ' // trim(constraint_name) // &
                ' not found among species.'
       call printErrMsg(option)
     else
-      constraint_conc(jcomp) = nwt_species_constraint%constraint_conc(icomp)
-      constraint_species_names(jcomp) = nwt_species_constraint%names(icomp)
+      constraint_conc(jspecies) = &
+                               nwt_species_constraint%constraint_conc(ispecies)
+      constraint_species_names(jspecies) = &
+                                         nwt_species_constraint%names(ispecies)
     endif
   enddo
   
@@ -625,7 +600,7 @@ subroutine NWTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
   type(nw_transport_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option  
   
-  auxvar%molality = auxvar2%molality
+  auxvar%total_bulk_conc = auxvar2%total_bulk_conc
   
 end subroutine NWTAuxVarCopyInitialGuess
 
@@ -693,16 +668,11 @@ subroutine NWTAuxVarStrip(auxvar)
 
   type(nw_transport_auxvar_type) :: auxvar
   
-  call DeallocateArray(auxvar%molality)
-  call DeallocateArray(auxvar%total_sorb_eq)
-  call DeallocateArray(auxvar%dtotal_sorb_eq)
-    
-  call DeallocateArray(auxvar%mnrl_volfrac0)
-  call DeallocateArray(auxvar%mnrl_volfrac)
-  call DeallocateArray(auxvar%mnrl_area0)
-  call DeallocateArray(auxvar%mnrl_area)
-  call DeallocateArray(auxvar%mnrl_rate)
-    
+  call DeallocateArray(auxvar%total_bulk_conc)
+  call DeallocateArray(auxvar%aqueous_eq_conc)
+  call DeallocateArray(auxvar%sorb_eq_conc)
+  call DeallocateArray(auxvar%mnrl_eq_conc)
+  call DeallocateArray(auxvar%mnrl_vol_frac)
   call DeallocateArray(auxvar%auxiliary_data)
   
 end subroutine NWTAuxVarStrip

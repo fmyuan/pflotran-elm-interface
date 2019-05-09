@@ -1413,7 +1413,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
         ! ibegin is the local non-ghosted offset: (local_id-1)*option%ntrandof+1
         offset = ibegin - 1
         ! species concentrations
-        do idof = 1, nw_trans%params%ncomp 
+        do idof = 1, nw_trans%params%nspecies 
           xx_p(offset+idof) = &
             constraint_coupler%nwt_species%constraint_conc(idof) / &
             global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 

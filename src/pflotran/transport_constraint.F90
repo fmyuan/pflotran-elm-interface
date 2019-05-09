@@ -754,7 +754,7 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
           
           icomp = icomp + 1        
           
-          if (icomp > nw_trans%params%ncomp) then
+          if (icomp > nw_trans%params%nspecies) then
             option%io_buffer = 'Number of concentration constraints exceeds &
                                &the number of species given in the &
                                &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT block. &
@@ -775,13 +775,13 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
                   
         enddo  
         
-        if (icomp < nw_trans%params%ncomp) then
+        if (icomp < nw_trans%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
                    'number of species in species constraint.'
           call printErrMsg(option)        
         endif
-        if (icomp > nw_trans%params%ncomp) then
+        if (icomp > nw_trans%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is greater than ' // &
                    'number of species in species constraint.'

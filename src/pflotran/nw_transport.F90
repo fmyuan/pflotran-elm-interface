@@ -22,7 +22,7 @@ module NW_Transport_module
             NWTInitializeTimestep, &
             NWTUpdateTransportCoefs, &
             NWTUpdateFixedAccumulation, &
-            NWTAccumulation, &
+            NWTResidualAccum, &
             NWTResidual
             
 contains
@@ -143,16 +143,16 @@ subroutine NWTSetup(realization)
   PetscInt :: iconn, sum_connection 
   PetscInt :: iphase
   PetscInt :: flag(3)
-  PetscInt :: ncomp, nphase
+  PetscInt :: nspecies, nphase
   
   patch => realization%patch
   grid => patch%grid
   nw_trans => realization%nw_trans
   option => realization%option
-  ncomp = nw_trans%params%ncomp
+  nspecies = nw_trans%params%nspecies
   nphase = option%transport%nphase
   
-  patch%aux%NWT => NWTAuxCreate(ncomp,nphase)
+  patch%aux%NWT => NWTAuxCreate()
   
   cur_material_property => realization%material_properties
   do                                      
@@ -239,11 +239,11 @@ subroutine NWTSetup(realization)
   option%iflag = 0
   
   ! initialize parameters
-  allocate(nw_trans%diffusion_coefficient(ncomp,nphase))
+  allocate(nw_trans%diffusion_coefficient(nspecies,nphase))
   nw_trans%diffusion_coefficient = 1.d-9
-  allocate(nw_trans%diffusion_activation_energy(ncomp,nphase))
+  allocate(nw_trans%diffusion_activation_energy(nspecies,nphase))
   nw_trans%diffusion_activation_energy = 0.d0
-  allocate(nw_trans%species_print(ncomp))
+  allocate(nw_trans%species_print(nspecies))
   nw_trans%species_print = PETSC_FALSE
   
   cur_fluid_property => realization%fluid_properties
@@ -350,11 +350,11 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
       !geh - Ignore inactive cells with inactive materials
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      offset = (ghosted_id-1)*nw_trans%params%ncomp
+      offset = (ghosted_id-1)*nw_trans%params%nspecies
       istart = offset + 1
-      iend = offset + nw_trans%params%ncomp
+      iend = offset + nw_trans%params%nspecies
       
-      nwt_auxvars(ghosted_id)%molality = xx_loc_p(istart:iend)
+      nwt_auxvars(ghosted_id)%total_bulk_conc = xx_loc_p(istart:iend)
 
       call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -382,9 +382,9 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
         
         if (patch%imat(ghosted_id) <= 0) cycle
 
-        offset = (ghosted_id-1)*nw_trans%params%ncomp
+        offset = (ghosted_id-1)*nw_trans%params%nspecies
         istart_loc =  1
-        iend_loc = nw_trans%params%ncomp
+        iend_loc = nw_trans%params%nspecies
         istart = offset + istart_loc
         iend = offset + iend_loc
         
@@ -400,22 +400,26 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
             !      ReactionEquilibrateConstraint() below for 
             !      use_prev_soln_as_guess.  If the previous solution is 
             !      zero, the code will crash.
-            if (nwt_auxvars_bc(sum_connection)%molality(1) < 1.d-200) then
-              nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)
+            if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
+              nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+                                                          xx_loc_p(istart:iend)
             endif
           case(DIRICHLET_ZERO_GRADIENT_BC)
             if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
                   ! don't need to do anything as the constraint below 
                   ! provides all the concentrations, etc.
-              if (nwt_auxvars_bc(sum_connection)%molality(1) < 1.d-200) then
-                nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)
+              if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
+                nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+                                                          xx_loc_p(istart:iend)
               endif
             else
               ! same as zero_gradient below
-              nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)
+              nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+                                                          xx_loc_p(istart:iend)
             endif
           case(ZERO_GRADIENT_BC)
-            nwt_auxvars_bc(sum_connection)%molality = xx_loc_p(istart:iend)               
+            nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+                                                          xx_loc_p(istart:iend)               
         end select
           
       enddo ! iconn
@@ -450,9 +454,9 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,nw_trans,option)
   type(nw_trans_realization_type) :: nw_trans
   type(option_type) :: option
 
-  PetscReal :: ln_conc(nw_trans%params%ncomp)
+  PetscReal :: ln_conc(nw_trans%params%nspecies)
 
-  ln_conc = log(nwt_auxvar%molality)
+  ln_conc = log(nwt_auxvar%total_bulk_conc)
 
 end subroutine NWTAuxVarCompute
 
@@ -592,6 +596,8 @@ subroutine NWTUpdateTransportCoefs(realization)
           cell_centered_Darcy_velocities_ghosted(:,1:nphase,ghosted_id_dn)
       endif
 
+      ! jenn:todo Make your own version of TDispersion and return the 
+      ! subroutine as it was since I don't need it anymore.
       call TDispersion(global_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_up), &
                       local_Darcy_velocities_up, &
@@ -603,7 +609,7 @@ subroutine NWTUpdateTransportCoefs(realization)
                       patch%material_property_array(patch%imat(ghosted_id_dn))% &
                         ptr%dispersivity, &
                       cur_connection_set%dist(:,iconn), &
-                      nw_trans%params%ncomp,nw_trans%params%nphase, &
+                      nw_trans%params%nspecies,nw_trans%params%nphase, &
                       realization,option, &
                       patch%internal_velocities(:,sum_connection), &
                       patch%internal_tran_coefs(:,:,sum_connection))
@@ -640,7 +646,7 @@ subroutine NWTUpdateTransportCoefs(realization)
                         patch%material_property_array(patch%imat(ghosted_id))% &
                           ptr%dispersivity, &
                         cur_connection_set%dist(:,iconn), &
-                        nw_trans%params%ncomp,nw_trans%params%nphase, &
+                        nw_trans%params%nspecies,nw_trans%params%nphase, &
                         realization,option, &
                         patch%boundary_velocities(:,sum_connection), &
                         patch%boundary_tran_coefs(:,:,sum_connection))
@@ -655,10 +661,197 @@ end subroutine NWTUpdateTransportCoefs
 
 ! ************************************************************************** !
 
+subroutine NWTResidual(snes,xx,r,realization,ierr)
+  ! 
+  ! Computes the residual equation
+  ! 
+  ! Author: Jennifer Frederick
+  ! Date: 04/18/2019
+  ! 
+
+  use Realization_Subsurface_class
+  use Field_module
+  use Patch_module
+  use Coupler_module
+  use Connection_module
+  use Discretization_module
+  use Option_module
+  use Grid_module
+  use Logging_module
+  use Debug_module
+
+  implicit none
+
+  SNES :: snes
+  Vec :: xx
+  Vec :: r
+  type(realization_subsurface_type) :: realization
+  PetscReal, pointer :: xx_p(:), log_xx_p(:)
+  PetscErrorCode :: ierr
+  
+  PetscReal, pointer :: r_p(:), fixed_accum_p(:), vec_p(:)
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: nphase, iphase, nspecies
+  PetscInt :: istartall, iendall, offset
+  type(discretization_type), pointer :: discretization
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(grid_type), pointer :: grid
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn, sum_connection
+  PetscReal :: Res(realization%nw_trans%params%nspecies)
+  PetscViewer :: viewer  
+  
+  character(len=MAXSTRINGLENGTH) :: string
+
+  call PetscLogEventBegin(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
+
+  patch => realization%patch
+  field => realization%field
+  discretization => realization%discretization
+  option => realization%option
+  nw_trans => patch%nw_trans
+  nwt_auxvars => patch%aux%NWT%auxvars
+  nwt_auxvars_ss => patch%aux%NWT%auxvars_ss
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
+  material_auxvars => patch%aux%Material%auxvars
+  nphase = nw_trans%params%nphase
+  nspecies = nw_trans%params%nspecies
+
+  ! Communication -----------------------------------------
+  if (realization%nw_trans%use_log_formulation) then
+    ! have to convert the log concentration to non-log form
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
+    xx_p(:) = exp(log_xx_p(:))
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
+    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                     field%tran_xx_loc,NTRANDOF)
+  else
+    call DiscretizationGlobalToLocal(discretization,xx,field%tran_xx_loc, &
+                                     NTRANDOF)
+  endif
+  
+  ! Get pointer to residual Vector data
+  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
+  
+  !== Accumulation Terms ======================================
+  if (.not.option%steady_state) then
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      ! ignore inactive cells with inactive materials
+      if (patch%imat(ghosted_id) <= 0) cycle
+      
+      offset = (local_id-1)*nspecies
+      istartall = offset + 1
+      iendall = offset + nspecies
+      
+      call NWTResidualAccum(nwt_auxvars(ghosted_id), &
+                            global_auxvars(ghosted_id), &
+                            material_auxvars(ghosted_id), &
+                            nw_trans,Res)
+      r_p(istartall:iendall) = r_p(istartall:iendall) + &
+        (Res(1:nspecies) - fixed_accum_p(istartall:iendall))/option%tran_dt
+      
+    enddo
+  endif
+  
+  !== Source/Sink Terms =======================================
+  source_sink => patch%source_sink_list%first
+  sum_connection = 0
+  do 
+    if (.not.associated(source_sink)) exit
+    
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections 
+      sum_connection = sum_connection + 1     
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      ! ignore inactive cells with inactive materials
+      if (patch%imat(ghosted_id) <= 0) cycle
+      
+      offset = (local_id-1)*nspecies
+      istartall = offset + 1
+      iendall = offset + nspecies
+      
+      call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
+                              source_sink,patch,sum_connection, &
+                              nw_trans,Res)
+      r_p(istartall:iendall) = r_p(istartall:iendall) - Res(1:nspecies)
+      
+      if (associated(patch%ss_tran_fluxes)) then
+        patch%ss_tran_fluxes(:,sum_connection) = - Res(:)
+      endif
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary 
+        iphase = LIQUID_PHASE
+        nwt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
+          nwt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) - Res
+      endif
+    enddo
+    source_sink => source_sink%next
+  enddo
+
+  !== Decay and Ingrowth ======================================
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    ! ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle
+    
+    offset = (local_id-1)*nspecies
+    istartall = offset + 1
+    iendall = offset + nspecies
+    
+    call NWTResidualRx(nwt_auxvars(ghosted_id), &
+                       material_auxvars(ghosted_id), &
+                       nw_trans,Res)
+    r_p(istartall:iendall) = r_p(istartall:iendall) - Res(1:nspecies)
+    
+  enddo
+  
+  
+  ! pass #2 for internal and boundary flux terms
+  !call NWTResidualFlux(snes,xx,r,realization,ierr)
+
+  
+  ! Restore residual Vector data
+  call VecRestoreArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+
+  if (realization%debug%vecview_residual) then
+    string = 'NWTresidual'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  if (realization%debug%vecview_solution) then
+    string = 'NWTxx'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+  
+  call PetscLogEventEnd(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
+
+end subroutine NWTResidual
+
+! ************************************************************************** !
+
 subroutine NWTUpdateFixedAccumulation(realization)
   ! 
-  ! Computes the derivative??? of the accumulation term in 
-  ! the residual function
+  ! Computes the fixed portion of the accumulation term in 
+  ! the residual function (the accumulation at t=t).
   ! 
   ! Author: Jenn Frederick
   ! Date: 04/18/2019
@@ -683,11 +876,10 @@ subroutine NWTUpdateFixedAccumulation(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(nw_trans_realization_type), pointer :: nw_trans
-  PetscReal, pointer :: xx_p(:), accum_p(:)
+  PetscReal, pointer :: xx_p(:), fixed_accum_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: dof_offset, istart, iend
   PetscErrorCode :: ierr
-  PetscReal :: vol_frac_prim
   
   option => realization%option
   field => realization%field
@@ -701,10 +893,8 @@ subroutine NWTUpdateFixedAccumulation(realization)
   ! cannot use tran_xx_loc vector here as it has not yet been updated.
   call VecGetArrayReadF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
-  
-  vol_frac_prim = 1.d0 ! what is this?
-  
+  call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
+    
 ! Do not use NWTUpdateAuxVars() as it loops over ghosted ids
 
   do local_id = 1, grid%nlmax
@@ -713,38 +903,36 @@ subroutine NWTUpdateFixedAccumulation(realization)
     if (patch%imat(ghosted_id) <= 0) cycle
     
     ! compute offset in solution vector for first dof in grid cell
-    dof_offset = (local_id-1)*nw_trans%params%ncomp
+    dof_offset = (local_id-1)*nw_trans%params%nspecies
     
     ! calculate range of species
     istart = dof_offset + 1
-    iend = dof_offset + nw_trans%params%ncomp
+    iend = dof_offset + nw_trans%params%nspecies
 
-    ! copy primary aqueous species
-    nwt_auxvars(ghosted_id)%molality = xx_p(istart:iend)
+    ! copy primary dependent variable
+    nwt_auxvars(ghosted_id)%total_bulk_conc = xx_p(istart:iend)
     
-    ! DO NOT RECOMPUTE THE ACTIVITY COEFFICIENTS BEFORE COMPUTING THE
-    ! FIXED PORTION OF THE ACCUMULATION TERM - geh
     call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                           global_auxvars(ghosted_id), &
                           nw_trans,option)
-    call NWTAccumulation(nwt_auxvars(ghosted_id), &
-                         global_auxvars(ghosted_id), &
-                         material_auxvars(ghosted_id), &
-                         nw_trans,option, &
-                         accum_p(istart:iend)) 
+    call NWTResidualAccum(nwt_auxvars(ghosted_id), &
+                          global_auxvars(ghosted_id), &
+                          material_auxvars(ghosted_id), &
+                          nw_trans,fixed_accum_p(istart:iend)) 
   enddo
 
-  call VecRestoreArrayReadF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%tran_accum,fixed_accum_p,ierr);CHKERRQ(ierr)
 
 end subroutine NWTUpdateFixedAccumulation
 
 ! ************************************************************************** !
 
-subroutine NWTAccumulation(nwt_auxvar,global_auxvar,material_auxvar, &
-                           nw_trans,option,Res)
+subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
+                            nw_trans,Res)
   ! 
-  ! Computes the accumulation term in the residual function
+  ! Computes the accumulation term in the residual function.
+  ! All residual entries should be in [mol/sec].
   ! 
   ! Author: Jenn Frederick
   ! Date: 04/18/2019
@@ -757,112 +945,187 @@ subroutine NWTAccumulation(nwt_auxvar,global_auxvar,material_auxvar, &
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(option_type) :: option
   type(nw_trans_realization_type), pointer :: nw_trans
-  PetscReal :: Res(nw_trans%params%ncomp)
+  PetscReal :: Res(nw_trans%params%nspecies)
   
   PetscInt :: iphase
   PetscInt :: istart, iend
-  PetscReal :: psv_t
+  PetscReal :: pv
   
-  iphase = 1
+  iphase = LIQUID_PHASE
   Res = 0.d0
   
-  ! units = (mol solute/L water)*(m^3 por/m^3 bulk)*(m^3 water/m^3 por)*
-  !         (m^3 bulk)*(1000L water/m^3 water)/(sec) = mol/sec
-  ! 1000.d0 converts vol from m^3 -> L
-  ! all residual entries should be in mol/sec
-  psv_t = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
-          material_auxvar%volume
+  ! All residual entries for accumulation should be in [mol-species].
+  ! Dividing by dt will occur later in NWTResidual.
+  
+  ! porosity in [m^3-void/m^3-bulk]
+  ! volume in [m^3-bulk]
+  ! pv in [m^3-void]
+  pv = material_auxvar%porosity*material_auxvar%volume
+      
   istart = 1
-  iend = nw_trans%params%ncomp
-  ! Your accumulation term goes here:
-  Res(istart:iend) = 0.d0
-  !Res(istart:iend) = psv_t*nwt_auxvar%total(:,iphase) 
+  iend = nw_trans%params%nspecies
+  
+  ! -- Aqueous-Component ----------------------------------------
+  ! saturation in [m^3-liq/m^3-void]
+  ! aqueous conc in [mol-species/m^3-liq]
+  Res(istart:iend) = pv*global_auxvar%sat(iphase)* &
+                     nwt_auxvar%aqueous_eq_conc(:)
+                     
+  ! -- Precipitated-Component -----------------------------------
+  ! mineral volume fraction in [m^3-mnrl/m^3-void]
+  ! precipitated conc in [mol-species/m^3-mnrl]
+  Res(istart:iend) = Res(istart:iend) + &
+                     pv*nwt_auxvar%mnrl_vol_frac(:)* &
+                     nwt_auxvar%mnrl_eq_conc(:)
+                  
+  ! -- Sorbed-Component -----------------------------------------
+  ! jenn:todo Add sorbed component into NWTResidualAccum().
 
-end subroutine NWTAccumulation
+end subroutine NWTResidualAccum
 
 ! ************************************************************************** !
 
-subroutine NWTResidual(snes,xx,r,realization,ierr)
+subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,patch, &
+                              sum_connection,nw_trans,Res)
   ! 
-  ! Computes the residual equation
+  ! Computes the source/sink terms in the residual function.
+  ! All residual entries should be in [mol-species/sec].
   ! 
-  ! Author: Jennifer Frederick
-  ! Date: 04/18/2019
+  ! Author: Jenn Frederick
+  ! Date: 05/08/2019
   ! 
 
-  use Realization_Subsurface_class
-  use Field_module
   use Patch_module
-  use Discretization_module
-  use Option_module
-  use Grid_module
-  use Logging_module
-  use Debug_module
+  use Coupler_module
 
   implicit none
-
-  SNES :: snes
-  Vec :: xx
-  Vec :: r
-  type(realization_subsurface_type) :: realization
-  PetscReal, pointer :: xx_p(:), log_xx_p(:)
-  PetscErrorCode :: ierr
   
-  type(discretization_type), pointer :: discretization
-  type(field_type), pointer :: field
+  type(nw_transport_auxvar_type) :: nwt_auxvar
+  type(coupler_type), pointer :: source_sink
   type(patch_type), pointer :: patch
-  type(option_type), pointer :: option
-  PetscViewer :: viewer  
+  PetscInt :: sum_connection
+  type(nw_trans_realization_type), pointer :: nw_trans
+  PetscReal :: Res(nw_trans%params%nspecies)
   
-  character(len=MAXSTRINGLENGTH) :: string
-
-  call PetscLogEventBegin(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
-
-  patch => realization%patch
-  field => realization%field
-  discretization => realization%discretization
-  option => realization%option
-
-  ! Communication -----------------------------------------
-  if (realization%nw_trans%use_log_formulation) then
-    ! have to convert the log concentration to non-log form
-    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
-    xx_p(:) = exp(log_xx_p(:))
-    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
-    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
-                                     field%tran_xx_loc,NTRANDOF)
-  else
-    call DiscretizationGlobalToLocal(discretization,xx,field%tran_xx_loc, &
-                                     NTRANDOF)
-  endif
-
-  ! pass #1 for internal and boundary flux terms
-  call NWTResidualFlux(snes,xx,r,realization,ierr)
-
-  ! pass #2 for everything else
-  ! jenn:todo Create NWTResidualNonFlux()
-  !call NWTResidualNonFlux(snes,xx,r,realization,ierr)
-
-  if (realization%debug%vecview_residual) then
-    string = 'NWTresidual'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-  if (realization%debug%vecview_solution) then
-    string = 'NWTxx'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call VecView(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
+  PetscInt :: istart, iend, iphase
+  PetscReal :: qsrc
+  PetscReal :: coef_in, coef_out
   
-  call PetscLogEventEnd(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
+  iphase = LIQUID_PHASE
+  Res = 0.d0
+  
+  if (associated(patch%ss_flow_vol_fluxes)) then
+    ! qsrc = [m^3-liq/sec] 
+    qsrc = patch%ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+  endif
+      
+  istart = 1
+  iend = nw_trans%params%nspecies
+  
+  ! -- Aqueous-Component ----------------------------------------
+  select case(source_sink%tran_condition%itype)
+    case(EQUILIBRIUM_SS)
+      ! jenn:todo What is EQUILIBRIUM_SS option?
+    case(MASS_RATE_SS)
+      ! jenn:todo What is MASS_RATE_SS option?
+    case default
+      if (qsrc > 0.d0) then ! source of fluid flux
+        ! represents inside of the domain
+        coef_in = 0.d0
+        ! represents outside of the domain
+        coef_out = qsrc
+      else                  ! sink of fluid flux
+        ! represents inside of the domain
+        coef_in = qsrc
+        ! represents outside of the domain
+        coef_out = 0.d0
+      endif
+  end select
+  ! units of coef = [m^3-liq/sec]
+  ! units of aqueous_eq_conc = [mol-species/m^3-liq]
+  ! units of residual entries = [mol-species/sec]
+  Res(istart:iend) = (coef_in*nwt_auxvar%aqueous_eq_conc(:)) + &
+                     (coef_out*source_sink%tran_condition% &
+                               cur_constraint_coupler%nwt_auxvar% &
+                               aqueous_eq_conc(:))
+                               
+  ! -- Precipitated-Component -----------------------------------
+  ! There is no contribution from precipitated components.
+  
+  ! -- Sorbed-Component -----------------------------------------
+  ! There is no contribution from sorbed components.
 
-end subroutine NWTResidual
+end subroutine NWTResidualSrcSink
+
+! ************************************************************************** !
+
+subroutine NWTResidualRx(nwt_auxvar,material_auxvar,nw_trans,Res)
+  ! 
+  ! Computes the decay/ingrowth term in the residual function.
+  ! All residual entries should be in [mol/sec].
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/09/2019
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  type(nw_transport_auxvar_type) :: nwt_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  type(nw_trans_realization_type), pointer :: nw_trans
+  PetscReal :: Res(nw_trans%params%nspecies)
+  
+  PetscInt :: iphase, parent_id
+  PetscReal :: vol
+  type(species_type), pointer :: species
+  type(radioactive_decay_rxn_type), pointer :: rad_rxn
+  
+  iphase = LIQUID_PHASE
+  Res = 0.d0
+  
+  ! All residual entries for decay/ingrowth should be in [mol-species].
+  
+  ! volume in [m^3-bulk]
+  vol = material_auxvar%volume
+  
+  species => nw_trans%species_list
+  do 
+    if (.not.associated(species)) exit
+    
+    if (species%radioactive) then
+      ! Find the reaction object associated with this species
+      rad_rxn => nw_trans%rad_decay_rxn_list
+      do
+        if (.not.associated(rad_rxn)) exit
+        if (rad_rxn%species_id == species%id) exit
+        rad_rxn => rad_rxn%next
+      enddo
+      ! Add in species decay
+      Res(species%id) = -(rad_rxn%rate_constant * &
+                          nwt_auxvar%total_bulk_conc(species%id))
+      
+      ! Add in contribution from parent (if exists)
+      if (rad_rxn%parent_id > 0.d0) then
+        parent_id = rad_rxn%parent_id
+        ! Find the reaction object associated with the parent species
+        rad_rxn => nw_trans%rad_decay_rxn_list
+        do
+          if (.not.associated(rad_rxn)) exit
+          if (rad_rxn%species_id == parent_id) exit
+          rad_rxn => rad_rxn%next
+        enddo
+        Res(species%id) = Res(species%id) + (rad_rxn%rate_constant * &
+                          nwt_auxvar%total_bulk_conc(parent_id))
+      endif
+    endif
+    
+    species => species%next
+  enddo
+                    
+end subroutine NWTResidualRx
 
 ! ************************************************************************** !
 
@@ -921,11 +1184,11 @@ subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
   PetscInt :: axis, side, nlx, nly, nlz, ngx, ngxy, pstart, pend, flux_id
   PetscInt :: direction, max_x_conn, max_y_conn
     
-  PetscReal :: coef_up(realization%patch%aux%RT%rt_parameter%naqcomp, &
+  PetscReal :: coef_up(realization%nw_trans%params%nspecies, &
                        realization%option%transport%nphase)
-  PetscReal :: coef_dn(realization%patch%aux%RT%rt_parameter%naqcomp, &
+  PetscReal :: coef_dn(realization%nw_trans%params%nspecies, &
                        realization%option%transport%nphase)
-  PetscReal :: Res(realization%reaction%ncomp)
+  PetscReal :: Res(realization%nw_trans%params%nspecies)
 
   option => realization%option
   field => realization%field
@@ -968,17 +1231,13 @@ subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
       ! called only once per flux interface at the beginning of a transport
       ! time step.
       
-      ! jenn:todo Should I be making my own TFluxCoef and TFlux, since the 
-      ! governing equation will be different?
-      
-      !call TFluxCoef(rt_parameter, &
-      !          global_auxvars(ghosted_id_up), &
-      !          global_auxvars(ghosted_id_dn), &
-      !          option,cur_connection_set%area(iconn), &
-      !          patch%internal_velocities(:,sum_connection), &
-      !          patch%internal_tran_coefs(:,:,sum_connection), &
-      !          cur_connection_set%dist(-1,iconn), &
-      !          coef_up,coef_dn)
+      call NWTFluxCoef(nw_trans,&
+                       global_auxvars(ghosted_id_up), &
+                       global_auxvars(ghosted_id_dn), &
+                       option,cur_connection_set%area(iconn), &
+                       patch%internal_velocities(:,sum_connection), &
+                       cur_connection_set%dist(-1,iconn), &
+                       coef_up,coef_dn)
                       
       !call TFlux(rt_parameter, &
       !            rt_auxvars(ghosted_id_up), &
@@ -992,20 +1251,20 @@ subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
         nwt_auxvars(local_id_up)%mass_balance_delta(:,iphase) - Res        
 #endif
       if (local_id_up>0) then
-        iend = local_id_up*nw_trans%params%ncomp
-        istart = iend-nw_trans%params%ncomp+1
-        r_p(istart:iend) = r_p(istart:iend) + Res(1:nw_trans%params%ncomp)
+        iend = local_id_up*nw_trans%params%nspecies
+        istart = iend-nw_trans%params%nspecies+1
+        r_p(istart:iend) = r_p(istart:iend) + Res(1:nw_trans%params%nspecies)
       endif
       
       if (local_id_dn>0) then
-        iend = local_id_dn*nw_trans%params%ncomp
-        istart = iend-nw_trans%params%ncomp+1
-        r_p(istart:iend) = r_p(istart:iend) - Res(1:nw_trans%params%ncomp)
+        iend = local_id_dn*nw_trans%params%nspecies
+        istart = iend-nw_trans%params%nspecies+1
+        r_p(istart:iend) = r_p(istart:iend) - Res(1:nw_trans%params%nspecies)
       endif
 
       if (associated(patch%internal_tran_fluxes)) then
-        patch%internal_tran_fluxes(1:nw_trans%params%ncomp,iconn) = &
-            Res(1:nw_trans%params%ncomp)
+        patch%internal_tran_fluxes(1:nw_trans%params%nspecies,iconn) = &
+            Res(1:nw_trans%params%nspecies)
       endif
     enddo
     cur_connection_set => cur_connection_set%next
@@ -1043,9 +1302,9 @@ subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
       !           global_auxvars(ghosted_id), &
       !           coef_up,coef_dn,option,Res)
                   
-      iend = local_id*nw_trans%params%ncomp
-      istart = iend-nw_trans%params%ncomp+1
-      r_p(istart:iend)= r_p(istart:iend) - Res(1:nw_trans%params%ncomp)
+      iend = local_id*nw_trans%params%nspecies
+      istart = iend-nw_trans%params%nspecies+1
+      r_p(istart:iend)= r_p(istart:iend) - Res(1:nw_trans%params%nspecies)
 
       if (option%compute_mass_balance_new) then
       ! contribution to boundary 
@@ -1057,8 +1316,8 @@ subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
       endif  
                  
       if (associated(patch%boundary_tran_fluxes)) then
-        patch%boundary_tran_fluxes(1:nw_trans%params%ncomp,sum_connection) = &
-            Res(1:nw_trans%params%ncomp)
+        patch%boundary_tran_fluxes(1:nw_trans%params%nspecies,sum_connection) = &
+            Res(1:nw_trans%params%nspecies)
       endif
     enddo
     boundary_condition => boundary_condition%next
@@ -1068,6 +1327,71 @@ subroutine NWTResidualFlux(snes,xx,r,realization,ierr)
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
  
 end subroutine NWTResidualFlux
+
+! ************************************************************************** !
+
+subroutine NWTFluxCoef(nw_trans, &
+                       global_auxvar_up,global_auxvar_dn, &
+                       option,area,velocity, &
+                       fraction_upwind,T_up,T_dn)
+  ! 
+  ! Computes flux coefficients for residual terms.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/08/2019
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  type(nw_trans_realization_type), pointer :: nw_trans 
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn 
+  type(option_type) :: option
+  PetscReal :: area
+  PetscReal :: velocity(*)
+  PetscReal :: fraction_upwind
+  PetscReal :: T_up(nw_trans%params%nspecies,nw_trans%params%nphase)
+  PetscReal :: T_dn(nw_trans%params%nspecies,nw_trans%params%nphase)
+
+  PetscInt :: icomp, ncomp, iphase
+  PetscInt :: unit_n_up, unit_n_dn
+  PetscReal :: coef_up(nw_trans%params%nspecies)
+  PetscReal :: coef_dn(nw_trans%params%nspecies)
+  PetscReal :: q
+  
+  ncomp = nw_trans%params%ncomp
+
+  T_up(:,:) = 0.d0
+  T_dn(:,:) = 0.d0
+
+  do icomp = 1, ncomp  ! loop thru (1) aq, (2) ppt, and (3) sorbed components
+  
+    if (icomp == 1) then
+      q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
+    else
+      q = 0.d0
+    endif
+
+    ! upstream weighting
+    if (q > 0.d0) then
+      unit_n_up = -1
+      unit_n_dn = +1
+      coef_up(:) = (q*unit_n_up*area)
+      coef_dn(:) = (q*unit_n_dn*area)
+    else
+      unit_n_up = -1
+      unit_n_dn = +1
+      coef_up(:) = (q*unit_n_up*area)
+      coef_dn(:) = (q*unit_n_dn*area)
+    endif
+ 
+    T_up(:,iphase) = coef_up
+    T_dn(:,iphase) = coef_dn
+    
+  enddo
+    
+end subroutine NWTFluxCoef
 
 ! ************************************************************************** !
 

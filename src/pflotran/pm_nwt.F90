@@ -37,8 +37,7 @@ module PM_NWT_class
   type, public :: pm_nwt_params_type
     PetscInt :: nphase
     PetscInt :: ncomp
-    PetscInt :: nsorb
-    PetscInt :: nmnrl
+    PetscInt :: nspecies
     PetscInt :: nauxiliary
     PetscReal :: tran_weight_t0
     PetscReal :: tran_weight_t1
@@ -114,9 +113,8 @@ function PMNWTCreate()
   
   allocate(nwt_pm%params)
   nwt_pm%params%ncomp = 0
-  nwt_pm%params%nphase = 1  ! For WIPP, we always assume liquid phase only
-  nwt_pm%params%nsorb = 0
-  nwt_pm%params%nmnrl = 0
+  nwt_pm%params%nphase = 0
+  nwt_pm%params%nspecies = 0
   nwt_pm%params%nauxiliary = 0
   nwt_pm%params%tran_weight_t0 = 0.d0
   nwt_pm%params%tran_weight_t1 = 0.d0
@@ -232,8 +230,7 @@ subroutine PMNWTSetup(this)
   
   this%params%nphase = nw_trans%params%nphase
   this%params%ncomp = nw_trans%params%ncomp
-  this%params%nsorb = nw_trans%params%nsorb
-  this%params%nmnrl = nw_trans%params%nmnrl
+  this%params%nspecies = nw_trans%params%nspecies
   this%params%nauxiliary = nw_trans%params%nauxiliary
   this%params%calculate_transverse_dispersion = &
                                nw_trans%params%calculate_transverse_dispersion
@@ -243,8 +240,8 @@ subroutine PMNWTSetup(this)
   ! set the communicator
   this%comm1 => this%realization%comm1
   
-  allocate(this%controls%max_concentration_change(this%params%ncomp))
-  allocate(this%controls%max_volfrac_change(this%params%ncomp))
+  allocate(this%controls%max_concentration_change(this%params%nspecies))
+  allocate(this%controls%max_volfrac_change(this%params%nspecies))
 
 end subroutine PMNWTSetup
 
@@ -502,7 +499,7 @@ subroutine PMNWTSetPlotVariables(list,nw_trans,option,time_unit)
   ! jenn:todo Where should I be setting nw_trans%print ? In an equivalent
   ! block like CHEMISTRY,OUTPUT?
   if (nw_trans%print%molality) then
-    do i=1,nw_trans%params%ncomp
+    do i=1,nw_trans%params%nspecies
       if (nw_trans%species_print(i)) then
         name = 'Molality ' // trim(nw_trans%species_names(i))
         units = 'm'
