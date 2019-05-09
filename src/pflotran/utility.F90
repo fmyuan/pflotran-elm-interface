@@ -94,7 +94,8 @@ module Utility_module
             Erf_, &
             DigitsOfAccuracy, &
             CalcParallelSum, &
-            MatCompare
+            MatCompare, &
+            ArrayIsSMonotonicInc
             
 contains
 
@@ -2492,6 +2493,29 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
   end do 
 
 end subroutine MatCompare
+
+! ************************************************************************** !
+
+function ArrayIsSMonotonicInc(array)
+
+  !check if an array of Real is Strictly Monotonically Increasing
+
+  implicit none
+
+  PetscReal :: array(:)
+  PetscBool :: ArrayIsSMonotonicInc
+
+  PetscInt :: i
+
+  ArrayIsSMonotonicInc = PETSC_TRUE
+
+  do i=2,size(array(:))
+    if ( array(i) <= array(i-1) ) then
+      ArrayIsSMonotonicInc = PETSC_FALSE
+    end if
+  end do
+
+end function ArrayIsSMonotonicInc
 
 ! ************************************************************************** !
 

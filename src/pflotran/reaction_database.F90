@@ -1115,8 +1115,8 @@ subroutine BasisInit(reaction,option)
         &number of secondary species defined.'
     else
       option%io_buffer = 'Too many reactions read from database for &
-        &number of secondary species defined.  Perhaps REDOX &
-        &SPECIES need to be defined?'
+        &number of secondary species defined.  Perhaps &
+        &DECOUPLED_EQUILIBRIUM_REACTIONS need to be defined?'
     endif
     call printErrMsg(option)
   endif

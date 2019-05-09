@@ -2070,7 +2070,7 @@ subroutine OutputMassBalance(realization_base)
                                        'kg','',icol)
               call OutputWriteToHeader(fid,'Global Gas Mass', &
                                        'kg','',icol)
-              if(towg_miscibility_model == TOWG_SOLVENT_TL) then
+              if (towg_miscibility_model == TOWG_SOLVENT_TL) then
                 call OutputWriteToHeader(fid,'Global Solvent Mass', &
                                          'kg','',icol)
               endif
@@ -2293,7 +2293,7 @@ subroutine OutputMassBalance(realization_base)
            class is(realization_subsurface_type)
              call WriteWellHeaders(fid,icol, &
                                    realization_base,towg_miscibility_model,wecl)
-             if( output_option%write_masses ) then
+             if (output_option%write_masses) then
                call WriteWellMassHeaders(fid,icol, &
                                          realization_base,towg_miscibility_model)
              endif
@@ -3001,14 +3001,15 @@ subroutine OutputMassBalance(realization_base)
 !  Write out well rates and totals if required
 
   if (WellDataGetFlag()) then
-    if(     option%iflowmode == TOIL_IMS_MODE &
-       .or. option%iflowmode == TOWG_MODE       ) then
+    if (     option%iflowmode == TOIL_IMS_MODE &
+        .or. option%iflowmode == TOWG_MODE       ) then
     if (option%myrank == option%io_rank) then
         select type(realization_base)
          class is(realization_subsurface_type)
           call WriteWellValues(fid,realization_base, &
-                               output_option%tconv,towg_miscibility_model,option,wecl)
-          if( output_option%write_masses ) then
+                               output_option%tconv, towg_miscibility_model, &
+                               option, wecl, sum_kg_global)
+          if (output_option%write_masses) then
             call WriteWellMassValues(fid,realization_base, &
                                      output_option%tconv,towg_miscibility_model)
           endif
@@ -3118,22 +3119,30 @@ subroutine OutputEclipseFiles(realization_base)
   use PM_TOWG_Aux_module, only: towg_miscibility_model
   use Grid_Grdecl_module, only : GetIsGrdecl
   use Well_Data_class
+  use TOilIms_module, only : TOilImsComputeMassBalance
+  use TOWG_module, only : TOWGComputeMassBalance
 
   implicit none
 
   class(realization_base_type), target :: realization_base
-
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(output_option_type), pointer :: output_option
 
   PetscInt :: fid, icol
-  PetscBool, parameter:: wecl = PETSC_TRUE
+  PetscBool, parameter :: wecl = PETSC_TRUE
   PetscBool :: write_summ, write_rest,is_grdecl
   PetscInt  :: sum_ds, rst_ds, sum_ls, rst_ls
   PetscReal :: sum_dt, rst_dt, sum_lt, rst_lt, time
   PetscReal, parameter :: eps = 0.001
+
+  PetscReal :: sum_kg(realization_base%option%nflowspec, &
+               realization_base%option%nphase)
+  PetscReal :: sum_kg_global(realization_base%option%nflowspec, &
+               realization_base%option%nphase)
+  PetscMPIInt :: int_mpi
+  PetscErrorCode :: ierr
 
   patch => realization_base%patch
   grid => patch%grid
@@ -3148,6 +3157,28 @@ subroutine OutputEclipseFiles(realization_base)
     option%io_buffer = 'Eclipse file output requires grdecl type input'
     call printErrMsg(option)
   endif
+
+  !  Find mass balance
+
+  sum_kg = 0.d0
+  select type(realization_base)
+    class is(realization_subsurface_type)
+      select case(option%iflowmode)
+        case(TOIL_IMS_MODE)
+          call TOilImsComputeMassBalance(realization_base,sum_kg(:,:))
+        case(TOWG_MODE)
+          call TOWGComputeMassBalance(realization_base,sum_kg(:,:))
+      end select
+    class default
+      option%io_buffer = &
+        'Unrecognized realization class in OutputEclipseFiles().'
+      call printErrMsg(option)
+  end select
+
+  int_mpi = option%nflowspec*option%nphase
+  call MPI_Reduce(sum_kg,sum_kg_global, &
+                  int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                  option%io_rank,option%mycomm,ierr)
 
   !  Set useful scalars (negative fid prevents writing to -mas files)
 
@@ -3177,7 +3208,7 @@ subroutine OutputEclipseFiles(realization_base)
 
   ! Summary files - just needs the io rank
 
-  if( write_summ ) then
+  if (write_summ) then
     if (option%myrank == option%io_rank) then
       if (     option%iflowmode == TOIL_IMS_MODE &
           .or. option%iflowmode == TOWG_MODE      ) then
@@ -3200,7 +3231,8 @@ subroutine OutputEclipseFiles(realization_base)
          class is(realization_subsurface_type)
            call WriteWellValues(fid, realization_base, &
                                 output_option%tconv, &
-                                towg_miscibility_model, option, wecl)
+                                towg_miscibility_model, &
+                                option, wecl, sum_kg_global)
         end select
 
       endif ! IMS or TOWG
@@ -3209,13 +3241,13 @@ subroutine OutputEclipseFiles(realization_base)
 
   ! Restart files - needs all the ranks
 
-  if( write_rest ) then
-    if( ewriter_rest_count == 0 ) then
+  if (write_rest) then
+    if (ewriter_rest_count == 0) then
       call setupEwriterRestMaps(patch, grid, option)
     endif
     select type(realization_base)
      class is(realization_subsurface_type)
-     call WriteRestValues(realization_base, output_option%tconv, option)
+     call WriteRestValues(realization_base, option)
     end select
   endif
 
@@ -3309,11 +3341,19 @@ subroutine WriteWellHeaders(fid, icol, realization, &
 
   ! Solvent rates and totals if required
 
-    if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-      call WrtHrd(fid, 'wspr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'wspt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'wsir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-      call WrtHrd(fid, 'wsit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+      if (wecl) then
+        ! Eclipse uses n for solvent as s is salt
+        call WrtHrd(fid, 'wnpr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wnpt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wnir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wnit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      else
+        call WrtHrd(fid, 'wspr', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wspt', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wsir', name, 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
+        call WrtHrd(fid, 'wsit', name, 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+      endif
     endif
 
   ! Liquid rates and totals
@@ -3341,11 +3381,27 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   call WrtHrd(fid, 'fwir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
   call WrtHrd(fid, 'fwit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
 
-  if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-    call WrtHrd(fid, 'fspr', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHrd(fid, 'fspt', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHrd(fid, 'fsir', 'field', 'm^3/d', icol, zm, zn, zu, ni, mi, wecl)
-    call WrtHrd(fid, 'fsit', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (wecl) then
+      ! Eclipse uses n for solvent as s is salt
+      call WrtHrd(fid, 'fnpr', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnpt', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnir', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fnit', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+    else
+      call WrtHrd(fid, 'fspr', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fspt', 'field', 'm^3'  , &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fsir', 'field', 'm^3/d', &
+                  icol, zm, zn, zu, ni, mi, wecl)
+      call WrtHrd(fid, 'fsit', 'field', 'm^3'  , &
+                 icol, zm, zn, zu, ni, mi, wecl)
+    endif
   endif
 
   call WrtHrd(fid, 'flpr', 'field', 'm^3/d'  , icol, zm, zn, zu, ni, mi, wecl)
@@ -3353,6 +3409,18 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   call WrtHrd(fid, 'fgor', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
   call WrtHrd(fid, 'fwct', 'field', 'm^3/m^3', icol, zm, zn, zu, ni, mi, wecl)
   call WrtHrd(fid, 'fpav', 'field', 'Bar    ', icol, zm, zn, zu, ni, mi, wecl)
+
+  call WrtHrd(fid, 'foip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fgip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  call WrtHrd(fid, 'fwip', 'field', 'm^3'  , icol, zm, zn, zu, ni, mi, wecl)
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (wecl) then
+      ! Eclipse uses n for solvent as s is salt
+      call WrtHrd(fid, 'fnip', 'field', 'm^3', icol, zm, zn, zu, ni, mi, wecl)
+    else
+      call WrtHrd(fid, 'fsip', 'field', 'm^3', icol, zm, zn, zu, ni, mi, wecl)
+    endif
+  endif
 
   ! Write out Eclipse files if required
 
@@ -3423,7 +3491,7 @@ subroutine WriteWellMassHeaders(fid, icol, realization, towg_miscibility_model)
 
   ! Solvent mass rates and totals if required
 
-    if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
       call WrtHrdMO(fid, 'wsmpr', name, 'kg/d', icol)
       call WrtHrdMO(fid, 'wsmpt', name, 'kg'  , icol)
       call WrtHrdMO(fid, 'wsmir', name, 'kg/d', icol)
@@ -3447,7 +3515,7 @@ subroutine WriteWellMassHeaders(fid, icol, realization, towg_miscibility_model)
   call WrtHrdMO(fid, 'fwmir', 'field', 'kg/d', icol)
   call WrtHrdMO(fid, 'fwmit', 'field', 'kg'  , icol)
 
-  if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
     call WrtHrdMO(fid, 'fsmpr', 'field', 'kg/d', icol)
     call WrtHrdMO(fid, 'fsmpt', 'field', 'kg'  , icol)
     call WrtHrdMO(fid, 'fsmir', 'field', 'kg/d', icol)
@@ -3459,7 +3527,7 @@ end subroutine WriteWellMassHeaders
 ! *************************************************************************** !
 
 subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
-                           option, wecl)
+                           option, wecl, sum_kg_global)
   !
   ! Used to write out mas file values specific to TOIL and TOWG modes
   ! This routine must match the headers written by WriteWellHeaders
@@ -3468,10 +3536,15 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
   ! Date  : 09/15/18
 
   use Realization_Subsurface_class
+  use Realization_Base_class, only : realization_base_type
   use Well_Type_class
   use Well_Data_class
   use Output_Eclipse_module, only:WriteEclipseFilesSumm
   use Option_module
+  use EOS_Oil_module,  only : EOSOilGetSurfaceDensity
+  use EOS_Gas_module,  only : EOSGasGetSurfaceDensity
+  use EOS_Water_module,only : EOSWaterGetSurfaceDensity
+  use EOS_Slv_module,  only : EOSSlvGetSurfaceDensity
 
   implicit none
 
@@ -3479,6 +3552,7 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
   type(realization_subsurface_type) :: realization
   type(option_type), intent(in), pointer :: option
   PetscBool, intent(in) :: wecl
+  PetscReal :: sum_kg_global(:,:)
 
   PetscReal :: tconv, sign
   PetscInt :: towg_miscibility_model
@@ -3497,10 +3571,11 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
                fgpr, fgpt, fgir, fgit, &
                fwpr, fwpt, fwir, fwit, &
                fspr, fspt, fsir, fsit, &
-               flpr, flpt, fgor, fwct, fpav
+               flpr, flpt, fgor, fwct, fpav, &
+               foip, fgip, fwip, fsip, sd
 
   PetscReal, pointer :: vd(:)
-  PetscInt           :: nd, md
+  PetscInt           :: nd, md, iphase
 
   nd = 0
 
@@ -3546,7 +3621,7 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
     wwpt   = getWellTTValI(iwell, W_TARG_WSV, VALTYPE_TOTALP, well_data_list)
     wwit   = getWellTTValI(iwell, W_TARG_WSV, VALTYPE_TOTALI, well_data_list)
 
-    if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
       wspriu = getWellTTValI(iwell, W_TARG_SSV, VALTYPE_ACTUAL, well_data_list)
       wspt   = getWellTTValI(iwell, W_TARG_SSV, VALTYPE_TOTALP, well_data_list)
       wsit   = getWellTTValI(iwell, W_TARG_SSV, VALTYPE_TOTALI, well_data_list)
@@ -3590,9 +3665,9 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
     wlpt = wopt+wwpt
 
     wwct = 0.0
-    if( wlpr > 0.0 ) wwct = wwpr/wlpr
+    if (wlpr > 0.0) wwct = wwpr/wlpr
     wgor = 0.0
-    if( wopr > 0.0 ) wgor = wgpr/wopr
+    if (wopr > 0.0) wgor = wgpr/wopr
 
   !  Write out well values
 
@@ -3611,7 +3686,7 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
     call wrtToTableAndSumm(fid, wwir, vd, nd, md, wecl)
     call wrtToTableAndSumm(fid, wwit, vd, nd, md, wecl)
 
-    if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
       call wrtToTableAndSumm(fid, wspr, vd, nd, md, wecl)
       call wrtToTableAndSumm(fid, wspt, vd, nd, md, wecl)
       call wrtToTableAndSumm(fid, wsir, vd, nd, md, wecl)
@@ -3643,7 +3718,7 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
   fwpt = GetFieldTTVal(W_TARG_WSV, VALTYPE_TOTALP , well_data_list)
   fwit = GetFieldTTVal(W_TARG_WSV, VALTYPE_TOTALI , well_data_list)
 
-  if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
     fspr = GetFieldTTVal(W_TARG_SSV, VALTYPE_ACTUALP, well_data_list)
     fsir = GetFieldTTVal(W_TARG_SSV, VALTYPE_ACTUALI, well_data_list)
     fspt = GetFieldTTVal(W_TARG_SSV, VALTYPE_TOTALP , well_data_list)
@@ -3655,52 +3730,113 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
     fsit = 0.0
   endif
 
+!  Convert to rates per day
+
+  fopr = fopr*tconv
+  foir = foir*tconv
+
+  fgpr = fgpr*tconv
+  fgir = fgir*tconv
+
+  fwpr = fwpr*tconv
+  fwir = fwir*tconv
+
+  fspr = fspr*tconv
+  fsir = fsir*tconv
+
+!  Find liquid rates, water cut and gor
+
   flpr = fopr+fwpr
   flpt = fopt+fwpt
 
   fwct = 0.0
   fgor = 0.0
-  if( flpr > 0.0 ) fwct = fwpr/flpr
-  if( fopr > 0.0 ) fgor = fgpr/fopr
+  if (flpr > 0.0) fwct = fwpr/flpr
+  if (fopr > 0.0) fgor = fgpr/fopr
 
   !  Convert field pressure to Bars
 
   call GetFieldData(fpav)
   fpav = fpav*1.0D-5
 
+  !  Get field mass-in-place values
+
+  foip = 0.0
+  fgip = 0.0
+  fwip = 0.0
+  fsip = 0.0
+
+  do iphase = 1, option%nphase
+    ! Oil phase
+    if (iphase == option%oil_phase) then
+      sd = EOSOilGetSurfaceDensity()
+      if (sd>0.0) then
+        foip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+    ! Gas phase
+    if (iphase == option%gas_phase) then
+      sd = EOSGasGetSurfaceDensity()
+      if (sd>0.0) then
+        fgip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+    !  Water (called liquid) phase
+    if (iphase == option%liquid_phase) then
+      sd = EOSWaterGetSurfaceDensity()
+      if (sd>0.0) then
+        fwip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+    !  Solvent phase
+    if (iphase == option%solvent_phase) then
+      sd = EOSSlvGetSurfaceDensity()
+      if (sd>0.0) then
+        fsip = sum_kg_global(iphase,1)/sd
+      endif
+    endif
+  enddo
+
   !  Write out field values
 
-   call wrtToTableAndSumm(fid, fopr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fopt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, foir, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, foit, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fopr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fopt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, foir, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, foit, vd, nd, md, wecl)
 
-   call wrtToTableAndSumm(fid, fgpr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgpt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgir, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgit, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgpr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgpt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgir, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgit, vd, nd, md, wecl)
 
-   call wrtToTableAndSumm(fid, fwpr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwpt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwir, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwit, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwpr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwpt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwir, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwit, vd, nd, md, wecl)
 
-   if( towg_miscibility_model == TOWG_SOLVENT_TL) then
-     call wrtToTableAndSumm(fid, fspr, vd, nd, md, wecl)
-     call wrtToTableAndSumm(fid, fspt, vd, nd, md, wecl)
-     call wrtToTableAndSumm(fid, fsir, vd, nd, md, wecl)
-     call wrtToTableAndSumm(fid, fsit, vd, nd, md, wecl)
-   endif
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    call wrtToTableAndSumm(fid, fspr, vd, nd, md, wecl)
+    call wrtToTableAndSumm(fid, fspt, vd, nd, md, wecl)
+    call wrtToTableAndSumm(fid, fsir, vd, nd, md, wecl)
+    call wrtToTableAndSumm(fid, fsit, vd, nd, md, wecl)
+  endif
 
-   call wrtToTableAndSumm(fid, flpr, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, flpt, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fgor, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fwct, vd, nd, md, wecl)
-   call wrtToTableAndSumm(fid, fpav, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, flpr, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, flpt, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgor, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwct, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fpav, vd, nd, md, wecl)
+
+  call wrtToTableAndSumm(fid, foip, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fgip, vd, nd, md, wecl)
+  call wrtToTableAndSumm(fid, fwip, vd, nd, md, wecl)
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+    call wrtToTableAndSumm(fid, fsip, vd, nd, md, wecl)
+  endif
 
   ! Write out Eclipse files if required
 
-  if(wecl) then
+  if (wecl) then
     call WriteEclipseFilesSumm(vd, nd)
     deallocate(vd)
    endif
@@ -3790,22 +3926,22 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
     wwmpt   = getWellTTValI(iwell, W_TARG_WM, VALTYPE_TOTALP, well_data_list)
     wwmit   = getWellTTValI(iwell, W_TARG_WM, VALTYPE_TOTALI, well_data_list)
 
-    if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
       wsmpriu = getWellTTValI(iwell, W_TARG_SM, VALTYPE_ACTUAL, well_data_list)
       wsmpt   = getWellTTValI(iwell, W_TARG_SM, VALTYPE_TOTALP, well_data_list)
       wsmit   = getWellTTValI(iwell, W_TARG_SM, VALTYPE_TOTALI, well_data_list)
     endif
 
     if (wellType == PROD_WELL_TYPE) then
-      wompr = wompriu*tconv*sign
-      wgmpr = wgmpriu*tconv*sign
-      wwmpr = wwmpriu*tconv*sign
-      wsmpr = wsmpriu*tconv*sign
+      wompr = wompriu * tconv * sign
+      wgmpr = wgmpriu * tconv * sign
+      wwmpr = wwmpriu * tconv * sign
+      wsmpr = wsmpriu * tconv * sign
     else
-      womir = wompriu*tconv*sign
-      wgmir = wgmpriu*tconv*sign
-      wwmir = wwmpriu*tconv*sign
-      wsmir = wsmpriu*tconv*sign
+      womir = wompriu * tconv * sign
+      wgmir = wgmpriu * tconv * sign
+      wwmir = wwmpriu * tconv * sign
+      wsmir = wsmpriu * tconv * sign
     endif
 
   !  Write out well mass values
@@ -3825,7 +3961,7 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
     call wrtToTable(fid, wwmir)
     call wrtToTable(fid, wwmit)
 
-    if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
       call wrtToTable(fid, wsmpr)
       call wrtToTable(fid, wsmpt)
       call wrtToTable(fid, wsmir)
@@ -3851,7 +3987,7 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
   fwmpt = GetFieldTTVal(W_TARG_WM, VALTYPE_TOTALP , well_data_list)
   fwmit = GetFieldTTVal(W_TARG_WM, VALTYPE_TOTALI , well_data_list)
 
-  if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) then
     fsmpr = GetFieldTTVal(W_TARG_SM, VALTYPE_ACTUALP, well_data_list)
     fsmir = GetFieldTTVal(W_TARG_SM, VALTYPE_ACTUALI, well_data_list)
     fsmpt = GetFieldTTVal(W_TARG_SM, VALTYPE_TOTALP , well_data_list)
@@ -3862,6 +3998,20 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
     fsmpt = 0.0
     fsmit = 0.0
   endif
+
+!  Convert to rates per day
+
+  fompr = fompr*tconv
+  fomir = fomir*tconv
+
+  fgmpr = fgmpr*tconv
+  fgmir = fgmir*tconv
+
+  fwmpr = fwmpr*tconv
+  fwmir = fwmir*tconv
+
+  fsmpr = fsmpr*tconv
+  fsmir = fsmir*tconv
 
   !  Write out field mass values
 
@@ -3880,7 +4030,7 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
    call wrtToTable(fid, fwmir)
    call wrtToTable(fid, fwmit)
 
-   if( towg_miscibility_model == TOWG_SOLVENT_TL) then
+   if (towg_miscibility_model == TOWG_SOLVENT_TL) then
      call wrtToTable(fid, fsmpr)
      call wrtToTable(fid, fsmpt)
      call wrtToTable(fid, fsmir)
@@ -3891,7 +4041,7 @@ end subroutine WriteWellMassValues
 
 ! *************************************************************************** !
 
-subroutine WriteRestValues(realization, tconv, option)
+subroutine WriteRestValues(realization, option)
   !
   ! Used to write restart file values
   !
@@ -3909,7 +4059,6 @@ subroutine WriteRestValues(realization, tconv, option)
 
   type(realization_subsurface_type) :: realization
   type(option_type), intent(in), pointer :: option
-  PetscReal, intent(in) :: tconv
   type(well_data_list_type), pointer :: well_data_list
   PetscInt  :: ierr, nlmax, mlmax
   PetscBool :: is_ioproc
@@ -3918,21 +4067,21 @@ subroutine WriteRestValues(realization, tconv, option)
 
   PetscReal, pointer        :: vsoll(:,:)
   PetscInt                  :: nsol
-  character(len=8), pointer:: zsol(:)
+  character(len=8), pointer :: zsol(:)
 
-  character(len=8), pointer:: wname(:)
-  PetscInt, pointer:: wtype(:), wncmpl(:), &
-                      ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
+  character(len=8), pointer :: wname(:)
+  PetscInt, pointer :: wtype(:), wncmpl(:), &
+                       ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
 
   PetscReal :: time
 
   time = option%time
 
-  ierr=0
+  ierr = 0
 
-  is_ioproc=PETSC_FALSE
-  if( option%myrank == option%io_rank ) then
-    is_ioproc=PETSC_TRUE
+  is_ioproc = PETSC_FALSE
+  if (option%myrank == option%io_rank) then
+    is_ioproc = PETSC_TRUE
   endif
 
   grid => realization%patch%grid
@@ -3946,7 +4095,7 @@ subroutine WriteRestValues(realization, tconv, option)
   well_data_list => realization%well_data
   call setupWellData(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl, &
                      well_data_list)
-  call WriteEclipseFilesRest(vsoll, nsol, zsol, tconv, time, is_ioproc, &
+  call WriteEclipseFilesRest(vsoll, nsol, zsol, time, is_ioproc, &
                              wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, &
                              idcmpl, option)
   call deleteLocalSolution  (vsoll, zsol)
@@ -3972,16 +4121,12 @@ subroutine OutputLineRept(realization_base, option)
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option
 
-  PetscReal :: tconv
-
-  tconv=realization_base%output_option%tconv
-
-  if(     option%iflowmode == TOIL_IMS_MODE &
-     .or. option%iflowmode == TOWG_MODE       ) then
+  if (     option%iflowmode == TOIL_IMS_MODE &
+      .or. option%iflowmode == TOWG_MODE       ) then
   if (option%myrank == option%io_rank) then
       select type(realization_base)
        class is(realization_subsurface_type)
-        call WriteLineRept(realization_base, option, tconv)
+        call WriteLineRept(realization_base, option)
       end select
     endif
   endif
@@ -3990,7 +4135,7 @@ end subroutine OutputLineRept
 
 ! ************************************************************************** !
 
-subroutine WriteLineRept(realization, option, tconv)
+subroutine WriteLineRept(realization, option)
   !
   ! Used to write out single line progress reports
   !
@@ -4006,30 +4151,34 @@ subroutine WriteLineRept(realization, option, tconv)
 
   type(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
-  PetscReal, intent(in)::tconv
 
-  PetscReal :: time
+  PetscReal :: time, tconv, dt
   type(well_data_list_type), pointer :: well_data_list
 
   PetscReal :: fopt, fopr, &
                fgpr, fgir, &
                fwpr, fwir, &
                flpr, fgor, fwct, fpav
+  character(len=8) :: sopt, sopr, swpr, sgpr, swir, sgir
 
-100 format('Step  time    fopt    fopr    fwpr    ', &
-           'fgpr    fwir    fgir    fwct    fgor     fpav')
-101 format('      days    ksm3    sm3/d   ksm3/d  ', &
-           'ksm3/d  ksm3/d  ksm3/d          ksm3/sm3 Bar')
-102 format('----- ------- ------- ------- ------- ', &
-           '------- ------- ------- ------- -------- -------')
-103 format(I5, 1X, F7.1, 1X, F7.1, 1X, F7.1, 1X, F7.1, 1X, &
-           F7.1, 1X, F7.1, 1X, F7.1, 1X, F7.5, 1X, F8.3, 1X , F7.2)
+100 format('Step  time    tstep  fopt     fopr     fwpr     ', &
+           'fgpr     fwir     fgir     fwct    fgor     fpav    NL LI Ch')
+101 format('      days    days   ksm3     sm3/d    ksm3/d   ', &
+           'ksm3/d   ksm3/d   ksm3/d          ksm3/sm3 Bar')
+102 format('----- ------- ------ -------- -------- -------- ', &
+           '-------- -------- -------- ------- -------- ------- -- -- --')
+103 format(I5, 1X, F7.1, 1X, F6.2, 1X, A8, 1X, A8, 1X, A8, 1X, A8, &
+           1X, A8, 1X, A8, 1X, F7.5, 1X, F8.3, 1X, F7.2, &
+           1X, I2, 1X, I2, 1X, I2)
 
   well_data_list => realization%well_data
   option => realization%option
 
-  time = option%time/tconv
-  if( time>0.0 ) then
+  tconv = 3600.0*24.0
+
+  time = option%time/tconv ! Convert to days
+  dt   = option%dt/tconv
+  if (time>0.0) then
 
   !  Get the field values
 
@@ -4053,8 +4202,8 @@ subroutine WriteLineRept(realization, option, tconv)
 
     fwct = 0.0
     fgor = 0.0
-    if( flpr > 0.0 ) fwct = fwpr/flpr
-    if( fopr > 0.0 ) fgor = fgpr/fopr
+    if (flpr > 0.0) fwct = fwpr/flpr
+    if (fopr > 0.0) fgor = fgpr/fopr
 
   !  Convert field pressure to Bars
 
@@ -4066,8 +4215,18 @@ subroutine WriteLineRept(realization, option, tconv)
       write(*, 101)
       write(*, 102)
     endif
-    write(*, 103) linerept_count+1, time, fopt, fopr, fwpr, fgpr, &
-                                          fwir, fgir, fwct, fgor, fpav
+
+    call PrintTidy8(fopt, sopt)
+    call PrintTidy8(fopr, sopr)
+    call PrintTidy8(fwpr, swpr)
+    call PrintTidy8(fgpr, sgpr)
+    call PrintTidy8(fwir, swir)
+    call PrintTidy8(fgir, sgir)
+
+    write(*, 103) linerept_count+1, time, dt, &
+                  sopt, sopr, swpr, sgpr, &
+                  swir, sgir, fwct, fgor, fpav, &
+                  option%nnl, option%linpernl, option%nchperst
 
     linerept_count = linerept_count + 1
 
@@ -4155,9 +4314,9 @@ subroutine DeleteWellData(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
 
   implicit none
 
-  character(len=8), pointer:: wname(:)
-  PetscInt, pointer::wtype(:), wncmpl(:), &
-                     ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
+  character(len=8), pointer :: wname(:)
+  PetscInt, pointer :: wtype(:), wncmpl(:), &
+                       ixcmpl(:), iycmpl(:), izcmpl(:), idcmpl(:)
 
   deallocate(wname )
   deallocate(wtype )
@@ -4273,7 +4432,7 @@ subroutine WrtHrd(fid, mnem, name, units, icolumn, zm, zn, zu, ni, mi, wecl)
 
   PetscInt :: fid
   character(len=*), intent(in) :: mnem, name, units
-  PetscInt, intent(in)::icolumn
+  PetscInt, intent(in) :: icolumn
   character(len=8), allocatable, intent(inout) :: zm(:), zn(:), zu(:)
   PetscInt, intent(inout) :: ni
   PetscInt, intent(inout) :: mi
@@ -4286,7 +4445,7 @@ subroutine WrtHrd(fid, mnem, name, units, icolumn, zm, zn, zu, ni, mi, wecl)
 
   !  Positive fid indicates -mas file output required
 
-  if( fid > 0 ) then
+  if (fid > 0) then
     string = trim(name) // ' ' // trim(mnem)
     cell   = ' '
     call OutputWriteToHeader(fid, string, units, cell, icolumn)
@@ -4325,7 +4484,7 @@ subroutine WrtHrdMO(fid, mnem, name, units, icolumn)
 
   PetscInt :: fid
   character(len=*), intent(in) :: mnem, name, units
-  PetscInt, intent(in)::icolumn
+  PetscInt, intent(in) :: icolumn
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: cell
@@ -4391,8 +4550,8 @@ subroutine wrtToTable(fid, val)
 
 110 format(es14.6)
 
-  PetscInt :: fid
-  PetscReal:: val
+  PetscInt  :: fid
+  PetscReal :: val
 
   write(fid, 110, advance="no") val
 
@@ -4414,7 +4573,7 @@ subroutine checkHeaderBufferSize(zm, zn, zu, ni, mi)
   PetscInt, intent(inout) :: mi
 
   character(len=8), allocatable :: zmt(:), znt(:), zut(:)
-  PetscInt::i
+  PetscInt :: i
 
   ! Check if buffer as space for anaother set of values; reallocate if not
 
@@ -4489,11 +4648,11 @@ subroutine setupEwriterRestMaps(patch, grid, option)
   type(grid_type ), pointer :: grid
   type(option_type) :: option
 
-  PetscInt::nlmax, lid, gid, nid, ierr
+  PetscInt :: nlmax, lid, gid, nid, ierr
 
-  PetscInt::mlmax
+  PetscInt :: mlmax
 
-  PetscInt, allocatable::ltoa(:)
+  PetscInt, allocatable :: ltoa(:)
 
   !  First, find the maximum value of nlmax over all procs
 
@@ -4542,7 +4701,7 @@ function GetEclWrtFlg(count, time, deltat, deltas, lastt, lasts)
   PetscReal, intent(inout) :: lastt
   PetscInt , intent(inout) :: lasts
 
-  GetEclWrtFlg=PETSC_TRUE
+  GetEclWrtFlg = PETSC_TRUE
 
   if (count == 0) then
 
@@ -4582,5 +4741,68 @@ function GetEclWrtFlg(count, time, deltat, deltas, lastt, lasts)
   endif
 
 end function GetEclWrtFlg
+
+! ************************************************************************** !
+
+subroutine PrintTidy8(va, s)
+  !
+  ! Write out real number in neat 8-character format
+  !
+  ! Author: Dave Ponting
+  ! Date  : 03/08/19
+
+  implicit none
+  PetscReal, intent(in) :: va
+  character(len=8), intent(out) :: s
+  character(len=8) :: zn
+  PetscBool :: isNeg
+  PetscInt  :: exponent, ilog10
+  PetscReal :: v, vl, vu
+
+  v  = va
+  vu = 9999.99
+  vl = 1.0e-3
+  isNeg    = PETSC_FALSE
+  exponent = 0
+
+  s = '     0.0' ! Default
+
+  if (v<0.0) then
+    isNeg = PETSC_TRUE;v=-v
+  endif
+
+  if (v>1.0e-10) then
+
+    iLog10 = int(log10(1.0000001*v))
+    if ((v >= vu) .or. (v < vl)) then
+      exponent = iLog10
+      v = v/10.0**iLog10
+      if (isNeg) then
+        write(zn, '(F4.2)') v ! Write value as XX.X
+      else
+        write(zn, '(F5.3)') v ! Write value as XX.XX
+      endif
+      s = trim(adjustl(zn))//'E' ! Set to 4 or 5 chars+exp => 5 or 6 chars
+      write(zn, '(I2)') exponent
+      s = trim(adjustl(s))//trim(adjustl(zn)) ! Add two chars exponent
+    else
+      if (isNeg) then
+        write(s, '(F7.2)') v ! Allow space for -9999.99
+      else
+        write(s, '(F8.3)') v ! Use all the chars up to 9999.999
+      endif
+    endif
+
+    if (isNeg) then
+     s = '-' // trim(adjustl(s))
+    endif
+
+    s = trim(adjustr(s))
+
+  else
+    s = '     0.0'
+  endif
+
+end subroutine PrintTidy8
 
 end module Output_Observation_module

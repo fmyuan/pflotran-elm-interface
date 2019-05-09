@@ -1,0 +1,61 @@
+\subsection{STRATA}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{STRATA}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Ties material properties to regions of the physical domain
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Define material IDs for grid cells
+  \item Define transient material IDs
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|REGION|
+  \item[] \verb|MATERIAL|
+  \item[] \verb|START_TIME|
+  \item[] \verb|FINAL_TIME|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{STRATA Example: Simple}
+
+\begin{semiverbatim}
+STRATA
+  REGION layer1
+  MATERIAL soil1
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{STRATA Example: Transient}
+\footnotesize
+\begin{semiverbatim}
+STRATA
+  REGION rPCS
+  MATERIAL PCS_T1
+  START_TIME 0 y
+  FINAL_TIME 100 y
+END
+
+STRATA
+  REGION rPCS
+  MATERIAL PCS_T2
+  START_TIME 100 y
+  FINAL_TIME 200 y
+END
+ 
+STRATA
+  REGION rPCS
+  MATERIAL PCS_T3
+  START_TIME 200 y
+  FINAL_TIME 10000 y
+END
+\end{semiverbatim}
+
+\end{frame}

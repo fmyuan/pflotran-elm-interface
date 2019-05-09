@@ -1,0 +1,54 @@
+\subsection{TRANSPORT\_CONDITION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{TRANSPORT\_CONDITION}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Couples constraints with a type of condition for an initial or boundary condition
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Specifying concentrations 
+  \item Specifying types of conditions
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|TYPE|
+  \item[] \verb|  DIRICHLET|
+  \item[] \verb|  ZERO_GRADIENT|
+  \item[] \verb|  DIRICHLET_ZERO_GRADIENT|
+  \item[] \verb|CONSTRAINT_LIST|
+  \item[] \verb|TIME_UNITS|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{TRANSPORT\_CONDITION Example: Steady}
+
+\begin{semiverbatim}
+TRANSPORT_CONDITION source_concentration
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 source_constraint
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{TRANSPORT\_CONDITION Example: Transient}
+
+\begin{semiverbatim}
+TRANSPORT_CONDITION inlet_conc
+  TYPE DIRICHLET_ZERO_GRADIENT
+  TIME_UNITS y
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+    1.d0 pulse_constraint
+    2.d0 initial_constraint
+  /
+END
+\end{semiverbatim}
+
+\end{frame}

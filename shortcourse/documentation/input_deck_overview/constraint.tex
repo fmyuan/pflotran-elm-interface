@@ -1,0 +1,53 @@
+\subsection{CONSTRAINT}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{CONSTRAINT}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} A snapshot of chemistry
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Defining aqueous chemistry
+  \item Defining mineralogy
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|CONCENTRATIONS|
+  \item[] \verb|SURFACE_COMPLEXES|
+  \item[] \verb|IMMOBILE|
+  \item[] \verb|MINERALS|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{CONSTRAINT Example: Solutes}
+
+\begin{semiverbatim}
+CONSTRAINT initial
+  CONCENTRATIONS
+    Tracer  1.d-10 T
+    Tracer2 1.d-10 T
+  /
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{CONSTRAINT Example: Carbonate Chemistry}
+
+\begin{semiverbatim}
+CONSTRAINT equilibrated
+  CONCENTRATIONS
+    H+     1.d-8      F
+    HCO3-  1.d-3      G  CO2(g)
+    Ca++   5.d-4      M  Calcite
+  /
+  MINERALS
+    Calcite 1.d-5 1.d0 m^2/m^3
+  /
+END
+\end{semiverbatim}
+
+\end{frame}

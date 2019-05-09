@@ -281,7 +281,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
     case('MAX_NUM_CONTIGUOUS_REVERTS')
       call InputReadInt(input,option,this%max_num_contig_revert)
       call InputErrorMsg(input,option,'max_num_contig_reverts',error_string)
-    case('TIMESTEP_MINIMUM_SIZE')
+    case('MINIMUM_TIMESTEP_SIZE','TIMESTEP_MINIMUM_SIZE')
       call InputReadDouble(input,option,this%dt_min)
       call InputErrorMsg(input,option,keyword,error_string)
       call InputReadAndConvertUnits(input,this%dt_min,'sec', &

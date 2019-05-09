@@ -413,7 +413,7 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   string = 'WASTE_FORM_GENERAL'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  call pm_waste_form%Read(input)
+  call pm_waste_form%ReadPMBlock(input)
 
   if (.not.associated(simulation%rt_process_model_coupler)) then
      option%io_buffer = 'The Waste Form process model requires &
@@ -490,7 +490,7 @@ subroutine AddPMCUDFDecay(simulation,pm_ufd_decay,pmc_name,&
   string = 'UFD_DECAY'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  call pm_ufd_decay%Read(input)
+  call pm_ufd_decay%ReadPMBlock(input)
 
   if (.not.associated(simulation%rt_process_model_coupler)) then
      option%io_buffer = 'The UFD_DECAY process model requires reactive &
@@ -556,7 +556,7 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
   string = 'UFD_BIOSPHERE'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
-  call pm_ufd_biosphere%Read(input)
+  call pm_ufd_biosphere%ReadPMBlock(input)
   if (.not.associated(simulation%rt_process_model_coupler)) then
      option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
           &transport.'
@@ -1007,7 +1007,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
                              trim(error_string)
           call printErrMsg(option)
         endif
-        call pm%Read(input)
+        call pm%ReadSimulationBlock(input)
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
@@ -1052,7 +1052,7 @@ subroutine SubsurfaceReadRTPM(input,option,pm)
   pm => PMRTCreate()
   pm%option => option
 
-  call pm%Read(input)
+  call pm%ReadSimulationBlock(input)
 
 end subroutine SubsurfaceReadRTPM
 
@@ -1735,7 +1735,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  PetscInt :: ci,cj,ck,ckl,cku
+  PetscInt :: ci,cj,ck,ckl,cku,ckll,ckuu
   PetscBool :: found
   PetscBool,parameter::cijk_d_true =PETSC_TRUE
   PetscBool,parameter::cijk_d_false=PETSC_FALSE
@@ -1789,7 +1789,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputErrorMsg(input,option,'cijk KL','WELL_DATA')
           call InputReadInt(input,option,cku)
           call InputErrorMsg(input,option,'cijk KU','WELL_DATA')
-          do ck=ckl,cku
+          ckll=min(ckl,cku)
+          ckuu=max(ckl,cku)
+          do ck=ckll,ckuu
             call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_false,qerr)
           enddo
           if( qerr ) then
@@ -1809,7 +1811,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputErrorMsg(input,option,'cijk_d KL','WELL_DATA')
           call InputReadInt(input,option,cku)
           call InputErrorMsg(input,option,'cijk_d KU','WELL_DATA')
-          do ck=ckl,cku
+          ckll=min(ckl,cku)
+          ckuu=max(ckl,cku)
+          do ck=ckll,ckuu
             call SetUGrdEclCmplLocation(wname,ci,cj,ck,cijk_d_true,qerr)
           enddo
           if( qerr ) then
@@ -2018,7 +2022,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: energy_flowrate
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
-  PetscBool :: bool_flag
+  PetscBool :: bool_flag,unsupported_output
 
   PetscInt :: flag1, flag2
 
@@ -2276,7 +2280,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call WellDataSetFlag()
         well_data => WellDataCreate()
         call InputReadWord(input,option,well_data%w_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'WELL_SPEC','name')
+        call InputErrorMsg(input,option,'WELL_DATA','name')
         call printMsg(option,well_data%w_name)
         nwaytime = 0
         mwaytime = 1
@@ -2595,6 +2599,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word)
           case('FLOW')
             call flow_timestepper%ReadInput(input,option)
+            if (option%flow%resdef) then
+              option%flow%flowTimestepperDone = PETSC_TRUE
+            endif
           case('TRAN','TRANSPORT')
             call tran_timestepper%ReadInput(input,option)
           case default
@@ -2610,6 +2617,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word)
           case('FLOW')
             call SolverReadLinear(flow_timestepper%solver,input,option)
+            if (option%flow%resdef) then
+              option%flow%flowSolverLinearDone = PETSC_TRUE
+            endif
           case('TRAN','TRANSPORT')
             call SolverReadLinear(tran_timestepper%solver,input,option)
           case default
@@ -2842,12 +2852,6 @@ subroutine SubsurfaceReadInput(simulation,input)
               output_option%tconv = &
                 UnitsConvertToInternal(word,internal_units,option)
             case('VARIABLES')
-              select case (option%iflowmode)
-                case(FLASH2_MODE,MPH_MODE)
-                  option%io_buffer = 'A variable list cannot be specified for &
-                    &the CO2 flow modes. Variables are determined internally.'
-                  call printErrMsg(option)
-              end select
               call OutputVariableRead(input,option, &
                                       output_option%output_variable_list)
             case('AVERAGE_VARIABLES')
@@ -3226,6 +3230,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
         enddo
 
+
   ! If VARIABLES were not specified within the *_FILE blocks, point their
   ! variable lists to the master variable list, which can be specified within
   ! the OUTPUT block. If no VARIABLES are specified for the master list, the
@@ -3301,7 +3306,15 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         if (associated(grid%unstructured_grid)) then
           if (associated(grid%unstructured_grid%explicit_grid)) then
-            if ( (.not.output_option%print_hdf5) .and.  &
+            if( output_option%write_ecl .or. option%linerept ) then
+              unsupported_output =       output_option%print_mad &
+                                    .or. output_option%print_tecplot &
+                                    .or. output_option%print_vtk
+            else
+              unsupported_output = .not.output_option%print_hdf5
+            endif
+
+            if ( unsupported_output .and.  &
                  (grid%unstructured_grid%explicit_grid%output_mesh_type == &
                  CELL_CENTERED_OUTPUT_MESH) &
                ) then
@@ -3501,6 +3514,20 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('END_SUBSURFACE')
+
+        if (option%flow%resdef) then
+          ! it is possible for a card to be skipped when we would like to set defaults for it,
+          ! so we check that here
+          if (.NOT. option%flow%flowSolverLinearDone) then
+              call SolverReadLinear(flow_timestepper%solver,input,option)
+              option%flow%flowSolverLinearDone = PETSC_TRUE
+          endif
+          if (.NOT. option%flow%flowTimestepperDone) then
+            call flow_timestepper%ReadInput(input,option)
+            option%flow%flowTimestepperDone = PETSC_TRUE
+          endif
+        endif
+
         exit
 
 !....................

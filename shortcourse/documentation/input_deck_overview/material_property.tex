@@ -1,0 +1,82 @@
+\subsection{MATERIAL\_PROPERTY}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{MATERIAL\_PROPERTY}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Define material properties for simulation.
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Associate ID with material properties
+  \item Specify porosity, permeability, rock/soil particle density
+  \item Associate constitutive relations (e.g. saturation functions, relative permeability functions)
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|ID|
+  \item[] \verb|POROSITY|
+  \item[] \verb|TORTUOSITY|
+  \item[] \verb|PERMEABILITY|
+  \item[] \verb|ROCK_DENSITY|
+  \item[] \verb|SPECIFIC_HEAT|
+  \item[] \verb|CHARACTERISTIC_CURVES|
+  \item[] \verb|SOIL_COMPRESSIBILITY|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY Example: Solute Transport}
+
+\begin{semiverbatim}
+MATERIAL_PROPERTY soil
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY Example: Single Phase}
+
+\begin{semiverbatim}
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  SOIL_COMPRESSIBILITY_FUNCTION LEIJNSE
+  SOIL_COMPRESSIBILITY 1.d-7
+  SOIL_REFERENCE_PRESSURE 1.d5
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  CHARACTERISTIC_CURVES sf1
+END
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{MATERIAL\_PROPERTY Example: MultiPhase}
+
+\begin{semiverbatim}
+MATERIAL_PROPERTY sand
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.d0 kg/m^3
+  THERMAL_CONDUCTIVITY_DRY 0.6d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.9d0 W/m-C
+  HEAT_CAPACITY 830.d0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.1d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+/
+\end{semiverbatim}
+
+\end{frame}

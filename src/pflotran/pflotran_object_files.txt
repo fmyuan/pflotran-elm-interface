@@ -1,7 +1,6 @@
 # this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
 
 util_obj  = \
-	${common_src}appleyard.o \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -16,6 +15,7 @@ util_obj  = \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}toil_ims_derivs.o \
+	${common_src}general_derivative.o \
 	${common_src}variables.o \
 	${common_src}derivative_tests.o \
 	${common_src}derivatives_utilities.o \

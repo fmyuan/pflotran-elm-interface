@@ -52,23 +52,6 @@ TIME
   MAXIMUM_TIMESTEP_SIZE 10 d at 0. d
 END
 
-#=========================== output options ===================================
-skip
-OUTPUT
-  FORMAT HDF5
-  TIMES d 0.0 50 100
-  PRINT_PRIMAL_GRID
-  EXPLICIT_GRID_PRIMAL_GRID_TYPE cell_centered
-  MASS_BALANCE_FILE
-    PERIODIC TIMESTEP 1
-  END
-  ECLIPSE_FILE
-    PERIOD_SUM TIMESTEP 5
-    PERIOD_RST TIME 50 d
-  END
-  LINEREPT
-END
-noskip
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation
@@ -114,6 +97,8 @@ CHARACTERISTIC_CURVES ch1
 # Converted to reference 5000 psi, Bw=1.01, and density=64/1.01 lbs/cuft
 
 EOS WATER
+  !Surf den computed with exponential model for P= 1.0D5 Pa abd T = 15 C
+  SURFACE_DENSITY 999.96296212005427 kg/m^3
   DENSITY EXPONENTIAL 1015.0313 34473786 4.351132E-10
   VISCOSITY CONSTANT  0.0003   ! 0.3 cp
 END
@@ -170,8 +155,8 @@ WELL_DATA prod
   RADIUS 0.0762 m
   WELL_TYPE PRODUCER
   BHPL      100  Bar
-  TARG_OSV  400 m^3/day
-  TARG_LSV  450 m^3/day
+  TARG_OSV  430 m^3/day
+  TARG_LSV  460 m^3/day
   CIJK 4 4 2 2 
 END
 
@@ -183,7 +168,7 @@ FLOW_CONDITION initial_press
     OIL_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  OIL_PRESSURE 33.094D6 !331 bars
+  OIL_PRESSURE 33.094D6 Pa !331 bars
   OIL_SATURATION 0.88d0
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
   DATUM 0.d0 0.d0 -2540.508

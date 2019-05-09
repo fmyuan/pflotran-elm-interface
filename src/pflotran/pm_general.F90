@@ -30,7 +30,7 @@ module PM_General_class
     PetscReal :: damping_factor
     PetscInt :: general_newton_max_iter
   contains
-    procedure, public :: Read => PMGeneralRead
+    procedure, public :: ReadSimulationBlock => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual
@@ -150,6 +150,10 @@ function PMGeneralCreate()
   this%residual_scaled_inf_tol = residual_scaled_inf_tol
   this%abs_update_inf_tol = abs_update_inf_tol
   this%rel_update_inf_tol = rel_update_inf_tol
+
+  this%converged_flag(:,:,:) = PETSC_TRUE
+  this%converged_real(:,:,:) = 0.d0
+  this%converged_cell(:,:,:) = 0
 
   PMGeneralCreate => this
   
@@ -1173,8 +1177,22 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
           if (.not.this%converged_flag(idof,istate,itol)) then
             option%convergence = CONVERGENCE_KEEP_ITERATING
             if (this%logging_verbosity > 0) then
-              string = '   ' // trim(tol_string(itol)) // ', ' // &
-                trim(state_string(istate)) // ', ' // dof_string(idof,istate)
+              if (trim(tol_string(itol)) == 'Residual' .or. &
+                  trim(tol_string(itol)) == 'Scaled Residual') then
+                if (idof == 1) then 
+                  string = '   ' // trim(tol_string(itol)) // ', ' // &
+                   trim(state_string(istate)) // ', Water Mass'
+                elseif (idof == 2) then
+                  string = '   ' // trim(tol_string(itol)) // ', ' // &
+                   trim(state_string(istate)) // ', Air Mass'
+                else
+                  string = '   ' // trim(tol_string(itol)) // ', ' // &
+                   trim(state_string(istate)) // ', Energy'
+                endif
+              else
+                string = '   ' // trim(tol_string(itol)) // ', ' // &
+                 trim(state_string(istate)) // ', ' // dof_string(idof,istate)
+              endif
               if (option%mycommsize == 1) then
                 string = trim(string) // ' (' // &
                   trim(StringFormatInt(this%converged_cell(idof,istate,itol))) &

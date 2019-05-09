@@ -157,6 +157,11 @@ subroutine ObservationRead(observation,input,option)
         option%transport%store_fluxes = PETSC_TRUE
         observation%itype = OBSERVATION_FLUX
       case('REGION')
+        if (len_trim(observation%linkage_name) > 1) then
+          option%io_buffer = 'OBSERVATION points may only be linked to &
+            &a single REGION.'
+          call PrintErrMsg(option)
+        endif
         call InputReadWord(input,option,observation%linkage_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'region name','OBSERVATION')
         observation%itype = OBSERVATION_SCALAR

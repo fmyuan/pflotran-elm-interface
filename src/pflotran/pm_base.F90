@@ -28,7 +28,8 @@ module PM_Base_class
     class(pm_base_type), pointer :: next
   contains
     procedure, public :: Setup => PMBaseSetup
-    procedure, public :: Read => PMBaseRead
+    procedure, public :: ReadSimulationBlock => PMBaseRead
+    procedure, public :: ReadPMBlock => PMBaseRead
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
     procedure, public :: SetSolver => PMBaseSetSolver

@@ -1,0 +1,46 @@
+\subsection{INITIAL\_CONDITION}
+
+\begin{frame}[fragile,containsverbatim]\frametitle{INITIAL\_CONDITION}
+
+\begin{itemize}
+\item[] \textbf{Purpose:} Ties a flow and/or transport condition state variables to a region of the physical domain as initial conditions.
+\item[] \textbf{Example uses:}
+\begin{itemize}
+  \item Define initial pressure
+  \item Define initial concentration
+\end{itemize}
+\item[] \textbf{Key sub-cards:}
+\begin{itemize}
+  \item[] \verb|FLOW_CONDITION|
+  \item[] \verb|TRANSPORT_CONDITION|
+  \item[] \verb|REGION|
+\end{itemize}
+\end{itemize}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{INITIAL\_CONDITION Example: Simple}
+
+\begin{semiverbatim}
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION plume
+END
+\end{semiverbatim}
+
+\end{frame}
+
+
+%-----------------------------------------------------------------------------
+\begin{frame}[fragile]\frametitle{INITIAL\_CONDITION Example: Flow and Transport}
+
+\begin{semiverbatim}
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+\end{semiverbatim}
+
+\end{frame}

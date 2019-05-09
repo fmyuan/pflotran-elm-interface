@@ -407,7 +407,6 @@ subroutine TOilImsUpdateAuxVars(realization)
   use Material_Aux_class
   !use EOS_Water_module 
   !use Saturation_Function_module
-  use Appleyard_module
   
   implicit none
 
@@ -492,26 +491,6 @@ subroutine TOilImsUpdateAuxVars(realization)
     ! TOIL_IMS_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = TOIL_IMS_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
-
-#if 0
-    if(toil_appleyard) then
-      saturation_index = ghosted_start - 1 + TOIL_IMS_SATURATION_DOF
-      !print *, "sat index ", saturation_index
-      sat0 = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, ghosted_id)%sat(option%oil_phase)
-      !print *, "sat0 ", sat0
-      if (sat0 > 0.d0) then
-        sat1 = xx_loc_p(saturation_index)
-        !print *, "sat1 ", sat1
-        del_sat = sat0 - sat1 !! decrement assumed in appleyard code
-        !print *, "del sat ", del_sat
-        call TOilAppleyard(sat0, del_sat, ghosted_id, realization_p, &
-                           option%liquid_phase, option%oil_phase)
-        !print *, "del sat after ", del_sat
-        xx_loc_p(saturation_index) = sat0 - del_sat
-      endif
-    endif
-#endif
-
 
     call TOilImsAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), & 
@@ -1249,13 +1228,16 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_up%PermeabilityTensorToScalarSafe(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
-  
+  if ((perm_up>0.0) .and. (perm_dn>0.0)) then
     perm_ave_over_dist(:) = (perm_up * perm_dn) / &
                             (dist_up*perm_dn + dist_dn*perm_up)
-      
+  else
+    perm_ave_over_dist(:) = 0.0
+  endif
+
   Res = 0.d0
   
   v_darcy = 0.d0
@@ -1627,8 +1609,8 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_up%PermeabilityTensorToScalarSafe(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
   !determine if the connection is horixontal or not - 
   !TODO - PO: should this method work move this operation to pre-processing
@@ -1653,13 +1635,19 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
     dist_hrz_projection = dsqrt(dist_hrz_projection_sq)
     dist_hrz_up = dist_hrz_projection * dist(-1)
     dist_hrz_dn = dist_hrz_projection - dist_hrz_up
-    perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-                            (dist_hrz_up*perm_dn + dist_hrz_dn*perm_up)
-    !perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-    !                        (dist_up*perm_dn + dist_dn*perm_up)
+    if ((perm_up>0.0) .and. (perm_dn>0.0)) then
+      perm_ave_over_dist(:) = (perm_up * perm_dn) / &
+                              (dist_hrz_up*perm_dn + dist_hrz_dn*perm_up)
+    else
+      perm_ave_over_dist(:) = 0.0
+    endif
   else 
-    perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-                            (dist_up*perm_dn + dist_dn*perm_up)
+    if ((perm_up>0.0) .and. (perm_dn>0.0)) then
+      perm_ave_over_dist(:) = (perm_up * perm_dn) / &
+                              (dist_up*perm_dn + dist_dn*perm_up)
+    else
+      perm_ave_over_dist(:) = 0.0
+    endif
   end if
 
   !write(*,*) "dip_corr = ", dip_corr
@@ -1896,7 +1884,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
   neumann_bc_present = PETSC_FALSE
   
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
   ! currently no fractures considered 
   ! Fracture permeability change only available for structured grid (Heeho)

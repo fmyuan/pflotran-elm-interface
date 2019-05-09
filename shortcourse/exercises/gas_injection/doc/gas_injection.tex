@@ -17,19 +17,6 @@
 \newcommand\greencomment[1]{{{\color{green} #1}}}
 \newcommand\magentacomment[1]{{{\color{magenta} #1}}}
 
-\begin{comment}
-\tiny
-\scriptsize
-\footnotesize
-\small
-\normalsize
-\large
-\Large
-\LARGE
-\huge
-\Huge
-\end{comment}
-
 \begin{document}
 \title{Multiphase - Gas Injection}
 \author{Emily Stein}
@@ -564,6 +551,202 @@ END_SUBSURFACE \bluecomment{That's all!}
 
 \begin{semiverbatim}
 > python gas_injection.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Speed Up}
+\begin{frame}[fragile]\frametitle{Can We Speed it Up?}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL ! two-phase flow and energy
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\begin{semiverbatim}
+> python gas_injection.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Faster}
+\begin{frame}[fragile]\frametitle{Faster?}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0 
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\begin{semiverbatim}
+> python gas_injection.py
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Faster2}
+\begin{frame}[fragile]\frametitle{Faster!}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+        LOGGING_VERBOSITY 1
+	GAS_COMPONENT_FORMULA_WEIGHT 44.d0 
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\end{frame}
+%-----------------------------------------------------------------------------
+\subsection{Ouput Messages 1}
+
+\begin{frame}[fragile]\frametitle{Screen Output}
+
+\begin{itemize}
+\item \redcomment{LOGGING\_VERBOSITY} shows which variables in each grid block failed to converge, and the corresponding metric.
+\end{itemize}
+
+\begin{semiverbatim}
+\tiny
+== GENERAL MULTIPHASE FLOW =====================================================
+  0 2r: 1.26E-05 2x: 0.00E+00 2u: 0.00E+00 ir: 8.77E-06 iu: 0.00E+00 rsn:   0
+   Absolute Update, Liquid State, Liquid Pressure (361) : 5.29107E+02
+   Absolute Update, Liquid State, Air Mole Fraction (96) : 3.25717E-07
+   Absolute Update, 2Phase State, Gas Pressure (381) : 1.96231E+03
+   Absolute Update, 2Phase State, Gas Saturation (393) : 1.54812E-02
+   Relative Update, Liquid State, Liquid Pressure (361) : 2.21551E-03
+   Relative Update, Liquid State, Air Mole Fraction (373) : 7.19227E-01
+   Relative Update, 2Phase State, Gas Pressure (381) : 1.02396E-02
+   Relative Update, 2Phase State, Gas Saturation (381) : 1.91617E+00
+  1 2r: 3.37E-06 2x: 1.41E+07 2u: 3.49E+03 ir: 2.34E-06 iu: 1.96E+03 rsn:   0
+   Absolute Update, Liquid State, Air Mole Fraction (361) : 6.45624E-09
+   Absolute Update, 2Phase State, Gas Pressure (381) : 3.07866E+02
+   Absolute Update, 2Phase State, Gas Saturation (393) : 3.19668E-04
+   Relative Update, Liquid State, Air Mole Fraction (373) : 1.93737E-02
+   Relative Update, 2Phase State, Gas Pressure (381) : 1.59020E-03
+   Relative Update, 2Phase State, Gas Saturation (393) : 1.12360E-02
+
+\end{semiverbatim}
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Ouput Messages 2}
+
+\begin{frame}[fragile]\frametitle{Screen Output}
+
+\begin{itemize}
+\item \bluecomment{Down:} Residual, Scaled Residual, Absolute Update, Relative Update
+\item \bluecomment{Across (primary variables/residuals):} Liquid State (Liquid Pressure, Mole Fraction, Temperature), Gas State (Gas Pressure, Air Partial Pressure, Temperature), 2-phase State (Gas Pressure, Gas Saturation, Temperature)
+\end{itemize}
+
+\begin{semiverbatim}
+\scriptsize
+2 2r: 7.73E-09 2x: 1.41E+07 2u: 4.20E+02 ir: 4.52E-09 iu: 3.08E+02 rsn:   0
+   Converged
+     R: 1.0E-13 2.3E-18 0.0E+00 0.0E+00 0.0E+00 0.0E+00 1.8E-13 8.5E-16 0.0E+00
+    SR: 1.0E-13 2.3E-18 0.0E+00 0.0E+00 0.0E+00 0.0E+00 1.8E-13 8.5E-16 0.0E+00
+    AU: 1.1E-01 4.1E-11 0.0E+00 0.0E+00 0.0E+00 0.0E+00 9.9E-01 3.0E-06 0.0E+00
+    RU: 4.6E-07 1.2E-04 0.0E+00 0.0E+00 0.0E+00 0.0E+00 5.3E-06 2.1E-04 0.0E+00
+\end{semiverbatim}
+
+\end{frame}
+
+%-----------------------------------------------------------------------------
+\subsection{Faster3}
+\begin{frame}[fragile]\frametitle{Faster!!}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+        REL_UPDATE_INF_TOL 1.d-2
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0  
+        ISOTHERMAL 
+      /
+    /
+  /
+END
+\end{semiverbatim}
+
+\begin{itemize}
+  \item Plot the results
+\end{itemize}
+
+\end{frame}
+%-----------------------------------------------------------------------------
+\subsection{Faster4}
+\begin{frame}[fragile]\frametitle{FASTER!!}
+
+\begin{semiverbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL 
+      OPTIONS
+        RESTRICT_STATE_CHANGE
+        ANALYTICAL_JACOBIAN
+        USE_INFINITY_NORM_CONVERGENCE
+        REL_UPDATE_INF_TOL 1.d0
+        GAS_COMPONENT_FORMULA_WEIGHT 44.d0  
+        ISOTHERMAL 
+      /
+    /
+  /
+END
 \end{semiverbatim}
 
 \end{frame}

@@ -11,9 +11,6 @@ module PM_Waste_Form_class
 ! ===========================================================================
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class
@@ -363,7 +360,7 @@ module PM_Waste_Form_class
   contains
     procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
-    procedure, public :: Read => PMWFRead
+    procedure, public :: ReadPMBlock => PMWFRead
     procedure, public :: InitializeRun => PMWFInitializeRun
     procedure, public :: InitializeTimestep => PMWFInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWFFinalizeTimestep

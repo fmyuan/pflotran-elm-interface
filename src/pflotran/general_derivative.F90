@@ -78,10 +78,11 @@ subroutine GeneralDerivativeDriver(option)
                               characteristic_curves, &
                               material_parameter,option)  
   option%flow_dt = 1.d0
+  itype = 0
 !  itype = ACCUMULATION
 !  itype = INTERIOR_FLUX
 !  itype = BOUNDARY_FLUX
-  itype = SRCSINK
+!  itype = SRCSINK
   
 !  istate = LIQUID_STATE
 !  istate = GAS_STATE
@@ -200,6 +201,9 @@ subroutine GeneralDerivativeDriver(option)
                                     general_auxvar_ss, &
                                     general_auxvar,global_auxvar, &
                                     material_auxvar,srcsink_scale,option)
+    case default
+      option%io_buffer = 'The user must specify a process to be tested.'
+      call printWrnMsg(option)
   end select
   
   ! Destroy objects

@@ -1,9 +1,6 @@
 module Patch_module
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscsys
   use Option_module
   use Grid_module
@@ -117,6 +114,13 @@ module Patch_module
   interface PatchGetVariable
     module procedure PatchGetVariable1
     module procedure PatchGetVariable2
+  end interface
+
+  interface PatchUnsupportedVariable
+    module procedure PatchUnsupportedVariable1
+    module procedure PatchUnsupportedVariable2
+    module procedure PatchUnsupportedVariable3
+    module procedure PatchUnsupportedVariable4
   end interface
 
   public :: PatchCreate, PatchDestroy, PatchCreateList, PatchDestroyList, &
@@ -772,11 +776,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     if (option%nflowdof > 0) then
       allocate(patch%ss_flow_fluxes(option%nflowdof,temp_int))
       patch%ss_flow_fluxes = 0.d0
-      if (option%nwells > 0) then
-        ! needed by wells
-        allocate(patch%ss_flow_vol_fluxes(nphase,temp_int))
-        patch%ss_flow_vol_fluxes = 0.d0
-      end if
     endif
     ! transport
     if (option%ntrandof > 0) then
@@ -1099,7 +1098,6 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   call PatchUpdateCouplerAuxVars(patch,patch%source_sink_list, &
                                  force_update_flag,option)
 
-!  stop
 end subroutine PatchUpdateAllCouplerAuxVars
 
 ! ************************************************************************** !
@@ -4147,6 +4145,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
   material_auxvars => patch%aux%Material%auxvars
 
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  vec_ptr(:) = UNINITIALIZED_DOUBLE
 
   iphase = 1
   select case(ivar)
@@ -4165,12 +4164,16 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
+          case(CAPILLARY_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%pc
+            enddo
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%temp
             enddo
-          case(LIQUID_PRESSURE)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
@@ -4185,8 +4188,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
             enddo
-          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY,GAS_VISCOSITY) ! still needs implementation
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
+          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY,GAS_VISCOSITY)
+            call PatchUnsupportedVariable('TH','for gas phase',option)
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               if (option%use_th_freezing) then
@@ -4204,7 +4207,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
               enddo
             else
-              call printErrMsg(option,'ICE_SATURATION not supported by without freezing option TH')
+              call printErrMsg(option,'ICE_SATURATION not supported by &
+                                      &without freezing option TH')
             endif
           case(ICE_DENSITY)
             if (option%use_th_freezing) then
@@ -4213,7 +4217,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
               enddo
             else
-              call printErrMsg(option,'ICE_DENSITY not supported without freezing option in TH')
+              call printErrMsg(option,'ICE_DENSITY not supported without &
+                                      &freezing option in TH')
             endif
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
@@ -4226,7 +4231,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%kvr
             enddo
           case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
+            call PatchUnsupportedVariable('TH','LIQUID_MOLE_FRACTION',option)
           case(LIQUID_ENERGY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -4237,41 +4242,55 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%transient_por
             enddo
+          case default
+            call PatchUnsupportedVariable('TH',ivar,option)
         end select
 
       else if (associated(patch%aux%Richards)) then
 
         select case(ivar)
           case(TEMPERATURE)
-            call printErrMsg(option,'TEMPERATURE not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
           case(GAS_SATURATION)
-            call printErrMsg(option,'GAS_SATURATION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
           case(ICE_SATURATION)
-            call printErrMsg(option,'ICE_SATURATION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','ICE_SATURATION',option)
           case(ICE_DENSITY)
-            call printErrMsg(option,'ICE_DENSITY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','ICE_DENSITY',option)
           case(GAS_DENSITY)
-            call printErrMsg(option,'GAS_DENSITY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_DENSITY',option)
           case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','LIQUID_MOLE_FRACTION', &
+                                          option)
           case(GAS_MOLE_FRACTION)
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_MOLE_FRACTION',option)
           case(LIQUID_ENERGY)
-            call printErrMsg(option,'LIQUID_ENERGY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','LIQUID_ENERGY',option)
           case(GAS_ENERGY)
-            call printErrMsg(option,'GAS_ENERGY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_ENERGY',option)
           case(LIQUID_VISCOSITY)
-            call printErrMsg(option,'LIQUID_VISCOSITY not supported by Richards')
+            do local_id = 1, grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  patch%aux%Richards%auxvars(ghosted_id)%kr / &
+                  patch%aux%Richards%auxvars(ghosted_id)%kvr
+            enddo
           case(GAS_VISCOSITY)
-            call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_VISCOSITY',option)
           case(GAS_MOBILITY)
-            call printErrMsg(option,'GAS_MOBILITY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_MOBILITY',option)
           case(EFFECTIVE_POROSITY)
-            call printErrMsg(option,'EFFECTIVE_POROSITY not supported by Richards')
-          case(LIQUID_PRESSURE)
+            call PatchUnsupportedVariable('RICHARDS','EFFECTIVE_POROSITY', &
+                                          option)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
+            enddo
+          case(CAPILLARY_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Richards%auxvars(grid%nL2G(local_id))%pc
             enddo
           case(LIQUID_HEAD)
             do local_id=1,grid%nlmax
@@ -4295,10 +4314,18 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                   patch%aux%Richards%auxvars(grid%nL2G(local_id))%kvr
             enddo
+          case default
+            call PatchUnsupportedVariable('RICHARDS',ivar,option)
         end select
       else if (associated(patch%aux%Flash2)) then
 
         select case(ivar)
+          case(MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
+            enddo
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -4307,7 +4334,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(2)
+                  patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -4319,6 +4346,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                   patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
             enddo
+          case(GAS_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(2)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -4327,7 +4359,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(GAS_MOLE_FRACTION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%Flash2%auxvars(grid%nL2G(local_id))%auxvar_elem(0)%xmol(2+isubvar)
+                  patch%aux%Flash2%auxvars(grid%nL2G(local_id))%&
+                    auxvar_elem(0)%xmol(2+isubvar)
             enddo
           case(GAS_ENERGY)
             do local_id=1,grid%nlmax
@@ -4358,7 +4391,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             if (.not.associated(patch%aux%Global% &
                 auxvars(1)%fugacoeff) .and. &
                 OptionPrintToScreen(option))then
-               print *,'ERRor, fugacoeff not allocated for ', option%iflowmode, 1
+               print *,'ERROR: fugacoeff not allocated for ', &
+                     option%iflowmode, 1
             endif
             do local_id=1,grid%nlmax
              vec_ptr(local_id) = patch%aux%Global% &
@@ -4384,12 +4418,20 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%Flash2% &
                 auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(1)
             enddo
+          case default
+            call PatchUnsupportedVariable('FLASH2',ivar,option)
         end select
 
       else if (associated(patch%aux%Mphase)) then
 
         select case(ivar)
 
+          case(MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
+            enddo
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global% &
@@ -4473,7 +4515,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(SC_FUGA_COEFF)
             if (.not.associated(patch%aux%Global%auxvars(1)%fugacoeff) .and. &
                 OptionPrintToScreen(option))then
-               print *,'ERRor, fugacoeff not allocated for ', option%iflowmode, 1
+               print *,'ERROR: fugacoeff not allocated for ', &
+                       option%iflowmode, 1
             endif
             do local_id=1,grid%nlmax
              vec_ptr(local_id) = patch%aux%Global%&
@@ -4489,16 +4532,20 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%Mphase%&
                 auxvars(grid%nL2G(local_id))%auxvar_elem(0)%u(1)
             enddo
+          case default
+            call PatchUnsupportedVariable('MPHASE',ivar,option)
         end select
 
       else if (associated(patch%aux%Miscible)) then
 
         select case(ivar)
 
-!         case(TEMPERATURE)
-!           do local_id=1,grid%nlmax
-!             vec_ptr(local_id) = patch%aux%Global%auxvars(grid%nL2G(local_id))%temp
-!           enddo
+          case(MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
+            enddo
           case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -4519,11 +4566,19 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%Miscible% &
                 auxvars(grid%nL2G(local_id))%auxvar_elem(0)%xmol(isubvar)
             enddo
+          case default
+            call PatchUnsupportedVariable('MISCIBLE',ivar,option)
         end select
 
       else if (associated(patch%aux%immis)) then
 
         select case(ivar)
+          case(MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
+            enddo
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global% &
@@ -4532,7 +4587,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global% &
-                auxvars(grid%nL2G(local_id))%pres(2)
+                auxvars(grid%nL2G(local_id))%pres(1)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -4559,6 +4614,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%Immis% &
                 auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(1)
             enddo
+          case(GAS_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Global% &
+                auxvars(grid%nL2G(local_id))%pres(2)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global% &
@@ -4584,8 +4644,12 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%Immis% &
                 auxvars(grid%nL2G(local_id))%auxvar_elem(0)%kvr(2)
             enddo
+          case default
+            call PatchUnsupportedVariable('IMMISCIBLE',ivar,option)
         end select
+
       else if (associated(patch%aux%General)) then
+
         select case(ivar)
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
@@ -4736,6 +4800,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%liquid_phase)
             enddo
+          case(LIQUID_VISCOSITY)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%kr(option%liquid_phase) / &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%mobility(option%liquid_phase)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
@@ -4783,11 +4856,22 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
             enddo
+          case(GAS_VISCOSITY)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%kr(option%gas_phase) / &
+                patch%aux%General%auxvars(ZERO_INTEGER, &
+                  ghosted_id)%mobility(option%gas_phase)
+            enddo
           case(EFFECTIVE_POROSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%effective_porosity
             enddo
+          case default
+            call PatchUnsupportedVariable('GENERAL',ivar,option)
         end select
 
       else if (associated(patch%aux%WIPPFlo)) then
@@ -4875,6 +4959,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%liquid_phase)
             enddo
+          case(LIQUID_VISCOSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mu(option%liquid_phase)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
@@ -4895,11 +4984,18 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%gas_phase)
             enddo
+          case(GAS_VISCOSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mu(option%gas_phase)
+            enddo
           case(EFFECTIVE_POROSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%effective_porosity
             enddo
+          case default
+            call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
         end select
 
       !new auvar data structure
@@ -5024,6 +5120,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%effective_porosity
             enddo
+          case default
+            call PatchUnsupportedVariable('TOIL_IMS',ivar,option)
         end select
 
       else if (associated(patch%aux%TOWG)) then
@@ -5234,6 +5332,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
             enddo
+          case default
+            call PatchUnsupportedVariable('TOWG',ivar,option)
         end select
 
       endif
@@ -5639,6 +5739,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             vec_ptr(local_id) = &
               patch%aux%RT%auxvars(grid%nL2G(local_id))%auxiliary_data(isubvar)
           enddo
+        case default
+          call PatchUnsupportedVariable('REACTIVE_TRANSPORT',ivar,option)
       end select
     case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
@@ -5675,8 +5777,25 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                                   vec_ptr(local_id),ivar)
           enddo
       end select
-    case(LIQUID_REL_PERM)
+    case(LIQUID_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(RICHARDS_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%Richards%auxvars(grid%nL2G(local_id))%kr
+          enddo
+        case(TH_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%TH%auxvars(grid%nL2G(local_id))%kvr * &
+              patch%aux%TH%auxvars(grid%nL2G(local_id))%vis
+          enddo
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                kr(option%liquid_phase)
+          enddo
         case(WF_MODE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
@@ -5687,8 +5806,14 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           option%io_buffer = 'Output of liquid phase relative permeability &
             &not supported for current flow mode.'
       end select
-    case(GAS_REL_PERM)
+    case(GAS_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(G_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
+                kr(option%gas_phase)
+          enddo
         case(WF_MODE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
@@ -5728,14 +5853,17 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = grid%nG2A(grid%nL2G(local_id))
       enddo
+    case(SALINITY)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%Aux%Global%auxvars(grid%nL2G(local_id))%m_nacl(ONE_INTEGER)
+      enddo
     case(RESIDUAL)
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
       call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES,ierr)
       call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     case default
-      write(option%io_buffer, &
-            '(''IVAR ('',i3,'') not found in PatchGetVariable'')') ivar
-      call printErrMsg(option)
+      call PatchUnsupportedVariable(ivar,option)
   end select
 
   call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -5837,7 +5965,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
-          case(LIQUID_PRESSURE)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
           case(LIQUID_SATURATION)
             value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
@@ -5847,14 +5975,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%TH%auxvars(ghosted_id)%vis
           case(LIQUID_MOBILITY)
             value = patch%aux%TH%auxvars(ghosted_id)%kvr
-          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
+          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
+            call PatchUnsupportedVariable('TH','GAS_MOLE_FRACTION',option)
           case(GAS_SATURATION)
             if (option%use_th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
             else
               value = 0.d0
             endif
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%TH%auxvars(ghosted_id)%pc
           case(ICE_SATURATION)
             if (option%use_th_freezing) then
               value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
@@ -5864,7 +5994,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
               value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
             endif
           case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
+            call PatchUnsupportedVariable('TH','LIQUID_MOLE_FRACTION',option)
           case(LIQUID_ENERGY)
             value = patch%aux%TH%auxvars(ghosted_id)%u
           case(SECONDARY_TEMPERATURE)
@@ -5872,27 +6002,33 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
           case(EFFECTIVE_POROSITY)
             value = patch%aux%TH%auxvars(ghosted_id)%transient_por
+          case default
+            call PatchUnsupportedVariable('TH',ivar,option)
         end select
       else if (associated(patch%aux%Richards)) then
         select case(ivar)
           case(TEMPERATURE)
-            call printErrMsg(option,'TEMPERATURE not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','TEMPERATURE',option)
           case(GAS_SATURATION)
-            call printErrMsg(option,'GAS_SATURATION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_SATURATION',option)
           case(GAS_DENSITY)
-            call printErrMsg(option,'GAS_DENSITY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_DENSITY',option)
           case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','LIQUID_MOLE_FRACTION', &
+                                          option)
           case(GAS_MOLE_FRACTION)
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_MOLE_FRACTION',option)
           case(LIQUID_ENERGY)
-            call printErrMsg(option,'LIQUID_ENERGY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','LIQUID_ENERGY',option)
           case(GAS_ENERGY)
-            call printErrMsg(option,'GAS_ENERGY not supported by Richards')
+            call PatchUnsupportedVariable('RICHARDS','GAS_ENERGY',option)
           case(EFFECTIVE_POROSITY)
-            call printErrMsg(option,'EFFECTIVE_POROSITY not supported by Richards')
-          case(LIQUID_PRESSURE)
+            call PatchUnsupportedVariable('RICHARDS','EFFECTIVE_POROSITY', &
+                                          option)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%Richards%auxvars(ghosted_id)%pc
           case(LIQUID_HEAD)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)/ &
                     EARTH_GRAVITY/ &
@@ -5903,9 +6039,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
           case(LIQUID_MOBILITY)
             value = patch%aux%Richards%auxvars(ghosted_id)%kvr
+          case(LIQUID_VISCOSITY)
+            value = patch%aux%Richards%auxvars(ghosted_id)%kr / &
+                    patch%aux%Richards%auxvars(ghosted_id)%kvr
+          case default
+            call PatchUnsupportedVariable('RICHARDS',ivar,option)
         end select
       else if (associated(patch%aux%Flash2)) then
         select case(ivar)
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
           case(LIQUID_PRESSURE)
@@ -5923,7 +6066,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_SATURATION)
             value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
           case(GAS_MOLE_FRACTION)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%xmol(2+isubvar)
+            value = patch%aux%Flash2%auxvars(ghosted_id)% &
+                      auxvar_elem(0)%xmol(2+isubvar)
           case(GAS_ENERGY)
             value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%u(2)
           case(GAS_DENSITY)
@@ -5937,12 +6081,17 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(SC_FUGA_COEFF)
             value = patch%aux%Global%auxvars(ghosted_id)%fugacoeff(1)
           case(LIQUID_MOLE_FRACTION)
-            value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%xmol(isubvar)
+            value = patch%aux%Flash2%auxvars(ghosted_id)% &
+                      auxvar_elem(0)%xmol(isubvar)
           case(LIQUID_ENERGY)
             value = patch%aux%Flash2%auxvars(ghosted_id)%auxvar_elem(0)%u(1)
+          case default
+            call PatchUnsupportedVariable('FLASH2',ivar,option)
         end select
       else if (associated(patch%aux%Mphase)) then
         select case(ivar)
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
           case(LIQUID_PRESSURE)
@@ -5953,7 +6102,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
           case(LIQUID_MOLE_FRACTION)
             if (patch%aux%Global%auxvars(ghosted_id)%sat(1) > 0.d0) then
-              value = patch%aux%Mphase%auxvars(ghosted_id)%auxvar_elem(0)%xmol(isubvar)
+              value = patch%aux%Mphase%auxvars(ghosted_id)% &
+                        auxvar_elem(0)%xmol(isubvar)
             else
               value = 0.d0
             endif
@@ -5969,7 +6119,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Global%auxvars(ghosted_id)%sat(2)
           case(GAS_MOLE_FRACTION)
             if (patch%aux%Global%auxvars(ghosted_id)%sat(2) > 0.d0) then
-              value = patch%aux%Mphase%auxvars(ghosted_id)%auxvar_elem(0)%xmol(2+isubvar)
+              value = patch%aux%Mphase%auxvars(ghosted_id)% &
+                        auxvar_elem(0)%xmol(2+isubvar)
             else
               value = 0.d0
             endif
@@ -5988,9 +6139,13 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
             value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
+          case default
+            call PatchUnsupportedVariable('MPHASE',ivar,option)
         end select
       else if (associated(patch%aux%Immis)) then
         select case(ivar)
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
           case(LIQUID_PRESSURE)
@@ -6019,25 +6174,24 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%vis(2)
           case(GAS_MOBILITY)
             value = patch%aux%Immis%auxvars(ghosted_id)%auxvar_elem(0)%kvr(2)
+          case default
+            call PatchUnsupportedVariable('IMMISCIBLE',ivar,option)
         end select
       else if (associated(patch%aux%Miscible)) then
         select case(ivar)
-!         case(TEMPERATURE)
-!           value = patch%aux%Global%auxvars(ghosted_id)%temp
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%Global%auxvars(ghosted_id)%pres(1:2))
           case(LIQUID_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
-!         case(LIQUID_SATURATION)
-!           value = patch%aux%Global%auxvars(ghosted_id)%sat(1)
           case(LIQUID_DENSITY)
             value = patch%aux%Global%auxvars(ghosted_id)%den_kg(1)
-!         case(LIQUID_ENERGY)
-!           value = patch%aux%Miscible%auxvars(ghosted_id)%auxvar_elem(0)%u(1)
           case(LIQUID_VISCOSITY)
             value = patch%aux%Miscible%auxvars(ghosted_id)%auxvar_elem(0)%vis(1)
-!         case(LIQUID_MOBILITY)
-!           value = patch%aux%Miscible%auxvars(ghosted_id)%auxvar_elem(0)%kvr(1)
           case(LIQUID_MOLE_FRACTION)
-            value = patch%aux%Miscible%auxvars(ghosted_id)%auxvar_elem(0)%xmol(isubvar)
+            value = patch%aux%Miscible%auxvars(ghosted_id)% &
+                      auxvar_elem(0)%xmol(isubvar)
+          case default
+            call PatchUnsupportedVariable('MISCIBLE',ivar,option)
         end select
       else if (associated(patch%aux%General)) then
         select case(ivar)
@@ -6128,6 +6282,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(LIQUID_MOBILITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%liquid_phase)
+          case(LIQUID_VISCOSITY)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      kr(option%liquid_phase) / &
+                    patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mobility(option%liquid_phase)
           case(GAS_SATURATION)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%gas_phase)
@@ -6161,9 +6320,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOBILITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
+          case(GAS_VISCOSITY)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      kr(option%gas_phase) / &
+                    patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mobility(option%gas_phase)
           case(EFFECTIVE_POROSITY)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       effective_porosity
+          case default
+            call PatchUnsupportedVariable('GENERAL',ivar,option)
         end select
 
       else if (associated(patch%aux%WIPPFlo)) then
@@ -6214,6 +6380,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(LIQUID_MOBILITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%liquid_phase)
+          case(LIQUID_VISCOSITY)
+            value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mu(option%liquid_phase)
           case(GAS_SATURATION)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%gas_phase)
@@ -6226,9 +6395,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOBILITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
+          case(GAS_VISCOSITY)
+            value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      mu(option%gas_phase)
           case(EFFECTIVE_POROSITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       effective_porosity
+          case default
+            call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
         end select
 
       else if (associated(patch%aux%TOil_ims)) then
@@ -6304,6 +6478,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(EFFECTIVE_POROSITY)
             value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
                     effective_porosity
+          case default
+            call PatchUnsupportedVariable('TOIL_IMS',ivar,option)
         end select
 
       else if (associated(patch%aux%TOWG)) then
@@ -6455,6 +6631,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             else
               value=0.0d0
             endif
+          case default
+            call PatchUnsupportedVariable('TOWG',ivar,option)
         end select
 
       endif
@@ -6699,6 +6877,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           endif
         case(REACTION_AUXILIARY)
           value = patch%aux%RT%auxvars(ghosted_id)%auxiliary_data(isubvar)
+        case default
+          call PatchUnsupportedVariable('REACTIVE_TRANSPORT',ivar,option)
       end select
     case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
@@ -6725,8 +6905,16 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                 material_auxvars(ghosted_id), &
                                 value,ivar)
       end select
-    case(LIQUID_REL_PERM)
+    case(LIQUID_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(RICHARDS_MODE)
+          value = patch%aux%Richards%auxvars(ghosted_id)%kr
+        case(TH_MODE)
+          value = patch%aux%TH%auxvars(ghosted_id)%kvr / &
+                  patch%aux%TH%auxvars(ghosted_id)%vis
+        case(G_MODE)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    kr(option%liquid_phase)
         case(WF_MODE)
           value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                     kr(option%liquid_phase)
@@ -6734,8 +6922,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           option%io_buffer = 'Output of liquid phase relative permeability &
             &not supported for current flow mode.'
       end select
-    case(GAS_REL_PERM)
+    case(GAS_RELATIVE_PERMEABILITY)
       select case(option%iflowmode)
+        case(G_MODE)
+          value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                    kr(option%gas_phase)
         case(WF_MODE)
           value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                     kr(option%gas_phase)
@@ -6782,16 +6973,15 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                       sec_rt_auxvar(isubvar), &
                                       patch%aux%Global%auxvars(ghosted_id),&
                                       reaction,option)
+    case(SALINITY)
+      value = patch%Aux%Global%auxvars(ghosted_id)%m_nacl(ONE_INTEGER)
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2((local_id-1)*option%nflowdof+isubvar)
       call VecRestoreArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
     case default
-      write(option%io_buffer, &
-            '(''IVAR ('',i3,'') not found in PatchGetVariableValueAtCell'')') &
-            ivar
-      call printErrMsg(option)
+      call PatchUnsupportedVariable(ivar,option)
   end select
 
   PatchGetVariableValueAtCell = value
@@ -8956,6 +9146,104 @@ subroutine PatchSetupUpwindDirection(patch,option)
   patch%flow_upwind_direction_bc => upwind_direction_bc
 
 end subroutine PatchSetupUpwindDirection
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable1(process_name,variable_name,ivar,option)
+  !
+  ! Prints an error message when an unsupported output variable is requested.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  character(len=*) :: process_name
+  character(len=*) :: variable_name
+  PetscInt :: ivar
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word, word2
+
+  if (len_trim(variable_name) > 1 .and. Initialized(ivar)) then
+    option%io_buffer = 'Both Variable name and ID passed as initialized in &
+      &PatchUnsupportedVariable.'
+    call PrintErrMsg(option)
+  else if (len_trim(variable_name) > 1) then
+    word = trim(variable_name)
+    word2= 'variable name'
+  else
+    write(word,*) ivar
+    word = 'ID ' // trim(adjustl(word))
+    word2= 'integer ID'
+  endif
+  if (len_trim(process_name) > 1) then
+    string = 'Variable ' // trim(adjustl(word)) // &
+      ' not supported for the process model: ' // &
+      trim(adjustl(process_name)) // '.'
+  else
+    string = 'Variable ' // trim(adjustl(word)) // &
+      ' not supported for the employed process models.'
+  endif
+  option%io_buffer = trim(string) // &
+    ' Please look at variables.F90 to match this ' // trim(word2) // &
+    ' with a variable parameter constant.  If you feel this is in &
+    &error, please email this message to pflotran-dev@googlegroups.com.'
+  call PrintErrMsg(option)
+
+end subroutine PatchUnsupportedVariable1
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable2(process_name,ivar,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  character(len=*) :: process_name
+  PetscInt :: ivar
+  type(option_type) :: option
+
+  call PatchUnsupportedVariable(process_name,'',ivar,option)
+
+end subroutine PatchUnsupportedVariable2
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable3(process_name,variable_name,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  character(len=*) :: process_name
+  character(len=*) :: variable_name
+  type(option_type) :: option
+
+  call PatchUnsupportedVariable(process_name,variable_name, &
+                                UNINITIALIZED_INTEGER,option)
+
+end subroutine PatchUnsupportedVariable3
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable4(ivar,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  PetscInt :: ivar
+  type(option_type) :: option
+
+  call PatchUnsupportedVariable('','',ivar,option)
+
+end subroutine PatchUnsupportedVariable4
 
 ! ************************************************************************** !
 

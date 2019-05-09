@@ -934,12 +934,12 @@ subroutine BasisInit_hpt(reaction,option)
   
   if (icount /= ncomp_secondary) then
     if (icount < ncomp_secondary) then
-      option%io_buffer = 'Too few reactions read from database for ' // & 
-        'number of secondary species defined.'
+      option%io_buffer = 'Too few reactions read from database for & 
+        &number of secondary species defined.'
     else
-      option%io_buffer = 'Too many reactions read from database for ' // & 
-        'number of secondary species defined.  Perhaps REDOX ' // &
-        'SPECIES need to be defined?'
+      option%io_buffer = 'Too many reactions read from database for & 
+        &number of secondary species defined.  Perhaps &
+        &DECOUPLED_EQUILIBRIUM_REACTIONS need to be defined?'
     endif
     call printErrMsg(option)
   endif

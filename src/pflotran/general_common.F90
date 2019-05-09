@@ -24,22 +24,11 @@ module General_Common_module
 #define AIR_SRCSINK
 #define ENERGY_SRCSINK
   
-#define DEBUG_GENERAL_FILEOUTPUT
 !#define DEBUG_FLUXES  
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  PetscInt, parameter :: debug_unit = 87
-  PetscInt, parameter :: debug_info_unit = 86
-  character(len=MAXWORDLENGTH) :: debug_filename
-  PetscInt :: debug_flag = 0
-  PetscInt :: debug_iteration_count
-  PetscInt :: debug_timestep_cut_count
-  PetscInt :: debug_timestep_count
-#endif
 
   public :: GeneralAccumulation, &
             GeneralFlux, &
@@ -407,12 +396,6 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
     end select
     Jac = Jac * volume_over_dt
   endif
-  
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,7es24.15)') 'accum:', Res
-  endif
-#endif                    
 
 end subroutine GeneralAccumulation
 
@@ -4009,48 +3992,46 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
-    if (dabs(qsrc(energy_id)) < 1.d-40) then
-      if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
-        if (associated(gen_auxvar%d)) then
-          hw_dp = gen_auxvar_ss%d%Hl_pl
-          hw_dT = gen_auxvar_ss%d%Hl_T
-        endif
-        enthalpy = gen_auxvar_ss%h(wat_comp_id)
-        ! enthalpy units: MJ/kmol                       ! water component mass
-        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy
-        if (analytical_derivatives) then
-          Je = 0.d0
-          Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
-          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT
-        endif
-        J = J + Je
+    if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
+      if (associated(gen_auxvar%d)) then
+        hw_dp = gen_auxvar_ss%d%Hl_pl          
+        hw_dT = gen_auxvar_ss%d%Hl_T
       endif
-      
-      if (dabs(qsrc(air_comp_id)) > 1.d-40) then
-        ! this is pure air, we use the enthalpy of air, NOT the air/water
-        ! mixture in gas
-        ! air enthalpy is only a function of temperature
-        if (associated(gen_auxvar%d)) then
-          ha_dp = gen_auxvar_ss%d%Ha_pg
-          ha_dT = gen_auxvar_ss%d%Ha_T
-        endif
-        
-        internal_energy = gen_auxvar_ss%u(air_comp_id)
-        enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
-        ! enthalpy units: MJ/kmol                       ! air component mass
-        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
-        if (analytical_derivatives) then
-          Je = 0.d0
-          Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
-          Je(3,2) = Jg(2,2) * enthalpy
-          Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
-        endif 
-        J = J + Je
+      enthalpy = gen_auxvar_ss%h(wat_comp_id)
+      ! enthalpy units: MJ/kmol                       ! water component mass
+      Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy       
+      if (analytical_derivatives) then
+        Je = 0.d0
+        Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
+        Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT        
       endif
-    else
-      Res(energy_id) = qsrc(energy_id)*scale ! MJ/s
-      ! no derivative
+      J = J + Je
     endif
+      
+    if (dabs(qsrc(air_comp_id)) > 1.d-40) then
+      ! this is pure air, we use the enthalpy of air, NOT the air/water
+      ! mixture in gas
+      ! air enthalpy is only a function of temperature
+      if (associated(gen_auxvar%d)) then
+        ha_dp = gen_auxvar_ss%d%Ha_pg
+        ha_dT = gen_auxvar_ss%d%Ha_T
+      endif
+        
+      internal_energy = gen_auxvar_ss%u(air_comp_id)
+      enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
+      ! enthalpy units: MJ/kmol                       ! air component mass
+      Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
+      if (analytical_derivatives) then
+        Je = 0.d0
+        Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
+        Je(3,2) = Jg(2,2) * enthalpy
+        Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
+      endif 
+      J = J + Je
+    endif
+    
+    Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
+    ! no derivative
   endif
   
 end subroutine GeneralSrcSink
@@ -4115,12 +4096,6 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     J(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif
   
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,10es24.15)') 'accum deriv:', J
-  endif
-#endif
-
 end subroutine GeneralAccumDerivative
 
 ! ************************************************************************** !
@@ -4251,12 +4226,6 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
     Jdn(GENERAL_GAS_EQUATION_INDEX,:) = 0.d0
     Jdn(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,20es24.15)') 'flux deriv:', Jup, Jdn
-  endif
-#endif
   
 end subroutine GeneralFluxDerivative
 
@@ -4357,12 +4326,6 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
     Jdn(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
   
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,10es24.15)') 'bc flux deriv:', Jdn
-  endif
-#endif
-  
 end subroutine GeneralBCFluxDerivative
 
 ! ************************************************************************** !
@@ -4428,12 +4391,6 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
     Jac(GENERAL_GAS_EQUATION_INDEX,:) = 0.d0
     Jac(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
-  
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,20es24.15)') 'src/sink deriv:', Jac
-  endif
-#endif
 
 end subroutine GeneralSrcSinkDerivative
 
