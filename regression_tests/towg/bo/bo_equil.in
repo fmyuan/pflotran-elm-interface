@@ -41,8 +41,8 @@ END
 
 #=========================set up standard conditions ==========================
 
-REFERENCE_PRESSURE    1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE    1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -168,6 +168,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 996.95710 kg/m^3
   DENSITY CONSTANT 996.95710
   VISCOSITY CONSTANT 0.31d-3 ! 1 cp
 END
@@ -250,10 +251,10 @@ FLOW_CONDITION equilibration
     PRESSURE HYDROSTATIC
   /
   PRESSURE 330.0 Bar
-  DATUM_Z -2480.0
-  OGC_Z -2430.0
+  DATUM_Z -2480.0 m
+  OGC_Z -2430.0 m
   PCOG_OGC 0.5 Bar
-  OWC_Z -2470.0
+  OWC_Z -2470.0 m
   PCOW_OWC 0.5 Bar
   BUBBLE_POINT_TABLE
    Z_UNITS m !D_UNITS
@@ -264,8 +265,8 @@ FLOW_CONDITION equilibration
    /
   END
   TEMPERATURE_TABLE
-   !Z_UNITS m !D_UNITS
-   !TEMPERATURE_UNITS C !cannot be otherwise
+   Z_UNITS m
+   TEMPERATURE_UNITS C !cannot be otherwise
    RTEMPVZ
      -2300.0 126.0
      -2400.0 128.0

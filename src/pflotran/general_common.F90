@@ -24,22 +24,11 @@ module General_Common_module
 #define AIR_SRCSINK
 #define ENERGY_SRCSINK
   
-#define DEBUG_GENERAL_FILEOUTPUT
 !#define DEBUG_FLUXES  
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  PetscInt, parameter :: debug_unit = 87
-  PetscInt, parameter :: debug_info_unit = 86
-  character(len=MAXWORDLENGTH) :: debug_filename
-  PetscInt :: debug_flag = 0
-  PetscInt :: debug_iteration_count
-  PetscInt :: debug_timestep_cut_count
-  PetscInt :: debug_timestep_count
-#endif
 
   public :: GeneralAccumulation, &
             GeneralFlux, &
@@ -407,12 +396,6 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
     end select
     Jac = Jac * volume_over_dt
   endif
-  
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,7es24.15)') 'accum:', Res
-  endif
-#endif                    
 
 end subroutine GeneralAccumulation
 
@@ -4113,12 +4096,6 @@ subroutine GeneralAccumDerivative(gen_auxvar,global_auxvar,material_auxvar, &
     J(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif
   
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,10es24.15)') 'accum deriv:', J
-  endif
-#endif
-
 end subroutine GeneralAccumDerivative
 
 ! ************************************************************************** !
@@ -4249,12 +4226,6 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
     Jdn(GENERAL_GAS_EQUATION_INDEX,:) = 0.d0
     Jdn(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,20es24.15)') 'flux deriv:', Jup, Jdn
-  endif
-#endif
   
 end subroutine GeneralFluxDerivative
 
@@ -4355,12 +4326,6 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
     Jdn(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
   
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,10es24.15)') 'bc flux deriv:', Jdn
-  endif
-#endif
-  
 end subroutine GeneralBCFluxDerivative
 
 ! ************************************************************************** !
@@ -4426,12 +4391,6 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
     Jac(GENERAL_GAS_EQUATION_INDEX,:) = 0.d0
     Jac(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
-  
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(debug_unit,'(a,20es24.15)') 'src/sink deriv:', Jac
-  endif
-#endif
 
 end subroutine GeneralSrcSinkDerivative
 

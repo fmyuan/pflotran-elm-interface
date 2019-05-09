@@ -172,6 +172,14 @@ ifdef towg_debug
   MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
 endif
 
+ifdef ug_mpi_scatter_glb
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GLOBAL
+endif
+
+ifdef ug_mpi_scatter_ghost
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GHOST_ONLY
+endif
+
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif
@@ -239,11 +247,11 @@ include $(SRC_DIR)/pflotran_object_files.txt
 ###############################################################################
 
 # Concatentate dependency groups 
-pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
-	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
-	${pflotran_src}pflotran.o
+	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj)
+pflotran_obj = $(pflotran_base_obj) ${pflotran_src}pflotran.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
@@ -260,6 +268,10 @@ libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 
 pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
 	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
+
+# PFLOTRAN derivative test
+pflotran_derivative : $(pflotran_base_obj) pflotran_derivative.o
+	${FLINKER} -o pflotran_derivative $(pflotran_base_obj) pflotran_derivative.o ${PETSC_LIB} ${LIBS} 
 
 $(SRC_DIR)/pflotran_provenance.F90 : FORCE
 ifeq ($(UPDATE_PROVENANCE),1)

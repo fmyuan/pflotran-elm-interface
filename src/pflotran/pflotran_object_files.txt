@@ -15,6 +15,7 @@ util_obj  = \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}toil_ims_derivs.o \
+	${common_src}general_derivative.o \
 	${common_src}variables.o \
 	${common_src}derivative_tests.o \
 	${common_src}derivatives_utilities.o \

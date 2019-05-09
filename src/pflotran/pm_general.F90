@@ -151,6 +151,10 @@ function PMGeneralCreate()
   this%abs_update_inf_tol = abs_update_inf_tol
   this%rel_update_inf_tol = rel_update_inf_tol
 
+  this%converged_flag(:,:,:) = PETSC_TRUE
+  this%converged_real(:,:,:) = 0.d0
+  this%converged_cell(:,:,:) = 0
+
   PMGeneralCreate => this
   
 end function PMGeneralCreate

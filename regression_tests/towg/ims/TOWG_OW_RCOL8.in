@@ -123,14 +123,19 @@ CHARACTERISTIC_CURVES ch1
 
 #=========================== EOSs =============================================
 
+EOS WATER
+  SURFACE_DENSITY 1000.0 kg/m^3
+END
+
 EOS OIL
+  SURFACE_DENSITY 800.0d0 kg/m^3
   DENSITY CONSTANT 800.0d0
-  !ENTHALPY CONSTANT 5.680d6 !J/Kmol (t=40°C, with TOUGH2-EOS8 linear model)
   ENTHALPY LINEAR_TEMP 1.d3 !J/kg/°C
   VISCOSITY CONSTANT 0.5d-3
 END
 
 EOS GAS
+  SURFACE_DENSITY 1.0 kg/m^3 !not used as no wells
 END
 
 
@@ -174,11 +179,8 @@ FLOW_CONDITION initial
     GAS_SATURATION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  DATUM 0.d0 0.d0 0.d0
-  OIL_PRESSURE 1.D5
-  !OIL_PRESSURE 1.e5
+  OIL_PRESSURE 1.D5 Pa
   OIL_SATURATION 0.6d0
-  !GAS_SATURATION 0.1d0
   GAS_SATURATION 1.0d-6
   TEMPERATURE 15.d0 C
 /
@@ -191,7 +193,7 @@ FLOW_CONDITION wat_injection
   /
   !     Wat   oil   Gas  Energy [overwritten by Temp or Enth if specified]
   RATE 0.03d0 0.0d0 0.d0 0.0d0 kg/s kg/s kg/s J/s
-  ENTHALPY 2.d5 0.0d0 0.0d0 !(J/kg)
+  ENTHALPY 2.d5 0.0d0 0.0d0 J/kg J/kg J/kg !(J/kg)
 /
 #=========================== condition couplers ===============================
 # initial condition

@@ -256,8 +256,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Grid_Grdecl_module, only : GetPoroPermValues, &
                                  WriteStaticDataAndCleanup, &
                                  DeallocatePoroPermArrays, &
-                                 PermPoroExchangeAndSet, &
-                                 GetIsGrdecl
+                                 PermPoroExchangeAndSet,SatnumExchangeAndSet, &
+                                 GetIsGrdecl,GetSatnumSet,GetSatnumValue
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -288,12 +288,12 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(patch_type), pointer :: patch
   type(material_type), pointer :: Material
   PetscInt :: local_id, ghosted_id, material_id,natural_id,i
-  PetscReal :: tempreal,poro,permx,permy,permz
-  PetscInt :: tempint
+  PetscReal :: tempreal, poro, permx, permy, permz
+  PetscInt :: tempint, isatnum, maxsatn
   PetscErrorCode :: ierr
   PetscViewer :: viewer
   PetscInt ,pointer,dimension(:)::inatsend
-  PetscBool :: write_ecl
+  PetscBool :: write_ecl, satnum_set
 
   option => realization%option
   discretization => realization%discretization
@@ -350,10 +350,14 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
   enddo
   
+  !  Prepare for exchange of cell indices and check if satnum set
+
+  satnum_set = PETSC_FALSE
   if (GetIsGrdecl()) then
-    if (option%myrank .ne. option%io_rank) then
-      allocate(inatsend(  grid%nlmax))
+    if (option%myrank /= option%io_rank) then
+      allocate(inatsend(grid%nlmax))
     endif
+    satnum_set = GetSatnumSet(maxsatn)
   endif
   
   do local_id = 1, grid%nlmax
@@ -422,6 +426,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
         perm_xx_p(local_id) = permx
         perm_yy_p(local_id) = permy
         perm_zz_p(local_id) = permz
+        if( satnum_set ) then
+  !  Set satnums on this proc
+          isatnum = GetSatnumValue(natural_id)
+          if (option%nflowdof > 0) then
+             patch%sat_func_id(ghosted_id) = isatnum
+          endif
+        endif
       else
   !  Add to the request list on other procs
         inatsend(local_id)=natural_id
@@ -433,6 +444,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
   if (GetIsGrdecl()) then
     call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p, &
                                 inatsend,grid%nlmax,option)
+    if( satnum_set ) then
+      call SatnumExchangeAndSet(patch%sat_func_id, &
+                                inatsend, grid%nlmax, grid%nL2G, option)
+    endif
     if (option%myrank .ne. option%io_rank) then
       call DeallocateArray(inatsend)
     endif

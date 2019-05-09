@@ -11,9 +11,6 @@ module PM_Waste_Form_class
 ! ===========================================================================
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
   use petscsys
   use PM_Base_class
   use Realization_Subsurface_class

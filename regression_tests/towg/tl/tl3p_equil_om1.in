@@ -124,11 +124,13 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 1000.00d0 kg/m^3 !not used as no wells
   DENSITY CONSTANT 1000.00d0
   VISCOSITY CONSTANT 1.0d-3 ! 1 cp
 END
 
 EOS OIL
+  SURFACE_DENSITY 995.98d0 kg/m^3 !not used as no wells
   !heavy oil
   FORMULA_WEIGHT 508.0d0
   DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]
@@ -155,6 +157,7 @@ EOS OIL
 END
 
 EOS GAS
+  SURFACE_DENSITY 1.0d0 kg/m^3 !not used as no wells
   FORMULA_WEIGHT 16.04d0
   DENSITY   DEFAULT
   VISCOSITY CONSTANT 2.0d-5 ! 0.02 cp
@@ -173,8 +176,8 @@ FLOW_CONDITION equilibration
     PRESSURE HYDROSTATIC
   /
   PRESSURE 330 Bar
-  DATUM_Z -2480.0
-  OWC_Z -2450.0
+  DATUM_Z -2480.0 m
+  OWC_Z -2450.0 m
   PCOW_OWC 0.5 Bar
   TEMPERATURE_TABLE
    Z_UNITS m

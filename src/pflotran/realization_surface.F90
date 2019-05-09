@@ -23,9 +23,6 @@ private
 
 
 #include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define VecScatterCreate VecScatterCreateWithData
-#endif
 
   PetscReal, parameter :: eps       = 1.D-8
 

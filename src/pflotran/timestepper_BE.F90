@@ -293,7 +293,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
-  PetscInt :: sum_wasted_linear_iterations
+  PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
   character(len=MAXWORDLENGTH) :: tunit
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
@@ -461,6 +461,19 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
+
+  if (option%linerept) then
+    nnl = num_newton_iterations
+    if( nnl>0 ) then
+      lpernl = num_linear_iterations/nnl
+    else
+      lpernl = 0
+    endif
+    option%nnl      = nnl
+    option%linpernl = lpernl
+    option%nchperst = icut
+  endif
+
   if (option%print_file_flag) then
     write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &

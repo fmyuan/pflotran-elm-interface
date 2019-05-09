@@ -2137,8 +2137,8 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
-  call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_up%PermeabilityTensorToScalarSafe(dist,perm_up)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
   
   ! Fracture permeability change only available for structured grid (Heeho)
   !if (associated(material_auxvar_up%fracture)) then
@@ -2162,8 +2162,12 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   !  perm_ave_over_dist(2) = (temp_perm_up * temp_perm_dn) / &
   !                          (dist_up*temp_perm_dn + dist_dn*temp_perm_up)
   !else
-    perm_ave_over_dist(:) = (perm_up * perm_dn) / &
-                            (dist_up*perm_dn + dist_dn*perm_up)
+    if ((perm_up>0.0) .and. (perm_dn>0.0) ) then
+      perm_ave_over_dist(:) = (perm_up * perm_dn) / &
+                              (dist_up*perm_dn + dist_dn*perm_up)
+    else
+      perm_ave_over_dist(:) = 0.0
+    endif
   !endif
       
   Res = 0.d0
@@ -2734,7 +2738,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
   neumann_bc_present = PETSC_FALSE
   
-  call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+  call material_auxvar_dn%PermeabilityTensorToScalarSafe(dist,perm_dn)
 
   ! Fracture permeability change only available for structured grid (Heeho)
   !if (associated(material_auxvar_dn%fracture)) then
@@ -3350,11 +3354,12 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
             call EOSWaterDensity(temperature,cell_pressure, &
                                   den_kg,den, &
                                   dx_dcpres, &
-                                  dx_dtcell, ierr)
+                                  dx_dtcell, ierr, auxvar%table_idx)
             D_den = D_cpres*dx_dcpres
             D_den(dof_temp) = D_den(dof_temp) + dx_dtcell*dT_dTcell
           else
-            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr, &
+                                 auxvar%table_idx)
           endif
         case(OIL_PHASE)
           if (analytical_derivatives) then
@@ -3671,7 +3676,8 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   dof_temp = towg_energy_dof
 
 
-  ref_pressure=option%reference_pressure
+  !ref_pressure=option%reference_pressure
+  ref_pressure = 1.0D5 !used as Pb for dead oil injection
 
   if (analytical_derivatives) then
     j = 0.d0
@@ -3759,13 +3765,14 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
         case(LIQUID_PHASE)
 ! Case of water
           if (.NOT. analytical_derivatives) then
-            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
+            call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr, &
+                                                           auxvar%table_idx)
           else
             ! there is a density deriv w.r.t. pressure and temp
             call EOSWaterDensity(temperature,cell_pressure, &
                                  den_kg,den, &
                                  dx_dcpres, &
-                                 dx_dtcell, ierr)
+                                 dx_dtcell, ierr, auxvar%table_idx)
             D_den = D_cpres*dx_dcpres
 
 

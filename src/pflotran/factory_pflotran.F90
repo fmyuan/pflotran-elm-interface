@@ -61,6 +61,11 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Option_module
   use Multi_Simulation_module
   use Simulation_Base_class
+  use Simulation_Subsurface_class
+  use Simulation_Surface_class
+  use Simulation_Surf_Subsurf_class
+  use Simulation_Geomechanics_class
+  use Output_Aux_module
   use Logging_module
   use EOS_module
   use PM_Surface_class
@@ -75,6 +80,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   type(option_type), pointer :: option
   
   character(len=MAXSTRINGLENGTH) :: filename
+  PetscBool :: flag
   PetscErrorCode :: ierr
 
   call MultiSimulationIncrement(multisimulation,option)
@@ -96,6 +102,42 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   ! for process models.  This call sets flag that disables the creation of
   ! new stages, which is necessary for multisimulation
   call LoggingSetupComplete()
+
+  ! adding error message if binary checkpoint/restart is used in
+  ! combination with unstructured gridding
+  flag = PETSC_FALSE
+  if (associated(simulation%checkpoint_option)) then
+    if (simulation%checkpoint_option%format == CHECKPOINT_BINARY) then
+      flag = PETSC_TRUE
+    endif
+  endif
+  if (index(option%restart_filename,'.chk') > 0) then
+    flag = PETSC_TRUE
+  endif
+  if (flag) then
+    flag = PETSC_FALSE
+    select type(s=>simulation)
+      class is(simulation_subsurface_type) 
+        ! also covers simulation_surfsubsurface_type and 
+        ! simulation_geomechanics_type
+        if (s%realization%patch%grid%itype /= STRUCTURED_GRID) then
+          flag = PETSC_TRUE
+        endif
+      class is(simulation_surface_type) 
+        if (s%surf_realization%patch%grid%itype /= STRUCTURED_GRID) then
+          flag = PETSC_TRUE
+        endif
+      class default
+        option%io_buffer = 'Unknown simulation class in &
+          &PFLOTRANInitializePostPetsc'
+        call PrintErrMsg(option)
+    end select
+    if (flag) then
+        option%io_buffer = 'Binary Checkpoint/Restart (.chk format) is not &
+          &supported for unstructured grids.  Please use HDF5 (.h5 format).'
+        call PrintErrMsg(option)
+    endif
+  endif
 
 end subroutine PFLOTRANInitializePostPetsc
 

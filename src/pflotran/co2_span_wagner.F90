@@ -1627,6 +1627,7 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   !         option
 
   use Option_module
+  use String_module
 
   implicit none
 
@@ -1650,13 +1651,6 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   temp_max = temparray(5)
   temp_delta = temparray(6)
 
-  !PO TODO: must add:
-  ! - checks user inputs for consistency between min max and delta values
-  ! - add unit conversion to allow P, T ranges and deltas to be entered in
-  !   different units than C and MPa. To be done in eos_read.
-  ! - control round-off of deltas to avoid issues with writting datbase
-  !   in a datafile
-
   !set default ranges and steps
   if (Equal(press_min,UNINITIALIZED_DOUBLE) ) then
     press_min = 0.01d0
@@ -1676,6 +1670,22 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
     press_delta = press_delta * 1.0d-6 !MPa
     n_sub_tab = int(press_delta/0.001d0)
     press_delta = n_sub_tab * 0.001d0
+  end if
+
+  if ( press_min >= press_max ) then
+    option%io_buffer = "CO2_SPAN_WAGNER_DB: P_min >= P_max"
+    call printErrMsg(option)
+  end if
+
+  if ( press_max > 800.0d0 ) then
+    option%io_buffer = "CO2_SPAN_WAGNER_DB: P_max > 800 MPa, " // &
+                        "out of valid pressure range"
+    call printErrMsg(option)
+  end if
+
+  if ( press_min < 0.0d0 ) then
+    option%io_buffer = "CO2_SPAN_WAGNER_DB: P_min < 0 - negative pressure"
+    call printErrMsg(option)
   end if
 
   n_tab_press = int( (press_max - press_min ) / press_delta ) + 1
@@ -1699,6 +1709,23 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
     temp_delta = n_sub_tab * 0.01d0
   end if
 
+  if ( temp_min >= temp_max ) then
+    option%io_buffer = "CO2_SPAN_WAGNER_DB: T_min >= T_max"
+    call printErrMsg(option)
+  end if
+
+  if ( temp_max > 1100.0d0 ) then
+    option%io_buffer = "CO2_SPAN_WAGNER_DB: T_max > 1100 K, " // &
+                        "out of valid temperature range"
+    call printErrMsg(option)
+  end if
+
+  if ( temp_min < 216.0d0 ) then
+    option%io_buffer = "CO2_SPAN_WAGNER_DB: T_min < 216 K, " // &
+                        "out of valid temperature range"
+    call printErrMsg(option)
+  end if
+
   n_tab_temp = int( dabs(temp_max - temp_min ) / temp_delta ) + 1
 
   if (len(trim(filename)) < 2) then
@@ -1706,6 +1733,9 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   end if
 
   option%co2_database_filename = filename
+  if ( .not. StringNull(option%output_dir) ) then
+    filename = trim(option%output_dir) // '/' // trim(filename)
+  end if
 
   myrank=0; itable=0;
   call initialize_span_wagner(itable,myrank,option)
@@ -1720,6 +1750,7 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
   ! 13 visc, 14 dvdt, 15 dvdp
 
   allocate(co2_properties(0:n_tab_press,0:n_tab_temp,1:15))
+  co2_properties = 0.0d0
 
   iflag = 0
   tmp2=0.D0
@@ -1729,9 +1760,9 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
 
     do j = 0, n_tab_temp
       temp = temp_min + temp_delta * real(j)
-
       co2_properties(i,j,1) = press
       co2_properties(i,j,2) = temp
+      !update density inital guess - not currently used by co2_span_wagner
       co2_properties(i,j,3) = tmp
       call co2_span_wagner(press,temp,co2_properties(i,j,3), &
         co2_properties(i,j,4),co2_properties(i,j,5),co2_properties(i,j,6), &
@@ -1739,7 +1770,7 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
         co2_properties(i,j,10),co2_properties(i,j,11),co2_properties(i,j,12),&
         co2_properties(i,j,13), co2_properties(i,j,14), &
         co2_properties(i,j,15),iflag)
-      !update density inital guess
+      !update density inital guess - not currently used
       tmp = co2_properties(i,j,3)
       if (j==0) tmp2 = co2_properties(i,j,3)
     enddo
