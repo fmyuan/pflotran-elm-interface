@@ -981,7 +981,6 @@ subroutine EOSReferenceDensity(option)
                              option%reference_pressure, &
                              option%reference_density(option%liquid_phase), &
                              dum1,ierr)
-        write(*,*) option%reference_density(option%liquid_phase)
       endif
     endif
     if (Initialized(option%gas_phase)) then
