@@ -1215,9 +1215,27 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   Mat :: J
   MatType :: mat_type
   PetscViewer :: viewer  
+  type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
+  type(patch_type), pointer :: patch
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: Jac(realization%nw_trans%params%nspecies, &
+                   realization%nw_trans%params%nspecies)
   PetscReal :: rdum
+    
+  option => realization%option
+  patch => realization%patch  
+  grid => patch%grid
+  nw_trans => realization%nw_trans
+  
+  nwt_auxvars => patch%aux%NWT%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
 
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -1231,7 +1249,42 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   endif
     
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-
+  
+  !== Accumulation Terms ======================================
+  if (.not.option%steady_state) then
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      ! ignore inactive cells with inactive materials
+      if (patch%imat(ghosted_id) <= 0) cycle
+      
+      call NWTJacobianAccum(material_auxvars(ghosted_id), &
+                            nw_trans,option,Jac) 
+              
+      ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+  
+    enddo
+  endif
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  !== Source/Sink Terms =======================================
+  
+  
+  !== Decay and Ingrowth ======================================
+  
+  
+  !== Fluxes ==================================================
+    
     
   if (realization%debug%matview_Jacobian) then
     string = 'NWTjacobian'
@@ -1256,6 +1309,44 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   call PetscLogEventEnd(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
   
 end subroutine NWTJacobian
+
+! ************************************************************************** !
+
+subroutine NWTJacobianAccum(material_auxvar,nw_trans,option,Jac)
+  ! 
+  ! Computes the accumulation terms in the Jacobian matrix.
+  ! All Jacobian entries should be in [m^3-bulk/sec].
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/09/2019
+  !                             
+  
+  use Option_module
+  
+  implicit none
+  
+  class(material_auxvar_type) :: material_auxvar
+  type(nw_trans_realization_type) :: nw_trans
+  type(option_type) :: option
+  PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
+  
+  PetscReal :: vol_dt
+  PetscInt :: istart, iend, ispecies
+  
+  Jac = 0.d0
+  
+  ! units of volume = [m^3-bulk]
+  ! units of tran_dt = [sec]
+  vol_dt = material_auxvar%volume/option%tran_dt
+  
+  istart = 1
+  iend = nw_trans%params%nspecies
+  do ispecies=istart,iend
+    ! units of Jac = [m^3-bulk/sec]
+    Jac(ispecies,ispecies) = vol_dt
+  enddo
+
+end subroutine NWTJacobianAccum
 
 ! ************************************************************************** !
 
