@@ -98,6 +98,7 @@ module NW_Transport_Aux_module
     PetscInt :: daughter_id
     PetscInt :: parent_id
     PetscReal :: rate_constant
+    PetscReal :: rate_constant_parent
     PetscReal :: half_life
     PetscBool :: print_me
     type(radioactive_decay_rxn_type), pointer :: next
@@ -559,6 +560,7 @@ function NWTRadDecayRxnCreate()
   rxn%daughter_name = ''
   rxn%parent_name = ''
   rxn%rate_constant = 0.d0
+  rxn%rate_constant_parent = 0.d0
   rxn%half_life = 0.d0
   rxn%print_me = PETSC_FALSE
   nullify(rxn%next)
@@ -590,7 +592,7 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
   type(option_type) :: option
   
   type(species_type), pointer :: species
-  type(radioactive_decay_rxn_type), pointer :: rad_rxn
+  type(radioactive_decay_rxn_type), pointer :: rad_rxn, cur_rad_rxn
   PetscInt :: k 
   
   PetscBool :: parent_found, daughter_found
@@ -655,6 +657,25 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
     parent_found = PETSC_FALSE
     
     rad_rxn => rad_rxn%next
+  enddo
+  
+  cur_rad_rxn => rad_decay_rxn_list
+  do
+    if (.not.associated(cur_rad_rxn)) exit
+    ! check if current radioactive species has a parent
+    if (cur_rad_rxn%parent_id > 0) then
+      rad_rxn => rad_decay_rxn_list
+      do
+        if (.not.associated(rad_rxn)) exit
+        ! assign the parent's decay rate to rate_constant_parent
+        if (rad_rxn%species_id == cur_rad_rxn%parent_id) then
+          cur_rad_rxn%rate_constant_parent = rad_rxn%rate_constant
+          exit
+        endif
+        rad_rxn => rad_rxn%next
+      enddo
+    endif
+    cur_rad_rxn => cur_rad_rxn%next
   enddo
     
 end subroutine NWTVerifySpecies

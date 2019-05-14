@@ -1302,23 +1302,31 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     source_sink => source_sink%next
   enddo
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   !== Decay and Ingrowth ======================================
-  
+  do local_id = 1, grid%nlmax  
+    ghosted_id = grid%nL2G(local_id)
+    ! ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle
+    
+    call NWTJacobianRx(material_auxvars(ghosted_id), &
+                       nw_trans,Jac)
+    
+    ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
+    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+    
+  enddo
   
   !== Fluxes ==================================================
     
+    
+    
+    
+    
+    
+    
+  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  
     
   if (realization%debug%matview_Jacobian) then
     string = 'NWTjacobian'
@@ -1352,7 +1360,7 @@ subroutine NWTJacobianAccum(material_auxvar,nw_trans,option,Jac)
   ! All Jacobian entries should be in [m^3-bulk/sec].
   ! 
   ! Author: Jenn Frederick
-  ! Date: 05/09/2019
+  ! Date: 05/14/2019
   !                             
   
   use Option_module
@@ -1455,9 +1463,10 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   iend = nw_trans%params%nspecies
   do ispecies=istart,iend
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = vol * (coef_in/vol)
+    Jac(ispecies,ispecies) = -1.d0 * vol * (coef_in/vol)
     ! Note: I multiply and then divide by volume to be consistent with the 
     ! details provided in the theory guide for this transport mode.
+    ! Note: I multiply by -1 because src/sinks are subtracted in the residual.
   enddo
                                
   ! -- Precipitated-Component -----------------------------------
@@ -1467,6 +1476,76 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   ! There is no contribution from sorbed components.
 
 end subroutine NWTJacobianSrcSink
+
+! ************************************************************************** !
+
+subroutine NWTJacobianRx(material_auxvar,nw_trans,Jac)
+  ! 
+  ! Computes the radioactive decay/ingrowth terms in the Jacobian matrix.
+  ! All Jacobian entries should be in [m^3-bulk/sec].
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/14/2019
+  !                             
+  
+  use Option_module
+  
+  implicit none
+  
+  class(material_auxvar_type) :: material_auxvar
+  type(nw_trans_realization_type) :: nw_trans
+  PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
+  
+  type(radioactive_decay_rxn_type), pointer :: rad_rxn
+  PetscReal :: vol
+  PetscReal :: decay_rate,parent_decay_rate
+  PetscInt :: parent_id, ispecies
+  PetscInt :: istart, iend
+  PetscBool :: has_parent
+  
+  Jac = 0.d0
+  
+  ! units of volume = [m^3-bulk]
+  vol = material_auxvar%volume
+  
+  istart = 1
+  iend = nw_trans%params%nspecies
+  do ispecies=istart,iend
+    decay_rate = 0.d0
+    parent_decay_rate = 0.d0
+    has_parent = PETSC_FALSE
+    ! find the decay rate for species_id = ispecies (if its radioactive)
+    rad_rxn => nw_trans%rad_decay_rxn_list
+    do
+      if (.not.associated(rad_rxn)) exit
+      if (rad_rxn%species_id == ispecies) then
+        decay_rate = rad_rxn%rate_constant
+        parent_id = rad_rxn%parent_id
+        ! check if the species has a parent
+        if (parent_id > 0) then
+          has_parent = PETSC_TRUE
+          parent_decay_rate = rad_rxn%rate_constant_parent          
+        endif
+        exit
+      endif
+      rad_rxn => rad_rxn%next
+    enddo
+    
+    ! fill in the diagonal of the Jacobian first
+    ! units of Jac = [m^3-bulk/sec]
+    Jac(ispecies,ispecies) = -1.d0 * (-1.d0*vol*decay_rate)
+    ! Note: I multiply by -1 because rx's are subtracted in the residual.
+    
+    ! fill in the off-diagonal associated with ingrowth from a parent
+    if (has_parent) then
+      Jac(ispecies,parent_id) = -1.d0 * (vol*parent_decay_rate)
+      ! Note: I multiply by -1 because rx's are subtracted in the residual.
+    endif
+    
+  enddo
+
+end subroutine NWTJacobianRx
+
 
 ! ************************************************************************** !
 

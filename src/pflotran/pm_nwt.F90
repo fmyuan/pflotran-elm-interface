@@ -61,6 +61,8 @@ module PM_NWT_class
     procedure, public :: InitializeTimestep => PMNWTInitializeTimestep
     procedure, public :: FinalizeTimestep => PMNWTFinalizeTimestep
     procedure, public :: Residual => PMNWTResidual
+    procedure, public :: Jacobian => PMNWTJacobian
+    procedure, public :: CheckConvergence => PMNWTCheckConvergence
     procedure, public :: SetTranWeights => PMNWTSetTranWeights
     procedure, public :: PreSolve => PMNWTPreSolve
   end type pm_nwt_type
@@ -449,6 +451,52 @@ subroutine PMNWTResidual(this,snes,xx,r,ierr)
   call NWTResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMNWTResidual
+
+! ************************************************************************** !
+
+subroutine PMNWTJacobian(this,snes,xx,A,B,ierr)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/14/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  SNES :: snes
+  Vec :: xx
+  Mat :: A, B
+  PetscErrorCode :: ierr
+  
+  call NWTJacobian(snes,xx,A,B,this%realization,ierr)
+
+end subroutine PMNWTJacobian
+
+! ************************************************************************** !
+
+subroutine PMNWTCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+  !
+  ! Author: Jenn Frederick
+  ! Date: 05/14/2019
+  ! 
+  use Convergence_module
+
+  implicit none
+
+  class(pm_nwt_type) :: this
+  SNES :: snes
+  PetscInt :: it
+  PetscReal :: xnorm
+  PetscReal :: unorm
+  PetscReal :: fnorm
+  SNESConvergedReason :: reason
+  PetscErrorCode :: ierr
+
+  call ConvergenceTest(snes,it,xnorm,unorm,fnorm,reason, &
+                       this%realization%patch%grid, &
+                       this%option,this%solver,ierr)
+
+end subroutine PMNWTCheckConvergence
 
 ! ************************************************************************** !
 
