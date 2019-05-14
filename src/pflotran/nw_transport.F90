@@ -1203,6 +1203,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   use Field_module
   use Logging_module
   use Debug_module
+  use Connection_module
+  use Coupler_module  
 
   implicit none
 
@@ -1222,8 +1224,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_type), pointer :: cur_connection_set
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_id, ghosted_id
+  PetscInt :: iconn, sum_connection
+  PetscInt :: iphase
   PetscReal :: Jac(realization%nw_trans%params%nspecies, &
                    realization%nw_trans%params%nspecies)
   PetscReal :: rdum
@@ -1236,6 +1242,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   nwt_auxvars => patch%aux%NWT%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
+  
+  iphase = LIQUID_PHASE
 
   call PetscLogEventBegin(logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
 
@@ -1266,18 +1274,44 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   
     enddo
   endif
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
   !== Source/Sink Terms =======================================
+  source_sink => patch%source_sink_list%first 
+  sum_connection = 0
+  do 
+    if (.not.associated(source_sink)) exit
+    
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      ! ignore inactive cells with inactive materials
+      if (patch%imat(ghosted_id) <= 0) cycle
+      
+      call NWTJacobianSrcSink(material_auxvars(ghosted_id), &
+                              global_auxvars(ghosted_id),source_sink, &
+                              patch,sum_connection,nw_trans,Jac) 
+      
+      ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+    
+    enddo
+        
+    source_sink => source_sink%next
+  enddo
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
   
   !== Decay and Ingrowth ======================================
@@ -1347,6 +1381,92 @@ subroutine NWTJacobianAccum(material_auxvar,nw_trans,option,Jac)
   enddo
 
 end subroutine NWTJacobianAccum
+
+! ************************************************************************** !
+
+subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
+                              patch,sum_connection,nw_trans,Jac)
+  ! 
+  ! Computes the source/sink terms in the Jacobian matrix.
+  ! All Jacobian entries should be in [m^3-bulk/sec].
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/14/2019
+  ! 
+
+  use Patch_module
+  use Coupler_module
+
+  implicit none
+  
+  class(material_auxvar_type) :: material_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(coupler_type), pointer :: source_sink
+  type(patch_type), pointer :: patch
+  PetscInt :: sum_connection
+  type(nw_trans_realization_type), pointer :: nw_trans
+  PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
+  
+  PetscInt :: istart, iend, ispecies
+  PetscReal :: qsrc, u, vol
+  PetscReal :: coef_in
+  
+  Jac = 0.d0
+  
+  if (associated(patch%ss_flow_vol_fluxes)) then
+    ! qsrc = [m^3-liq/sec] 
+    qsrc = patch%ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+  endif
+      
+  istart = 1
+  iend = nw_trans%params%nspecies
+  
+  ! transform qsrc into pore velocity volumetric flow
+  ! units of porosity = [m^3-void/m^3-bulk]
+  ! units of saturation = [m^3-liq/m^3-void]
+  ! units of u = [m^3-bulk/sec]
+  u = qsrc / (material_auxvar%porosity * global_auxvar%sat(LIQUID_PHASE))
+  
+  vol = material_auxvar%volume
+  
+  ! -- Aqueous-Component ----------------------------------------
+  select case(source_sink%tran_condition%itype)
+    case(EQUILIBRIUM_SS)
+      ! jenn:todo What is EQUILIBRIUM_SS option?
+    case(MASS_RATE_SS)
+      ! jenn:todo What is MASS_RATE_SS option?
+    case default
+      ! Note: We only care about coef_in here, because the Jac is a derivative
+      ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
+      ! On the outside of the domain, we have a specified conc, which is not a
+      ! fn(total_bulk_conc), thus the derivative is zero.
+      if (u > 0.d0) then ! source of fluid flux
+        ! represents inside of the domain
+        coef_in = 0.d0
+      else               ! sink of fluid flux
+        ! represents inside of the domain
+        coef_in = u
+      endif
+  end select
+  
+  ! units of coef = [m^3-bulk/sec]
+  ! units of volume = [m^3-bulk]
+  istart = 1
+  iend = nw_trans%params%nspecies
+  do ispecies=istart,iend
+    ! units of Jac = [m^3-bulk/sec]
+    Jac(ispecies,ispecies) = vol * (coef_in/vol)
+    ! Note: I multiply and then divide by volume to be consistent with the 
+    ! details provided in the theory guide for this transport mode.
+  enddo
+                               
+  ! -- Precipitated-Component -----------------------------------
+  ! There is no contribution from precipitated components.
+  
+  ! -- Sorbed-Component -----------------------------------------
+  ! There is no contribution from sorbed components.
+
+end subroutine NWTJacobianSrcSink
 
 ! ************************************************************************** !
 
