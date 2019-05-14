@@ -8,7 +8,7 @@ module EOS_module
   use EOS_Oil_module
   use EOS_Slv_module
   use co2_span_wagner_module
-  use EOSData_module
+  use EOS_Database_module
 
   implicit none
 

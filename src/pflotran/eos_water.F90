@@ -4,7 +4,7 @@ module EOS_Water_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Geometry_module
-  use EOSData_module
+  use EOS_Database_module
 
   implicit none
 
