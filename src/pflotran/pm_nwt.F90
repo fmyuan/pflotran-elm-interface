@@ -418,8 +418,6 @@ subroutine PMNWTPreSolve(this)
                                this%realization%field,this%comm1)
   endif
 
-  call NWTUpdateTransportCoefs(this%realization)
-
   if (this%realization%nw_trans%use_log_formulation) then
     call VecCopy(this%realization%field%tran_xx, &
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)

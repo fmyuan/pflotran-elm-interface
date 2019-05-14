@@ -55,7 +55,7 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
                       cell_centered_velocity_up,dispersivity_up, &
                       global_auxvar_dn,material_auxvar_dn, &
                       cell_centered_velocity_dn,dispersivity_dn,dist, &
-                      naqcomp,nphase,realization,option,qdarcy, &
+                      rt_parameter,option,qdarcy, &
                       harmonic_tran_coefs_over_dist)
   ! 
   ! Computes a single coefficient representing:
@@ -69,7 +69,6 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
 
   use Option_module
   use Connection_module
-  use Realization_Subsurface_class
 
   implicit none
   
@@ -81,10 +80,11 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
                cell_centered_velocity_dn(3,2)
   PetscReal :: dist(-1:3)
   PetscReal :: qdarcy(*)
-  type(realization_subsurface_type) :: realization
-  PetscInt :: naqcomp, nphase
-  PetscReal :: harmonic_tran_coefs_over_dist(naqcomp,nphase)
+  type(reactive_transport_param_type) :: rt_parameter
+  PetscReal :: harmonic_tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                             rt_parameter%nphase)
   
+  PetscInt :: iphase, nphase
   PetscReal :: dist_up, dist_dn
   PetscReal :: sat_up, sat_dn
   PetscReal :: velocity_dn(3), velocity_up(3)
@@ -97,44 +97,15 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
   PetscInt, parameter :: TRANSVERSE_VERTICAL = 3
   PetscReal :: mechanical_dispersion_up
   PetscReal :: mechanical_dispersion_dn
-  PetscReal, pointer :: molecular_diffusion_up(:)
-  PetscReal, pointer :: molecular_diffusion_dn(:)
-  PetscReal, pointer :: hydrodynamic_dispersion_up(:)
-  PetscReal, pointer :: hydrodynamic_dispersion_dn(:)
-  PetscReal, pointer :: diffusion_coefficient(:,:)
-  PetscReal, pointer :: diffusion_activation_energy(:,:)
-  PetscBool :: temperature_dependent_diffusion
-  PetscBool :: calculate_transverse_dispersion
-  PetscInt :: iphase
+  PetscReal :: molecular_diffusion_up(rt_parameter%naqcomp)
+  PetscReal :: molecular_diffusion_dn(rt_parameter%naqcomp)
+  PetscReal :: hydrodynamic_dispersion_up(rt_parameter%naqcomp)
+  PetscReal :: hydrodynamic_dispersion_dn(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
+
+  nphase = rt_parameter%nphase
   
-  if (associated(realization%reaction)) then
-    nphase = realization%patch%aux%RT%rt_parameter%nphase
-    naqcomp = realization%patch%aux%RT%rt_parameter%naqcomp
-    temperature_dependent_diffusion = &
-      realization%patch%aux%RT%rt_parameter%temperature_dependent_diffusion
-    calculate_transverse_dispersion = &
-      realization%patch%aux%RT%rt_parameter%calculate_transverse_dispersion
-    diffusion_coefficient => &
-      realization%patch%aux%RT%rt_parameter%diffusion_coefficient
-    diffusion_activation_energy => &
-      realization%patch%aux%RT%rt_parameter%diffusion_activation_energy
-  endif
-  if (associated(realization%nw_trans)) then
-    temperature_dependent_diffusion = &
-      realization%nw_trans%params%temperature_dependent_diffusion
-    calculate_transverse_dispersion = &
-      realization%nw_trans%params%calculate_transverse_dispersion
-    diffusion_coefficient => realization%nw_trans%diffusion_coefficient
-    diffusion_activation_energy => &
-      realization%nw_trans%diffusion_activation_energy
-  endif
-  
-  allocate(molecular_diffusion_up(naqcomp))
-  allocate(molecular_diffusion_dn(naqcomp))
-  allocate(hydrodynamic_dispersion_up(naqcomp))
-  allocate(hydrodynamic_dispersion_dn(naqcomp))
-  harmonic_tran_coefs_over_dist(:,:) = 0.d0
+  harmonic_tran_coefs_over_dist(:,:) = 0.d0    
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up, &
                                     dist_dn,distance_gravity, &
@@ -144,34 +115,40 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
     sat_dn = global_auxvar_dn%sat(iphase)
     ! skip phase if it does not exist on either side of the connection
     if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
-    if (temperature_dependent_diffusion) then
+    if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
           t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
-          molecular_diffusion_up(:) = diffusion_coefficient(:,iphase) * &
-            exp(diffusion_activation_energy(:,iphase) / &
+          molecular_diffusion_up(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase) * &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
-          molecular_diffusion_dn(:) = diffusion_coefficient(:,iphase) * &
-            exp(diffusion_activation_energy(:,iphase) / &
+          molecular_diffusion_dn(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase) * &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_dn%temp + 273.15d0)))
         case(GAS_PHASE)
           ! if gas phase exists, gas pressure %pres(GAS_PHASE) should be total
           ! pressure
-          molecular_diffusion_up(:) = diffusion_coefficient(:,iphase) * &
+          molecular_diffusion_up(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase) * &
             ((((global_auxvar_up%temp+273.15d0)/273.15d0)**1.8d0) * &
              (101325.d0/global_auxvar_up%pres(GAS_PHASE)))
-          molecular_diffusion_dn(:) = diffusion_coefficient(:,iphase) * &
+          molecular_diffusion_dn(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase) * &
             ((((global_auxvar_dn%temp+273.15d0)/273.15d0)**1.8d0) * &
              (101325.d0/global_auxvar_dn%pres(GAS_PHASE)))
       end select
     else
-      molecular_diffusion_up(:) = diffusion_coefficient(:,iphase)
-      molecular_diffusion_dn(:) = diffusion_coefficient(:,iphase)
+      molecular_diffusion_up(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase)
+      molecular_diffusion_dn(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase)
     endif
     q = qdarcy(iphase)
-    if (calculate_transverse_dispersion) then
+    if (rt_parameter%calculate_transverse_dispersion) then
       velocity_dn = q*dist(1:3) + (1.d0-dist(1:3))* &
                     cell_centered_velocity_dn(:,iphase)
       velocity_up = q*dist(1:3) + (1.d0-dist(1:3))* &
@@ -239,23 +216,18 @@ subroutine TDispersion(global_auxvar_up,material_auxvar_up, &
       (hydrodynamic_dispersion_up(:)*dist_dn + &
        hydrodynamic_dispersion_dn(:)*dist_up)
   enddo
-  
-  deallocate(molecular_diffusion_up)
-  deallocate(molecular_diffusion_dn)
-  deallocate(hydrodynamic_dispersion_up)
-  deallocate(hydrodynamic_dispersion_dn)
 
 end subroutine TDispersion
 
 ! ************************************************************************** !
 
 subroutine TDispersionBC(ibndtype, &
-                         global_auxvar_up, &
-                         global_auxvar_dn,material_auxvar_dn, &
-                         cell_centered_velocity_dn,dispersivity_dn, &
-                         dist_dn, &
-                         naqcomp,nphase,realization,option,qdarcy, &
-                         tran_coefs_over_dist)
+                          global_auxvar_up, &
+                          global_auxvar_dn,material_auxvar_dn, &
+                          cell_centered_velocity_dn,dispersivity_dn, &
+                          dist_dn, &
+                          rt_parameter,option,qdarcy, &
+                          tran_coefs_over_dist)
   ! 
   ! Computes a single coefficient representing:
   !   (saturation * porosity * 
@@ -268,7 +240,6 @@ subroutine TDispersionBC(ibndtype, &
 
   use Option_module
   use Connection_module
-  use Realization_Subsurface_class
 
   implicit none
   
@@ -280,11 +251,11 @@ subroutine TDispersionBC(ibndtype, &
   PetscReal :: cell_centered_velocity_dn(3,2)
   PetscReal :: dist_dn(-1:3)
   PetscReal :: qdarcy(*)
-  type(realization_subsurface_type) :: realization
-  PetscInt :: naqcomp, nphase
-  PetscReal :: tran_coefs_over_dist(naqcomp,nphase)
+  type(reactive_transport_param_type) :: rt_parameter
+  PetscReal :: tran_coefs_over_dist(rt_parameter%naqcomp, &
+                                             rt_parameter%nphase)
   
-  PetscInt :: iphase
+  PetscInt :: iphase, nphase
   PetscReal :: spD
   PetscReal :: sat_up, sat_dn
   PetscReal :: velocity_dn(3)
@@ -295,38 +266,12 @@ subroutine TDispersionBC(ibndtype, &
   PetscInt, parameter :: TRANSVERSE_HORIZONTAL = 2
   PetscInt, parameter :: TRANSVERSE_VERTICAL = 3
   PetscReal :: mechanical_dispersion
-  PetscReal, pointer :: molecular_diffusion(:)
-  PetscReal, pointer :: hydrodynamic_dispersion(:)
-  PetscReal, pointer :: diffusion_coefficient(:,:)
-  PetscReal, pointer :: diffusion_activation_energy(:,:)
-  PetscBool :: temperature_dependent_diffusion
-  PetscBool :: calculate_transverse_dispersion
+  PetscReal :: molecular_diffusion(rt_parameter%naqcomp)
+  PetscReal :: hydrodynamic_dispersion(rt_parameter%naqcomp)
   PetscReal :: t_ref_inv
+
+  nphase = rt_parameter%nphase
   
-  if (associated(realization%reaction)) then
-    nphase = realization%patch%aux%RT%rt_parameter%nphase
-    naqcomp = realization%patch%aux%RT%rt_parameter%naqcomp
-    temperature_dependent_diffusion = &
-      realization%patch%aux%RT%rt_parameter%temperature_dependent_diffusion
-    calculate_transverse_dispersion = &
-      realization%patch%aux%RT%rt_parameter%calculate_transverse_dispersion
-    diffusion_coefficient => &
-      realization%patch%aux%RT%rt_parameter%diffusion_coefficient
-    diffusion_activation_energy => &
-      realization%patch%aux%RT%rt_parameter%diffusion_activation_energy
-  endif
-  if (associated(realization%nw_trans)) then
-    temperature_dependent_diffusion = &
-      realization%nw_trans%params%temperature_dependent_diffusion
-    calculate_transverse_dispersion = &
-      realization%nw_trans%params%calculate_transverse_dispersion
-    diffusion_coefficient => realization%nw_trans%diffusion_coefficient
-    diffusion_activation_energy => &
-      realization%nw_trans%diffusion_activation_energy
-  endif
-  
-  allocate(molecular_diffusion(naqcomp))
-  allocate(hydrodynamic_dispersion(naqcomp))
   tran_coefs_over_dist(:,:) = 0.d0    
 
   do iphase = 1, nphase
@@ -334,26 +279,29 @@ subroutine TDispersionBC(ibndtype, &
     sat_up = global_auxvar_up%sat(iphase)
     sat_dn = global_auxvar_dn%sat(iphase)
     if (sat_up < rt_min_saturation .or. sat_dn < rt_min_saturation) cycle 
-    if (temperature_dependent_diffusion) then
+    if (rt_parameter%temperature_dependent_diffusion) then
       select case(iphase)
         case(LIQUID_PHASE)
           t_ref_inv = 1.d0/298.15d0 ! 1. / (25. + 273.15)
-          molecular_diffusion(:) = diffusion_coefficient(:,iphase) * &
-            exp(diffusion_activation_energy(:,iphase) / &
+          molecular_diffusion(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase) * &
+            exp(rt_parameter%diffusion_activation_energy(:,iphase) / &
                 IDEAL_GAS_CONSTANT* &
                 (t_ref_inv - 1.d0/(global_auxvar_up%temp + 273.15d0)))
         case(GAS_PHASE)
           ! if gas phase exists, gas pressure %pres(GAS_PHASE) should be total
           ! pressure
-          molecular_diffusion(:) = diffusion_coefficient(:,iphase) * &
+          molecular_diffusion(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase) * &
             ((((global_auxvar_up%temp+273.15d0)/273.15d0)**1.8d0) * &
              (101325.d0/global_auxvar_up%pres(GAS_PHASE)))
       end select
     else
-      molecular_diffusion(:) = diffusion_coefficient(:,iphase)
+      molecular_diffusion(:) = &
+            rt_parameter%diffusion_coefficient(:,iphase)
     endif
     q = qdarcy(iphase)
-    if (calculate_transverse_dispersion) then
+    if (rt_parameter%calculate_transverse_dispersion) then
       velocity_dn = q*dist_dn(1:3) + (1.d0-dist_dn(1:3))* &
                     cell_centered_velocity_dn(:,iphase)
       Dxx = dispersivity_dn(LONGITUDINAL)* &
@@ -399,9 +347,6 @@ subroutine TDispersionBC(ibndtype, &
       case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC)
     end select
   enddo
-  
-  deallocate(molecular_diffusion)
-  deallocate(hydrodynamic_dispersion)
 
 end subroutine TDispersionBC
 

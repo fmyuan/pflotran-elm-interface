@@ -1117,8 +1117,7 @@ subroutine RTUpdateTransportCoefs(realization)
                       patch%material_property_array(patch%imat(ghosted_id_dn))% &
                         ptr%dispersivity, &
                       cur_connection_set%dist(:,iconn), &
-                      rt_parameter%naqcomp,rt_parameter%nphase, &
-                      realization,option, &
+                      rt_parameter,option, &
                       patch%internal_velocities(:,sum_connection), &
                       patch%internal_tran_coefs(:,:,sum_connection))
                                            
@@ -1154,8 +1153,7 @@ subroutine RTUpdateTransportCoefs(realization)
                         patch%material_property_array(patch%imat(ghosted_id))% &
                           ptr%dispersivity, &
                         cur_connection_set%dist(:,iconn), &
-                        rt_parameter%naqcomp,rt_parameter%nphase, &
-                        realization,option, &
+                        rt_parameter,option, &
                         patch%boundary_velocities(:,sum_connection), &
                         patch%boundary_tran_coefs(:,:,sum_connection))
     enddo

@@ -92,7 +92,10 @@ module NW_Transport_Aux_module
   
   type, public :: radioactive_decay_rxn_type
     character(len=MAXWORDLENGTH) :: name
+    character(len=MAXWORDLENGTH) :: daughter_name
+    character(len=MAXWORDLENGTH) :: parent_name
     PetscInt :: species_id
+    PetscInt :: daughter_id
     PetscInt :: parent_id
     PetscReal :: rate_constant
     PetscReal :: half_life
@@ -281,17 +284,20 @@ subroutine NWTRead(nw_trans,input,option)
   type(input_type), pointer :: input
   type(option_type), pointer :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word
-  character(len=MAXSTRINGLENGTH) :: error_string
-  PetscInt :: k
+  character(len=MAXWORDLENGTH) :: keyword, word, parent_name_hold
+  character(len=MAXSTRINGLENGTH) :: error_string_base, error_string
+  PetscInt :: k, j
   type(species_type), pointer :: new_species, prev_species
   character(len=MAXWORDLENGTH), pointer :: temp_species_names(:)
+  character(len=MAXWORDLENGTH), pointer :: temp_species_parents(:)
   type(radioactive_decay_rxn_type), pointer :: new_rad_rxn, prev_rad_rxn
   
-  error_string = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
+  error_string_base = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
   nullify(prev_species)
   allocate(temp_species_names(50))
+  allocate(temp_species_parents(50))
   temp_species_names = ''
+  temp_species_parents = ''
   nullify(prev_rad_rxn)
   k = 0
   
@@ -309,7 +315,7 @@ subroutine NWTRead(nw_trans,input,option)
     select case(trim(keyword))
       case('SPECIES')
         nullify(prev_species)
-        error_string = trim(error_string) // ',SPECIES'
+        error_string = trim(error_string_base) // ',SPECIES'
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -349,15 +355,66 @@ subroutine NWTRead(nw_trans,input,option)
         endif
         allocate(nw_trans%species_names(k))
         nw_trans%species_names(1:k) = temp_species_names(1:k)
-        deallocate(temp_species_names)
       case('RADIOACTIVE_DECAY')
+        nullify(prev_rad_rxn)
+        error_string = trim(error_string_base) // ',RADIOACTIVE_DECAY'
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          new_rad_rxn => NWTRadDecayRxnCreate()
+          call InputReadDouble(input,option,new_rad_rxn%rate_constant)
+          call InputErrorMsg(input,option,'radioactive species decay rate &
+                             &constant',error_string)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'radioactive species name', &
+                             error_string)
+          call StringToUpper(word)
+          new_rad_rxn%name = trim(word)
+          parent_name_hold = trim(word)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          if (input%ierr == 0) then ! '->' was read (or anything)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'radioactive species daughter &
+                               &name',error_string)
+            call StringToUpper(word)
+            new_rad_rxn%daughter_name = trim(word)
+            j = 0
+            ! record which species was the parent
+            do
+              j = j + 1
+              if (trim(temp_species_names(j)) == &
+                  trim(new_rad_rxn%daughter_name)) then
+                temp_species_parents(j) = trim(parent_name_hold)
+                exit
+              endif
+            enddo
+          endif
+
+          if (.not.associated(nw_trans%rad_decay_rxn_list)) then
+            nw_trans%rad_decay_rxn_list => new_rad_rxn
+          endif
+          if (associated(prev_rad_rxn)) then
+            prev_rad_rxn%next => new_rad_rxn
+          endif
+          prev_rad_rxn => new_rad_rxn
+          nullify(new_rad_rxn)
+        enddo
       case('LOG_FORMULATION')
         nw_trans%use_log_formulation = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
-    
+            
   enddo
+  
+  ! assign species_id, parent_id to the rad_rxn objects
+  ! check that all radioactive species were listed in the SPECIES block
+  call NWTVerifySpecies(nw_trans%species_list,nw_trans%rad_decay_rxn_list, &
+                        temp_species_names,temp_species_parents,option)
+                        
+   deallocate(temp_species_names)
+   deallocate(temp_species_parents)
   
 end subroutine NWTRead
 
@@ -399,6 +456,12 @@ subroutine NWTReadPass2(nw_trans,input,option)
     
     select case(trim(keyword))
       case('SPECIES')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+      case('RADIOACTIVE_DECAY')
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -489,9 +552,12 @@ function NWTRadDecayRxnCreate()
   type(radioactive_decay_rxn_type), pointer :: rxn
   
   allocate(rxn)
+  rxn%daughter_id = 0
   rxn%species_id = 0
-  rxn%parent_id = -1
+  rxn%parent_id = 0
   rxn%name = ''
+  rxn%daughter_name = ''
+  rxn%parent_name = ''
   rxn%rate_constant = 0.d0
   rxn%half_life = 0.d0
   rxn%print_me = PETSC_FALSE
@@ -500,6 +566,98 @@ function NWTRadDecayRxnCreate()
   NWTRadDecayRxnCreate => rxn
   
 end function NWTRadDecayRxnCreate
+
+! ************************************************************************** !
+
+subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
+                            parent_names,option)
+  ! 
+  ! Assigns species_id, parent_id to the rad_rxn objects after checking that
+  ! all radioactive species were listed in the SPECIES block.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/09/2019
+  !
+  
+  use Option_module
+
+  implicit none
+  
+  type(species_type), pointer :: species_list
+  type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
+  character(len=MAXWORDLENGTH), pointer :: species_names(:)
+  character(len=MAXWORDLENGTH), pointer :: parent_names(:) 
+  type(option_type) :: option
+  
+  type(species_type), pointer :: species
+  type(radioactive_decay_rxn_type), pointer :: rad_rxn
+  PetscInt :: k 
+  
+  PetscBool :: parent_found, daughter_found
+  
+  rad_rxn => rad_decay_rxn_list
+  do
+    if (.not.associated(rad_rxn)) exit
+    ! Check if the parent and daughter radioactive species are listed within 
+    ! the SPECIES block. 
+    species => species_list
+    do
+      if (.not.associated(species)) exit
+      if (trim(rad_rxn%name) == trim(species%name)) then 
+        parent_found = PETSC_TRUE
+        rad_rxn%species_id = species%id
+        species%radioactive = PETSC_TRUE
+      endif
+      if (len(trim(rad_rxn%daughter_name)) > 0) then
+        if (trim(rad_rxn%daughter_name) == trim(species%name)) then 
+          daughter_found = PETSC_TRUE
+          rad_rxn%daughter_id = species%id
+        endif
+      else
+        daughter_found = PETSC_TRUE
+      endif
+                  
+      species => species%next
+    enddo
+    if (.not.parent_found) then
+      option%io_buffer = 'ERROR: Radioactive species ' // trim(rad_rxn%name) &
+                         // ' must also be included in the SPECIES block.'
+      call printErrMsg(option)
+    endif
+    if (.not.daughter_found) then
+      option%io_buffer = 'ERROR: Radioactive species ' // &
+                         trim(rad_rxn%daughter_name) &
+                         // ' must also be included in the SPECIES block.'
+      call printErrMsg(option)
+    endif
+    
+    ! assign the parent information
+    k = 0
+    do
+      k = k + 1
+      if (trim(species_names(k)) == trim(rad_rxn%name)) then
+        rad_rxn%parent_name = trim(parent_names(k))
+        exit
+      endif
+    enddo
+    species => species_list
+    do
+      if (.not.associated(species)) exit
+      if (trim(rad_rxn%parent_name) == trim(species%name)) then
+        rad_rxn%parent_id = species%id
+        exit
+      endif
+      
+      species => species%next
+    enddo
+    
+    daughter_found = PETSC_FALSE
+    parent_found = PETSC_FALSE
+    
+    rad_rxn => rad_rxn%next
+  enddo
+    
+end subroutine NWTVerifySpecies
 
 ! ************************************************************************** ! 
 
