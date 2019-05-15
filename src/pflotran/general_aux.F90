@@ -710,6 +710,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                              gen_auxvar%pres(cpid)
                              
       if (associated(gen_auxvar%d)) then
+        option%io_buffer = 'Analytical derivatives for gas state cells in &
+          &GENERAL mode have a bug. Please use numerical derivatives until &
+          &the bug is resolved.'
+        call PrintErrMsg(option)
         dpair_dT = 0.d0
         dpair_dpgas = 0.d0
         gen_auxvar%d%pv_p = 1.d0
