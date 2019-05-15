@@ -25,7 +25,6 @@ eos_obj = \
 	${common_src}co2_sw.o \
 	${common_src}co2_span_wagner_spline.o \
 	${common_src}eos.o \
-	${common_src}eos_database.o \
 	${common_src}eos_gas.o \
 	${common_src}eos_oil.o \
         ${common_src}eos_slv.o \
@@ -97,9 +96,11 @@ shared_mode_aux_obj = \
 	${common_src}co2eos.o \
 	${common_src}co2_span_wagner.o \
 	${common_src}co2_sw_rtsafe.o \
+	${common_src}eos_database.o \
 	${common_src}eos_water.o \
 	${common_src}geometry.o \
 	${common_src}global_aux.o \
+	${common_src}lookup_table.o \
 	${common_src}material_aux.o \
 	${common_src}reactive_transport_aux.o 
 
@@ -217,7 +218,6 @@ misc_obj = \
 	${common_src}init_subsurface_flow.o \
 	${common_src}init_subsurface_transport.o \
 	${common_src}integral_flux.o \
-	${common_src}lookup_table.o \
 	${common_src}matrix_buffer.o \
 	${common_src}multisimulation.o \
 	${common_src}observation.o \

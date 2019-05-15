@@ -5341,6 +5341,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY,TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_RATE,MINERAL_VOLUME_FRACTION,MINERAL_SATURATION_INDEX, &
+         MINERAL_SURFACE_AREA, &
          SURFACE_CMPLX,SURFACE_CMPLX_FREE,SURFACE_SITE_DENSITY, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD,TOTAL_SORBED,TOTAL_SORBED_MOBILE, &
@@ -5556,6 +5557,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%RT%auxvars(grid%nL2G(local_id))%mnrl_volfrac(isubvar)
+          enddo
+        case(MINERAL_SURFACE_AREA)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%RT%auxvars(grid%nL2G(local_id))%mnrl_area(isubvar)
           enddo
         case(MINERAL_RATE)
           do local_id=1,grid%nlmax
@@ -6640,6 +6646,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &
+         MINERAL_SURFACE_AREA, &
          SURFACE_CMPLX,SURFACE_CMPLX_FREE,SURFACE_SITE_DENSITY, &
          KIN_SURFACE_CMPLX,KIN_SURFACE_CMPLX_FREE, PRIMARY_ACTIVITY_COEF, &
          SECONDARY_ACTIVITY_COEF,PRIMARY_KD, TOTAL_SORBED, &
@@ -6775,6 +6782,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)
+        case(MINERAL_SURFACE_AREA)
+          value = patch%aux%RT%auxvars(ghosted_id)%mnrl_area(isubvar)
         case(MINERAL_RATE)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_rate(isubvar)
         case(MINERAL_SATURATION_INDEX)
@@ -7748,7 +7757,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       endif
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
          PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
-         GAS_CONCENTRATION,REACTION_AUXILIARY)
+         GAS_CONCENTRATION,REACTION_AUXILIARY,MINERAL_SURFACE_AREA)
       select case(ivar)
         case(PRIMARY_MOLALITY)
           if (vec_format == GLOBAL) then
@@ -7788,6 +7797,18 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             do ghosted_id=1,grid%ngmax
               patch%aux%RT%auxvars(ghosted_id)% &
                 mnrl_volfrac(isubvar) = vec_ptr(ghosted_id)
+            enddo
+          endif
+        case(MINERAL_SURFACE_AREA)
+          if (vec_format == GLOBAL) then
+            do local_id=1,grid%nlmax
+              patch%aux%RT%auxvars(grid%nL2G(local_id))% &
+                mnrl_area(isubvar) = vec_ptr(local_id)
+            enddo
+          else if (vec_format == LOCAL) then
+            do ghosted_id=1,grid%ngmax
+              patch%aux%RT%auxvars(ghosted_id)% &
+                mnrl_area(isubvar) = vec_ptr(ghosted_id)
             enddo
           endif
         case(IMMOBILE_SPECIES)

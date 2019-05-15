@@ -1,4 +1,4 @@
-module EOSData_module
+module EOS_Database_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -1725,4 +1725,4 @@ end subroutine EOSTableDestroyList
 
 ! ************************************************************************** !
 
-end module EOSData_module
+end module EOS_Database_module
