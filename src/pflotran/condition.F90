@@ -1507,7 +1507,7 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(enthalpy)) condition%itype(FOUR_INTEGER) = concentration%itype
       if (associated(energy_rate)) condition%itype(FOUR_INTEGER) = energy_rate%itype
 
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(well) .and. .not.associated(saturation)) then
         option%io_buffer = 'pressure, rate and saturation condition null in &

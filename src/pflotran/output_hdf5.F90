@@ -2691,7 +2691,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   select case(option%iflowmode)
     case (RICHARDS_MODE,RICHARDS_TS_MODE)
       ndof=1
-    case (TH_MODE)
+    case (TH_MODE,TH_TS_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate .and. &
           output_option%print_hdf5_energy_flowrate) ndof = 2
@@ -2729,7 +2729,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
         else

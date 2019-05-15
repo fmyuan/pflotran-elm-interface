@@ -584,7 +584,7 @@ subroutine RealizSurfProcessFlowConditions(surf_realization)
                            cur_surf_flow_condition%default_time_storage, &
                            string,option)
     select case(option%iflowmode)
-      case(RICHARDS_MODE,TH_MODE)
+      case(RICHARDS_MODE,TH_MODE,RICHARDS_TS_MODE,TH_TS_MODE)
         do i = 1, size(cur_surf_flow_condition%sub_condition_ptr)
            ! find dataset
           call DatasetFindInList(surf_realization%datasets, &

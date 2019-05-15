@@ -473,9 +473,9 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O

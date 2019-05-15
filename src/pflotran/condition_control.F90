@@ -1503,7 +1503,7 @@ subroutine CondControlScaleSourceSink(realization)
                             grid%structured_grid%dy(neighbor_ghosted_id)
               enddo
               vec_ptr(local_id) = vec_ptr(local_id) + sum
-          case(TH_MODE)
+          case(TH_MODE,TH_TS_MODE)
           case(MPH_MODE)
           case(IMS_MODE)
           case(MIS_MODE)
@@ -1524,7 +1524,7 @@ subroutine CondControlScaleSourceSink(realization)
           case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
-          case(TH_MODE)
+          case(TH_MODE,TH_TS_MODE)
           case(MPH_MODE)
           case(IMS_MODE)
           case(MIS_MODE)
@@ -1683,7 +1683,8 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   surf_field => surf_realization%surf_field
   patch => surf_realization%patch
 
-  if (option%iflowmode == TH_MODE) then
+  if ((option%iflowmode == TH_MODE) .or. &
+      (option%iflowmode == TH_MODE)) then
     surf_th_auxvars => patch%surf_aux%SurfaceTH%auxvars
     surf_global_auxvars => patch%surf_aux%SurfaceGlobal%auxvars
   endif
@@ -1696,7 +1697,7 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
     select case(option%iflowmode)
       
-      case (RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE)
+      case (RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE,TH_TS_MODE)
         ! assign initial conditions values to domain
         call VecGetArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     

@@ -284,7 +284,8 @@ subroutine RealizationCreateDiscretization(realization)
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx_loc, &
                                     LOCAL,option)
 
-    if (option%iflowmode == RICHARDS_TS_MODE) then
+    if ((option%iflowmode == RICHARDS_TS_MODE) .or. &
+        (option%iflowmode == TH_TS_MODE)) then
       call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xxdot, &
                                       GLOBAL,option)
 

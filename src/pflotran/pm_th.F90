@@ -52,7 +52,8 @@ module PM_TH_class
     procedure, public :: Destroy => PMTHDestroy
   end type pm_th_type
   
-  public :: PMTHCreate
+  public :: PMTHCreate, &
+            PMTHDestroy
   
 contains
 

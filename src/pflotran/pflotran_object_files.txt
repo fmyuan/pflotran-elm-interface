@@ -65,6 +65,7 @@ mode_aux_obj = \
 	${common_src}pm_surface_th.o \
 	${common_src}pm_surface.o \
 	${common_src}pm_th.o \
+	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
 	${common_src}pm_waste_form.o \
 	${common_src}criticality.o \

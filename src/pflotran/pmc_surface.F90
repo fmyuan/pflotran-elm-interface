@@ -149,9 +149,9 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
     cur_pm => this%pm_list
 
     select case(this%option%iflowmode)
-      case (RICHARDS_MODE)
+      case (RICHARDS_MODE,RICHARDS_TS_MODE)
         call SurfaceFlowComputeMaxDt(this%surf_realization,dt_max_loc)
-      case (TH_MODE)
+      case (TH_MODE,TH_TS_MODE)
         call SurfaceTHComputeMaxDt(this%surf_realization,dt_max_loc)
     end select
 
@@ -312,7 +312,7 @@ subroutine PMCSurfaceGetAuxData(this)
     select type(pmc => this)
       class is(pmc_surface_type)
         select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
+          case (RICHARDS_MODE,RICHARDS_TS_MODE)
             call VecScatterBegin(pmc%sim_aux%subsurf_to_surf, &
                                  pmc%sim_aux%subsurf_pres_top_bc, &
                                  pmc%surf_realization%surf_field%press_subsurf, &
@@ -324,7 +324,7 @@ subroutine PMCSurfaceGetAuxData(this)
                                INSERT_VALUES,SCATTER_FORWARD, &
                                ierr);CHKERRQ(ierr)
             call SurfaceFlowUpdateSurfState(pmc%surf_realization)
-          case (TH_MODE)
+          case (TH_MODE,TH_TS_MODE)
             call VecScatterBegin(pmc%sim_aux%subsurf_to_surf, &
                                  pmc%sim_aux%subsurf_pres_top_bc, &
                                  pmc%surf_realization%surf_field%press_subsurf, &
@@ -413,10 +413,10 @@ subroutine PMCSurfaceSetAuxData(this)
 
         select case(this%option%iflowmode)
 
-          case (RICHARDS_MODE)
+          case (RICHARDS_MODE,RICHARDS_TS_MODE)
             call VecCopy(pmc%surf_realization%surf_field%flow_xx, &
                          pmc%sim_aux%surf_head, ierr);CHKERRQ(ierr)
-          case (TH_MODE)
+          case (TH_MODE,TH_TS_MODE)
 
             surf_realization => pmc%surf_realization
             surf_patch => surf_realization%patch
@@ -594,7 +594,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
                                INSERT_VALUES,SCATTER_REVERSE, &
                                ierr);CHKERRQ(ierr)
 
-          case (TH_MODE)
+          case (TH_MODE,TH_TS_MODE)
 
             ! NOTE(GB:) This is strictly not correct since density should be
             ! computed based on surface-water temperature (not on

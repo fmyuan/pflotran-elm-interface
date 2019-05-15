@@ -33,6 +33,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Immis_module
   use Miscible_module
   use PM_Richards_TS_class
+  use PM_TH_TS_class
   use Richards_module
   use TH_module
   use General_module
@@ -64,9 +65,9 @@ subroutine InitSubsurfFlowSetupRealization(realization)
                            realization%option)
     end select
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         call THSetup(realization)
-      case(RICHARDS_MODE, RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -103,7 +104,9 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   
     select case(option%iflowmode)
       case(TH_MODE)
-        call THUpdateAuxVars(realization)
+        call THUpdateAuxVars(realization)      
+      case(TH_TS_MODE)
+        call PMTHTSUpdateAuxVarsPatch(realization)
       case(RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
       case(RICHARDS_TS_MODE)

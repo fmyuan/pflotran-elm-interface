@@ -33,6 +33,8 @@ module TH_Aux_module
     PetscReal :: Ke
     PetscReal :: dKe_dp
     PetscReal :: dKe_dt
+    PetscReal :: dpres_dtime ! for TS
+    PetscReal :: dtemp_dtime  ! for TS
     ! for ice
     type(th_ice_type), pointer :: ice
     ! For surface-flow
