@@ -5961,7 +5961,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     do i=1,reaction%mineral%nkinmnrl
       if (reaction%mineral%kinmnrl_print(i)) then
         name = trim(reaction%mineral%kinmnrl_names(i)) // ' VF'
-        units = ''
+        units = 'm^3 mnrl/m^3 bulk'
         call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
                                      MINERAL_VOLUME_FRACTION,i)     
       endif
