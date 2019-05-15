@@ -5994,7 +5994,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     do i=1,reaction%mineral%nmnrl
       if (reaction%mineral%mnrl_print(i)) then
         name = trim(reaction%mineral%mineral_names(i)) // ' Area'
-        units = ''
+        units = 'm^2/m^3'
         call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                      MINERAL_SURFACE_AREA,i)    
       endif
