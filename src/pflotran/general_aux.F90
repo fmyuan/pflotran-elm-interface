@@ -9,6 +9,7 @@ module General_Aux_module
   private 
 
 
+  PetscBool, public :: state_transition_output = PETSC_TRUE
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
@@ -1469,7 +1470,9 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
     call GeneralAuxVarCompute(x,gen_auxvar, global_auxvar,material_auxvar, &
           characteristic_curves,natural_id,option)
     state_change_string = 'State Transition: ' // trim(state_change_string)
-    call printMsgByRank(option,state_change_string)
+    if (state_transition_output) then
+      call printMsgByRank(option,state_change_string)
+    endif
 #ifdef DEBUG_GENERAL_INFO
     call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
                              natural_id,'After Update',option)

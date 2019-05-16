@@ -224,7 +224,10 @@ subroutine PMGeneralRead(this,input)
       case('RESTRICT_STATE_CHANGE')
         option%restrict_state_chng = PETSC_TRUE
       ! Tolerances
-
+      
+      case('NO_STATE_TRANSITION_OUTPUT')
+        state_transition_output = PETSC_FALSE
+      
       ! All Residual
       case('RESIDUAL_INF_TOL')
         call InputReadDouble(input,option,tempreal)
