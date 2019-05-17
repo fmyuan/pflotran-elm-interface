@@ -1500,7 +1500,8 @@ end subroutine CheckpointRead
 
 ! ************************************************************************** !
 
-subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list)
+subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
+                                           option)
   ! 
   ! Inserts periodic time waypoints into list
   ! 

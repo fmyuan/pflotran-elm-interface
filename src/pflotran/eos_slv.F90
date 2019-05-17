@@ -421,7 +421,7 @@ subroutine EOSSlvViscosityConstant(T, P, V, &
 
   dV_dT=0.d0
   dV_dP=0.d0
-  !if (calculate_derivative) call throwDerivativeError()
+  !if (calculate_derivative) call throwDerivativeError(option)
 
 end subroutine EOSSlvViscosityConstant
 
@@ -994,7 +994,7 @@ end subroutine EOSSlvTest
 
 ! ************************************************************************** !
 
-subroutine throwDerivativeError()
+subroutine throwDerivativeError(option)
 
 !------------------------------------------------------------------------------
 ! Issue error if derivatives requestsed (not available at present)

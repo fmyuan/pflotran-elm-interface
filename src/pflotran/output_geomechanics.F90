@@ -59,8 +59,7 @@ subroutine OutputGeomechanics(geomech_realization,snapshot_plot_flag, &
 
   use Geomechanics_Realization_class
   use Logging_module
-  use Option_module, only : OptionCheckTouch, option_type, &
-                            printMsg, printErrMsg
+  use Option_module
 
   implicit none
 

@@ -1632,7 +1632,8 @@ subroutine SetupWaypointList(simulation)
   ! add in periodic time waypoints for checkpointing. these will not appear
   ! in the outer list
   call CheckpointPeriodicTimeWaypoints(simulation%checkpoint_option, &
-                                       simulation%waypoint_list_subsurface)
+                                       simulation%waypoint_list_subsurface, &
+                                       option)
 
   ! clean up waypoints
   if (.not.option%steady_state) then

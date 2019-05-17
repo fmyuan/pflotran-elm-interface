@@ -655,7 +655,6 @@ subroutine StructGridGetIJKFromCoordinate(structured_grid,x,y,z,i,j,k)
   implicit none
     
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: i, j, k
   PetscInt :: i_local, j_local, k_local
   PetscInt :: i_ghosted, j_ghosted, k_ghosted
@@ -743,7 +742,6 @@ subroutine StructGridGetIJKFromLocalID(structured_grid,local_id,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: local_id
   PetscReal :: i, j, k
   
