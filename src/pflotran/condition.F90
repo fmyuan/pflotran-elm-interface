@@ -4068,6 +4068,11 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
       error_string = 'CONDITION,' // trim(keyword) // ',LIST'
       call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
+    else if (StringCompare(word,'dbase_value')) then
+      input%buf = trim(string2)
+      error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
+      call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
+                                  data_internal_units,error_string,option)
     else
       option%io_buffer = 'Keyword "' // trim(word) // &
         '" not recognized in when reading condition values for "' // &
@@ -4079,34 +4084,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
     error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
     call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
-#if 0
-    allocate(dataset_ascii%rarray(dataset_ascii%array_width))
-    do icol=1,dataset_ascii%array_width
-      call InputReadDouble(input,option,dataset_ascii%rarray(icol))
-      write(input%err_buf,'(a,i2)') trim(keyword) // &
-                                    ' dataset_values, icol = ', icol
-      input%err_buf2 = 'CONDITION'
-      call InputErrorMsg(input,option)
-    enddo
-    string2 = input%buf
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    if (InputError(input)) then
-      call InputCheckMandatoryUnits(input,option)
-      word = trim(keyword) // ' UNITS'
-      call InputDefaultMsg(input,option,word)
-    else
-      input%buf = string2
-      units = ''
-      do icol=1,dataset_ascii%array_width
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,'CONDITION')
-        dataset_ascii%rarray(icol) = UnitsConvertToInternal(word, &
-                                     internal_unit_strings(icol),option) * &
-                                     dataset_ascii%rarray(icol)
-        units = trim(units) // ' ' // trim(word)
-      enddo
-    endif
-#endif
   endif
 
   deallocate(internal_unit_strings)
