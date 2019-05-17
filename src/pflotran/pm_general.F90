@@ -226,7 +226,7 @@ subroutine PMGeneralRead(this,input)
       ! Tolerances
       
       case('NO_STATE_TRANSITION_OUTPUT')
-        state_transition_output = PETSC_FALSE
+        general_print_state_transition = PETSC_FALSE
       
       ! All Residual
       case('RESIDUAL_INF_TOL')
