@@ -1205,7 +1205,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg, printErrMsg
+  use Option_module
   
   implicit none
   
@@ -2298,7 +2298,7 @@ subroutine OutputAvegVars(realization_base)
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg
+  use Option_module
   use Output_Aux_module
   use Output_Common_module, only : OutputGetVariableArray  
   use Field_module

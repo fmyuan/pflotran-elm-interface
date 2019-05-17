@@ -767,7 +767,6 @@ subroutine StructGridGetIJKFromGhostedID(structured_grid,ghosted_id,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: ghosted_id
   PetscInt :: i, j, k
   
