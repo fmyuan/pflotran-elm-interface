@@ -530,6 +530,9 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   use Field_module
   use Global_module, only : GlobalSetAuxVarVecLoc
   use Variables_module, only : LIQUID_SATURATION, GAS_SATURATION
+  use Utility_module, only : Equal
+  use Option_module
+  use String_module
 
   implicit none
   
@@ -545,6 +548,11 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: ifac
   PetscReal :: up, ut, ux, us, umin
   PetscReal :: dtt
+  PetscReal :: governed_dt
+  PetscReal :: umin_scale
+  PetscReal :: value
+  PetscReal :: governor_value
+  character(MAXSTRINGLENGTH) :: string
   type(field_type), pointer :: field
   
 #ifdef PM_GENERAL_DEBUG  
@@ -563,10 +571,47 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     umin = min(up,ut,ux,us)
   endif
   ifac = max(min(num_newton_iterations,size(tfac)),1)
-  dtt = fac * dt * (1.d0 + umin)
-  dtt = min(time_step_max_growth_factor*dt,dtt)
+  umin_scale = fac * (1.d0 + umin)
+  governed_dt = umin_scale * dt
+  dtt = min(time_step_max_growth_factor*dt,governed_dt)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
   dt = max(dt,dt_min)
+
+   ! Inform user that time step is being limited by a state variable.
+  if (Equal(dt,governed_dt)) then
+    umin = umin * (1.d0 + 1.d-8)
+    if (up < umin) then
+      string = 'Pressure'
+      value = this%max_pressure_change
+      governor_value = this%pressure_change_governor
+    else if (ut < umin) then
+      string = 'Temperature'
+      value = this%max_temperature_change
+      governor_value = this%temperature_change_governor
+    else if (ux < umin) then
+      string = 'Mole Fraction'
+      value = this%max_xmol_change
+      governor_value = this%xmol_change_governor
+    else if (us < umin) then
+      string = 'Saturation'
+      value = this%max_saturation_change
+      governor_value = this%saturation_change_governor
+    else
+      string = 'Unknown'
+      value = -999.d0
+      governor_value = -999.d0
+    endif
+    string = ' Dt limited by ' // trim(string) // ': Val=' // &
+      trim(StringWriteF('(es10.3)',value)) // ', Gov=' // &
+      trim(StringWriteF('(es10.3)',governor_value)) // ', Scale=' // &
+      trim(StringWriteF('(f4.2)',umin_scale))
+    if (OptionPrintToScreen(this%option)) then
+      write(*,'(a,/)') trim(string)
+    endif
+    if (OptionPrintToFile(this%option)) then
+      write(this%option%fid_out,'(a,/)') trim(string)
+    endif
+  endif
 
   if (Initialized(this%cfl_governor)) then
     ! Since saturations are not stored in global_auxvar for general mode, we
