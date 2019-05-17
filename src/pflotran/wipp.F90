@@ -338,8 +338,6 @@ subroutine FracturePermScale(auxvar,liquid_pressure,effective_porosity, &
   
   implicit none
   
-  type(option_type) :: option
-  
 !  class(fracture_type) :: this
   class(material_auxvar_type), intent(in) :: auxvar
   PetscReal, intent(in) :: liquid_pressure
