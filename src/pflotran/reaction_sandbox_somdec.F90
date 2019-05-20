@@ -21,24 +21,21 @@ module Reaction_Sandbox_SomDec_class
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_somdec_type
 
-    PetscInt :: temperature_response_function
-    PetscInt :: moisture_response_function
-    PetscReal :: Q10
-    PetscReal :: decomp_depth_efolding
-    PetscReal :: half_saturation_nh4
-    PetscReal :: half_saturation_no3
-    PetscReal :: inhibition_nh4_no3
-    PetscReal :: n2o_frac_mineralization    ! fraction of n2o from net N mineralization
-    PetscReal :: x0eps
+    !
+    type(abiotic_factors_type), pointer :: all_abioticfactors
 
-    PetscInt :: npool                       ! number of total decomposition pools
-    PetscReal, pointer :: pool_nc_ratio(:)         ! NC ratio in mole  
+    !
+    type(pool_type), pointer :: pools
+    PetscInt :: npool                              ! number of total decomposition pools
+    PetscReal, pointer :: pool_nc_ratio(:)         ! NC ratio in mole (npool)
 
+    !
+    type(somdec_reaction_type), pointer :: rxn
     PetscInt :: nrxn
     PetscReal, pointer :: rate_constant(:)         !nrxn: rate = kd * [C], i.e. C = C0*exp(-kd*t)
     PetscReal, pointer :: rate_decomposition(:)    !nrxn: this is the K in Eq: 1.0-exp(-K*dt) as in CLM-CN's CTC framework)
     PetscReal, pointer :: rate_ad_factor(:)        !nrxn: when doing Accelerated-Spinup, Kd above will be multiplied by this factor (unitless)
-
+    ! ONLY 1 single upstream pool ('immobile' species) allowed
     PetscInt,  pointer :: upstream_c_id(:)         !nrxn
     PetscInt,  pointer :: upstream_n_id(:)         !nrxn
     PetscInt,  pointer :: upstream_hr_id(:)        !nrxn
@@ -48,8 +45,8 @@ module Reaction_Sandbox_SomDec_class
     PetscReal, pointer :: upstream_nc(:)           !nrxn
     PetscBool, pointer :: upstream_is_aqueous(:)   !nrxn
     PetscBool, pointer :: upstream_is_varycn(:)
-
-    PetscInt,  pointer :: n_downstream_pools(:)   !nrxn by maximum # of downstream pools
+    ! Multiple downstream pools ('immobile' species) allowed
+    PetscInt,  pointer :: n_downstream_pools(:)   !nrxn: maximum # of downstream pools
     PetscInt,  pointer :: downstream_c_id(:,:)    !nrxn by maximum # of downstream pools
     PetscInt,  pointer :: downstream_n_id(:,:)    !nrxn by maximum # of downstream pools
     PetscBool, pointer :: downstream_is_aqueous(:,:) !nrxn by maximum # of downstream pools
@@ -59,25 +56,38 @@ module Reaction_Sandbox_SomDec_class
     PetscReal, pointer :: mineral_c_stoich(:)     !nrxn
     PetscReal, pointer :: mineral_n_stoich(:)     !nrxn
 
+    ! O2/CO2 may be varied species type
+    character(len=MAXWORDLENGTH) :: O2_species    ! O2 species name in PFLOTRAN's reaction network (gas, gaseous in solution, aqueous, OR ionized aqueous)
+    PetscInt :: species_id_o2
+    PetscInt :: species_itype_o2
+    character(len=MAXWORDLENGTH) :: CO2_species   ! CO2 species name in PFLOTRAN's reaction network (gas, gaseous in solution, aqueous, OR ionized aqueous)
     PetscInt :: species_id_co2
-    PetscInt :: species_id_nh4
-    PetscInt :: species_id_no3
+    PetscInt :: species_itype_co2
     PetscInt :: species_id_n2o
+    PetscInt :: species_itype_n2o
 
+    ! the following for tracking is in 'immobile'
     PetscInt :: species_id_hr
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
     PetscInt :: species_id_nimp
     PetscInt :: species_id_ngasmin
-    PetscInt :: species_id_proton
 
-    type(pool_type), pointer :: pools
-    type(somdec_reaction_rt_type), pointer :: reactions
-  contains
-    procedure, public :: ReadInput => SomDecRead
-    procedure, public :: Setup => SomDecSetup
-    procedure, public :: Evaluate => SomDecReact
-    procedure, public :: Destroy => SomDecDestroy
+    ! the following is in aq. (primary species)
+    PetscInt :: species_id_proton
+    PetscInt :: species_id_nh4
+    PetscInt :: species_id_no3
+    PetscReal :: n2o_frac_mineralization    ! fraction of n2o from net N mineralization
+    PetscReal :: inhibition_nh4_no3
+
+    !
+    PetscReal :: x0eps
+
+    contains
+      procedure, public :: ReadInput => SomDecRead
+      procedure, public :: Setup => SomDecSetup
+      procedure, public :: Evaluate => SomDecReact
+      procedure, public :: Destroy => SomDecDestroy
   end type reaction_sandbox_somdec_type
   
   type :: pool_type
@@ -86,18 +96,67 @@ module Reaction_Sandbox_SomDec_class
     PetscReal :: nc_ratio
     type(pool_type), pointer :: next
   end type pool_type
+
+  type :: abiotic_factors_type
+    ! temperature scaling factor
+    PetscInt  :: temperature_response_function
+    PetscReal :: Q10                           ! for Q10 type or alike
+    PetscReal :: Ea                            ! for ARRHENIUS: activation energy in unit of KJ/mol
+    ! moisture scaling factor
+    PetscInt  :: moisture_response_function
+    PetscReal :: decomp_depth_efolding
+    ! aerobic condition scaling factor (NOTE: this is as an abiotic factor, so NOT regarding as a reactant)
+    PetscInt  :: Ox_response_function           !2 types: WFPS or MONOD
+    PetscReal :: Ox_half_saturation             !for MONOD-type function
+  end type abiotic_factors_type
+
+  type, public :: monod_type
+    character(len=MAXWORDLENGTH) :: species_name
+    PetscInt :: specid
+    PetscInt :: specitype
+    PetscReal :: half_saturation_constant
+    PetscReal :: threshold_concentration
+    type(monod_type), pointer :: next
+  end type monod_type
+
+  type, public :: inhibition_type
+    PetscInt :: itype
+    character(len=MAXWORDLENGTH) :: species_name
+    PetscInt :: specid
+    PetscInt :: specitype
+    PetscReal :: inhibition_constant
+    PetscReal :: inhibition_constant2
+    type(inhibition_type), pointer :: next
+  end type inhibition_type
   
-  type :: somdec_reaction_rt_type
+  type :: somdec_reaction_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
     PetscReal :: rate_decomposition
     PetscReal :: rate_ad_factor
-    type(somdec_reaction_rt_type), pointer :: next
-  end type somdec_reaction_rt_type
-  
+
+    character(len=MAXWORDLENGTH) :: Ox_species    ! O2 or alternative Oxidizer (e-acceptor) species name in PFLOTRAN's reaction network (gas, gaseous in solution, aqueous, OR ionized aqueous)
+    PetscInt :: Ox_specid
+    PetscInt :: Ox_specitype
+    character(len=MAXWORDLENGTH) :: COx_species   ! CO2 or equivalents (e-donor) species name in PFLOTRAN's org. C reaction network (gas, gaseous in solution, aqueous, OR ionized aqueous)
+    PetscInt :: COx_specid
+    PetscInt :: COx_specitype
+
+    !
+    type(abiotic_factors_type), pointer :: abiotic_factors
+    type(monod_type), pointer :: monod
+    type(inhibition_type), pointer :: inhibition
+
+    type(somdec_reaction_type), pointer :: next
+  end type somdec_reaction_type
+
   public :: SomDecCreate
 
+  ! the following only good in this module
+  PetscInt, Parameter :: ITYPE_AQUEOUS=0
+  PetscInt, Parameter :: ITYPE_GAS=1
+  PetscInt, Parameter :: ITYPE_IMMOBILE=2
 contains
 
 ! ************************************************************************** !
@@ -109,6 +168,7 @@ function SomDecCreate()
   ! Author: Guoping Tang
   ! Date: 02/04/14
   ! 
+  ! Re-done: Fengming Yuan @2019-06-20
 
   implicit none
   
@@ -116,22 +176,13 @@ function SomDecCreate()
   
   allocate(SomDecCreate)
 
-#ifdef CLM_PFLOTRAN
-  SomDecCreate%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLMCN
-  SomDecCreate%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLMCN
-#endif
+  nullify(SomDecCreate%all_abioticfactors)
 
-  SomDecCreate%Q10 = 1.5d0
-  SomDecCreate%decomp_depth_efolding = 0.d0      ! non-positive value will turn off this option
-  SomDecCreate%half_saturation_nh4 = 1.0d-15
-  SomDecCreate%half_saturation_no3 = 1.0d-15
-  SomDecCreate%inhibition_nh4_no3 = 1.0d0
-  SomDecCreate%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
-  SomDecCreate%x0eps = 1.0d-20
-
+  nullify(SomDecCreate%pools)
   SomDecCreate%npool = 0
   nullify(SomDecCreate%pool_nc_ratio)
 
+  nullify(SomDecCreate%rxn)
   SomDecCreate%nrxn = 0
   nullify(SomDecCreate%rate_constant)
   nullify(SomDecCreate%rate_decomposition)
@@ -145,7 +196,6 @@ function SomDecCreate()
   nullify(SomDecCreate%upstream_nimm_id)
   nullify(SomDecCreate%upstream_nc)
   nullify(SomDecCreate%upstream_is_aqueous)
-  
   nullify(SomDecCreate%n_downstream_pools)
   nullify(SomDecCreate%downstream_c_id)
   nullify(SomDecCreate%downstream_n_id)
@@ -155,22 +205,146 @@ function SomDecCreate()
   nullify(SomDecCreate%mineral_c_stoich)
   nullify(SomDecCreate%mineral_n_stoich)
 
-  SomDecCreate%species_id_co2 = 0
-  SomDecCreate%species_id_nh4 = 0
-  SomDecCreate%species_id_no3 = 0
-  SomDecCreate%species_id_n2o = 0
-  SomDecCreate%species_id_hr  = 0
-  SomDecCreate%species_id_nmin = 0
-  SomDecCreate%species_id_nimm = 0
-  SomDecCreate%species_id_nimp = 0
-  SomDecCreate%species_id_ngasmin = 0
+  SomDecCreate%O2_species = ''
+  SomDecCreate%CO2_species = ''
+  SomDecCreate%species_id_o2  = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_co2 = UNINITIALIZED_INTEGER
+  SomDecCreate%species_itype_o2  = UNINITIALIZED_INTEGER
+  SomDecCreate%species_itype_co2 = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_n2o = UNINITIALIZED_INTEGER
+  SomDecCreate%species_itype_n2o = UNINITIALIZED_INTEGER
+
+  SomDecCreate%species_id_hr  = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_nmin = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_nimm = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_nimp = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_ngasmin = UNINITIALIZED_INTEGER
+
+  SomDecCreate%species_id_nh4 = UNINITIALIZED_INTEGER
+  SomDecCreate%species_id_no3 = UNINITIALIZED_INTEGER
+  SomDecCreate%inhibition_nh4_no3  = 1.0d0
+  SomDecCreate%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
+
+  SomDecCreate%x0eps = 1.0d-20
 
   nullify(SomDecCreate%next)
 
-  nullify(SomDecCreate%pools)
-  nullify(SomDecCreate%reactions)
-
 end function SomDecCreate
+
+! ************************************************************************** !
+
+function AbioticFactorsCreate()
+  !
+  ! Allocate and initialize a microbial monod object in a SomDec Reaction
+  !
+  ! By: Fengming Yuan @2019-08-08
+
+  implicit none
+
+  type(abiotic_factors_type), pointer :: AbioticFactorsCreate
+  type(abiotic_factors_type), pointer :: new_factors
+
+  allocate(new_factors)
+
+#ifdef CLM_PFLOTRAN
+  new_factors%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLMCN
+  new_factors%moisture_response_function    = MOISTURE_RESPONSE_FUNCTION_CLMCN
+#else
+  new_factors%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_OFF
+  new_factors%moisture_response_function    = MOISTURE_RESPONSE_FUNCTION_OFF
+#endif
+  new_factors%Q10 = 1.5d0
+  new_factors%Ea  = 51.7d0    ! J/mol
+  new_factors%Ox_response_function          = Ox_RESPONSE_FUNCTION_OFF
+  new_factors%Ox_half_saturation            = 1.0d-15
+  new_factors%decomp_depth_efolding         = 0.d0      ! non-positive value will turn off this option
+
+  AbioticFactorsCreate => new_factors
+
+end function AbioticFactorsCreate
+
+! ************************************************************************** !
+
+subroutine AbioticFactorsCopy(duplicated_factors, origin_factors)
+  !
+  ! Copy a 'abiotic_factors_type' pointer to another
+  !
+  ! By: Fengming Yuan @2019-08-08
+
+  implicit none
+
+  type(abiotic_factors_type), pointer :: duplicated_factors
+  type(abiotic_factors_type), pointer :: origin_factors
+
+  if (.not.associated(duplicated_factors)) allocate(duplicated_factors)
+
+  duplicated_factors%temperature_response_function = &
+    origin_factors%temperature_response_function
+  duplicated_factors%moisture_response_function    = &
+    origin_factors%moisture_response_function
+  duplicated_factors%Q10 = &
+    origin_factors%Q10
+  duplicated_factors%Ea  = &
+    origin_factors%Ea
+  duplicated_factors%Ox_response_function          = &
+    origin_factors%Ox_response_function
+  duplicated_factors%Ox_half_saturation            = &
+    origin_factors%Ox_half_saturation
+  duplicated_factors%decomp_depth_efolding         = &
+    origin_factors%decomp_depth_efolding
+
+end subroutine AbioticFactorsCopy
+! ************************************************************************** !
+
+function MonodCreate()
+  !
+  ! Allocate and initialize a microbial monod object in a SomDec Reaction
+  !
+  ! By: Fengming Yuan @2019-06-20
+
+  implicit none
+
+  type(monod_type), pointer :: MonodCreate
+
+  type(monod_type), pointer :: monod
+
+  allocate(monod)
+  monod%species_name = ''
+  monod%specid = UNINITIALIZED_INTEGER
+  monod%specitype = UNINITIALIZED_INTEGER
+  monod%half_saturation_constant = 1.0d-15
+  monod%threshold_concentration = 0.d0
+  nullify(monod%next)
+
+  MonodCreate => monod
+
+end function MonodCreate
+
+! ************************************************************************** !
+
+function InhibitionCreate()
+  !
+  ! Allocate and initialize a microbial inhibition object in SomDec reaction
+  ! By: Fengming Yuan @2019-06-20
+
+  implicit none
+
+  type(inhibition_type), pointer :: InhibitionCreate
+
+  type(inhibition_type), pointer :: inhibition
+
+  allocate(inhibition)
+  inhibition%itype = UNINITIALIZED_INTEGER
+  inhibition%species_name = ''
+  inhibition%specid = UNINITIALIZED_INTEGER
+  inhibition%specitype = UNINITIALIZED_INTEGER
+  inhibition%inhibition_constant = 1.0d-15
+  inhibition%inhibition_constant2 = 0.d0
+  nullify(inhibition%next)
+
+  InhibitionCreate => inhibition
+end function InhibitionCreate
+
 
 ! ************************************************************************** !
 
@@ -180,7 +354,7 @@ subroutine SomDecRead(this,input,option)
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
-  ! 
+  ! Re-done: Fengming Yuan @2019-06-20
 
   use Option_module
   use String_module
@@ -194,26 +368,38 @@ subroutine SomDecRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: word, internal_units
+  character(len=MAXWORDLENGTH) :: word, word2, word3, internal_units
   
   type(pool_type), pointer :: new_pool, prev_pool
-  type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
-  type(somdec_reaction_rt_type), pointer :: new_reaction, prev_reaction
+  type(pool_type), pointer :: new_pool_dn, prev_pool_dn
+  type(somdec_reaction_type), pointer :: new_rxn, prev_rxn
+  type(monod_type), pointer :: new_monod, prev_monod
+  type(inhibition_type), pointer :: new_inhibition, prev_inhibition
   
   PetscReal :: rate_constant, turnover_time
   PetscReal :: rate_decomposition
   PetscReal :: rate_ad_factor
   PetscReal :: temp_real
+
+  !---------------------------------------------------------------------------------------------------------------------------
   
   nullify(new_pool)
   nullify(prev_pool)
 
-  nullify(new_pool_rxn)
-  nullify(prev_pool_rxn)
+  nullify(new_pool_dn)
+  nullify(prev_pool_dn)
 
-  nullify(new_reaction)
-  nullify(prev_reaction)
+  nullify(new_rxn)
+  nullify(prev_rxn)
+
+  nullify(new_monod)
+  nullify(prev_monod)
+
+  nullify(new_inhibition)
+  nullify(prev_inhibition)
   
+  this%all_abioticfactors => AbioticFactorsCreate()
+
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -221,77 +407,51 @@ subroutine SomDecRead(this,input,option)
 
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,SomDecomp')
+                       'CHEMISTRY,REACTION_SANDBOX,SomDec')
     call StringToUpper(word)   
     select case(trim(word))
-#ifdef CLM_PFLOTRAN
-      case('TEMPERATURE_RESPONSE_FUNCTION')
-        do
-         call InputReadPflotranString(input,option)
-         if (InputError(input)) exit
-         if (InputCheckExit(input,option)) exit
 
-         call InputReadWord(input,option,word,PETSC_TRUE)
-         call InputErrorMsg(input,option,'keyword', &
-            'CHEMISTRY,REACTION_SANDBOX,SomDecomp,TEMPERATURE RESPONSE FUNCTION')
-         call StringToUpper(word)   
+      case('O2_SPECIES_NAME')  ! this is for all reactions (maybe overriden by individual reaction)
+        call InputReadWord(input,option,this%O2_species,PETSC_TRUE)
+        call InputErrorMsg(input,option,'O2_SPECIES_NAME specified', &
+           'CHEMISTRY,REACTION_SANDBOX,SomDecomp')
 
-            select case(trim(word))
-              case('CLMCN')
-                  this%temperature_response_function = &
-                       TEMPERATURE_RESPONSE_FUNCTION_CLMCN
-              case('Q10') 
-                  this%temperature_response_function = &
-                       TEMPERATURE_RESPONSE_FUNCTION_Q10    
-                  call InputReadDouble(input,option,this%Q10)  
-                  call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
-                       'REACTION_SANDBOX_SomDecomp,TEMPERATURE RESPONSE FUNCTION')
-              case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
-                                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                                     trim(word) // ' not recognized - Valid keyword: "CLMCN","Q10". '
-                  call printErrMsg(option)
-            end select
-         enddo 
-      case('MOISTURE_RESPONSE_FUNCTION')
-        do
-         call InputReadPflotranString(input,option)
-         if (InputError(input)) exit
-         if (InputCheckExit(input,option)) exit
+      case('CO2_SPECIES_NAME') ! this is for all reactions (maybe overriden by individual reaction)
+        call InputReadWord(input,option,this%CO2_species,PETSC_TRUE)
+        call InputErrorMsg(input,option,'CO2_SPECIES_NAME specified', &
+           'CHEMISTRY,REACTION_SANDBOX,SomDecomp')
 
-         call InputReadWord(input,option,word,PETSC_TRUE)
-         call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,SomDecomp,MOISTURE RESPONSE FUNCTION')
-         call StringToUpper(word)   
-
-            select case(trim(word))
-              case('CLMCN')
-                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLMCN
-              case('DLEM')
-                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
-              case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDecomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                                     trim(word) // ' not recognized - Valid keyword: "CLMCN","DLEM".'
-                  call printErrMsg(option)
-            end select
-         enddo 
-
-#endif
+      ! ----- deprecated blocks (changed as below--------------------------------------------------------
+      case('TEMPERATURE_RESPONSE_FUNCTION', &
+          'MOISTURE_RESPONSE_FUNCTION', &
+          'Ox_RESPONSE_FUNCTION', &
+          'DECOMP_DEPTH_EFOLDING')
+         option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
+                'xxx_RESPONSE_FUNCTION,' // &
+                'collectively within a BLOCK ' // &
+                'with keyword ABIOTIC_FACTORS ... END.'
+         call printErrMsg(option)
+      ! ----- deprecated blocks (changed as below) ------------------------------------------------------
+      ! ----- Abiotic Factors for All SOMDEC reaction ----------------------------------------------------
+      case('ABIOTIC_FACTORS')
+        if(.not.associated(this%all_abioticfactors)) then
+          this%all_abioticfactors => AbioticFactorsCreate()
+        endif
+        call SomDecRead_AbioticFactors(this%all_abioticfactors,input,option)
+      ! ----- (end) Abiotic Factors for All SOMDEC reaction ----------------------------------------------------
 
      case('X0EPS')
          call InputReadDouble(input,option,this%x0eps)
          call InputErrorMsg(input,option,'x0eps', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
-     case('AMMONIUM_HALF_SATURATION')
-         call InputReadDouble(input,option,this%half_saturation_nh4)
-         call InputErrorMsg(input,option,'ammonium half saturation', &
-                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
-
-     case('NITRATE_HALF_SATURATION')
-         call InputReadDouble(input,option,this%half_saturation_no3)
-         call InputErrorMsg(input,option,'nitrate half saturation', &
-                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+     ! ----- deprecated blocks (moved into each LITTER decompositons) ------------------------------------------------------------
+     case('AMMONIUM_HALF_SATURATION','NITRATE_HALF_SATURATION')
+         option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
+                'AMMONIUM/NITRATE_HALF_SATURATION moved witin individual REACTION BLOCK, ' // &
+                'with keyword MONOD ... SPECIES_NAME specified.'
+         call printErrMsg(option)
+     ! ----- deprecated blocks  (moved into each LITTER decompositons) ---------------------------------------------------------------
 
      case('AMMONIUM_INHIBITION_NITRATE')
          call InputReadDouble(input,option,this%inhibition_nh4_no3)
@@ -306,11 +466,6 @@ subroutine SomDecRead(this,input,option)
      case('N2O_FRAC_MINERALIZATION')
          call InputReadDouble(input,option,this%n2o_frac_mineralization)
          call InputErrorMsg(input,option,'n2o fraction from mineralization', &
-                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
-
-     case('DECOMP_DEPTH_EFOLDING')
-         call InputReadDouble(input,option,this%decomp_depth_efolding)
-         call InputErrorMsg(input,option,'decomp_depth_efolding', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
      case('POOLS')
@@ -347,13 +502,24 @@ subroutine SomDecRead(this,input,option)
 
       case('REACTION')
       
-        allocate(new_reaction)
-        new_reaction%upstream_pool_name = ''
-        new_reaction%rate_constant = UNINITIALIZED_DOUBLE
-        new_reaction%rate_decomposition = UNINITIALIZED_DOUBLE
-        new_reaction%rate_ad_factor = 1.0d0
-        nullify(new_reaction%downstream_pools)
-        nullify(new_reaction%next)
+        allocate(new_rxn)
+        new_rxn%upstream_pool_name = ''
+        new_rxn%rate_constant = UNINITIALIZED_DOUBLE
+        new_rxn%rate_decomposition = UNINITIALIZED_DOUBLE
+        new_rxn%rate_ad_factor = 1.0d0
+        nullify(new_rxn%downstream_pools)
+        nullify(new_rxn%monod)
+        nullify(new_rxn%inhibition)
+        nullify(new_rxn%abiotic_factors)
+
+        new_rxn%Ox_species = ''
+        new_rxn%Ox_specid = UNINITIALIZED_INTEGER
+        new_rxn%Ox_specitype = UNINITIALIZED_INTEGER
+        new_rxn%COx_species = ''
+        new_rxn%COx_specid = UNINITIALIZED_INTEGER
+        new_rxn%COx_specitype = UNINITIALIZED_INTEGER
+
+        nullify(new_rxn%next)
         
         ! need to set these temporarily in order to check if they are not all set.
         turnover_time = -1.d0
@@ -374,30 +540,30 @@ subroutine SomDecRead(this,input,option)
           select case(trim(word))
             case('UPSTREAM_POOL')
               call InputReadWord(input,option, &
-                                 new_reaction%upstream_pool_name,PETSC_TRUE)
+                                 new_rxn%upstream_pool_name,PETSC_TRUE)
               call InputErrorMsg(input,option,'upstream pool name', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
             case('DOWNSTREAM_POOL')
-              allocate(new_pool_rxn)
-              new_pool_rxn%name = ''
-              new_pool_rxn%stoich = 0.d0
-              nullify(new_pool_rxn%next)
+              allocate(new_pool_dn)
+              new_pool_dn%name = ''
+              new_pool_dn%stoich = 0.d0
+              nullify(new_pool_dn%next)
 
               call InputReadWord(input,option, &
-                                 new_pool_rxn%name,PETSC_TRUE)
+                                 new_pool_dn%name,PETSC_TRUE)
               call InputErrorMsg(input,option,'downstream pool name', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
-              call InputReadDouble(input,option,new_pool_rxn%stoich)
+              call InputReadDouble(input,option,new_pool_dn%stoich)
               call InputErrorMsg(input,option,'Downstream pool stoich', 'CHEMISTRY,' // &
                   'REACTION_SANDBOX_SomDec,REACTION')
 
-              if (associated(new_reaction%downstream_pools)) then
-                  prev_pool_rxn%next => new_pool_rxn
+              if (associated(new_rxn%downstream_pools)) then
+                  prev_pool_dn%next => new_pool_dn
               else
-                  new_reaction%downstream_pools => new_pool_rxn
+                  new_rxn%downstream_pools => new_pool_dn
               endif
-              prev_pool_rxn => new_pool_rxn
-              nullify(new_pool_rxn)
+              prev_pool_dn => new_pool_dn
+              nullify(new_pool_dn)
 
             case('RATE_CONSTANT')
               internal_units = 'mol/L-sec|1/sec|L/mol-sec'
@@ -443,12 +609,169 @@ subroutine SomDecRead(this,input,option)
               call InputErrorMsg(input,option,'Accelerated rate factor', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
               call InputReadWord(input,option,word,PETSC_TRUE)
+
+            ! ----- Monod Function(s) within current SOMDEC reaction ----------------------------------------------------
+            case('MONOD')
+              new_monod => MonodCreate()
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+
+                call InputReadWord(input,option,word2,PETSC_TRUE)
+                call InputErrorMsg(input,option,'keyword', &
+                             'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD')
+                call StringToUpper(word2)
+                select case(trim(word2))
+                  case('SPECIES_NAME')
+                  call InputReadWord(input,option,word3,PETSC_TRUE)
+                  call InputErrorMsg(input,option,'species name', &
+                           'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD')
+                  new_monod%species_name = word3
+
+                  case('HALF_SATURATION_CONSTANT')
+                    call InputReadDouble(input,option,new_monod%half_saturation_constant)
+                    call InputErrorMsg(input,option,'half saturation constant', &
+                                 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD')
+
+                  case('THRESHOLD_CONCENTRATION')
+                    call InputReadDouble(input,option,new_monod%threshold_concentration)
+                    call InputErrorMsg(input,option,'threshold concentration', &
+                                 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD')
+
+                  case default
+                    option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,MONOD keyword: ' // &
+                      trim(word2) // ' not recognized.'
+                    call printErrMsg(option)
+                end select
+              enddo ! 1 'Monod' do-loop
+              ! checking
+              if (len_trim(new_monod%species_name) < 1 .or. &
+                  Uninitialized(new_monod%half_saturation_constant)) then
+                option%io_buffer = 'a SPECIES_NAME and HALF_SATURATION_CONSTANT ' // &
+                  'must be defined for MONOD in SomDec REACTION for pool: ' // &
+                  trim(new_rxn%upstream_pool_name)
+                call printErrMsg(option)
+              endif
+              ! create or append to list
+              if (.not.associated(new_rxn%monod)) then
+                new_rxn%monod => new_monod
+              else
+                prev_monod%next => new_monod
+              endif
+              prev_monod => new_monod
+              nullify(new_monod)
+            ! ----- (end) Monod Function(s) within current SOMDEC reaction ----------------------------------------------------
+
+            ! ----- Inhibition Function(s) for each SOMDEC reaction ----------------------------------------------------
+            case('INHIBITION')
+              new_inhibition => InhibitionCreate()
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+
+                call InputReadWord(input,option,word2,PETSC_TRUE)
+                call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,INHIBITION')
+                call StringToUpper(word2)
+                select case(trim(word2))
+                  !
+                  case('SPECIES_NAME')
+                    call InputReadWord(input,option,word3,PETSC_TRUE)
+                    call InputErrorMsg(input,option,'species name', &
+                           'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,INHIBITION')
+                    new_inhibition%species_name = word3
+                  !
+                  case('TYPE')
+                    call InputReadWord(input,option,word3,PETSC_TRUE)
+                    call InputErrorMsg(input,option,'inhibition type', &
+                           'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,INHIBITION')
+                    call StringToUpper(word3)
+                    select case(word3)
+                      case('MONOD')
+                        new_inhibition%itype = INHIBITION_MONOD
+                      case('INVERSE_MONOD')
+                        new_inhibition%itype = INHIBITION_INVERSE_MONOD
+                      case('THRESHOLD')
+                        new_inhibition%itype = INHIBITION_THRESHOLD
+                        call InputReadDouble(input,option, &
+                               new_inhibition%inhibition_constant2)
+                        call InputErrorMsg(input,option,'scaling factor', &
+                              'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,' // &
+                                     'INHIBITION,THRESHOLD_INHIBITION')
+                      case default
+                        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,INHIBITION,TYPE keyword: ' // &
+                          trim(word3) // ' not recognized.'
+                        call printErrMsg(option)
+                    end select
+                  !
+                  case('INHIBITION_CONSTANT')
+                    call InputReadDouble(input,option,new_inhibition%inhibition_constant)
+                    call InputErrorMsg(input,option,'inhibition constant', &
+                                 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,INHIBITION')
+                  !
+                  case default
+                    option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION,INHIBITION keyword: ' // &
+                      trim(word2) // ' not recognized.'
+                    call printErrMsg(option)
+                end select
+              enddo ! 1 'inhibition' do-loop
+              ! checking
+              if (len_trim(new_inhibition%species_name) < 1 .or. &
+                  new_inhibition%itype == 0 .or. &
+                  Uninitialized(new_inhibition%inhibition_constant)) then
+                option%io_buffer = 'a SPECIES_NAME, TYPE, and INHIBITION_CONSTANT ' // &
+                  'must be defined for INHIBITION in SomDec REACTION for pool ' // &
+                  trim(new_rxn%upstream_pool_name)
+                call printErrMsg(option)
+              endif
+              ! create or append to list
+              if (.not.associated(new_rxn%inhibition)) then
+                new_rxn%inhibition => new_inhibition
+              else
+                prev_inhibition%next => new_inhibition
+              endif
+              prev_inhibition => new_inhibition
+              nullify(new_inhibition)
+            ! ----- (end) Inhibition Function(s) for current SOMDEC reaction ----------------------------------------------------
+
+            ! ----- Abiotic Factors for current SOMDEC reaction ----------------------------------------------------
+            case('ABIOTIC_FACTORS')
+              new_rxn%abiotic_factors => AbioticFactorsCreate()
+              call SomDecRead_AbioticFactors(new_rxn%abiotic_factors,input,option)
+            ! ----- (end) Abiotic Factors for current SOMDEC reaction ----------------------------------------------------
+
+            ! ----- Ox/COx for current SOMDEC reaction, if any ----------------------------------------------------
+            case('Ox_SPECIES_NAME')
+              call InputReadWord(input,option,new_rxn%Ox_species,PETSC_TRUE)
+              call InputErrorMsg(input,option,'Ox_SPECIES_NAME specified', &
+                'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+
+            case('COx_SPECIES_NAME')
+              call InputReadWord(input,option,new_rxn%COx_species,PETSC_TRUE)
+              call InputErrorMsg(input,option,'COx_SPECIES_NAME specified', &
+                'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+            ! ----- (end) Ox/COx for current SOMDEC reaction, if any ----------------------------------------------------
+
             case default
               option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
               call printErrMsg(option)
+
           end select
-        enddo
+
+        enddo ! one SOMDEC reaction DO loop
+
+        ! default abiotic_factors for 'new_rxn',
+        ! if not yet specifically defined from inputs' block of ' Abiotic_Factors ..../'
+        if (.not.associated(new_rxn%abiotic_factors)) then
+          new_rxn%abiotic_factors => AbioticFactorsCreate()
+          if(associated(this%all_abioticfactors)) then
+            ! if a common set of abiotic factors are defined from inputs' block of ' Abiotic_Factors ..../'
+            call AbioticFactorsCopy(new_rxn%abiotic_factors, this%all_abioticfactors)
+          endif
+        endif
         
         ! check to ensure that one of turnover time or rate constant is set.
         if ( (turnover_time > 0.d0 .and. rate_constant > 0.d0) .or. &
@@ -457,42 +780,195 @@ subroutine SomDecRead(this,input,option)
           option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT or RATE_DECOMPOSITION ' // &
             'may be included in a SomDec reaction definition, but not any two. ' // &
             'See reaction with upstream pool "' // &
-            trim(new_reaction%upstream_pool_name) // '".'
+            trim(new_rxn%upstream_pool_name) // '".'
           call printErrMsg(option)
         else if (turnover_time > 0.d0) then
-          new_reaction%rate_constant = 1.d0 / turnover_time
-          new_reaction%rate_decomposition = -1.d0
+          new_rxn%rate_constant = 1.d0 / turnover_time
+          new_rxn%rate_decomposition = -1.d0
         else if (rate_constant > 0.d0) then
-          new_reaction%rate_constant = rate_constant
-          new_reaction%rate_decomposition = -1.d0
+          new_rxn%rate_constant = rate_constant
+          new_rxn%rate_decomposition = -1.d0
         else if (rate_decomposition > 0.d0) then
-          new_reaction%rate_constant = -1.d0
-          new_reaction%rate_decomposition = rate_decomposition
+          new_rxn%rate_constant = -1.d0
+          new_rxn%rate_decomposition = rate_decomposition
         else
           option%io_buffer = 'ONE of TURNOVER_TIME or RATE_CONSTANT or RATE_DECOMPOSITION ' // &
             'must be correctly set in a SomDec reaction definition ' // &
             'See reaction with upstream pool "' // &
-            trim(new_reaction%upstream_pool_name) // '".'
+            trim(new_rxn%upstream_pool_name) // '".'
           call printErrMsg(option)
         endif
         if(rate_ad_factor .ne. 1.d0) then
-          new_reaction%rate_ad_factor = rate_ad_factor
+          new_rxn%rate_ad_factor = rate_ad_factor
         endif
-        if (associated(this%reactions)) then
-          prev_reaction%next => new_reaction
+
+        if (associated(this%rxn)) then
+          prev_rxn%next => new_rxn
         else
-          this%reactions => new_reaction
+          this%rxn => new_rxn
         endif
-        prev_reaction => new_reaction
-        nullify(new_reaction)        
+        prev_rxn => new_rxn
+        nullify(new_rxn)
+
       case default
         option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec keyword: ' // &
           trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
-  enddo
+  enddo ! 'SOMDECOMP' Do loop
   
 end subroutine SomDecRead
+
+! ************************************************************************** !
+
+subroutine SomDecRead_AbioticFactors(abiotic_factors,input,option)
+  !
+  ! Reads input deck for reaction sandbox parameters,
+  !   relating to abiotic factors for scaling reaction rates
+  !
+  ! Authors: Guoping Tang & Fengming Yuan
+  ! History: @2019-06-20 - Re-do
+  !          @2019-08-06 - A separated subroutine so that can be called outside
+  !                        (for all reactions) or within individual reaction
+
+  use Option_module
+  use String_module
+  use Input_Aux_module
+  use Utility_module
+
+  implicit none
+
+  type(abiotic_factors_type), pointer :: abiotic_factors
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word, word2
+
+  !---------------------------------------------------------------------------------------------------------------------------
+
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,SomDec')
+    call StringToUpper(word)
+    select case(trim(word))
+
+      case('TEMPERATURE_RESPONSE_FUNCTION')
+        do
+         call InputReadPflotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word2,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+            'CHEMISTRY,REACTION_SANDBOX,SomDecomp,TEMPERATURE RESPONSE FUNCTION')
+         call StringToUpper(word2)
+
+            select case(trim(word2))
+              case('CLMCN')
+                  abiotic_factors%temperature_response_function = &
+                       TEMPERATURE_RESPONSE_FUNCTION_CLMCN
+              case('DLEM')
+                  abiotic_factors%temperature_response_function = &
+                       TEMPERATURE_RESPONSE_FUNCTION_Q10
+                  call InputReadDouble(input,option,abiotic_factors%Q10)
+                  call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
+                       'REACTION_SANDBOX_SomDec,TEMPERATURE RESPONSE FUNCTION')
+              case('Q10')
+                  abiotic_factors%temperature_response_function = &
+                       TEMPERATURE_RESPONSE_FUNCTION_Q10
+                  call InputReadDouble(input,option,abiotic_factors%Q10)
+                  call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
+                       'REACTION_SANDBOX_SomDec,TEMPERATURE RESPONSE FUNCTION')
+              case('ARRHENIUS')
+                  abiotic_factors%temperature_response_function = &
+                       TEMPERATURE_RESPONSE_FUNCTION_ARRHENIUS
+                  call InputReadDouble(input,option,abiotic_factors%Ea)
+                  call InputErrorMsg(input,option,'Ea', 'CHEMISTRY,' // &
+                       'REACTION_SANDBOX_SomDec,TEMPERATURE RESPONSE FUNCTION')
+              case default
+                  abiotic_factors%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_OFF
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
+                                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                trim(word) // ' not recognized - '// &
+                                'Valid: CLMCN,DLEM,Q10,ARRHENIUS. Thus OFF now'
+                  call printMsg(option)
+            end select
+         enddo
+
+      case('MOISTURE_RESPONSE_FUNCTION')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadWord(input,option,word2,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,SomDec,MOISTURE RESPONSE FUNCTION')
+          call StringToUpper(word2)
+            select case(trim(word2))
+              case('CLMCN')
+                  abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLMCN
+              case('DLEM')
+                  abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM
+              case default
+                  abiotic_factors%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_OFF
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec, ' // &
+                                     'TEMPERATURE_RESPONSE_FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized - Valid: CLMCN,DLEM. ' // &
+                                     'Thus OFF now'
+                  call printMsg(option)
+            end select
+
+         enddo
+
+      case('Ox_RESPONSE_FUNCTION')
+         do
+           call InputReadPflotranString(input,option)
+           if (InputError(input)) exit
+           if (InputCheckExit(input,option)) exit
+
+           call InputReadWord(input,option,word2,PETSC_TRUE)
+           call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,SomDec,Ox_RESPONSE_FUNCTION')
+           call StringToUpper(word2)
+
+           select case(trim(word2))
+             case('WFPS')
+               abiotic_factors%Ox_response_function = Ox_RESPONSE_FUNCTION_WFPS
+             case('MONOD')
+               abiotic_factors%Ox_response_function = Ox_RESPONSE_FUNCTION_MONOD
+               call InputReadDouble(input,option,abiotic_factors%Ox_half_saturation)
+               call InputErrorMsg(input,option,'O2 half saturation for Monod type function', &
+                'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+             case default
+               abiotic_factors%Ox_response_function = Ox_RESPONSE_FUNCTION_OFF
+               option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec, ' // &
+                      'Ox_RESPONSE_FUNCTION keyword for type: ' // trim(word) // ' not recognized' // &
+                          '- Valid:  ' // &
+                          'Thus OFF now'
+               call printMsg(option)
+            end select
+         enddo
+
+      case('DECOMP_DEPTH_EFOLDING')
+        call InputReadDouble(input,option,abiotic_factors%decomp_depth_efolding)
+        call InputErrorMsg(input,option,'decomp_depth_efolding', &
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+
+      case default
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec keyword: ' // &
+          trim(word) // ' not recognized.'
+        call printErrMsg(option)
+    end select
+    !
+  enddo
+
+end subroutine SomDecRead_AbioticFactors
 
 ! ************************************************************************** !
 
@@ -503,11 +979,14 @@ subroutine SomDecSetup(this,reaction,option)
   ! Author: Guoping Tang
   ! Date: 02/04/14
   ! 
+  ! Re-done: Fengming Yuan @2019-06-20
 
   use Reaction_Aux_module
   use Option_module
   use String_module
   use Reaction_Immobile_Aux_module
+  use Reaction_Gas_Aux_module, only : GasGetIDFromName
+
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -529,9 +1008,16 @@ subroutine SomDecSetup(this,reaction,option)
 
   PetscInt :: icount, jcount, max_downstream_pools, ipool
   PetscReal :: stoich_c, stoich_n
+  PetscInt :: tempint
 
   type(pool_type), pointer :: cur_pool
-  type(somdec_reaction_rt_type), pointer :: cur_rxn
+  type(somdec_reaction_type), pointer :: cur_rxn
+
+  type(monod_type), pointer :: cur_monod
+  type(inhibition_type), pointer :: cur_inhibition
+  PetscInt :: ires
+
+  !---------------------------------------------------------------------------------------------------------------------------
   
   ! count # pools
   icount = 0
@@ -543,9 +1029,9 @@ subroutine SomDecSetup(this,reaction,option)
   enddo
   this%npool = icount
   
-  ! count # reactions
+  ! count # rxn
   icount = 0
-  cur_rxn => this%reactions
+  cur_rxn => this%rxn
   do
     if (.not.associated(cur_rxn)) exit
     icount = icount + 1
@@ -558,7 +1044,7 @@ subroutine SomDecSetup(this,reaction,option)
   ! count # downstream pools in each reaction
   max_downstream_pools = -1
   icount = 0
-  cur_rxn => this%reactions
+  cur_rxn => this%rxn
   do
     if (.not.associated(cur_rxn)) exit
     icount = icount + 1
@@ -628,7 +1114,7 @@ subroutine SomDecSetup(this,reaction,option)
   this%mineral_c_stoich = 0.d0
   this%mineral_n_stoich = 0.d0
   
-! temporary array for mapping pools in reactions
+! temporary array for mapping pools in rxn
   allocate(pool_names(this%npool))
   allocate(pool_is_aqueous(this%npool))
   allocate(species_id_pool_c(this%npool))
@@ -734,10 +1220,11 @@ subroutine SomDecSetup(this,reaction,option)
  
 ! reactions
   icount = 0
-  cur_rxn => this%reactions
+  cur_rxn => this%rxn
   do
     if (.not.associated(cur_rxn)) exit
-!   upstream pools
+
+    ! upstream pools
     icount = icount + 1
     ipool = StringFindEntryInList(cur_rxn%upstream_pool_name,pool_names)
     if (ipool == 0) then
@@ -767,7 +1254,7 @@ subroutine SomDecSetup(this,reaction,option)
 
     endif
 
-!   downstream pools
+    ! downstream pools
     jcount = 0
     cur_pool => cur_rxn%downstream_pools
 
@@ -812,6 +1299,38 @@ subroutine SomDecSetup(this,reaction,option)
     this%rate_decomposition(icount) = cur_rxn%rate_decomposition
     this%rate_ad_factor(icount) = cur_rxn%rate_ad_factor
 
+    ! monod species id
+    cur_monod => cur_rxn%monod
+    do
+      if (.not. associated(cur_monod)) exit
+      call SomDec_SpeciesID(this, reaction, cur_monod%species_name, &
+        cur_monod%specid, cur_monod%specitype, option)
+
+      cur_monod => cur_monod%next
+    enddo
+
+    ! inhibition species id
+    cur_inhibition => cur_rxn%inhibition
+    do
+      if (.not. associated(cur_inhibition)) exit
+      call SomDec_SpeciesID(this, reaction, cur_inhibition%species_name, &
+        cur_inhibition%specid, cur_inhibition%specitype, option)
+
+      cur_inhibition => cur_inhibition%next
+    enddo
+
+    ! alternative Ox (oxidizer) for 'cur_rxn'
+    if(len_trim(cur_rxn%Ox_species) >0 ) then
+      call SomDec_SpeciesID(this, reaction, cur_rxn%Ox_species, &
+        cur_rxn%Ox_specid, cur_rxn%Ox_specitype, option)
+    endif
+    ! alternative COx (oxidizer) for 'cur_rxn'
+    if(len_trim(cur_rxn%COx_species) > 0) then
+      call SomDec_SpeciesID(this, reaction, cur_rxn%COx_species, &
+        cur_rxn%COx_specid, cur_rxn%COx_specitype, option)
+    endif
+
+    !
     cur_rxn => cur_rxn%next
   enddo 
   
@@ -824,7 +1343,7 @@ subroutine SomDecSetup(this,reaction,option)
   call DeallocateArray(species_id_pool_nimp)
   call DeallocateArray(species_id_pool_nimm)
 
-! set stoichiometric coefficients for fixed-CNratio SOM decomposition reactions
+  ! set stoichiometric coefficients for fixed-CNratio SOM decomposition reactions
   do icount = 1, this%nrxn
      if(this%upstream_is_varycn(icount)) then
        cycle
@@ -861,14 +1380,58 @@ subroutine SomDecSetup(this,reaction,option)
      endif
   enddo
 
-  word = 'CO2(aq)'
-  this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  if(this%species_id_co2 <= 0) then
-    option%io_buffer = 'CO2(aq) is not specified in the input file!'
-    call printErrMsg(option)
+  ! if O2 species specied in input file for all SOM decomposition reaction
+  word = trim(this%O2_species)
+  if (len_trim(word) > 0) then
+    call SomDec_SpeciesID(this, reaction, word, &
+      this%species_id_o2, this%species_itype_o2, option)
   endif
 
+  ! if CO2 species specied in input file for all SOM decomposition reaction
+  word = trim(this%CO2_species)
+  if (len_trim(word) > 0) then
+    call SomDec_SpeciesID(this, reaction, word, &
+      this%species_id_co2, this%species_itype_co2, option)
+
+  else
+  ! not specified (then have to test possible species)
+    this%species_itype_co2 = ITYPE_AQUEOUS !by default
+    word = 'CO2(g)*'     ! CO2 gas in water, ie CO2(g)* <-> CO2(aq) by dissolving/degasing
+    this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+    if (this%species_id_co2 <= 0) then
+      word = 'CO2(aq)' ! CO2 in aquious phase
+      this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
+                          PETSC_FALSE,option)
+
+      if (this%species_id_co2 <= 0) then
+        word = 'HCO3-' ! CO2(aq) ionized in water solution ( should be equivalent to CO2(aq) in reality)
+        this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
+                            PETSC_FALSE,option)
+
+        if(this%species_id_co2 <= 0) then
+          word = 'CO2(g)'    ! CO2 gas in air, ie CO2(g) <-> CO2(g)*, by diffusion/bulbling, <-> CO2(aq) by dissolving/degasing
+          this%species_id_co2 = GasGetIDFromName(reaction%gas,word)
+          this%species_itype_co2 = ITYPE_GAS
+
+          if (this%species_id_co2 <= 0) then
+            option%io_buffer = 'CO2(g)* or CO2(aq) or HCO3- or CO2(g) is not specified in the input file!'
+            call printErrMsg(option)
+          endif
+
+        endif
+      endif
+
+      this%CO2_species = trim(word)
+
+    endif
+    !
+  endif
+  option%io_buffer = 'SOMDEC Sandbox: Soil decomposition product CO2 species name is: ' // word
+  call printMsg(option)
+
+  !
   word = 'NH4+'
   this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
@@ -886,6 +1449,7 @@ subroutine SomDecSetup(this,reaction,option)
   word = 'N2O(aq)'
   this%species_id_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+  this%species_itype_n2o = ITYPE_AQUEOUS ! may be flexible in the future
 
   word = 'H+'
   this%species_id_proton = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -910,6 +1474,12 @@ subroutine SomDecSetup(this,reaction,option)
   word = 'NGASmin'
   this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+
+  ! misc.
+  if(reaction%truncated_concentration /= UNINITIALIZED_DOUBLE) then
+    ! 'truncation' is used in resolution, if any, better to make them consistent
+    this%x0eps = min(this%x0eps,reaction%truncated_concentration)
+  endif
 
 end subroutine SomDecSetup
 
@@ -949,6 +1519,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+
+  ! Locals
   PetscReal :: porosity
   PetscReal :: volume
   PetscReal :: saturation
@@ -968,6 +1540,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: c_dc, c_dn    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
 
   PetscInt  :: irxn
+  type(somdec_reaction_type), pointer :: cur_rxn
+  type(abiotic_factors_type), pointer :: cur_abioticfactors
+
   PetscInt  :: ispec_uc, ispec_un, ispec_dc, ispec_dn   ! species id for upstream C, N, and downstream (used in loops)
   PetscReal :: stoich_c, stoich_n
 
@@ -984,19 +1559,20 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: nmin, nimm, net_nmin_rate
 
   ! misc. local variables
-  PetscInt :: i, j
+  PetscInt :: i, j, ires
   PetscReal:: feps0, dfeps0_dx
   PetscReal:: k_decomp
   PetscReal:: kd_scalar       ! (-) a scalar relevant to site for adjusting 'k_decomp'
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-  !------------------------------------------------------------------------------------------------
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
-  saturation = global_auxvar%sat(1)
+  saturation = global_auxvar%sat(iphase)
 
   theta = saturation * porosity
-  psi = min(global_auxvar%pres(1) - option%flow%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
+  psi = min(global_auxvar%pres(iphase) - option%flow%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
+
+  tc = global_auxvar%temp
 
 #ifdef CLM_PFLOTRAN
   veclocal_id = option%iflag
@@ -1028,98 +1604,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
      call printErrMsg(option)
   end if
 
-#ifdef CLM_PF_DEBUG
-! for testing data passing
-  write(option%fid_out, *) 'veclocal_id=', veclocal_id
-  do irxn = 1, this%nrxn
-    ispec_uc = this%upstream_c_id(irxn)
-    if(this%upstream_is_aqueous(irxn)) then
-      write(option%fid_out, *) 'irxn=', irxn, 'conc(irxn)=', rt_auxvar%total(ispec_uc, iphase)
-    else
-      write(option%fid_out, *) 'irxn=', irxn, 'conc(irxn)=', rt_auxvar%immobile(ispec_uc)
-    endif
-  enddo
-#endif
-!
 #endif
 
-  ! moisture response function
-#ifdef CLM_PFLOTRAN
-  if(option%nflowspec>0) then
-    if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLMCN) then
-      f_w = GetMoistureResponse(theta, veclocal_id, this%moisture_response_function)
-    elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
-      f_w = GetMoistureResponse(theta, veclocal_id, this%moisture_response_function)
-    endif
-
-  else
-    ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
-    call VecGetArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
-    CHKERRQ(ierr)
-    f_w = xfactor_pf_loc(veclocal_id)
-    call VecRestoreArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
-    CHKERRQ(ierr)
-    !multiplying O-Scalar as well
-    call VecGetArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
-    CHKERRQ(ierr)
-    f_w = f_w * xfactor_pf_loc(veclocal_id)
-    call VecRestoreArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
-    CHKERRQ(ierr)
-
-  endif
-#else
-  f_w = 1.0d0
-#endif
-
-  !----------------------------------------------------------------------------------------
-  ! temperature response function
-  tc = global_auxvar%temp
-
-#ifdef CLM_PFLOTRAN
-  if (option%nflowspec>0) then
-    f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10)
-
-  else
-    ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
-    call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
-    CHKERRQ(ierr)
-    f_t = xfactor_pf_loc(veclocal_id)
-    call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
-    CHKERRQ(ierr)
-  endif
-
-#else
-  f_t = 1.0d0
-#endif
-
-  if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
-     return
-  endif
-
-#ifdef CLM_PFLOTRAN
-  if (this%decomp_depth_efolding > 0.d0) then
-    call VecGetArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
-    CHKERRQ(ierr)
-    f_depth = exp(-zsoi_pf_loc(veclocal_id)/this%decomp_depth_efolding)
-    f_depth = min(1.0d0, max(1.d-20, f_depth))
-    call VecRestoreArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
-    CHKERRQ(ierr)
-  else
-    f_depth = 1.0d0
-  endif
-
-  ! the following is an additional scalar to relate SOM decomposition rate with location (site)
-  call VecGetArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
-  CHKERRQ(ierr)
-  kd_scalar = kd_scalar_pf_loc(veclocal_id)
-
-  call VecRestoreArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
-  CHKERRQ(ierr)
-
-#else
-  f_depth   = 1.0d0
-  kd_scalar = 1.0d0
-#endif
 
   !----------------------------------------------------------------------------------------------
 
@@ -1127,7 +1613,114 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   nmin = 0.d0
   nimm = 0.d0
 
+  cur_rxn => this%rxn
   do irxn = 1, this%nrxn
+
+    !-----------------------------------------------------------------------------------------------------
+    ! (0) abiotic factors: moisture, temperature, depth(location)
+    cur_abioticfactors => cur_rxn%abiotic_factors
+
+    !-----------
+#ifdef CLM_PFLOTRAN
+    if(option%nflowspec>0 .and. &
+       cur_abioticfactors%moisture_response_function /= MOISTURE_RESPONSE_FUNCTION_OFF) then
+      f_w = GetMoistureResponse(theta, veclocal_id, &
+                                cur_abioticfactors%moisture_response_function)
+
+    else
+      ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
+      call VecGetArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+      f_w = xfactor_pf_loc(veclocal_id)
+      call VecRestoreArrayReadF90(clm_pf_idata%w_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+#else
+    f_w = 1.0d0
+#endif
+
+    ! explicitly using DAYCENT's WFPS function, as an abiotic modification to 'f_w'
+    ! (NOTE: this is different from 'Ox_RESPONSE_FUNCTION_MONOD' which specifying an Ox as reactant)
+    if(cur_abioticfactors%Ox_response_function == Ox_RESPONSE_FUNCTION_WFPS) then
+      f_w  = f_w * &
+           GetAerobicCondition(saturation, &
+             cur_abioticfactors%Ox_half_saturation,  &
+             cur_abioticfactors%Ox_response_function, PETSC_FALSE)
+
+    else
+
+#ifdef CLM_PFLOTRAN
+      !multiplying O-Scalar, passing directly from CLM
+      call VecGetArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+      f_w = f_w * xfactor_pf_loc(veclocal_id)
+      call VecRestoreArrayReadF90(clm_pf_idata%o_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+#endif
+      !
+    endif
+
+    !-----------
+    ! temperature response function
+#ifdef CLM_PFLOTRAN
+    if (option%nflowspec>0) then
+      f_t = GetTemperatureResponse(tc, &
+                                   cur_abioticfactors%temperature_response_function, &
+                                   cur_abioticfactors%Q10)
+
+    else
+      ! if NO flow-mode, i.e. BGC only coupled with CLM, directly read-in factors from CLM
+      call VecGetArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+      f_t = xfactor_pf_loc(veclocal_id)
+      call VecRestoreArrayReadF90(clm_pf_idata%t_scalar_pfs, xfactor_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+#else
+
+    if (cur_abioticfactors%temperature_response_function == &
+        TEMPERATURE_RESPONSE_FUNCTION_ARRHENIUS) then
+      f_t = GetTemperatureResponse(tc, &
+                                 cur_abioticfactors%temperature_response_function, &
+                                 cur_abioticfactors%Ea)
+    else
+      f_t = GetTemperatureResponse(tc, &
+                                 cur_abioticfactors%temperature_response_function, &
+                                 cur_abioticfactors%Q10)
+    endif
+#endif
+
+    !-----------
+#ifdef CLM_PFLOTRAN
+    if (cur_abioticfactors%decomp_depth_efolding > 0.d0) then
+      call VecGetArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
+      CHKERRQ(ierr)
+      f_depth = exp(-zsoi_pf_loc(veclocal_id)/cur_abioticfactors%decomp_depth_efolding)
+      f_depth = min(1.0d0, max(1.d-20, f_depth))
+      call VecRestoreArrayReadF90(clm_pf_idata%zsoil_pfs, zsoi_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      f_depth = 1.0d0
+    endif
+
+    ! the following is an additional scalar to relate SOM decomposition rate with location (site)
+    call VecGetArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
+    CHKERRQ(ierr)
+    kd_scalar = kd_scalar_pf_loc(veclocal_id)
+
+    call VecRestoreArrayReadF90(clm_pf_idata%kscalar_decomp_c_pfs, kd_scalar_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+#else
+    f_depth   = 1.0d0
+    kd_scalar = 1.0d0
+#endif
+
+    ! if extremely limited by either temperature or moisture condition
+    if(f_t < 1.0d-20 .or. f_w < 1.0d-20 .or. f_depth < 1.0d-20) then
+      cycle
+    endif
   
     !-----------------------------------------------------------------------------------------------------
     ! (i) calculate C rate ( and, N rate is derived by Crate*N/C)
@@ -1156,10 +1749,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if(this%upstream_is_aqueous(irxn)) then
       c_uc = rt_auxvar%total(ispec_uc, iphase)
       c_uc = theta * 1000.0d0 * c_uc    ! from mol/L -> mol/m3
-      !ires_uc = reaction%offset_aqueous + ispec_uc
     else
       c_uc = rt_auxvar%immobile(ispec_uc)
-      !ires_uc = reaction%offset_immobile + ispec_uc
     endif
 
     if(this%x0eps>0.d0) then
@@ -1189,19 +1780,19 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           if(this%downstream_is_aqueous(irxn, j)) then
             c_dc = rt_auxvar%total(ispec_dc, iphase)
             c_dc = theta * 1000.0d0 * c_dc    ! from mol/L -> mol/m3
-            !ires_dc = ispec_dc + reaction%offset_aqueous
 
             c_dn = rt_auxvar%total(ispec_dn, iphase)
             c_dn = theta * 1000.0d0 * c_dn    ! from mol/L -> mol/m3
-            !ires_dn = ispec_dn + reaction%offset_aqueous
           else
             c_dc = rt_auxvar%immobile(ispec_dc)
-            !ires_dc = ispec_dc + reaction%offset_immobile
 
             c_dn = rt_auxvar%immobile(ispec_dn)
-            !ires_dn = ispec_dn + reaction%offset_immobile
           endif
-          this%downstream_nc(irxn, j) = c_dn / c_dc
+          !
+          if(c_dn>=this%x0eps .and. c_dc>=this%x0eps) then
+            !only update if over truncation limits, otherwise maybe mathmatical issue
+            this%downstream_nc(irxn, j) = c_dn / c_dc
+          endif
         endif
       endif
     enddo
@@ -1213,12 +1804,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if(this%upstream_is_aqueous(irxn)) then
           c_un = rt_auxvar%total(ispec_un, iphase)
           c_un = theta * 1000.0d0 * c_un    ! from mol/L -> mol/m3
-          !ires_un = ispec_un + reaction%offset_aqueous
         else
           c_un = rt_auxvar%immobile(ispec_un)
-          !ires_un = ispec_un + reaction%offset_immobile
         endif
-        this%upstream_nc(irxn) = c_un / c_uc
+        !
+        if(c_un>=this%x0eps .and. c_uc>=this%x0eps) then
+          !only update if over truncation limits, otherwise maybe mathmatical issue
+          this%upstream_nc(irxn) = c_un / c_uc
+        endif
 
         ! calculate respiration factor (CO2 stoichiometry)
         stoich_c = 1.0d0
@@ -1249,17 +1842,18 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if(this%mineral_n_stoich(irxn) >= 0.0d0) then
       call SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,   &
                         rt_auxvar, material_auxvar, option,                    &
-                        irxn, crate_uc, dcrate_uc_duc, nmin)
+                        irxn, cur_rxn, crate_uc, dcrate_uc_duc, nmin)
 
       net_nmin_rate = net_nmin_rate + nmin
     else
     ! N immoblization type decomposition reaction
       call SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction,   &
                         rt_auxvar, global_auxvar, material_auxvar, option,     &
-                        irxn, crate_uc, dcrate_uc_duc, nimm)
+                        irxn, cur_rxn, crate_uc, dcrate_uc_duc, nimm)
       net_nmin_rate = net_nmin_rate + nimm  ! 'nimm' should be in negative
     endif
 
+    cur_rxn => cur_rxn%next
   enddo ! reactions loop
 
   ! N gaseous emission during mineralization
@@ -1296,7 +1890,7 @@ end subroutine SomDecReact
 
 subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
                         rt_auxvar, material_auxvar, option,                   &
-                        irxn, crate_uc, dcrate_uc_duc, nmin)
+                        irxn, rxn, crate_uc, dcrate_uc_duc, nmin)
   !
   ! Evaluates reaction storing residual and/or Jacobian for N mineralizartion associated
   ! 1 single pool SOM-DECOMPOSITION
@@ -1315,22 +1909,20 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
   class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   class(material_auxvar_type) :: material_auxvar
-
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
 
  ! C substrate only dependent rate/derivative  (input)
   PetscInt  :: irxn
+  type(somdec_reaction_type), pointer :: rxn
   PetscReal :: crate_uc        ! crate function of upstream C ('uc') (moles/s)
   PetscReal :: dcrate_uc_duc   ! d crate_uc / d uc
   PetscReal :: nmin
 
+  ! Locals
   PetscErrorCode :: ierr
-
   PetscReal :: temp_real, volume
-
-  !PetscInt :: ipool_up, ipool_down
 
   PetscInt :: ispec_uc, ispec_un, ispec_dc, ispec_dn     ! species id for upstream C, N, and downstream (used in loops)
   PetscInt :: ires_uc,   ires_un, ires_dc, ires_dn       ! id used for residual and Jacobian (used in loops)
@@ -1343,6 +1935,19 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
                            !                  = crate_uc*crate_nh4, or,
                            !                  = crate_uc*(crate_nh4*(1-fnh4_inhibit_no3)+crate_no3*fnh4_inhibit_no3)
   PetscReal :: dcrate_dx   ! d(crate)/d(x), x = uc, un, dc, dn, nh4, or no3, respectively
+
+  ! Multiplicative Microbial Monod/Inhibition adjustment of decomposition
+  type(monod_type), pointer :: monod
+  type(inhibition_type), pointer :: inhibition
+  type(abiotic_factors_type), pointer :: abioticf
+  PetscReal :: fmb, dfmb
+  PetscReal :: monod_k, monod_threshold
+  PetscReal :: inhibition_k, inhibition_k2
+
+  ! Aerobic/Anarobic conditions
+  PetscReal :: Ox, f_ox, df_ox  ! oxygen or equivalent response function
+  PetscInt  :: ispec_ox, ires_ox
+
 
 ! other local variables
 
@@ -1372,6 +1977,8 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
 
 ! misc. local variables
   PetscInt :: j, ires
+  PetscReal:: tempreal, fx, dfx
+  PetscInt :: iphase = 1
 
   !------------------------------------------------------------------------------------------------
 
@@ -1396,7 +2003,15 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
     endif
   endif
 
-  ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
+  ! 'CO2_species' is one of CO2(g)* or CO2(g) or CO2(aq) or HCO3-, by default is aq. primary species
+  if(this%species_itype_co2 == ITYPE_AQUEOUS) then
+    ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
+  elseif(this%species_itype_co2 == ITYPE_IMMOBILE) then
+    ires_co2 = this%species_id_co2 + reaction%offset_immobile
+  elseif(this%species_itype_co2 == ITYPE_GAS) then
+    ires_co2 = this%species_id_co2   ! gas species NOT in all vectors (? TODO checking)
+  endif
+
   if(this%species_id_hr > 0) then
     ires_hr = this%species_id_hr + reaction%offset_immobile
   endif
@@ -1413,6 +2028,97 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
   endif
 
   volume= material_auxvar%volume
+
+  !-----------------------------------------------------------------------------------------------------
+  ! Microbial-type regualtions (multiplicative)
+  fmb  = 1.d0
+  dfmb = 0.d0
+
+  ! Microbial MONOD-type regulation by specified species
+  monod => rxn%monod
+  do
+    if(.not.associated(monod)) exit
+
+    ! MONOD type regulation
+    monod_k = monod%half_saturation_constant
+    monod_threshold = monod%threshold_concentration
+    ! 'uc' OR not, MONOD-type microbial factor
+    call SomDec_SpeciesConc(this, reaction, rt_auxvar, &
+                        monod%specid, monod%specitype, &
+                        tempreal, option)
+    tempreal = max(0.d0, tempreal-monod_threshold)
+    fx = funcMonod(tempreal, monod_k, PETSC_FALSE)
+    dfx = funcMonod(tempreal, monod_k, PETSC_TRUE)
+    if(ispec_uc /= monod%specid) dfx = 0.d0            ! NOT sure this is needed
+
+    dfmb = dfmb*fx + fmb*dfx
+    fmb = fmb*fx                ! do this after 'df'
+
+    monod => monod%next
+  end do
+  ! Microbial inhibition by specified species
+  inhibition => rxn%inhibition
+  do
+    if(.not.associated(inhibition)) exit
+
+    call SomDec_SpeciesConc(this, reaction, rt_auxvar,  &
+               inhibition%specid, inhibition%specitype, &
+               tempreal, option)
+    inhibition_k = inhibition%inhibition_constant
+    inhibition_k2 = inhibition%inhibition_constant2
+    if (inhibition_k2 ==  UNINITIALIZED_DOUBLE .or. &
+        inhibition%itype /= INHIBITION_THRESHOLD) then
+
+      if(inhibition%itype == INHIBITION_MONOD) then
+        fx  = FuncInhibition(PETSC_FALSE, tempreal, inhibition_k)
+        dfx = FuncInhibition(PETSC_TRUE, tempreal, inhibition_k)
+
+      elseif (inhibition%itype == INHIBITION_INVERSE_MONOD) then
+        ! actually is 'MONOD' function
+        fx  = funcMonod(tempreal, inhibition_k, PETSC_FALSE)
+        dfx = funcMonod(tempreal, inhibition_k, PETSC_TRUE)
+
+      endif
+
+    else
+      fx  = FuncInhibition(PETSC_FALSE, tempreal, inhibition_k, inhibition_k2)
+      dfx = FuncInhibition(PETSC_TRUE, tempreal, inhibition_k, inhibition_k2)
+    endif
+    if(ispec_uc /= inhibition%specid) dfx = 0.d0            ! NOT sure this is needed
+
+    dfmb = dfmb*fx + fmb*dfx
+    fmb = fmb*fx                ! do this after 'df'
+
+    inhibition => inhibition%next
+  end do
+  !
+  dcrate_uc_duc = dcrate_uc_duc*fmb + crate_uc*dfmb
+  crate_uc = crate_uc * fmb
+
+  !-----------------------------------------------------------------------------------------------------
+  ! Aerobic/anarobic condition, associated with explicitly defined Ox consumption
+  ! (A note here: in case that Ox res/jac needed to be updated, better put here as a reactant)
+  abioticf => rxn%abiotic_factors
+  if (abioticf%Ox_response_function == Ox_RESPONSE_FUNCTION_MONOD .and. &
+      rxn%Ox_specid >= 0) then
+    ! explicitly using MONOD-like function, if known OXYGEN concentration
+    call SomDec_SpeciesConc(this, reaction, rt_auxvar,  &
+                       rxn%Ox_specid, rxn%Ox_specitype, &
+                       Ox, option)
+
+    f_ox  = GetAerobicCondition(Ox,                     &
+           abioticf%Ox_half_saturation,                 &
+           abioticf%Ox_response_function, PETSC_FALSE)
+    df_ox = GetAerobicCondition(Ox,                     &
+           abioticf%Ox_half_saturation,                 &
+           abioticf%Ox_response_function, PETSC_TRUE)
+  else
+    f_ox  = 1.0d0
+    df_ox = 0.0d0
+  endif
+  !
+  dcrate_uc_duc = dcrate_uc_duc*f_ox + crate_uc*df_ox
+  crate_uc = crate_uc * f_ox
 
   !-----------------------------------------------------------------------------------------------------
     ! calculation of residuals
@@ -1434,6 +2140,21 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
     if (this%species_id_hr > 0) then               ! for tracking all pool CO2 release
        Residual(ires_hr) = Residual(ires_hr) - this%mineral_c_stoich(irxn) * crate
     endif
+    ! If tracking Ox, assuming it is equal to those of CO2 (but in opposing sign)
+    ! Ox species_name/_id is only available
+    ! when 'O2_SPECIES_NAME' is specified in inputs
+    if(this%species_id_o2 >0) then
+      if(this%species_itype_o2 == ITYPE_AQUEOUS) then
+        ires_ox = this%species_id_o2 + reaction%offset_aqueous       ! as aq. species
+      elseif(this%species_itype_o2 == ITYPE_IMMOBILE) then
+        ires_ox = this%species_id_o2 + reaction%offset_immobile
+      elseif(this%species_itype_o2 == ITYPE_GAS) then
+        ires_ox = this%species_id_o2   ! gas species NOT in all vectors (? TODO checking)
+      endif
+
+      Residual(ires_ox) = Residual(ires_ox) + this%mineral_c_stoich(irxn) * crate
+    endif
+
 
     ! downstream non-mineral C pools [3]
     do j = 1, this%n_downstream_pools(irxn)
@@ -1541,9 +2262,21 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
       ! CO2 [7-1]
       if(this%upstream_is_aqueous(irxn)) then   ! aqueous c pools must have fixed CN ratio
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc*  &
-          rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc, 1)
+          rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc, iphase)
       else
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc
+      endif
+
+      ! If tracking Ox, assuming it is equal to those of CO2 (but in opposing sign)
+      ! Ox species_name/_id is only available
+      ! when 'Ox_response_function == Ox_RESPONSE_FUNCTION_MONOD' currently
+      if(this%species_id_o2 >0) then
+        if(this%upstream_is_aqueous(irxn)) then
+          Jacobian(ires_ox,ires_uc) = Jacobian(ires_ox,ires_uc) + dco2_duc*  &
+            rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc,iphase)
+        else
+          Jacobian(ires_ox,ires_uc) = Jacobian(ires_ox,ires_uc) + dco2_duc
+        endif
       endif
 
 #ifndef nojacobian_track_vars
@@ -1659,7 +2392,7 @@ end subroutine SomDecReact1
 
 subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
                         rt_auxvar, global_auxvar, material_auxvar, option,   &
-                        irxn, crate_uc, dcrate_uc_duc, nimm)
+                        irxn, rxn, crate_uc, dcrate_uc_duc, nimm)
   !
   ! Evaluates reaction storing residual and/or Jacobian for
   ! 1 single pool of SOM: N immobilization associated SOM-DECOMPOSITION
@@ -1679,16 +2412,18 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-
+  !
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
 
   PetscInt  :: irxn
+  type(somdec_reaction_type), pointer :: rxn
   PetscReal :: crate_uc        ! crate function of upstream C ('uc')
   PetscReal :: dcrate_uc_duc   ! d crate_uc / d uc
   PetscReal :: nimm            ! sum of N immoblization
 
+  !
   PetscInt, parameter :: iphase = 1
 
   PetscReal :: temp_real
@@ -1707,17 +2442,19 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
                            !                  = crate_uc*(crate_nh4*(1-fnh4_inhibit_no3)+crate_no3*fnh4_inhibit_no3)
   PetscReal :: dcrate_dx   ! d(crate)/d(x), x = uc, un, dc, dn, nh4, or no3, respectively
 
+  ! NH4 immoblization
   PetscReal :: crate_nh4        ! crate function of c_nh4 (for nh4 immobilization)
   PetscReal :: dcrate_nh4_dnh4  ! d(crate_nh4)/d(nh4) (for nh4 immobilization)
   PetscReal :: fnh4             ! = nh4/(half_saturation + nh4)  ( N 'resource' limitation on immobilization)
   PetscReal :: dfnh4_dnh4       ! d(fnh4)/d(nh4)
 
+  ! NO3 immoblization
   PetscReal :: crate_no3        ! crate function of c_no3 (for no3 immobilization)
   PetscReal :: dcrate_no3_dno3  ! d(crate_no3)/d(no3)
   PetscReal :: fno3             ! = no3/(half_saturation + no3)  ( N 'resource' limitation on immobilization)
   PetscReal :: dfno3_dno3       ! d(fnh4)/d(nh4)
 
-  PetscReal :: nratecap, dtmin  ! max. n immobilization rate within allowable min. timestep
+  PetscReal :: nratecap, dtmin  ! max. N immobilization rate within allowable min. timestep
   PetscReal :: fnratecap        ! max. nratecap as function of c_nh4/c_no3 consumption rate vs. potential immobilization
   PetscReal :: dfnratecap_dnh4, dfnratecap_dno3
 
@@ -1728,6 +2465,18 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
   PetscReal :: fnh4_inhibit_no3 ! inhibition_coef/(inhibition_coef + no3/nh4):
   PetscReal :: dfnh4_inhibit_no3_dnh4 ! d(fnh4_inhibit_no3)/dnh4
   PetscReal :: dfnh4_inhibit_no3_dno3 ! d(fnh4_inhibit_no3)/dno3
+
+  ! Multiplicative Microbial Monod/Inhibition adjustment of decomposition, including NH4/NO3 (either or both additively)
+  type(monod_type), pointer :: monod
+  type(inhibition_type), pointer :: inhibition
+  type(abiotic_factors_type), pointer :: abioticf
+  PetscReal :: fmb, dfmb
+  PetscReal :: monod_k, monod_threshold
+  PetscReal :: inhibition_k, inhibition_k2
+
+  ! Aerobic/Anarobic conditions
+  PetscReal :: Ox, f_ox, df_ox  ! oxygen or equivalent response function
+  PetscInt  :: ispec_ox, ires_ox
 
 ! other local variables
 
@@ -1764,6 +2513,7 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
 ! misc. local variables
   PetscInt :: j, ires
   PetscReal:: feps0, dfeps0_dx
+  PetscReal:: tempreal, fx, dfx
 
   !------------------------------------------------------------------------------------------------
 
@@ -1788,7 +2538,15 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
     endif
   endif
 
-  ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
+  ! 'CO2_species' is one of CO2(g)* or CO2(g) or CO2(aq) or HCO3-, by default is aq. primary species
+  if(this%species_itype_co2 == ITYPE_AQUEOUS) then
+    ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
+  elseif(this%species_itype_co2 == ITYPE_IMMOBILE) then
+    ires_co2 = this%species_id_co2 + reaction%offset_immobile
+  elseif(this%species_itype_co2 == ITYPE_GAS) then
+    ires_co2 = this%species_id_co2   ! gas species NOT in all vectors (? TODO checking)
+  endif
+
   if(this%species_id_hr > 0) then
      ires_hr = this%species_id_hr + reaction%offset_immobile
   endif
@@ -1881,16 +2639,116 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
   fno3 = 1.d0
   dfno3_dno3 = 0.d0
 
-  ! half-saturation regulated rate (by input, it may be representing competetiveness)
-  if(this%species_id_nh4 > 0) then
-    fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_FALSE)
-    dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_TRUE)
+  ! Microbial-type regualtions (multiplicative)
+  fmb  = 1.d0
+  dfmb = 0.d0
+
+  ! Microbial MONOD-type regulation by specified species including inorganic N species
+  monod => rxn%monod
+  do
+    if(.not.associated(monod)) exit
+
+    ! MONOD type regulation
+    monod_k = monod%half_saturation_constant
+    monod_threshold = monod%threshold_concentration
+    ! A note here: NH4 and NO3 effects are additive, while other(s) are multiplicative
+    !          because either NH4 or NO3 or both may be substrate.
+    if(this%species_id_nh4 > 0 .and. this%species_id_nh4 == monod%specid) then
+      tempreal = max(0.d0, c_nh4-monod_threshold)
+      fnh4       = funcMonod(tempreal, monod_k, PETSC_FALSE)
+      dfnh4_dnh4 = funcMonod(tempreal, monod_k, PETSC_TRUE)
+    !
+    elseif(this%species_id_no3 > 0 .and. this%species_id_no3 == monod%specid) then
+      tempreal = max(0.d0, c_no3-monod_threshold)
+      fno3       = funcMonod(tempreal, monod_k, PETSC_FALSE)
+      dfno3_dno3 = funcMonod(tempreal, monod_k, PETSC_TRUE)
+
+    else
+      ! other species, 'uc' OR not, MONOD-type microbial factor
+      call SomDec_SpeciesConc(this, reaction, rt_auxvar, &
+                        monod%specid, monod%specitype, &
+                        tempreal, option)
+      tempreal = max(0.d0, tempreal-monod_threshold)
+      fx = funcMonod(tempreal, monod_k, PETSC_FALSE)
+      dfx = funcMonod(tempreal, monod_k, PETSC_TRUE)
+      if(ispec_uc /= monod%specid) dfx = 0.d0            ! NOT sure this is needed
+
+      dfmb = dfmb*fx + fmb*dfx
+      fmb = fmb*fx                ! do this after 'df'
+
+    endif
+
+    monod => monod%next
+  end do
+  ! Microbial inhibition by specified species
+  inhibition => rxn%inhibition
+  do
+    if(.not.associated(inhibition)) exit
+
+    call SomDec_SpeciesConc(this, reaction, rt_auxvar,  &
+               inhibition%specid, inhibition%specitype, &
+               tempreal, option)
+
+    inhibition_k = inhibition%inhibition_constant
+    inhibition_k2 = inhibition%inhibition_constant2
+    if (inhibition_k2 ==  UNINITIALIZED_DOUBLE .or. &
+        inhibition%itype /= INHIBITION_THRESHOLD) then
+
+      if(inhibition%itype == INHIBITION_MONOD) then
+        fx  = FuncInhibition(PETSC_FALSE, tempreal, inhibition_k)
+        dfx = FuncInhibition(PETSC_TRUE, tempreal, inhibition_k)
+
+      elseif (inhibition%itype == INHIBITION_INVERSE_MONOD) then
+        ! actually is 'MONOD' function
+        fx  = funcMonod(tempreal, inhibition_k, PETSC_FALSE)
+        dfx = funcMonod(tempreal, inhibition_k, PETSC_TRUE)
+
+      endif
+
+    else
+      fx  = FuncInhibition(PETSC_FALSE, tempreal, inhibition_k, inhibition_k2)
+      dfx = FuncInhibition(PETSC_TRUE, tempreal, inhibition_k, inhibition_k2)
+    endif
+    if(ispec_uc /= inhibition%specid) dfx = 0.d0            ! NOT sure this is needed
+
+    dfmb = dfmb*fx + fmb*dfx
+    fmb = fmb*fx                ! do this after 'df'
+
+    inhibition => inhibition%next
+  end do
+  !
+  dcrate_uc_duc = dcrate_uc_duc*fmb + crate_uc*dfmb
+  crate_uc = crate_uc * fmb
+
+  !-----------------------------------------------------------------------------------------------------
+  ! Aerobic/anarobic condition, associated with explicit consumption of Ox
+  ! (A note here: in case that Ox res/jac needed to be updated, better put here as a reactant)
+  abioticf => rxn%abiotic_factors
+  if (abioticf%Ox_response_function == Ox_RESPONSE_FUNCTION_MONOD .and. &
+      rxn%Ox_specid>0) then
+    ! explicitly using MONOD-like function, if known OXYGEN concentration
+    call SomDec_SpeciesConc(this, reaction, rt_auxvar,  &
+                       rxn%Ox_specid, rxn%Ox_specitype, &
+                       Ox, option)
+
+    f_ox  = GetAerobicCondition(Ox,                            &
+                                abioticf%Ox_half_saturation,   &
+                                abioticf%Ox_response_function, &
+                                PETSC_FALSE)
+    df_ox = GetAerobicCondition(Ox,                            &
+                                abioticf%Ox_half_saturation,   &
+                                abioticf%Ox_response_function, &
+                                PETSC_TRUE)
+
+  else
+    f_ox  = 1.0d0
+    df_ox = 0.0d0
   endif
   !
-  if(this%species_id_no3 > 0) then
-    fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
-    dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, PETSC_TRUE)
-  endif
+  dcrate_uc_duc = dcrate_uc_duc*f_ox + crate_uc*df_ox
+  crate_uc = crate_uc * f_ox
+  !-----------------------------------------------------------------------------------------------------
+
 
   ! using the following for trailer smoothing
   ! note: 'x0eps' is different from 'half_saturation_nh4' above.
@@ -1989,6 +2847,21 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
     endif
     if (this%species_id_hr > 0) then               ! for tracking all pool CO2 release
        Residual(ires_hr) = Residual(ires_hr) - this%mineral_c_stoich(irxn) * crate
+    endif
+
+    ! If tracking Ox, assuming it is equal to those of CO2 (but in opposing sign)
+    ! Ox species_name/_id is only available
+    ! when 'O2_SPECIES_NAME' is specified in inputs
+    if(this%species_id_o2 >0) then
+      if(this%species_itype_o2 == ITYPE_AQUEOUS) then
+        ires_ox = this%species_id_o2 + reaction%offset_aqueous       ! as aq. species
+      elseif(this%species_itype_o2 == ITYPE_IMMOBILE) then
+        ires_ox = this%species_id_o2 + reaction%offset_immobile
+      elseif(this%species_itype_o2 == ITYPE_GAS) then
+        ires_ox = this%species_id_o2   ! gas species NOT in all vectors (? TODO checking)
+      endif
+
+      Residual(ires_ox) = Residual(ires_ox) + this%mineral_c_stoich(irxn) * crate
     endif
 
     ! downstream non-mineral C pools [3]
@@ -2186,6 +3059,18 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc,iphase)
       else
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc
+      endif
+
+      ! If tracking Ox, assuming it is equal to those of CO2 (but in opposing sign)
+      ! Ox species_name/_id is only available
+      ! when 'Ox_response_function == Ox_RESPONSE_FUNCTION_MONOD' currently
+      if(this%species_id_o2 >0) then
+        if(this%upstream_is_aqueous(irxn)) then
+          Jacobian(ires_ox,ires_uc) = Jacobian(ires_ox,ires_uc) + dco2_duc*  &
+            rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc,iphase)
+        else
+          Jacobian(ires_ox,ires_uc) = Jacobian(ires_ox,ires_uc) + dco2_duc
+        endif
       endif
 
 #ifndef nojacobian_track_vars
@@ -2725,6 +3610,7 @@ end subroutine SomDecNemission
 !
 ! SomDecDestroy: Destroys allocatable or pointer objects created in this module
 ! author: Guoping Tang
+! Re-done: Fengming Yuan @2019-06-20
 ! ************************************************************************** !
 subroutine SomDecDestroy(this)
   ! 
@@ -2742,7 +3628,12 @@ subroutine SomDecDestroy(this)
   class(reaction_sandbox_somdec_type) :: this
   
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(somdec_reaction_rt_type), pointer :: cur_reaction, prev_reaction
+  type(somdec_reaction_type), pointer :: cur_rxn, prev_rxn
+  type(monod_type), pointer :: cur_monod, prev_monod
+  type(inhibition_type), pointer :: cur_inhibition, prev_inhibition
+
+  deallocate(this%all_abioticfactors)
+  nullify(this%all_abioticfactors)
   
   cur_pool => this%pools
   do
@@ -2753,11 +3644,11 @@ subroutine SomDecDestroy(this)
     nullify(prev_pool)
   enddo
   
-  cur_reaction => this%reactions
+  cur_rxn => this%rxn
   do
-    if (.not.associated(cur_reaction)) exit
+    if (.not.associated(cur_rxn)) exit
 
-    cur_pool => cur_reaction%downstream_pools  
+    cur_pool => cur_rxn%downstream_pools
     do
       if (.not.associated(cur_pool)) exit
       prev_pool => cur_pool
@@ -2766,11 +3657,32 @@ subroutine SomDecDestroy(this)
       nullify(prev_pool)
     enddo
 
-    prev_reaction => cur_reaction
-    cur_reaction => cur_reaction%next
+    cur_monod => cur_rxn%monod
+    do
+      if (.not.associated(cur_monod)) exit
+      prev_monod => cur_monod
+      cur_monod => cur_monod%next
+      deallocate(prev_monod)
+      nullify(prev_monod)
+    enddo
 
-    deallocate(prev_reaction)
-    nullify(prev_reaction)
+    cur_inhibition => cur_rxn%inhibition
+    do
+      if (.not.associated(cur_inhibition)) exit
+      prev_inhibition => cur_inhibition
+      cur_inhibition => cur_inhibition%next
+      deallocate(prev_inhibition)
+      nullify(prev_inhibition)
+    enddo
+
+    deallocate(cur_rxn%abiotic_factors)
+    nullify(cur_rxn%abiotic_factors)
+
+    prev_rxn => cur_rxn
+    cur_rxn => cur_rxn%next
+
+    deallocate(prev_rxn)
+    nullify(prev_rxn)
   enddo
   
   call DeallocateArray(this%pool_nc_ratio)
@@ -2794,5 +3706,136 @@ subroutine SomDecDestroy(this)
   call DeallocateArray(this%mineral_n_stoich) 
  
 end subroutine SomDecDestroy
+
+! ************************************************************************** !
+subroutine SomDec_SpeciesID(this, reaction, species_name, &
+                            species_id, species_itype, option)
+  !
+  ! Sets up SomDec reaction species ID and its index in residual-vector (array) after it has been read from input
+  ! (NOTE: species in this sandbox are from various species categories)
+  !
+  ! By Fengming Yuan @2019-06-20
+
+  use Option_module
+  use String_module
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Gas_Aux_module, only : GasGetIDFromName
+
+  implicit none
+
+  class(reaction_sandbox_somdec_type) :: this
+  type(reaction_rt_type) :: reaction
+  character(len=*), intent(in) :: species_name
+  PetscInt, intent(out) :: species_id
+  PetscInt, intent(out) :: species_itype ! primary[0], immobile[1], or gas[2]
+  type(option_type)   :: option
+
+  character(len=MAXWORDLENGTH) :: word
+
+  !-------------------------------------------------------
+  word = trim(species_name)
+
+  ! Primary species
+  species_id = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  if(species_id > 0) then
+    species_itype = ITYPE_AQUEOUS
+    return
+
+  else
+    ! Gas species
+    species_id = GasGetIDFromName(reaction%gas,word)
+    if (species_id > 0) then
+      species_itype = ITYPE_GAS  ! gas species ARE NOT in the all residual vector? (TODO checking - cannot find its OFFSET)
+      return
+
+    else
+      ! Immobile species
+      species_id = GetImmobileSpeciesIDFromName(word, &
+                     reaction%immobile,PETSC_FALSE,option)
+      if (species_id > 0) then
+        species_itype = ITYPE_IMMOBILE
+        return
+
+      else
+        ! NONE or other types - not allowed
+         option%io_buffer = 'Species name: ' // word // &
+          ' is not correctly specified in the input file!'
+        call printErrMsg(option)
+      endif
+
+    endif
+
+  endif
+
+end subroutine SomDec_SpeciesID
+
+! ************************************************************************** !
+subroutine SomDec_SpeciesConc(this, reaction, rt_auxvar, &
+                              species_id, species_itype, &
+                              species_conc, option, itype_conc)
+  !
+  ! Get SomDec reaction species concentration, upon its category
+  ! (NOTE: species in this sandbox are from various species categories)
+  !
+  ! By Fengming Yuan @2019-06-20
+
+  use Option_module
+  use String_module
+  use Reaction_Aux_module
+  use Reaction_Immobile_Aux_module
+  use Reaction_Gas_Aux_module, only : GasGetIDFromName
+
+  implicit none
+
+  class(reaction_sandbox_somdec_type) :: this
+  type(reaction_rt_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  PetscInt, intent(in) :: species_id
+  PetscInt, intent(in) :: species_itype
+  PetscReal, intent(out) :: species_conc
+  type(option_type)   :: option
+  PetscInt, optional  :: itype_conc   ! total concentration (0, default) or activity (1) for aq. species
+
+  !-------------------------------------------------------
+
+  if(species_id<0) then
+    option%io_buffer = 'Species id < 0 in reaction_sandbox_somdec.F90!'
+    call printErrMsg(option)
+  endif
+
+  ! aqueous species
+  if(species_itype == ITYPE_AQUEOUS) then
+    if (.not. present(itype_conc)) then
+      ! in total concentration
+      species_conc = rt_auxvar%total(species_id, 1)
+    elseif(itype_conc<=0) then
+      ! in total concentration
+      species_conc = rt_auxvar%total(species_id, 1)
+    else
+      ! in activity
+      species_conc = rt_auxvar%pri_molal(species_id)*rt_auxvar%pri_act_coef(species_id)
+    endif
+
+  elseif(species_itype == ITYPE_GAS) then
+  ! Gas species
+    species_conc = rt_auxvar%gas_pp(species_id)   ! partial pressure in bar
+
+  elseif(species_itype == ITYPE_IMMOBILE) then
+  ! Immobile species
+    species_conc = rt_auxvar%immobile(species_id)
+
+  else
+  ! NONE or other types - not allowed
+    option%io_buffer = 'Species type: ' // &
+          ' is not supported in reaction_sandbox_somdec.F90!'
+    call printErrMsg(option)
+  endif
+
+end subroutine SomDec_SpeciesConc
+! ************************************************************************** !
+
 
 end module Reaction_Sandbox_SomDec_class

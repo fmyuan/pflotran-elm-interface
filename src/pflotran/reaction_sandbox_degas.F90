@@ -161,18 +161,35 @@ subroutine degasSetup(this,reaction,option)
   this%ispec_n2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  ! (TODO) currently, gas CO2 related process not ready, so it's assumed as immobile species.
-  word = 'CO2imm'
-  this%ispec_co2g = GetImmobileSpeciesIDFromName( &
+  ! note: in general we have the following
+  ! air CO2(g) <--diffusion/bulbling--> CO2(g)* in water <--degasing/dissolving--> CO2(aq) <--ionzing--> HCO3-
+  word = 'CO2(g)*'
+  this%ispec_co2g = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  if(this%ispec_co2g<0) then
+    ! if gas CO2 related process in water not considered, it's assumed as gas species (so that constant).
+    word = 'CO2(g)'
+    this%ispec_co2g = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+  endif
  
-  word = 'N2Oimm'
-  this%ispec_n2og = GetImmobileSpeciesIDFromName( &
+  word = 'N2O(g)*'
+  this%ispec_n2og = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  if(this%ispec_n2og<0) then
+    word = 'N2O(g)'
+    this%ispec_n2og = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+  endif
 
-  word = 'N2imm'
-  this%ispec_n2g = GetImmobileSpeciesIDFromName( &
+  word = 'N2(g)*'
+  this%ispec_n2g = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  if(this%ispec_n2g<0) then
+    word = 'N2(g)'
+    this%ispec_n2g = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+  endif
 
   if(this%b_fixph) then
      word = 'H+'
