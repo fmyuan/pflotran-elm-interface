@@ -252,7 +252,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
-
+      
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
 

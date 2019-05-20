@@ -4,7 +4,7 @@ module EOS_Gas_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use EOSData_module
+  use EOS_Database_module
   use Utility_module, only : Equal
   
   implicit none

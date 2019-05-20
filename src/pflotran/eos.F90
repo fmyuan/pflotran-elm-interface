@@ -8,7 +8,7 @@ module EOS_module
   use EOS_Oil_module
   use EOS_Slv_module
   use co2_span_wagner_module
-  use EOSData_module
+  use EOS_Database_module
 
   implicit none
 
@@ -981,7 +981,6 @@ subroutine EOSReferenceDensity(option)
                              option%reference_pressure, &
                              option%reference_density(option%liquid_phase), &
                              dum1,ierr)
-        write(*,*) option%reference_density(option%liquid_phase)
       endif
     endif
     if (Initialized(option%gas_phase)) then

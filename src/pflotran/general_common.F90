@@ -2336,17 +2336,27 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_up = gen_auxvar_up%sat(option%liquid_phase)
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
   
-  tempreal = sqrt(sat_up) * &
-             (thermal_conductivity_up(2) - thermal_conductivity_up(1))
-  k_eff_up = thermal_conductivity_up(1) + tempreal
-  dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
+  if (sat_up > 0.d0) then
+    tempreal = sqrt(sat_up) * &
+               (thermal_conductivity_up(2) - thermal_conductivity_up(1))
+    k_eff_up = thermal_conductivity_up(1) + tempreal
+    dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
+  else
+    k_eff_up = thermal_conductivity_up(1)
+    dkeff_up_dsatlup = 0.d0
+  endif
   
-  tempreal = sqrt(sat_dn) * &
-             (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-  k_eff_dn = thermal_conductivity_dn(1) + tempreal
-  dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
-
-  if (k_eff_up > 0.d0 .or. k_eff_up > 0.d0) then
+  if (sat_dn > 0.d0) then
+    tempreal = sqrt(sat_dn) * &
+               (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+    k_eff_dn = thermal_conductivity_dn(1) + tempreal
+    dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
+  else
+    k_eff_dn = thermal_conductivity_dn(1)
+    dkeff_dn_dsatldn = 0.d0
+  endif
+  
+  if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
     tempreal = k_eff_up*dist_dn+k_eff_dn*dist_up
     k_eff_ave = k_eff_up*k_eff_dn/tempreal
     dkeff_ave_dkeffup = (k_eff_dn-k_eff_ave*dist_dn)/tempreal

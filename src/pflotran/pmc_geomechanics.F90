@@ -476,14 +476,14 @@ print *, 'PMCGeomechSetAuxData'
                  grid, &
                  pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
                  por0_p(local_id),local_stress,local_strain,local_pressure, &
-                 por_new)
+                 por_new,this%option)
           por_p(local_id) = por_new
           ! Update permeability based on stress/strain
           call GeomechanicsSubsurfacePropsPermEvaluate( &
                  grid, &
                  pmc%subsurf_realization%patch%aux%Material%auxvars(local_id), &
                  perm0_p(local_id),local_stress,local_strain,local_pressure, &
-                 perm_new)
+                 perm_new,this%option)
           perm_p(local_id) = perm_new
         enddo
 

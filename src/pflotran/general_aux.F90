@@ -9,6 +9,7 @@ module General_Aux_module
   private 
 
 
+  PetscBool, public :: general_print_state_transition = PETSC_TRUE
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
@@ -710,6 +711,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                              gen_auxvar%pres(cpid)
                              
       if (associated(gen_auxvar%d)) then
+        option%io_buffer = 'Analytical derivatives for gas state cells in &
+          &GENERAL mode have a bug. Please use numerical derivatives until &
+          &the bug is resolved.'
+        call PrintErrMsg(option)
         dpair_dT = 0.d0
         dpair_dpgas = 0.d0
         gen_auxvar%d%pv_p = 1.d0
@@ -1465,7 +1470,9 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
     call GeneralAuxVarCompute(x,gen_auxvar, global_auxvar,material_auxvar, &
           characteristic_curves,natural_id,option)
     state_change_string = 'State Transition: ' // trim(state_change_string)
-    call printMsgByRank(option,state_change_string)
+    if (general_print_state_transition) then
+      call printMsgByRank(option,state_change_string)
+    endif
 #ifdef DEBUG_GENERAL_INFO
     call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
                              natural_id,'After Update',option)

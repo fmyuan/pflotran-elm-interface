@@ -358,7 +358,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   ! Return the file handle and 'first' flag indicating if this is the
   ! first time the file has been opened.
   !
-  use Option_module, only : option_type, printMsg, printErrMsg
+  use Option_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -449,7 +449,7 @@ end subroutine OutputHDF5OpenFile
 
 subroutine OutputHDF5CloseFile(option, file_id)
 
-  use Option_module, only : option_type, printMsg, printErrMsg
+  use Option_module
   use hdf5
 
   implicit none
