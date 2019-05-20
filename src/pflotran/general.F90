@@ -304,7 +304,7 @@ subroutine GeneralUpdateSolution(realization)
   general_ts_count = general_ts_count + 1
   general_ts_cut_count = 0
   general_ni_count = 0
-  
+ 
 end subroutine GeneralUpdateSolution
 
 ! ************************************************************************** !
@@ -810,6 +810,15 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                   xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
               end select   
             enddo
+          case(HA_STATE) !MAN: Testing HA_STATE
+            do idof = 1, option%nflowdof
+              select case(boundary_condition%flow_bc_type(idof))
+                case(DIRICHLET_BC,HYDROSTATIC_BC)
+                  real_index = boundary_condition%flow_aux_mapping( &
+                          dof_to_primary_variable(idof,TWO_PHASE_STATE))
+                  xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+              end select
+            enddo
           case(TWO_PHASE_STATE)
             do idof = 1, option%nflowdof
               select case(boundary_condition%flow_bc_type(idof))
@@ -895,7 +904,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
-          real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+          if (istate > 3) then
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,TWO_PHASE_STATE))
+          else
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,istate))
+          endif
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
@@ -905,8 +920,14 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
         enddo
       endif
           
-      ! set this based on data given 
-      global_auxvars_bc(sum_connection)%istate = istate
+      ! set this based on data given
+      if (istate <= 5) then 
+        global_auxvars_bc(sum_connection)%istate = istate
+        global_auxvars_bc(sum_connection)%hstate = istate
+      else
+        global_auxvars_bc(sum_connection)%istate = TWO_PHASE_STATE
+        global_auxvars_bc(sum_connection)%hstate = istate
+      endif
       ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = GENERAL_UPDATE_FOR_BOUNDARY
 
