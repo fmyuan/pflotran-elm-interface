@@ -508,6 +508,8 @@ subroutine SomDecSetup(this,reaction,option)
   use Option_module
   use String_module
   use Reaction_Immobile_Aux_module
+  use Reaction_Gas_Aux_module, only : GasGetIDFromName
+
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -861,14 +863,34 @@ subroutine SomDecSetup(this,reaction,option)
      endif
   enddo
 
-  word = 'CO2(aq)'
+  ! flexible product of CO2 during SOM decomposition
+  word = 'CO2(g)*'     ! CO2 gas in water, ie CO2(g)* <-> CO2(aq) by dissolving/degasing
   this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   if(this%species_id_co2 <= 0) then
-    option%io_buffer = 'CO2(aq) is not specified in the input file!'
-    call printErrMsg(option)
-  endif
+    word = 'CO2(g)'    ! CO2 gas in air, ie CO2(g) <-> CO2(g)*, by diffusion/bulbling, <-> CO2(aq) by dissolving/degasing
+    this%species_id_co2 = GasGetIDFromName(reaction%gas,word)
 
+    if (this%species_id_co2 <= 0) then
+      word = 'CO2(aq)' ! CO2 in aquious phase
+      this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+      if (this%species_id_co2 <= 0) then
+        word = 'HCO3-' ! CO2(aq) ionized in water solution ( should be equivalent to CO2(aq) in reality)
+        this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+        if (this%species_id_co2 <= 0) then
+          option%io_buffer = 'CO2(g)* or CO2(g) or CO2(aq) or HCO3- is not specified in the input file!'
+          call printErrMsg(option)
+        endif
+      endif
+    endif
+  endif
+  option%io_buffer = 'SOMDEC Sandbox: Soil decomposition product CO2 species name is: ' // word
+  call printMsg(option)
+
+  !
   word = 'NH4+'
   this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
