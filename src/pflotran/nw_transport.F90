@@ -1138,12 +1138,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                           material_auxvar_dn%tortuosity * &
                           molecular_diffusion_dn(:), 1.d-40)
                           
-  ! harmonic average of diffusivity divided by distance
-  !harmonic_D_over_dist(:) = 2.0d0*(diffusivity_up(:)*diffusivity_dn(:))/ &
-  !                          (diffusivity_up(:) + diffusivity_dn(:))
-  !harmonic_D_over_dist(:) = harmonic_D_over_dist(:)/(dist_up + dist_dn)
-  ! Note: the "harmonic average" that Glenn does is really a weighted
-  ! average - it is NOT technically harmonic:
+  ! weighted harmonic average of diffusivity divided by distance
    harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
                       (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
   
@@ -1226,12 +1221,19 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
+  type(connection_set_list_type), pointer :: connection_set_list
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscInt :: iconn, sum_connection
   PetscInt :: iphase
   PetscReal :: Jac(realization%nw_trans%params%nspecies, &
                    realization%nw_trans%params%nspecies)
+  PetscReal :: JacUp(realization%nw_trans%params%nspecies, &
+                     realization%nw_trans%params%nspecies)
+  PetscReal :: JacDn(realization%nw_trans%params%nspecies, &
+                     realization%nw_trans%params%nspecies)
   PetscReal :: rdum
     
   option => realization%option
@@ -1319,11 +1321,51 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   
   !== Fluxes ==================================================
     
+  ! Interior Flux Terms ---------------------------------------
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0 
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
+      
+      if (patch%imat(ghosted_id_up) <= 0 .or.  &
+          patch%imat(ghosted_id_dn) <= 0) cycle
+          
+      call NWTJacobianFlux(nwt_auxvars(ghosted_id_up), &
+                           nwt_auxvars(ghosted_id_dn), &
+                           global_auxvars(ghosted_id_up), &
+                           global_auxvars(ghosted_id_dn), &
+                           material_auxvars(ghosted_id_up), &
+                           material_auxvars(ghosted_id_dn), &
+                           cur_connection_set%area(iconn), &
+                           cur_connection_set%dist(:,iconn), &
+                           patch%internal_velocities(:,sum_connection), &
+                           nw_trans,option,JacUp,JacDn)
+          
+      if (local_id_up>0) then
+        ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
+        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+                                      JacUp,ADD_VALUES,ierr);CHKERRQ(ierr)
+      endif
+   
+      if (local_id_dn>0) then
+        ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
+        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+                                      JacDn,ADD_VALUES,ierr);CHKERRQ(ierr)
+      endif
+      
+    enddo
     
-    
-    
-    
-    
+  cur_connection_set => cur_connection_set%next
+  enddo
     
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  
@@ -1546,6 +1588,116 @@ subroutine NWTJacobianRx(material_auxvar,nw_trans,Jac)
 
 end subroutine NWTJacobianRx
 
+! ************************************************************************** !
+
+subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
+                           global_auxvar_up,global_auxvar_dn, &
+                           material_auxvar_up,material_auxvar_dn, &
+                           area,dist,velocity,nw_trans,option,Jac_up,Jac_dn)
+  ! 
+  ! Computes the flux terms in the Jacobian matrix.
+  ! All Jacobian entries should be in [m^3-bulk/sec].
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/14/2019
+  ! 
+
+  use Option_module
+  use Connection_module
+
+  implicit none
+  
+  type(nw_transport_auxvar_type) :: nwt_auxvar_up, nwt_auxvar_dn
+  type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
+  class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
+  PetscReal :: area, dist(-1:3)
+  PetscReal :: velocity(*) ! at connection, not at cell center
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(option_type) :: option
+  PetscReal :: Jac_up(nw_trans%params%nspecies,nw_trans%params%nspecies)
+  PetscReal :: Jac_dn(nw_trans%params%nspecies,nw_trans%params%nspecies)
+  
+  PetscInt :: unit_n_up, unit_n_dn
+  PetscInt :: nspecies, ispecies
+  PetscReal :: q, u
+  PetscReal :: harmonic_porosity, harmonic_saturation
+  PetscReal :: sat_up, sat_dn
+  PetscReal :: por_up, por_dn
+  PetscReal :: dist_up, dist_dn
+  PetscReal, pointer :: diffusivity_up(:)
+  PetscReal, pointer :: diffusivity_dn(:)
+  PetscReal, pointer :: molecular_diffusion_up(:)
+  PetscReal, pointer :: molecular_diffusion_dn(:)
+  PetscReal, pointer :: diffusion_coefficient(:,:)
+  PetscReal :: distance_gravity, upwind_weight ! both are dummy variables
+  PetscReal :: harmonic_D_over_dist(nw_trans%params%nspecies)
+  
+  Jac_up = 0.d0
+  Jac_dn = 0.d0
+  nspecies = nw_trans%params%nspecies
+  
+  allocate(molecular_diffusion_up(nspecies))
+  allocate(molecular_diffusion_dn(nspecies))
+  allocate(diffusivity_up(nspecies))
+  allocate(diffusivity_dn(nspecies))
+  harmonic_D_over_dist(:) = 0.d0
+  
+  sat_up = global_auxvar_up%sat(LIQUID_PHASE)
+  sat_dn = global_auxvar_dn%sat(LIQUID_PHASE)
+  por_up = material_auxvar_up%porosity
+  por_dn = material_auxvar_dn%porosity
+  
+  diffusion_coefficient => nw_trans%diffusion_coefficient
+  molecular_diffusion_up(:) = diffusion_coefficient(:,LIQUID_PHASE)
+  molecular_diffusion_dn(:) = diffusion_coefficient(:,LIQUID_PHASE)
+  
+  ! get dist_up and dist_dn from dist and dummy variables
+  call ConnectionCalculateDistances(dist,option%gravity,dist_up, &
+                                    dist_dn,distance_gravity, &
+                                    upwind_weight)
+                                    
+  diffusivity_up(:) = max(material_auxvar_up%tortuosity * &
+                          molecular_diffusion_up(:), 1.d-40)
+  diffusivity_dn(:) = max(material_auxvar_dn%tortuosity * &
+                          molecular_diffusion_dn(:), 1.d-40)
+                          
+  ! weighted harmonic average of diffusivity divided by distance
+   harmonic_D_over_dist(:) = (diffusivity_up(:)*diffusivity_dn(:))/ &
+                      (diffusivity_up(:)*dist_up + diffusivity_dn(:)*dist_dn)
+                       
+  ! Note: For dispersion, do a git pull - Glenn updated transport.F90 
+  ! When adding dispersion, look at TDispersion() and the routine that
+  ! calls it, UpdateTransportCoefs(), because you need to do something 
+  ! with the cell centered velocities. Also, the boundary cells may need
+  ! their own calculation for dispersion (There is a TDispersionBC).
+                
+  ! units of q = [m-liq/s]
+  ! units of u = [m-bulk/s]
+  q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
+  ! weighted harmonic average
+  harmonic_porosity = (por_up*por_dn)/(por_up*dist_up + por_dn*dist_dn)* &
+                      (dist_up+dist_dn)
+  harmonic_saturation = (sat_up*sat_dn)/(sat_up*dist_up + sat_dn*dist_dn)* &
+                        (dist_up+dist_dn)
+  u = q / (harmonic_porosity*harmonic_saturation)
+  
+  ! units of unit_n = [-] unitless
+  unit_n_up = -1 
+  unit_n_dn = +1
+  
+  do ispecies=1,nspecies
+    Jac_up(ispecies,ispecies) = (unit_n_up*area) * &
+                                (u - harmonic_D_over_dist(ispecies))
+    Jac_dn(ispecies,ispecies) = (unit_n_dn*area) * &
+                                (u - harmonic_D_over_dist(ispecies))
+  enddo
+
+  deallocate(diffusivity_dn)
+  deallocate(diffusivity_up)
+  deallocate(molecular_diffusion_dn)
+  deallocate(molecular_diffusion_up)
+                    
+end subroutine NWTJacobianFlux
 
 ! ************************************************************************** !
 
