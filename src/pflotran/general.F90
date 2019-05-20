@@ -1018,8 +1018,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     
       xxss(1) = maxval(gen_auxvar_ss%pres(option% &
                      liquid_phase:option%gas_phase))
-      xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
-              + qsrc_vol(air_comp_id))
+      if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
+          dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
+        xxss(2) = 0.d0
+      else
+        xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
+                + qsrc_vol(air_comp_id))
+      endif
       xxss(3) = gen_auxvar_ss%temp
     
       cell_pressure = maxval(gen_auxvar%pres(option% &

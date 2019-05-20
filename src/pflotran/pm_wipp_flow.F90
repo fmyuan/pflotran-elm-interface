@@ -1385,7 +1385,8 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     if (dabs(pressure_outside_limits) > 0.d0 .or. &
         dabs(saturation_outside_limits) > 0.d0) then
       cut_timestep = PETSC_TRUE
-      write(*,'(4x,"Outside Limits (PL,SG): ",i8,2es10.2)') local_id, &
+      write(*,'(4x,"Outside Limits (PL,SG): ",i8,2es10.2)') &
+        grid%nG2A(ghosted_id), &
         pressure_outside_limits, saturation_outside_limits
     endif
 

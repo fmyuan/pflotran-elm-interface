@@ -231,7 +231,6 @@ subroutine DatasetBaseInterpolateTime(this)
   implicit none
   
   class(dataset_base_type) :: this
-  type(option_type) :: option
   
   PetscInt :: array_size,i
   PetscInt :: time_interpolation_method

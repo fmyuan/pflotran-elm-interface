@@ -4,7 +4,7 @@ module EOS_Oil_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use EOSData_module
+  use EOS_Database_module
 
   implicit none
 
@@ -24,7 +24,7 @@ module EOS_Oil_module
   PetscReal :: quad_vis_pres_coef(2)
   PetscReal :: quad_vis_temp_coef(2)
   !Reference Oil Density (e.g. used as surface density)
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
   ! parameters for linear density
   PetscReal :: compress_coeff      ! [kg/m3/Pa]
   PetscReal :: th_expansion_coeff  ! [kg/m3/°C]
@@ -38,13 +38,13 @@ module EOS_Oil_module
 
 
   ! EOS databases
-  class(eos_database_type), pointer :: eos_dbase
-  class(eos_database_type), pointer :: eos_den_dbase
-  class(eos_database_type), pointer :: eos_ent_dbase
-  class(eos_database_type), pointer :: eos_vis_dbase
+  class(eos_database_type), pointer :: eos_dbase => null()
+  class(eos_database_type), pointer :: eos_den_dbase => null()
+  class(eos_database_type), pointer :: eos_ent_dbase => null()
+  class(eos_database_type), pointer :: eos_vis_dbase => null()
 
   ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvt_table
+  class(eos_table_type), pointer :: pvt_table => null()
 
   ! when adding a new eos_database, remember to add it to EOSOilDBaseDestroy()
 
@@ -204,8 +204,8 @@ module EOS_Oil_module
 
   public :: EOSOilSetFMWConstant, &
             EOSOilGetFMW, &
-            EOSOilSetReferenceDensity, &
-            EOSOilGetReferenceDensity, &
+            EOSOilSetSurfaceDensity, &
+            EOSOilGetSurfaceDensity, &
             EOSOilSetViscosityConstant, &
             EOSOilSetViscosityQuad, &
             EOSOilSetVisQuadRefVis, &
@@ -214,7 +214,6 @@ module EOS_Oil_module
             EOSOilSetVisQuadPresCoef, &
             EOSOilSetVisQuadTempCoef, &
             EOSOilSetVisDBase, &
-            EOSOilSetVisLinLogInterp, &
             EOSOilSetDensityConstant, &
             EOSOilSetDensityLinear, &
             EOSOilSetDensityInverseLinear, &
@@ -254,7 +253,7 @@ subroutine EOSOilInit()
   quad_vis_pres_coef(1:2) = UNINITIALIZED_DOUBLE
   quad_vis_temp_coef(1:2) = UNINITIALIZED_DOUBLE
 
-  reference_density_kg = UNINITIALIZED_DOUBLE
+  surface_density_kg = UNINITIALIZED_DOUBLE
 
   compress_coeff = UNINITIALIZED_DOUBLE
   th_expansion_coeff = UNINITIALIZED_DOUBLE
@@ -413,15 +412,6 @@ subroutine EOSOilVerify(ierr,error_string)
     end if
   end if
 
-  if ( associated(pvt_table) ) then
-    if(Uninitialized(reference_density_kg)) then
-      error_string = trim(error_string) // &
-      'A reference (e.g. Surface) density must be specified ' // &
-      'using either REFERENCE_DENSITY, SURFACE_DENSITY or STANDARD_DENSITY '
-      ierr = 1
-    end if
-  end if
-
 end subroutine EOSOilVerify
 
 ! ************************************************************************** !
@@ -450,27 +440,27 @@ end function EOSOilGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSOilSetReferenceDensity(input_ref_density)
+subroutine EOSOilSetSurfaceDensity(input_ref_density)
 
   implicit none
 
   PetscReal :: input_ref_density
 
-  reference_density_kg = input_ref_density
+  surface_density_kg = input_ref_density
 
-end subroutine EOSOilSetReferenceDensity
+end subroutine EOSOilSetSurfaceDensity
 
 ! ************************************************************************** !
 
-function EOSOilGetReferenceDensity()
+function EOSOilGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSOilGetReferenceDensity
+  PetscReal :: EOSOilGetSurfaceDensity
 
-  EOSOilGetReferenceDensity= reference_density_kg
+  EOSOilGetSurfaceDensity= surface_density_kg
 
-end function EOSOilGetReferenceDensity
+end function EOSOilGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -577,32 +567,6 @@ subroutine EOSOilSetVisDBase(filename,option)
   EOSOilViscosityPtr => EOSOilViscosityVisDBase
 
 end subroutine EOSOilSetVisDBase
-
-! ************************************************************************** !
-
-subroutine EOSOilSetVisLinLogInterp(option)
-
-  use Option_module
-
-  implicit none
-
-  type(option_type) :: option
-
-  if ( associated(eos_dbase) ) then
-    call eos_dbase%SetupVarLinLogInterp(EOS_VISCOSITY,option)
-  end if
-
-  if ( associated(eos_vis_dbase) ) then
-    call eos_vis_dbase%SetupVarLinLogInterp(EOS_VISCOSITY,option)
-  end if
-  
-  if ( associated(pvt_table) ) then
-    call pvt_table%SetupVarLinLogInterp(EOS_VISCOSITY,option)
-  end if  
-
-end subroutine EOSOilSetVisLinLogInterp
-
-! ************************************************************************** !
 
 ! ************************************************************************** !
 
@@ -915,10 +879,8 @@ subroutine EOSOilViscosityEOSDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
   PetscReal, intent(out) :: dVis_dP ! derivative oil viscosity wrt db Pressure [Pa-s/Pa]
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
-
-  !ierr initialised in EOSEOSProp
-  !call eos_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
   
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_VISCOSITY,Vis,dVis_dT,dVis_dP,ierr) 
 
 end subroutine EOSOilViscosityEOSDBase
@@ -943,20 +905,8 @@ subroutine EOSOilViscosityVisDBase(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSEOSProp
-  !call eos_vis_dbase%EOSProp(T,P,EOS_VISCOSITY,Vis,ierr)
+  ierr = 0
   call eos_vis_dbase%EOSPropGrad(T,P,EOS_VISCOSITY,Vis,dVis_dT,dVis_dP,ierr)
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! dVis_dT = InitToNan()
-  ! dVis_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilViscosityVisDBase - Viscosity derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilViscosityVisDBase
 
@@ -980,22 +930,9 @@ subroutine EOSOilViscosityTable(T,P,Rho,deriv,Vis,dVis_dT,dVis_dP,ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:) !pvt table indices
 
-  !ierr initialised in EOSEOSProp
-  !call pvt_table%EOSProp(T,P,EOS_VISCOSITY,Vis,table_idxs,ierr)
-  
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P,EOS_VISCOSITY,Vis,dVis_dT,dVis_dP, &
                              ierr,table_idxs)
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! dVis_dT = InitToNan()
-  ! dVis_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilViscosityTable - Viscosity derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilViscosityTable
 
@@ -1162,9 +1099,7 @@ subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSEOSProp
-  !call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho,ierr)
-
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rho,dRho_dT,dRho_dP,ierr)
   
   !PO todo: conversion when loaidng database to do this operation only once
@@ -1173,17 +1108,6 @@ subroutine EOSOilDensityEOSDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   Rho = Rho / fmw_oil ! kmol/m^3
   dRho_dT = dRho_dT / fmw_oil
   dRho_dP = dRho_dP / fmw_oil
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! dRho_dT = InitToNan()
-  ! dRho_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilDensityEOSDBase - Den derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilDensityEOSDBase
 
@@ -1206,9 +1130,7 @@ subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSEOSProp
-  !call eos_den_dbase%EOSProp(T,P,EOS_DENSITY,Rho,ierr)
-
+  ierr = 0
   call eos_den_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rho,dRho_dT,dRho_dP,ierr)
 
   !PO todo: conversion when loaidng database to do this operation only once
@@ -1217,17 +1139,6 @@ subroutine EOSOilDensityDenDBase(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   Rho = Rho / fmw_oil ! kmol/m^3
   dRho_dT = dRho_dT / fmw_oil
   dRho_dP = dRho_dP / fmw_oil
-
-  ! initialize derivative to NaN so that not mistakenly used.
-  ! dRho_dT = InitToNan()
-  ! dRho_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilDensityDenDBase - Den derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilDensityDenDBase
 
@@ -1250,24 +1161,10 @@ subroutine EOSOilDensityTable(T, P, deriv, Rho, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSProp
-  !Rho from pvt table is already in kmol/m3
-  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho,table_idxs,ierr)
-  
+  ierr = 0
   !Rho from pvt table is already in kmol/m3
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho,dRho_dT,dRho_dP, &
                              ierr,table_idxs)
-
-  ! initialize derivative to NaN so that not mistakenly used.
-  ! dRho_dT = InitToNan()
-  ! dRho_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilDensityTable - Den derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilDensityTable
 
@@ -1403,9 +1300,7 @@ subroutine EOSOilEnthalpyEOSDBase(T,P,deriv,H,dH_dT,dH_dP,ierr)
   PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt db pressure [J/kmol/Pa]
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp
-  !call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
 
   !PO todo: conversion when loaidng database to do this operation only once
@@ -1414,17 +1309,6 @@ subroutine EOSOilEnthalpyEOSDBase(T,P,deriv,H,dH_dT,dH_dP,ierr)
   H = H  * fmw_oil
   dH_dT = dH_dT * fmw_oil
   dH_dP = dH_dP * fmw_oil
-  
-  ! initialize derivative to NaN so that not mistakenly used.
-  ! dH_dT = InitToNan()
-  ! dH_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilEnthalpyEOSDBase - H derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilEnthalpyEOSDBase
 
@@ -1440,9 +1324,7 @@ subroutine EOSOilEnthalpyEntDBase(T,P,deriv,H,dH_dT,dH_dP,ierr)
   PetscReal, intent(out) :: dH_dP   ! derivative enthalpy wrt db pressure [J/kmol/Pa]
   PetscErrorCode, intent(out) :: ierr
 
-  !ierr initialised in EOSEOSProp
-  !call eos_ent_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-
+  ierr = 0
   call eos_ent_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
 
   !PO todo: conversion when loaidng database to do this operation only once
@@ -1451,17 +1333,6 @@ subroutine EOSOilEnthalpyEntDBase(T,P,deriv,H,dH_dT,dH_dP,ierr)
   H = H  * fmw_oil
   dH_dT = dH_dT * fmw_oil
   dH_dP = dH_dP * fmw_oil
-
-  ! initialize derivative to NaN so that not mistakenly used.
-  ! dH_dT = InitToNan()
-  ! dH_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilEnthalpyEntDBase - H derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilEnthalpyEntDBase
 
@@ -1602,21 +1473,8 @@ subroutine EOSOilRSTable(T,P,deriv,RS,dRS_dT,dRS_dP,ierr,table_idxs)
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSProp
-  !call pvt_table%EOSProp(T,P,EOS_RS,Rs,table_idxs,ierr)
-  
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P,EOS_RS,Rs,dRS_dT,dRS_dP,ierr,table_idxs)
-
-  ! initialize derivative to NaN so that not mistakenly used.
-  ! dRS_dT = InitToNan()
-  ! dRS_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilRSTable - RS derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilRSTable
 
@@ -1671,22 +1529,9 @@ subroutine EOSOilCompressibilityTable(T,P,deriv,Co,dCo_dT,dCo_dP,ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSProp
-  !call pvt_table%EOSProp(T,P,EOS_COMPRESSIBILITY,Co,table_idxs,ierr)
-
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P,EOS_COMPRESSIBILITY,Co,dCo_dT,dCo_dP, &
                              ierr,table_idxs)
-   
-  ! ! initialize derivative to NaN so that not mistakenly used.
-  ! dCo_dT = InitToNan()
-  ! dCo_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilCompressibilityTable - Co derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilCompressibilityTable
 
@@ -1741,22 +1586,9 @@ subroutine EOSOilViscosibilityTable(T,P,deriv,Cvis,dCvis_dT,dCvis_dP,ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSProp
-  !call pvt_table%EOSProp(T,P,EOS_VISCOSIBILITY,Cvis,table_idxs,ierr)
- 
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P,EOS_VISCOSIBILITY,Cvis,dCvis_dT,dCvis_dP, &
                              ierr,table_idxs)
-
-  ! ! initialize derivative to NaN so that not mistakenly used.
-  ! dCvis_dT = InitToNan()
-  ! dCvis_dP = InitToNan()
-  ! 
-  ! if (deriv) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSOilCompressibilityTable - Co derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSOilViscosibilityTable
 
@@ -1957,7 +1789,7 @@ subroutine EOSOilTableProcess(option,FMW_gas,ref_den_gas_kg)
 
   select case(pvt_table%name)
     case("PVDO","PVCO")
-      call pvt_table%ConvertFVFtoMolarDensity(fmw_oil,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_oil,surface_density_kg)
   end select
 
   select case(pvt_table%name)
@@ -1994,7 +1826,7 @@ subroutine ConvertRSVoltoRSMolar(FMW_gas,ref_den_gas_kg)
   data_idx = var_array(EOS_RS)%ptr%data_idx
   !mol/mol = (kg/sm3 * kmol/kg)_gas / (kg/sm3 * kmol/kg)_oil * (sm3_g / sm3_o)
   var_data(data_idx,:) = &
-           (ref_den_gas_kg / FMW_gas) / (reference_density_kg / fmw_oil) * &
+           (ref_den_gas_kg / FMW_gas) / (surface_density_kg / fmw_oil) * &
             var_data(data_idx,:)
   
   !from this point on in the data_idx there is not FVF but EOS_DENSITY

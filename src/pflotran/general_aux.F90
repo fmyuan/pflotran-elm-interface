@@ -9,6 +9,7 @@ module General_Aux_module
   private 
 
 
+  PetscBool, public :: general_print_state_transition = PETSC_TRUE
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
@@ -102,6 +103,7 @@ module General_Aux_module
 !    PetscReal, pointer :: dden_dp(:,:)
 !    PetscReal, pointer :: dsat_dT(:)
 !    PetscReal, pointer :: dden_dT(:)
+    PetscReal, pointer :: kr(:)
     PetscReal, pointer :: mobility(:) ! relative perm / kinematic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
     PetscReal :: pert
@@ -317,6 +319,8 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   auxvar%U = 0.d0
   allocate(auxvar%mobility(option%nphase))
   auxvar%mobility = 0.d0
+  allocate(auxvar%kr(option%nphase))
+  auxvar%kr = 0.d0
   if (allocate_derivative) then
     allocate(auxvar%d)
     auxvar%d%pc_satg = 0.d0
@@ -416,6 +420,7 @@ subroutine GeneralAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%H = auxvar%H
   auxvar2%U = auxvar%U
   auxvar2%mobility = auxvar%mobility
+  auxvar2%kr = auxvar%kr
   auxvar2%effective_porosity = auxvar%effective_porosity
   auxvar2%pert = auxvar%pert
 
@@ -580,7 +585,11 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%xmol = 0.d0
   gen_auxvar%effective_porosity = 0.d0
 #endif  
+  if (associated(gen_auxvar%d)) then
+    call GeneralZeroAnalyticalDeriv(gen_auxvar)
+  endif
   gen_auxvar%mobility = 0.d0
+  gen_auxvar%kr = 0.d0
 
 #if 0
   if (option%iflag >= GENERAL_UPDATE_FOR_ACCUM) then
@@ -705,6 +714,10 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                              gen_auxvar%pres(cpid)
                              
       if (associated(gen_auxvar%d)) then
+        option%io_buffer = 'Analytical derivatives for gas state cells in &
+          &GENERAL mode have a bug. Please use numerical derivatives until &
+          &the bug is resolved.'
+        call PrintErrMsg(option)
         dpair_dT = 0.d0
         dpair_dpgas = 0.d0
         gen_auxvar%d%pv_p = 1.d0
@@ -1133,6 +1146,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       endif
     endif
     gen_auxvar%mobility(lid) = krl/visl
+    gen_auxvar%kr(lid) = krl
     if (associated(gen_auxvar%d)) then
       ! use chainrule for derivative
       tempreal = -1.d0*krl/(visl*visl)
@@ -1166,6 +1180,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            gen_auxvar%pres(gid),den_air,visg,ierr)
     endif
     gen_auxvar%mobility(gid) = krg/visg
+    gen_auxvar%kr(gid) = krg
     if (associated(gen_auxvar%d)) then
       ! use chainrule for derivative
       tempreal = -1.d0*krg/(visg*visg)
@@ -1459,7 +1474,9 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
     call GeneralAuxVarCompute(x,gen_auxvar, global_auxvar,material_auxvar, &
           characteristic_curves,natural_id,option)
     state_change_string = 'State Transition: ' // trim(state_change_string)
-    call printMsgByRank(option,state_change_string)
+    if (general_print_state_transition) then
+      call printMsgByRank(option,state_change_string)
+    endif
 #ifdef DEBUG_GENERAL_INFO
     call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
                              natural_id,'After Update',option)
@@ -2096,6 +2113,166 @@ subroutine GeneralOutputAuxVars2(general_auxvars,global_auxvars,option)
   close(86)
 
 end subroutine GeneralOutputAuxVars2
+
+! ************************************************************************** !
+
+subroutine GeneralSetBogusDeriv(auxvar)
+  ! 
+  ! Deallocates a mode auxiliary object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/29/19
+  ! 
+
+  implicit none
+
+  type(general_auxvar_type) :: auxvar
+
+  auxvar%d%pc_satg = 1234.56789d0
+  auxvar%d%por_p = 1234.56789d0
+  auxvar%d%denl_pl = 1234.56789d0
+  auxvar%d%denl_T = 1234.56789d0
+  auxvar%d%deng_pg = 1234.56789d0
+  auxvar%d%deng_pa = 1234.56789d0
+  auxvar%d%deng_T = 1234.56789d0
+  auxvar%d%dengkg_pg = 1234.56789d0
+  auxvar%d%dengkg_T = 1234.56789d0
+  auxvar%d%Ul_pl = 1234.56789d0
+  auxvar%d%Ul_T = 1234.56789d0
+  auxvar%d%Hl_pl = 1234.56789d0
+  auxvar%d%Hl_T = 1234.56789d0
+  auxvar%d%Ug_pg = 1234.56789d0
+  auxvar%d%Ug_pa = 1234.56789d0
+  auxvar%d%Ug_T = 1234.56789d0
+  auxvar%d%Hg_pg = 1234.56789d0
+  auxvar%d%Hg_pa = 1234.56789d0
+  auxvar%d%Hg_T = 1234.56789d0
+
+  auxvar%d%Hv = 1234.56789d0
+  auxvar%d%Ha = 1234.56789d0
+  auxvar%d%Uv = 1234.56789d0
+  auxvar%d%Ua = 1234.56789d0
+  auxvar%d%Hv_pg = 1234.56789d0
+  auxvar%d%Hv_pa = 1234.56789d0
+  auxvar%d%Hv_T = 1234.56789d0
+  auxvar%d%Ha_pg = 1234.56789d0
+  auxvar%d%Ha_pa = 1234.56789d0
+  auxvar%d%Ha_T = 1234.56789d0
+  auxvar%d%Uv_pg = 1234.56789d0
+  auxvar%d%Uv_pa = 1234.56789d0
+  auxvar%d%Uv_T = 1234.56789d0
+  auxvar%d%Ua_pg = 1234.56789d0
+  auxvar%d%Ua_pa = 1234.56789d0
+  auxvar%d%Ua_T = 1234.56789d0
+  auxvar%d%denv = 1234.56789d0
+  auxvar%d%dena = 1234.56789d0
+  auxvar%d%denv_T = 1234.56789d0
+  auxvar%d%dena_T = 1234.56789d0
+  auxvar%d%denv_pg = 1234.56789d0
+  auxvar%d%dena_pg = 1234.56789d0
+  auxvar%d%Hc = 1234.56789d0
+    
+  auxvar%d%psat_p = 1234.56789d0
+  auxvar%d%psat_T = 1234.56789d0
+  auxvar%d%pv_p = 1234.56789d0
+  auxvar%d%pv_pa = 1234.56789d0
+  auxvar%d%pv_T = 1234.56789d0
+  auxvar%d%Hc_p = 1234.56789d0
+  auxvar%d%Hc_T = 1234.56789d0
+  auxvar%d%mobilityl_pl = 1234.56789d0
+  auxvar%d%mobilityl_T = 1234.56789d0
+  auxvar%d%mobilityl_satg = 1234.56789d0
+  auxvar%d%mobilityg_pg = 1234.56789d0
+  auxvar%d%mobilityg_T = 1234.56789d0
+  auxvar%d%mobilityg_satg = 1234.56789d0
+  auxvar%d%mobilityg_pa = 1234.56789d0
+  auxvar%d%mug = 1234.56789d0
+  auxvar%d%mug_T = 1234.56789d0
+  auxvar%d%mug_pg = 1234.56789d0
+  auxvar%d%xmol_p(:,:) = 1234.56789d0
+  auxvar%d%xmol_T(:,:) = 1234.56789d0
+
+end subroutine GeneralSetBogusDeriv
+
+! ************************************************************************** !
+
+subroutine GeneralZeroAnalyticalDeriv(auxvar)
+  ! 
+  ! Deallocates a mode auxiliary object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/29/19
+  ! 
+
+  implicit none
+
+  type(general_auxvar_type) :: auxvar
+
+  auxvar%d%pc_satg = 0.d0
+  auxvar%d%por_p = 0.d0
+  auxvar%d%denl_pl = 0.d0
+  auxvar%d%denl_T = 0.d0
+  auxvar%d%deng_pg = 0.d0
+  auxvar%d%deng_pa = 0.d0
+  auxvar%d%deng_T = 0.d0
+  auxvar%d%dengkg_pg = 0.d0
+  auxvar%d%dengkg_T = 0.d0
+  auxvar%d%Ul_pl = 0.d0
+  auxvar%d%Ul_T = 0.d0
+  auxvar%d%Hl_pl = 0.d0
+  auxvar%d%Hl_T = 0.d0
+  auxvar%d%Ug_pg = 0.d0
+  auxvar%d%Ug_pa = 0.d0
+  auxvar%d%Ug_T = 0.d0
+  auxvar%d%Hg_pg = 0.d0
+  auxvar%d%Hg_pa = 0.d0
+  auxvar%d%Hg_T = 0.d0
+
+  auxvar%d%Hv = 0.d0
+  auxvar%d%Ha = 0.d0
+  auxvar%d%Uv = 0.d0
+  auxvar%d%Ua = 0.d0
+  auxvar%d%Hv_pg = 0.d0
+  auxvar%d%Hv_pa = 0.d0
+  auxvar%d%Hv_T = 0.d0
+  auxvar%d%Ha_pg = 0.d0
+  auxvar%d%Ha_pa = 0.d0
+  auxvar%d%Ha_T = 0.d0
+  auxvar%d%Uv_pg = 0.d0
+  auxvar%d%Uv_pa = 0.d0
+  auxvar%d%Uv_T = 0.d0
+  auxvar%d%Ua_pg = 0.d0
+  auxvar%d%Ua_pa = 0.d0
+  auxvar%d%Ua_T = 0.d0
+  auxvar%d%denv = 0.d0
+  auxvar%d%dena = 0.d0
+  auxvar%d%denv_T = 0.d0
+  auxvar%d%dena_T = 0.d0
+  auxvar%d%denv_pg = 0.d0
+  auxvar%d%dena_pg = 0.d0
+  auxvar%d%Hc = 0.d0
+    
+  auxvar%d%psat_p = 0.d0
+  auxvar%d%psat_T = 0.d0
+  auxvar%d%pv_p = 0.d0
+  auxvar%d%pv_pa = 0.d0
+  auxvar%d%pv_T = 0.d0
+  auxvar%d%Hc_p = 0.d0
+  auxvar%d%Hc_T = 0.d0
+  auxvar%d%mobilityl_pl = 0.d0
+  auxvar%d%mobilityl_T = 0.d0
+  auxvar%d%mobilityl_satg = 0.d0
+  auxvar%d%mobilityg_pg = 0.d0
+  auxvar%d%mobilityg_T = 0.d0
+  auxvar%d%mobilityg_satg = 0.d0
+  auxvar%d%mobilityg_pa = 0.d0
+  auxvar%d%mug = 0.d0
+  auxvar%d%mug_T = 0.d0
+  auxvar%d%mug_pg = 0.d0
+  auxvar%d%xmol_p(:,:) = 0.d0
+  auxvar%d%xmol_T(:,:) = 0.d0
+
+end subroutine GeneralZeroAnalyticalDeriv
 
 ! ************************************************************************** !
 

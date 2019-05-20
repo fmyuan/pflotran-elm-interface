@@ -22,6 +22,7 @@ module Richards_Aux_module
   
     PetscReal :: pc
     PetscReal :: kvr
+    PetscReal :: kr
     PetscReal :: dkvr_dp
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
@@ -131,6 +132,7 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%pc = 0.d0
 
   auxvar%kvr = 0.d0
+  auxvar%kr = 0.d0
   auxvar%dkvr_dp = 0.d0
 
   auxvar%dsat_dp = 0.d0
@@ -176,6 +178,7 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%pc = auxvar%pc
 
   auxvar2%kvr = auxvar%kvr
+  auxvar2%kr = auxvar%kr
   auxvar2%dkvr_dp = auxvar%dkvr_dp
 
   auxvar2%dsat_dp = auxvar%dsat_dp
@@ -246,6 +249,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den_kg = 0.d0
   
   auxvar%kvr = 0.d0
+  auxvar%kr = 0.d0
 
   kr = 0.d0
  
@@ -357,6 +361,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den_kg = dw_kg
   auxvar%dsat_dp = ds_dp
   auxvar%dden_dp = dw_dp
+  auxvar%kr = kr  ! stored solely for output purposes
   auxvar%kvr = kr/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
   

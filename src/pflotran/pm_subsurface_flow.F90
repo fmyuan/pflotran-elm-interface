@@ -162,7 +162,8 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputDefaultMsg(input,option,'dpmxe')
       if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, overwritting the RESERVOIR_DEFAULTS default'
+        option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, &
+          &overwritting the RESERVOIR_DEFAULTS default'
         call printMsg(option)
       endif
 
@@ -208,7 +209,8 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
       if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, overwritting the RESERVOIR_DEFAULTS default'
+        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
+          &overwritting the RESERVOIR_DEFAULTS default'
         call printMsg(option)
       endif
 
@@ -217,21 +219,25 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('RESERVOIR_DEFAULTS')
       option%flow%resdef = PETSC_TRUE
-      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under process model options'
+      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
+        &process model options'
       call printMsg(option)
 
       option%flow%numerical_derivatives = PETSC_FALSE
-      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has been automatically selected (RESERVOIR_DEFAULTS)'
+      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has &
+        &been automatically selected (RESERVOIR_DEFAULTS)'
       call printMsg(option)
 
       this%pressure_change_governor=5.5d6
       call InputDefaultMsg(input,option,'dpmxe')
-      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has been set to 5.5D6 (RESERVOIR_DEFAULTS)'
+      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
+        &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
       call printMsg(option)
 
     case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
-        &use ANALYTICAL_JACOBIAN instead.'
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
+        &Please use ANALYTICAL_JACOBIAN instead.'
+      call PrintErrMsg(option)
 
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
@@ -250,7 +256,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
-
+      
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
 

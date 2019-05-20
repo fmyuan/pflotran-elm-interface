@@ -102,8 +102,6 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: energy_flux
     type(flow_sub_condition_type), pointer :: temperature
     type(flow_sub_condition_type), pointer :: enthalpy
-    type(flow_sub_condition_type), pointer :: gas_in_oil_mole_fraction
-    type(flow_sub_condition_type), pointer :: gas_in_gas_mole_fraction
     type(flow_sub_condition_type), pointer :: rate
     type(flow_sub_condition_type), pointer :: bhp_pressure
     type(flow_sub_condition_type), pointer :: owc_z
@@ -372,8 +370,6 @@ function FlowTOWGConditionCreate(option)
   nullify(towg_condition%energy_flux)
   nullify(towg_condition%temperature)
   nullify(towg_condition%enthalpy)
-  nullify(towg_condition%gas_in_oil_mole_fraction)
-  nullify(towg_condition%gas_in_gas_mole_fraction)
   nullify(towg_condition%rate)
   nullify(towg_condition%bhp_pressure)
   nullify(towg_condition%owc_z)
@@ -594,14 +590,6 @@ function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
         sub_condition_ptr => FlowSubConditionCreate(THREE_INTEGER)
         toil_ims%rate => sub_condition_ptr
       endif
-    !a condition can have either RATE or WELL_RATE (target/limits)
-    case('WELL_RATE')
-      if (associated(toil_ims%rate)) then
-        sub_condition_ptr => toil_ims%rate
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        toil_ims%rate => sub_condition_ptr
-      endif
     case('OWC_Z','OWC_D')
       if (associated(toil_ims%owc_z)) then
         sub_condition_ptr => toil_ims%owc_z
@@ -705,20 +693,6 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
       else
         sub_condition_ptr => FlowSubConditionCreate(option%nphase)
         towg%enthalpy => sub_condition_ptr
-      endif
-    case('GAS_IN_OIL_MOLE_FRACTION')
-      if (associated(towg%gas_in_oil_mole_fraction)) then
-        sub_condition_ptr => towg%gas_in_oil_mole_fraction
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        towg%gas_in_oil_mole_fraction => sub_condition_ptr
-      endif
-    case('GAS_IN_GAS_MOLE_FRACTION')
-      if (associated(towg%gas_in_gas_mole_fraction)) then
-        sub_condition_ptr => towg%gas_in_gas_mole_fraction
-      else
-        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
-        towg%gas_in_gas_mole_fraction => sub_condition_ptr
       endif
     case('LIQUID_FLUX')
       if (associated(towg%liquid_flux)) then
@@ -2526,12 +2500,15 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
         internal_units = 'not_assigned'
         select case(trim(word))
           case('PRESSURE','OIL_PRESSURE','WATER_PRESSURE','PCOW_OWC')
+            input%force_units = PETSC_TRUE
             internal_units = 'Pa'
           case('LIQUID_SATURATION','OIL_SATURATION')
             internal_units = 'unitless'
           case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
+            input%force_units = PETSC_TRUE
             internal_units = 'C'
           case('OWC','OWC_Z','OWC_D')
+            input%force_units = PETSC_TRUE
             internal_units = 'meter'
           case('WATER_PRESSURE_GRAD')
             internal_units = 'Pa/meter'
@@ -2547,15 +2524,9 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             input%err_buf = word
             internal_units = 'MW/m^2|MJ/sec-m^2'
           case('ENTHALPY')
-            internal_units = 'MJ/mol'
-          case('WELL_RATE')
             input%force_units = PETSC_TRUE
-            input%err_buf = word
-            internal_units = trim(rate_string)
-          case('WELL_PRESSURE')
-            internal_units = 'Pa'
-          case('WELL_TEMPERATURE')
-            internal_units = 'C'
+            internal_units = 'J/kg'
+            !internal_units = 'MJ/mol'
         end select
         call ConditionReadValues(input,option,word, &
                                  sub_condition_ptr%dataset, &
@@ -2624,17 +2595,22 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
        &have either temp or enthalpy'
       call printErrMsg(option)
     end if
+
     ! only dirich condition supported for src/sink temp or enthalpy
-    if ( ( associated(toil_ims%temperature).and. &
-          (toil_ims%temperature%itype /= DIRICHLET_BC) &
-         ) .or. &
-         ( associated(toil_ims%enthalpy).and. &
-          (toil_ims%enthalpy%itype /= DIRICHLET_BC ) &
-         ) &
-       ) then
-      option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
-       &is supported for temperature and enthalpy conditions'
-      call printErrMsg(option)
+    if ( associated(toil_ims%temperature) ) then
+      if (toil_ims%temperature%itype /= DIRICHLET_BC) then
+        option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
+         &is supported for temperature conditions'
+        call printErrMsg(option)
+      end if
+    end if
+
+    if ( associated(toil_ims%enthalpy) ) then
+      if (toil_ims%enthalpy%itype /= DIRICHLET_BC) then
+        option%io_buffer = 'TOilIms Src/Sink; only dirichlet type &
+         &is supported for enthalpy conditions'
+        call printErrMsg(option)
+      end if
     end if
 
   end if ! end if rate
@@ -2837,6 +2813,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   PetscBool :: phase_state_found
   PetscBool :: comm_card_found
   PetscBool :: usr_tbl_press_units_found
+  PetscBool :: usr_tbl_z_units_found
   PetscBool :: pbvz_found
   type(time_storage_type), pointer :: default_time_storage
   class(dataset_ascii_type), pointer :: dataset_ascii
@@ -3016,7 +2993,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         towg%is_wg_equilibration = PETSC_TRUE
       case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','OIL_SATURATION', &
           'GAS_SATURATION','SOLVENT_SATURATION','BUBBLE_POINT','TEMPERATURE', &
-          'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION', &
           'RATE','BHP_PRESSURE', 'LIQUID_FLUX','OIL_FLUX','GAS_FLUX', &
           'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', &
           'OWC_Z','OWC_D','PCOW_OWC', 'OGC_Z','OGC_D', 'PCOG_OGC', &
@@ -3026,14 +3002,16 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE', &
                'BUBBLE_POINT','PCOW_OWC','PCOG_OGC','PCWG_WGC')
             internal_units_string = 'Pa'
+            input%force_units = PETSC_TRUE
           case('OWC_Z','OWC_D','OGC_Z','OGC_D','WGC_Z','WGC_D', &
                'DATUM_Z','DATUM_D')
             internal_units_string = 'meter' 
-          case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION', &
-               'GAS_IN_OIL_MOLE_FRACTION', 'GAS_IN_GAS_MOLE_FRACTION')
+            input%force_units = PETSC_TRUE
+          case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION')
             internal_units_string = 'unitless'
           case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
             internal_units_string = 'C'
+            input%force_units = PETSC_TRUE
           case('RATE')
             input%force_units = PETSC_TRUE
             input%err_buf = word
@@ -3047,8 +3025,17 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                                       trim(rate_string) // ',' // &
                                       trim(rate_string) // ',MJ/sec|MW'
             end if
+          case('ENTHALPY')
+            input%force_units = PETSC_TRUE
+            if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+              internal_units_string = 'J/kg' // ',' // 'J/kg' // ',' // &
+                                      'J/kg' // ',' // 'J/kg'
+            else
+              internal_units_string = 'J/kg' // ',' // 'J/kg' // ',' // 'J/kg'
+            end if    
           case('LIQUID_FLUX','OIL_FLUX','GAS_FLUX')
             internal_units_string = 'meter/sec'
+            input%force_units = PETSC_TRUE
           case('ENERGY_FLUX')
             input%force_units = PETSC_TRUE
             input%err_buf = word
@@ -3070,6 +3057,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             sub_condition_ptr%dataset%rarray(:) =  - &
                                     sub_condition_ptr%dataset%rarray(:)
         end select
+      !PO move BUBBLE_POINT_TABLE to new routine to improve 
+      !  FlowConditionTOWGRead readibility 
       case('BUBBLE_POINT_TABLE')
         towg%pbvz_table => LookupTableCreateGeneral(ONE_INTEGER)
         call towg%pbvz_table%LookupTableVarsInit(TWO_INTEGER)
@@ -3078,6 +3067,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         usr_tbl_len_units = 'm'
         usr_tbl_press_units = 'Pa'
         usr_tbl_press_units_found = PETSC_FALSE
+        usr_tbl_z_units_found = PETSC_FALSE
         pbvz_found = PETSC_FALSE
         do
           call InputReadPflotranString(input,option)
@@ -3093,8 +3083,12 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           select case (trim(word))
             case('Z_UNITS','D_UNITS')
               call InputReadWord(input,option,usr_tbl_len_units,PETSC_TRUE)
+              call InputErrorMsg(input,option,'BUBBLE_POINT_TABLE','Z/D_UNITS')
+              usr_tbl_z_units_found = PETSC_TRUE
             case('PRESSURE_UNITS')
               call InputReadWord(input,option,usr_tbl_press_units,PETSC_TRUE)
+              call InputErrorMsg(input,option,'BUBBLE_POINT_TABLE', &
+                                                            'PRESSURE_UNITS')
               usr_tbl_press_units_found = PETSC_TRUE
             case('PBVZ','PBVD')
               data_idx = 1 !elevation/depth in the first column
@@ -3107,7 +3101,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                       internal_units_word,usr_tbl_press_units,data_idx,option)
               string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name)  &
                                          // '/reading PBVZ or PBVD table'
-              call towg%pbvz_table%VarDataRead(input,TWO_INTEGER,string,option)
+              call towg%pbvz_table%VarDataRead(input,TWO_INTEGER,TWO_INTEGER, &
+                                               string,option)
               !table input for decreasing z (or decreasing depth) - needs reversing
               call towg%pbvz_table%VarDataReverse(option)
               ! PO todo: move this error to table general reads
@@ -3123,32 +3118,48 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                   towg%pbvz_table%var_data(ONE_INTEGER,:) = - &
                                        towg%pbvz_table%var_data(ONE_INTEGER,:)
               end select
-
-              call towg%pbvz_table%LookupTableVarConvFactors(option)
-              call towg%pbvz_table%VarPointAndUnitConv(option)
-              call towg%pbvz_table%SetupConstValExtrap(option)
-              call towg%pbvz_table%LookupTableVarInitGradients(option)
-              ! define table axis
-              !PO: to move into table%SetUpIndependentVars(var1,var2), var 2 is optional
-              allocate(towg%pbvz_table%axis1)
-              allocate(towg%pbvz_table%axis1%values( &
-                                        size(towg%pbvz_table%var_data(1,:))))
-              towg%pbvz_table%axis1%values = towg%pbvz_table%var_data(1,:)
-              towg%pbvz_table%dims(1) = size(towg%pbvz_table%axis1%values(:))
               pbvz_found = PETSC_TRUE
             case default
               call InputKeywordUnrecognized(word, &
                                   'flow condition,BUBBLE_POINT_TABLE',option)
           end select
         end do
+        if ( .not. usr_tbl_z_units_found ) then
+          option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
+            &lenght units must be entered for the z/depths'
+          call printErrMsg(option)
+        else if ( usr_tbl_z_units_found .and. pbvz_found ) then
+          call towg%pbvz_table%SetupVarUserUnits(ONE_INTEGER, &
+                                               usr_tbl_len_units,option)
+        end if
         if ( .not. usr_tbl_press_units_found) then
           option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
             &pressure units must be entered for the bubble point'
           call printErrMsg(option)
+        else if ( usr_tbl_press_units_found .and. pbvz_found ) then
+          call towg%pbvz_table%SetupVarUserUnits(TWO_INTEGER, &
+                                              usr_tbl_press_units,option)
         end if
-        if ( .not. pbvz_found ) then
+        ! LookupTable unit conversion after reading units to make the table input
+        ! independent from the order the table instructions are given
+        if (pbvz_found) then
+          call towg%pbvz_table%LookupTableVarConvFactors(option)
+          call towg%pbvz_table%VarPointAndUnitConv(option)
+          call towg%pbvz_table%SetupConstValExtrap(option)
+          call towg%pbvz_table%LookupTableVarInitGradients(option)
+          ! define table axis
+          !PO: to move into table%SetUpIndependentVars(var1,var2), var 2 is optional
+          allocate(towg%pbvz_table%axis1)
+          allocate(towg%pbvz_table%axis1%values( &
+                                    size(towg%pbvz_table%var_data(1,:))))
+          towg%pbvz_table%axis1%values = towg%pbvz_table%var_data(1,:)
+          towg%pbvz_table%dims(1) = size(towg%pbvz_table%axis1%values(:))
+        else
           option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
-                              &PBVZ or PBVD tables not found'
+                              &defined but pressure table (PBVZ or PBVD) &
+                              &not found.If you are trying to run without &
+                              &PBVD table, please remove the entire &
+                              BUBBLE_POINT_TABLE card'
           call printErrMsg(option)
         end if
       case default
@@ -3255,17 +3266,21 @@ subroutine FlowConditionTOWGRead(condition,input,option)
       call printErrMsg(option)
     end if
     ! only dirich condition supported for src/sink temp or enthalpy
-    if ( ( associated(towg%temperature).and. &
-          (towg%temperature%itype /= DIRICHLET_BC) &
-         ) .or. &
-         ( associated(towg%enthalpy).and. &
-          (towg%enthalpy%itype /= DIRICHLET_BC ) &
-         ) &
-       ) then
-      option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
-       &is supported for temperature and enthalpy conditions'
-      call printErrMsg(option)
+    if (associated(towg%temperature)) then
+      if (towg%temperature%itype /= DIRICHLET_BC) then
+         option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
+                             &is supported for temperature conditions'
+         call printErrMsg(option)
+      end if
     end if
+    if (associated(towg%enthalpy)) then
+      if (towg%enthalpy%itype /= DIRICHLET_BC ) then
+        option%io_buffer = 'TOWG Src/Sink; only dirichlet type &
+                            &is supported for enthalpy conditions'
+        call printErrMsg(option)
+      end if
+    end if
+
   end if ! end if rate
 
   if (condition%iphase == TOWG_NULL_STATE) then
@@ -3297,16 +3312,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                               PETSC_TRUE)
   word = 'bubble point'
   call FlowSubConditionVerify(option,condition,word,towg%bubble_point, &
-                              default_time_storage, &
-                              PETSC_TRUE)
-  word = 'gas in oil mole fraction'
-  call FlowSubConditionVerify(option,condition,word, &
-                              towg%gas_in_oil_mole_fraction, &
-                              default_time_storage, &
-                              PETSC_TRUE)
-  word = 'gas in gas mole fraction'
-  call FlowSubConditionVerify(option,condition,word, &
-                              towg%gas_in_gas_mole_fraction, &
                               default_time_storage, &
                               PETSC_TRUE)
   word = 'temperature'
@@ -3376,10 +3381,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     i = i + 1
   if (associated(towg%bubble_point)) &
     i = i + 1
-  if (associated(towg%gas_in_oil_mole_fraction)) &
-    i = i + 1
-  if (associated(towg%gas_in_gas_mole_fraction)) &
-    i = i + 1
   if (associated(towg%temperature)) &
     i = i + 1
   if (associated(towg%enthalpy)) &
@@ -3436,14 +3437,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
   if (associated(towg%bubble_point)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => towg%bubble_point
-  endif
-  if (associated(towg%gas_in_oil_mole_fraction)) then
-    i = i + 1
-    condition%sub_condition_ptr(i)%ptr => towg%gas_in_oil_mole_fraction
-  endif
-  if (associated(towg%gas_in_gas_mole_fraction)) then
-    i = i + 1
-    condition%sub_condition_ptr(i)%ptr => towg%gas_in_gas_mole_fraction
   endif
   if (associated(towg%temperature)) then
     i = i + 1
@@ -3542,16 +3535,14 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-!  character(len=MAXWORDLENGTH) :: rate_string
   character(len=MAXSTRINGLENGTH) :: internal_units_string
   character(len=MAXWORDLENGTH) :: internal_units_word
   character(len=MAXWORDLENGTH) :: usr_lenght_units
   character(len=MAXWORDLENGTH) :: usr_temp_units
   PetscInt :: data_idx
   PetscBool :: rtempvz_found
-
-!  class(dataset_base_type), pointer :: default_flow_dataset
-!  class(dataset_base_type), pointer :: default_gradient
+  PetscBool :: rtempvz_z_units_found
+  PetscBool :: rtempvz_temp_units_found
 
   class(dataset_ascii_type), pointer :: dataset_ascii
 !  PetscErrorCode :: ierr
@@ -3605,9 +3596,11 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       card_found = PETSC_TRUE
       condition%datum_z => FlowSubConditionCreate(ONE_INTEGER)
       internal_units_string = 'meter'
+      input%force_units = PETSC_TRUE
       call ConditionReadValues(input,option,word, &
                                condition%datum_z%dataset, &
                                condition%datum_z%units,internal_units_string)
+      input%force_units = PETSC_FALSE
       !give a condition type to pass verify
       condition%datum_z%itype = DIRICHLET_BC
       condition%datum_z%ctype = 'dirichlet'
@@ -3622,6 +3615,8 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
     case ('TEMPERATURE_TABLE')
       card_found = PETSC_TRUE
       rtempvz_found = PETSC_FALSE
+      rtempvz_z_units_found = PETSC_FALSE
+      rtempvz_temp_units_found = PETSC_FALSE
       condition%rtempvz_table => LookupTableCreateGeneral(ONE_INTEGER)
       call condition%rtempvz_table%LookupTableVarsInit(TWO_INTEGER)
       lkp_table => condition%rtempvz_table
@@ -3642,14 +3637,18 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
         select case (trim(sub_word))
           case('Z_UNITS','D_UNITS')
             call InputReadWord(input,option,usr_lenght_units,PETSC_TRUE)
+            call InputErrorMsg(input,option,'TEMPERATURE_TABLE','Z/D_UNITS')
+            rtempvz_z_units_found = PETSC_TRUE
           case('TEMPERATURE_UNITS')
             call InputReadWord(input,option,usr_temp_units,PETSC_TRUE)
-             call StringToUpper(usr_temp_units)
-             if ( trim(usr_temp_units) /= 'C' ) then
-               option%io_buffer = 'TEMPERATURE_TABLE supports only &
-                                   &degree celcius, C'
+            call InputErrorMsg(input,option,'TEMPERATURE_TABLE', &
+                                                          'TEMPERATURE_UNITS')
+            if ( trim(usr_temp_units) /= 'C' ) then
+              option%io_buffer = 'TEMPERATURE_TABLE supports only &
+                                  &degree celcius, C'
                call printErrMsg(option)
-             end if
+            end if
+            rtempvz_temp_units_found = PETSC_TRUE
           case('RTEMPVZ','RTEMPVD')
             data_idx = 1 !elevation/depth in the first column
             internal_units_word = 'm'
@@ -3661,7 +3660,8 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
                             internal_units_word,usr_temp_units,data_idx,option)
             string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name)  &
                       // '/reading RTEMPVZ or RTEMPVD table'
-            call lkp_table%VarDataRead(input,TWO_INTEGER,string,option)
+            call lkp_table%VarDataRead(input,TWO_INTEGER,TWO_INTEGER, &
+                                       string,option)
             !table input for decreasing z (or decreasing depth) - needs reversing
             call lkp_table%VarDataReverse(option)
             ! PO todo: move this error to table general reads
@@ -3677,30 +3677,47 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
                 lkp_table%var_data(ONE_INTEGER,:) = - &
                                          lkp_table%var_data(ONE_INTEGER,:)
             end select
-
-            call lkp_table%LookupTableVarConvFactors(option)
-            call lkp_table%VarPointAndUnitConv(option)
-            call lkp_table%SetupConstValExtrap(option)
-            call lkp_table%LookupTableVarInitGradients(option)
-            ! define table axis
-            !PO: to move into table%SetUpIndependentVars(var1,var2), var 2 is optional
-            allocate(lkp_table%axis1)
-            allocate(lkp_table%axis1%values(size(lkp_table%var_data(1,:))))
-            lkp_table%axis1%values = lkp_table%var_data(1,:)
-            lkp_table%dims(1) = size(lkp_table%axis1%values(:))
-            if ( .not. lkp_table%LookupTableVarIsSMInc(ONE_INTEGER) ) then
-              option%io_buffer = 'TEMPERATURE_TABLE: temperature values must &
-                                  &be entered for strictly growing depths '
-              call printErrMsg(option)
-            end if
-            nullify(lkp_table)
             rtempvz_found = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(sub_word, &
                                     'flow condition,TEMPERATURE_TABLE',option)
         end select
       end do
-      if ( .not. rtempvz_found ) then
+      !PO: consider to include a force unit check in lookup table
+      if ( .not. rtempvz_z_units_found ) then
+        option%io_buffer = 'TOWG condition - RTEMPVZ/RTEMPVD: &
+          &z/depth units must be entered for temperature table'
+        call printErrMsg(option)
+      else if ( rtempvz_z_units_found .and. rtempvz_found ) then
+        call lkp_table%SetupVarUserUnits(ONE_INTEGER,usr_lenght_units,option)
+      end if
+      if ( .not. rtempvz_temp_units_found ) then
+        option%io_buffer = 'TOWG condition - RTEMPVZ/RTEMPVD: &
+          &temperature units must be entered for temperature table'
+        call printErrMsg(option)
+      else if ( rtempvz_temp_units_found .and. rtempvz_found ) then
+        call lkp_table%SetupVarUserUnits(TWO_INTEGER,usr_temp_units,option)
+      end if
+      ! LookupTable unit conversion after reading units to make the table input
+      ! independent from order the table instructions are given
+      if ( rtempvz_found ) then
+        call lkp_table%LookupTableVarConvFactors(option)
+        call lkp_table%VarPointAndUnitConv(option)
+        call lkp_table%SetupConstValExtrap(option)
+        call lkp_table%LookupTableVarInitGradients(option)
+        ! define table axis
+        !PO: to move into table%SetUpIndependentVars(var1,var2), var 2 is optional
+        allocate(lkp_table%axis1)
+        allocate(lkp_table%axis1%values(size(lkp_table%var_data(1,:))))
+        lkp_table%axis1%values = lkp_table%var_data(1,:)
+        lkp_table%dims(1) = size(lkp_table%axis1%values(:))
+        if ( .not. lkp_table%LookupTableVarIsSMInc(ONE_INTEGER) ) then
+          option%io_buffer = 'TEMPERATURE_TABLE: temperature values must &
+                              &be entered for strictly growing depths '
+          call printErrMsg(option)
+        end if
+        nullify(lkp_table)
+      else
         option%io_buffer = 'Flow condition - TEMPERATURE_TABLE: &
                             &RTEMPVZ or RTEMPVD tables not found'
         call printErrMsg(option)
@@ -4069,6 +4086,11 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
       error_string = 'CONDITION,' // trim(keyword) // ',LIST'
       call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
+    else if (StringCompare(word,'dbase_value')) then
+      input%buf = trim(string2)
+      error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
+      call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
+                                  data_internal_units,error_string,option)
     else
       option%io_buffer = 'Keyword "' // trim(word) // &
         '" not recognized in when reading condition values for "' // &
@@ -4080,34 +4102,6 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
     error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
     call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
-#if 0
-    allocate(dataset_ascii%rarray(dataset_ascii%array_width))
-    do icol=1,dataset_ascii%array_width
-      call InputReadDouble(input,option,dataset_ascii%rarray(icol))
-      write(input%err_buf,'(a,i2)') trim(keyword) // &
-                                    ' dataset_values, icol = ', icol
-      input%err_buf2 = 'CONDITION'
-      call InputErrorMsg(input,option)
-    enddo
-    string2 = input%buf
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    if (InputError(input)) then
-      call InputCheckMandatoryUnits(input,option)
-      word = trim(keyword) // ' UNITS'
-      call InputDefaultMsg(input,option,word)
-    else
-      input%buf = string2
-      units = ''
-      do icol=1,dataset_ascii%array_width
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,keyword,'CONDITION')
-        dataset_ascii%rarray(icol) = UnitsConvertToInternal(word, &
-                                     internal_unit_strings(icol),option) * &
-                                     dataset_ascii%rarray(icol)
-        units = trim(units) // ' ' // trim(word)
-      enddo
-    endif
-#endif
   endif
 
   deallocate(internal_unit_strings)
@@ -4699,8 +4693,6 @@ function FlowConditionTOWGIsTransient(condition)
       FlowSubConditionIsTransient(condition%energy_flux) .or. &
       FlowSubConditionIsTransient(condition%temperature) .or. &
       FlowSubConditionIsTransient(condition%enthalpy) .or. &
-      FlowSubConditionIsTransient(condition%gas_in_oil_mole_fraction) .or. &
-      FlowSubConditionIsTransient(condition%gas_in_gas_mole_fraction) .or. &
       FlowSubConditionIsTransient(condition%rate) .or. &
       FlowSubConditionIsTransient(condition%bhp_pressure) ) then
     FlowConditionTOWGIsTransient = PETSC_TRUE
@@ -5185,8 +5177,6 @@ subroutine FlowTOWGConditionDestroy(towg_condition)
   call FlowSubConditionDestroy(towg_condition%energy_flux)
   call FlowSubConditionDestroy(towg_condition%temperature)
   call FlowSubConditionDestroy(towg_condition%enthalpy)
-  call FlowSubConditionDestroy(towg_condition%gas_in_oil_mole_fraction)
-  call FlowSubConditionDestroy(towg_condition%gas_in_gas_mole_fraction)
   call FlowSubConditionDestroy(towg_condition%rate)
   call FlowSubConditionDestroy(towg_condition%owc_z)
   call FlowSubConditionDestroy(towg_condition%pcow_owc)

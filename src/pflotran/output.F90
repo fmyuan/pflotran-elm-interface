@@ -1107,17 +1107,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
       case ('LIQUID_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Liquid Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     LIQUID_REL_PERM)
+                                     LIQUID_RELATIVE_PERMEABILITY)
       case ('GAS_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Gas Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     GAS_REL_PERM)
+                                     GAS_RELATIVE_PERMEABILITY)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1151,7 +1151,6 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         name = 'Volume'
         output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
                                                 units,VOLUME)
-        !output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('MATERIAL_ID')
@@ -1181,6 +1180,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable_list%flow_vars = PETSC_FALSE
       case('NO_ENERGY_VARIABLES')
         output_variable_list%energy_vars = PETSC_FALSE
+      case ('SALINITY')
+        if (.not.option%flow%density_depends_on_salinity) then
+          option%io_buffer = 'SALINITY output only supported when the &
+            &SALINITY auxiliary process model is used.'
+          call PrintErrMsg(option)
+        endif
+        units = ''
+        name = 'Salinity (mass fraction)'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SALINITY)
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
@@ -1202,7 +1212,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg, printErrMsg
+  use Option_module
   
   implicit none
   
@@ -2295,7 +2305,7 @@ subroutine OutputAvegVars(realization_base)
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg
+  use Option_module
   use Output_Aux_module
   use Output_Common_module, only : OutputGetVariableArray  
   use Field_module

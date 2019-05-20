@@ -393,13 +393,15 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity( toil_auxvar%temp,cell_pressure, &
                          toil_auxvar%den_kg(lid),toil_auxvar%den(lid), &
                          toil_auxvar%D_den(lid,dof_op), &
-                         toil_auxvar%D_den(lid,dof_temp), ierr)
+                         toil_auxvar%D_den(lid,dof_temp),ierr, &
+                         toil_auxvar%table_idx)
 
     toil_auxvar%D_den_kg(lid,dof_op) = FMWH2O*toil_auxvar%D_den(lid,dof_op)
     toil_auxvar%D_den_kg(lid,dof_temp) = FMWH2O*toil_auxvar%D_den(lid,dof_temp)
   else
     call EOSWaterDensity(toil_auxvar%temp,cell_pressure, &
-                         toil_auxvar%den_kg(lid),toil_auxvar%den(lid),ierr)
+                         toil_auxvar%den_kg(lid),toil_auxvar%den(lid),ierr, &
+                         toil_auxvar%table_idx)
   endif
 
 
@@ -508,7 +510,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     call EOSWaterViscosity(toil_auxvar%temp, cell_pressure, &
                                  wat_sat_pres, dps_dt, visl, &
-                                 dvl_dt,  dvl_dp, ierr)
+                                 dvl_dt,  dvl_dp, ierr, toil_auxvar%table_idx)
     call CheckDerivNotNAN(dvl_dt, option, "dvl_dt")
     call CheckDerivNotNAN(dvl_dp, option, "dvl_dp")
 
@@ -522,7 +524,8 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
     toil_auxvar%D_mobility(lid, :) = dmobl(:)
 
   else
-    call EOSWaterViscosity(toil_auxvar%temp,cell_pressure,wat_sat_pres,visl,ierr)
+    call EOSWaterViscosity(toil_auxvar%temp,cell_pressure,wat_sat_pres,visl, &
+                           ierr,toil_auxvar%table_idx)
   endif
 
   toil_auxvar%mobility(lid) = krl/visl

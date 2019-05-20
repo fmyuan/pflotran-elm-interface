@@ -1,11 +1,11 @@
 -- PRESSURE: Liquid Pressure --
-      Max:   1.0176497644632E+05
+      Max:   1.0176497644646E+05
       Min:   1.0137401210756E+05
-     Mean:   1.0156947912970E+05
-        1:   1.0176497644632E+05
-        2:   1.0166720990533E+05
-        3:   1.0156946381564E+05
-        4:   1.0147173337365E+05
+     Mean:   1.0156947912976E+05
+        1:   1.0176497644646E+05
+        2:   1.0166720990543E+05
+        3:   1.0156946381570E+05
+        4:   1.0147173337367E+05
         5:   1.0137401210756E+05
 -- SATURATION: Liquid Saturation --
       Max:   1.0000000000000E+00
@@ -26,10 +26,10 @@
         4:         1
         5:         1
 -- SOLUTION: Flow --
-   Time (seconds):   2.5874614715576E-02
+   Time (seconds):   2.4525403976440E-02
    Time Steps:           11
    Newton Iterations:           41
    Solver Iterations:           41
    Time Step Cuts:            0
-   Solution 2-Norm:   2.2711647008856E+05
-   Residual 2-Norm:   2.8635610217754E-12
+   Solution 2-Norm:   2.2711647008871E+05
+   Residual 2-Norm:   2.8671137299925E-12

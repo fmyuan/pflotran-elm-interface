@@ -189,8 +189,7 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   call PetscViewerBinarySkipInfo(viewer,ierr);CHKERRQ(ierr)
   call PetscViewerFileSetName(viewer,filename,ierr);CHKERRQ(ierr)
   
-  write(option%io_buffer,'(" --> Dump checkpoint file: ", a64)') &
-    trim(adjustl(filename))
+  option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
   call printMsg(option)
 
 end subroutine CheckpointOpenFileForWriteBinary
@@ -579,8 +578,7 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   string = "Checkpoint"
   call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
 
-  write(option%io_buffer,'(" --> Dump checkpoint file: ", a64)') &
-    trim(adjustl(filename))
+  option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
   call printMsg(option)
 
 end subroutine CheckpointOpenFileForWriteHDF5
@@ -1502,7 +1500,8 @@ end subroutine CheckpointRead
 
 ! ************************************************************************** !
 
-subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list)
+subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
+                                           option)
   ! 
   ! Inserts periodic time waypoints into list
   ! 
