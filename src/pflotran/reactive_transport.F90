@@ -3077,12 +3077,12 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be upon what exactly defined in 'clm_pf_idata%???' as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
-    option_iflag = option%iflag
+      option_iflag = option%iflag
 #ifdef COLUMN_MODE
-    ! PETSc seq. vecs NOT include ghost cells
-    option%iflag = local_id
+      ! PETSc seq. vecs NOT include ghost cells
+      option%iflag = local_id
 #else
-    option%iflag = ghosted_id
+      option%iflag = ghosted_id
 #endif
 #endif
 
@@ -3092,8 +3092,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
                      reaction,option)
 
 #ifdef CLM_PFLOTRAN
-    ! copy-back the original 'option%iflag' so that not changed at all
-    option%iflag = option_iflag
+      ! copy-back the original 'option%iflag' so that not changed at all
+      option%iflag = option_iflag
 #endif
 
       if (option%use_mc) then
