@@ -3749,6 +3749,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   PetscReal :: Jac_dummy(reaction%ncomp,reaction%ncomp)
   PetscReal :: pert
   PetscBool :: compute_derivative
+  PetscInt :: option_iflag
 
   if (global_auxvar%sat(LIQUID_PHASE) < rt_min_saturation) return
 
@@ -3767,8 +3768,10 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   else ! numerical derivative
     compute_derivative = PETSC_FALSE
     Res_orig = 0.d0
+    option_iflag = option%iflag ! prior to hard reset below, save it for recovering later (F.-M. Yuan, 2019-06-11)
     option%iflag = 0 ! be sure not to allocate mass_balance array
     call RTAuxVarInit(rt_auxvar_pert,reaction,option)
+    option%iflag = option_iflag ! recover the original value (F.-M. Yuan, 2019-06-11)
     call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
 
     call RReaction(Res_orig,Jac_dummy,compute_derivative,rt_auxvar, &
@@ -3807,15 +3810,15 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
                            (Res_pert(icomp)-Res_orig(icomp))/pert
       enddo
     enddo
-    
-    ! zero small derivatives
-    do icomp = 1, reaction%ncomp
-      do jcomp = 1, reaction%ncomp
-        if (dabs(Jac(icomp,jcomp)) < 1.d-40)  Jac(icomp,jcomp) = 0.d0
-      enddo
-    enddo
     call RTAuxVarStrip(rt_auxvar_pert)
   endif
+    
+  ! zero small derivatives for both analytic and numerical jacobian
+  do icomp = 1, reaction%ncomp
+    do jcomp = 1, reaction%ncomp
+      if (dabs(Jac(icomp,jcomp)) < 1.d-40)  Jac(icomp,jcomp) = 0.d0
+    enddo
+  enddo
 
 end subroutine RReactionDerivative
 
