@@ -751,7 +751,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   word = ''
   
   do
-    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
     if (InputError(input)) then
@@ -782,7 +782,7 @@ subroutine InputReadPflotranStringSlave(input, option)
       endif
       skip_count = 1
       do 
-        read(input%fid,'(a512)',iostat=input%ierr) tempstring
+        read(input%fid,'(a)',iostat=input%ierr) tempstring
         if (InputError(input)) then
           option%io_buffer = 'End of file reached in ' // &
               'InputReadPflotranStringSlave.  SKIP encountered ' // &
@@ -1877,7 +1877,7 @@ function InputGetLineCount(input,option)
   line_count = 0
   do
 #if 1
-    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
     if (InputError(input)) then
@@ -1931,7 +1931,7 @@ subroutine InputReadToBuffer(input, buffer, option)
   line_count = 0
   do
 #if 1
-    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
     if (InputError(input)) then
