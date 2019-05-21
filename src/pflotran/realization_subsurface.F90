@@ -2504,7 +2504,7 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
       // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
-    call PrintErrMsgToDev('send your input deck.',option)
+    call PrintErrMsgToDev(option,'send your input deck.')
   endif
 
 end subroutine RealizUnInitializedVar1
