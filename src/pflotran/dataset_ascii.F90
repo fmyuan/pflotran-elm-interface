@@ -339,6 +339,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         trim(word) // ') and rank in file ('
       write(word,*) data_count
       option%io_buffer = trim(option%io_buffer) // trim(word) // ').'
+      if (option%iflowmode /= TH_MODE) &
       call printErrMsg(option)
     endif
   else
@@ -392,6 +393,7 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
   character(len=MAXSTRINGLENGTH), pointer :: internal_data_units_strings(:) 
   character(len=MAXSTRINGLENGTH), pointer :: external_data_units_strings(:) 
   PetscInt :: icol
+  character(len=MAXSTRINGLENGTH), pointer :: string_array(:)
 
   nullify(external_data_units_strings)
 
@@ -405,7 +407,21 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
     write(input%err_buf,'(a,i2)') 'DatasetAsciiReadSingle: &
                                   & dataset_values, icol = ', icol
     input%err_buf2 = error_string
-    call InputErrorMsg(input,option)
+    if(input%ierr /= 0 .and. option%iflowmode == TH_MODE) then
+      string_array => StringSplit(error_string,',')
+      if (StringFindEntryInList('PRESSURE', string_array)>0) then
+        ! assuming ONE single pressure-type data if not as input for all other phases
+        this%rarray(icol) = this%rarray(1)
+      elseif (StringFindEntryInList('FLUX', string_array)>0) then
+        ! assuming ZERO for not explicitly assigned flux dataset for all other phases
+        this%rarray(icol) = 0.d0
+      else
+        call InputErrorMsg(input,option)
+      endif
+      !
+    else
+        call InputErrorMsg(input,option)
+    endif
   enddo
 
   ! read units
@@ -498,6 +514,7 @@ subroutine DatasetAsciiVerify(this,dataset_error,option)
       option%io_buffer = &
         '"array_width" is not equal to "dims(1)"'
       call printMsg(option)
+      if (option%iflowmode /= TH_MODE) &       ! model now is not required to explicitly read-in all data
       dataset_error = PETSC_TRUE
     endif
     ! set initial values

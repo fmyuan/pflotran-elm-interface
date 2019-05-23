@@ -323,23 +323,22 @@ subroutine FlowConditionRead(condition,input,option)
   pressure => FlowSubConditionCreate(option%nphase)
   pressure%name = 'pressure'
   flux => pressure
+  saturation => FlowSubConditionCreate(option%nphase)
+  saturation%name = 'saturation'
+  enthalpy => FlowSubConditionCreate(option%nphase)
+  enthalpy%name = 'enthalpy'
+
   rate => FlowSubConditionCreate(option%nflowspec)
   rate%name = 'rate'
+
   energy_rate => FlowSubConditionCreate(ONE_INTEGER)
   energy_rate%name = 'energy_rate'
   energy_flux => FlowSubConditionCreate(ONE_INTEGER)
   energy_flux%name = 'energy_flux'
-  well => FlowSubConditionCreate(7 + option%nflowspec)
-  well%name = 'well'
-  saturation => FlowSubConditionCreate(option%nphase)
-  saturation%name = 'saturation'
-
   temperature => FlowSubConditionCreate(ONE_INTEGER)
   temperature%name = 'temperature'
   concentration => FlowSubConditionCreate(ONE_INTEGER)
   concentration%name = 'concentration'
-  enthalpy => FlowSubConditionCreate(option%nphase)
-  enthalpy%name = 'enthalpy'
 
   condition%time_units = 'yr'
   condition%length_units = 'm'
