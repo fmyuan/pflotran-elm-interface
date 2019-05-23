@@ -68,11 +68,9 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Output_Aux_module
   use Logging_module
   use EOS_module
-  use PM_Surface_class
-  use PM_Geomechanics_Force_class
   use PM_Subsurface_Flow_class
-  use PM_RT_class
   
+
   implicit none
   
   class(simulation_base_type), pointer :: simulation
@@ -155,22 +153,16 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   
   use Simulation_Base_class
   use Simulation_Subsurface_class
-  use Simulation_Surf_Subsurf_class
-  use Simulation_Geomechanics_class
+
   use PM_Base_class
-  use PM_Surface_Flow_class
-  use PM_Surface_TH_class
-  use PM_Geomechanics_Force_class
-  use PM_Auxiliary_class
   use PMC_Base_class
+
   use Checkpoint_module
   use Output_Aux_module
   use Waypoint_module
   use Units_module
   
   use Factory_Subsurface_module
-  use Factory_Surf_Subsurf_module
-  use Factory_Geomechanics_module
   
   implicit none
   
@@ -178,12 +170,11 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   type(option_type), pointer :: option
   
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: filename
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: pm_name
   character(len=MAXWORDLENGTH) :: simulation_type
-  character(len=MAXWORDLENGTH) :: internal_units  
   
   class(pm_base_type), pointer :: pm_master
   class(pm_base_type), pointer :: cur_pm
@@ -242,32 +233,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           select case(trim(word))
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
-            case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input,option,new_pm)
-            case('WASTE_FORM')
-              call SubsurfaceReadWasteFormPM(input,option,new_pm)
-            case('UFD_DECAY')
-              call SubsurfaceReadUFDDecayPM(input,option,new_pm)
-            case('UFD_BIOSPHERE')
-              call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
-            case('WIPP_SOURCE_SINK')
-              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
-                &unless you are running in WIPP_FLOW mode and intend to &
-                &include gas generation.'
-              call printErrMsg(option)
-            case('SURFACE_SUBSURFACE')
-              call SurfSubsurfaceReadFlowPM(input,option,new_pm)
-            case('GEOMECHANICS_SUBSURFACE')
-              option%geomech_on = PETSC_TRUE
-              new_pm => PMGeomechForceCreate()
-            case('AUXILIARY')
-              if (len_trim(pm_name) < 1) then
-                option%io_buffer = 'AUXILIARY process models must have a name.'
-                call printErrMsg(option)
-              endif
-              new_pm => PMAuxiliaryCreate()
-              input%buf = pm_name
-              call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
               call InputKeywordUnrecognized(word, &
                      'SIMULATION,PROCESS_MODELS',option)            
@@ -372,10 +337,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select case(simulation_type)
     case('SUBSURFACE')
       simulation => SubsurfaceSimulationCreate(option)
-    case('SURFACE_SUBSURFACE')
-      simulation => SurfSubsurfaceSimulationCreate(option)
-    case('GEOMECHANICS_SUBSURFACE')
-      simulation => GeomechanicsSimulationCreate(option)
     case default
       if (len_trim(simulation_type) == 0) then
         option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
@@ -392,10 +353,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select type(simulation)
     class is(simulation_subsurface_type)
       call SubsurfaceInitialize(simulation)  
-    class is(simulation_surfsubsurface_type)
-      call SurfSubsurfaceInitialize(simulation)
-    class is(simulation_geomechanics_type)
-      call GeomechanicsInitialize(simulation)
   end select
   
 end subroutine PFLOTRANReadSimulation
@@ -524,16 +481,12 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   
   type(option_type) :: option
   
-  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: option_found
-  PetscBool :: bool_flag
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
-  PetscBool :: output_dir_found
-  PetscBool :: output_file_prefix_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
-  PetscErrorCode :: ierr
   
   ! check for non-default input filename
   option%input_filename = 'pflotran.in'

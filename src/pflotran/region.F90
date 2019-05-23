@@ -1,5 +1,5 @@
 module Region_module
- 
+
   use Geometry_module
   
   use PFLOTRAN_Constants_module
@@ -266,7 +266,7 @@ function RegionCreateWithRegion(region)
   type(region_type), pointer :: region
   
   type(region_type), pointer :: new_region
-  PetscInt :: icount, temp_int
+  PetscInt :: icount
   
   new_region => RegionCreateWithNothing()
   
@@ -617,8 +617,6 @@ subroutine RegionReadFromFileId(region,input,option)
   type(region_type) :: region
   type(option_type) :: option
   type(input_type), pointer :: input
-  
-  character(len=MAXWORDLENGTH) :: word
   character(len=1) :: backslash
 
   PetscInt, pointer :: temp_int_array(:)
@@ -1068,7 +1066,7 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   type(option_type) :: option
   
   type(input_type), pointer :: input
-  character(len=MAXSTRINGLENGTH) :: string, hint
+  character(len=MAXSTRINGLENGTH) :: hint
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: fileid
   

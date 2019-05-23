@@ -5,7 +5,7 @@ module Coupler_module
   use Condition_module
   use Connection_module
   use Region_module
-
+ 
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -27,6 +27,7 @@ module Coupler_module
     character(len=MAXWORDLENGTH) :: flow_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: tran_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: region_name         ! character string defining name of region to be applied
+    character(len=MAXWORDLENGTH) :: well_spec_name      ! character string defining name of well_spec to be applied 
     PetscInt :: iflow_condition                         ! id of condition in condition array/list
     PetscInt :: itran_condition                         ! id of condition in condition array/list
     PetscInt :: iregion                                 ! id of region in region array/list
@@ -36,7 +37,6 @@ module Coupler_module
     PetscInt, pointer :: flow_aux_int_var(:,:)          ! auxiliary array for integer value
     PetscReal, pointer :: flow_aux_real_var(:,:)        ! auxiliary array for real values
     type(flow_condition_type), pointer :: flow_condition     ! pointer to condition in condition array/list
-    type(tran_condition_type), pointer :: tran_condition     ! pointer to condition in condition array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
     type(connection_set_type), pointer :: connection_set ! pointer to an array/list of connections
     PetscInt :: numfaces_set
@@ -96,6 +96,7 @@ function CouplerCreate1()
   coupler%flow_condition_name = ""
   coupler%tran_condition_name = ""
   coupler%region_name = ""
+  coupler%well_spec_name = "" 
   coupler%iflow_condition = 0
   coupler%itran_condition = 0
   coupler%iregion = 0
@@ -105,7 +106,7 @@ function CouplerCreate1()
   nullify(coupler%flow_aux_int_var)
   nullify(coupler%flow_aux_real_var)
   nullify(coupler%flow_condition)
-  nullify(coupler%tran_condition)
+
   nullify(coupler%region)
   nullify(coupler%connection_set)
   nullify(coupler%next)
@@ -173,6 +174,7 @@ function CouplerCreateFromCoupler(coupler)
   new_coupler%flow_condition_name = coupler%flow_condition_name
   new_coupler%tran_condition_name = coupler%tran_condition_name
   new_coupler%region_name = coupler%region_name
+  new_coupler%well_spec_name = coupler%well_spec_name
   new_coupler%iflow_condition = coupler%iflow_condition
   new_coupler%itran_condition = coupler%itran_condition
   new_coupler%iregion = coupler%iregion
@@ -180,7 +182,7 @@ function CouplerCreateFromCoupler(coupler)
 
   ! these must remain null  
   nullify(coupler%flow_condition)
-  nullify(coupler%tran_condition)
+
   nullify(coupler%region)
   nullify(coupler%flow_aux_mapping)
   nullify(coupler%flow_bc_type)
@@ -253,8 +255,6 @@ subroutine CouplerRead(coupler,input,option)
         call InputReadWord(input,option,coupler%region_name,PETSC_TRUE)
       case('FLOW_CONDITION','SURF_FLOW_CONDITION')
         call InputReadWord(input,option,coupler%flow_condition_name,PETSC_TRUE)
-      case('TRANSPORT_CONDITION')
-        call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
       case default
         call InputKeywordUnrecognized(word,'coupler ',option)
     end select 
@@ -348,17 +348,15 @@ subroutine CouplerComputeConnections(grid,option,coupler)
  
   type(grid_type) :: grid
   type(option_type) :: option
-  type(coupler_type), pointer :: coupler_list
   
   PetscInt :: iconn
-  PetscInt :: cell_id_local, cell_id_ghosted
+  PetscInt :: cell_id_local
   PetscInt :: connection_itype
   PetscInt :: iface
   type(connection_set_type), pointer :: connection_set
   type(region_type), pointer :: region
   type(coupler_type), pointer :: coupler
   PetscBool :: nullify_connection_set
-  PetscErrorCode :: ierr
 
   if (.not.associated(coupler)) return
   
@@ -421,17 +419,9 @@ subroutine CouplerComputeConnections(grid,option,coupler)
                                       region%cell_ids, &
                                       connection_itype,option)
       endif
+
     case default
       connection_set => ConnectionCreate(region%num_cells,connection_itype)
-    
-      ! if using higher order advection, allocate associated arrays
-      if (option%itranmode == EXPLICIT_ADVECTION .and. &
-          option%transport%tvd_flux_limiter /= 1 .and. &  ! 1 = upwind
-          connection_set%itype == BOUNDARY_CONNECTION_TYPE) then
-        ! connections%id_up2 should remain null as it will not be used
-        allocate(connection_set%id_dn2(size(connection_set%id_dn)))
-        connection_set%id_dn2 = 0
-      endif  
 
       iface = coupler%iface
       do iconn = 1,region%num_cells
@@ -444,6 +434,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
         call GridPopulateConnection(grid,connection_set,iface,iconn, &
                                     cell_id_local,option)
       enddo
+
   end select
 
   coupler%connection_set => connection_set
@@ -575,8 +566,7 @@ subroutine CouplerDestroy(coupler)
   ! since the below are simply pointers to objects in list that have already
   ! or will be deallocated from the list, nullify instead of destroying
   
-  nullify(coupler%flow_condition)     ! since these are simply pointers to 
-  nullify(coupler%tran_condition)     ! since these are simply pointers to 
+  nullify(coupler%flow_condition)     ! since these are simply pointers to
   nullify(coupler%region)        ! conditoins in list, nullify
 
   call DeallocateArray(coupler%flow_aux_mapping)

@@ -2,7 +2,6 @@ module Strata_module
 
   use Region_module
   use Material_module
-  use Surface_Material_module
  
   use PFLOTRAN_Constants_module
 
@@ -24,7 +23,7 @@ module Strata_module
     PetscInt :: iregion                                  ! id of region in region array/list
     type(material_property_type), pointer :: material_property ! pointer to material in material array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
-    type(surface_material_property_type),pointer :: surf_material_property
+
     PetscInt :: isurf_material_property ! id of material in material array/list
     PetscInt :: surf_or_subsurf_flag
     PetscReal :: start_time
@@ -93,7 +92,6 @@ function StrataCreate1()
   nullify(strata%region)
   nullify(strata%material_property)
 
-  nullify(strata%surf_material_property)
   strata%isurf_material_property = 0
   nullify(strata%next)
   
@@ -132,8 +130,6 @@ function StrataCreateFromStrata(strata)
   ! keep these null
   nullify(new_strata%region)
   nullify(new_strata%material_property)
-
-  nullify(new_strata%surf_material_property)
 
   nullify(new_strata%next)
   
@@ -185,7 +181,7 @@ subroutine StrataRead(strata,input,option)
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: string
+
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: internal_units
 
@@ -362,8 +358,8 @@ subroutine StrataInputRecord(strata_list)
   type(strata_list_type), pointer :: strata_list
   
   type(strata_type), pointer :: cur_strata
-  character(len=MAXWORDLENGTH) :: word1, word2
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word1
+
   PetscInt :: id = INPUT_RECORD_UNIT
 
   write(id,'(a)') ' '

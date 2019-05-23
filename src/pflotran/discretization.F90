@@ -136,8 +136,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Material_Aux_class
-  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -145,19 +143,15 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid, grid2
+  type(grid_type), pointer :: grid
   type(grid_structured_type), pointer :: str_grid
   type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
 
-  character(len=MAXSTRINGLENGTH) :: string
-
   PetscInt :: structured_grid_itype
   PetscInt :: unstructured_grid_itype
   PetscInt :: nx, ny, nz
-  PetscInt :: i
-  PetscReal :: tempreal
 
   nx = 0
   ny = 0
@@ -181,48 +175,43 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('TYPE')
         call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
-        call StringToUpper(discretization%ctype)
-        if (discretization%ctype == 'GRDECL') then
-          call SetIsGrdecl()
-          discretization%ctype = 'UNSTRUCTURED_EXPLICIT'
-        endif
+        call StringToLower(discretization%ctype)
         select case(trim(discretization%ctype))
-          case('STRUCTURED')
+          case('structured')
             discretization%itype = STRUCTURED_GRID
             call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
             call InputDefaultMsg(input,option,'grid_structured_type') 
-            call StringToUpper(structured_grid_ctype)
+            call StringToLower(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
-              case('CARTESIAN')
+              case('cartesian')
                 structured_grid_itype = CARTESIAN_GRID
-              case('CYLINDRICAL')
+              case('cylindrical')
                 structured_grid_itype = CYLINDRICAL_GRID
-              case('SPHERICAL')
+              case('spherical')
                 structured_grid_itype = SPHERICAL_GRID
               case default
                 structured_grid_itype = CARTESIAN_GRID
-                structured_grid_ctype = 'CARTESIAN'
+                structured_grid_ctype = 'cartesian'
             end select
-          case('UNSTRUCTURED','UNSTRUCTURED_EXPLICIT','UNSTRUCTURED_POLYHEDRA')
+          case('unstructured','unstructured_explicit','unstructured_polyhedra')
             discretization%itype = UNSTRUCTURED_GRID
             word = discretization%ctype
-            discretization%ctype = 'UNSTRUCTURED'
-            select case(trim(word))
-              case('UNSTRUCTURED')
+            discretization%ctype = 'unstructured'
+            select case(word)
+              case('unstructured')
                 unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'IMPLICIT UNSTRUCTURED'
-              case('UNSTRUCTURED_EXPLICIT')
+                unstructured_grid_ctype = 'implicit unstructured'
+              case('unstructured_explicit')
                 unstructured_grid_itype = EXPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'EXPLICIT UNSTRUCTURED'
-              case('UNSTRUCTURED_POLYHEDRA')
+                unstructured_grid_ctype = 'explicit unstructured'
+              case('unstructured_polyhedra')
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'POLYHEDRA UNSTRUCTURED'
+                unstructured_grid_ctype = 'polyhedra unstructured'
             end select
             call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
-            call InputKeywordUnrecognized(discretization%ctype, &
-                                          'discretization type',option)
+            call InputKeywordUnrecognized(word,'discretization type',option)
         end select    
       case('NXYZ')
         call InputReadInt(input,option,nx)
@@ -265,10 +254,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   grid => GridCreate()
   select case(discretization%itype)
     case(UNSTRUCTURED_GRID)
-      ! For unstructured grids, we cannot use the default 
-      ! TENSOR_TO_SCALAR_LINEAR for mapping the permeability tensor to 
-      ! a scalar. This can be overriden by the user during second read.
-      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,option)
       un_str_grid => UGridCreate()
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
@@ -280,13 +265,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          if (GetIsGrdecl()) then
-            call UGrdEclExplicitRead(un_str_grid, &
-                                     discretization%filename,option)
-          else
-            call UGridExplicitRead(un_str_grid, &
-                                   discretization%filename,option)
-          endif
+          call UGridExplicitRead(un_str_grid, &
+                                 discretization%filename,option)
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
@@ -301,7 +281,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)      
-      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
 
 #ifdef CLM_PFLOTRAN
 
@@ -384,17 +363,9 @@ subroutine DiscretizationRead(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid, grid2
-  type(grid_structured_type), pointer :: str_grid
-  type(grid_unstructured_type), pointer :: un_str_grid
-  character(len=MAXWORDLENGTH) :: structured_grid_ctype
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string
-
-  PetscInt :: structured_grid_itype
+  type(grid_type), pointer :: grid
   PetscInt :: nx, ny, nz
   PetscInt :: i
-  PetscReal :: tempreal
   PetscBool :: bounds_read
   PetscBool :: dxyz_read
 
@@ -623,7 +594,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
         call StringToUpper(word)
-        select case(trim(word))
+        select case(word)
           case('FACE_CENTER_PROJECTION')
             discretization%grid%unstructured_grid%upwind_fraction_method = &
               UGRID_UPWIND_FRACTION_PT_PROJ
@@ -642,15 +613,12 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
         call StringToUpper(word)
-        select case(trim(word))
+        select case(word)
           case('LINEAR')
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
-          case('FLOW')
-            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_FLOW,&
-                              option)
-          case('POTENTIAL')
-            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,&
-                              option)
+          case('QUADRATIC')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,&
+                                              option)
           case default
             call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)
@@ -685,8 +653,8 @@ end subroutine DiscretizationRead
 
 ! ************************************************************************** !
 
-subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
-                                    o_nphase, o_ngeomechdof, o_n_stress_strain_dof, option)
+subroutine DiscretizationCreateDMs(discretization, o_nflowdof, &
+                                    o_nphase, option)
 
   ! 
   ! creates distributed, parallel meshes/grids
@@ -705,16 +673,9 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
   
   type(discretization_type) :: discretization
   PetscInt, intent(in) :: o_nflowdof
-  PetscInt, intent(in) :: o_ntrandof
   PetscInt, intent(in) :: o_nphase
-  PetscInt, intent(in) :: o_ngeomechdof
-  PetscInt, intent(in) :: o_n_stress_strain_dof
   type(option_type) :: option
-      
   PetscInt :: ndof
-  !PetscInt, parameter :: stencil_width = 1
-  PetscErrorCode :: ierr
-  PetscInt :: i
   type(grid_unstructured_type), pointer :: ugrid
 
   select case(discretization%itype)
@@ -722,7 +683,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
       discretization%dm_index_to_ndof(ONEDOF) = 1
       discretization%dm_index_to_ndof(NPHASEDOF) = o_nphase
       discretization%dm_index_to_ndof(NFLOWDOF) = o_nflowdof
-      discretization%dm_index_to_ndof(NTRANDOF) = o_ntrandof
     case(UNSTRUCTURED_GRID)
 
     
@@ -771,20 +731,6 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
                                 discretization%stencil_type,option)
   endif
   
-  if (o_ntrandof > 0) then
-    ndof = o_ntrandof
-    call DiscretizationCreateDM(discretization,discretization%dm_ntrandof, &
-                                ndof,discretization%stencil_width, &
-                                discretization%stencil_type,option)
-  endif
-
-  if (o_ngeomechdof > 0) then
-    ndof = o_n_stress_strain_dof
-    call DiscretizationCreateDM(discretization,discretization%dm_n_stress_strain_dof, &
-                                ndof,discretization%stencil_width, &
-                                discretization%stencil_type,option)
-  endif
-
   select case(discretization%itype)
     case(STRUCTURED_GRID)
       ! this function must be called to set up str_grid%lxs, etc.
@@ -825,7 +771,6 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   PetscInt :: stencil_width
   PetscEnum :: stencil_type
   type(option_type) :: option
-  PetscErrorCode :: ierr
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -857,7 +802,7 @@ subroutine DiscretizationCreateVector(discretization,dm_index,vector, &
   Vec :: vector
   PetscInt :: vector_type
   type(option_type) :: option
-  PetscInt :: ndof
+
   PetscErrorCode :: ierr
   
   type(dm_ptr_type), pointer :: dm_ptr
@@ -977,13 +922,7 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   MatType :: mat_type
   Mat :: Jacobian
   type(option_type) :: option
-  PetscInt :: ndof, stencilsize
-  PetscInt, pointer :: indices(:)
-  PetscInt :: ngmax
-  PetscInt :: imax, nlevels, ln, npatches, pn, i
   type(dm_ptr_type), pointer :: dm_ptr
-  ISLocalToGlobalMapping :: ptmap
-  PetscInt :: islocal
 
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
 
@@ -1547,7 +1486,7 @@ subroutine DiscretizationUpdateTVDGhosts(discretization,global_vec, &
   type(discretization_type) :: discretization
   Vec :: global_vec
   Vec :: tvd_ghost_vec
-  PetscInt :: dm_index
+
   PetscErrorCode :: ierr
   
   call VecScatterBegin(discretization%tvd_ghost_scatter,global_vec, &

@@ -472,7 +472,6 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
   
   PetscInt :: i, j, k, ghosted_id
   PetscReal :: tempreal
-  PetscErrorCode :: ierr
 
   allocate(structured_grid%dxg_local(structured_grid%ngx))
   structured_grid%dxg_local = 0.d0
@@ -622,7 +621,6 @@ implicit none
 ! PetscErrorCode :: ierr
   PetscInt :: i, j, k, ghosted_id
   PetscReal :: x, y, z
-  PetscInt :: prevnode
 
   x_min = origin_global(X_DIRECTION)
   y_min = origin_global(Y_DIRECTION)
@@ -734,7 +732,7 @@ subroutine StructGridGetIJKFromCoordinate(structured_grid,x,y,z,i,j,k)
   implicit none
     
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
+
   PetscInt :: i, j, k
   PetscInt :: i_local, j_local, k_local
   PetscInt :: i_ghosted, j_ghosted, k_ghosted
@@ -822,7 +820,7 @@ subroutine StructGridGetIJKFromLocalID(structured_grid,local_id,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
+
   PetscInt :: local_id
   PetscInt :: i, j, k
   
@@ -848,7 +846,7 @@ subroutine StructGridGetIJKFromGhostedID(structured_grid,ghosted_id,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
+
   PetscInt :: ghosted_id
   PetscInt :: i, j, k
   
@@ -874,7 +872,7 @@ function StructGridGetLocalIDFromIJK(structured_grid,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
+
   PetscInt :: i, j, k
   
   PetscInt :: StructGridGetLocalIDFromIJK
@@ -900,7 +898,7 @@ function StructGridGetGhostedIDFromIJK(structured_grid,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
+
   PetscInt :: i, j, k
   
   PetscInt :: StructGridGetGhostedIDFromIJK
@@ -940,12 +938,9 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   PetscInt :: tvd_ghost_offset, ghost_count
   PetscReal :: dist_up, dist_dn
   PetscReal :: r1, r2
-  type(connection_set_type), pointer :: connections, connections_2
+  type(connection_set_type), pointer :: connections
 
-  PetscErrorCode :: ierr
   PetscReal, pointer :: radius(:)
-  PetscInt, pointer :: int_array1(:), int_array2(:),int_array3(:),int_array4(:),int_array5(:),index(:)
-  PetscInt :: count
 
   PetscReal :: tempreal
 
@@ -965,14 +960,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
 
   connections => ConnectionCreate(nconn,INTERNAL_CONNECTION_TYPE)
   
-  ! if using higher order advection, allocate associated arrays
-  if (option%itranmode == EXPLICIT_ADVECTION .and. &
-      option%transport%tvd_flux_limiter /= 1) then  ! 1 = upwind
-    allocate(connections%id_up2(size(connections%id_up)))
-    allocate(connections%id_dn2(size(connections%id_dn)))
-    connections%id_up2 = 0
-    connections%id_dn2 = 0
-  endif
 
   iconn = 0
   tvd_ghost_offset = 0
@@ -1280,9 +1267,6 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
   type(option_type) :: option
   PetscReal :: radius(:)
   PetscReal :: dist_scale
-  
-  PetscErrorCode :: ierr
-  
   PetscReal, parameter :: Pi=3.141592653590d0
 
   if (structured_grid%second_order_bc) then
@@ -1545,9 +1529,7 @@ subroutine StructGridMapIndices(structured_grid,stencil_type, &
   PetscEnum :: stencil_type
   PetscInt, pointer :: nG2L(:), nL2G(:), nG2A(:)
   type(option_type) :: option
-
   PetscInt :: i, j, k, local_id, ghosted_id, natural_id, count1
-  PetscErrorCode :: ierr
   
   allocate(nL2G(structured_grid%nlmax))
   allocate(nG2L(structured_grid%ngmax))
@@ -1798,8 +1780,6 @@ subroutine StructGridDestroy(structured_grid)
   implicit none
   
   type(grid_structured_type), pointer :: structured_grid
-  
-  PetscErrorCode :: ierr
     
   if (.not.associated(structured_grid)) return
   
@@ -1859,7 +1839,6 @@ subroutine StructGridCreateTVDGhosts(structured_grid,ndof,global_vec, &
   PetscInt, allocatable :: global_indices_from(:)
   PetscInt, allocatable :: tvd_ghost_indices_to(:)
   ISLocalToGlobalMapping :: mapping_ltog
-  PetscViewer :: viewer
   PetscErrorCode :: ierr
   
   ! structured grid has 6 sides to it

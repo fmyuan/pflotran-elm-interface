@@ -1,5 +1,5 @@
 module Grid_Unstructured_Cell_module
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -132,12 +132,6 @@ function UCellComputeVolume(cell_type,vertices,option)
   type(option_type) :: option
   
   PetscReal :: UCellComputeVolume
-  PetscReal :: v(3)
-  PetscReal :: l1, l2, l3
-  PetscReal :: n1(3), n2(3), v1(3), v2(3)
-  PetscReal :: area1, area2, dz
-  PetscReal :: vv(3,8)
-  PetscInt :: i, j
   
   UCellComputeVolume = 0.d0
   select case(cell_type)
@@ -220,12 +214,8 @@ function UCellComputeArea(cell_type,vertices,option)
   type(option_type) :: option
   
   PetscReal :: UCellComputeArea
-  PetscReal :: v(3)
-  PetscReal :: l1, l2, l3
   PetscReal :: n1(3), n2(3), v1(3), v2(3)
-  PetscReal :: area1, area2, dz
-  PetscReal :: vv(3,8)
-  PetscInt :: i, j
+  PetscReal :: area1, area2
   
   UCellComputeArea = 0.d0
   select case(cell_type)
@@ -291,7 +281,6 @@ function UCellComputeVolumeOfTetrahedron(point1,point2,point3,point4)
   PetscReal :: vv3_minus_vv4(3)
   PetscReal :: cross_2_minus_4_X_3_minus_4(3)
   PetscReal :: UCellComputeVolumeOfTetrahedron
-  PetscInt :: i
 
   vv(1,1) = point1%x
   vv(2,1) = point1%y

@@ -8,7 +8,6 @@ module Realization_Base_class
   use Debug_module
   use Output_Aux_module
   use Field_module
-  use Reaction_Aux_module
   use Data_Mediator_Base_class
   use Communicator_Base_module
   use Waypoint_module
@@ -35,7 +34,6 @@ module Realization_Base_class
     class(data_mediator_base_type), pointer :: flow_data_mediator_list
     class(data_mediator_base_type), pointer :: tran_data_mediator_list
     
-    type(reaction_type), pointer :: reaction
     
   end type realization_base_type
   
@@ -43,7 +41,6 @@ module Realization_Base_class
             RealizationGetVariable, &
             RealizGetVariableValueAtCell, &
             RealizationSetVariable, &
-            RealizCreateTranMassTransferVec, &
             RealizCreateFlowMassTransferVec, &
             RealizationBaseStrip
 
@@ -77,8 +74,6 @@ subroutine RealizationBaseInit(realization_base,option)
   nullify(realization_base%output_option)
 
   realization_base%patch_list => PatchCreateList()
-
-  nullify(realization_base%reaction)
 
   nullify(realization_base%patch)
   nullify(realization_base%flow_data_mediator_list)
@@ -116,7 +111,7 @@ subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar, &
   if (present(isubsubvar)) isubsubvar_temp = isubsubvar
   
   call PatchGetVariable(realization_base%patch,realization_base%field, &
-                       realization_base%reaction,realization_base%option, &
+                       realization_base%option, &
                        realization_base%output_option,vec,ivar,isubvar, &
                        isubsubvar_temp)
 
@@ -153,7 +148,6 @@ function RealizGetVariableValueAtCell(realization_base,ghosted_id, &
   
   value = PatchGetVariableValueAtCell(realization_base%patch, &
                                       realization_base%field, &
-                                      realization_base%reaction, &
                                       realization_base%option, &
                                       realization_base%output_option, &
                                       ghosted_id,ivar,isubvar,isubsubvar_temp)
@@ -195,7 +189,7 @@ end subroutine RealizationSetVariable
 subroutine RealizCreateFlowMassTransferVec(this)
   ! 
   ! Creates the Vec where mass transfer is summed prior to being added to
-  ! the reactive transport residual.
+  ! the transport residual.
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/20/15
@@ -216,32 +210,6 @@ subroutine RealizCreateFlowMassTransferVec(this)
 end subroutine RealizCreateFlowMassTransferVec
 
 ! ************************************************************************** !
-
-subroutine RealizCreateTranMassTransferVec(this)
-  ! 
-  ! Creates the Vec where mass transfer is summed prior to being added to
-  ! the reactive transport residual.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/20/15
-  ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  implicit none
-  
-  class(realization_base_type) :: this
-  
-  PetscInt :: ierr
-  
-  if (this%field%tran_mass_transfer == PETSC_NULL_VEC) then
-    call VecDuplicate(this%field%tran_xx,this%field%tran_mass_transfer, &
-                      ierr);CHKERRQ(ierr)
-  endif
-
-end subroutine RealizCreateTranMassTransferVec
-
-! ************************************************************************** !
-
 subroutine RealizationBaseStrip(this)
   ! 
   ! Deallocates members of base realization

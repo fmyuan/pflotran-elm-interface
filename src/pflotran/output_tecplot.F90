@@ -27,9 +27,7 @@ module Output_Tecplot_module
             WriteTecplotDatasetFromVec, &
             WriteTecplotDatasetNumPerLine, &
             WriteTecplotDataset, &
-            OutputPrintExplicitFlowrates, &
-            OutputSecondaryContinuumTecplot 
-
+            OutputPrintExplicitFlowrates
 contains
 
 ! ************************************************************************** !
@@ -53,14 +51,12 @@ subroutine OutputTecplotHeader(fid,realization_base,icolumn)
   class(realization_base_type) :: realization_base
   PetscInt :: icolumn
   
-  character(len=MAXSTRINGLENGTH) :: string, string2
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: string
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch 
   type(output_option_type), pointer :: output_option
   PetscInt :: variable_count
-  PetscInt :: i
   
   patch => realization_base%patch
   grid => patch%grid
@@ -227,16 +223,12 @@ subroutine OutputTecplotBlock(realization_base)
   use Field_module
   use Patch_module
   
-  use Reaction_Aux_module
- 
   implicit none
 
   class(realization_base_type) :: realization_base
   
-  PetscInt :: i, comma_count, quote_count
   PetscInt, parameter :: icolumn = -1
-  character(len=MAXSTRINGLENGTH) :: filename, string, string2
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: filename
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
@@ -244,10 +236,8 @@ subroutine OutputTecplotBlock(realization_base)
   type(patch_type), pointer :: patch 
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
   Vec :: global_vec
   Vec :: natural_vec
-  PetscInt :: ivar, isubvar, var_type
   PetscBool :: include_gas_phase
   PetscErrorCode :: ierr
   
@@ -327,12 +317,10 @@ subroutine OutputTecplotBlock(realization_base)
   if (output_option%print_tecplot_vel_face .and. &
       realization_base%discretization%itype == STRUCTURED_GRID) then
     select case(option%iflowmode)
-      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                            X_DIRECTION,PETSC_FALSE)
-        include_gas_phase = PETSC_TRUE
-      case(NULL_MODE)
-        if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
+      !case(TH_MODE) (TODO)
+      !  call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
+      !                                      X_DIRECTION,PETSC_FALSE)
+      !  include_gas_phase = PETSC_TRUE
     end select
     if (grid%structured_grid%nx > 1) then
       call OutputFluxVelocitiesTecplotBlk(realization_base,LIQUID_PHASE, &
@@ -363,7 +351,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     if (grid%structured_grid%nx > 1) then
       select case(option%iflowmode)
-        case(G_MODE,WF_MODE)
+        case(TH_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               X_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -374,7 +362,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%ny > 1) then
       select case(option%iflowmode)
-        case(G_MODE,WF_MODE)
+        case(TH_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Y_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -385,7 +373,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%nz > 1) then
       select case(option%iflowmode)
-        case(G_MODE,WF_MODE)
+        case(TH_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Z_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -434,10 +422,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   Vec :: global_vec_vx, global_vec_vy, global_vec_vz
   Vec :: natural_vec
   PetscInt :: variable_count
-  type(output_variable_type) :: variable
   PetscErrorCode :: ierr
-
-  PetscReal, pointer :: vec_ptr(:)
   
   patch => realization_base%patch
   grid => patch%grid
@@ -467,7 +452,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    if (option%nphase>1) then
       variable_count = TEN_INTEGER
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
@@ -518,7 +503,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
                                   natural_vec,TECPLOT_REAL)
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz,GAS_PHASE)
 
@@ -606,7 +591,6 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization  
   type(output_option_type), pointer :: output_option
-  type(dm_ptr_type), pointer :: dm_ptr
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
@@ -621,10 +605,6 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   PetscReal, pointer :: array(:)
   PetscInt, allocatable :: indices(:)
   PetscErrorCode :: ierr
-
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  type(coupler_type), pointer :: boundary_condition
     
   nullify(array)
 
@@ -924,16 +904,14 @@ subroutine OutputTecplotPoint(realization_base)
   use Field_module
   use Patch_module
 
-  use Reaction_Aux_module
  
   implicit none
 
   class(realization_base_type) :: realization_base
   
-  PetscInt :: i, comma_count, quote_count
   PetscInt :: icolumn
-  character(len=MAXSTRINGLENGTH) :: filename, string
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: filename
+
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
@@ -941,14 +919,10 @@ subroutine OutputTecplotPoint(realization_base)
   type(patch_type), pointer :: patch 
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
-  PetscReal, pointer :: vec_ptr(:)
+
   PetscInt :: local_id
   PetscInt :: ghosted_id
   PetscReal :: value
-  Vec :: global_vec
-  Vec :: natural_vec
-  PetscInt :: ivar, isubvar, var_type
-  PetscErrorCode :: ierr  
   
   discretization => realization_base%discretization
   patch => realization_base%patch
@@ -1085,7 +1059,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    if (option%nphase > 1) then
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
                '"qgy [m/' // trim(output_option%tunit) // ']",' // &
@@ -1126,7 +1100,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
 1001 format(i4,1x)
 1009 format('')
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgx, &
                                     GLOBAL,option)  
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgy, &
@@ -1154,7 +1128,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vly(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vlz(ghosted_id)
 
-    if (option%nphase > 1 .or. option%transport%nphase > 1) then
+    if (option%nphase > 1) then
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgx(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgy(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgz(ghosted_id)
@@ -1176,7 +1150,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   call VecDestroy(global_vec_vly,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vlz,ierr);CHKERRQ(ierr)
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     call VecRestoreArrayF90(global_vec_vgx,vec_ptr_vgx,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgy,vec_ptr_vgy,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgz,vec_ptr_vgz,ierr);CHKERRQ(ierr)
@@ -1562,7 +1536,6 @@ subroutine WriteTecplotExpGridElements(fid,realization_base)
   type(patch_type), pointer :: patch 
   PetscInt, pointer :: temp_int(:)
   PetscInt :: icell, num_elems, i, num_vertices
-  PetscErrorCode :: ierr
   
   patch => realization_base%patch
   grid => patch%grid
@@ -1670,7 +1643,6 @@ subroutine WriteTecplotUGridElements(fid,realization_base)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch 
-  Vec :: global_cconn_vec
   type(ugdm_type), pointer :: ugdm_element
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr  
@@ -2015,14 +1987,6 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       num_in_array = local_size_mpi-iend
     endif
     do iproc_mpi=1,option%mycommsize-1
-#ifdef HANDSHAKE    
-      if (option%io_handshake_buffer_size > 0 .and. &
-          iproc_mpi+max_proc_prefetch >= max_proc) then
-        max_proc = max_proc + option%io_handshake_buffer_size
-        call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                       option%mycomm,ierr)
-      endif
-#endif      
       call MPI_Probe(iproc_mpi,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
       recv_size_mpi = status_mpi(MPI_TAG)
       if (datatype == TECPLOT_INTEGER) then
@@ -2077,13 +2041,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
         endif
       endif
     enddo
-#ifdef HANDSHAKE    
-    if (option%io_handshake_buffer_size > 0) then
-      max_proc = -1
-      call MPI_Bcast(max_proc,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
-                     option%mycomm,ierr)
-    endif
-#endif      
+
     ! Print the remaining values, if they exist
     if (datatype == TECPLOT_INTEGER) then
       if (num_in_array > 0) then
@@ -2105,15 +2063,6 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
         write(fid,1010) real_data(1:num_in_array)
     endif
   else
-#ifdef HANDSHAKE    
-    if (option%io_handshake_buffer_size > 0) then
-      do
-        if (option%myrank < max_proc) exit
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
-      enddo
-    endif
-#endif    
     if (datatype == TECPLOT_INTEGER) then
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER,option%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
@@ -2121,16 +2070,6 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
       call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     endif
-#ifdef HANDSHAKE    
-    if (option%io_handshake_buffer_size > 0) then
-      do
-        call MPI_Bcast(max_proc,1,MPIU_INTEGER,option%io_rank,option%mycomm, &
-                       ierr)
-        if (max_proc < 0) exit
-      enddo
-    endif
-#endif
-#undef HANDSHAKE
   endif
       
   if (datatype == TECPLOT_INTEGER) then
@@ -2173,14 +2112,13 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   type(output_option_type), pointer :: output_option
   character(len=MAXSTRINGLENGTH) :: filename,string,filename2
 
-  PetscErrorCode :: ierr  
   PetscInt :: count
   PetscReal, pointer :: flowrates(:,:)
   PetscReal, pointer :: darcy(:), area(:)
   PetscInt, pointer :: nat_ids_up(:),nat_ids_dn(:)
   PetscReal, pointer :: density(:)
   Vec :: vec_proc
-  PetscInt :: i, idof, icell, num_cells
+  PetscInt :: i, icell, num_cells
   PetscInt, pointer :: ids(:)
   PetscReal, pointer :: sat(:), por(:), pressure(:)
   
@@ -2270,415 +2208,6 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
 end subroutine OutputPrintExplicitFlowrates
 
 ! ************************************************************************** !
-
-subroutine OutputSecondaryContinuumTecplot(realization_base)
-  ! 
-  ! Print secondary continuum variables
-  ! in tecplot format. The output is at a given primary continuum node,
-  ! and the coordinates in the output are the secondary continuum spatial
-  ! coordinates
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 04/30/2013
-  ! 
-
-  use Realization_Base_class, only : realization_base_type, &
-                                     RealizGetVariableValueAtCell
-  use Option_module
-  use Field_module
-  use Patch_module
-  use Grid_module
-  use Reaction_Aux_module
-  use Observation_module
-  use Variables_module
-  use Secondary_Continuum_Aux_module, only : sec_transport_type, &
-                                             sec_heat_type, sec_continuum_type
-
- 
-  implicit none
-
-  class(realization_base_type) :: realization_base
-  
-  PetscInt :: i, comma_count, quote_count
-  PetscInt :: icolumn
-  character(len=MAXSTRINGLENGTH) :: filename, string, string2
-  character(len=MAXSTRINGLENGTH) :: string3
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: patch 
-  type(output_option_type), pointer :: output_option
-  type(observation_type), pointer :: observation
-  type(grid_type), pointer :: grid
-  type(sec_transport_type), pointer :: rt_sec_tranport_vars(:)
-  type(sec_heat_type), pointer :: sec_heat_vars(:)
-  type(reaction_type), pointer :: reaction   
-  PetscReal :: value
-  PetscInt :: ivar, isubvar, var_type
-  PetscErrorCode :: ierr  
-  PetscInt :: count, icell, sec_id
-  PetscInt :: ghosted_id
-  PetscInt :: local_id
-  PetscInt :: naqcomp, nkinmnrl
-  PetscReal, pointer :: dist(:)
-  
-  patch => realization_base%patch
-  option => realization_base%option
-  field => realization_base%field
-  grid => patch%grid
-  output_option => realization_base%output_option
-
-  if (option%use_mc) then
-    if (option%ntrandof > 0) then
-      rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
-      reaction => realization_base%reaction
-    endif
-    if (option%iflowmode == TH_MODE &
-        .or. option%iflowmode == MPH_MODE) then
-      sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
-    endif
-  endif
-
-  ! Here we are assuming that if there are secondary continua for both
-  ! heat and reactive transport, then the shape and type of secondary
-  ! continua are the same - SK
-  if (associated(patch%aux%SC_heat)) then
-    dist => sec_heat_vars(1)%sec_continuum%distance
-  elseif (associated(patch%aux%SC_RT)) then
-    dist => rt_sec_tranport_vars(1)%sec_continuum%distance
-  endif
-
-
-  ! write points
-1000 format(es13.6,1x)
-1009 format('')
-
-  count = 0
-  observation => patch%observation_list%first
-  do 
-    if (.not.associated(observation)) exit
-    write(string,'(i6)') option%myrank
-    write(string2,'(i6)') count
-    string3 = OutputFilenameID(output_option,option)
-    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-sec-rank' // trim(adjustl(string)) // '-obs' &
-               // trim(adjustl(string2)) // '-' // trim(string3) // '.tec'    
-    
-    if (option%myrank == option%io_rank) then
-      option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-      call printMsg(option)
-    endif
-    
-    ! open file
-    open(unit=OUTPUT_UNIT,file=filename,action="write")
-
-    ! must initialize icolumn here so that icolumn does not restart with
-    ! each observation point
-    if (output_option%print_column_ids) then
-      icolumn = 1
-    else
-      icolumn = -1
-    endif    
-    
-    ! write header
-    ! write title
-    write(OUTPUT_UNIT,'(''TITLE = "'',1es13.5," [",a1,'']"'')') &
-              option%time/output_option%tconv,output_option%tunit
-
-    ! initial portion of header
-    string = 'VARIABLES=' // &
-             '"dist [m]"'
-               
-    write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
-                      
-    if (associated(observation%region%coordinates) .and. &
-            .not.observation%at_cell_center) then
-      option%io_buffer = 'Writing of data at coordinates not ' // &
-              'functioning properly for minerals.  Perhaps due to ' // &
-              'non-ghosting of vol frac....>? - geh'
-      call printErrMsg(option)
-      call WriteTecplotHeaderForCoordSec(OUTPUT_UNIT,realization_base, &
-                                         observation%region, &
-                                         observation% &
-                                         print_secondary_data, &
-                                         icolumn)
-    else
-      do icell = 1,observation%region%num_cells
-        call WriteTecplotHeaderForCellSec(OUTPUT_UNIT,realization_base, &
-                                          observation%region,icell, &
-                                          observation% &
-                                          print_secondary_data, &
-                                          icolumn)
-      enddo
-    endif
-
-    write(OUTPUT_UNIT,'(a)',advance='yes') ""
-    ! write zone header
-    write(string,'(''ZONE T="'',1es13.5,''",'','' I='',i5)') &
-                  option%time/output_option%tconv, &
-                  option%nsec_cells
-    string = trim(string) // ',J=1, K=1, DATAPACKING=POINT'
-    write(OUTPUT_UNIT,'(a)',advance='no') trim(string)
-    write(OUTPUT_UNIT,1009)
-   
-    do sec_id = 1,option%nsec_cells
-      write(OUTPUT_UNIT,1000,advance='no') dist(sec_id)
-      do icell = 1,observation%region%num_cells
-        local_id = observation%region%cell_ids(icell)
-        ghosted_id = grid%nL2G(local_id)
-        if (observation%print_secondary_data(1)) then
-          write(OUTPUT_UNIT,1000,advance='no') &
-          RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                       SECONDARY_TEMPERATURE,sec_id)
-        endif
-        if (observation%print_secondary_data(2)) then
-          if (associated(reaction)) then
-            if (reaction%naqcomp > 0) then
-              do naqcomp = 1, reaction%naqcomp
-                write(OUTPUT_UNIT,1000,advance='no') &
-                RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                             SECONDARY_CONCENTRATION,sec_id, &
-                                             naqcomp)
-               enddo
-            endif
-          endif
-        endif
-        if (observation%print_secondary_data(3)) then
-          if (associated(reaction)) then
-            if (associated(reaction%mineral)) then
-              if (reaction%mineral%nkinmnrl > 0) then
-                do nkinmnrl = 1, reaction%mineral%nkinmnrl
-                  write(OUTPUT_UNIT,1000,advance='no') &
-                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                               SEC_MIN_VOLFRAC,sec_id,nkinmnrl) 
-                enddo
-              endif
-            endif
-          endif
-        endif     
-        if (observation%print_secondary_data(4)) then
-          if (associated(reaction)) then
-            if (associated(reaction%mineral)) then
-              if (reaction%mineral%nkinmnrl > 0) then
-                do nkinmnrl = 1, reaction%mineral%nkinmnrl
-                  write(OUTPUT_UNIT,1000,advance='no') &
-                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                               SEC_MIN_RATE,sec_id,nkinmnrl) 
-                enddo
-              endif
-            endif
-          endif
-        endif      
-        if (observation%print_secondary_data(5)) then
-          if (associated(reaction)) then
-            if (associated(reaction%mineral)) then
-              if (reaction%mineral%nkinmnrl > 0) then
-                do nkinmnrl = 1, reaction%mineral%nkinmnrl
-                  write(OUTPUT_UNIT,1000,advance='no') &
-                  RealizGetVariableValueAtCell(realization_base,ghosted_id, &
-                                               SEC_MIN_SI,sec_id,nkinmnrl) 
-                enddo
-              endif
-            endif
-          endif
-        endif                         
-      enddo
-      write(OUTPUT_UNIT,1009)
-    enddo         
-       
-    close(OUTPUT_UNIT)
-    observation => observation%next
-    count = count + 1    
-  enddo
-   
-end subroutine OutputSecondaryContinuumTecplot
-
-! ************************************************************************** !
-
-subroutine WriteTecplotHeaderForCellSec(fid,realization_base,region,icell, &
-                                        print_secondary_data, &
-                                        icolumn)
-  ! 
-  ! Print tecplot header for data at a cell for
-  ! secondary continuum
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 04/30/2013
-  ! 
-
-  use Realization_Base_class, only : realization_base_type
-  use Grid_module
-  use Option_module
-  use Output_Aux_module
-  use Patch_module
-  use Region_module
-  use Utility_module, only : BestFloat
-  
-  implicit none
-  
-  PetscInt :: fid
-  class(realization_base_type) :: realization_base
-  type(region_type) :: region
-  PetscInt :: icell
-  PetscBool :: print_secondary_data(5)
-  PetscInt :: icolumn
-  
-  PetscInt :: local_id
-  character(len=MAXSTRINGLENGTH) :: cell_string
-  character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
-  type(grid_type), pointer :: grid
-
-  grid => realization_base%patch%grid
-  
-  local_id = region%cell_ids(icell)
-  write(cell_string,*) grid%nG2A(grid%nL2G(region%cell_ids(icell)))
-  cell_string = trim(region%name) // ' (' // trim(adjustl(cell_string)) // ')'
-
-  ! add coordinate of cell center
-  x_string = BestFloat(grid%x(grid%nL2G(local_id)),1.d4,1.d-2)
-  y_string = BestFloat(grid%y(grid%nL2G(local_id)),1.d4,1.d-2)
-  z_string = BestFloat(grid%z(grid%nL2G(local_id)),1.d4,1.d-2)
-  cell_string = trim(cell_string) // ' (' // trim(adjustl(x_string)) // &
-                ' ' // trim(adjustl(y_string)) // &
-                ' ' // trim(adjustl(z_string)) // ')'
-  
-  call WriteTecplotHeaderSec(fid,realization_base,cell_string, &
-                                 print_secondary_data,icolumn)
-
-end subroutine WriteTecplotHeaderForCellSec
-
-! ************************************************************************** !
-
-subroutine WriteTecplotHeaderForCoordSec(fid,realization_base,region, &
-                                         print_secondary_data, &
-                                         icolumn)
-  ! 
-  ! Print a header for data at a coordinate
-  ! for secondary continuum
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 04/30/2013
-  ! 
-
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-  use Patch_module
-  use Region_module
-  use Utility_module, only : BestFloat
-  
-  implicit none
-  
-  PetscInt :: fid
-  class(realization_base_type) :: realization_base
-  type(region_type) :: region
-  PetscBool :: print_secondary_data(5)
-  PetscInt :: icolumn
-  
-  character(len=MAXSTRINGLENGTH) :: cell_string
-  character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
-  
-  cell_string = trim(region%name)
-  
-  x_string = BestFloat(region%coordinates(ONE_INTEGER)%x,1.d4,1.d-2)
-  y_string = BestFloat(region%coordinates(ONE_INTEGER)%y,1.d4,1.d-2)
-  z_string = BestFloat(region%coordinates(ONE_INTEGER)%z,1.d4,1.d-2)
-  cell_string = trim(cell_string) // ' (' // trim(adjustl(x_string)) // ' ' // &
-                trim(adjustl(y_string)) // ' ' // &
-                trim(adjustl(z_string)) // ')'
-
-  call WriteTecplotHeaderSec(fid,realization_base,cell_string, &
-                             print_secondary_data,icolumn)
-
-end subroutine WriteTecplotHeaderForCoordSec
-
-! ************************************************************************** !
-
-subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
-                                 print_secondary_data,icolumn)
-  ! 
-  ! Print a header for secondary continuum data
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 04/30/2013
-  ! 
-                                     
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-  use Reaction_Aux_module
-
-  implicit none
-  
-  PetscInt :: fid
-  class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
-  PetscBool :: print_secondary_data(5)
-  character(len=MAXSTRINGLENGTH) :: cell_string
-  PetscInt :: icolumn
-  
-  PetscInt :: i,j
-  character(len=MAXSTRINGLENGTH) :: string
-  type(option_type), pointer :: option
-  type(output_option_type), pointer :: output_option  
-  
-  option => realization_base%option
-  output_option => realization_base%output_option
-  
-  ! add secondary temperature to header
-  if (print_secondary_data(1)) then
-    select case (option%iflowmode) 
-      case (TH_MODE, MPH_MODE)
-        string = 'T'
-        call OutputWriteToHeader(fid,string,'C',cell_string,icolumn)
-      case default
-    end select
-  endif
-  
-  ! add secondary concentrations to header
-  if (option%ntrandof > 0) then 
-    reaction => realization_base%reaction
-    if (print_secondary_data(2)) then
-      do j = 1, reaction%naqcomp
-        string = 'Free ion ' // trim(reaction%primary_species_names(j))
-        call OutputWriteToHeader(fid,string,'molal',cell_string,icolumn)
-      enddo
-    endif
-  
-  
-    ! add secondary mineral volume fractions to header
-    if (print_secondary_data(3)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' VF'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-    
-     ! add secondary mineral rates to header
-    if (print_secondary_data(4)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' Rate'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-
-    ! add secondary mineral SI to header
-    if (print_secondary_data(5)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' SI'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-   
-    
-  endif 
-  
-end subroutine WriteTecplotHeaderSec
-
-! ************************************************************************** !
 !> This routine writes polyhedra unstructured grid elements.
 !!
 !> @author
@@ -2702,10 +2231,6 @@ subroutine WriteTecplotPolyUGridElements(fid,realization_base)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  Vec :: global_cconn_vec
-  type(ugdm_type), pointer :: ugdm_element
-  PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
 
   patch => realization_base%patch
   grid => patch%grid

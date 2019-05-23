@@ -240,8 +240,6 @@ subroutine StructuredCommunicatorDestroy(this)
   
   class(structured_communicator_type) :: this
   
-  PetscErrorCode :: ierr
-  
   if (this%dm /= PETSC_NULL_DM) then
     !geh: all DMs are currently destroyed in realization.  This DM is solely
     !     a pointer.  This will need to change, but skip for now.

@@ -102,8 +102,6 @@ subroutine EOSDataBaseInit(this)
 
   class(eos_data_base_type) :: this
 
-
-  PetscInt :: i_prop
   this%name = ''
   this%id = UNINITIALIZED_INTEGER
   this%num_p = UNINITIALIZED_INTEGER
@@ -163,7 +161,7 @@ subroutine ReadUserUnits(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXWORDLENGTH) :: keyword, word, internal_units, user_units
+  character(len=MAXWORDLENGTH) :: keyword, word, user_units
   character(len=MAXSTRINGLENGTH) :: error_string
   type(lookup_table_var_ptr_type), pointer :: prop_array(:)
   PetscInt :: prop_idx
@@ -247,8 +245,6 @@ subroutine UnitConversionFactors(this,option)
 
   class(eos_data_base_type) :: this
   type(option_type) :: option
-
-  PetscInt :: i_prop, data_idx
 
   !covert pressure
   this%press_unit_conv_factor = UnitsConvertToInternal(this%press_user_units, &
@@ -607,8 +603,6 @@ function EOSDatabaseCreate(filename,dbase_name)
   class(eos_database_type), pointer :: EOSDatabaseCreate
   character(len=MAXWORDLENGTH) :: filename
   character(len=*) :: dbase_name
-  
-  PetscInt :: i_var
 
   allocate(EOSDatabaseCreate)
   call EOSDatabaseCreate%EOSDataBaseInit()
@@ -668,7 +662,7 @@ subroutine EOSDatabaseRead(this,option)
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: prop_idx, prop_count, i_idx, j_idx
   PetscInt :: data_size
-  PetscInt :: data_idx
+
   PetscReal :: tempreal
   PetscReal, parameter :: val_eps = 1.0d-10
   PetscBool :: pres_present, temp_present

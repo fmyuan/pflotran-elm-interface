@@ -1,5 +1,5 @@
 module Geometry_module
- 
+
 #include "petsc/finclude/petscsys.h"
    use petscsys
   use PFLOTRAN_Constants_module
@@ -67,7 +67,7 @@ module Geometry_module
             GeometryGetPlaneZIntercept, &
             GeomGetPlaneGradientinXandY, &
             GeomComputeDistanceFromPlane
-!           12345678901234567890123456789012
+
 contains
 
 ! ************************************************************************** !
@@ -195,7 +195,7 @@ function GeometryPointInPolygonalVolume(x,y,z,polygonal_volume,option)
   type(polygonal_volume_type) :: polygonal_volume
   type(option_type) :: option
   
-  PetscBool :: xy, xz, yz
+  !PetscBool :: xy, xz, yz
   PetscBool :: GeometryPointInPolygonalVolume
     
   GeometryPointInPolygonalVolume = PETSC_FALSE

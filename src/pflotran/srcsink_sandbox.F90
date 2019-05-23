@@ -1,10 +1,8 @@
 module SrcSink_Sandbox_module
 
   use SrcSink_Sandbox_Base_class
-  use SrcSink_Sandbox_WIPP_Gas_class
   use SrcSink_Sandbox_Mass_Rate_class
   use SrcSink_Sandbox_Downreg_class
-  use SrcSink_Sandbox_WIPP_Well_class
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -105,19 +103,9 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   class(srcsink_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
   
-  ! Ensure that transport is not being simulated as we have no way for 
-  ! introducting solutes.
-  if (option%ntrandof > 0) then
-    option%io_buffer = 'Reactive transport may not be simulated when a &
-      &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
-      &capability exists in the source/sink sandbox for solute mass.'
-    call printErrMsg(option)
-  endif
-
   nullify(new_sandbox)
   do 
     call InputReadPflotranString(input,option)
@@ -129,10 +117,6 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
-      case('WIPP-WELL')
-        new_sandbox => WIPPWellCreate()
-      case('WIPP-GAS_GENERATION')
-        new_sandbox => WIPPGasGenerationCreate()
       case('MASS_RATE')
         new_sandbox => MassRateCreate()
       case('MASS_RATE_DOWNREGULATED')
@@ -185,8 +169,7 @@ subroutine SSSandboxSetup(grid,option,output_option)
   
   class(srcsink_sandbox_base_type), pointer :: cur_sandbox  
   class(srcsink_sandbox_base_type), pointer :: prev_sandbox  
-  class(srcsink_sandbox_base_type), pointer :: next_sandbox  
-  PetscBool :: exists
+  class(srcsink_sandbox_base_type), pointer :: next_sandbox
 
   ! sandbox source/sinks
   cur_sandbox => ss_sandbox_list
@@ -252,7 +235,7 @@ subroutine SSSandbox(residual,Jacobian,compute_derivative, &
   PetscReal :: res(option%nflowdof)
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   class(srcsink_sandbox_base_type), pointer :: cur_srcsink
-  PetscInt :: i, local_id, ghosted_id, istart, iend
+  PetscInt :: local_id, ghosted_id, istart, iend
   PetscReal :: aux_real(0)
   PetscErrorCode :: ierr
   
@@ -371,8 +354,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   character(len=MAXWORDLENGTH) :: units_string, variable_string
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscInt :: fid
-  PetscInt :: icolumn, i
+  PetscInt :: icolumn
   PetscInt :: local_id, ghosted_id
   
   filename = SSSandboxOutputFilename(option)
@@ -405,7 +387,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(RICHARDS_MODE,G_MODE,WF_MODE)
+      case(TH_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -417,7 +399,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
                                  cell_string,icolumn)
     end select
     select case(option%iflowmode)
-      case(G_MODE,WF_MODE)
+      case(TH_MODE)
         variable_string = ' Gas Component'
         ! cumulative
         units_string = 'kg'
@@ -455,8 +437,6 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   use Option_module
   use Output_Aux_module
-  use General_Aux_module, only : general_fmw => fmw_comp
-  use WIPP_Flow_Aux_module, only : wipp_flow_fmw => fmw_comp
 
   implicit none
   
@@ -473,20 +453,8 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      flow_dof_scale(1) = FMWH2O
     case(TH_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(MIS_MODE)
-      flow_dof_scale(1) = FMWH2O
-      flow_dof_scale(2) = FMWGLYC
-    case(G_MODE)
-      flow_dof_scale(1:2) = general_fmw(1:2)
-    case(WF_MODE)
-      flow_dof_scale(1:2) = wipp_flow_fmw(1:2)
-    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
-      flow_dof_scale(1) = FMWH2O
-      flow_dof_scale(2) = FMWCO2
   end select  
   
 100 format(100es16.8)
@@ -495,7 +463,6 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
   open(unit=IUNIT_TEMP,file=filename,action="write",status="old", &
        position="append")
 
-  ! this time is set at the end of the reactive transport step
   write(IUNIT_TEMP,100,advance="no") option%time / output_option%tconv
   
   cur_srcsink => sandbox_list

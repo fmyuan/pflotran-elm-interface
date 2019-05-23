@@ -1,5 +1,5 @@
 module Material_Aux_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
@@ -49,10 +49,10 @@ module Material_Aux_class
     PetscReal :: soil_particle_density
     PetscReal, pointer :: permeability(:)
     PetscReal, pointer :: sat_func_prop(:)
-    PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
+    PetscReal, pointer :: soil_properties(:)
     type(fracture_auxvar_type), pointer :: fracture
     PetscReal, pointer :: geomechanics_subsurface_prop(:)
-    PetscInt :: creep_closure_id
+
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
   contains
@@ -68,17 +68,10 @@ module Material_Aux_class
     PetscReal :: properties(4)
     PetscReal :: vector(3) ! < 0. 0. 0. >
   end type fracture_auxvar_type
- 
-  type, public :: material_parameter_type
-    PetscReal, pointer :: soil_residual_saturation(:,:)
-    PetscReal, pointer :: soil_heat_capacity(:) ! MJ/kg rock-K
-    PetscReal, pointer :: soil_thermal_conductivity(:,:) ! W/m-K
-  end type material_parameter_type  
-  
+
   type, public :: material_type
     PetscReal :: time_t, time_tpdt  
     PetscInt :: num_aux
-    type(material_parameter_type), pointer :: material_parameter
     class(material_auxvar_type), pointer :: auxvars(:)
   end type material_type
   
@@ -145,10 +138,7 @@ function MaterialAuxCreate()
 
   allocate(aux)
   nullify(aux%auxvars)
-  allocate(aux%material_parameter)
-  nullify(aux%material_parameter%soil_residual_saturation)
-  nullify(aux%material_parameter%soil_heat_capacity)
-  nullify(aux%material_parameter%soil_thermal_conductivity)
+
   aux%num_aux = 0
   aux%time_t = 0.d0
   aux%time_tpdt = 0.d0
@@ -189,7 +179,6 @@ subroutine MaterialAuxVarInit(auxvar,option)
   endif
   nullify(auxvar%sat_func_prop)
   nullify(auxvar%fracture)
-  auxvar%creep_closure_id = 1
   
   if (max_material_index > 0) then
     allocate(auxvar%soil_properties(max_material_index))
@@ -234,7 +223,6 @@ subroutine MaterialAuxVarCopy(auxvar,auxvar2,option)
   if (associated(auxvar%soil_properties)) then
     auxvar2%soil_properties = auxvar%soil_properties
   endif
-  auxvar2%creep_closure_id = auxvar%creep_closure_id
   
 end subroutine MaterialAuxVarCopy
 
@@ -259,8 +247,8 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
       model == TENSOR_TO_SCALAR_POTENTIAL) then
     perm_tens_to_scal_model = model
   else
-    option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
-                         model type is not recognized.'
+    option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar' // &
+                        ' model type is not recognized.'
     call printErrMsg(option)
   endif
 
@@ -838,15 +826,7 @@ subroutine MaterialAuxDestroy(aux)
     deallocate(aux%auxvars)
   endif
   nullify(aux%auxvars)
-    
-  if (associated(aux%material_parameter)) then
-    call DeallocateArray(aux%material_parameter%soil_residual_saturation)
-    call DeallocateArray(aux%material_parameter%soil_heat_capacity)
-    call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
-  endif
-  deallocate(aux%material_parameter)
-  nullify(aux%material_parameter)
-  
+
   deallocate(aux)
   nullify(aux)
 

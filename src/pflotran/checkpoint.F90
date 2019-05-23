@@ -380,16 +380,9 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that indicates what phases are present, as well as the 'var' vector 
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
+      case(TH_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      case(G_MODE,TOWG_MODE)
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
-        call DiscretizationLocalToGlobal(discretization,field%work_loc, &
-                                         global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
       case default
     end select 
@@ -477,33 +470,13 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
+      case(TH_MODE)
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%iphas_loc,ONEDOF)
         call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
         call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
                                         field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == TOIL_IMS_MODE) then
-          !iphase value not needed - leave it as initialised
-          ! consider to remove iphase for all ims modes
-        endif
-        if (option%iflowmode == MPH_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == IMS_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == FLASH2_MODE) then
-        ! set vardof vec in mphase
-        endif
-      case(G_MODE,TOWG_MODE) 
-        call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
-        call DiscretizationGlobalToLocal(discretization,global_vec, &
-                                         field%work_loc,ONEDOF)
-        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
-                                   ZERO_INTEGER)
       case default
     end select
     
@@ -555,7 +528,6 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   character(len=MAXSTRINGLENGTH) :: append_name
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: filename
-  PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
@@ -604,7 +576,6 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
   PetscMPIInt :: hdf5_err
 
   integer(HID_T), intent(out) :: file_id
@@ -1122,21 +1093,10 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
+      case(TH_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
 
-        call DiscretizationGlobalToNatural(discretization, global_vec, &
-                                           natural_vec, ONEDOF)
-        dataset_name = "State" // CHAR(0)
-        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
-            pm_grp_id, H5T_NATIVE_DOUBLE)
-      case(G_MODE,TOWG_MODE)
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
-        call DiscretizationLocalToGlobal(discretization,field%work_loc, &
-                                         global_vec,ONEDOF)
         call DiscretizationGlobalToNatural(discretization, global_vec, &
                                            natural_vec, ONEDOF)
         dataset_name = "State" // CHAR(0)
@@ -1263,8 +1223,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
+      case(TH_MODE)
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
         call DiscretizationNaturalToGlobal(discretization, natural_vec, &
@@ -1274,24 +1233,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
         call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
         call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
                                         field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == MPH_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == IMS_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == FLASH2_MODE) then
-        ! set vardof vec in mphase
-        endif
-      case(G_MODE,TOWG_MODE)
-        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
-             pm_grp_id, H5T_NATIVE_DOUBLE)
-        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
-                                           global_vec, ONEDOF)
-        call DiscretizationGlobalToLocal(realization%discretization, &
-                                         global_vec, field%work_loc, ONEDOF)
-        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
-                                   ZERO_INTEGER)
      case default
     end select
 
@@ -1369,15 +1310,12 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   type(waypoint_list_type) :: waypoint_list
   
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: card
   character(len=MAXSTRINGLENGTH) :: temp_string
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
   type(waypoint_type), pointer :: waypoint
   PetscReal :: units_conversion
   PetscReal :: temp_real
-  PetscReal, pointer :: temp_real_array(:)
-  PetscInt :: i
   PetscBool :: format_binary
   PetscBool :: format_hdf5
 
@@ -1432,10 +1370,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
                                                   option)
         checkpoint_option%tconv = 1.d0/units_conversion
         checkpoint_option%tunit = trim(word)
-!geh: this needs to be tested to verify that the upper version replicates
-!     the lower, and then the lower can be removed. Why use the upper version?
-!     It allows the times to wrap to lower lines using line continuation '\'
-!TODO(anyone)
+!geh: this needs to be tested.
 #if 0
         temp_string = 'CHECKPOINT,TIMES'
         nullify(temp_real_array)

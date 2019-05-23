@@ -61,13 +61,11 @@ subroutine MultiSimulationInitialize(multisimulation,option)
   PetscInt :: i
   PetscInt :: offset, delta, remainder
 
-  PetscInt :: realization_id
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: option_found
   PetscInt, pointer :: realization_ids_from_file(:)
   character(len=MAXSTRINGLENGTH) :: filename
   type(input_type), pointer :: input
-  PetscErrorCode :: ierr
   
   ! query user for number of communicator groups and realizations
   string = '-num_groups'
@@ -128,7 +126,7 @@ subroutine MultiSimulationInitialize(multisimulation,option)
   endif
   if (multisimulation%num_groups > multisimulation%num_realizations) then
     write(string,*) multisimulation%num_realizations
-    option%io_buffer = 'Number of stochastic realizations (' // adjustl(string)
+    option%io_buffer = 'Number of stochastic realizations (' // adjustl(string) // ')'
     write(string,*) multisimulation%num_groups
     option%io_buffer = trim(option%io_buffer) // ') must be equal to &
          &or greater than number of processor groups (' // adjustl(string)

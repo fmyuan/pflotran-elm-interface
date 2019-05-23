@@ -162,8 +162,7 @@ function InputCreate1(fid,path,filename,option)
   
   type(input_type), pointer :: InputCreate1
   PetscInt :: istatus  
-  PetscInt :: islash  
-  character(len=MAXSTRINGLENGTH) :: local_path
+  PetscInt :: islash
   character(len=MAXSTRINGLENGTH) :: full_path
   type(input_type), pointer :: input
   PetscBool, parameter :: back = PETSC_TRUE
@@ -977,7 +976,7 @@ subroutine InputReadNChars1(input, option, chars, n, return_blank_error)
   PetscBool :: return_blank_error ! Return an error for a blank line
                                    ! Therefore, a blank line is not acceptable.
   
-  PetscInt :: n, begins, ends
+  PetscInt :: n
   character(len=n) :: chars
 
   if (InputError(input)) return
@@ -1746,9 +1745,9 @@ function getCommandLineArgumentCount()
   ! 
 
   implicit none
-  
+
   integer :: iargc
-  
+
   PetscInt :: getCommandLineArgumentCount
   
   ! initialize to zero

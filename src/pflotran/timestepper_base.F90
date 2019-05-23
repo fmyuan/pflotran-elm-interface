@@ -1,5 +1,5 @@
 module Timestepper_Base_class
- 
+
 #include "petsc/finclude/petscsys.h"
   use Waypoint_module 
   use Solver_module
@@ -383,9 +383,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   PetscBool :: equal_to_or_exceeds_sync_time
   PetscBool :: revert_due_to_waypoint
   PetscBool :: revert_due_to_sync_time
-  PetscBool :: truncated_due_to_next_dt_max
-  PetscReal :: temp_time
-  type(waypoint_type), pointer :: cur_waypoint, next_waypoint, prev_waypoint
+  type(waypoint_type), pointer :: cur_waypoint
 
 !geh: for debugging
 #ifdef DEBUG
@@ -610,13 +608,13 @@ subroutine TimestepperBasePrintInfo(this,option)
   strings(:) = ''
   strings(1) = 'maximum number of steps: ' // StringWrite(this%max_time_step)
   strings(2) = 'constant time steps threshold: ' // &
-                              StringWrite(this%constant_time_step_threshold)
+               StringWrite(this%constant_time_step_threshold)
   strings(3) = 'maximum number of cuts: ' // &
-                                        StringWrite(this%max_time_step_cuts)
+               StringWrite(this%max_time_step_cuts)
   strings(4) = 'reduction factor: ' // &
-                                StringWrite(this%time_step_reduction_factor)
+               StringWrite(this%time_step_reduction_factor)
   strings(5) = 'maximum growth factor: ' // &
-                               StringWrite(this%time_step_max_growth_factor)
+               StringWrite(this%time_step_max_growth_factor)
   call StringsCenter(strings,30,':')
   call StringWriteToUnits(fids,strings)
 
@@ -781,8 +779,6 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
-  
-  PetscErrorCode :: ierr
 
   header%time = this%target_time
   header%dt = this%dt
@@ -920,25 +916,6 @@ function TimestepperBaseWallClockStop(this,option)
   endif
   
 end function TimestepperBaseWallClockStop
-
-
-! ************************************************************************** !
-
-subroutine TimestepperBasePrintEKG(this)
-  ! 
-  ! Deallocates members of a time stepper
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/22/13
-  ! 
-
-  implicit none
-  
-  class(timestepper_base_type) :: this
-  
-  
-  
-end subroutine TimestepperBasePrintEKG
 
 ! ************************************************************************** !
 

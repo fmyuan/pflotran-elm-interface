@@ -161,11 +161,7 @@ set(UTIL_SOURCES
 	string.F90
 	units.F90
 	utility.F90
-	toil_ims_derivs.F90
 	variables.F90
-	derivative_tests.F90
-	derivatives_utilities.F90
-	grid_grdecl_util.F90
 )
 
 set(EOS_SOURCES
@@ -184,61 +180,28 @@ set(MODE_AUX_SOURCES
 	auxvars_base.F90
 	auxvars_flow.F90
 	auxvars_flow_energy.F90
-	auxvars_toil_ims.F90
-	auxvars_towg.F90
-	flash2_aux.F90
-	general_aux.F90
 	pm_base_aux.F90
-	pm_toil_ims_aux.F90
-	pm_towg_aux.F90
-	immis_aux.F90
-	miscible_aux.F90
-	mphase_aux.F90
 	pm_auxiliary.F90
 	pm_base.F90
 	pm_base_pointer.F90
-	pm_general.F90
-	pm_toil_ims.F90
-	pm_towg.F90
-	pm_flash2.F90
-	pm_immis.F90
-	pm_mphase.F90
-	pm_miscible.F90
 	pm_richards.F90
-	pm_richards_ts.F90
 	pm_rt.F90
 	pm_subsurface_flow.F90
 	pm_surface_flow.F90
 	pm_surface_th.F90
 	pm_surface.F90
 	pm_th.F90
-	pm_ufd_decay.F90
-	pm_waste_form.F90
-	pm_wipp_flow.F90
-	pm_wipp_srcsink.F90
-	pm_ufd_biosphere.F90
 	richards_aux.F90
 	th_aux.F90
-	wipp_flow_aux.F90
 	inlinesurface_aux.F90
 )
 
 set(MODE_SOURCES
-	flash2.F90
-	general.F90
-	general_common.F90
-	toil_ims.F90
-	towg.F90
 	global.F90
-	immis.F90
-	miscible.F90
-	mphase.F90
 	reactive_transport.F90
 	richards.F90
 	richards_common.F90
 	th.F90
-	wipp_flow.F90
-	wipp_flow_common.F90
 	inlinesurface.F90
 )
 
@@ -251,35 +214,6 @@ set(SHARD_MODE_AUX_SOURCES
 	global_aux.F90
 	material_aux.F90
 	reactive_transport_aux.F90 
-)
-
-set(CHEM_SOURCES
-	transport_constraint.F90
-	reaction_database.F90
-	reaction_database_aux.F90
-	reaction_database_hpt.F90
-	reaction_gas.F90
-	reaction_gas_aux.F90
-	reaction_immobile.F90
-	reaction_immobile_aux.F90
-	reaction_microbial.F90
-	reaction_microbial_aux.F90
-	reaction_mineral.F90
-	reaction_mineral_aux.F90
-	reaction.F90
-	reaction_aux.F90
-	reaction_clm.F90
-	reaction_sandbox.F90
-	reaction_sandbox_base.F90
-	reaction_sandbox_clm_cn.F90
-	reaction_sandbox_example.F90
-	reaction_sandbox_pnnl_cyber.F90
-	reaction_sandbox_simple.F90
-	reaction_sandbox_ufd_wp.F90
-	reaction_solid_solution.F90
-	reaction_solid_solution_aux.F90
-	reaction_surf_complex.F90
-	reaction_surf_complex_aux.F90 
 )
 
 set(GRID_SOURCES
@@ -296,7 +230,6 @@ set(GRID_SOURCES
 	grid_unstructured_aux.F90
 	grid_unstructured.F90
 	grid_unstructured_polyhedra.F90
-	grid_grdecl.F90
 )
 
 set(RELATIONS_SOURCES
@@ -305,9 +238,6 @@ set(RELATIONS_SOURCES
 	characteristic_curves.F90
 	characteristic_curves_base.F90
 	characteristic_curves_common.F90
-	characteristic_curves_owg.F90
-	characteristic_curves_wipp.F90
-	mphase_pckr_mod.F90
 )
 
 set(PROPERTIES_SOURCES
@@ -331,8 +261,6 @@ set(SRCSINK_SOURCES
 	srcsink_sandbox_base.F90
 	srcsink_sandbox_mass_rate.F90
 	srcsink_sandbox_downreg.F90
-	srcsink_sandbox_wipp_gas.F90
-	srcsink_sandbox_wipp_well.F90
 )
 
 set(IO_SOURCES
@@ -346,13 +274,11 @@ set(IO_SOURCES
 	output_surface.F90
 	output_tecplot.F90
 	output_vtk.F90
-	output_eclipse.F90
 )
 
 set(MISC_SOURCES
 	block_solve.F90
 	block_tridiag.F90
-	characteristic_curves_table.F90
 	checkpoint.F90
 	condition.F90
 	condition_control.F90
@@ -367,7 +293,6 @@ set(MISC_SOURCES
 	factory_subsurface.F90
 	field.F90
 	hydrostatic.F90
-	hydrostatic_multi_phase.F90
 	init_common.F90
 	init_subsurface.F90
 	init_subsurface_flow.F90
@@ -381,7 +306,6 @@ set(MISC_SOURCES
 	pmc_auxiliary.F90
 	pmc_base.F90
 	pmc_subsurface.F90
-	pmc_third_party.F90
 	realization_base.F90
 	realization_subsurface.F90
 	region.F90
@@ -396,16 +320,9 @@ set(MISC_SOURCES
 	strata.F90
 	timestepper_base.F90
 	timestepper_BE.F90
-	timestepper_TS.F90
+	timestepper_steady.F90
 	transport.F90
 	waypoint.F90
-	wipp.F90
-)
-
-set(WELL_SOURCES
-	well_data.F90
-	well_type.F90
-	well_solver.F90
 )
 
 set(SURFACE_SOURCES
@@ -428,34 +345,6 @@ set(SURFACE_SOURCES
 	timestepper_surface.F90
 )
 
-set(GEOMECH_SOURCES
-	factory_geomechanics.F90
-	gauss.F90
-	geomechanics_auxiliary.F90
-	geomechanics_realization.F90
-	geomechanics_discretization.F90
-	geomech_grid.F90
-	geomech_grid_aux.F90
-	geomechanics_condition.F90
-	geomechanics_coupler.F90
-	geomechanics_debug.F90
-	geomechanics_field.F90
-	geomechanics_force.F90
-	geomechanics_global.F90
-	geomechanics_global_aux.F90
-	geomechanics_material.F90
-	geomechanics_patch.F90
-	geomechanics_region.F90
-	geomechanics_regression.F90
-	geomechanics_strata.F90
-        geomechanics_subsurface_properties.F90
-	output_geomechanics.F90
-	pm_geomechanics_force.F90
-	pmc_geomechanics.F90
-	simulation_geomechanics.F90
-	shape_function.F90
-	timestepper_steady.F90
-)
 
 set(SOLVER_SOURCES
 	solver.F90
@@ -477,9 +366,7 @@ set (PFLOTRAN_SOURCES
     ${SRCSINK_SOURCES}
     ${IO_SOURCES}
     ${MISC_SOURCES}
-    ${WELL_SOURCES}
     ${SURFACE_SOURCES}
-    ${GEOMECH_SOURCES}
     ${SOLVER_SOURCES}
     pflotran.F90
 )

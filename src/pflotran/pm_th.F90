@@ -4,8 +4,6 @@ module PM_TH_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-!geh: using TH_module here fails with gfortran (internal compiler error)
-!  use TH_module
   use Realization_Subsurface_class
   use Communicator_Base_module
   use Option_module
@@ -16,24 +14,11 @@ module PM_TH_class
 
   private
 
-  PetscInt, parameter :: ABS_UPDATE_INDEX = 1
-  PetscInt, parameter :: REL_UPDATE_INDEX = 2
-  PetscInt, parameter :: RESIDUAL_INDEX = 3
-  PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 4
-  PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
-
   type, public, extends(pm_subsurface_flow_type) :: pm_th_type
     class(communicator_type), pointer :: commN
-    PetscBool :: converged_flag(2,MAX_INDEX)
-    PetscInt :: converged_cell(2,MAX_INDEX)
-    PetscReal :: converged_real(2,MAX_INDEX)
-    PetscReal :: residual_abs_inf_tol(2)
-    PetscReal :: residual_scaled_inf_tol(2)
-    PetscReal :: abs_update_inf_tol(2)
-    PetscReal :: rel_update_inf_tol(2)
   contains
     procedure, public :: Setup => PMTHSetup
-    procedure, public :: ReadSimulationBlock => PMTHRead
+    procedure, public :: Read => PMTHRead
     procedure, public :: InitializeTimestep => PMTHInitializeTimestep
     procedure, public :: Residual => PMTHResidual
     procedure, public :: Jacobian => PMTHJacobian
@@ -42,7 +27,6 @@ module PM_TH_class
     procedure, public :: PostSolve => PMTHPostSolve
     procedure, public :: CheckUpdatePre => PMTHCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMTHCheckUpdatePost
-    procedure, public :: CheckConvergence => PMTHCheckConvergence
     procedure, public :: TimeCut => PMTHTimeCut
     procedure, public :: UpdateSolution => PMTHUpdateSolution
     procedure, public :: UpdateAuxVars => PMTHUpdateAuxVars
@@ -70,37 +54,17 @@ function PMTHCreate()
   
   class(pm_th_type), pointer :: PMTHCreate
 
-  class(pm_th_type), pointer :: this
-
-  PetscReal, parameter :: pres_abs_inf_tol = 1.d0
-  PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
-  PetscReal, parameter :: abs_update_inf_tol(2) = &
-                            [pres_abs_inf_tol,temp_abs_inf_tol]
-  PetscReal, parameter :: pres_rel_inf_tol = 1.d-5
-  PetscReal, parameter :: temp_rel_inf_tol = 1.d-5
-  PetscReal, parameter :: rel_update_inf_tol(2) = &
-                            [pres_rel_inf_tol,temp_rel_inf_tol]
-  PetscReal, parameter :: residual_abs_inf_tol(2) = 1.d-5
-  PetscReal, parameter :: residual_scaled_inf_tol(2) = 1.d-5
+  class(pm_th_type), pointer :: th_pm
   
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHCreate()'
-#endif  
+  allocate(th_pm)
 
-  allocate(this)
+  nullify(th_pm%commN)
 
-  nullify(this%commN)
+  call PMSubsurfaceFlowCreate(th_pm)
+  th_pm%name = 'TH Flow'
+  th_pm%header = 'TH FLOW'
 
-  call PMSubsurfaceFlowCreate(this)
-  this%name = 'TH Flow'
-  this%header = 'TH FLOW'
-
-  this%residual_abs_inf_tol = residual_abs_inf_tol
-  this%residual_scaled_inf_tol = residual_scaled_inf_tol
-  this%abs_update_inf_tol = abs_update_inf_tol
-  this%rel_update_inf_tol = rel_update_inf_tol
-
-  PMTHCreate => this
+  PMTHCreate => th_pm
   
 end function PMTHCreate
 
@@ -117,7 +81,7 @@ subroutine PMTHRead(this,input)
   use Utility_module
   use EOS_Water_module  
   use Option_module
-  use TH_Aux_module
+  use Flowmode_Aux_module
  
   implicit none
   
@@ -128,17 +92,9 @@ subroutine PMTHRead(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
-  PetscInt :: lid, eid
   PetscReal :: tempreal
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHRead()'
-#endif
-
   option => this%option
-
-  lid = option%liquid_phase
-  eid = option%energy_id
   
   error_string = 'TH Options'
   
@@ -159,83 +115,49 @@ subroutine PMTHRead(this,input)
     if (found) cycle
     
     select case(trim(word))
+      case('ITOL_SCALED_RESIDUAL')
+        call InputReadDouble(input,option,flow_itol_scaled_res)
+        call InputDefaultMsg(input,option,'flow_itol_scaled_res')
+        this%check_post_convergence = PETSC_FALSE!PETSC_TRUE
+        ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
+        !    setting the 'th_itol_scaled_res' values. Temperally off now.
+        option%io_buffer = ' TH: OPTIONS itol_scaled_residual IS currently OFF due to mass-balance issue!'
+        call printMsg(option)
+      case('ITOL_RELATIVE_UPDATE')
+        call InputReadDouble(input,option,flow_itol_rel_update)
+        call InputDefaultMsg(input,option,'flow_itol_rel_update')
+        this%check_post_convergence = PETSC_FALSE!PETSC_TRUE
+        ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
+        !    setting the 'th_itol_scaled_res' values. Temperally off now.
+        option%io_buffer = ' TH: OPTIONS itol_rel_update IS currently OFF due to mass-balance issue!'
+        call printMsg(option)
 
-      ! Tolerances
+!....................
+      case ('ISOTHERMAL_EQ')
+        option%flow%isothermal_eq = PETSC_TRUE
+        option%io_buffer = 'TH: ISOTHERMAL_EQ option is ON in TH mode.'
+        call printMsg(option)
 
-      ! All Residual
-      case('RESIDUAL_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol(:) = tempreal
-        this%residual_scaled_inf_tol(:) = tempreal
+!....................
+      case ('ONLY_THERMAL_EQ')
+        option%flow%only_thermal_eq = PETSC_TRUE
+        option%io_buffer = 'TH: ONLY_THERMAL_EQ is ON in TH mode.'
+        call printMsg(option)
 
-      ! Absolute Residual
-      case('RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
-        call InputErrorMsg(input,option,word,error_string)
-      case('ENERGY_RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
-        call InputErrorMsg(input,option,word,error_string)
+!....................
+      case ('ONLY_VERTICAL_FLOW')
+        option%flow%only_vertical_flow = PETSC_TRUE
+        option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
+        call printMsg(option)
 
-      ! Scaled Residual
-      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_scaled_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_SCALED_INF_TOL')
-        call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
-        call InputErrorMsg(input,option,word,error_string)
-      case('ENERGY_RESIDUAL_SCALED_INF_TOL')
-        call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
-        call InputErrorMsg(input,option,word,error_string)
-
-      ! All Updates
-      case('UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(:) = tempreal
-        this%rel_update_inf_tol(:) = tempreal
-
-      ! Absolute Updates
-      case('ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(:) = tempreal
-      case('PRES_ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(1) = tempreal
-      case('TEMP_ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(2) = tempreal
-
-      ! Relative Updates
-      case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(:) = tempreal
-      case('PRES_REL_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(1) = tempreal
-      case('TEMP_REL_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(2) = tempreal
-
-      case('FREEZING')
-        option%use_th_freezing = PETSC_TRUE
-        option%io_buffer = ' TH: using FREEZING submode!'
+!....................
+      case('ICE_MODEL')
+        option%io_buffer = ' TH: using ICE submode option ON.'
         call printMsg(option)
         ! Override the default setting for TH-mode with freezing
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
-      case('ICE_MODEL')
+
         call InputReadWord(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
@@ -258,8 +180,13 @@ subroutine PMTHRead(this,input)
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or PAINTER_KARRA_EXPLICIT_SMOOTH or DALL_AMICO.'
-            call printErrMsg(option)
+             ' or PAINTER_KARRA_EXPLICIT_SMOOTH ' // &
+             ' or DALL_AMICO.' // &
+             ' TH MODE with isothermal_eq option is ON'
+
+            option%flow%isothermal_eq = PETSC_TRUE
+
+            call printMsg(option)
           end select
       case default
         call InputKeywordUnrecognized(word,error_string,option)
@@ -287,10 +214,6 @@ subroutine PMTHSetup(this)
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHSetup()'
-#endif
-
   call PMSubsurfaceFlowSetup(this)
   
   ! set up communicator
@@ -314,16 +237,12 @@ subroutine PMTHInitializeTimestep(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THInitializeTimestep
+  use Flowmode_module, only : FlowmodeInitializeTimestep
   use Option_module
 
   implicit none
   
   class(pm_th_type) :: this
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHInitializeTimeStep()'
-#endif
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
@@ -335,7 +254,7 @@ subroutine PMTHInitializeTimestep(this)
   call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
                                this%realization%field%iphas_loc)
 
-  call THInitializeTimestep(this%realization)
+  call FlowmodeInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
   
 end subroutine PMTHInitializeTimestep
@@ -356,10 +275,6 @@ subroutine PMTHPreSolve(this)
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHPreSolve()'
-#endif
-
   call PMSubsurfaceFlowPreSolve(this)
 
 end subroutine PMTHPreSolve
@@ -377,10 +292,8 @@ subroutine PMTHPostSolve(this)
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHPostSolve()'
-#endif
-  
+  ! nothing ?
+
 end subroutine PMTHPostSolve
 
 ! ************************************************************************** !
@@ -415,10 +328,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dt_tfac
   PetscInt :: ifac
   
-#ifdef PM_TH_DEBUG
-  call printMsg(this%option,'PMTH%UpdateTimestep()')
-#endif
-  
+
   if (iacceleration > 0) then
     fac = 0.5d0
     if (num_newton_iterations >= iacceleration) then
@@ -466,7 +376,7 @@ subroutine PMTHResidual(this,snes,xx,r,ierr)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THResidual
+  use Flowmode_module, only : FlowmodeResidual
 
   implicit none
   
@@ -476,11 +386,7 @@ subroutine PMTHResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHResidual()'
-#endif
-  
-  call THResidual(snes,xx,r,this%realization,ierr)
+  call FlowmodeResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMTHResidual
 
@@ -494,7 +400,7 @@ subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THJacobian
+  use Flowmode_module, only : FlowmodeJacobian
 
   implicit none
   
@@ -504,11 +410,7 @@ subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHJacobian()'
-#endif
-
-  call THJacobian(snes,xx,A,B,this%realization,ierr)
+  call FlowmodeJacobian(A,B,this%realization,ierr)
 
 end subroutine PMTHJacobian
 
@@ -526,9 +428,8 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Grid_module
   use Field_module
   use Option_module
-  use Saturation_Function_module
   use Patch_module
-  use TH_Aux_module
+  use Flowmode_Aux_module
   use Global_Aux_module
 
   implicit none
@@ -547,22 +448,18 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(flow_auxvar_type), pointer :: flow_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
-  PetscReal :: P0, P1, P_R, delP, delP_old
+  PetscReal :: P0, P1, P_R, delP
   PetscReal :: scale, press_limit, temp_limit
   PetscInt :: iend, istart
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHCheckUpdatePre()'
-#endif
-  
   patch => this%realization%patch
   grid => patch%grid
   option => this%realization%option
   field => this%realization%field
-  TH_auxvars => patch%aux%TH%auxvars
+  flow_auxvars => patch%aux%Flow%auxvars
   global_auxvars => patch%aux%Global%auxvars
 
   if (Initialized(this%pressure_change_limit)) then
@@ -637,24 +534,10 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1 
         call printMsgAnyRank(option)
-#if 0
-        ghosted_id = grid%nL2G(local_id)
-        call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
-                                  global_auxvars(ghosted_id),ghosted_id)
-        write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
-        call printMsgAnyRank(option)
-#endif
       else if (P1 < P_R .and. P0 > P_R) then
         write(option%io_buffer,'("S -> U:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1
         call printMsgAnyRank(option)
-#if 0
-        ghosted_id = grid%nL2G(local_id)
-        call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
-                                  global_auxvars(ghosted_id),ghosted_id)
-        write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
-        call printMsgAnyRank(option)
-#endif
       endif
       ! transition from unsaturated to saturated
       if (P0 < P_R .and. P1 > P_R) then
@@ -673,14 +556,23 @@ end subroutine PMTHCheckUpdatePre
 subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 11/21/18
+  ! This routine
   ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 03/90/13
+  ! 
+
+  ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
+  !    setting the 'th_itol_scaled_res' values. Temperally off now.
 
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
   use Option_module
+  use Flowmode_module
+  use Flowmode_Aux_module
+  use Global_Aux_module
+  use Material_Aux_class
   use Patch_module
 
   implicit none
@@ -694,262 +586,78 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  PetscReal, pointer :: X0_p(:)
+  PetscReal, pointer :: X1_p(:)
   PetscReal, pointer :: dX_p(:)
+  PetscReal, pointer :: ithrm_loc_p(:)
+  PetscReal, pointer :: r_p(:)
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: offset, ival, idof
-  PetscReal :: dX_, X0_, dX_X0
-  PetscBool :: converged_abs_update_flag(2)
-  PetscBool :: converged_rel_update_flag(2)
-  PetscInt :: converged_abs_update_cell(2)
-  PetscInt :: converged_rel_update_cell(2)
-  PetscReal :: converged_abs_update_real(2)
-  PetscReal :: converged_rel_update_real(2)
-  PetscBool :: converged_absolute
-  PetscBool :: converged_relative
+  type(flow_auxvar_type), pointer :: flow_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(flow_parameter_type), pointer :: flow_parameters(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  grid => this%realization%patch%grid
+  PetscInt :: local_id, ghosted_id, ithrm
+  PetscReal :: Res(this%realization%option%nflowdof)
+  PetscReal :: inf_norm, global_inf_norm
+  PetscReal :: vol_frac_prim
+  PetscInt :: istart, iend
+  
+  patch => this%realization%patch
+  grid => patch%grid
   option => this%realization%option
   field => this%realization%field
-  patch => this%realization%patch
-
+  flow_auxvars => patch%aux%Flow%auxvars
+  flow_parameters => patch%aux%Flow%flow_parameters
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
-
-  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  converged_abs_update_flag = PETSC_TRUE
-  converged_rel_update_flag = PETSC_TRUE
-  converged_abs_update_cell = ZERO_INTEGER
-  converged_rel_update_cell = ZERO_INTEGER
-  converged_abs_update_real = 0.d0
-  converged_rel_update_real = 0.d0
-  do local_id = 1, grid%nlmax
-    offset = (local_id-1)*option%nflowdof
-    ghosted_id = grid%nL2G(local_id)
-    natural_id = grid%nG2A(ghosted_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    do idof = 1, option%nflowdof
-      ival = offset+idof
-      ! infinity norms on update
-      converged_absolute = PETSC_TRUE
-      converged_relative = PETSC_TRUE
-      dX_ = dabs(dX_p(ival))
-      X0_ = dabs(X0_p(ival))
-      X0_ = max(X0_,1.d-40)
-      dX_X0 = dX_/X0_
-      if (dX_ > this%abs_update_inf_tol(idof)) then
-        converged_absolute = PETSC_FALSE
-      endif
-      if (converged_abs_update_real(idof) < dX_) then
-        converged_abs_update_real(idof) = dX_
-        converged_abs_update_cell(idof) = natural_id
-      endif
-      if (dX_X0 > this%rel_update_inf_tol(idof)) then
-        converged_relative = PETSC_FALSE
-      endif
-      if (converged_rel_update_real(idof) < dX_X0) then
-        converged_rel_update_real(idof) = dX_X0
-        converged_rel_update_cell(idof) = natural_id
-      endif
-      ! only enter this condition if both are not converged
-      if (.not.(converged_absolute .or. converged_relative)) then
-        if (.not.converged_absolute) then
-          converged_abs_update_flag(idof) = PETSC_FALSE
-        endif
-        if (.not.converged_relative) then
-          converged_rel_update_flag(idof) = PETSC_FALSE
-        endif
-      endif
-    enddo
-  enddo
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-
-  this%converged_flag(:,ABS_UPDATE_INDEX) = converged_abs_update_flag(:)
-  this%converged_flag(:,REL_UPDATE_INDEX) = converged_rel_update_flag(:)
-  this%converged_real(:,ABS_UPDATE_INDEX) = converged_abs_update_real(:)
-  this%converged_real(:,REL_UPDATE_INDEX) = converged_rel_update_real(:)
-  this%converged_cell(:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:)
-  this%converged_cell(:,REL_UPDATE_INDEX) = converged_rel_update_cell(:)
-
-end subroutine PMTHCheckUpdatePost
-
-! ************************************************************************** !
-
-subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
-  !
-  ! Author: Glenn Hammond
-  ! Date: 11/20/18
-  !
-  use Convergence_module
-  use General_Aux_module
-  use Global_Aux_module
-  use Grid_module
-  use Option_module
-  use Realization_Subsurface_class
-  use Grid_module
-  use Field_module
-  use Patch_module
-  use Option_module
-  use String_module
-
-  implicit none
-
-  class(pm_th_type) :: this
-  SNES :: snes
-  PetscInt :: it
-  PetscReal :: xnorm
-  PetscReal :: unorm
-  PetscReal :: fnorm
-  SNESConvergedReason :: reason
-  PetscErrorCode :: ierr
-
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: patch
-  PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: accum2_p(:)
-  PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: offset, ival, idof, itol
-  PetscReal :: R, A, R_A
-  PetscReal, parameter :: A_zero = 1.d-15
-  PetscBool :: converged_abs_residual_flag(2)
-  PetscReal :: converged_abs_residual_real(2)
-  PetscInt :: converged_abs_residual_cell(2)
-  PetscBool :: converged_scaled_residual_flag(2)
-  PetscReal :: converged_scaled_residual_real(2)
-  PetscInt :: converged_scaled_residual_cell(2)
-  PetscBool :: converged_absolute
-  PetscBool :: converged_scaled
-  PetscMPIInt :: mpi_int
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=17), parameter :: dof_string(2) = &
-                                   ['Liquid Pressure  ','Temperature      ']
-  character(len=15), parameter :: tol_string(MAX_INDEX) = &
-    ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
-
-  patch => this%realization%patch
-  option => this%realization%option
-  field => this%realization%field
-  grid => patch%grid
-
-  if (this%check_post_convergence) then
-    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
-    converged_abs_residual_flag = PETSC_TRUE
-    converged_abs_residual_real = 0.d0
-    converged_abs_residual_cell = ZERO_INTEGER
-    converged_scaled_residual_flag = PETSC_TRUE
-    converged_scaled_residual_real = 0.d0
-    converged_scaled_residual_cell = ZERO_INTEGER
-    do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%nflowdof
-      ghosted_id = grid%nL2G(local_id)
-      natural_id = grid%nG2A(ghosted_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      do idof = 1, option%nflowdof
-        ival = offset+idof
-        converged_absolute = PETSC_TRUE
-        converged_scaled = PETSC_TRUE
-        ! infinity norms on residual
-        R = dabs(r_p(ival))
-        A = dabs(accum2_p(ival))
-        R_A = R/A
-        if (R > this%residual_abs_inf_tol(idof)) then
-          converged_absolute = PETSC_FALSE
-        endif
-        ! find max value regardless of convergence
-        if (converged_abs_residual_real(idof) < R) then
-          converged_abs_residual_real(idof) = R
-          converged_abs_residual_cell(idof) = natural_id
-        endif
-        if (A > A_zero) then
-          if (R_A > this%residual_scaled_inf_tol(idof)) then
-            converged_scaled = PETSC_FALSE
-          endif
-          ! find max value regardless of convergence
-          if (converged_scaled_residual_real(idof) < R_A) then
-            converged_scaled_residual_real(idof) = R_A
-            converged_scaled_residual_cell(idof) = natural_id
-          endif
-        endif
-        ! only enter this condition if both are not converged
-        if (.not.(converged_absolute .or. converged_scaled)) then
-          if (.not.converged_absolute) then
-            converged_abs_residual_flag(idof) = PETSC_FALSE
-          endif
-          if (.not.converged_scaled) then
-            converged_scaled_residual_flag(idof) = PETSC_FALSE
-          endif
-        endif
-      enddo
-    enddo
-    call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)
   
-    this%converged_flag(:,RESIDUAL_INDEX) = converged_abs_residual_flag(:)
-    this%converged_real(:,RESIDUAL_INDEX) = converged_abs_residual_real(:)
-    this%converged_cell(:,RESIDUAL_INDEX) = converged_abs_residual_cell(:)
-    this%converged_flag(:,SCALED_RESIDUAL_INDEX) = &
-                                         converged_scaled_residual_flag(:)
-    this%converged_real(:,SCALED_RESIDUAL_INDEX) = &
-                                         converged_scaled_residual_real(:)
-    this%converged_cell(:,SCALED_RESIDUAL_INDEX) = &
-                                         converged_scaled_residual_cell(:)
-    mpi_int = 2*MAX_INDEX
-    ! do not perform an all reduce on cell id as this info is not printed 
-    ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
-                       MPI_INTEGER,MPI_LAND,option%mycomm,ierr)
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
-                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  if (this%check_post_convergence) then
+    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    
+    inf_norm = 0.d0
+    vol_frac_prim = 1.d0
+    
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+    
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      ithrm = int(ithrm_loc_p(ghosted_id))
+      
+      call FlowmodeAccumulation(flow_auxvars(ghosted_id), &
+                           material_auxvars(ghosted_id),  &
+                           flow_parameters(ithrm),        &
+                           option,Res)
+                                                        
+      inf_norm = max(inf_norm,min(dabs(dX_p(istart)/X1_p(istart)), &
+                                  dabs(r_p(istart)/Res(1)), &
+                                  dabs(dX_p(iend)/X1_p(iend)), &
+                                  dabs(r_p(iend)/Res(2))))
 
-    option%convergence = CONVERGENCE_CONVERGED
-    do itol = 1, MAX_INDEX
-      do idof = 1, option%nflowdof
-        if (.not.this%converged_flag(idof,itol)) then
-          option%convergence = CONVERGENCE_KEEP_ITERATING
-          if (this%logging_verbosity > 0) then
-            string = '   ' // trim(tol_string(itol)) // ', ' // &
-              dof_string(idof)
-            if (option%mycommsize == 1) then
-              string = trim(string) // ' (' // &
-                trim(StringFormatInt(this%converged_cell(idof,itol))) &
-                // ')'
-            endif
-            string = trim(string) // ' : ' // &
-              StringFormatDouble(this%converged_real(idof,itol))
-            call OptionPrint(string,option)
-          endif
-        endif
-      enddo
     enddo
-    if (this%logging_verbosity > 0 .and. it > 0 .and. &
-        option%convergence == CONVERGENCE_CONVERGED) then
-      string = '   Converged'
-      call OptionPrint(string,option)
-      write(string,'(4x," R:",2es8.1)') this%converged_real(:,RESIDUAL_INDEX)
-      call OptionPrint(string,option)
-      write(string,'(4x,"SR:",2es8.1)') &
-        this%converged_real(:,SCALED_RESIDUAL_INDEX)
-      call OptionPrint(string,option)
-      write(string,'(4x,"AU:",2es8.1)') this%converged_real(:,ABS_UPDATE_INDEX)
-      call OptionPrint(string,option)
-      write(string,'(4x,"RU:",2es8.1)') this%converged_real(:,REL_UPDATE_INDEX)
-      call OptionPrint(string,option)
+    call MPI_Allreduce(inf_norm,global_inf_norm,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr)
+    option%converged = PETSC_TRUE
+    if (global_inf_norm > flow_itol_scaled_res) then
+      option%converged = PETSC_FALSE
     endif
+    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   endif
-
-  call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
-                                        reason,ierr)
-
-end subroutine PMTHCheckConvergence
+  
+end subroutine PMTHCheckUpdatePost
 
 ! ************************************************************************** !
 
@@ -961,18 +669,14 @@ subroutine PMTHTimeCut(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THTimeCut
+  use Flowmode_module, only : FlowmodeTimeCut
 
   implicit none
   
   class(pm_th_type) :: this
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHTimeCut()'
-#endif
   
   call PMSubsurfaceFlowTimeCut(this)
-  call THTimeCut(this%realization)
+  call FlowmodeTimeCut(this%realization)
 
 end subroutine PMTHTimeCut
 
@@ -986,20 +690,14 @@ subroutine PMTHUpdateSolution(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THUpdateSolution, THUpdateSurfaceBC
+  use Flowmode_module, only : FlowmodeUpdateSolution
 
   implicit none
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHUpdateSolution()'
-#endif
-  
   call PMSubsurfaceFlowUpdateSolution(this)
-  call THUpdateSolution(this%realization)
-  if (this%option%surf_flow_on) &
-    call THUpdateSurfaceBC(this%realization)
+  call FlowmodeUpdateSolution(this%realization)
 
 end subroutine PMTHUpdateSolution     
 
@@ -1010,17 +708,13 @@ subroutine PMTHUpdateAuxVars(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use TH_module, only : THUpdateAuxVars
+  use Flowmode_module, only : FlowmodeUpdateAuxVars
   
   implicit none
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHUpdateAuxVars()'
-#endif
-
-  call THUpdateAuxVars(this%realization)
+  call FlowmodeUpdateAuxVars(this%realization)
 
 end subroutine PMTHUpdateAuxVars   
 
@@ -1034,7 +728,7 @@ subroutine PMTHMaxChange(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THMaxChange
+  use Flowmode_module, only : FlowmodeMaxChange
   use Option_module
 
   implicit none
@@ -1042,12 +736,7 @@ subroutine PMTHMaxChange(this)
   class(pm_th_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHMaxChange()'
-#endif
-
-  
-  call THMaxChange(this%realization,this%max_pressure_change, &
+  call FlowmodeMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
 
 #ifndef CLM_PFLOTRAN
@@ -1068,18 +757,14 @@ subroutine PMTHComputeMassBalance(this,mass_balance_array)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THComputeMassBalance
+  use Flowmode_module, only : FlowmodeComputeMassBalance
 
   implicit none
   
   class(pm_th_type) :: this
   PetscReal :: mass_balance_array(:)
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHComputeMassBalance()'
-#endif
   
-  call THComputeMassBalance(this%realization,mass_balance_array)
+  call FlowmodeComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMTHComputeMassBalance
 
@@ -1096,14 +781,7 @@ subroutine PMTHInputRecord(this)
   implicit none
   
   class(pm_th_type) :: this
-
-  character(len=MAXWORDLENGTH) :: word
   PetscInt :: id
-
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHInputRecord()'
-#endif
-
 
   id = INPUT_RECORD_UNIT
 
@@ -1124,16 +802,12 @@ subroutine PMTHDestroy(this)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THDestroy
+  use Flowmode_module, only : FlowmodeDestroy
 
   implicit none
   
   class(pm_th_type) :: this
 
-#ifdef PM_TH_DEBUG
-  print *, 'PMTHDestroy()'
-#endif
-  
   if (associated(this%next)) then
     call this%next%Destroy()
   endif
@@ -1141,7 +815,7 @@ subroutine PMTHDestroy(this)
   call this%commN%Destroy()
 
   ! preserve this ordering
-  call THDestroy(this%realization%patch)
+  call FlowmodeDestroy(this%realization%patch)
   call PMSubsurfaceFlowDestroy(this)
 
 end subroutine PMTHDestroy

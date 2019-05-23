@@ -1,5 +1,0 @@
-GRID
-  TYPE UNSTRUCTURED ./2x2x2.ugi
-END
-
-EXTERNAL_FILE ./2x2x2_ugi_regions.txt

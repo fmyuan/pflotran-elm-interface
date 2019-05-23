@@ -253,16 +253,6 @@ end subroutine PMBaseThisOnly
 
 ! ************************************************************************** !
 
-subroutine PMBaseThisTime(this,time)
-  implicit none
-  class(pm_base_type) :: this
-  PetscReal :: time
-  print *, 'Must extend PMBaseThisTime for: ' // trim(this%name)
-  stop
-end subroutine PMBaseThisTime
-
-! ************************************************************************** !
-
 subroutine PMBaseThisTimeError(this,time,ierr)
   implicit none
   class(pm_base_type) :: this

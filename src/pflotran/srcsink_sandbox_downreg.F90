@@ -94,8 +94,6 @@ subroutine DownregRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   class(dataset_ascii_type), pointer :: dataset_ascii
-
-  PetscInt :: i
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: units, internal_units
@@ -191,7 +189,6 @@ subroutine DownregSetup(this,grid,option)
 
   use Option_module
   use Grid_module
-  use General_Aux_module, only : general_fmw_com => fmw_comp
 
   implicit none
   
@@ -232,7 +229,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   ! Gautam suggested to use Nathan's smooth function (6/8/2014)
 
   use Option_module
-  use Reaction_Aux_module
+
   use Material_Aux_class
   
   implicit none
@@ -248,13 +245,12 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: pressure_lower, pressure_upper, x
   PetscReal :: rate_regulator  
   PetscReal :: drate_regulator  
-  PetscReal :: temp_real
   PetscReal :: rate
 
   PetscInt :: idof
   
   do idof = 1, option%nflowdof
-    if (option%iflowmode == RICHARDS_MODE .and. idof == ONE_INTEGER) then
+    if (option%iflowmode == TH_MODE .and. idof == ONE_INTEGER) then
       ! regulate liquid pressure in Richards mode
       pressure = aux_real(3)
       rate = this%dataset%rarray(1)
@@ -299,7 +295,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       endif
     else
       option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
-                         'only for RICHARDS mode.'
+                         'only for TH mode.'
       call printErrMsg(option)
     endif
   enddo
@@ -307,12 +303,12 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   if (compute_derivative) then
     
     do idof = 1, option%nflowdof
-      if (option%iflowmode == RICHARDS_MODE .and. idof == ONE_INTEGER) then
-        ! regulate liquid pressure in Richards mode
+      if (option%iflowmode == TH_MODE .and. idof == ONE_INTEGER) then
+        ! regulate liquid pressure in TH mode
         Jacobian(idof,idof) = -1.0d0 * rate * drate_regulator
       else
         option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
-                           'only for RICHARDS mode.'
+                           'only for TH mode.'
         call printErrMsg(option)
       endif
     enddo

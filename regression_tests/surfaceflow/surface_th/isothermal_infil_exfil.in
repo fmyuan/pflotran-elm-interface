@@ -34,7 +34,7 @@ REGRESSION
 END
 #=========================== discretization ===========================
 GRID
-  TYPE UNSTRUCTURED ./mesh_simple1D.h5
+  TYPE unstructured ./mesh_simple1D.h5
 END
 REGION all
   COORDINATES
@@ -57,8 +57,8 @@ END
 #=========================== flow conditions ==========================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE DIRICHLET
-    TEMPERATURE DIRICHLET
+    PRESSURE dirichlet
+    TEMPERATURE dirichlet
   /
   PRESSURE 1.d0
   TEMPERATURE 10.d0
@@ -66,7 +66,7 @@ END
 FLOW_CONDITION from_surface
   TYPE
     PRESSURE heterogeneous_surface_seepage
-    TEMPERATURE HETEROGENEOUS_DIRICHLET
+    TEMPERATURE heterogeneous_dirichlet
   /
   PRESSURE 101325.d0
   TEMPERATURE 10.d0
@@ -74,15 +74,15 @@ END
 FLOW_CONDITION from_atm_subsurface
   TYPE
     PRESSURE neumann
-    TEMPERATURE HETEROGENEOUS_DIRICHLET
+    TEMPERATURE heterogeneous_dirichlet
   /
   FLUX 0.d0
   TEMPERATURE 10.d0
 END
 FLOW_CONDITION cycle
   TYPE
-    PRESSURE HYDROSTATIC
-    TEMPERATURE DIRICHLET
+    PRESSURE hydrostatic
+    TEMPERATURE dirichlet
   /
   INTERPOLATION linear
   CYCLIC
@@ -163,7 +163,6 @@ MATERIAL_PROPERTY soil423
   THERMAL_COND_EXPONENT 4.5000000000000001d-01
   THERMAL_CONDUCTIVITY_FROZEN 2.0499999999999998d+00
   THERMAL_COND_EXPONENT_FROZEN 9.7238599999999994d-02
-  !SATURATION_FUNCTION sf4
   CHARACTERISTIC_CURVES sf4
   PERMEABILITY
     ISOTROPIC
@@ -179,7 +178,7 @@ SURFACE
 
 SURFACE_FLOW
 SURF_GRID
-  TYPE UNSTRUCTURED ./mesh_simple1D.h5
+  TYPE unstructured ./mesh_simple1D.h5
 END
 SURF_FLOW_FORMULATION diffusive
 SURF_SUBSURFACE_COUPLING
@@ -208,7 +207,7 @@ END
 SURF_FLOW_CONDITION atm_rain_forcing
   TYPE
     RATE volumetric_rate
-    TEMPERATURE DIRICHLET
+    TEMPERATURE dirichlet
   /
   RATE 0.d0
   TEMPERATURE 10.d0
@@ -216,15 +215,15 @@ END
 SURF_FLOW_CONDITION atm_energy_forcing
   TYPE
     RATE volumetric_rate
-    TEMPERATURE HETEROGENEOUS_DIRICHLET
+    TEMPERATURE heterogeneous_dirichlet
   /
   RATE 0.d0
   TEMPERATURE 10.d0
 END
 SURF_FLOW_CONDITION surf_initial
   TYPE
-    PRESSURE DIRICHLET
-    TEMPERATURE DIRICHLET
+    PRESSURE dirichlet
+    TEMPERATURE dirichlet
   /
   PRESSURE 101325.d0
   TEMPERATURE 10.d0

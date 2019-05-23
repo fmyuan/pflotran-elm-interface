@@ -1,5 +1,5 @@
 module Time_Storage_module
- 
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -249,8 +249,6 @@ subroutine TimeStorageUpdate(time_storage)
   implicit none
   
   type(time_storage_type) :: time_storage
-  
-  PetscInt :: irank
   PetscInt :: cur_time_index
   PetscInt :: next_time_index
   

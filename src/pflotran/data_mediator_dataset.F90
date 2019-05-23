@@ -4,7 +4,7 @@ module Data_Mediator_Dataset_class
   use PFLOTRAN_Constants_module
   use Data_Mediator_Base_class
   use Dataset_Global_HDF5_class
-  
+
   implicit none
 
   private
@@ -67,7 +67,7 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
   do
@@ -126,8 +126,8 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   
   class(dataset_base_type), pointer :: dataset_base_ptr
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode :: ierr
-  
+
+  !-------------------------------------------------------------------
   if (.not.associated(data_mediator%dataset)) then
     option%io_buffer = 'A "global" DATASET does not exist for ' // &
       'MASS_TRANSFER object "' // trim(data_mediator%name) // '".'
@@ -261,8 +261,6 @@ recursive subroutine DataMediatorDatasetStrip(this)
   implicit none
   
   class(data_mediator_dataset_type) :: this
-  
-  PetscErrorCode :: ierr
   
   ! update the next one
   if (associated(this%next)) then

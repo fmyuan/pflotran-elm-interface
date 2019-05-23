@@ -1,12 +1,6 @@
 module Solver_module
- 
-#include "petsc/finclude/petscsys.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define KSP_DIVERGED_PCSETUP_FAILED KSP_DIVERGED_PC_FAILED
-#define PCGetSetUpFailedReason PCGetFailedReason
-#endif
+
 #include "petsc/finclude/petscts.h"
-  use petscsys
   use petscts
   use PFLOTRAN_Constants_module
   use CPR_Preconditioner_module
@@ -35,7 +29,6 @@ module Solver_module
     PetscReal :: newton_inf_upd_tol    ! infinity tolerance for update
     PetscReal :: newton_inf_rel_update_tol ! infinity norm on relative update (c(i)-c(i-1))/c(i-1)
     PetscReal :: newton_inf_scaled_res_tol ! infinity norm on scale residual (r(i)/accum(i))
-    PetscReal :: newton_inf_res_tol_sec  ! infinity tolerance for secondary continuum residual
     PetscInt :: newton_max_iterations     ! maximum number of iterations
     PetscInt :: newton_min_iterations     ! minimum number of iterations
     PetscInt :: newton_maxf      ! maximum number of function evaluations
@@ -142,7 +135,7 @@ function SolverCreate()
   solver%newton_inf_upd_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_rel_update_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
-  solver%newton_inf_res_tol_sec = 1.d-10
+
   solver%newton_max_iterations = PETSC_DEFAULT_INTEGER
   solver%newton_min_iterations = 1
   solver%newton_maxf = PETSC_DEFAULT_INTEGER
@@ -260,6 +253,14 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetErrorIfNotConverged(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
   endif
 
+  ! allow override from command line
+  call KSPSetFromOptions(solver%ksp,ierr);CHKERRQ(ierr)
+  call PCSetFromOptions(solver%pc,ierr);CHKERRQ(ierr)
+    
+  ! get the ksp_type and pc_type incase of command line override.
+  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
+  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
+
   ! Set the tolerances for the Newton solver.
   call SNESSetTolerances(solver%snes, solver%newton_atol, solver%newton_rtol, &
                          solver%newton_stol,solver%newton_max_iterations, &
@@ -289,14 +290,7 @@ subroutine SolverSetSNESOptions(solver, option)
   
   ! allow override from command line; for some reason must come before
   ! LineSearchParams, or they crash
-  ! Note that SNESSetFromOptions() calls KSPSetFromOptions(), which calls
-  ! PCSetFromOptions(), so these should not be called separately (doing so
-  ! causes unintended results when PCCOMPOSITE is used).
   call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
-
-  ! get the ksp_type and pc_type incase of command line override.
-  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
-  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
 
   if (solver%linear_shift) then
     ! the below must come after SNESSetFromOptions
@@ -434,53 +428,7 @@ subroutine SolverReadLinear(solver,input,option)
   select case(solver%itype)
     case(FLOW_CLASS)
       prefix = '-flow_'
-    case(TRANSPORT_CLASS)
-      prefix = '-tran_'
   end select
-
-  if(option%flow%resdef) then
-    ! Can be expanded on later.
-    ! Set to fgmres and cpr solver options, and some sensible
-    ! defaults for fgmres
-
-    option%io_buffer = 'LINEAR_SOLVER: applying common defaults &
-                       &(RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-    ! 1) CPR preconditioner
-    solver%pc_type = PCSHELL
-    allocate(solver%cprstash)
-    call SolverCPRInitializeStorage(solver%cprstash)
-    option%io_buffer = 'LINEAR_SOLVER: PC has beeen set to CPR &
-                       &(RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-    ! 2) FGMRES linear solver
-    solver%ksp_type = KSPFGMRES
-    option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set &
-                       &to FGMRES (RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-    ! 3) ksp modified gs
-    string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
-    word = ''
-    call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                              trim(string),trim(word),ierr);CHKERRQ(ierr)
-    option%io_buffer = 'LINEAR_SOLVER: FGMRES option modified Gram &
-                       &Schmidt enabled (RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-    ! 4) ksp restart a bit bigger, say 100 - though note can be too 
-    !    big for limited memory systems/large models
-    string = trim(prefix) // 'ksp_gmres_restart'
-    word = '100'
-    call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
-                              trim(string),trim(word), &
-                              ierr);CHKERRQ(ierr)
-    option%io_buffer = 'LINEAR_SOLVER: FGMRES restart value set to &
-                       &100 (RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-    option%io_buffer = 'LINEAR_SOLVER: end of setting RESERVOIR_DEFAULTS &
-      &defaults. Note these may be overwritten if there is other input &
-      &in the LINEAR_SOLVER card.'
-    call printMsg(option)
-   endif
 
   input%ierr = 0
   do
@@ -526,12 +474,6 @@ subroutine SolverReadLinear(solver,input,option)
             call printErrMsg(option)
         end select
 
-        if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: SOLVER TYPE has been changed, &
-            &overwritting the RESERVOIR_DEFAULTS default'
-          call printMsg(option)
-        endif
-
       case('PRECONDITIONER_TYPE','PRECONDITIONER','PC','PC_TYPE')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'pc_type','LINEAR SOLVER')   
@@ -562,12 +504,6 @@ subroutine SolverReadLinear(solver,input,option)
                                 ' unknown.'
             call printErrMsg(option)
         end select
-
-        if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: PRECONDITIONER has been changed, &
-            &overwritting the RESERVOIR_DEFAULTS default'
-          call printMsg(option)
-        endif
 
       case('HYPRE_OPTIONS')
         do
@@ -890,10 +826,6 @@ subroutine SolverReadLinear(solver,input,option)
         call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                   trim(string),trim(word), &
                                   ierr);CHKERRQ(ierr)
-        if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: GMRES_RESTART has been changed, overwritting the RESERVOIR_DEFAULTS default'
-          call printMsg(option)
-        endif
 
       case('GMRES_MODIFIED_GS')
         ! Equivalent to 
@@ -932,7 +864,7 @@ subroutine SolverReadNewton(solver,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word, word2
+  character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: error_string
   PetscBool :: boolean
 
@@ -1013,21 +945,6 @@ subroutine SolverReadNewton(solver,input,option)
           'now specific to each process model and must be defined in ' // &
           'the SIMULATION/PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block.'
         call printErrMsg(option)
-
-      case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
-        if (.not.option%use_mc) then
-          option%io_buffer = 'NEWTON ITOL_SEC not supported without ' // &
-            'MULTIPLE_CONTINUUM keyword.'
-          call printErrMsg(option)
-        endif
-        if (.not.solver%itype == TRANSPORT_CLASS) then
-          option%io_buffer = 'NEWTON ITOL_SEC supported in ' // &
-            'TRANSPORT only.'
-          call printErrMsg(option)        
-        endif         
-        call InputReadDouble(input,option,solver%newton_inf_res_tol_sec)
-        call InputErrorMsg(input,option,'newton_inf_res_tol_sec', &
-                           'NEWTON_SOLVER')
    
       case('MAXF')
         call InputReadInt(input,option,solver%newton_maxf)
@@ -1069,8 +986,7 @@ subroutine SolverReadNewton(solver,input,option)
           case('SHELL')
              solver%Jpre_mat_type = MATSHELL
           case default
-            option%io_buffer  = 'Preconditioner Matrix type: ' // &
-              trim(word) // ' unknown.'
+            option%io_buffer  = 'Preconditioner Matrix type: ' // trim(word) // ' unknown.'
             call printErrMsg(option)
         end select
         
@@ -1162,10 +1078,10 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   strings(4) = 'rtol: '// StringWrite(solver%linear_rtol)
   strings(5) = 'dtol: '// StringWrite(solver%linear_dtol)
   strings(6) = 'maximum iteration: ' // &
-                                   StringWrite(solver%linear_max_iterations)
+               StringWrite(solver%linear_max_iterations)
   if (Initialized(solver%linear_zero_pivot_tol)) then
     strings(7) = 'zero pivot tolerance: ' // &
-                                   StringWrite(solver%linear_zero_pivot_tol)
+                  StringWrite(solver%linear_zero_pivot_tol)
   endif
   call StringsCenter(strings,30,':')
   call StringWriteToUnits(fids,strings)
@@ -1578,8 +1494,6 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             select case(solver%itype)
               case(FLOW_CLASS)
                 string = 'Flow'
-              case(TRANSPORT_CLASS)
-                string = 'Transport'
             end select
             call PCFactorGetZeroPivot(pc,zero_pivot_tol, &
                                       ierr);CHKERRQ(ierr)

@@ -71,7 +71,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
   use String_module
   
 ! 64-bit stuff
@@ -95,11 +94,6 @@ subroutine OutputHDF5(realization_base,var_list_type)
 
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
-  integer(HSIZE_T) :: dims(3)
   
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -113,21 +107,15 @@ subroutine OutputHDF5(realization_base,var_list_type)
   Vec :: global_vec_vx
   Vec :: global_vec_vy
   Vec :: global_vec_vz
-  Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
-  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   PetscReal, pointer :: array(:)
   PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
   PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_err
   PetscBool :: first
-  PetscInt :: ivar, isubvar, var_type
+  PetscInt :: ivar
   PetscBool :: include_gas_phase
   PetscErrorCode :: ierr
 
@@ -252,7 +240,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   end select
 
   include_gas_phase = PETSC_FALSE
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nphase > 1) then
     include_gas_phase = PETSC_TRUE
   endif
   if (output_option%print_hdf5_vel_cent .and. &
@@ -371,7 +359,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   PetscInt, intent(in) :: var_list_type
   character(len=MAXSTRINGLENGTH) :: filename
   PetscBool, intent(out) :: first
-  PetscErrorCode :: ierr
 
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
@@ -459,7 +446,6 @@ subroutine OutputHDF5CloseFile(option, file_id)
   type(option_type), intent(in) :: option
   integer(HID_T), intent(in) :: file_id
   integer :: hdf5_err
-  PetscErrorCode :: ierr
 
   call h5fclose_f(file_id, hdf5_err)
   call h5close_f(hdf5_err)
@@ -482,7 +468,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -504,17 +490,8 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   PetscInt :: var_list_type
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: memory_space_id
-  integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
-  integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3)
 
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -527,23 +504,16 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   Vec :: global_vec
   Vec :: global_vec_vx,global_vec_vy,global_vec_vz
   Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
 
   character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
-  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
   PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
   PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_err  
   PetscBool :: first
-  PetscInt :: ivar, isubvar, var_type
-  PetscInt :: vert_count
+  PetscInt :: ivar
   Vec :: ivec
   PetscErrorCode :: ierr
 
@@ -880,7 +850,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -902,17 +872,11 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   PetscInt :: var_list_type
 
   integer(HID_T) :: file_id, new_file_id, file_id2
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id, new_grp_id, grp_id2
+  integer(HID_T) :: grp_id, new_grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id, new_prop_id
-  PetscMPIInt :: rank
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3), max_dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3)
 
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -924,25 +888,16 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   Vec :: global_vec
   Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
 
   character(len=MAXSTRINGLENGTH) :: filename_path, filename_header
   character(len=MAXSTRINGLENGTH) :: xmf_filename, att_datasetname, group_name
   character(len=MAXSTRINGLENGTH) :: domain_filename_path, domain_filename_header
   character(len=MAXSTRINGLENGTH) :: string, string2,string3
   character(len=MAXWORDLENGTH) :: word
-  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
-  PetscReal, pointer :: array(:)
-  PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
   PetscMPIInt, parameter :: ON=1, OFF=0
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_err  
   PetscBool :: first
-  PetscInt :: ivar, isubvar, var_type
-  PetscInt :: istart
-  PetscInt :: vert_count
+  PetscInt :: ivar
   PetscBool :: write_xdmf
   PetscBool :: include_cell_centers
   PetscInt :: num_vertices, num_cells
@@ -1315,8 +1270,6 @@ subroutine WriteHDF5FluxVelocities(name,realization_base,iphase,direction, &
   integer(HID_T) :: file_id
 
   PetscInt :: i, j, k
-  PetscInt :: count, iconn
-  PetscInt :: local_id, ghosted_id
   PetscInt :: nx_local, ny_local, nz_local
   PetscInt :: nx_global, ny_global, nz_global
   PetscErrorCode :: ierr
@@ -1450,7 +1403,6 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   integer(HSIZE_T) :: dims(3)
   PetscMPIInt :: rank
   integer :: hdf5_err
-  PetscMPIInt :: hdf5_flag
   PetscErrorCode :: ierr
   
   call PetscLogEventBegin(logging%event_output_coordinates_hdf5, &
@@ -1491,277 +1443,6 @@ end subroutine WriteHDF5Coordinates
 
 ! ************************************************************************** !
 
-subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
-  ! 
-  ! This subroutine writes unstructured coordinates to HDF5 file
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 05/31/12
-  ! 
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use hdf5
-  use Grid_module
-  use Option_module
-  use Grid_Unstructured_Aux_module
-  use HDF5_module, only : trick_hdf5
-  use Variables_module
-  
-  implicit none
-
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-
-  integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: memory_space_id
-  integer(HID_T) :: data_set_id
-  integer(HID_T) :: prop_id
-  integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
-  PetscMPIInt :: hdf5_flag
-  PetscMPIInt, parameter :: ON=1, OFF=0
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscMPIInt :: hdf5_err  
-
-  PetscInt :: local_size
-  PetscInt :: istart
-  PetscInt :: i,j
-  PetscReal, pointer :: vec_x_ptr(:),vec_y_ptr(:),vec_z_ptr(:)
-  PetscReal, pointer :: double_array(:)
-  Vec :: global_x_vertex_vec,global_y_vertex_vec,global_z_vertex_vec
-
-  PetscReal, pointer :: vec_ptr(:)
-  Vec :: global_vec, natural_vec
-  ! must be 'integer' so that ibuffer does not switch to 64-bit integers 
-  ! when PETSc is configured with --with-64-bit-indices=yes.
-  integer, pointer :: int_array(:)
-  type(ugdm_type),pointer :: ugdm_element
-  PetscErrorCode :: ierr
-
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%unstructured_grid%num_vertices_global, &
-                    global_x_vertex_vec,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%unstructured_grid%num_vertices_global, &
-                    global_y_vertex_vec,ierr);CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
-                    grid%unstructured_grid%num_vertices_global, &
-                    global_z_vertex_vec,ierr);CHKERRQ(ierr)
-
-  call VecGetLocalSize(global_x_vertex_vec,local_size,ierr);CHKERRQ(ierr)
-  call VecGetLocalSize(global_y_vertex_vec,local_size,ierr);CHKERRQ(ierr)
-  call VecGetLocalSize(global_z_vertex_vec,local_size,ierr);CHKERRQ(ierr)
-
-  call OutputGetVertexCoordinates(grid, global_x_vertex_vec,X_COORDINATE,option)
-  call OutputGetVertexCoordinates(grid, global_y_vertex_vec,Y_COORDINATE,option)
-  call OutputGetVertexCoordinates(grid, global_z_vertex_vec,Z_COORDINATE,option)
-
-  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
-
-  ! memory space which is a 1D vector
-  rank_mpi = 1
-  dims = 0
-  dims(1) = local_size * 3
-  call h5screate_simple_f(rank_mpi,dims,memory_space_id,hdf5_err,dims)
-   
-  ! file space which is a 3D block
-  rank_mpi = 2
-  dims = 0
-  dims(2) = grid%unstructured_grid%num_vertices_global
-  dims(1) = 3
-  call h5pcreate_f(H5P_DATASET_CREATE_F,prop_id,hdf5_err)
-
-  string = "Vertices" // CHAR(0)
-
-  call h5eset_auto_f(OFF,hdf5_err)
-  call h5dopen_f(file_id,string,data_set_id,hdf5_err)
-  hdf5_flag = hdf5_err
-  call h5eset_auto_f(ON,hdf5_err)
-  if (hdf5_flag < 0) then
-    call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
-    call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
-                     data_set_id,hdf5_err,prop_id)
-  else
-    call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
-  endif
-
-  call h5pclose_f(prop_id,hdf5_err)
-  
-  istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
-
-  start(2) = istart
-  start(1) = 0
-  
-  length(2) = local_size
-  length(1) = 3
-  
-  stride = 1
-  call h5sselect_hyperslab_f(file_space_id,H5S_SELECT_SET_F,start,length, &
-                             hdf5_err,stride,stride)
-
-    ! write the data
-  call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  if (trick_hdf5) then
-    call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F, &
-                            hdf5_err)
-  else
-    call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_COLLECTIVE_F, &
-                            hdf5_err)
-  endif
-#endif
-
-  allocate(double_array(local_size*3))
-  
-  do i=1,local_size
-    double_array((i-1)*3+1) = vec_x_ptr(i)
-    double_array((i-1)*3+2) = vec_y_ptr(i)
-    double_array((i-1)*3+3) = vec_z_ptr(i)
-  enddo
-  
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-  call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,double_array,dims, &
-                  hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-
-  deallocate(double_array)
-  call h5pclose_f(prop_id,hdf5_err)
-
-  
-  call h5dclose_f(data_set_id,hdf5_err)
-  call h5sclose_f(file_space_id,hdf5_err)
-
-  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
-
-
-  call VecDestroy(global_x_vertex_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(global_y_vertex_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(global_z_vertex_vec,ierr);CHKERRQ(ierr)
-
-
-  !
-  !  Write elements
-  !
-  call UGridCreateUGDM(grid%unstructured_grid,ugdm_element,EIGHT_INTEGER,option)
-  call UGridDMCreateVector(grid%unstructured_grid,ugdm_element,global_vec, &
-                           GLOBAL,option)
-  call UGridDMCreateVector(grid%unstructured_grid,ugdm_element,natural_vec, &
-                           NATURAL,option)
-  call OutputGetCellVertices(grid,global_vec)
-  call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
-
-  local_size = grid%unstructured_grid%nlmax
-   
-  ! memory space which is a 1D vector
-  rank_mpi = 1
-  dims = 0
-  dims(1) = local_size*NINE_INTEGER
-  call h5screate_simple_f(rank_mpi,dims,memory_space_id,hdf5_err,dims)
-   
-  ! file space which is a 3D block
-  rank_mpi = 2
-  dims = 0
-  dims(2) = grid%unstructured_grid%nmax
-  dims(1) = NINE_INTEGER
-  call h5pcreate_f(H5P_DATASET_CREATE_F,prop_id,hdf5_err)
-
-  string = "Cells" // CHAR(0)
-
-  call h5eset_auto_f(OFF,hdf5_err)
-  call h5dopen_f(file_id,string,data_set_id,hdf5_err)
-  hdf5_flag = hdf5_err
-  call h5eset_auto_f(ON,hdf5_err)
-  if (hdf5_flag < 0) then 
-    call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
-    call h5dcreate_f(file_id,string,H5T_NATIVE_INTEGER,file_space_id, &
-                     data_set_id,hdf5_err,prop_id)
-  else
-    call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
-  endif
-
-  call h5pclose_f(prop_id,hdf5_err)
-  
-  istart = 0
-  call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
-
-  start(2) = istart
-  start(1) = 0
-  
-  length(2) = local_size
-  length(1) = NINE_INTEGER
-  
-  stride = 1
-  call h5sselect_hyperslab_f(file_space_id,H5S_SELECT_SET_F,start,length, &
-                             hdf5_err,stride,stride)
-
-    ! write the data
-  call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  if (trick_hdf5) then
-    call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F, &
-                            hdf5_err)
-  else
-    call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_COLLECTIVE_F, &
-                            hdf5_err)
-  endif
-#endif
-
-  allocate(int_array(local_size*NINE_INTEGER))
-  
-  do i=1,local_size
-    int_array((i-1)*9 + 1) = 0
-    int_array((i-1)*9 + 2) = INT(vec_ptr((i-1)*8+1))
-    int_array((i-1)*9 + 3) = INT(vec_ptr((i-1)*8+2))
-    int_array((i-1)*9 + 4) = INT(vec_ptr((i-1)*8+3))
-    int_array((i-1)*9 + 5) = INT(vec_ptr((i-1)*8+4))
-    int_array((i-1)*9 + 6) = INT(vec_ptr((i-1)*8+5))
-    int_array((i-1)*9 + 7) = INT(vec_ptr((i-1)*8+6))
-    int_array((i-1)*9 + 8) = INT(vec_ptr((i-1)*8+7))
-    int_array((i-1)*9 + 9) = INT(vec_ptr((i-1)*8+8))
-    do j=2,9
-      if (int_array((i-1)*9 + j)>0) int_array((i-1)*9 + 1)= int_array((i-1)*9 + 1) +1
-    enddo
-  enddo
-  
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
-                  hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-
-  deallocate(int_array)
-  call h5pclose_f(prop_id,hdf5_err)
-
-  
-  call h5dclose_f(data_set_id,hdf5_err)
-  call h5sclose_f(file_space_id,hdf5_err)
-
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
-  call UGridDMDestroy(ugdm_element)
-
-end subroutine WriteHDF5CoordinatesUGrid
-
-! ************************************************************************** !
-
 subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   ! 
   ! This routine writes unstructured coordinates to HDF5 file in XDMF format
@@ -1785,16 +1466,13 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
@@ -2367,16 +2045,13 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   type(option_type), pointer :: option
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
@@ -2629,64 +2304,38 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   PetscInt :: var_list_type  
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(grid_unstructured_type),pointer :: ugrid
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  type(coupler_type), pointer :: boundary_condition
-  type(ugdm_type),pointer :: ugdm
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-  PetscInt :: idual
-  PetscInt :: iconn
-  PetscInt :: face_id
-  PetscInt :: local_id_up,local_id_dn
-  PetscInt :: ghosted_id_up,ghosted_id_dn
-  PetscInt :: iface_up,iface_dn
   PetscInt :: dof
-  PetscInt :: sum_connection
   PetscInt :: offset
-  PetscInt :: cell_type
   PetscInt :: local_size
   PetscInt :: i
   PetscInt :: iface
   PetscInt :: ndof
 
-  PetscReal, pointer :: flowrates(:,:,:)
   PetscReal, pointer :: vec_ptr1(:)
   PetscReal, pointer :: vec_ptr2(:)
   PetscReal, pointer :: double_array(:)
-  PetscReal :: dtime
   PetscInt :: istart
-
   PetscBool :: mass_flowrate
   PetscBool :: energy_flowrate
-
-  Vec :: global_flowrates_vec
-  Vec :: natural_flowrates_vec
-
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
-  
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: unit_string
 
   patch => realization_base%patch
   grid => patch%grid
@@ -2695,8 +2344,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
   select case(option%iflowmode)
-    case (RICHARDS_MODE,RICHARDS_TS_MODE)
-      ndof=1
     case (TH_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate .and. &
@@ -2733,8 +2380,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
-        string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
       case(TH_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
@@ -2876,63 +2521,34 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   PetscInt :: var_list_type
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: data_type
-  integer(HID_T) :: grp_id
   integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(grid_unstructured_type),pointer :: ugrid
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  type(coupler_type), pointer :: boundary_condition
-  type(ugdm_type),pointer :: ugdm
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
 
-  PetscInt :: local_id
-  PetscInt :: ghosted_id
-  PetscInt :: idual
-  PetscInt :: iconn
-  PetscInt :: face_id
-  PetscInt :: local_id_up,local_id_dn
-  PetscInt :: ghosted_id_up,ghosted_id_dn
-  PetscInt :: iface_up,iface_dn
   PetscInt :: iphase
-  PetscInt :: sum_connection
   PetscInt :: offset
-  PetscInt :: cell_type
   PetscInt :: local_size
   PetscInt :: i
   PetscInt :: idir
   PetscInt :: istart
   PetscInt :: iface
-
-  PetscReal, pointer :: flowrates(:,:,:)
-  PetscReal, pointer :: vx_ptr(:)
-  PetscReal, pointer :: vy_ptr(:)
-  PetscReal, pointer :: vz_ptr(:)
   PetscReal, pointer :: vec_ptr1(:)
   PetscReal, pointer :: double_array(:)
-  PetscReal :: dtime
-
-  Vec :: global_flowrates_vec
-  Vec :: natural_flowrates_vec
-
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
-
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: unit_string
   character(len=1) :: string_dir
 
   patch => realization_base%patch
@@ -2941,11 +2557,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   output_option =>realization_base%output_option
   field => realization_base%field
 
-  if (option%nphase == 1 .and. option%transport%nphase > 1) then
-    option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
-      &transport without flow in the gas phase.'
-    call printErrMsg(option)
-  endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
   local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)
 
@@ -3098,10 +2709,9 @@ subroutine OutputHDF5Provenance(option, output_option, file_id)
   type(output_option_type), intent(in) :: output_option
   integer(HID_T), intent(in) :: file_id
 
-  character(len=32) :: filename, name
-  integer(HID_T) :: prop_id, provenance_id, string_type
+  character(len=32) :: name
+  integer(HID_T) :: provenance_id, string_type
   PetscMPIInt :: hdf5_err
-  PetscBool :: first
   integer(SIZE_T) :: size_t_int
 
   ! create the provenance group
@@ -3220,7 +2830,7 @@ subroutine OutputHDF5Provenance_input(option, pflotran_id)
 
   integer(HID_T) :: input_string_type
   type(input_type), pointer :: input
-  PetscInt :: i, input_line_count
+  PetscInt :: input_line_count
   character(len=MAXSTRINGLENGTH), allocatable :: input_buffer(:)
   PetscMPIInt :: hdf5_err
   integer(SIZE_T) :: size_t_int

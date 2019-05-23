@@ -58,6 +58,24 @@ subroutine AuxVarFlowInit(this,option)
   class(auxvar_flow_type) :: this
   type(option_type) :: option
 
+  nullify(this%pres)
+  nullify(this%pc)
+  nullify(this%sat)
+  nullify(this%den)
+  nullify(this%den_kg)
+  nullify(this%mobility)
+  nullify(this%viscosity)
+  nullify(this%table_idx)
+
+  nullify(this%D_pres)
+  nullify(this%D_sat)
+  nullify(this%D_pc)
+  nullify(this%D_den)
+  nullify(this%D_den_kg)
+  nullify(this%D_mobility)
+  nullify(this%D_por)
+
+  !
   allocate(this%pres(option%nphase))
   this%pres = 0.d0
   allocate(this%pc(option%nphase - ONE_INTEGER))
@@ -100,8 +118,45 @@ subroutine AuxVarFlowInit(this,option)
     this%D_por = 0.d0
   endif
 
-
 end subroutine AuxVarFlowInit
+
+! ************************************************************************** !
+subroutine AuxVarFlowCopy(auxvar, auxvar2,option)
+  !
+  ! dupliacate energy auxiliary variables
+  !
+  ! Author: Paolo Orsini
+  ! Date: 11/07/16
+  !
+
+  use Option_module
+
+  implicit none
+
+  type(auxvar_flow_type) :: auxvar
+  type(auxvar_flow_type) :: auxvar2
+
+  type(option_type) :: option
+
+  auxvar2%pres = auxvar%pres
+  auxvar2%pc = auxvar%pc
+  auxvar2%sat = auxvar%sat
+  auxvar2%den = auxvar%den
+  auxvar2%den_kg = auxvar%den_kg
+  auxvar2%mobility = auxvar%mobility
+  auxvar2%viscosity = auxvar%viscosity
+  if(associated(auxvar%table_idx)) auxvar2%table_idx = auxvar%table_idx
+  if (auxvar%has_derivs) then
+    auxvar2%D_pres = auxvar%D_pres
+    auxvar2%D_sat  = auxvar%D_sat
+    auxvar2%D_pc   = auxvar%D_pc
+    auxvar2%D_den  = auxvar%D_den
+    auxvar2%D_den_kg   = auxvar%D_den_kg
+    auxvar2%D_mobility = auxvar%D_mobility
+    auxvar2%D_por      = auxvar%D_por
+  endif
+
+end subroutine AuxVarFlowCopy
 
 ! ************************************************************************** !
 

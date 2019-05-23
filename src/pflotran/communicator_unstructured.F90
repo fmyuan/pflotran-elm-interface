@@ -222,7 +222,6 @@ subroutine UnstructuredAONaturalToPetsc(this,array)
   class(unstructured_communicator_type) :: this
   PetscInt :: array(:)
 
-  AO :: ao
   PetscInt :: n
   PetscErrorCode :: ierr
   
@@ -246,8 +245,6 @@ subroutine UnstructuredCommunicatorDestroy(this)
   implicit none
   
   class(unstructured_communicator_type) :: this
-  
-  PetscErrorCode :: ierr
   
   !geh: all DMs are currently destroyed in realization.  This DM is solely
   !     a pointer.  This will need to change, but skip for now.

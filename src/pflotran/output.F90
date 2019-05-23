@@ -5,10 +5,8 @@ module Output_module
   use Logging_module 
   use Output_Aux_module
 
- ! use Output_Surface_module
   use Output_HDF5_module
   use Output_Tecplot_module
-  use Output_VTK_module
   use Output_Observation_module
   
   use PFLOTRAN_Constants_module
@@ -21,16 +19,8 @@ module Output_module
   PetscInt, parameter :: TECPLOT_INTEGER = 0
   PetscInt, parameter :: TECPLOT_REAL = 1
 
-  PetscInt, parameter :: VTK_INTEGER = 0
-  PetscInt, parameter :: VTK_REAL = 1
-
   PetscInt, parameter :: TECPLOT_FILE = 0
-  PetscInt, parameter ::  HDF5_FILE = 1
-
-  
-  PetscBool :: observation_first
-  PetscBool :: hdf5_first
-  PetscBool :: mass_balance_first
+  PetscInt, parameter :: HDF5_FILE = 1
 
   public :: OutputInit, &
             Output, &
@@ -109,16 +99,16 @@ subroutine OutputFileRead(input,realization,output_option, &
   PetscReal, pointer :: temp_real_array(:)
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: units, internal_units
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion,deltat
-  PetscInt :: k,deltas
+  PetscReal :: units_conversion
+  PetscInt :: k
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
 
   option => realization%option
   patch => realization%patch
@@ -140,8 +130,6 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
-    case('ECLIPSE_FILE')
-      output_option%write_ecl = PETSC_TRUE
   end select
 
   do
@@ -176,18 +164,7 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-
-      case('WRITE_MASS_RATES')
-        select case(trim(block_name))
-          case('MASS_BALANCE_FILE')
-            output_option%write_masses = PETSC_TRUE
-        end select
-
-      case('FORMATTED')
-        select case(trim(block_name))
-          case('ECLIPSE_FILE')
-            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
-        end select
+        
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
@@ -368,46 +345,6 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
         end select
 
-      case('PERIOD_SUM','PERIOD_RST')
-        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
-        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
-        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'periodic time increment type',string)
-        call StringToUpper(word)
-        select case(trim(word))
-          case('TIME')
-            deltat = -1.0
-            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
-            call InputReadDouble(input,option,temp_real)
-            call InputErrorMsg(input,option,'time increment',string)
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'time increment units',string)
-            internal_units = 'sec'
-            units_conversion = UnitsConvertToInternal(word, &
-                 internal_units,option)
-            deltat = temp_real*units_conversion
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltat = deltat
-              output_option%eclipse_options%write_ecl_sum_deltas = -1
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltat = deltat
-              output_option%eclipse_options%write_ecl_rst_deltas = -1
-            endif
-          case('TIMESTEP')
-            deltas = -1
-            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
-              call InputReadInt(input,option,deltas)
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltas = deltas
-              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltas = deltas
-              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-            endif
-        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -509,9 +446,6 @@ subroutine OutputFileRead(input,realization,output_option, &
               output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
             endif
         !.............
-          case ('VTK')
-            output_option%print_vtk = PETSC_TRUE
-        !.............
           case default
             call InputKeywordUnrecognized(word,string,option)
         end select
@@ -586,8 +520,6 @@ subroutine OutputFileRead(input,realization,output_option, &
          output_option%print_tecplot_vel_cent = PETSC_TRUE
     if (output_option%print_hdf5) &
          output_option%print_hdf5_vel_cent = PETSC_TRUE
-    if (output_option%print_vtk) &
-         output_option%print_vtk_vel_cent = PETSC_TRUE
   endif
 
   if (vel_face) then
@@ -614,8 +546,8 @@ subroutine OutputFileRead(input,realization,output_option, &
     endif
   endif
 
-  if (mass_flowrate .or. energy_flowrate .or. aveg_mass_flowrate .or. &
-      aveg_energy_flowrate .or. fluxes) then
+  if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate &
+       .or.aveg_energy_flowrate) then
     if (output_option%print_hdf5) then
       output_option%print_hdf5_mass_flowrate = mass_flowrate
       output_option%print_hdf5_energy_flowrate = energy_flowrate
@@ -629,8 +561,8 @@ subroutine OutputFileRead(input,realization,output_option, &
           call printErrMsg(option)
         endif
       endif
+      option%flow%store_fluxes = PETSC_TRUE
     endif
-    option%flow%store_fluxes = PETSC_TRUE
     if (associated(grid%unstructured_grid%explicit_grid)) then
       option%flow%store_fluxes = PETSC_TRUE
       output_option%print_explicit_flowrate = mass_flowrate
@@ -1100,17 +1032,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
       case ('LIQUID_RELATIVE_PERMEABILITY')
-        units = ''
+        units = '-'
         name = 'Liquid Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     LIQUID_RELATIVE_PERMEABILITY)
+                                     LIQUID_REL_PERM)
       case ('GAS_RELATIVE_PERMEABILITY')
-        units = ''
+        units = '-'
         name = 'Gas Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     GAS_RELATIVE_PERMEABILITY)
+                                     GAS_REL_PERM)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1174,17 +1106,6 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable_list%flow_vars = PETSC_FALSE
       case('NO_ENERGY_VARIABLES')
         output_variable_list%energy_vars = PETSC_FALSE
-      case ('SALINITY')
-        if (.not.option%flow%density_depends_on_salinity) then
-          option%io_buffer = 'SALINITY output only supported when the &
-            &SALINITY auxiliary process model is used.'
-          call PrintErrMsg(option)
-        endif
-        units = ''
-        name = 'Salinity (mass fraction)'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     SALINITY)
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
@@ -1292,18 +1213,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
             tend-tstart
       call printMsg(option)        
     endif
-
-    if (realization_base%output_option%print_vtk) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_vtk,ierr);CHKERRQ(ierr)
-      call OutputVTK(realization_base)
-
-      call PetscLogEventEnd(logging%event_output_vtk,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to VTK file(s)")') &
-            tend-tstart
-      call printMsg(option) 
-    endif
       
     if (realization_base%output_option%print_mad) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
@@ -1316,24 +1225,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
                              &file(s)")') tend-tstart
       call printMsg(option) 
     endif
-    
-    ! Print secondary continuum variables vs sec. continuum dist.
-    if (option%use_mc) then
-      if (realization_base%output_option%print_tecplot) then
-        call PetscTime(tstart,ierr);CHKERRQ(ierr)
-        call PetscLogEventBegin(logging%event_output_secondary_tecplot, &
-                                ierr);CHKERRQ(ierr)
-        call OutputSecondaryContinuumTecplot(realization_base)
-        call PetscLogEventEnd(logging%event_output_secondary_tecplot, &
-                              ierr);CHKERRQ(ierr)
-        call PetscTime(tend,ierr);CHKERRQ(ierr)
-        write(option%io_buffer,'(f10.2," Seconds to write to secondary' // &
-              ' continuum Tecplot file(s)")') &
-              tend-tstart
-        call printMsg(option) 
-      endif
-    endif
-      
+
     if (option%compute_statistics) then
       call ComputeFlowCellVelocityStats(realization_base)
       call ComputeFlowFluxVelocityStats(realization_base)
@@ -1349,17 +1241,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 !.................................
   if (massbal_plot_flag) then
     call OutputMassBalance(realization_base)
-  endif
-
-  !  Output Eclipse files for this step if required
-  if( realization_base%output_option%write_ecl ) then
-    call OutputEclipseFiles(realization_base)
-  endif
-
-  ! Output single-line report for this step if required
-  if (option%linerept) then
-    option%print_to_screen = PETSC_FALSE
-    call OutputLineRept(realization_base,option)
   endif
 
   ! Output temporally average variables 
@@ -1519,10 +1400,6 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   if (output_option%print_mad) then
     write(id,'(a29)',advance='no') 'format: '
     write(id,'(a)') 'mad'
-  endif
-  if (output_option%print_vtk) then
-    write(id,'(a29)',advance='no') 'format: '
-    write(id,'(a)') 'vtk'
   endif
   write(id,'(a29)',advance='no') 'periodic timestep: '
   if (output_option%periodic_snap_output_ts_imod == 100000000) then
@@ -1705,7 +1582,7 @@ subroutine OutputMAD(realization_base)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
   use Variables_module
   use Output_Common_module, only : OutputGetVariableArray
  
@@ -1725,33 +1602,22 @@ subroutine OutputMAD(realization_base)
   class(realization_base_type) :: realization_base
 
   integer(HID_T) :: file_id
-  integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
+
   integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
   PetscMPIInt, parameter :: ON=1, OFF=0
-  integer(HSIZE_T) :: dims(3)
   
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
+
   type(output_option_type), pointer :: output_option
   
   Vec :: global_vec
-  Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
-  PetscReal, pointer :: array(:)
-  PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
-  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_flag 
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
@@ -1761,7 +1627,7 @@ subroutine OutputMAD(realization_base)
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
-  reaction => realization_base%reaction
+
   output_option => realization_base%output_option
 
 #define ALL
@@ -1851,9 +1717,9 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   type(patch_type), pointer :: patch  
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  PetscInt :: iconn, i, direction, iphase, sum_connection
+  PetscInt :: iconn, direction, iphase, sum_connection
   PetscInt :: local_id_up, local_id_dn, local_id
-  PetscInt :: ghosted_id_up, ghosted_id_dn, ghosted_id
+  PetscInt :: ghosted_id_up, ghosted_id_dn
   PetscReal :: flux
   Vec :: global_vec, global_vec2
 
@@ -1861,7 +1727,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   PetscInt :: max_loc, min_loc
   character(len=MAXSTRINGLENGTH) :: string
   
-  PetscReal, pointer :: vec_ptr(:), vec2_ptr(:), den_loc_p(:)
+  PetscReal, pointer :: vec_ptr(:)
   PetscReal, allocatable :: sum_area(:)
   PetscErrorCode :: ierr
   
@@ -2013,7 +1879,6 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   type(discretization_type), pointer :: discretization  
   type(output_option_type), pointer :: output_option
   
-  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   
   PetscInt :: iphase
@@ -2136,8 +2001,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
-  use General_Aux_module
-  use WIPP_Flow_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -2169,22 +2032,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
-      iauxvars(1) = RICHARDS_PRESSURE_DOF
-      auxvar_names(1) = 'pressure'
-    case(G_MODE)
+    case(TH_MODE)
       allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
+      iauxvars(1) = TH_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
+      iauxvars(2) = TH_TEMPERATURE_DOF
       auxvar_names(2) = 'temperature'
-    case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
-      auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
-      auxvar_names(2) = 'gas_saturation'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
@@ -2411,6 +2264,7 @@ subroutine OutputAvegVars(realization_base)
     output_option%aveg_var_dtime=0.d0
 
   endif
+
 
 end subroutine OutputAvegVars
 

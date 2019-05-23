@@ -18,7 +18,6 @@ module HDF5_module
 #error "PETSc must be configured with HDF5 to run PFLOTRAN"
 #endif
   PetscMPIInt :: hdf5_err
-  PetscMPIInt :: io_rank
       
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -189,8 +188,8 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
   integer(HID_T) :: memory_space_id
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
-  integer(HSIZE_T) :: dims(3),mem_dims(3)
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi  
+  integer(HSIZE_T) :: dims(3)
+  PetscMPIInt :: rank_mpi
   PetscInt :: i, j, k, count, id
   integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscInt :: ny_local_X_nz_local
@@ -337,7 +336,6 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
   PetscInt :: dataset_size
   integer(HID_T) :: file_id
   PetscInt, pointer :: indices(:)
-  PetscInt :: num_indices
   
   integer(HID_T) :: file_space_id
   integer(HID_T) :: memory_space_id
@@ -467,7 +465,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   PetscInt :: dataset_size
   integer(HID_T) :: file_id
   PetscInt, pointer :: indices(:)
-  PetscInt :: num_indices
   Vec :: global_vec
   integer(HID_T) :: data_type 
   
@@ -632,8 +629,6 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
 
-  PetscBool :: grp_exists
-
   ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
@@ -696,17 +691,11 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   type(option_type), pointer :: option
   type(region_type) :: region
   character(len=MAXSTRINGLENGTH) :: filename
-
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch  
-
   character(len=MAXSTRINGLENGTH) :: string 
-
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id, grp_id2
   integer(HID_T) :: prop_id
-
-  PetscInt :: num_integers
   PetscBool :: grp_exists
 
   call PetscLogEventBegin(logging%event_region_read_hdf5,ierr);CHKERRQ(ierr)
@@ -816,7 +805,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   PetscMPIInt :: rank_mpi
   PetscInt :: remainder
   PetscInt :: istart, iend, ii, jj
-  PetscInt, pointer :: int_buffer_1d(:)
+
   ! must be 'integer' so that ibuffer does not switch to 64-bit integers
   ! when PETSc is configured with --with-64-bit-indices=yes.
   integer, pointer :: int_buffer_2d(:,:)
@@ -996,11 +985,8 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
   integer(HID_T) :: prop_id
-
   PetscLogDouble :: tstart, tend
-  
   PetscInt, pointer :: indices(:)
-  PetscInt, allocatable :: integer_array(:)
   
   nullify(indices)
 
@@ -1137,9 +1123,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   integer(HID_T) :: prop_id
 
   PetscLogDouble :: tstart, tend
-  
   PetscInt, pointer :: indices(:)
-  PetscReal, allocatable :: real_array(:)
   
   nullify(indices)
 
@@ -1308,13 +1292,10 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   Vec :: vec
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
-  
-  type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  PetscReal, pointer :: vec_ptr(:)
   
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscReal, pointer :: vec_ptr(:)
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
   integer(HID_T) :: data_set_id
@@ -1449,12 +1430,10 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
 
-  type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
   PetscReal, pointer :: vec_ptr(:)
 
-  PetscMPIInt :: rank_mpi,file_space_rank_mpi
+  PetscMPIInt :: rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
   integer(HID_T) :: data_set_id

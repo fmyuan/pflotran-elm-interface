@@ -50,30 +50,22 @@ module PFLOTRAN_Constants_module
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0
   PetscReal, parameter, public :: FMWH2O = 18.01534d0  ! kg/kmol h2o
-  PetscReal, parameter, public :: FMWCO2 = 44.0098d0
   PetscReal, parameter, public :: FMWAIR = 28.96d0
-  PetscReal, parameter, public :: FMWGLYC = 76.09d0 ! propylene glycol (C3H8O2)
-  PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
 
   ! constants
   PetscReal, parameter, public :: DAYS_PER_YEAR = 365.d0
-!geh: for bragflo year
-!  PetscReal, parameter, public :: DAYS_PER_YEAR = 365.24224537d0
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
-#if defined(MATCH_TOUGH2)
-  PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
-#else
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.064d6 ! Pa
-#endif
 
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
-  PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0  
+  PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0
+
+  PetscReal, parameter, public :: TC2TK = 273.15d0  ! temperature from oC to K
   
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
-!to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
@@ -117,14 +109,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TIME_T = 1
   PetscInt, parameter, public :: TIME_TpDT = 2
   
-  PetscInt, parameter, public :: SORPTION_LINEAR = 1
-  PetscInt, parameter, public :: SORPTION_LANGMUIR = 2
-  PetscInt, parameter, public :: SORPTION_FREUNDLICH  = 3
-  
   ! Classes
   PetscInt, parameter, public :: NULL_CLASS = 0
   PetscInt, parameter, public :: FLOW_CLASS = 1
-  PetscInt, parameter, public :: TRANSPORT_CLASS = 2
   
   ! Macros that are used as 'dm_index' values.  --RTM
   PetscInt, parameter, public :: ONEDOF = 1
@@ -142,27 +129,8 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: NULL_MODE = 0
   
   ! flow modes
-  PetscInt, parameter, public :: MPH_MODE = 1
-  PetscInt, parameter, public :: RICHARDS_MODE = 2
-  PetscInt, parameter, public :: IMS_MODE = 3
-  PetscInt, parameter, public :: FLASH2_MODE = 4
-  PetscInt, parameter, public :: G_MODE = 5
-  PetscInt, parameter, public :: MIS_MODE = 6
-  PetscInt, parameter, public :: TH_MODE = 7
-  PetscInt, parameter, public :: TOIL_IMS_MODE = 8
-  PetscInt, parameter, public :: TOWG_MODE = 9
-  PetscInt, parameter, public :: WF_MODE = 10
-  PetscInt, parameter, public :: RICHARDS_TS_MODE = 11
+  PetscInt, parameter, public :: TH_MODE = 2
 
-  ! flow sub-modes
-  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
-
-  ! transport modes
-  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
-  
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
   PetscInt, parameter, public :: DIRICHLET_BC = 1
@@ -188,23 +156,12 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
   PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
-  PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
-  PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
-  PetscInt, parameter, public :: WELL_MASS_RATE_MIN = 26
-  PetscInt, parameter, public :: WELL_VOL_RATE_TARGET = 27
-  PetscInt, parameter, public :: WELL_VOL_RATE_MAX = 28
-  PetscInt, parameter, public :: WELL_VOL_RATE_MIN = 29
-  PetscInt, parameter, public :: WELL_BHP = 30
-  PetscInt, parameter, public :: WELL_BHP_MIN = 31
-  PetscInt, parameter, public :: WELL_BHP_MAX = 32
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
   PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
   PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
-  
-  PetscInt, parameter, public :: WELL_SS = 100
-  
+
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
   PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
@@ -217,39 +174,19 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
   
   ! dofs for each mode
-  PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
-  PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
-  PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-  
   PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
   PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
   PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
+  PetscInt, parameter, public :: TH_ENTHALPY_DOF = 4
 
-  PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
-  
-  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
-  
-  PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
-  
-  ! mphase equation of state
-  PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
-  PetscInt, parameter, public :: EOS_MRK = 2
-  
   ! phase ids
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
-  PetscInt, parameter, public :: OIL_PHASE = 3
-  PetscInt, parameter, public :: SOLVENT_PHASE = 4
+  PetscInt, parameter, public :: SOLID_PHASE = 3
 
-  PetscInt, parameter, public :: MAX_PHASE = 4
+  PetscInt, parameter, public :: MAX_PHASE = 3
   
-  ! approaches to coupling reactive transport
+  ! approaches to coupling transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
   PetscInt, parameter, public :: OPERATOR_SPLIT = 1
   
@@ -267,20 +204,13 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE    = 1
   
   PetscInt, parameter, public :: DECOUPLED     = 0
-  PetscInt, parameter, public :: SEQ_COUPLED = 1
+  PetscInt, parameter, public :: SEQ_COUPLED   = 1
   PetscInt, parameter, public :: FULLY_COUPLED = 2
   
   PetscInt, parameter, public :: KINEMATIC_WAVE = 1
   PetscInt, parameter, public :: DIFFUSION_WAVE = 2
   
   PetscReal, parameter, public :: MIN_SURFACE_WATER_HEIGHT = 1.0d-14
-
-  ! print secondary continuum variable ids
-  PetscInt, parameter, public :: PRINT_SEC_TEMP =           0
-  PetscInt, parameter, public :: PRINT_SEC_CONC =           1
-  PetscInt, parameter, public :: PRINT_SEC_MIN_VOLFRAC =    2
-  PetscInt, parameter, public :: PRINT_SEC_MIN_RATE =       3
-  PetscInt, parameter, public :: PRINT_SEC_MIN_SI =         4
   
   PetscInt, parameter, public :: PROCEED = 0
   PetscInt, parameter, public :: DONE = 1
@@ -299,18 +229,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: VERTEX_CENTERED_OUTPUT_MESH = 1
   PetscInt, parameter, public :: CELL_CENTERED_OUTPUT_MESH = 2
 
-  ! Geomechanics
-  PetscInt, parameter, public :: GEOMECH_DISP_X_DOF = 1
-  PetscInt, parameter, public :: GEOMECH_DISP_Y_DOF = 2
-  PetscInt, parameter, public :: GEOMECH_DISP_Z_DOF = 3
-  PetscInt, parameter, public :: GEOMECH_ONE_WAY_COUPLED = 4
-  PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
-
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
   PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
-  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
-  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 4
   
   ! Ice/water/vapor partitioning model
   PetscInt, parameter, public :: PAINTER_EXPLICIT = 1

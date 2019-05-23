@@ -11,26 +11,20 @@ module Global_Aux_module
   type, public :: global_auxvar_type
     PetscInt :: istate
     PetscReal :: temp
-    PetscReal, pointer :: pres(:)
+    PetscReal, pointer :: pres(:)           ! (nphase)
     PetscReal, pointer :: pres_store(:,:)
     PetscReal, pointer :: temp_store(:)
     PetscReal, pointer :: sat(:)
-    PetscReal, pointer :: sat_store(:,:)
-    PetscReal, pointer :: den(:)  ! kmol/m^3
-    PetscReal, pointer :: den_kg(:) ! kg/m^3
+    PetscReal, pointer :: sat_store(:,:)    ! (nphase, timesteps)
+    PetscReal, pointer :: den(:)            ! kmol/m^3
+    PetscReal, pointer :: den_kg(:)         ! kg/m^3
     PetscReal, pointer :: den_store(:,:)
     PetscReal, pointer :: den_kg_store(:,:)
     PetscReal, pointer :: fugacoeff(:)
     PetscReal, pointer :: fugacoeff_store(:,:)
-    PetscReal, pointer :: m_nacl(:)
-    PetscReal, pointer :: xmass(:)
-    PetscReal, pointer :: mass_balance(:,:) ! kg
+    PetscReal, pointer :: xmass(:)          ! for convertion from molarity (moles/L solution) to molality(moles/kg solvent)
+    PetscReal, pointer :: mass_balance(:,:) ! kg (nflowspec, nphase)
     PetscReal, pointer :: mass_balance_delta(:,:) ! kmol
-    PetscReal, pointer :: reaction_rate(:)
-    PetscReal, pointer :: reaction_rate_store(:)
-    PetscReal, pointer :: dphi(:,:) !geh: why here?
-!geh    PetscReal :: scco2_eq_logK ! SC CO2
-    PetscBool :: istatechng
   end type global_auxvar_type
   
   type, public :: global_type
@@ -105,7 +99,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
   
   auxvar%istate = 0
   auxvar%temp = 0.d0
-  auxvar%istatechng = PETSC_FALSE
 
   ! nullify everthing to begin with and allocate later
   nullify(auxvar%pres)
@@ -119,20 +112,17 @@ subroutine GlobalAuxVarInit(auxvar,option)
   nullify(auxvar%den_kg_store)
   nullify(auxvar%fugacoeff)
   nullify(auxvar%fugacoeff_store)
-  nullify(auxvar%m_nacl)
   nullify(auxvar%xmass)
-  nullify(auxvar%reaction_rate)
-  nullify(auxvar%reaction_rate_store)
   nullify(auxvar%mass_balance)
   nullify(auxvar%mass_balance_delta)
-  nullify(auxvar%dphi)
 
-  nphase = max(option%nphase,option%transport%nphase)
+  nphase = option%nphase
 
   if (option%nflowdof > 0) then
     allocate(auxvar%den(nphase))
     auxvar%den = 0.d0
   endif
+
   allocate(auxvar%pres(nphase))
   auxvar%pres = 0.d0
   allocate(auxvar%sat(nphase))
@@ -140,83 +130,22 @@ subroutine GlobalAuxVarInit(auxvar,option)
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
 
-  ! need these for reactive transport only if if flow if computed
-  if (option%nflowdof > 0 .and. option%ntrandof > 0) then
-    allocate(auxvar%sat_store(nphase,TWO_INTEGER))
-    auxvar%sat_store = 0.d0
-    allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
-    auxvar%den_kg_store = 0.d0
-  endif
  
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
-!      if (option%ntrandof > 0) then
-!        allocate(auxvar%den_store(nphase,TWO_INTEGER))
-!        auxvar%den_store = 0.d0
-!      endif
-    case(IMS_MODE, MPH_MODE, FLASH2_MODE)
-      allocate(auxvar%xmass(nphase))
-      auxvar%xmass = 1.d0
-      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-      auxvar%pres_store = option%reference_pressure
-      allocate(auxvar%temp_store(TWO_INTEGER))
-      auxvar%temp_store = 0.d0
-      allocate(auxvar%fugacoeff(ONE_INTEGER))
-      auxvar%fugacoeff = 1.d0
-      allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
-      auxvar%fugacoeff_store = 1.d0    
-      allocate(auxvar%den_store(nphase,TWO_INTEGER))
-      auxvar%den_store = 0.d0
-      allocate(auxvar%m_nacl(TWO_INTEGER))
-      auxvar%m_nacl = option%m_nacl
-      allocate(auxvar%reaction_rate(option%nflowspec))
-      auxvar%reaction_rate = 0.d0
-      allocate(auxvar%reaction_rate_store(option%nflowspec))
-      auxvar%reaction_rate_store = 0.d0
+      !
     case(TH_MODE)
-    ! allocate(auxvar%xmass(nphase))
-    ! auxvar%xmass = 1.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))
       auxvar%pres_store = 0.d0
       allocate(auxvar%temp_store(TWO_INTEGER))
       auxvar%temp_store = 0.d0
-    ! allocate(auxvar%fugacoeff(ONE_INTEGER))
-    ! auxvar%fugacoeff = 1.d0
-    ! allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
-    ! auxvar%fugacoeff_store = 1.d0    
       allocate(auxvar%den_store(nphase,TWO_INTEGER))
       auxvar%den_store = 0.d0
-    ! allocate(auxvar%m_nacl(TWO_INTEGER))
-    ! auxvar%m_nacl = option%m_nacl
       nullify(auxvar%xmass)
       nullify(auxvar%fugacoeff)
       nullify(auxvar%fugacoeff_store)
-      nullify(auxvar%m_nacl)
-      nullify(auxvar%reaction_rate)
-      nullify(auxvar%reaction_rate_store)  
-    case (G_MODE)
-      if (option%ntrandof > 0) then
-        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-        auxvar%pres_store = 0.d0
-        allocate(auxvar%temp_store(TWO_INTEGER))
-        auxvar%temp_store = 0.d0
-!geh: these are allocated above        
-!geh        allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
-!geh        auxvar%den_kg_store = 0.d0
-      endif
-    case (WF_MODE)
-      if (option%ntrandof > 0) then
-        allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-        auxvar%pres_store = 0.d0
-      endif
     case default
   end select
-  
-  if (option%flow%density_depends_on_salinity) then
-    allocate(auxvar%m_nacl(ONE_INTEGER))
-    auxvar%m_nacl = 0.d0
-  endif
-  
+
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
     allocate(auxvar%mass_balance(option%nflowspec,nphase))
     auxvar%mass_balance = 0.d0
@@ -249,17 +178,7 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%sat = auxvar%sat
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
-  auxvar2%istatechng = auxvar%istatechng
-!  auxvar2%dphi = auxvar%dphi
   
-  if (associated(auxvar2%reaction_rate)) then
-    auxvar2%reaction_rate = auxvar%reaction_rate
-  endif
-  
-  if (associated(auxvar2%m_nacl)) then
-    auxvar2%m_nacl = auxvar%m_nacl
-  endif
-
   if (associated(auxvar2%fugacoeff)) then
     auxvar2%fugacoeff = auxvar%fugacoeff  
   endif
@@ -364,10 +283,7 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%den)
   call DeallocateArray(auxvar%fugacoeff)
   call DeallocateArray(auxvar%den_kg)
-  call DeallocateArray(auxvar%m_nacl)
   call DeallocateArray(auxvar%xmass)
-  call DeallocateArray(auxvar%reaction_rate)
-  call DeallocateArray(auxvar%dphi)
 
   call DeallocateArray(auxvar%pres_store)
   call DeallocateArray(auxvar%temp_store)
@@ -375,7 +291,6 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%sat_store)
   call DeallocateArray(auxvar%den_kg_store)
   call DeallocateArray(auxvar%den_store)
-  call DeallocateArray(auxvar%reaction_rate_store)
   
   call DeallocateArray(auxvar%mass_balance)
   call DeallocateArray(auxvar%mass_balance_delta)

@@ -1,7 +1,7 @@
 module Timestepper_BE_class
- 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+
   use Solver_module
   use Convergence_module
   use Timestepper_Base_class
@@ -158,15 +158,6 @@ subroutine TimestepperBERead(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
-
-  if (option%flow%resdef) then
-    option%io_buffer = 'TIMESTEPPER CARD: applying common defaults (RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-    this%iaccel=100
-    option%io_buffer = 'TIMESTEPPER CARD: TS_ACCELERATION as been set to 100 (RESERVOIR_DEFAULTS)'
-    call printMsg(option)
-  endif
-
   input%ierr = 0
   do
   
@@ -183,10 +174,6 @@ subroutine TimestepperBERead(this,input,option)
       case('TS_ACCELERATION')
         call InputReadInt(input,option,this%iaccel)
         call InputDefaultMsg(input,option,'iaccel')
-        if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: TS_ACCELERATION has been changed, overwritting the RESERVOIR_DEFAULTS default'
-          call printMsg(option)
-        endif
 
       case('DT_FACTOR')
         string='time_step_factor'
@@ -299,12 +286,12 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
-  PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
+  PetscInt :: sum_wasted_linear_iterations
   character(len=MAXWORDLENGTH) :: tunit
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
-  Vec :: residual_vec
+  !Vec :: residual_vec  !NOT NEEDED (fmy, 2018-09-06)
   PetscErrorCode :: ierr
 
 !fmy: for printing vecs if program stops
@@ -319,6 +306,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscErrorCode :: ierr2
   type(grid_type), pointer :: grid
 !fmy: for printing vecs if program stops
+  !residual_vec = tVec(0)  !NOT NEEDED (fmy, 2018-09-06) and also solved the unknown error below
   
   solver => this%solver
   option => process_model%option
@@ -386,11 +374,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         write(fileid_info, *) ' <-- SNES Solver ERROR @TimeStepperBEStepDT -->'
 
         write(fileid_info, *) 'Time(s): ', option%time, 'rank: ', option%myrank, 'Petsc ErrCode: ', ierr
-        ! not yet figure out how to get 'reaction_aux%ncomp' in
-        ! and either the 2 vecs are different for flow-transport model and reaction model
-        ! BE CAUTIOUS!
-        if (option%nflowdof>0 .or. option%ntrandof>0) then
-          cell_index = floor(real((max_res_index-1)/(option%nflowdof+option%ntrandof)))+1
+        if (option%nflowdof>0) then
+          cell_index = floor(real((max_res_index-1)/option%nflowdof))+1
 
           select type (pm => process_model)
             class is (pm_subsurface_flow_type)
@@ -416,20 +401,19 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           end select
 
           write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. --elem. no. -- solution_vec with max. res ----> '
-          do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                cell_index*(option%nflowdof+option%ntrandof)
+          do i=(cell_index-1)*(option%nflowdof)+1, &
+                cell_index*(option%nflowdof)
             write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), solution_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), solution_p(i)
           enddo
 
           write(fileid_info, *) '  '
           write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. --elem. no. -- max. residual_vec ----> '
-          do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                cell_index*(option%nflowdof+option%ntrandof)
+          do i=(cell_index-1)*option%nflowdof+1, cell_index*option%nflowdof
             write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), residual_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), residual_p(i)
           enddo
 
         endif
@@ -520,12 +504,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
             write(fileid_info, *) ' -- MIN. TIME-STEPS (sec.) reached --', this%dt
           endif
 
-
-          ! not yet figure out how to get 'reaction_aux%ncomp' in
-          ! and neither the 2 vecs are different for flow-transport model and reaction model
-          ! BE CAUTIOUS!
-          if (option%nflowdof>0 .or. option%ntrandof>0) then
-            cell_index = floor(real((max_res_index-1))/(option%nflowdof+option%ntrandof))+1
+          if (option%nflowdof>0) then
+            cell_index = floor(real((max_res_index-1))/option%nflowdof)+1
 
             select type (pm => process_model)
               class is (pm_subsurface_flow_type)
@@ -549,20 +529,20 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
             end select
 
             write(fileid_info, *) ' <--- cell offset ---- cell index --- vec. no. --elem. no. -- solution_vec with max. res ----> '
-            do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                 cell_index*(option%nflowdof+option%ntrandof)
+            do i=(cell_index-1)*(option%nflowdof)+1, &
+                 cell_index*(option%nflowdof)
               write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), solution_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), solution_p(i)
             enddo
 
             write(fileid_info, *) '  '
             write(fileid_info, *) ' <--- cell offset ---- cell index --- vec no. --elem. no. -- max. residual_vec ----> '
-            do i=(cell_index-1)*(option%nflowdof+option%ntrandof)+1, &
-                  cell_index*(option%nflowdof+option%ntrandof)
+            do i=(cell_index-1)*(option%nflowdof)+1, &
+                  cell_index*(option%nflowdof)
               write(fileid_info, *) cell_offset,'(', cell_offset_x,cell_offset_y,cell_offset_z,')', &
                 cell_index, '(',cell_i,cell_j,cell_k, ')', &
-                i, i-(cell_index-1)*(option%nflowdof+option%ntrandof), residual_p(i)
+                i, i-(cell_index-1)*(option%nflowdof), residual_p(i)
             enddo
           endif
 
@@ -596,13 +576,12 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
  
       this%target_time = this%target_time - this%dt
 
-      this%dt = this%time_step_reduction_factor * this%dt  
+      this%dt = this%time_step_reduction_factor * this%dt
 
 #ifndef CLM_PFLOTRAN
       write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-           &   1pe12.5)')  snes_reason,icut, &
-           this%cumulative_time_step_cuts+icut, &
+           &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
            option%time/tconv, &
            this%dt/tconv
       if (option%print_screen_flag) &
@@ -614,10 +593,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           select case(snes_reason)
             case(SNES_DIVERGED_FNORM_NAN)
               ! attempt to find cells with NaNs.
-              call SNESGetFunction(solver%snes,residual_vec, &
+              call SNESGetFunction(solver%snes,process_model%residual_vec, &
                                    PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
                                  ierr);CHKERRQ(ierr)
-              call OutputFindNaNOrInfInVec(residual_vec, &
+              call OutputFindNaNOrInfInVec(process_model%residual_vec, &
                                            process_model%realization_base% &
                                              discretization%grid,option)
           end select
@@ -648,15 +627,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  ! (2018-09-06, fmy) after updating TH mode, the following 'residual_vec' is NULL
+  !            when surf_subsurface simulation is on, because actually didn't associated with
+  !call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  !                     PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
+  call SNESGetFunction(solver%snes,process_model%residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
-
-!fmy: begining
-#ifndef CLM_PFLOTRAN
-  ! the following output produces a large ascii file if coupled with CLM
-
+  call VecNorm(process_model%residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  call VecNorm(process_model%residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
   if (option%print_screen_flag) then
       write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
            & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
@@ -682,26 +662,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
-#endif
-!fmy: ending
-
-
-  if (option%linerept) then
-    nnl = num_newton_iterations
-    if( nnl>0 ) then
-      lpernl = num_linear_iterations/nnl
-    else
-      lpernl = 0
-    endif
-    option%nnl      = nnl
-    option%linpernl = lpernl
-    option%nchperst = icut
-  endif
 
 !fmy: begining
 #ifndef CLM_PFLOTRAN
 ! the following output produces a large ascii file if coupled with CLM
-
   if (option%print_file_flag) then
     write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &
@@ -713,11 +677,11 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%cumulative_newton_iterations,sum_linear_iterations, &
       this%cumulative_linear_iterations,icut, &
       this%cumulative_time_step_cuts
-  endif
+  endif  
 #endif
 !fmy: ending
 
-
+  
   option%time = this%target_time
   call process_model%FinalizeTimestep()
   
@@ -832,8 +796,6 @@ subroutine TimestepperBESetHeader(this,bag,header)
   class(timestepper_BE_type) :: this
   class(stepper_BE_header_type) :: header
   PetscBag :: bag
-  
-  PetscErrorCode :: ierr
   
   header%cumulative_newton_iterations = this%cumulative_newton_iterations
   header%cumulative_linear_iterations = this%cumulative_linear_iterations
@@ -1223,7 +1185,7 @@ subroutine TimestepperBEPrintInfo(this,option)
   allocate(strings(this%ntfac+20))
   strings = '' 
   strings(1) = 'acceleration: ' // &
-                           StringWrite(String1Or2(this%iaccel>0,'on','off'))
+               StringWrite(String1Or2(this%iaccel>0,'on','off'))
   if (this%iaccel > 0) then
     strings(2) = 'acceleration threshold: ' // StringWrite(this%iaccel)
   endif
