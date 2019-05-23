@@ -151,7 +151,6 @@ module Grid_Grdecl_module
   public  :: GetCmplData
   public  :: DeallocatePoroPermArrays
   public  :: GetPoroPermValues
-  public  :: WriteStaticDataAndCleanup
   public  :: PermPoroExchangeAndSet
   public  :: GetSatnumSet, GetSatnumValue, SatnumExchangeAndSet
 
@@ -392,57 +391,6 @@ subroutine UGrdEclExplicitRead(unstructured_grid, filename, option)
   endif
 
 end subroutine UGrdEclExplicitRead
-
-! *************************************************************************** !
-
-subroutine WriteStaticDataAndCleanup(write_ecl, eclipse_options, option)
-  !
-  ! If Eclipse files are required, output grid and init files
-  ! Then clean up all the static data arrays which are no longer needed
-  !
-  ! Author: Dave Ponting
-  ! Date: 11/05/18
-  !
-  use Output_Aux_module, only : output_option_eclipse_type
-  use Output_Eclipse_module, only: WriteEclipseFilesGrid, &
-                                   WriteEclipseFilesInit, &
-                                   SelectFormattedFiles
-
-  implicit none
-
-  PetscBool, intent(in) :: write_ecl
-  type(output_option_eclipse_type), pointer :: eclipse_options
-  type(option_type) :: option
-
-  PetscInt  :: iw, nw, nctw, mcpw
-
-  character(len=MAXSTRINGLENGTH) :: efilename
-
-  ! Output the Eclipse grid and init files
-
-  if (option%myrank == option%io_rank) then
-    if (write_ecl) then
-      nw = g_nwell_data
-      mcpw = 1
-      do iw = 1, nw
-        nctw = GetGrdNCmpl(iw)
-        if (nctw > mcpw) mcpw = nctw
-      enddo
-      efilename = trim(option%global_prefix)//trim(option%group_prefix)
-      if (eclipse_options%write_ecl_form) call SelectFormattedFiles()
-      call WriteEclipseFilesGrid(efilename, g_nx, g_ny, g_nz, &
-                                 g_coord, g_zcorn, g_gtoa, nw, mcpw)
-      call WriteEclipseFilesInit(g_kx, g_ky, g_kz, g_mx, g_my, g_mz, &
-                                 g_zloc, g_poro, g_ntg, g_bvol, g_gtoa, g_atoc)
-    endif
-  endif
-
-  ! Free allocated memory
-
-  call DeallocateGridArrays  ()
-  call DeallocateActiveArrays()
-
-end subroutine WriteStaticDataAndCleanup
 
 ! *************************************************************************** !
 

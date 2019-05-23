@@ -73,10 +73,11 @@ dataset_map_hdf5.o : dataset_base.o dataset_common_hdf5.o hdf5_aux.o \
                      input_aux.o logging.o option.o pflotran_constants.o \
                      string.o time_storage.o units.o utility.o
 debug.o : input_aux.o option.o pflotran_constants.o string.o
-discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
-                   grid_unstructured_aux.o grid_unstructured_explicit.o \
-                   grid_unstructured_polyhedra.o input_aux.o material_aux.o \
-                   option.o pflotran_constants.o string.o
+discretization.o : dm_kludge.o grid.o grid_grdecl.o grid_structured.o \
+                   grid_unstructured.o grid_unstructured_aux.o \
+                   grid_unstructured_explicit.o grid_unstructured_polyhedra.o \
+                   input_aux.o material_aux.o option.o pflotran_constants.o \
+                   string.o
 dm_kludge.o : grid_unstructured_aux.o pflotran_constants.o
 eos.o : eos_database.o eos_gas.o \
         eos_water.o input_aux.o option.o pflotran_constants.o string.o
@@ -134,6 +135,10 @@ grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \
          grid_unstructured_explicit.o grid_unstructured_polyhedra.o logging.o \
          option.o pflotran_constants.o region.o utility.o
+grid_grdecl.o : grid_grdecl_util.o grid_unstructured_aux.o input_aux.o \
+                option.o output_aux.o pflotran_constants.o \
+                string.o utility.o
+grid_grdecl_util.o : pflotran_constants.o
 grid_structured.o : connection.o input_aux.o option.o pflotran_constants.o \
                     utility.o
 grid_unstructured.o : connection.o geometry.o grid_unstructured_aux.o \

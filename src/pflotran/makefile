@@ -185,7 +185,7 @@ endif
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
 ifndef fast
-  include pflotran_dependencies.txt
+  include $(SRC_DIR)/pflotran_dependencies.txt
 endif
 ###############################################################################
 # End Dependencies
@@ -224,7 +224,7 @@ check : FORCE
 	fi
 
 clean-pflotran :
-	-rm -f $(CLEANFILES) *.o *.mod *.a;
+	-rm -f $(CLEANFILES) *.o *.mod *.a *.gcov *.gcda *.gcno;
 
 # Flags
 echo-flags :

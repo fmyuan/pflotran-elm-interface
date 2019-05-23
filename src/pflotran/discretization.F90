@@ -136,6 +136,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Material_Aux_class
+  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
 
   implicit none
 
@@ -143,15 +145,19 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid
+  type(grid_type), pointer :: grid, grid2
   type(grid_structured_type), pointer :: str_grid
   type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
 
+  character(len=MAXSTRINGLENGTH) :: string
+
   PetscInt :: structured_grid_itype
   PetscInt :: unstructured_grid_itype
   PetscInt :: nx, ny, nz
+  PetscInt :: i
+  PetscReal :: tempreal
 
   nx = 0
   ny = 0
@@ -175,43 +181,48 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('TYPE')
         call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
-        call StringToLower(discretization%ctype)
+        call StringToUpper(discretization%ctype)
+        if (discretization%ctype == 'GRDECL') then
+          call SetIsGrdecl()
+          discretization%ctype = 'UNSTRUCTURED_EXPLICIT'
+        endif
         select case(trim(discretization%ctype))
-          case('structured')
+          case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
             call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
             call InputDefaultMsg(input,option,'grid_structured_type') 
-            call StringToLower(structured_grid_ctype)
+            call StringToUpper(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
-              case('cartesian')
+              case('CARTESIAN')
                 structured_grid_itype = CARTESIAN_GRID
-              case('cylindrical')
+              case('CYLINDRICAL')
                 structured_grid_itype = CYLINDRICAL_GRID
-              case('spherical')
+              case('SPHERICAL')
                 structured_grid_itype = SPHERICAL_GRID
               case default
                 structured_grid_itype = CARTESIAN_GRID
-                structured_grid_ctype = 'cartesian'
+                structured_grid_ctype = 'CARTESIAN'
             end select
-          case('unstructured','unstructured_explicit','unstructured_polyhedra')
+          case('UNSTRUCTURED','UNSTRUCTURED_EXPLICIT','UNSTRUCTURED_POLYHEDRA')
             discretization%itype = UNSTRUCTURED_GRID
             word = discretization%ctype
-            discretization%ctype = 'unstructured'
-            select case(word)
-              case('unstructured')
+            discretization%ctype = 'UNSTRUCTURED'
+            select case(trim(word))
+              case('UNSTRUCTURED')
                 unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'implicit unstructured'
-              case('unstructured_explicit')
+                unstructured_grid_ctype = 'IMPLICIT UNSTRUCTURED'
+              case('UNSTRUCTURED_EXPLICIT')
                 unstructured_grid_itype = EXPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'explicit unstructured'
-              case('unstructured_polyhedra')
+                unstructured_grid_ctype = 'EXPLICIT UNSTRUCTURED'
+              case('UNSTRUCTURED_POLYHEDRA')
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'polyhedra unstructured'
+                unstructured_grid_ctype = 'POLYHEDRA UNSTRUCTURED'
             end select
             call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
-            call InputKeywordUnrecognized(word,'discretization type',option)
+            call InputKeywordUnrecognized(discretization%ctype, &
+                                          'discretization type',option)
         end select    
       case('NXYZ')
         call InputReadInt(input,option,nx)
@@ -254,6 +265,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   grid => GridCreate()
   select case(discretization%itype)
     case(UNSTRUCTURED_GRID)
+      ! For unstructured grids, we cannot use the default 
+      ! TENSOR_TO_SCALAR_LINEAR for mapping the permeability tensor to 
+      ! a scalar. This can be overriden by the user during second read.
+      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,option)
       un_str_grid => UGridCreate()
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
@@ -265,8 +280,13 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          call UGridExplicitRead(un_str_grid, &
-                                 discretization%filename,option)
+          if (GetIsGrdecl()) then
+            call UGrdEclExplicitRead(un_str_grid, &
+                                     discretization%filename,option)
+          else
+            call UGridExplicitRead(un_str_grid, &
+                                   discretization%filename,option)
+          endif
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
@@ -281,6 +301,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)      
+      call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
 
 #ifdef CLM_PFLOTRAN
 
@@ -363,9 +384,17 @@ subroutine DiscretizationRead(discretization,input,option)
   type(input_type), pointer :: input
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
-  type(grid_type), pointer :: grid
+  type(grid_type), pointer :: grid, grid2
+  type(grid_structured_type), pointer :: str_grid
+  type(grid_unstructured_type), pointer :: un_str_grid
+  character(len=MAXWORDLENGTH) :: structured_grid_ctype
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: string
+
+  PetscInt :: structured_grid_itype
   PetscInt :: nx, ny, nz
   PetscInt :: i
+  PetscReal :: tempreal
   PetscBool :: bounds_read
   PetscBool :: dxyz_read
 
@@ -594,7 +623,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
         call StringToUpper(word)
-        select case(word)
+        select case(trim(word))
           case('FACE_CENTER_PROJECTION')
             discretization%grid%unstructured_grid%upwind_fraction_method = &
               UGRID_UPWIND_FRACTION_PT_PROJ
@@ -613,12 +642,15 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
         call StringToUpper(word)
-        select case(word)
+        select case(trim(word))
           case('LINEAR')
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
-          case('QUADRATIC')
-            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_QUADRATIC,&
-                                              option)
+          case('FLOW')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_FLOW,&
+                              option)
+          case('POTENTIAL')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,&
+                              option)
           case default
             call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)

@@ -942,8 +942,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
 
   PetscReal, pointer :: radius(:)
 
-  PetscReal :: tempreal
-
   radius => xc
 
   ! the adjustments in the case of AMR are based on the PIMS code adjustments by LC

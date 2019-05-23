@@ -38,6 +38,7 @@ module PM_Subsurface_Flow_class
     PetscReal :: saturation_change_limit
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
+    PetscInt :: logging_verbosity
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
@@ -67,6 +68,7 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowInitializeTimestepB, &
             PMSubsurfaceFlowFinalizeTimestep, &
             PMSubsurfaceFlowPreSolve, &
+            PMSubsurfaceFlowCheckConvergence, &
             PMSubsurfaceFlowInitializeRun, &
             PMSubsurfaceFlowUpdateSolution, &
             PMSubsurfaceFlowUpdatePropertiesNI, &
@@ -113,7 +115,8 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
-  
+  this%logging_verbosity = 0
+
   call PMBaseInit(this)
 
 end subroutine PMSubsurfaceFlowCreate
@@ -132,6 +135,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Option_module
+  use AuxVars_Flow_module
   use Upwind_Direction_module
  
   implicit none
@@ -152,6 +156,10 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('MAX_PRESSURE_CHANGE')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputDefaultMsg(input,option,'dpmxe')
+      if (option%flow%resdef) then
+        option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, overwritting the RESERVOIR_DEFAULTS default'
+        call printMsg(option)
+      endif
 
     case('MAX_TEMPERATURE_CHANGE')
       call InputReadDouble(input,option,this%temperature_change_governor)
@@ -191,9 +199,39 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
+      if (option%flow%resdef) then
+        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, overwritting the RESERVOIR_DEFAULTS default'
+        call printMsg(option)
+      endif
 
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
+
+    case('RESERVOIR_DEFAULTS')
+      option%flow%resdef = PETSC_TRUE
+      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under process model options'
+      call printMsg(option)
+
+      option%flow%numerical_derivatives = PETSC_FALSE
+      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has been automatically selected (RESERVOIR_DEFAULTS)'
+      call printMsg(option)
+
+      this%pressure_change_governor=5.5d6
+      call InputDefaultMsg(input,option,'dpmxe')
+      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has been set to 5.5D6 (RESERVOIR_DEFAULTS)'
+      call printMsg(option)
+
+    case('ANALYTICAL_DERIVATIVES')
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
+        &use ANALYTICAL_JACOBIAN instead.'
+
+    case('ANALYTICAL_JACOBIAN_COMPARE')
+      option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    ! artifact from testing, currently does nothing; will be used again
+    ! in future testing/implementation phases.
+    case('NUMERICAL_AS_ALYT')
+      option%flow%num_as_alyt_derivs = PETSC_TRUE
 
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
@@ -204,6 +242,23 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
+
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+    case('LOGGING_VERBOSITY')
+      call InputReadInt(input,option,this%logging_verbosity)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('DEBUG_TOL')
+      call InputReadDouble(input,option,flow_aux_debug_tol)
+      call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
+    case('DEBUG_RELTOL')
+      call InputReadDouble(input,option,flow_aux_debug_reltol)
+      call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
+
+    case('GEOMETRIC_PENALTY')
+      flow_aux_use_GP= PETSC_TRUE
 
     case('REVERT_PARAMETERS_ON_RESTART')
       this%revert_parameters_on_restart = PETSC_TRUE
@@ -236,6 +291,9 @@ subroutine PMSubsurfaceFlowSetup(this)
   
   ! set the communicator
   this%comm1 => this%realization%comm1
+  if (this%option%flow%transient_porosity) then
+    this%store_porosity_for_ts_cut = PETSC_TRUE
+  endif
   
 end subroutine PMSubsurfaceFlowSetup
 

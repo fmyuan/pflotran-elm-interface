@@ -17,6 +17,11 @@ module Option_Flow_module
     PetscBool :: only_vertical_flow
     PetscBool :: density_depends_on_salinity
     PetscBool :: numerical_derivatives
+    PetscBool :: numerical_derivatives_compare
+    PetscBool :: num_as_alyt_derivs
+    PetscBool :: resdef
+    PetscBool :: flowSolverLinearDone
+    PetscBool :: flowTimestepperDone
 
     PetscBool :: isothermal_eq
     PetscBool :: only_thermal_eq
@@ -102,6 +107,11 @@ subroutine OptionFlowInitRealization(option)
   option%only_vertical_flow = PETSC_FALSE
   option%density_depends_on_salinity = PETSC_FALSE
   option%numerical_derivatives = PETSC_FALSE
+  option%numerical_derivatives_compare = PETSC_FALSE
+  option%num_as_alyt_derivs = PETSC_FALSE
+  option%resdef = PETSC_FALSE
+  option%flowSolverLinearDone = PETSC_FALSE
+  option%flowTimestepperDone = PETSC_FALSE
   option%isothermal_eq   = PETSC_FALSE
   option%only_thermal_eq = PETSC_FALSE
 

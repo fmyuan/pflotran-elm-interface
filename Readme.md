@@ -4,62 +4,60 @@ This is repository for coupling PFLOTRAN into CLM in DOE sponsored NGEE-Arctic P
 
 The model coupling aims to provide a full alternative solution for CLM-CN's surface-subsurface C/N biogeochemistry and thermal-hydrology, i.e. PFLOTRAN.
 
-This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-PFLOTRAN-NGEE-SCI repository.
+This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM repository, branch /fmyuan/lnd/elm-pflotran.
 
-***UPDATE: (2017-06-27) The coupling with ACME Land Model (ALM) now is working.***
+***UPDATE: (2019-04-05) The coupling with E3SM Land Model (ELM) now is working.***
 
 ### Branches and Versions ###
 
-* The repository contains ONE(1) stable branch for release and FOUR(4) branches for development:
+* The repository contains master and FIVE(5) branches for different versions of PETSc:
 
-***default-release-v3.7***
+***master*** 
+
+ - the most updated PFLOTRAN codes forked from https://bitbucket.org/pflotran/pflotran
+ - only a few minor changes. 
+ - NOT suggested to use coupling run, rather as a stand-alone PFLOTRAN. 
+ - updated: **2019-04-01**
+
+***(1) pflotran-elm-interface*** 
+
+ - the current development version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (C) portion. 
+ - **PFLOTRAN**: It's keeping updating with master, and with most recent ***PETSc-dev***
+
+***(2)default-release-v3.7***
  - The current STABLE version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (BGC) portion. 
  - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.x**.
  - Stable CLM Version: **CLM4_5_35**. (2017-04-25).  *STATUS*: TH & BGC coupling is STABLE. 
- - Target ALM Version: **ALM v1**. (Commit # a4e5c4d. 2017-06-27).  *STATUS*: STABLE for ```BGC```. (2017-06-27); UNDER test for ```TH mode``` 
+ - Target ELM Version: **ELM v1**.  *STATUS*: STABLE for ```BGC```. (2017-06-27); UNDER test for ```TH mode``` 
 
-  
-***(1) default*** 
-
- - the most updated PFLOTRAN codes, with ***PETSc-dev*** version **3.8**
- - only added CLM-PFLOTRAN grid/mesh coupling. 
- - NOT suggested to use coupling run, rather as a stand-alone PFLOTRAN. 
- - updated: **2017-10-04**
+***(3)default-release-v3.8***
+ - for BGC coupled PFLOTRAN, with PETSc 3.8.x. TH coupling is not available.
+ - It's working with **ELM v1.1 above**. May not be working with CLM.
  
-
-***(2) default-bgc*** 
- - the current develop version for coupling subsurface BGC between CLM and PFLOTRAN (both soil thermal-hydrology are from CLM45, so NO transport BUT can have diffusion). 
- - **PFLOTRAN**: same as 'default'. It's with most recent ***PETSc-dev*** version **3.8**
- - Current Version of **CLM: 4.5.35**
- - STATUS: **stable**
+***(4)default-release-v3.9***
+ - for BGC coupled PFLOTRAN, with PETSc 3.9.x. TH coupling is not available.
+ - It's working with **ELM v1.1 above**. May not be working with CLM.
  
-
-***(3) default-thc*** 
-
- - the current development version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (C) portion. 
- - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.x**.
- - Stable CLM Version: **CLM4_5_35**. (2017-04-25).  *STATUS*: TH & BGC coupling is STABLE. 
- - Target ALM Version: **ALM v1**. (Commit # a4e5c4d. 2017-06-27).  *STATUS*: UNDER test for TH mode; STABLE for BGC. (2017-06-27) 
 
 ***(3) default-light*** 
 
- - **Light-weight version** of 'default-thc'.  The purpose is to slim the full package of PFLOTRAN-dev for ONLY **THREE (3) MODES:** Richards-MODE, TH-MODE, and CHEMISTRY (i.e. BGC).
+ - **Light-weight version** of PFLOTRAN-elm-interface (Currently updated on Jan-14-2019).  The purpose is to slim the full package of PFLOTRAN-dev for ONLY **THREE (3) MODES:** Richards-MODE, TH-MODE, and CHEMISTRY (i.e. BGC).
 
 
 ### How do I get set up? ###
 
-**(1)** *git clone the repository* using your 3-digit XCAMS/UCAMS id and pwd.
+**(1)** *git clone the repository*
 ```
-git clone https://code.ornl.gov/alm-pflotran/pflotran-interface
+git clone https://github.com/fmyuan/pflotran-elm-interface.git
 ```
 
-**(2)** *git checkout branch 'default-release-v3.7'*
+**(2)[OPTIONAL]** *git checkout your specific branch, e.g. 'default-release-v3.7'*
 ```
 cd pflotran-interface
 git checkout default-release-v3.7
 ```
 
-**(3a)** *if not coupled with CLM, this repository should be a **stand-alone PFLOTRAN** model.*
+**(3a)** *if not coupled with ELM, this repository should be a **stand-alone PFLOTRAN** model.*
 
 - the Source code directory: 
 ```

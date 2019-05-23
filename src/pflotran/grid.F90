@@ -190,13 +190,15 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
   use Grid_Unstructured_Polyhedra_module
     
   implicit none
+  
+  PetscInt ierr
 
   type(grid_type) :: grid
   type(option_type) :: option
   type(ugdm_type), optional :: ugdm
   
   type(connection_set_type), pointer :: connection_set, connection_bound_set
-
+  type(connection_set_type), pointer :: connection_set_2
   nullify(connection_set); nullify(connection_bound_set)
   
   select case(grid%itype)
@@ -401,6 +403,11 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type,option)
   type(dm_ptr_type) :: dm_ptr
   PetscEnum :: sgrid_stencil_type
   type(option_type) :: option
+
+  PetscInt, allocatable :: int_tmp(:)
+! PetscInt, pointer :: int_tmp(:)
+  PetscInt :: n
+  PetscOffset :: i_da
   
   select case(grid%itype)
     case(STRUCTURED_GRID)
@@ -433,6 +440,11 @@ subroutine GridComputeSpacing(grid,origin_global,option)
   type(grid_type) :: grid
   PetscReal :: origin_global(3)
   type(option_type) :: option
+
+  PetscInt, allocatable :: int_tmp(:)
+! PetscInt, pointer :: int_tmp(:)
+  PetscInt :: n
+  PetscOffset :: i_da
   
   select case(grid%itype)
     case(STRUCTURED_GRID)
@@ -461,7 +473,9 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
   type(grid_type) :: grid
   PetscReal :: origin_global(3)
   type(option_type) :: option
-  type(ugdm_type), optional :: ugdm ! sp
+  type(ugdm_type), optional :: ugdm ! sp 
+  PetscInt :: icell
+  
   PetscErrorCode :: ierr  
 
   allocate(grid%x(grid%ngmax))
@@ -501,38 +515,19 @@ subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
 
   end select
 
-  if (associated(grid%structured_grid)) then
-    ! compute global max/min from the local max/in
-    call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-    call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-    call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-    call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-    call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-    call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
- endif
-
-  if (associated(grid%unstructured_grid)) then
-     ! compute global max/min from the local max/in
-     call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
-                        MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-     call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
-                        MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-     call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
-                        MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-     call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
-                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-     call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
-                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-     call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
-                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-   !endif
- endif
+  ! compute global max/min from the local max/in
+  call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+  call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+  call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+  call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
 
 end subroutine GridComputeCoordinates
 
@@ -617,6 +612,7 @@ subroutine GridLocalizeRegions(grid,region_list,option)
 
   use Option_module
   use Region_module
+  use Geometry_module
 
   implicit none
   
@@ -625,11 +621,22 @@ subroutine GridLocalizeRegions(grid,region_list,option)
   type(option_type) :: option
   
   type(region_type), pointer :: region
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, allocatable :: temp_int_array(:)
+  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
+  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
+  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
+  PetscReal :: x_shift, y_shift, z_shift
+  PetscReal :: del_x, del_y, del_z
   PetscInt :: iflag, global_cell_count
+  PetscBool :: same_point
+  type(point3d_type), pointer :: face_centroids(:)
+  PetscBool :: update_grid_bounds
   PetscErrorCode :: ierr
-  
+
   iflag = 0
+  update_grid_bounds = PETSC_FALSE
   region => region_list%first
   do
     if (.not.associated(region)) exit
@@ -670,8 +677,25 @@ subroutine GridLocalizeRegions(grid,region_list,option)
                              option,region%cell_ids,region%faces)
         region%num_cells = size(region%cell_ids)
       case (DEFINED_BY_FACE_UGRID_EXP)
-          call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
-                                           option)
+        call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
+                                         option)
+        ! For explicit unstructured grids, the face locations are not 
+        ! defined in the grid. They are in the boundary connections. We 
+        ! must update the global bounds of the domain to account for 
+        ! these faces. Otherwise, algorithms such as hydrostatic, etc. 
+        ! may not span the proper bounds.
+        update_grid_bounds = PETSC_TRUE
+        if (associated(region%explicit_faceset)) then
+          face_centroids => region%explicit_faceset%face_centroids
+          do i = 1, size(face_centroids)
+            grid%x_min_local = min(grid%x_min_local,face_centroids(i)%x)
+            grid%y_min_local = min(grid%y_min_local,face_centroids(i)%y)
+            grid%z_min_local = min(grid%z_min_local,face_centroids(i)%z)
+            grid%x_max_local = max(grid%x_max_local,face_centroids(i)%x)
+            grid%y_max_local = max(grid%y_max_local,face_centroids(i)%y)
+            grid%z_max_local = max(grid%z_max_local,face_centroids(i)%z)
+          enddo
+        endif
       case (DEFINED_BY_POLY_BOUNDARY_FACE)
         call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
                                         region%polygonal_volume, &
@@ -710,6 +734,24 @@ subroutine GridLocalizeRegions(grid,region_list,option)
     region => region%next
 
   enddo
+
+  ! these global reductions are replicates from GridComputeCoordinates(), but
+  ! must be calculated again for explicit unstructured grids
+  if (update_grid_bounds) then
+    ! compute global max/min from the local max/in
+    call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, & 
+                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+    call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, & 
+                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+    call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, & 
+                      MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+    call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, & 
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+    call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, & 
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+    call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, & 
+                      MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  endif
 
 end subroutine GridLocalizeRegions
 
@@ -1609,7 +1651,17 @@ subroutine GridLocalizeRegionFromCartBound(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
   
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, allocatable :: temp_int_array(:)
+  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
+  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
+  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
+  PetscReal :: x_shift, y_shift, z_shift
+  PetscReal :: del_x, del_y, del_z
+  PetscInt :: iflag
+  PetscBool :: same_point
+  PetscErrorCode :: ierr
 
   if (grid%itype /= STRUCTURED_GRID) then
     option%io_buffer='Region definition using CARTESIAN_BOUNDARY is ' // &
@@ -1663,7 +1715,9 @@ subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
   type(grid_type), pointer :: grid
   type(option_type) :: option
   
-  PetscInt :: i, j, k, count, ghosted_id, local_id
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, allocatable :: temp_int_array(:)
+  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
   PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
   PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
   PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20

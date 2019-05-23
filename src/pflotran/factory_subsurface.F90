@@ -380,7 +380,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
                              trim(error_string)
           call printErrMsg(option)
         endif
-        call pm%Read(input)
+        call pm%ReadSimulationBlock(input)
       case default
         error_string = trim(error_string) // ',SUBSURFACE_FLOW'
         call InputKeywordUnrecognized(word,error_string,option)
@@ -2157,6 +2157,23 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
 
 !....................
+      case ('ONLY_VERTICAL_FLOW')
+        option%flow%only_vertical_flow = PETSC_TRUE
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS, &
+                              &RICHARDS_TSand TH mode.'
+          call printErrMsg(option)
+        endif
+
+!....................
+      case ('ONLY_ENERGY_EQ')
+        option%flow%only_thermal_eq = PETSC_TRUE
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH mode.'
+          call printErrMsg(option)
+        endif
+
+!....................
       case ('RELATIVE_PERMEABILITY_AVERAGE')
         call InputReadWord(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
@@ -2178,6 +2195,20 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('END_SUBSURFACE')
+
+        if (option%flow%resdef) then
+          ! it is possible for a card to be skipped when we would like to set defaults for it,
+          ! so we check that here
+          if (.NOT. option%flow%flowSolverLinearDone) then
+              call SolverReadLinear(flow_timestepper%solver,input,option)
+              option%flow%flowSolverLinearDone = PETSC_TRUE
+          endif
+          if (.NOT. option%flow%flowTimestepperDone) then
+            call flow_timestepper%ReadInput(input,option)
+            option%flow%flowTimestepperDone = PETSC_TRUE
+          endif
+        endif
+
         exit
 
 !....................

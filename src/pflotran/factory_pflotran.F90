@@ -62,9 +62,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Multi_Simulation_module
   use Simulation_Base_class
   use Simulation_Subsurface_class
-  use Simulation_Surface_class
-  use Simulation_Surf_Subsurf_class
-  use Simulation_Geomechanics_class
   use Output_Aux_module
   use Logging_module
   use EOS_module
@@ -121,10 +118,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
         if (s%realization%patch%grid%itype /= STRUCTURED_GRID) then
           flag = PETSC_TRUE
         endif
-      class is(simulation_surface_type) 
-        if (s%surf_realization%patch%grid%itype /= STRUCTURED_GRID) then
-          flag = PETSC_TRUE
-        endif
+      !
       class default
         option%io_buffer = 'Unknown simulation class in &
           &PFLOTRANInitializePostPetsc'
@@ -481,12 +475,16 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   
   type(option_type) :: option
   
-  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: string, string2
   PetscBool :: option_found
+  PetscBool :: bool_flag
   PetscBool :: pflotranin_option_found
   PetscBool :: input_prefix_option_found
+  PetscBool :: output_dir_found
+  PetscBool :: output_file_prefix_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
+  PetscErrorCode :: ierr
   
   ! check for non-default input filename
   option%input_filename = 'pflotran.in'

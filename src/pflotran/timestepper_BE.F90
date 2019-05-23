@@ -286,7 +286,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
-  PetscInt :: sum_wasted_linear_iterations
+  PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
   character(len=MAXWORDLENGTH) :: tunit
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
@@ -306,7 +306,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscErrorCode :: ierr2
   type(grid_type), pointer :: grid
 !fmy: for printing vecs if program stops
-  !residual_vec = tVec(0)  !NOT NEEDED (fmy, 2018-09-06) and also solved the unknown error below
   
   solver => this%solver
   option => process_model%option
@@ -677,11 +676,11 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%cumulative_newton_iterations,sum_linear_iterations, &
       this%cumulative_linear_iterations,icut, &
       this%cumulative_time_step_cuts
-  endif  
+  endif
 #endif
 !fmy: ending
 
-  
+
   option%time = this%target_time
   call process_model%FinalizeTimestep()
   

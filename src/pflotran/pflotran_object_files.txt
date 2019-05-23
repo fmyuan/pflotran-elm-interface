@@ -11,6 +11,7 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
+	${common_src}grid_grdecl_util.o \
 	${common_src}variables.o
 
 eos_obj = \
@@ -55,7 +56,8 @@ grid_obj = \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o
+	${common_src}grid_unstructured_polyhedra.o \
+	${common_src}grid_grdecl.o
 
 relations_obj = \
 	${common_src}saturation.o \

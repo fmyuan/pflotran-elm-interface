@@ -99,16 +99,16 @@ subroutine OutputFileRead(input,realization,output_option, &
   PetscReal, pointer :: temp_real_array(:)
 
   character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: internal_units
+  character(len=MAXWORDLENGTH) :: units, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion
-  PetscInt :: k
+  PetscReal :: units_conversion,deltat
+  PetscInt :: k,deltas
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
 
   option => realization%option
   patch => realization%patch
@@ -164,6 +164,13 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
+
+      case('WRITE_MASS_RATES')
+        select case(trim(block_name))
+          case('MASS_BALANCE_FILE')
+            output_option%write_masses = PETSC_TRUE
+        end select
+
         
 !...............................
       case('TOTAL_MASS_REGIONS')
@@ -345,6 +352,46 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
         end select
 
+      case('PERIOD_SUM','PERIOD_RST')
+        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
+        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
+        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'periodic time increment type',string)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('TIME')
+            deltat = -1.0
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
+            call InputReadDouble(input,option,temp_real)
+            call InputErrorMsg(input,option,'time increment',string)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'time increment units',string)
+            internal_units = 'sec'
+            units_conversion = UnitsConvertToInternal(word, &
+                 internal_units,option)
+            deltat = temp_real*units_conversion
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltat = deltat
+              output_option%eclipse_options%write_ecl_sum_deltas = -1
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltat = deltat
+              output_option%eclipse_options%write_ecl_rst_deltas = -1
+            endif
+          case('TIMESTEP')
+            deltas = -1
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
+              call InputReadInt(input,option,deltas)
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltas = deltas
+              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltas = deltas
+              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
+            endif
+        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -546,8 +593,8 @@ subroutine OutputFileRead(input,realization,output_option, &
     endif
   endif
 
-  if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate &
-       .or.aveg_energy_flowrate) then
+  if (mass_flowrate .or. energy_flowrate .or. aveg_mass_flowrate .or. &
+      aveg_energy_flowrate .or. fluxes) then
     if (output_option%print_hdf5) then
       output_option%print_hdf5_mass_flowrate = mass_flowrate
       output_option%print_hdf5_energy_flowrate = energy_flowrate
@@ -561,8 +608,8 @@ subroutine OutputFileRead(input,realization,output_option, &
           call printErrMsg(option)
         endif
       endif
-      option%flow%store_fluxes = PETSC_TRUE
     endif
+    option%flow%store_fluxes = PETSC_TRUE
     if (associated(grid%unstructured_grid%explicit_grid)) then
       option%flow%store_fluxes = PETSC_TRUE
       output_option%print_explicit_flowrate = mass_flowrate
@@ -1032,17 +1079,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
       case ('LIQUID_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Liquid Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     LIQUID_REL_PERM)
+                                     LIQUID_RELATIVE_PERMEABILITY)
       case ('GAS_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Gas Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     GAS_REL_PERM)
+                                     GAS_RELATIVE_PERMEABILITY)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1602,22 +1649,32 @@ subroutine OutputMAD(realization_base)
   class(realization_base_type) :: realization_base
 
   integer(HID_T) :: file_id
-
+  integer(HID_T) :: grp_id
+  integer(HID_T) :: file_space_id
+  integer(HID_T) :: realization_set_id
   integer(HID_T) :: prop_id
+  PetscMPIInt :: rank
   PetscMPIInt, parameter :: ON=1, OFF=0
+  integer(HSIZE_T) :: dims(3)
   
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-
   type(output_option_type), pointer :: output_option
   
   Vec :: global_vec
+  Vec :: natural_vec
+  PetscReal, pointer :: v_ptr
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
+  PetscReal, pointer :: array(:)
+  PetscInt :: i
+  PetscInt :: nviz_flow, nviz_tran, nviz_dof
+  PetscInt :: current_component
+  PetscFortranAddr :: app_ptr
   PetscMPIInt :: hdf5_flag 
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
@@ -1717,9 +1774,9 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   type(patch_type), pointer :: patch  
   type(discretization_type), pointer :: discretization
   type(output_option_type), pointer :: output_option
-  PetscInt :: iconn, direction, iphase, sum_connection
+  PetscInt :: iconn, i, direction, iphase, sum_connection
   PetscInt :: local_id_up, local_id_dn, local_id
-  PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn, ghosted_id
   PetscReal :: flux
   Vec :: global_vec, global_vec2
 
@@ -1727,7 +1784,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   PetscInt :: max_loc, min_loc
   character(len=MAXSTRINGLENGTH) :: string
   
-  PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr(:), vec2_ptr(:), den_loc_p(:)
   PetscReal, allocatable :: sum_area(:)
   PetscErrorCode :: ierr
   
@@ -1879,6 +1936,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   type(discretization_type), pointer :: discretization  
   type(output_option_type), pointer :: output_option
   
+  character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
   
   PetscInt :: iphase
@@ -2264,7 +2322,6 @@ subroutine OutputAvegVars(realization_base)
     output_option%aveg_var_dtime=0.d0
 
   endif
-
 
 end subroutine OutputAvegVars
 

@@ -74,13 +74,6 @@ subroutine OutputObservation(realization_base)
   
   class(realization_base_type) :: realization_base
 
-!  if (realization_base%output_option%print_hdf5) then
-!    call OutputObservationHDF5(realization)
-!    call OutputObservationTecplot(realization)
-!  endif
- 
-!  if (realization_base%output_option%print_tecplot .or. &
-!      realization_base%output_option%print_hdf5) then
   if (realization_base%output_option%print_observation) then
     call OutputObservationTecplotColumnTXT(realization_base)
     call OutputIntegralFlux(realization_base)
@@ -113,7 +106,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   
   PetscInt :: fid, icell
   character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string!, string2
+  character(len=MAXSTRINGLENGTH) :: string, string2
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(field_type), pointer :: field

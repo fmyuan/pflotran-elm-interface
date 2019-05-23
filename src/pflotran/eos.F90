@@ -191,12 +191,12 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,STEAM_DENSITY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                            'kg/m^3','EOS,WATER,STEAM_DENSITY,CONSTANT',option)
-              case('IFC67','DEFAULT','PLANAR')
+              case('IFC67','DEFAULT','PLANAR','IF97')
               case default
                 call InputKeywordUnrecognized(word,'EOS,WATER,STEAM_DENSITY', &
                                               option)
             end select
-            call EOSWaterSetSteamDensity(keyword,temparray)
+            call EOSWaterSetSteamDensity(word,temparray)
           case('STEAM_ENTHALPY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'STEAM_ENTHALPY','EOS,WATER')
@@ -208,12 +208,12 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,STEAM_ENTHALPY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                         'J/kmol','EOS,WATER,STEAM_ENTHALPY,CONSTANT',option)
-              case('IFC67','DEFAULT','PLANAR')
+              case('IFC67','DEFAULT','PLANAR','IF97')
               case default
                 call InputKeywordUnrecognized(word, &
                        'EOS,WATER,STEAM_ENTHALPY',option)
             end select
-            call EOSWaterSetSteamEnthalpy(keyword,temparray)
+            call EOSWaterSetSteamEnthalpy(word,temparray)
           case('TEST')
             if (option%global_rank == 0) then
               call InputReadDouble(input,option,test_t_low)
@@ -322,13 +322,13 @@ subroutine EOSRead(input,option)
         call InputErrorMsg(input,option,'keyword','EOS,GAS')
         call StringToUpper(keyword)
         select case(trim(keyword))
-          case('REFERENCE_DENSITY','SURFACE_DENSITY','STANDARD_DENSITY')
+          case('SURFACE_DENSITY','STANDARD_DENSITY')
             call InputReadDouble(input,option,tempreal)
             call InputErrorMsg(input,option,'VALUE', &
                                'EOS,GAS,REFERENCE_DENSITY')
             call InputReadAndConvertUnits(input,tempreal, &
                            'kg/m^3','EOS,GAS,REFERENCE_DENSITY',option)
-            call EOSGasSetReferenceDensity(tempreal)
+            call EOSGasSetSurfaceDensity(tempreal)
           case('DENSITY')
             call InputReadWord(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
