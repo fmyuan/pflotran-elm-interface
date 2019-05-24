@@ -52,7 +52,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: dx_conn, dy_conn, dz_conn
   PetscReal :: rho_kg, rho_one, rho_zero, pressure, pressure0, pressure_at_datum
   PetscReal :: temperature_at_datum, temperature
-  PetscReal :: concentration_at_datum
   PetscReal :: gas_pressure
   PetscReal :: xm_nacl
   PetscReal :: max_z, min_z, temp_real
@@ -60,7 +59,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal, pointer :: pressure_array(:)
   PetscReal, allocatable :: density_array(:), z(:)
   PetscReal :: pressure_gradient(3), piezometric_head_gradient(3), datum(3)
-  PetscReal :: temperature_gradient(3), concentration_gradient(3)
+  PetscReal :: temperature_gradient(3)
   PetscReal :: gravity_magnitude
   PetscReal :: z_offset
   PetscReal :: aux(1), dummy
@@ -90,14 +89,12 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   ! is flat.
   if (delta_z < 1.d-40) delta_z = 1.d0
   temperature_at_datum = option%reference_temperature
-  concentration_at_datum = 0.d0
   datum = 0.d0
 
   gas_pressure = 0.d0
   pressure_gradient = 0.d0
   temperature_gradient = 0.d0
   piezometric_head_gradient = 0.d0
-  concentration_gradient = 0.d0
   
   select case(option%iflowmode)
 
@@ -129,20 +126,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             temperature_gradient(1:3) = &
               condition%temperature%gradient%rarray(1:3)
           endif
-        endif
-      endif
-      if (associated(condition%concentration)) then
-        if (condition%concentration%itype == DIRICHLET_BC .and. &
-            associated(condition%concentration%dataset)) then
-            concentration_at_datum = &
-              condition%concentration%dataset%rarray(1)
-            if (associated(condition%concentration%gradient)) then
-              concentration_gradient(1:3) = &
-                condition%concentration%gradient%rarray(1:3)
-            endif
-        else
-          concentration_at_datum = UNINITIALIZED_DOUBLE
-          concentration_gradient = 0.d0
         endif
       endif
 

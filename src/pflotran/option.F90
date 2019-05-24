@@ -469,8 +469,6 @@ subroutine OptionInitRealization(option)
   option%gravity(:) = 0.d0
   option%gravity(3) = -1.d0*EARTH_GRAVITY ! m/s^2
 
-  ! default brine concentrations
-  option%m_nacl = 0.d0
   option%restart_flag = PETSC_FALSE
   option%restart_filename = ""
   option%restart_time = UNINITIALIZED_DOUBLE

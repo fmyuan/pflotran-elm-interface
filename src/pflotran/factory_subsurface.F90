@@ -313,8 +313,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%gas_phase    = GAS_PHASE
       option%solid_phase  = SOLID_PHASE
       !
-      option%nflowdof  = 2    ! hydraulic pressure (P) and temperature (T)
-      option%nflowspec = 1    ! water
+      option%nflowdof  = 2    ! (water)hydraulic pressure (P) and temperature (T)
+      option%nflowspec = 1    ! (all-phase) water, (TODO) air
       !
       option%flow%store_fluxes = PETSC_TRUE
     class default

@@ -166,7 +166,7 @@ module Output_Aux_module
   PetscInt, parameter, public :: OUTPUT_GENERIC = 0
   PetscInt, parameter, public :: OUTPUT_PRESSURE = 1
   PetscInt, parameter, public :: OUTPUT_SATURATION = 2
-  PetscInt, parameter, public :: OUTPUT_CONCENTRATION = 3
+  PetscInt, parameter, public :: OUTPUT_FLUX = 3
   PetscInt, parameter, public :: OUTPUT_RATE = 4
   PetscInt, parameter, public :: OUTPUT_VOLUME_FRACTION = 5
   PetscInt, parameter, public :: OUTPUT_DISCRETE = 6
@@ -862,8 +862,8 @@ function OutputVariableToCategoryString(icategory)
       string = 'PRESSURE'
     case(OUTPUT_SATURATION)
       string = 'SATURATION'
-    case(OUTPUT_CONCENTRATION)
-      string = 'CONCENTRATION'
+    case(OUTPUT_FLUX)
+      string = 'FLUX'
     case(OUTPUT_RATE)
       string = 'RATE'
     case(OUTPUT_VOLUME_FRACTION)

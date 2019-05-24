@@ -20,7 +20,6 @@ module Fluid_module
     PetscReal :: diffusion_coefficient
     PetscReal :: gas_diffusion_coefficient
     PetscReal :: diffusion_activation_energy
-    PetscReal :: nacl_concentration
     type(fluid_property_type), pointer :: next
   end type fluid_property_type
   
@@ -58,7 +57,6 @@ function FluidPropertyCreate()
   fluid_property%gas_diffusion_coefficient = 2.13D-5
   ! for liquid, one can use 12.6 kJ/mol as an activation energy
   fluid_property%diffusion_activation_energy = 0.d0
-  fluid_property%nacl_concentration = 0.d0
   nullify(fluid_property%next)
   FluidPropertyCreate => fluid_property
 

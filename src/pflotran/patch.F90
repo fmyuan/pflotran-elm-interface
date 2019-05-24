@@ -717,24 +717,39 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             coupler%itype == BOUNDARY_COUPLER_TYPE) then
 
           if (associated(coupler%flow_condition%pressure) .or. &
-              associated(coupler%flow_condition%concentration) .or. &
-              associated(coupler%flow_condition%saturation) .or. &
-              associated(coupler%flow_condition%temperature)) then
+              associated(coupler%flow_condition%flux) .or. &
+              associated(coupler%flow_condition%saturation) ) then
 
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
               case(TH_MODE)
-                temp_int = option%nflowspec
-                select case(coupler%flow_condition%pressure%itype)
-                  case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
-                    temp_int = temp_int + 1
-                end select
+                temp_int = option%nflowspec*option%nphase
+                if (associated(coupler%flow_condition%pressure)) then
+                  select case(coupler%flow_condition%pressure%itype)
+                    case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
+                      temp_int = temp_int + 1
+                  end select
+                endif
+
                 allocate(coupler%flow_aux_real_var(temp_int,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
+              case default
+            end select
+
+          else if (associated(coupler%flow_condition%temperature)) then
+
+            ! allocate arrays that match the number of connections
+            select case(option%iflowmode)
+              case(TH_MODE)
+                temp_int = ONE_INTEGER
+                allocate(coupler%flow_aux_real_var(temp_int,num_connections))
+                allocate(coupler%flow_aux_int_var(1,num_connections))
+                coupler%flow_aux_real_var = 0.d0
+                coupler%flow_aux_int_var = 0
               case default
             end select
 

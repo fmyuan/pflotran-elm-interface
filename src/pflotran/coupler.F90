@@ -371,8 +371,6 @@ subroutine CouplerComputeConnections(grid,option,coupler)
                 nullify_connection_set = PETSC_TRUE
             end select
           endif
-        else if (associated(coupler%flow_condition%concentration)) then
-          ! need to calculate connection set
         endif
         !geh: this is a workaround for defining temperature with a gridded
         !     dataset.  still need to set up the connections.
