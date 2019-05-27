@@ -15,14 +15,14 @@ module NW_Transport_module
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
   public :: NWTMaxChange, &
-            NWTTimeCut, &
             NWTSetup, &
             NWTUpdateAuxVars, &
             NWTAuxVarCompute, &
             NWTInitializeTimestep, &
             NWTUpdateFixedAccumulation, &
             NWTResidual, &
-            NWTJacobian
+            NWTJacobian, &
+            NWTUpdateMassBalance
             
 contains
 
@@ -60,48 +60,6 @@ subroutine NWTMaxChange(realization,dcmax)
   call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
       
 end subroutine NWTMaxChange
-
-! ************************************************************************** !
-
-subroutine NWTTimeCut(realization)
-  ! 
-  ! Resets arrays for a time step cut.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/12/2019
-  ! 
- 
-  use Realization_Subsurface_class
-  use Option_module
-  use Field_module
-  use Global_module
-  !use Secondary_Continuum_module, only : SecondaryRTTimeCut
- 
-  implicit none
-  
-  type(realization_subsurface_type) :: realization
-  type(field_type), pointer :: field
-  type(option_type), pointer :: option
-  
-  PetscErrorCode :: ierr
-
-  field => realization%field
-  option => realization%option
- 
-  ! copy previous solution back to current solution
-  call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
-  
-  ! set densities and saturations to t+dt
-  if (realization%option%nflowdof > 0) then
-    call GlobalWeightAuxVars(realization, &
-                             realization%option%transport%tran_weight_t1)
-  endif
-
-  !if (option%use_mc) then
-  !  call SecondaryRTTimeCut(realization)
-  !endif
- 
-end subroutine NWTTimeCut
 
 ! ************************************************************************** !
 
@@ -1698,6 +1656,60 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   deallocate(molecular_diffusion_up)
                     
 end subroutine NWTJacobianFlux
+
+! ************************************************************************** !
+
+subroutine NWTUpdateMassBalance(realization)
+  ! 
+  ! Updates the mass balance.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+ 
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Grid_module
+ 
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_ss(:)
+
+  PetscInt :: iconn
+
+  option => realization%option
+  patch => realization%patch
+
+  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
+  nwt_auxvars_ss => patch%aux%NWT%auxvars_ss
+
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+  do iconn = 1, patch%aux%NWT%num_aux
+    patch%aux%NWT%auxvars(iconn)%mass_balance = &
+      patch%aux%NWT%auxvars(iconn)%mass_balance + &
+      patch%aux%NWT%auxvars(iconn)%mass_balance_delta*option%tran_dt
+  enddo
+#endif
+
+  do iconn = 1, patch%aux%NWT%num_aux_bc
+    nwt_auxvars_bc(iconn)%mass_balance = &
+      nwt_auxvars_bc(iconn)%mass_balance + &
+      nwt_auxvars_bc(iconn)%mass_balance_delta*option%tran_dt
+  enddo
+
+  do iconn = 1, patch%aux%NWT%num_aux_ss
+    nwt_auxvars_ss(iconn)%mass_balance = &
+      nwt_auxvars_ss(iconn)%mass_balance + &
+      nwt_auxvars_ss(iconn)%mass_balance_delta*option%tran_dt
+  enddo
+
+end subroutine NWTUpdateMassBalance
 
 ! ************************************************************************** !
 

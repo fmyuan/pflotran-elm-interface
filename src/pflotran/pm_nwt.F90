@@ -60,11 +60,19 @@ module PM_NWT_class
     procedure, public :: InitializeRun => PMNWTInitializeRun  
     procedure, public :: InitializeTimestep => PMNWTInitializeTimestep
     procedure, public :: FinalizeTimestep => PMNWTFinalizeTimestep
+    procedure, public :: UpdateTimestep => PMNWTUpdateTimestep
     procedure, public :: Residual => PMNWTResidual
     procedure, public :: Jacobian => PMNWTJacobian
-    procedure, public :: CheckConvergence => PMNWTCheckConvergence
-    procedure, public :: SetTranWeights => PMNWTSetTranWeights
     procedure, public :: PreSolve => PMNWTPreSolve
+    procedure, public :: PostSolve => PMNWTPostSolve
+    procedure, public :: UpdateSolution => PMNWTUpdateSolution
+    procedure, public :: CheckConvergence => PMNWTCheckConvergence
+    procedure, public :: CheckUpdatePre => PMNWTCheckUpdatePre
+    procedure, public :: CheckUpdatePost => PMNWTCheckUpdatePost
+    procedure, public :: AcceptSolution => PMNWTAcceptSolution
+    procedure, public :: TimeCut => PMNWTTimeCut
+    procedure, public :: SetTranWeights => PMNWTSetTranWeights
+    procedure, public :: UpdateAuxVars => PMNWTUpdateAuxVars
   end type pm_nwt_type
   
   public :: PMNWTCreate, PMNWTSetPlotVariables
@@ -293,6 +301,8 @@ subroutine PMNWTInitializeRun(this)
   ! jenn:todo Is updating BCs necessary in PMNWTInitializeRun()?
   call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
   
+  call PMNWTUpdateSolution(this)
+  
 end subroutine PMNWTInitializeRun
 
 ! ************************************************************************** !
@@ -388,6 +398,77 @@ end subroutine PMNWTFinalizeTimestep
 
 ! ************************************************************************** !
 
+subroutine PMNWTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+                               num_newton_iterations,tfac, &
+                               time_step_max_growth_factor)
+  ! 
+  ! Author: Jenn Frederick, Glenn Hammond
+  ! Date: 05/27/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  PetscReal :: dt
+  PetscReal :: dt_min,dt_max
+  PetscInt :: iacceleration
+  PetscInt :: num_newton_iterations
+  PetscReal :: tfac(:)
+  PetscReal :: time_step_max_growth_factor
+  
+  PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
+  PetscInt :: ifac
+  PetscReal, parameter :: pert = 1.d-20
+    
+  if (this%controls%volfrac_change_governor < 1.d0) then
+    ! with volume fraction potentially scaling the time step
+    if (iacceleration > 0) then
+      fac = 0.5d0
+      if (num_newton_iterations >= iacceleration) then
+        fac = 0.33d0
+        uvf = 0.d0
+      else
+        uvf = this%controls%volfrac_change_governor/ &
+              (maxval(this%controls%max_volfrac_change)+pert)
+      endif
+      dtt = fac * dt * (1.d0 + uvf)
+    else
+      ifac = max(min(num_newton_iterations,size(tfac)),1)
+      dt_tfac = tfac(ifac) * dt
+
+      fac = 0.5d0
+      uvf= this%controls%volfrac_change_governor/ &
+           (maxval(this%controls%max_volfrac_change)+pert)
+      dt_vf = fac * dt * (1.d0 + uvf)
+
+      dtt = min(dt_tfac,dt_vf)
+    endif
+  else
+    ! original implementation
+    dtt = dt
+    if (num_newton_iterations <= iacceleration) then
+      if (num_newton_iterations <= size(tfac)) then
+        dtt = tfac(num_newton_iterations) * dt
+      else
+        dtt = 0.5d0 * dt
+      endif
+    else
+      dtt = 0.5d0 * dt
+    endif
+  endif
+
+  dtt = min(time_step_max_growth_factor*dt,dtt)
+  if (dtt > dt_max) dtt = dt_max
+  ! geh: see comment above under flow stepper
+  dtt = max(dtt,dt_min)
+  dt = dtt
+
+  call RealizationLimitDTByCFL(this%realization,this%controls%cfl_governor,dt)
+  
+end subroutine PMNWTUpdateTimestep
+
+! ************************************************************************** !
+
 subroutine PMNWTPreSolve(this)
   ! 
   ! Author: Jenn Frederick
@@ -431,6 +512,57 @@ subroutine PMNWTPreSolve(this)
                           this%realization%option)
   
 end subroutine PMNWTPreSolve
+
+! ************************************************************************** !
+
+subroutine PMNWTPostSolve(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  
+  ! placeholder for now, nothing to do at the moment
+  
+end subroutine PMNWTPostSolve
+
+! ************************************************************************** !
+
+subroutine PMNWTUpdateSolution(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  use Condition_module
+  use Integral_Flux_module
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+    
+  call TranConditionUpdate(this%realization%transport_conditions, &
+                           this%realization%option)
+                           
+  if (associated(this%realization%uniform_velocity_dataset)) then
+    call RealizUpdateUniformVelocity(this%realization)
+  endif  
+  
+  if (this%realization%option%compute_mass_balance_new) then
+    call NWTUpdateMassBalance(this%realization)
+  endif
+  
+  if (this%option%transport%store_fluxes) then
+    call IntegralFluxUpdate(this%realization%patch%integral_flux_list, &
+                            this%realization%patch%internal_tran_fluxes, &
+                            this%realization%patch%boundary_tran_fluxes, &
+                            INTEGRATE_TRANSPORT,this%option)
+  endif
+
+end subroutine PMNWTUpdateSolution   
 
 ! ************************************************************************** !
 
@@ -500,6 +632,148 @@ end subroutine PMNWTCheckConvergence
 
 ! ************************************************************************** !
 
+subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+  ! 
+  ! In the case of the log formulation, ensures that the update
+  ! vector does not exceed a prescribed tolerance
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/09
+  ! 
+
+  use Realization_Subsurface_class
+  use Grid_module
+  use Option_module
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  SNESLineSearch :: line_search
+  Vec :: X
+  Vec :: dX
+  PetscBool :: changed
+  PetscErrorCode :: ierr
+  
+  ! jenn:todo Do I need PMNWTCheckUpdatePre() function?
+
+end subroutine PMNWTCheckUpdatePre
+
+! ************************************************************************** !
+
+subroutine PMNWTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+                                X1_changed,ierr)
+  ! 
+  ! Checks convergence after the solution update
+  ! 
+  ! Author: Jenn Frederick, Glenn Hammond
+  ! Date: 05/27/2019
+  ! 
+  
+  use Grid_module
+  use Field_module
+  use Patch_module
+  use Option_module
+  use Output_EKG_module
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  SNESLineSearch :: line_search
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
+  PetscErrorCode :: ierr
+  
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch  
+  PetscReal, pointer :: C0_p(:)
+  PetscReal, pointer :: dC_p(:)
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: accum_p(:)  
+  PetscBool :: converged_due_to_rel_update
+  PetscBool :: converged_due_to_residual
+  PetscReal :: max_relative_change
+  PetscReal :: max_scaled_residual
+  PetscInt :: converged_flag
+  PetscInt :: temp_int
+  PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
+  PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
+  PetscMPIInt :: mpi_int
+  PetscInt :: local_id, offset, idof, index
+  PetscReal :: tempreal
+  
+  grid => this%realization%patch%grid
+  option => this%realization%option
+  field => this%realization%field
+  patch => this%realization%patch
+  
+  dX_changed = PETSC_FALSE
+  X1_changed = PETSC_FALSE
+  
+  converged_flag = 0
+  if (this%controls%check_post_convergence) then
+    converged_due_to_rel_update = PETSC_FALSE
+    converged_due_to_residual = PETSC_FALSE
+    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
+    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+    max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
+    call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+    converged_due_to_rel_update = (Initialized(nwt_itol_rel_update) .and. &
+                                   max_relative_change < nwt_itol_rel_update)
+    converged_due_to_residual = (Initialized(nwt_itol_scaled_res) .and. &
+                                max_scaled_residual < nwt_itol_scaled_res)
+    if (converged_due_to_rel_update .or. converged_due_to_residual) then
+      converged_flag = 1
+    endif
+  endif
+  
+  ! get global minimum
+  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_MIN,this%realization%option%mycomm,ierr)
+
+  option%converged = PETSC_FALSE
+  if (temp_int == 1) then
+    option%converged = PETSC_TRUE
+  endif
+  
+  if (this%print_ekg) then
+    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    max_relative_change_by_dof = -1.d20
+    do local_id = 1, grid%nlmax
+      offset = (local_id-1)*option%ntrandof
+      do idof = 1, option%ntrandof
+        index = idof + offset
+        tempreal = dabs(dC_p(index)/C0_p(index))
+        max_relative_change_by_dof(idof) = &
+          max(max_relative_change_by_dof(idof),tempreal)
+      enddo
+    enddo
+    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    mpi_int = option%ntrandof
+    call MPI_Allreduce(MPI_IN_PLACE,max_relative_change_by_dof,mpi_int, &
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm,ierr)
+    if (OptionPrintToFile(option)) then
+100 format("NUCLEAR WASTE TRANSPORT  NEWTON_ITERATION ",30es16.8)
+      write(IUNIT_EKG,100) max_relative_change_by_dof(:)
+    endif    
+  endif
+
+end subroutine PMNWTCheckUpdatePost
+
+! ************************************************************************** !
+
 function PMNWTAcceptSolution(this)
   ! 
   ! Right now this does nothing.
@@ -518,6 +792,49 @@ function PMNWTAcceptSolution(this)
   PMNWTAcceptSolution = PETSC_TRUE
   
 end function PMNWTAcceptSolution
+
+! ************************************************************************** !
+
+subroutine PMNWTTimeCut(this)
+  ! 
+  ! Resets arrays for a time step cut.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+ 
+  use Option_module
+  use Field_module
+  use Global_module
+ 
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  
+  type(realization_subsurface_type), pointer :: realization
+  type(field_type), pointer :: field
+  type(option_type), pointer :: option
+  PetscErrorCode :: ierr
+
+  realization => this%realization
+  field => realization%field
+  option => realization%option
+ 
+  this%option%tran_dt = this%option%dt
+  if (this%option%nflowdof > 0 .and. .not. this%params%steady_flow) then
+    call this%SetTranWeights()
+  endif
+ 
+  ! copy previous solution back to current solution
+  call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
+  
+  ! set densities and saturations to t+dt
+  if (realization%option%nflowdof > 0) then
+    call GlobalWeightAuxVars(realization, &
+                             realization%option%transport%tran_weight_t1)
+  endif
+ 
+end subroutine PMNWTTimeCut
 
 ! ************************************************************************** !
 
@@ -585,6 +902,22 @@ subroutine PMNWTSetTranWeights(this)
                             flow_dt)
 
 end subroutine PMNWTSetTranWeights
+
+! ************************************************************************** !
+
+subroutine PMNWTUpdateAuxVars(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  !
+  
+  implicit none
+  
+  class(pm_nwt_type) :: this
+                                      !  cells      bcs      
+  call NWTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_FALSE)
+
+end subroutine PMNWTUpdateAuxVars  
 
 ! ************************************************************************** !
   
