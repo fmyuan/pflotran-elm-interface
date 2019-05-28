@@ -75,8 +75,6 @@ coupler.o : condition.o connection.o dataset_base.o dataset_gridded_hdf5.o \
             grid.o grid_unstructured_aux.o grid_unstructured_explicit.o \
             input_aux.o option.o pflotran_constants.o region.o string.o \
             utility.o
-criticality.o : data_mediator_vec.o input_aux.o option.o pflotran_constants.o \
-                realization_base.o realization_subsurface.o region.o string.o
 data_mediator.o : data_mediator_base.o option.o
 data_mediator_base.o : dataset_global_hdf5.o option.o pflotran_constants.o
 data_mediator_dataset.o : data_mediator_base.o dataset_base.o \
@@ -603,7 +601,7 @@ pm_ufd_decay.o : field.o global.o global_aux.o grid.o input_aux.o material.o \
                  pflotran_constants.o pm_base.o reaction_aux.o \
                  reaction_mineral_aux.o reactive_transport_aux.o \
                  realization_subsurface.o string.o utility.o
-pm_waste_form.o : checkpoint.o condition.o criticality.o data_mediator_vec.o \
+pm_waste_form.o : checkpoint.o condition.o data_mediator_vec.o \
                   dataset_ascii.o dataset_base.o discretization.o field.o \
                   geometry.o global_aux.o grid.o grid_structured.o \
                   grid_unstructured.o hdf5.o input_aux.o material_aux.o \
