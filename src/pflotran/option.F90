@@ -820,7 +820,7 @@ end subroutine printErrMsgNoStopByRank2
 
 ! ************************************************************************** !
 
-subroutine PrintErrMsgToDev(string,option)
+subroutine PrintErrMsgToDev(option,string)
   !
   ! Prints the error message from p0, appends a request to submit input 
   ! deck to pflotran-dev, and stops.  The reverse order of arguments is 
@@ -832,8 +832,8 @@ subroutine PrintErrMsgToDev(string,option)
 
   implicit none
 
-  character(len=*) :: string
   type(option_type) :: option
+  character(len=*) :: string
 
   if (len_trim(string) > 0) then
     option%io_buffer = trim(option%io_buffer) // &
@@ -849,7 +849,7 @@ end subroutine PrintErrMsgToDev
 
 ! ************************************************************************** !
 
-subroutine PrintErrMsgByRankToDev(string,option)
+subroutine PrintErrMsgByRankToDev(option,string)
   !
   ! Prints the error message from processor with error along
   ! with rank. The reverse order of arguments is to avoid conflict with
@@ -861,8 +861,8 @@ subroutine PrintErrMsgByRankToDev(string,option)
 
   implicit none
 
-  character(len=*) :: string
   type(option_type) :: option
+  character(len=*) :: string
 
   if (len_trim(string) > 0) then
     option%io_buffer = trim(option%io_buffer) // &

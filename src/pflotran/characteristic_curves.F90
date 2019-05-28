@@ -397,7 +397,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
                                &CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION. &
                                &This is most likely a development issue, and &
                                &not an input deck mistake. '
-            call PrintErrMsgToDev('',option)
+            call PrintErrMsgToDev(option,'')
           case default
             call InputKeywordUnrecognized(word, &
               'PERMEABILITY_FUNCTION,PHASE',option)
@@ -1862,7 +1862,7 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
           class default
             option%io_buffer = 'Relative permeability class not supported in &
                   &CharCurvesGetGetResidualSats.'
-            call PrintErrMsgToDev('',option)
+            call PrintErrMsgToDev(option,'')
         end select
         CharCurvesGetGetResidualSats(option%gas_phase) = gas_res_sat
       endif

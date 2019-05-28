@@ -98,7 +98,7 @@ function OutputFilenameID(output_option,option)
     write(OutputFilenameID,'(i5)') output_option%plot_number  
   else
     option%io_buffer = 'Plot number exceeds current maximum of 10^5.'
-    call PrintErrMsgToDev('ask for a higher maximum',option)
+    call PrintErrMsgToDev(option,'ask for a higher maximum')
   endif 
   
   OutputFilenameID = adjustl(OutputFilenameID)
@@ -1987,7 +1987,7 @@ subroutine OutputCollectVelocityOrFlux(realization_base, iphase, direction, &
       if (ghosted_id <= 0) then
         option%io_buffer = 'Negative ghosted id in OutputFluxVelocities&
           &TecplotBlk while adding boundary values.'
-        call PrintErrMsgByRankToDev('',option)
+        call PrintErrMsgByRankToDev(option,'')
       endif
       ! I don't know why one would do this, but it is possible that a 
       ! boundary condition could be applied to an interior face shared
