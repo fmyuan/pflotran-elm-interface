@@ -22,7 +22,9 @@ module NW_Transport_module
             NWTUpdateFixedAccumulation, &
             NWTResidual, &
             NWTJacobian, &
-            NWTUpdateMassBalance
+            NWTComputeMassBalance, &
+            NWTUpdateMassBalance, &
+            NWTDestroy
             
 contains
 
@@ -1659,6 +1661,100 @@ end subroutine NWTJacobianFlux
 
 ! ************************************************************************** !
 
+subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
+  !
+  ! Sums up the amount of moles in each component.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Field_module
+  use Grid_module
+
+
+  type(realization_subsurface_type) :: realization
+  PetscInt :: max_size
+  PetscReal :: sum_mol(max_size,4)
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(nw_trans_realization_type), pointer :: nw_trans
+
+  PetscReal :: sum_mol_tot(max_size)
+  PetscReal :: sum_mol_aq(max_size)
+  PetscReal :: sum_mol_sb(max_size)
+  PetscReal :: sum_mol_mnrl(max_size)
+
+  PetscErrorCode :: ierr
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: ncomp
+  PetscReal :: liquid_saturation, porosity, volume
+
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  field => realization%field
+
+  nw_trans => realization%nw_trans
+
+  nwt_auxvars => patch%aux%NWT%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  sum_mol = 0.d0
+  sum_mol_tot = 0.d0
+  sum_mol_aq = 0.d0
+  sum_mol_sb = 0.d0
+  sum_mol_mnrl = 0.d0
+
+  ncomp = nw_trans%params%ncomp
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    ! ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle
+    
+    liquid_saturation = global_auxvars(ghosted_id)%sat(LIQUID_PHASE)
+    porosity = material_auxvars(ghosted_id)%porosity
+    volume = material_auxvars(ghosted_id)%volume ! [m^3]
+    
+    ! aqueous (sum_mol_aq) [mol]
+    sum_mol_aq(1:ncomp) = sum_mol_aq(1:ncomp) + &
+           nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) * &  ! [mol/m^3-liq]
+           liquid_saturation*porosity*volume               ! [m^3-liq]
+
+    ! equilibrium sorption (sum_mol_sb) [mol]
+    sum_mol_sb(1:ncomp) = sum_mol_sb(1:ncomp) + &
+            nwt_auxvars(ghosted_id)%sorb_eq_conc(:) * &    ! [mol/m^3-sorb]
+            volume                                         ! [m^3-sorb]
+    ! jenn:tod Is this the correct calc for sum_mol_sb? Is volume right?
+
+    ! mineral volume fractions (sum_mol_mnrl) [mol]
+    sum_mol_mnrl(1:ncomp) = sum_mol_mnrl(1:ncomp) + &
+            nwt_auxvars(ghosted_id)%mnrl_eq_conc(:) * &    ! [mol/m^3-mnrl]
+            nwt_auxvars(ghosted_id)%mnrl_vol_frac(:) * &   ! [m^3-mnrl/m^3-void]
+            porosity*volume                     ! [m^3-void/m^3-bulk * m^3-bulk]
+  enddo
+
+  sum_mol_tot = sum_mol_aq + sum_mol_sb + sum_mol_mnrl     ! [mol]
+
+  sum_mol(:,1) = sum_mol_tot
+  sum_mol(:,2) = sum_mol_aq
+  sum_mol(:,3) = sum_mol_sb
+  sum_mol(:,4) = sum_mol_mnrl
+
+end subroutine NWTComputeMassBalance
+
+! ************************************************************************** !
+
 subroutine NWTUpdateMassBalance(realization)
   ! 
   ! Updates the mass balance.
@@ -1710,6 +1806,29 @@ subroutine NWTUpdateMassBalance(realization)
   enddo
 
 end subroutine NWTUpdateMassBalance
+
+! ************************************************************************** !
+
+subroutine NWTDestroy(realization)
+  !
+  ! Destroys objects in the NW Transport module.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  !
+  
+  use Realization_Subsurface_class
+  
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  
+  ! placeholder, does nothing at the moment
+  ! note: the aux objects are destroyed from auxiliary.F90 
+  !       and the realization nw_trans object is destroyed in 
+  !       realization_subsurface.F90, RealizationStrip().
+
+end subroutine NWTDestroy
 
 ! ************************************************************************** !
 

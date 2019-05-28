@@ -22,6 +22,7 @@ module Realization_Subsurface_class
   use Output_Aux_module
   
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
   
   use Patch_module
   
@@ -1064,7 +1065,6 @@ subroutine RealProcessTranConditions(realization)
 
   use String_module
   use Reaction_module
-  use NW_Transport_Aux_module
   use Transport_Constraint_module
   
   implicit none
@@ -2689,6 +2689,8 @@ subroutine RealizationStrip(this)
   call DatasetDestroy(this%uniform_velocity_dataset)
   
   call ReactionDestroy(this%reaction,this%option)
+  
+  call NWTransDestroy(this%nw_trans,this%option)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   

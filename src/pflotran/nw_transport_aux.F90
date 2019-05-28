@@ -27,7 +27,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: sorb_eq_conc(:)      ! mol-species/m^3-sorb
     ! precipitated 
     PetscReal, pointer :: mnrl_eq_conc(:)      ! mol-species/m^3-mnrl 
-    PetscReal, pointer :: mnrl_vol_frac(:)     ! m^3-mnrl/m^3-vod 
+    PetscReal, pointer :: mnrl_vol_frac(:)     ! m^3-mnrl/m^3-void 
     ! auxiliary array to store miscellaneous data 
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
@@ -129,7 +129,7 @@ module NW_Transport_Aux_module
             NWTRead, NWTReadPass2, NWTProcessConstraint, &
             NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess, &
             NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip, &
-            NWTSpeciesConstraintDestroy
+            NWTSpeciesConstraintDestroy, NWTransDestroy
             
 contains
 
@@ -911,6 +911,66 @@ subroutine NWTSpeciesConstraintDestroy(constraint)
   nullify(constraint)
 
 end subroutine NWTSpeciesConstraintDestroy
+
+! ************************************************************************** !
+
+subroutine NWTransDestroy(nw_trans,option)
+  ! 
+  ! Deallocates a nuclear waste transport realization object.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  use Utility_module, only: DeallocateArray
+  use Option_module
+  
+  implicit none
+  
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(option_type) :: option
+  
+  type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn,prev_rad_decay_rxn
+  type(species_type), pointer :: species, prev_species
+  
+  if (.not.associated(nw_trans)) return
+  
+  call DeallocateArray(nw_trans%diffusion_coefficient)
+  call DeallocateArray(nw_trans%diffusion_activation_energy)
+  call DeallocateArray(nw_trans%species_names)
+  call DeallocateArray(nw_trans%species_print)
+  
+  nullify(nw_trans%params)
+  nullify(nw_trans%print)
+  
+  ! radioactive decay reactions
+  rad_decay_rxn => nw_trans%rad_decay_rxn_list
+  do
+    if (.not.associated(rad_decay_rxn)) exit
+    prev_rad_decay_rxn => rad_decay_rxn
+    rad_decay_rxn => rad_decay_rxn%next
+    nullify(prev_rad_decay_rxn%next)
+    deallocate(prev_rad_decay_rxn)  
+    nullify(prev_rad_decay_rxn)
+  enddo    
+  nullify(nw_trans%rad_decay_rxn_list)
+  
+  ! species
+  species => nw_trans%species_list
+  do
+    if (.not.associated(species)) exit
+    prev_species => species
+    species => species%next
+    nullify(prev_species%next)
+    deallocate(prev_species)  
+    nullify(prev_species)
+  enddo    
+  nullify(nw_trans%species_list)
+  
+  deallocate(nw_trans)
+  nullify(nw_trans)
+
+end subroutine NWTransDestroy
 
 ! ************************************************************************** !
 

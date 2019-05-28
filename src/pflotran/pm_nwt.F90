@@ -73,6 +73,13 @@ module PM_NWT_class
     procedure, public :: TimeCut => PMNWTTimeCut
     procedure, public :: SetTranWeights => PMNWTSetTranWeights
     procedure, public :: UpdateAuxVars => PMNWTUpdateAuxVars
+    procedure, public :: MaxChange => PMNWTMaxChange
+    procedure, public :: CheckpointBinary => PMNWTCheckpointBinary
+    procedure, public :: CheckpointHDF5 => PMNWTCheckpointHDF5
+    procedure, public :: RestartBinary => PMNWTRestartBinary
+    procedure, public :: RestartHDF5 => PMNWTRestartHDF5
+    procedure, public :: InputRecord => PMNWTInputRecord
+    procedure, public :: Destroy => PMNWTDestroy
   end type pm_nwt_type
   
   public :: PMNWTCreate, PMNWTSetPlotVariables
@@ -905,6 +912,26 @@ end subroutine PMNWTSetTranWeights
 
 ! ************************************************************************** !
 
+subroutine PMNWTComputeMassBalance(this,mass_balance_array)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  PetscReal :: mass_balance_array(:)
+
+#ifndef SIMPLIFY 
+  ! passing in dummy -999 for max_size doesn't do anything, so why even call it?
+  !call NWTComputeMassBalance(this%realization,-999,mass_balance_array)
+#endif
+
+end subroutine PMNWTComputeMassBalance
+
+! ************************************************************************** !
+
 subroutine PMNWTUpdateAuxVars(this)
   ! 
   ! Author: Jenn Frederick
@@ -920,7 +947,147 @@ subroutine PMNWTUpdateAuxVars(this)
 end subroutine PMNWTUpdateAuxVars  
 
 ! ************************************************************************** !
+
+subroutine PMNWTMaxChange(this)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  implicit none
   
-! jenn:todo Remember to deallocate/destroy all PMNWT pointers and arrays
+  class(pm_nwt_type) :: this
+
+  print *, 'PMNWTMaxChange not implemented.'
+  stop
+
+end subroutine PMNWTMaxChange
+
+! ************************************************************************** !
+
+subroutine PMNWTCheckpointBinary(this,viewer)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  PetscViewer :: viewer
+
+  print *, 'PMNWTCheckpointBinary not yet implemented.'
+  stop
+
+end subroutine PMNWTCheckpointBinary
+
+! ************************************************************************** !
+
+subroutine PMNWTCheckpointHDF5(this,pm_grp_id)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  use hdf5
+  
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  integer(HID_T) :: pm_grp_id
+
+  print *, 'PMNWTCheckpointHDF5 not yet implemented.'
+  stop
+
+end subroutine PMNWTCheckpointHDF5
+
+! ************************************************************************** !
+
+subroutine PMNWTRestartBinary(this,viewer)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  PetscViewer :: viewer
+
+  print *, 'PMNWTRestartBinary not yet implemented.'
+  stop
+
+end subroutine PMNWTRestartBinary
+
+! ************************************************************************** !
+
+subroutine PMNWTRestartHDF5(this,pm_grp_id)
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+  
+  use hdf5
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  integer(HID_T) :: pm_grp_id
+
+  print *, 'PMNWTRestartHDF5 not yet implemented.'
+  stop
+
+end subroutine PMNWTRestartHDF5
+
+! ************************************************************************** !
+
+subroutine PMNWTInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+  
+  implicit none
+  
+  class(pm_nwt_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+
+end subroutine PMNWTInputRecord
+  
+! ************************************************************************** !
+
+subroutine PMNWTDestroy(this)
+  ! 
+  ! Destroys objects in the NW Transport process model.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/27/2019
+  ! 
+
+  use Utility_module, only : DeallocateArray
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+
+  call DeallocateArray(this%controls%max_concentration_change)
+  call DeallocateArray(this%controls%max_volfrac_change)
+
+  call NWTDestroy(this%realization)
+ 
+  nullify(this%comm1) ! already destroyed in realization
+
+end subroutine PMNWTDestroy
+
+! ************************************************************************** !
 
 end module PM_NWT_class
