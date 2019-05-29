@@ -67,7 +67,8 @@ STANDARD_CFG = \
 	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
-	ngee/ngee.cfg \
+	general/hydrate/hydrate.cfg \
+        ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \

@@ -344,14 +344,30 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(1,:) = tempreal
         this%abs_update_inf_tol(2,2) = tempreal
+        this%hyd_abs_update_inf_tol(1,1:10) = tempreal
+        this%hyd_abs_update_inf_tol(1,12) = tempreal
+        this%hyd_abs_update_inf_tol(1,14) = tempreal
+        this%hyd_abs_update_inf_tol(2,2) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(3,:) = tempreal
+        this%hyd_abs_update_inf_tol(3,1:9) = tempreal
+        this%hyd_abs_update_inf_tol(3,11) = tempreal
+        this%hyd_abs_update_inf_tol(3,13) = tempreal
       case('SAT_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
+        this%hyd_abs_update_inf_tol(2,3) = tempreal
+        this%hyd_abs_update_inf_tol(2,6:9) = tempreal
+        this%hyd_abs_update_inf_tol(3,10) = tempreal
+        this%hyd_abs_update_inf_tol(2,11:15) = tempreal
+        this%hyd_abs_update_inf_tol(3,12) = tempreal
+        this%hyd_abs_update_inf_tol(3,14:15) = tempreal
+        this%hyd_abs_update_inf_tol(1,11) = tempreal
+        this%hyd_abs_update_inf_tol(1,13) = tempreal
+        this%hyd_abs_update_inf_tol(1,15) = tempreal
       case('XMOL_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -379,14 +395,30 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(1,:) = tempreal
         this%rel_update_inf_tol(2,2) = tempreal
+        this%hyd_rel_update_inf_tol(1,1:10) = tempreal
+        this%hyd_rel_update_inf_tol(1,12) = tempreal
+        this%hyd_rel_update_inf_tol(1,14) = tempreal
+        this%hyd_rel_update_inf_tol(2,2) = tempreal
       case('TEMP_REL_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(3,:) = tempreal
+        this%hyd_rel_update_inf_tol(3,1:9) = tempreal
+        this%hyd_rel_update_inf_tol(3,11) = tempreal
+        this%hyd_rel_update_inf_tol(3,13) = tempreal
       case('SAT_REL_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(2,3) = tempreal
+        this%hyd_rel_update_inf_tol(2,3) = tempreal
+        this%hyd_rel_update_inf_tol(2,6:9) = tempreal
+        this%hyd_rel_update_inf_tol(3,10) = tempreal
+        this%hyd_rel_update_inf_tol(2,11:15) = tempreal
+        this%hyd_rel_update_inf_tol(3,12) = tempreal
+        this%hyd_rel_update_inf_tol(3,14:15) = tempreal
+        this%hyd_rel_update_inf_tol(1,11) = tempreal
+        this%hyd_rel_update_inf_tol(1,13) = tempreal
+        this%hyd_rel_update_inf_tol(1,15) = tempreal
       case('XMOL_REL_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
