@@ -33,6 +33,9 @@ module EOS_Gas_module
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
   PetscReal :: exponent_gas_compressibility
+  
+  ! Error
+  PetscInt, parameter, public :: EOS_GAS_TEMP_BOUND_EXCEEDED = 71
 
   ! This is the offset added to temperature [C] used to calculate the energy
   ! equation of state.  Swithing between 0. and 273.15 greatly changes results.
@@ -1809,7 +1812,7 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     Tr = TK/Tcw
     tau = 1.D0-Tr
     if ( tau < 0.d0 ) then
-      ierr = 71
+      ierr = EOS_GAS_TEMP_BOUND_EXCEEDED
     end if
     !tmp = a/Tr + b * tau**0.355d0/Tr + c * (Tr**(-0.41d0)) * exp(tau)
     tmpA = a/Tr

@@ -34,7 +34,6 @@ module General_Aux_module
   PetscInt, public :: general_ni_count
   PetscInt, public :: general_ts_cut_count
   PetscInt, public :: general_ts_count
-  PetscInt, parameter, public :: GENERAL_TEMPERATURE_BOUND_EXCEEDED = 71
 
   ! thermodynamic state of fluid ids
   PetscInt, parameter, public :: NULL_STATE = 0
@@ -1265,6 +1264,7 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
 
   use Option_module
   use String_module
+  use EOS_Gas_module
 
   implicit none
 
@@ -1276,7 +1276,7 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
   
   call printMsgByCell(option,natural_id, &
                       'Error in GeneralAuxVarCompute->EOSGasHenry')
-  if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+  if (ierr == EOS_GAS_TEMP_BOUND_EXCEEDED) then
     option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
                                ' exceeds the equation of state temperature bound with ' // &
                                trim(StringWrite(gen_auxvar%temp)) // ' [C].'
