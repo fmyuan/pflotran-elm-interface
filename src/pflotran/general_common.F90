@@ -3891,6 +3891,8 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
  
   qsrc_mol = 0.d0 
   if (flow_src_sink_type == TOTAL_MASS_RATE_SS) then
+    !MAN: this has only been tested for an extraction well. Scales the mass of 
+    !water and gas extracted by the mobility ratio.
     mob_tot = gen_auxvar%mobility(lid) + gen_auxvar%mobility(gid)
       if (gen_auxvar%sat(gid) <= 0.d0) then
         ! Water component, liquid phase

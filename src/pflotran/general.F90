@@ -964,13 +964,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                       patch%sat_func_id(ghosted_id))%ptr, &
                                     natural_id,option)
       endif
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-      if (debug_flag > 0) then
-        write(debug_unit,'(a,i5,i3,7es24.15)') 'bc_auxvar:', natural_id, &
-                           global_auxvars_bc(ghosted_id)%istate, &
-                            xxbc(:)
-      endif
-#endif
     enddo
     boundary_condition => boundary_condition%next
   enddo

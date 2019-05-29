@@ -1,4 +1,6 @@
-#Description: Gas hydrate regression test: 1D Radial Depressurization
+#Description: Gas hydrate regression test: Ice formation and methane supersaturation
+#leading to hydrate formation
+.
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS

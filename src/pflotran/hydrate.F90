@@ -61,21 +61,22 @@ module Hydrate_module
 
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
 
-  type, public :: methanogenesis_type
-    character(len=MAXWORDLENGTH) :: source_name
-    PetscReal :: alpha 
-    PetscReal :: k_alpha
-    PetscReal :: lambda
-    PetscReal :: omega
-    PetscReal :: z_smt
-    type(methanogenesis_type), pointer :: next
-  end type methanogenesis_type
+!MAN: methanogenesis not yet implemented
+!  type, public :: methanogenesis_type
+!    character(len=MAXWORDLENGTH) :: source_name
+!    PetscReal :: alpha 
+!    PetscReal :: k_alpha
+!    PetscReal :: lambda
+!    PetscReal :: omega
+!    PetscReal :: z_smt
+!    type(methanogenesis_type), pointer :: next
+!  end type methanogenesis_type
   
-  type, public :: methanogenesis_mediator_type
-    type(methanogenesis_type), pointer :: methanogenesis_list
-    class(data_mediator_vec_type), pointer :: data_mediator
-    PetscInt :: total_num_cells
-  end type methanogenesis_mediator_type
+!  type, public :: methanogenesis_mediator_type
+!    type(methanogenesis_type), pointer :: methanogenesis_list
+!    class(data_mediator_vec_type), pointer :: data_mediator
+!    PetscInt :: total_num_cells
+!  end type methanogenesis_mediator_type
 
   public :: HydrateSetFlowMode, &
             HydrateUpdateState, &
@@ -157,7 +158,6 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
   class(material_auxvar_type) :: material_auxvar
 
   PetscReal, parameter :: epsilon = 0.d0
-  !PetscReal, parameter :: TQD = 0.d0 !degrees C 
   PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
   PetscReal :: ga_epsilon, ha_epsilon
   PetscReal :: x(option%nflowdof)
@@ -895,9 +895,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
-  use Creep_Closure_module
   use Fracture_module
-  use WIPP_module
 
   implicit none
 
@@ -907,7 +905,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  class(creep_closure_type), pointer :: creep_closure
   PetscInt :: natural_id
 
   PetscInt :: gid, lid, acid, wid, eid, hid, iid
@@ -916,15 +913,12 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: u_water_vapor, h_water_vapor
   PetscReal :: den_air, h_air, u_air
   PetscReal :: xmol_air_in_gas, xmol_water_in_gas
-  PetscReal :: krl, visl, dvis_dp, dvis_dT, dvis_dpa
+  PetscReal :: krl, visl
   PetscReal :: dkrl_dsatl, dkrl_dsatg
   PetscReal :: dkrg_dsatl, dkrg_dsatg
   PetscReal :: krg, visg
   PetscReal :: K_H_tilde
-  PetscReal :: guess, dummy
   PetscInt :: apid, cpid, vpid, spid
-  PetscReal :: NaN
-  PetscReal :: creep_closure_time
   PetscReal :: xmass_air_in_gas
   PetscReal :: Ugas_J_kg, Hgas_J_kg
   PetscReal :: Uair_J_kg, Hair_J_kg
@@ -934,15 +928,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: aux(1)
   PetscReal :: hw, hw_dp, hw_dT
   PetscReal :: dpor_dp
-  PetscReal :: one_over_dw
-  PetscReal :: tempreal, tempreal2, tempreal3
-  PetscReal :: dpair_dT, dpair_dpgas
-  PetscReal :: dden_air_dT, dden_air_dpa, dden_air_dpg
-  PetscReal :: du_air_dT, dh_air_dT
-  PetscReal :: du_air_dpa, dh_air_dpa
-  PetscReal :: dden_water_vapor_dpv, dden_water_vapor_dT
-  PetscReal :: dh_water_vapor_dpv, dh_water_vapor_dT
-  PetscReal :: du_water_vapor_dpv, du_water_vapor_dT
   PetscReal :: dpc_dsatl
   PetscReal :: dden_ice_dT, dden_ice_dP
   character(len=8) :: state_char
@@ -965,27 +950,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   eid = option%energy_id
 
 
-#ifdef DEBUG_GENERAL
-  ! create a NaN
-  NaN = InitToNan()
-
-  gen_auxvar%H = NaN
-  gen_auxvar%U = NaN
-  gen_auxvar%pres = NaN
-  gen_auxvar%sat = NaN
-  gen_auxvar%den = NaN
-  gen_auxvar%den_kg = NaN
-  gen_auxvar%xmol = NaN
-  gen_auxvar%effective_porosity = NaN
-  select case(global_auxvar%istate)
-    case(LIQUID_STATE)
-      state_char = 'L'
-    case(GAS_STATE)
-      state_char = 'G'
-    case(TWO_PHASE_STATE)
-      state_char = '2P'
-  end select
-#else
   !geh: do not initialize gen_auxvar%temp as the previous value is used as the
   !     initial guess for two phase.
   gen_auxvar%H = 0.d0
@@ -996,7 +960,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   gen_auxvar%den_kg = 0.d0
   gen_auxvar%xmol = 0.d0
   gen_auxvar%effective_porosity = 0.d0
-#endif
   gen_auxvar%mobility = 0.d0
 
 #if 0
@@ -1005,8 +968,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       write(*,'(a,i3,3es17.8,a3)') 'before: ', &
         natural_id, x(1:3), trim(state_char)
     else
-!      write(*,'(a,i3,3es17.8,a3)') 'before: ', &
-!        -1*natural_id, x(1:3), trim(state_char)
     endif
   endif
 #endif
@@ -1660,40 +1621,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
     dpor_dp = 0.d0
     gen_auxvar%effective_porosity = material_auxvar%porosity_base
-#if 0
-!geh this code is no longer valid
-    if (associated(material_auxvar%fracture) .and. &
-      material_auxvar%fracture%setup) then
-      ! The initiating pressure and maximum pressure must be calculated
-      ! before fracture function applies - Heeho
-      call FractureInitialSetup(material_auxvar,cell_pressure)
-    endif
-    if (soil_compressibility_index > 0 .and. &
-      material_auxvar%setup_reference_pressure) then
-      call MaterialReferencePressureSetup(material_auxvar,cell_pressure)
-    endif
-#endif
-    ! creep_closure, fracture, and soil_compressibility are mutually exclusive
-    if (option%flow%creep_closure_on) then
-      creep_closure => wipp%creep_closure_tables_array( &
-                         material_auxvar%creep_closure_id )%ptr
-      if ( associated(creep_closure) ) then
-        ! option%time here is the t time, not t + dt time.
-        creep_closure_time = option%time
-        if (option%iflag /= GENERAL_UPDATE_FOR_FIXED_ACCUM) then
-          creep_closure_time = creep_closure_time + option%flow_dt
-        endif
-
-        gen_auxvar%effective_porosity = &
-          creep_closure%Evaluate(creep_closure_time,cell_pressure)
-      else if (associated(material_auxvar%fracture)) then
-          call FracturePoroEvaluate(material_auxvar,cell_pressure, &
-                                gen_auxvar%effective_porosity,dpor_dp)
-      else if (soil_compressibility_index > 0) then
-          call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                gen_auxvar%effective_porosity,dpor_dp)
-      endif
-    else if (associated(material_auxvar%fracture)) then
+    if (associated(material_auxvar%fracture)) then
       call FracturePoroEvaluate(material_auxvar,cell_pressure, &
                                 gen_auxvar%effective_porosity,dpor_dp)
     else if (soil_compressibility_index > 0) then
@@ -1922,8 +1850,6 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
   ! Date: 01/30/19
   !
   
-  ! MAN: This subroutine needs work
-
   use Option_module
   use Characteristic_Curves_module
   use Global_Aux_module
@@ -2484,7 +2410,6 @@ subroutine EOSIceEnergy(T,U)
   PetscReal, intent(in) :: T
   PetscReal, intent(out) :: U
   PetscReal, parameter :: Lw = -6017.1d0 !Latent heat of fusion,  J/mol
-  !PetscReal, parameter :: TQD = 273.15d0
   PetscReal :: T_temp
 
   T_temp = T + 273.15d0
@@ -2564,62 +2489,62 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
 end subroutine HydrateCompositeThermalCond
 
 ! ************************************************************************** !
-
-subroutine Methanogenesis(depth, q_meth)
-  
-  ! A simple methanogenesis source parameterized as a function of depth
-  !
-  ! Author: Michael Nole
-  ! Date: 03/05/19
-  !
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-
-  implicit none
-
-  !type(methanogenesis_mediator_type), pointer :: this
-  !PetscReal :: time
-  !PetscErrorCode :: ierr
-
-  !PetscInt :: i,j
-  !type(methanogenesis_type), pointer :: cur_methanogenesis
-  !PetscReal, pointer :: heat_source(:)
-
-  PetscReal, intent(in) :: depth
-  PetscReal, intent(out) :: q_meth
-
-  PetscReal, parameter :: alpha = 0.005
-  PetscReal, parameter :: k_alpha = 2241 ! Maliverno, 2010, corrected
-  PetscReal, parameter :: lambda = 1.d-13
-  PetscReal, parameter :: omega = 3.17d-11
-  PetscReal, parameter :: z_smt = 15.d0
-
-
-  if (depth > z_smt) then
-    q_meth = k_alpha * lambda * exp(-lambda/omega * (depth - z_smt))
-  endif
-
-  !call VecGetArrayF90(this%data_mediator%vec,methane_source, &
-  !                    ierr);CHKERRQ(ierr)
-  !
-  !cur_methanogenesis => this%methanogenesis_list
-  !j = 0
-  !do
-  !  if (.not. associated(cur_methanogenesis)) exit
-  !  do i = 1, cur_methanogenesis%region%num_cells
-  !    j = j + 1
-  !    methane_source(j) = cur_methanogenesis%source
-  !  enddo
-  !  cur_methanogenesis => cur_methanogenesis%next
-  !enddo
-  !
-  !call VecRestoreArrayF90(this%data_mediator%vec,methane_source, &
-  !                        ierr);CHKERRQ(ierr)
-
-
-end subroutine Methanogenesis
-
+!
+!subroutine Methanogenesis(depth, q_meth)
+!  
+!  ! A simple methanogenesis source parameterized as a function of depth
+!  !
+!  ! Author: Michael Nole
+!  ! Date: 03/05/19
+!  !
+!
+!#include "petsc/finclude/petscvec.h"
+!  use petscvec
+!
+!  implicit none
+!
+!  !type(methanogenesis_mediator_type), pointer :: this
+!  !PetscReal :: time
+!  !PetscErrorCode :: ierr
+!
+!  !PetscInt :: i,j
+!  !type(methanogenesis_type), pointer :: cur_methanogenesis
+!  !PetscReal, pointer :: heat_source(:)
+!
+!  PetscReal, intent(in) :: depth
+!  PetscReal, intent(out) :: q_meth
+!
+!  PetscReal, parameter :: alpha = 0.005
+!  PetscReal, parameter :: k_alpha = 2241 ! Maliverno, 2010, corrected
+!  PetscReal, parameter :: lambda = 1.d-13
+!  PetscReal, parameter :: omega = 3.17d-11
+!  PetscReal, parameter :: z_smt = 15.d0
+!
+!
+!  if (depth > z_smt) then
+!    q_meth = k_alpha * lambda * exp(-lambda/omega * (depth - z_smt))
+!  endif
+!
+!  !call VecGetArrayF90(this%data_mediator%vec,methane_source, &
+!  !                    ierr);CHKERRQ(ierr)
+!  !
+!  !cur_methanogenesis => this%methanogenesis_list
+!  !j = 0
+!  !do
+!  !  if (.not. associated(cur_methanogenesis)) exit
+!  !  do i = 1, cur_methanogenesis%region%num_cells
+!  !    j = j + 1
+!  !    methane_source(j) = cur_methanogenesis%source
+!  !  enddo
+!  !  cur_methanogenesis => cur_methanogenesis%next
+!  !enddo
+!  !
+!  !call VecRestoreArrayF90(this%data_mediator%vec,methane_source, &
+!  !                        ierr);CHKERRQ(ierr)
+!
+!
+!end subroutine Methanogenesis
+!
 ! ************************************************************************** !
 
 end module Hydrate_module

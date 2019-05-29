@@ -529,7 +529,7 @@ subroutine SFBaseSurfaceTension(this,T,sigma)
   PetscReal :: Temp
   PetscReal :: tao
   
-  Temp=T+273.15
+  Temp=T+273.15d0
   
   if (T <= 373.d0) then
     tao = 1.d0-Temp/Tc
