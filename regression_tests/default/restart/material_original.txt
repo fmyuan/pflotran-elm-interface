@@ -1,0 +1,14 @@
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+  ROCK_DENSITY 2650.d0 kg/m^3
+  THERMAL_CONDUCTIVITY_DRY 0.6d0 W/m-C
+  THERMAL_CONDUCTIVITY_WET 1.9d0 W/m-C
+  HEAT_CAPACITY 830.d0 J/kg-C
+  PERMEABILITY
+    PERM_ISO 1.d-13
+  /
+/

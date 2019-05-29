@@ -414,11 +414,20 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   endif
   
   ! restart
-  if (this%revert_parameters_on_restart) then
-    call RealizationRevertFlowParameters(this%realization)
-!geh: for testing only.  In general, we only revert parameter, not flow.
-!    call CondControlAssignFlowInitCond(this%realization)
-!    call this%UpdateAuxVars()
+  if (this%realization%option%restart_flag) then
+    ! geh - up to this point, parameters from the input file(s) are stored in
+    ! Vecs (porosity0, perm0_XX, etc.) while values from potential restart will
+    ! be stored in the material auxvar.
+    ! If we are truly restarting: material_auxvar -> Vecs
+    ! If we are reverting:        Vecs -> material_auxvar
+    if (this%revert_parameters_on_restart) then
+      call RealizationRevertFlowParameters(this%realization)
+      !geh: for testing only.  In general, we only revert parameter, not flow.
+      !call CondControlAssignFlowInitCond(this%realization)
+      !call this%UpdateAuxVars()
+    else
+      call RealizStoreRestartFlowParams(this%realization)
+    endif
   endif
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
