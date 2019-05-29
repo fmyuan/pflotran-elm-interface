@@ -1,4 +1,10 @@
-#Description: 1D Calcite dissolution problem
+#Description: 1D Regression Test for reaction_sandbox_example.F90
+#
+# This file is simplified for regression tests.  To run a full scale simulation
+# to 25 years at 1m resolution:
+#
+# 1. Increase the number of grid cells in the X direction under the GRID card
+#    to 100.
 
 #==============================================================================
 # DO NOT MODIFY
@@ -16,32 +22,34 @@ END
 
 SUBSURFACE
 
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+1
+    2
+3
+4
+    5
+6
+7
+8
+    9
+10
+  /
+END
+
 #=========================== constraints ======================================
 # modify these initial concentration
 CONSTRAINT initial
   CONCENTRATIONS # [mol/L]
-    Aaq  1.d-10  T
-    Baq  1.d-10  T
-    Caq  1.d-10  T
-    Daq  1.d-10  T
-    Eaq  1.d-10  T
-    Faq  1.d-10  T
-  /
-  IMMOBILE     # [mol/m^3 bulk]
-    Xim  1.d-4
-    Yim  1.d-10
+    A(aq)  1.d-10  T
   /
 END
 
 # modify these inlet concentrations
 CONSTRAINT inlet
   CONCENTRATIONS # [mol/L]
-    Aaq  1.d-3   T
-    Baq  1.d-3   T
-    Caq  1.d-10  T
-    Daq  1.d-10  T
-    Eaq  1.d-10  T
-    Faq  1.d-10  T
+    A(aq)  1.d-3   T
   /
 END
 
@@ -61,61 +69,15 @@ REFERENCE_LIQUID_DENSITY 1000.d0
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    Aaq
-    Baq
-    Caq
-    Daq
-    Eaq
-    Faq
+    A(aq)
   /
-  IMMOBILE_SPECIES
-    Xim
-    Yim
-  /
-skip
-  ! cannot test zero-order reaction as the forward species option is automated.
-  GENERAL_REACTION
-    REACTION Daq <-> Faq
-    FORWARD_RATE 1.d-10
-  /
-  GENERAL_REACTION
-    REACTION Daq + Eaq <-> Faq
-    FORWARD_RATE 1.d-10
-  /
-  MICROBIAL_REACTION
-    REACTION Daq <-> Faq
-    RATE_CONSTANT 1.d-12
-    MONOD
-      SPECIES_NAME Daq
-      HALF_SATURATION_CONSTANT 5.d-4
-    /
-  /
-  MICROBIAL_REACTION
-    REACTION Daq + 2.d0 Eaq <-> Faq
-    RATE_CONSTANT 1.d-7
-    MONOD
-      SPECIES_NAME Daq
-      HALF_SATURATION_CONSTANT 5.d-4
-    /
-    MONOD
-      SPECIES_NAME Eaq
-      HALF_SATURATION_CONSTANT 5.d-4
-    /
-    BIOMASS
-      SPECIES_NAME Yim
-      YIELD 0.d0
-    /
-  /
-  GENERAL_REACTION
-    REACTION Daq <-> Faq
-    FORWARD_RATE 1.d-6
-    BACKWARD_RATE 1.d-7
-  /
-noskip
   REACTION_SANDBOX
-    SIMPLE
+    EXAMPLE
+      SPECIES_NAME A(aq)
+      RATE_CONSTANT 1.d-5 1/h 
+    /
   /
-  DATABASE ../../database/simple_rxn_database.dat
+  DATABASE ../../../database/hanford.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
@@ -132,7 +94,8 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  NXYZ 100 1 1
+#  NXYZ 100 1 1
+  NXYZ 10 1 1
   BOUNDS
     0.d0 0.d0 0.d0
     100.d0 1.d0 1.d0

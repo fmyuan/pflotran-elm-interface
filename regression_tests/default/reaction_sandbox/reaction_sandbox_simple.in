@@ -1,4 +1,10 @@
-#Description: 1D Calcite dissolution problem
+#Description: 1D Regression Test for reaction_sandbox_simple.F90
+#
+# This file is simplified for regression tests.  To run a full scale simulation
+# to 25 years at 1m resolution:
+#
+# 1. Increase the number of grid cells in the X direction under the GRID card
+#    to 100.
 
 #==============================================================================
 # DO NOT MODIFY
@@ -15,6 +21,15 @@ END
 #==============================================================================
 
 SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    2
+    5
+    9
+  /
+END
 
 #=========================== constraints ======================================
 # modify these initial concentration
@@ -115,7 +130,7 @@ noskip
   REACTION_SANDBOX
     SIMPLE
   /
-  DATABASE ../../database/simple_rxn_database.dat
+  DATABASE ../../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT
@@ -132,7 +147,8 @@ END
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
-  NXYZ 100 1 1
+#  NXYZ 100 1 1
+  NXYZ 10 1 1
   BOUNDS
     0.d0 0.d0 0.d0
     100.d0 1.d0 1.d0
