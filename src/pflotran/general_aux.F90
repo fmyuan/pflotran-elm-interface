@@ -476,7 +476,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   use Creep_Closure_module
   use Fracture_module
   use WIPP_module
-  use String_module
   
   implicit none
 
@@ -628,14 +627,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,natural_id, &
-                              'Error in GeneralAuxVarCompute->EOSGasHenry')
-          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
-            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
-                               ' exceeds the equation of state temperature bound with ' // &
-                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-            call printErrMsgByRank(option)         
-          endif
+          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
         endif
         gen_auxvar%d%Hc = K_H_tilde
       else
@@ -645,16 +637,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,natural_id, &
-                              'Error in GeneralAuxVarCompute->EOSGasHenry')
-          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
-            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
-                               ' exceeds the equation of state temperature bound with ' // &
-                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-            call printErrMsgByRank(option)         
-          endif
-        endif
-      endif
+          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
+       endif
+    endif
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
       ! need vpres for liq -> 2ph check
@@ -709,14 +694,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,natural_id, &
-                              'Error in GeneralAuxVarCompute->EOSGasHenry')
-          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
-            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
-                               ' exceeds the equation of state temperature bound with ' // &
-                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-            call printErrMsgByRank(option)         
-          endif
+          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
         endif
         gen_auxvar%d%Hc = K_H_tilde
       else
@@ -724,14 +702,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                         gen_auxvar%pres(spid),ierr)
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,natural_id, &
-                              'Error in GeneralAuxVarCompute->EOSGasHenry')
-          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
-            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
-                               ' exceeds the equation of state temperature bound with ' // &
-                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-            call printErrMsgByRank(option)         
-          endif
+          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
         endif
       endif
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
@@ -795,14 +766,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                            gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
                            K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
           if (ierr /= 0) then
-            call printMsgByCell(option,natural_id, &
-                                'Error in GeneralAuxVarCompute->EOSGasHenry')
-            if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
-              option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
-                                 ' exceeds the equation of state temperature bound with ' // &
-                                 trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-              call printErrMsgByRank(option)         
-            endif
+            call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
           endif
           gen_auxvar%d%Hc = K_H_tilde
         else
@@ -810,14 +774,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                           gen_auxvar%pres(spid),ierr)
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
           if (ierr /= 0) then
-            call printMsgByCell(option,natural_id, &
-                                'Error in GeneralAuxVarCompute->EOSGasHenry')
-            if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
-              option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
-                                 ' exceeds the equation of state temperature bound with ' // &
-                                 trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-              call printErrMsgByRank(option)         
-            endif
+            call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
           endif
         endif
         if (general_immiscible) then
@@ -1294,7 +1251,40 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
 end subroutine GeneralAuxVarCompute
 
+! ************************************************************************** !
 
+subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
+
+  !
+  !  GeneralEOSGasError: Elaborates when variables exceeds the bounds of
+  !                      the equation of state.
+  !
+  !  Author: Heeho Park
+  !  Date: 5/29/19
+  !
+
+  use Option_module
+  use String_module
+
+  implicit none
+
+  PetscInt :: natural_id
+  PetscInt :: ierr
+  type(general_auxvar_type) :: gen_auxvar
+  type(option_type) :: option
+  
+  
+  call printMsgByCell(option,natural_id, &
+                      'Error in GeneralAuxVarCompute->EOSGasHenry')
+  if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+    option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                               ' exceeds the equation of state temperature bound with ' // &
+                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+    call printErrMsgByRank(option)         
+  endif
+
+  
+end subroutine GeneralEOSGasError
 
 ! ************************************************************************** !
 
