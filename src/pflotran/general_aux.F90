@@ -34,6 +34,7 @@ module General_Aux_module
   PetscInt, public :: general_ni_count
   PetscInt, public :: general_ts_cut_count
   PetscInt, public :: general_ts_count
+  PetscInt, parameter, public :: GENERAL_TEMPERATURE_BOUND_EXCEEDED = 71
 
   ! thermodynamic state of fluid ids
   PetscInt, parameter, public :: NULL_STATE = 0
@@ -475,6 +476,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   use Creep_Closure_module
   use Fracture_module
   use WIPP_module
+  use String_module
   
   implicit none
 
@@ -624,14 +626,34 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%psat_p = 0.d0
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T)
+                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
+        if (ierr /= 0) then
+          call printMsgByCell(option,natural_id, &
+                              'Error in GeneralAuxVarCompute->EOSGasHenry')
+          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                               ' exceeds the equation of state temperature bound with ' // &
+                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+            call printErrMsgByRank(option)         
+          endif
+        endif
         gen_auxvar%d%Hc = K_H_tilde
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
+        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
+        if (ierr /= 0) then
+          call printMsgByCell(option,natural_id, &
+                              'Error in GeneralAuxVarCompute->EOSGasHenry')
+          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                               ' exceeds the equation of state temperature bound with ' // &
+                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+            call printErrMsgByRank(option)         
+          endif
+        endif
       endif
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
@@ -685,12 +707,32 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%psat_p = 0.d0
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T)
+                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
+        if (ierr /= 0) then
+          call printMsgByCell(option,natural_id, &
+                              'Error in GeneralAuxVarCompute->EOSGasHenry')
+          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                               ' exceeds the equation of state temperature bound with ' // &
+                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+            call printErrMsgByRank(option)         
+          endif
+        endif
         gen_auxvar%d%Hc = K_H_tilde
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
+        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
+        if (ierr /= 0) then
+          call printMsgByCell(option,natural_id, &
+                              'Error in GeneralAuxVarCompute->EOSGasHenry')
+          if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+            option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                               ' exceeds the equation of state temperature bound with ' // &
+                               trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+            call printErrMsgByRank(option)         
+          endif
+        endif
       endif
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       ! set water mole fraction to zero as there is no water in liquid phase
@@ -751,12 +793,32 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
           gen_auxvar%d%psat_p = 0.d0
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                            gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T)
+                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
+          if (ierr /= 0) then
+            call printMsgByCell(option,natural_id, &
+                                'Error in GeneralAuxVarCompute->EOSGasHenry')
+            if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+              option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                                 ' exceeds the equation of state temperature bound with ' // &
+                                 trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+              call printErrMsgByRank(option)         
+            endif
+          endif
           gen_auxvar%d%Hc = K_H_tilde
         else
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
-          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
+          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
+          if (ierr /= 0) then
+            call printMsgByCell(option,natural_id, &
+                                'Error in GeneralAuxVarCompute->EOSGasHenry')
+            if (ierr == GENERAL_TEMPERATURE_BOUND_EXCEEDED) then
+              option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
+                                 ' exceeds the equation of state temperature bound with ' // &
+                                 trim(StringWrite(gen_auxvar%temp)) // ' [C].'
+              call printErrMsgByRank(option)         
+            endif
+          endif
         endif
         if (general_immiscible) then
           gen_auxvar%pres(spid) = GENERAL_IMMISCIBLE_VALUE
