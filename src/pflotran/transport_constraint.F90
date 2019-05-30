@@ -30,6 +30,10 @@ module Transport_Constraint_module
   PetscInt, parameter, public :: CONSTRAINT_TOTAL_SORB = 9
   PetscInt, parameter, public :: CONSTRAINT_SUPERCRIT_CO2 = 10
   PetscInt, parameter, public :: CONSTRAINT_TOTAL_AQ_PLUS_SORB = 11
+  PetscInt, parameter, public :: CONSTRAINT_AQ_EQUILIBRIUM = 12
+  PetscInt, parameter, public :: CONSTRAINT_PPT_EQUILIBRIUM = 13
+  PetscInt, parameter, public :: CONSTRAINT_SB_EQUILIBRIUM = 14
+  PetscInt, parameter, public :: CONSTRAINT_T_EQUILIBRIUM = 15
 
   type, public :: tran_constraint_type
     PetscInt :: id
@@ -697,8 +701,8 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
   ! 
   ! Reads a transport constraint from the input file
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/14/08
+  ! Author: Jenn Frederick
+  ! Date: 05/29/2019
   ! 
 
 #include "petsc/finclude/petscsys.h"
@@ -772,7 +776,38 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
           call InputReadDouble(input,option, &
                                nwt_species_constraint%constraint_conc(icomp))
           call InputErrorMsg(input,option,'concentration',block_string)
-                  
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputDefaultMsg(input,option,trim(block_string) // &
+                               'constraint type')
+          if (len_trim(word) > 0) then
+            call StringToUpper(word)
+            select case(word)
+              case('AQ','AQUEOUS')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_AQ_EQUILIBRIUM
+              case('PPT','PRECIPITATED')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_PPT_EQUILIBRIUM
+              case('SB','SORBED')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_SB_EQUILIBRIUM
+              case('T','TOTAL')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_T_EQUILIBRIUM
+              case default
+                option%io_buffer = 'Error in constraint: ' // &
+                  trim(constraint%name) // '. The constraint type given for &
+                  &species ' // trim(nwt_species_constraint%names(icomp)) // &
+                  ' is not recognized: ' // trim(word) // '. &
+                  &Options include: T, AQ, PPT, or SB only.'
+                call printErrMsg(option)
+            end select
+          else
+            option%io_buffer = 'Error in constraint: ' // &
+              trim(constraint%name) // '. A constraint type was not specified &
+              &for species ' // trim(nwt_species_constraint%names(icomp)) // '.'
+            call printErrMsg(option)
+          endif
         enddo  
         
         if (icomp < nw_trans%params%nspecies) then

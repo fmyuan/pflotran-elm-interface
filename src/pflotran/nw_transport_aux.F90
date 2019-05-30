@@ -66,6 +66,7 @@ module NW_Transport_Aux_module
     PetscInt :: nauxiliary
     PetscBool :: calculate_transverse_dispersion
     PetscBool :: temperature_dependent_diffusion
+    PetscReal :: truncated_concentration
   end type nwt_params_type
   
   type, public :: nwt_print_type
@@ -88,6 +89,7 @@ module NW_Transport_Aux_module
     character(len=MAXWORDLENGTH), pointer :: names(:)
     PetscReal, pointer :: constraint_conc(:)
     PetscInt, pointer :: constraint_spec_id(:)
+    PetscInt, pointer :: constraint_type(:)
   end type nwt_species_constraint_type
   
   type, public :: radioactive_decay_rxn_type
@@ -255,6 +257,7 @@ function NWTRealizCreate()
   nwtr%params%nauxiliary = 0
   nwtr%params%calculate_transverse_dispersion = PETSC_FALSE
   nwtr%params%temperature_dependent_diffusion = PETSC_FALSE
+  nwtr%params%truncated_concentration = UNINITIALIZED_DOUBLE
   
   nullify(nwtr%print)
   allocate(nwtr%print)
@@ -403,6 +406,10 @@ subroutine NWTRead(nw_trans,input,option)
         enddo
       case('LOG_FORMULATION')
         nw_trans%use_log_formulation = PETSC_TRUE
+      case('TRUNCATE_CONCENTRATION')
+        call InputReadDouble(input,option, &
+                             nw_trans%params%truncated_concentration)
+        call InputErrorMsg(input,option,'TRUNCATE_CONCENTRATION',error_string)
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
@@ -530,6 +537,8 @@ function NWTSpeciesConstraintCreate(nw_trans,option)
   allocate(constraint%constraint_conc(nw_trans%params%nspecies))
   constraint%constraint_conc = 0.d0
   allocate(constraint%constraint_spec_id(nw_trans%params%nspecies))
+  constraint%constraint_spec_id = 0
+  allocate(constraint%constraint_type(nw_trans%params%nspecies))
   constraint%constraint_spec_id = 0
 
   NWTSpeciesConstraintCreate => constraint

@@ -281,7 +281,8 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscInt, parameter :: iphase = 1
   PetscInt :: offset
   PetscErrorCode :: ierr
-  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   PetscInt, save :: icall
@@ -293,6 +294,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   grid => patch%grid
   field => realization%field
   nw_trans => realization%nw_trans
+  material_auxvars => patch%aux%Material%auxvars
   nwt_auxvars => patch%aux%NWT%auxvars
   nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
@@ -317,6 +319,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
       call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
+                            material_auxvars(ghosted_id), &
                             nw_trans,option)
 
     enddo
@@ -396,26 +399,33 @@ end subroutine NWTUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,nw_trans,option)
+subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
+                            nw_trans,option)
   ! 
-  ! Do I actually need this? I'm just going to keep it as a placeholder.
+  ! Computes the secondary variables from the primary dependent variable.
   ! 
   ! Author: Jenn Frederick
-  ! Date: 04/02/2019
+  ! Date: 05/29/2019
   ! 
 
   use Option_module
+  use Material_Aux_class
   
   implicit none
   
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
   type(nw_trans_realization_type) :: nw_trans
   type(option_type) :: option
 
   PetscReal :: ln_conc(nw_trans%params%nspecies)
 
   ln_conc = log(nwt_auxvar%total_bulk_conc)
+  
+  ! aqueous concentration (equilibrium)
+  nwt_auxvar%aqueous_eq_conc(:) = nwt_auxvar%total_bulk_conc(:) / &
+                     (global_auxvar%sat(LIQUID_PHASE)*material_auxvar%porosity)
 
 end subroutine NWTAuxVarCompute
 
@@ -540,6 +550,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
   
+#if 1
   !== Accumulation Terms ======================================
   if (.not.option%steady_state) then
     do local_id = 1, grid%nlmax
@@ -560,7 +571,9 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       
     enddo
   endif
+#endif
   
+#if 1
   !== Source/Sink Terms =======================================
   source_sink => patch%source_sink_list%first
   sum_connection = 0
@@ -596,7 +609,9 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
+#endif
 
+#if 1
   !== Decay and Ingrowth ======================================
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -613,7 +628,9 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)
     
   enddo
-  
+#endif
+
+#if 0
   !== Fluxes ==================================================
   if (option%compute_mass_balance_new) then
     ! jenn:todo Create NWTZeroMassBalanceDelta(realization)
@@ -722,6 +739,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   
     boundary_condition => boundary_condition%next
   enddo
+#endif
+  
+  ! multiply residual by (-1.0) because Newton's Method is (J)(dC) = (-R)
+  r_p = -1.0d0*r_p
   
   ! Restore residual Vector data
   call VecRestoreArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
@@ -812,6 +833,7 @@ subroutine NWTUpdateFixedAccumulation(realization)
     
     call NWTAuxVarCompute(nwt_auxvars(ghosted_id), &
                           global_auxvars(ghosted_id), &
+                          material_auxvars(ghosted_id), &
                           nw_trans,option)
     call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                           global_auxvars(ghosted_id), &
@@ -846,11 +868,9 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   type(nw_trans_realization_type), pointer :: nw_trans
   PetscReal :: Res(nw_trans%params%nspecies)
   
-  PetscInt :: iphase
   PetscInt :: istart, iend
   PetscReal :: pv
   
-  iphase = LIQUID_PHASE
   Res = 0.d0
   
   ! All residual entries for accumulation should be in [mol-species].
@@ -867,7 +887,7 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   ! -- Aqueous-Component ----------------------------------------
   ! saturation in [m^3-liq/m^3-void]
   ! aqueous conc in [mol-species/m^3-liq]
-  Res(istart:iend) = pv*global_auxvar%sat(iphase)* &
+  Res(istart:iend) = pv*global_auxvar%sat(LIQUID_PHASE)* &
                      nwt_auxvar%aqueous_eq_conc(:)
                      
   ! -- Precipitated-Component -----------------------------------
@@ -1177,11 +1197,15 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(patch_type), pointer :: patch
   type(nw_trans_realization_type), pointer :: nw_trans
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars_bc(:)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(connection_set_list_type), pointer :: connection_set_list
+  type(coupler_type), pointer :: boundary_condition
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
@@ -1202,8 +1226,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   nw_trans => realization%nw_trans
   
   nwt_auxvars => patch%aux%NWT%auxvars
+  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
+  ! note: there is no patch%aux%Material%auxvars_bc
+  material_auxvars_bc => patch%aux%Material%auxvars
   
   iphase = LIQUID_PHASE
 
@@ -1220,6 +1248,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
   
+#if 1
   !== Accumulation Terms ======================================
   if (.not.option%steady_state) then
     do local_id = 1, grid%nlmax
@@ -1236,7 +1265,9 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   
     enddo
   endif
+#endif
 
+#if 1
   !== Source/Sink Terms =======================================
   source_sink => patch%source_sink_list%first 
   sum_connection = 0
@@ -1254,7 +1285,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       call NWTJacobianSrcSink(material_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id),source_sink, &
                               patch,sum_connection,nw_trans,Jac) 
-      
+                                
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1263,7 +1294,9 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
         
     source_sink => source_sink%next
   enddo
-  
+#endif
+
+#if 1  
   !== Decay and Ingrowth ======================================
   do local_id = 1, grid%nlmax  
     ghosted_id = grid%nL2G(local_id)
@@ -1278,7 +1311,9 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
     
   enddo
+#endif
   
+#if 0
   !== Fluxes ==================================================
     
   ! Interior Flux Terms ---------------------------------------
@@ -1326,6 +1361,45 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     
   cur_connection_set => cur_connection_set%next
   enddo
+
+  ! Boundary Flux Terms ---------------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0 
+  do 
+    if (.not.associated(boundary_condition)) exit
+    
+    cur_connection_set => boundary_condition%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      
+      if (patch%imat(ghosted_id) <= 0) cycle
+          
+      call NWTJacobianFlux(nwt_auxvars_bc(sum_connection), &
+                           nwt_auxvars(ghosted_id), &
+                           global_auxvars_bc(sum_connection), &
+                           global_auxvars(ghosted_id), &
+                           material_auxvars_bc(sum_connection), &
+                           material_auxvars(ghosted_id), &
+                           cur_connection_set%area(iconn), &
+                           cur_connection_set%dist(:,iconn), &
+                           patch%internal_velocities(:,sum_connection), &
+                           nw_trans,option,JacUp,JacDn)
+      
+      ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+      ! note: Don't need to worry about JacUp because that is outside of
+      ! the domain, and doesn't have a place in A.
+      
+    enddo
+    
+  boundary_condition => boundary_condition%next
+  enddo
+#endif
     
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  

@@ -20,6 +20,7 @@ module PM_NWT_class
     PetscReal :: cfl_governor
     PetscReal :: newton_inf_rel_update_tol
     PetscReal :: newton_inf_scaled_res_tol
+    PetscReal :: max_dlnC
     PetscBool :: check_post_converged
     PetscBool :: check_post_convergence
     PetscBool :: check_update
@@ -58,6 +59,7 @@ module PM_NWT_class
     procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
     procedure, public :: SetRealization => PMNWTSetRealization 
     procedure, public :: InitializeRun => PMNWTInitializeRun  
+    procedure, public :: FinalizeRun => PMNWTFinalizeRun
     procedure, public :: InitializeTimestep => PMNWTInitializeTimestep
     procedure, public :: FinalizeTimestep => PMNWTFinalizeTimestep
     procedure, public :: UpdateTimestep => PMNWTUpdateTimestep
@@ -116,9 +118,10 @@ function PMNWTCreate()
   nwt_pm%controls%cfl_governor = UNINITIALIZED_DOUBLE
   nwt_pm%controls%newton_inf_rel_update_tol = UNINITIALIZED_DOUBLE
   nwt_pm%controls%newton_inf_scaled_res_tol = UNINITIALIZED_DOUBLE
+  nwt_pm%controls%max_dlnC = 5.0d0
   nwt_pm%controls%check_post_converged = PETSC_FALSE
   nwt_pm%controls%check_post_convergence = PETSC_FALSE
-  nwt_pm%controls%check_update = PETSC_FALSE
+  nwt_pm%controls%check_update = PETSC_TRUE
 #ifdef OS_STATISTICS
   nwt_pm%controls%newton_call_count = 0
   nwt_pm%controls%sum_newton_call_count = 0.d0
@@ -644,8 +647,8 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! In the case of the log formulation, ensures that the update
   ! vector does not exceed a prescribed tolerance
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/16/09
+  ! Author: Glenn Hammond, Jenn Frederick
+  ! Date: 05/28/2019
   ! 
 
   use Realization_Subsurface_class
@@ -661,7 +664,88 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  ! jenn:todo Do I need PMNWTCheckUpdatePre() function?
+  PetscReal, pointer :: C_p(:)  ! CURRENT SOLUTION
+  PetscReal, pointer :: dC_p(:) ! SOLUTION UPDATE STEP
+  type(grid_type), pointer :: grid
+  type(nw_trans_realization_type), pointer :: nw_trans
+  PetscReal :: ratio, min_ratio
+  PetscReal, parameter :: min_allowable_scale = 1.d-10
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: i, n
+  
+  grid => this%realization%patch%grid
+  nw_trans => this%realization%nw_trans
+  
+  call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+
+  if (nw_trans%use_log_formulation) then
+    ! C and dC are actually lnC and dlnC
+    dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),this%controls%max_dlnC)
+    ! at this point, it does not matter whether "changed" is set to true, 
+    ! since it is not checkied in PETSc.  Thus, I don't want to spend 
+    ! time checking for changes and performing an allreduce for log 
+    ! formulation.
+    if (Initialized(nw_trans%params%truncated_concentration)) then
+      call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+      dC_p = min(C_p-log(nw_trans%params%truncated_concentration),dC_p)
+      call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    endif
+  else
+    call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    
+    if (Initialized(nw_trans%params%truncated_concentration)) then
+      dC_p = min(dC_p,C_p-nw_trans%params%truncated_concentration)
+    else
+      ! C^p+1 = C^p - dC^p
+      ! if dC is positive and abs(dC) larger than C
+      ! we need to scale the update
+      
+      ! compute smallest ratio of C to dC
+#if 0
+      min_ratio = 1.d0/maxval(dC_p/C_p)
+#else
+      min_ratio = 1.d20 ! large number
+      do i = 1, n
+        if (C_p(i) <= dC_p(i)) then
+          ratio = abs(C_p(i)/dC_p(i))
+          if (ratio < min_ratio) min_ratio = ratio
+        endif
+      enddo
+#endif
+      ratio = min_ratio
+    
+      ! get global minimum
+      call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                         MPI_MIN,this%realization%option%mycomm,ierr)
+                       
+      ! scale if necessary
+      if (min_ratio < 1.d0) then
+        if (min_ratio < this%realization%option%min_allowable_scale) then
+          write(string,'(es10.3)') min_ratio
+          string = 'The update of primary species concentration is being ' // &
+            'scaled by a very small value (i.e. ' // &
+            trim(adjustl(string)) // &
+            ') to prevent negative concentrations.  This value is too ' // &
+            'small and will likely cause the solver to mistakenly ' // &
+            'converge based on the infinity norm of the update vector. ' // &
+            'In this case, it is recommended that you use the ' // &
+            'LOG_FORMULATION for chemistry or truncate concentrations ' // &
+            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block).'
+          this%realization%option%io_buffer = string
+          call PrintErrMsgToDev('send your input deck if that does not work', &
+                                this%realization%option)
+        endif
+        ! scale by 0.99 to make the update slightly smaller than the min_ratio
+        dC_p = dC_p*min_ratio*0.99d0
+        changed = PETSC_TRUE
+      endif
+    endif
+    call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+  endif
+
+  call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+
 
 end subroutine PMNWTCheckUpdatePre
 
@@ -799,6 +883,28 @@ function PMNWTAcceptSolution(this)
   PMNWTAcceptSolution = PETSC_TRUE
   
 end function PMNWTAcceptSolution
+
+! ************************************************************************** !
+
+recursive subroutine PMNWTFinalizeRun(this)
+  ! 
+  ! Finalizes the time stepping 
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/28/2019
+  ! 
+
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  
+  ! placeholder for now, doesn't do anything at the moment.
+  
+  if (associated(this%next)) then
+    call this%next%FinalizeRun()
+  endif  
+  
+end subroutine PMNWTFinalizeRun
 
 ! ************************************************************************** !
 
