@@ -361,15 +361,23 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
 
-        write(option%io_buffer,'(" Stopping: Time step cut criteria &
-                                   &exceeded!")')
-        call printMsg(option)
-        write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
-             icut,this%max_time_step_cuts
-        call printMsg(option)
-        write(option%io_buffer,'("    dt   =",es15.7,", dt_min=",es15.7)') &
-             this%dt/tconv,this%dt_min/tconv
-        call printMsg(option)
+        if (icut > this%max_time_step_cuts) then
+          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
+          call printMsg(option)
+          write(option%io_buffer, &
+                '("    icut =",i3,", max_time_step_cuts=",i3)') &
+                icut,this%max_time_step_cuts
+          call printMsg(option)
+        endif
+        if (this%dt < this%dt_min) then
+          option%io_buffer = ' Stopping: Time step size is less than the &
+                             &minimum allowable time step.'
+          call printMsg(option)
+          write(option%io_buffer, &
+                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
+               this%dt/tconv,this%dt_min/tconv,trim(tunit)
+          call printMsg(option)
+        endif
         
         process_model%output_option%plot_name = 'flow_cut_to_failure'
         snapshot_plot_flag = PETSC_TRUE

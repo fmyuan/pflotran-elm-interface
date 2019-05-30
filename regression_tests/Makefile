@@ -42,6 +42,7 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/batch/batch.cfg \
 	default/debug/debug.cfg \
 	default/eos/eos.cfg \

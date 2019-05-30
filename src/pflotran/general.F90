@@ -735,7 +735,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     option%iflag = GENERAL_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
-
     if (general_hydrate_flag) then
       call HydrateAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
@@ -746,6 +745,9 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                        natural_id, &
                        option)
     else
+    !hdp - Debugging purposes
+    !write(option%io_buffer,'("cell id: ",i7)') natural_id
+    !call printMsg(option)
       call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
