@@ -124,8 +124,6 @@ subroutine HydrateSetFlowMode(option)
   option%nflowspec = 2
   option%use_isothermal = PETSC_FALSE
 
-  hydrate_flag = PETSC_TRUE
-
 end subroutine HydrateSetFlowMode
 
 ! ************************************************************************** !
@@ -895,7 +893,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   use EOS_Gas_module
   use Characteristic_Curves_module
   use Material_Aux_class
-  use Fracture_module
 
   implicit none
 
@@ -1621,10 +1618,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
     dpor_dp = 0.d0
     gen_auxvar%effective_porosity = material_auxvar%porosity_base
-    if (associated(material_auxvar%fracture)) then
-      call FracturePoroEvaluate(material_auxvar,cell_pressure, &
-                                gen_auxvar%effective_porosity,dpor_dp)
-    else if (soil_compressibility_index > 0) then
+    if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
                                 gen_auxvar%effective_porosity,dpor_dp)
     endif

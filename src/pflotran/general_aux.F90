@@ -29,7 +29,7 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
 
-  PetscBool, public :: hydrate_flag = PETSC_FALSE  
+  PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
 
   ! debugging
   PetscInt, public :: general_ni_count

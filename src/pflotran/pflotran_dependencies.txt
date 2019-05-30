@@ -157,9 +157,9 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        coupler.o data_mediator_dataset.o dataset.o \
                        dataset_ascii.o dataset_base.o dataset_common_hdf5.o \
                        debug.o discretization.o eos.o eos_water.o field.o \
-                       fluid.o general.o global.o grid.o grid_grdecl.o \
-                       grid_structured.o grid_unstructured_aux.o hdf5_aux.o \
-                       hydrate.o init_common.o init_subsurface.o \
+                       fluid.o general.o general_aux.o global.o grid.o \
+                       grid_grdecl.o grid_structured.o grid_unstructured_aux.o \
+                       hdf5_aux.o hydrate.o init_common.o init_subsurface.o \
                        init_subsurface_flow.o init_subsurface_transport.o \
                        input_aux.o integral_flux.o logging.o material.o \
                        observation.o option.o output.o output_aux.o \
@@ -329,7 +329,7 @@ hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
 hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
 hydrate.o : characteristic_curves.o data_mediator_vec.o eos_gas.o eos_water.o \
             general_aux.o global_aux.o material_aux.o option.o \
-            pflotran_constants.o region.o wipp.o
+            pflotran_constants.o region.o
 hydrostatic.o : condition.o connection.o coupler.o dataset_ascii.o \
                 dataset_common_hdf5.o dataset_gridded_hdf5.o eos_water.o \
                 general_aux.o grid.o grid_structured.o option.o \

@@ -2338,7 +2338,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_up = gen_auxvar_up%sat(option%liquid_phase)
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
   
-  if (hydrate_flag) then
+  if (general_hydrate_flag) then
     call HydrateCompositeThermalCond(material_auxvar_up%porosity, &
                gen_auxvar_up%sat,thermal_conductivity_up(1), &
                thermal_conductivity_dn(2),k_eff_up)
@@ -2354,7 +2354,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     endif
   endif
 
-  if (hydrate_flag) then
+  if (general_hydrate_flag) then
     call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
               gen_auxvar_dn%sat,thermal_conductivity_dn(1), &
               thermal_conductivity_dn(2), k_eff_dn)
@@ -3777,7 +3777,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-      if (hydrate_flag) then
+      if (general_hydrate_flag) then
         call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
                   gen_auxvar_dn%sat,thermal_conductivity_dn(1), &
                   thermal_conductivity_dn(2),k_eff_dn)

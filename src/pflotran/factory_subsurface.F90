@@ -707,6 +707,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TOWG_Aux_module
   use PM_Richards_TS_class
   use Hydrate_module
+  use General_Aux_module
 
   implicit none
 
@@ -749,7 +750,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 2
       option%nflowspec = 2
     class is (pm_general_type)
-      if (pm_flow%hydrate_flag) then
+      if (general_hydrate_flag) then
         call HydrateSetFlowMode(option)
       else
         option%iflowmode = G_MODE

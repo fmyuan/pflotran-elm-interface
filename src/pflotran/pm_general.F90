@@ -257,7 +257,7 @@ subroutine PMGeneralRead(this,input)
     select case(trim(keyword))
       !man: hydrate
       case('WITH_HYDRATE')
-        this%hydrate_flag = PETSC_TRUE
+        general_hydrate_flag = PETSC_TRUE
       case('HYDRATE_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -1118,7 +1118,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
-    if (hydrate_flag) istate = global_auxvars(ghosted_id)%hstate
+    if (general_hydrate_flag) istate = global_auxvars(ghosted_id)%hstate
     
     do idof = 1, option%nflowdof
       
@@ -1134,7 +1134,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
         dX_X0 = dabs(dX_abs/1.d-40)
       endif
       
-      if (hydrate_flag) then
+      if (general_hydrate_flag) then
         if (dX_abs > this%hyd_abs_update_inf_tol(idof,istate)) then
           converged_absolute = PETSC_FALSE
         endif
@@ -1159,7 +1159,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       endif
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
-        if (hydrate_flag) then
+        if (general_hydrate_flag) then
           converged_abs_update_flag(idof,1) = PETSC_FALSE
           converged_rel_update_flag(idof,1) = PETSC_FALSE
         else
