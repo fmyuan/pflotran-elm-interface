@@ -292,15 +292,19 @@ subroutine GeneralUpdateSolution(realization)
   endif
   
   ! update stored state
-  do ghosted_id = 1, grid%ngmax
-    gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
-      global_auxvars(ghosted_id)%istate
-    if (general_hydrate_flag) then
+  if (general_hydrate_flag) then
+    do ghosted_id = 1, grid%ngmax
+      gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
+        global_auxvars(ghosted_id)%istate
       gen_auxvars(ZERO_INTEGER,ghosted_id)%hstate_store(PREV_TS) = &
         global_auxvars(ghosted_id)%hstate
-    endif
-  enddo
-  
+    enddo
+  else 
+    do ghosted_id = 1, grid%ngmax
+      gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
+        global_auxvars(ghosted_id)%istate
+    enddo
+  endif
   general_ts_count = general_ts_count + 1
   general_ts_cut_count = 0
   general_ni_count = 0
@@ -342,14 +346,19 @@ subroutine GeneralTimeCut(realization)
   gen_auxvars => patch%aux%General%auxvars
 
   ! restore stored state
-  do ghosted_id = 1, grid%ngmax
-    global_auxvars(ghosted_id)%istate = &
-      gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
-    if (general_hydrate_flag) then
+  if (general_hydrate_flag) then
+    do ghosted_id = 1, grid%ngmax
+      global_auxvars(ghosted_id)%istate = &
+        gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
       global_auxvars(ghosted_id)%hstate = &
         gen_auxvars(ZERO_INTEGER,ghosted_id)%hstate_store(PREV_TS)
-    endif
-  enddo
+    enddo
+  else
+    do ghosted_id = 1, grid%ngmax
+      global_auxvars(ghosted_id)%istate = &
+        gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
+    enddo
+  endif
 
   general_ts_cut_count = general_ts_cut_count + 1
 
