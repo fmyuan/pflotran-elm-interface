@@ -36,10 +36,10 @@ mode_aux_obj = \
 	${common_src}auxvars_flow.o \
 	${common_src}auxvars_flow_energy.o \
 	${common_src}auxvars_toil_ims.o \
-        ${common_src}auxvars_towg.o \
+	${common_src}auxvars_towg.o \
 	${common_src}flash2_aux.o \
 	${common_src}general_aux.o \
-        ${common_src}wipp_flow_aux.o \
+	${common_src}wipp_flow_aux.o \
 	${common_src}pm_base_aux.o \
 	${common_src}pm_toil_ims_aux.o \
 	${common_src}pm_towg_aux.o \

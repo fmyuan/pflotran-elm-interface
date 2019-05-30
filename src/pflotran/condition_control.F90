@@ -367,7 +367,7 @@ subroutine CondControlAssignFlowInitCond(realization)
               offset = (local_id-1)*option%nflowdof
               istate = initial_condition%flow_aux_int_var(1,iconn)
               do idof = 1, option%nflowdof
-                if (option%hydrate_flag .and. istate > 3) then
+                if (hydrate_flag .and. istate > 3) then
                   xx_p(offset+idof) = &
                     initial_condition%flow_aux_real_var( &
                       initial_condition%flow_aux_mapping( &
@@ -381,7 +381,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                         gen_dof_to_primary_variable(idof,istate)),iconn)
                 endif
               enddo
-              if (option%hydrate_flag .and. istate > 3) then
+              if (hydrate_flag .and. istate > 3) then
                 iphase_loc_p(ghosted_id) = TWO_PHASE_STATE
                 cur_patch%aux%Global%auxvars(ghosted_id)% &
                         istate = TWO_PHASE_STATE

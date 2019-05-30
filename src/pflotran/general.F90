@@ -295,7 +295,7 @@ subroutine GeneralUpdateSolution(realization)
   do ghosted_id = 1, grid%ngmax
     gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
       global_auxvars(ghosted_id)%istate
-    if (option%hydrate_flag) then
+    if (hydrate_flag) then
       gen_auxvars(ZERO_INTEGER,ghosted_id)%hstate_store(PREV_TS) = &
         global_auxvars(ghosted_id)%hstate
     endif
@@ -345,7 +345,7 @@ subroutine GeneralTimeCut(realization)
   do ghosted_id = 1, grid%ngmax
     global_auxvars(ghosted_id)%istate = &
       gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
-    if (option%hydrate_flag) then
+    if (hydrate_flag) then
       global_auxvars(ghosted_id)%hstate = &
         gen_auxvars(ZERO_INTEGER,ghosted_id)%hstate_store(PREV_TS)
     endif
@@ -736,7 +736,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     natural_id = grid%nG2A(ghosted_id)
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
 
-    if (option%hydrate_flag) then
+    if (hydrate_flag) then
       call HydrateAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
@@ -756,7 +756,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                        option)
     endif
     if (update_state) then
-      if (option%hydrate_flag) then
+      if (hydrate_flag) then
         call HydrateUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
                                     gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                     global_auxvars(ghosted_id), &
@@ -931,7 +931,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = GENERAL_UPDATE_FOR_BOUNDARY
 
-      if (option%hydrate_flag) then
+      if (hydrate_flag) then
         call HydrateAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
@@ -1071,7 +1071,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       option%iflag = GENERAL_UPDATE_FOR_SS
     
       ! Compute state variables 
-      if (option%hydrate_flag) then
+      if (hydrate_flag) then
         call HydrateAuxVarCompute(xxss,gen_auxvar_ss, &
                                 global_auxvar_ss, &
                                 material_auxvars(source_sink% &
@@ -1168,7 +1168,7 @@ subroutine GeneralUpdateFixedAccum(realization)
     ! GENERAL_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = GENERAL_UPDATE_FOR_FIXED_ACCUM
 
-    if (option%hydrate_flag) then
+    if (hydrate_flag) then
        call HydrateAuxVarCompute(xx_p(local_start:local_end), &
                               gen_auxvars(ZERO_INTEGER,ghosted_id), &
                               global_auxvars(ghosted_id), &
@@ -1374,7 +1374,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     if (imat <= 0) cycle
     local_end = local_id * option%nflowdof
     local_start = local_end - option%nflowdof + 1
-    if (option%hydrate_flag) then
+    if (hydrate_flag) then
       call HydrateAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
@@ -1743,7 +1743,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
       if (patch%imat(ghosted_id) <= 0) cycle
       natural_id = grid%nG2A(ghosted_id)
-      if (option%hydrate_flag) then
+      if (hydrate_flag) then
         call HydrateAuxVarPerturb(gen_auxvars(:,ghosted_id), &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &

@@ -2074,7 +2074,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         if (.not.associated(general%mole_fraction) .and. &
             .not.associated(general%relative_humidity) .and. &
             .not.associated(general%gas_saturation)) then
-          if (option%hydrate_flag) then
+          if (hydrate_flag) then
             if (.not.associated(general%hydrate_saturation) .and. &
                     .not.associated(general%ice_saturation)) then
               option%io_buffer = 'General-Hydrate Mode non-rate condition must &
@@ -2114,7 +2114,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           ! gas phase condition
           condition%iphase = GAS_STATE
         endif
-        if (option%hydrate_flag) then
+        if (hydrate_flag) then
           if (associated(general%gas_pressure) .and. &
               associated(general%hydrate_saturation)) then
             condition%iphase = 7 !HA_STATE

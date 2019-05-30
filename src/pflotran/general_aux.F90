@@ -28,7 +28,8 @@ module General_Aux_module
   PetscBool, public :: general_harmonic_diff_density = PETSC_TRUE
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
-  
+
+  PetscBool, public :: hydrate_flag = PETSC_FALSE  
 
   ! debugging
   PetscInt, public :: general_ni_count

@@ -124,7 +124,7 @@ subroutine HydrateSetFlowMode(option)
   option%nflowspec = 2
   option%use_isothermal = PETSC_FALSE
 
-  option%hydrate_flag = PETSC_TRUE
+  hydrate_flag = PETSC_TRUE
 
 end subroutine HydrateSetFlowMode
 
@@ -1688,20 +1688,6 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
     xmol_air_in_gas = gen_auxvar%xmol(acid,gid)
     xmol_water_in_gas = gen_auxvar%xmol(wid,gid)
-
-#ifdef DEBUG_GENERAL
-    xmass_air_in_gas = xmol_air_in_gas*fmw_comp(gid) / &
-                       (xmol_water_in_gas*FMWH2O + &
-                        xmol_air_in_gas*fmw_comp(gid))
-    Hair_J_kg = h_air*1.d6/fmw_comp(gid)
-    Uair_J_kg = u_air*1.d6/fmw_comp(gid)
-    Hvapor_J_kg = h_water_vapor*1.d6/FMWH2O
-    Uvapor_J_kg = u_water_vapor*1.d6/FMWH2O
-    Ugas_J_kg = xmass_air_in_gas*Uair_J_kg + &
-                (1.d0-xmass_air_in_gas)*Uvapor_J_kg
-    Hgas_J_kg = Ugas_J_kg + &
-                gen_auxvar%pres(gid)/gen_auxvar%den_kg(gid)
-#endif
 
     ! MJ/kmol
     gen_auxvar%U(gid) = xmol_water_in_gas * u_water_vapor + &

@@ -1407,7 +1407,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   use Dataset_Ascii_class
   use Dataset_module
   use String_module
-  !use Hydrate_module, only : HA_STATE
+  use Hydrate_module, only : HA_STATE
 
   implicit none
 
@@ -1519,8 +1519,8 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         TWO_PHASE_STATE
         ! no need to loop in the next do loop if its all the same state, which 
         ! you know from flow_condition%iphase
-    case(7) !MAN: testing HA_STATE (7)
-      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = 7
+    case(HA_STATE)
+      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = HA_STATE
     case(LIQUID_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
         LIQUID_STATE
@@ -1577,7 +1577,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     do iconn = 1, num_connections
       select case(coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn))
       ! ---------------------------------------------------------------------- !
-        case(7) !MAN: Testing HA_STATE (7)
+        case(HA_STATE)
           ! gas pressure; 1st dof ------------------------ !
           select case(general%gas_pressure%itype)
             case(DIRICHLET_BC)

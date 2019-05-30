@@ -373,10 +373,10 @@ subroutine CharacteristicCurvesRead(this,input,option)
             rel_perm_function_ptr => RPF_mK_Gas_Create()
             phase_keyword = 'GAS'
           case('IGHCC2_COMP_LIQ')
-            rel_perm_function_ptr => RPF_Liq_IGHCC2_Comp_Create()
+            rel_perm_function_ptr => RPF_IGHCC2_Comp_Liq_Create()
             phase_keyword = 'LIQUID'
           case('IGHCC2_COMP_GAS')
-            rel_perm_function_ptr => RPF_Gas_IGHCC2_Comp_Create()
+            rel_perm_function_ptr => RPF_IGHCC2_Comp_Gas_Create()
             phase_keyword = 'GAS'
           case('CONSTANT')
             rel_perm_function_ptr => RPF_Constant_Create()
@@ -1098,10 +1098,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_LIQ'
     class is(rpf_mK_gas_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_GAS'
-    class is(rpf_liq_IGHCC2_Comp_type)
-      error_string = trim(error_string) // 'LIQ_IGHCC2_COMP'
-    class is(rpf_gas_IGHCC2_Comp_type)
-      error_string = trim(error_string) // 'GAS_IGHCC2_COMP'
+    class is(rpf_IGHCC2_Comp_liq_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
+    class is(rpf_IGHCC2_Comp_gas_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
   end select
@@ -1570,7 +1570,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_liq_IGHCC2_Comp_type)
+      class is(rpf_IGHCC2_Comp_liq_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1581,7 +1581,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
-      class is(rpf_gas_IGHCC2_Comp_type)
+      class is(rpf_IGHCC2_Comp_gas_type)
         select case(keyword)
           case('LAMBDA')
             call InputReadDouble(input,option,rpf%lambda)
@@ -1855,9 +1855,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
             gas_res_sat = rpf%Sr
           class is(rel_perm_func_default_type)
             gas_res_sat = rpf%Sr
-          class is (rpf_liq_IGHCC2_comp_type)
+          class is (rpf_IGHCC2_comp_liq_type)
             gas_res_sat = rpf%Sr
-          class is (rpf_gas_IGHCC2_comp_type)
+          class is (rpf_IGHCC2_comp_gas_type)
             gas_res_sat = rpf%Srg
           class default
             option%io_buffer = 'Relative permeability class not supported in &
