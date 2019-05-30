@@ -53,6 +53,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   use WIPP_Flow_Aux_module, wf_dof_to_primary_variable => dof_to_primary_variable
   use PM_TOilIms_Aux_module 
   use PM_TOWG_Aux_module
+  use Hydrate_module
 
   implicit none
   
@@ -287,6 +288,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call printErrMsg(option)
                 endif
+              case (HA_STATE) !MAN: testing HA_STATE (7)
             end select
             if (.not. &
                 (general%temperature%itype == DIRICHLET_BC .or. &
@@ -339,6 +341,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                     general%mole_fraction%dataset%rarray(1)
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                     general%temperature%dataset%rarray(1)
+                case(HA_STATE) !MAN testing HA_STATE (7)
+                  xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
+                    general%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+GENERAL_GAS_SATURATION_DOF) = &
+                    general%hydrate_saturation%dataset%rarray(1)
+                  xx_p(ibegin+GENERAL_ENERGY_DOF) = &
+                    general%temperature%dataset%rarray(1)
               end select
               iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
@@ -358,13 +367,30 @@ subroutine CondControlAssignFlowInitCond(realization)
               offset = (local_id-1)*option%nflowdof
               istate = initial_condition%flow_aux_int_var(1,iconn)
               do idof = 1, option%nflowdof
-                xx_p(offset+idof) = &
-                  initial_condition%flow_aux_real_var( &
-                    initial_condition%flow_aux_mapping( &
-                      gen_dof_to_primary_variable(idof,istate)),iconn)
+                if (general_hydrate_flag .and. istate > 3) then
+                  xx_p(offset+idof) = &
+                    initial_condition%flow_aux_real_var( &
+                      initial_condition%flow_aux_mapping( &
+                        gen_dof_to_primary_variable(idof,TWO_PHASE_STATE)), &
+                        iconn)
+
+                else
+                  xx_p(offset+idof) = &
+                    initial_condition%flow_aux_real_var( &
+                      initial_condition%flow_aux_mapping( &
+                        gen_dof_to_primary_variable(idof,istate)),iconn)
+                endif
               enddo
-              iphase_loc_p(ghosted_id) = istate
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+              if (general_hydrate_flag .and. istate > 3) then
+                iphase_loc_p(ghosted_id) = TWO_PHASE_STATE
+                cur_patch%aux%Global%auxvars(ghosted_id)% &
+                        istate = TWO_PHASE_STATE
+                cur_patch%aux%Global%auxvars(ghosted_id)% &
+                        hstate = istate
+              else
+                iphase_loc_p(ghosted_id) = istate
+                cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+              endif
             enddo
           endif
           initial_condition => initial_condition%next

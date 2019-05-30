@@ -57,6 +57,8 @@ module Option_module
     PetscInt :: gas_phase
     PetscInt :: oil_phase
     PetscInt :: solvent_phase
+    PetscInt :: hydrate_phase
+    PetscInt :: ice_phase
     PetscInt :: phase_map(MAX_PHASE)
     PetscInt :: nflowdof
     PetscInt :: nflowspec
@@ -227,7 +229,6 @@ module Option_module
     
     !man: impose restrictions on when a grid block can change state 
     PetscBool :: restrict_state_chng
-    
 
   end type option_type
 
@@ -489,6 +490,8 @@ subroutine OptionInitRealization(option)
   option%oil_phase     = UNINITIALIZED_INTEGER
   option%gas_phase     = UNINITIALIZED_INTEGER
   option%solvent_phase = UNINITIALIZED_INTEGER
+  option%hydrate_phase = UNINITIALIZED_INTEGER
+  option%ice_phase = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -603,7 +606,6 @@ subroutine OptionInitRealization(option)
   option%phase_chng_epsilon = 1.d-6 !1.d-6
   
   option%restrict_state_chng = PETSC_FALSE
-
 
 end subroutine OptionInitRealization
 

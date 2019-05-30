@@ -30,6 +30,7 @@ module General_Common_module
   PetscReal, parameter :: eps       = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
 
+
   public :: GeneralAccumulation, &
             GeneralFlux, &
             GeneralBCFlux, &
@@ -396,7 +397,7 @@ subroutine GeneralAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
     end select
     Jac = Jac * volume_over_dt
   endif
-
+  
 end subroutine GeneralAccumulation
 
 ! ************************************************************************** !
@@ -426,6 +427,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
+  use Hydrate_module
   
   implicit none
   
@@ -2336,24 +2338,36 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_up = gen_auxvar_up%sat(option%liquid_phase)
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
   
-  if (sat_up > 0.d0) then
-    tempreal = sqrt(sat_up) * &
-               (thermal_conductivity_up(2) - thermal_conductivity_up(1))
-    k_eff_up = thermal_conductivity_up(1) + tempreal
-    dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
+  if (general_hydrate_flag) then
+    call HydrateCompositeThermalCond(material_auxvar_up%porosity, &
+               gen_auxvar_up%sat,thermal_conductivity_up(1), &
+               thermal_conductivity_dn(2),k_eff_up)
   else
-    k_eff_up = thermal_conductivity_up(1)
-    dkeff_up_dsatlup = 0.d0
+    if (sat_up > 0.d0) then
+      tempreal = sqrt(sat_up) * &
+             (thermal_conductivity_up(2) - thermal_conductivity_up(1))
+      k_eff_up = thermal_conductivity_up(1) + tempreal
+      dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
+    else
+      k_eff_up = thermal_conductivity_up(1)
+      dkeff_up_dsatlup = 0.d0
+    endif
   endif
-  
-  if (sat_dn > 0.d0) then
-    tempreal = sqrt(sat_dn) * &
-               (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-    k_eff_dn = thermal_conductivity_dn(1) + tempreal
-    dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
+
+  if (general_hydrate_flag) then
+    call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
+              gen_auxvar_dn%sat,thermal_conductivity_dn(1), &
+              thermal_conductivity_dn(2), k_eff_dn)
   else
-    k_eff_dn = thermal_conductivity_dn(1)
-    dkeff_dn_dsatldn = 0.d0
+    if (sat_dn > 0.d0) then
+      tempreal = sqrt(sat_dn) * &
+             (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+      k_eff_dn = thermal_conductivity_dn(1) + tempreal
+      dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
+    else
+      k_eff_dn = thermal_conductivity_dn(1)
+      dkeff_dn_dsatldn = 0.d0
+    endif
   endif
   
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
@@ -2446,7 +2460,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
-  
+  use Hydrate_module
+
   implicit none
   
   type(option_type) :: option
@@ -3762,10 +3777,16 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-      tempreal = sqrt(sat_dn) * &
+      if (general_hydrate_flag) then
+        call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
+                  gen_auxvar_dn%sat,thermal_conductivity_dn(1), &
+                  thermal_conductivity_dn(2),k_eff_dn)
+      else
+        tempreal = sqrt(sat_dn) * &
                  (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-      k_eff_dn = thermal_conductivity_dn(1) + tempreal
-      dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
+        k_eff_dn = thermal_conductivity_dn(1) + tempreal
+        dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
+      endif
 
       dkeff_ave_dkeffdn = 1.d0 / dist(0)
       k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn
@@ -3857,6 +3878,9 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   PetscReal :: dden_bool
   PetscReal :: hw_dp, hw_dT, ha_dp, ha_dT
   PetscErrorCode :: ierr
+  PetscReal :: mob_tot
+  PetscInt, parameter :: lid = 1
+  PetscInt, parameter :: gid = 2
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -3864,7 +3888,79 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   
   Res = 0.d0
   J = 0.d0
-  
+ 
+  qsrc_mol = 0.d0 
+  if (flow_src_sink_type == TOTAL_MASS_RATE_SS) then
+    !MAN: this has only been tested for an extraction well. Scales the mass of 
+    !water and gas extracted by the mobility ratio.
+    mob_tot = gen_auxvar%mobility(lid) + gen_auxvar%mobility(gid)
+      if (gen_auxvar%sat(gid) <= 0.d0) then
+        ! Water component, liquid phase
+        ! kg/s phase to kmol/sec phase
+        qsrc_mol = qsrc(wat_comp_id) * gen_auxvar%den(lid) / gen_auxvar%den_kg(lid)
+        ! kmol/sec phase to kmol/sec component
+        qsrc_mol = qsrc_mol * gen_auxvar%xmol(lid,lid)
+      elseif (gen_auxvar%sat(lid) <= 0.d0) then
+        ! Water component, gas phase
+        ! kg/s phase to kmol/sec phase
+        qsrc_mol = qsrc(wat_comp_id) * gen_auxvar%den(gid) / gen_auxvar%den_kg(gid)
+        ! kmol/sec phase to kmol/sec component
+        qsrc_mol = qsrc_mol * gen_auxvar%xmol(lid,gid)
+      else
+        ! Water component, liquid phase
+        qsrc_mol = qsrc(wat_comp_id) * gen_auxvar%den(lid) / &
+                   gen_auxvar%den_kg(lid)*gen_auxvar%mobility(lid)/mob_tot * &
+                   gen_auxvar%xmol(lid,lid)
+        ! Water component, gas phase
+        qsrc_mol = qsrc_mol + qsrc(wat_comp_id) * gen_auxvar%den(gid) / &
+                   gen_auxvar%den_kg(gid)*gen_auxvar%mobility(gid)/mob_tot * &
+                   gen_auxvar%xmol(lid,gid)
+      endif
+      
+      ss_flow_vol_flux(wat_comp_id) = qsrc_mol/gen_auxvar%den(wat_comp_id)
+      Res(wat_comp_id) = qsrc_mol
+      
+      if (gen_auxvar%sat(gid) <= 0.d0) then
+        ! Air component, liquid phase
+        ! kg/s phase to kmol/sec phase
+        qsrc_mol = qsrc(wat_comp_id) * gen_auxvar%den(lid) / gen_auxvar%den_kg(lid)
+        ! kmol/sec phase to kmol/sec component
+        qsrc_mol = qsrc_mol * gen_auxvar%xmol(gid,lid)
+      elseif (gen_auxvar%sat(lid) <= 0.d0) then
+        ! Air component, gas phase
+        ! kg/s phase to kmol/sec phase
+        qsrc_mol = qsrc(wat_comp_id) * gen_auxvar%den(gid) / gen_auxvar%den_kg(gid)
+        ! kmol/sec phase to kmol/sec component
+        qsrc_mol = qsrc_mol * gen_auxvar%xmol(gid,gid)
+      else
+      ! Air component, liquid phase
+        qsrc_mol = qsrc(wat_comp_id) * gen_auxvar%den(lid) / &
+                   gen_auxvar%den_kg(lid)*gen_auxvar%mobility(lid)/mob_tot * &
+                   gen_auxvar%xmol(gid,lid)
+      ! Air component, gas phase
+        qsrc_mol = qsrc_mol + qsrc(wat_comp_id) * gen_auxvar%den(gid) / &
+                   gen_auxvar%den_kg(gid)*gen_auxvar%mobility(gid)/mob_tot * &
+                   gen_auxvar%xmol(gid,gid)
+      endif
+   
+      ss_flow_vol_flux(air_comp_id) = qsrc_mol/gen_auxvar%den(air_comp_id)
+      Res(air_comp_id) = qsrc_mol
+
+      if (gen_auxvar%sat(gid) <= 0.d0) then
+        Res(energy_id) = qsrc(wat_comp_id) * gen_auxvar%den(lid) / &
+                         gen_auxvar%den_kg(lid) * gen_auxvar_ss%h(lid)
+      elseif (gen_auxvar%sat(lid) <= 0.d0) then
+        Res(energy_id) = qsrc(wat_comp_id) * gen_auxvar%den(gid) / &
+                         gen_auxvar%den_kg(gid) * gen_auxvar_ss%h(gid)
+      else
+        Res(energy_id) = qsrc(wat_comp_id) * gen_auxvar%mobility(lid)/mob_tot*&
+                         gen_auxvar%den(lid) / gen_auxvar%den_kg(lid) * &
+                         gen_auxvar_ss%h(lid)
+        Res(energy_id) = Res(energy_id) + qsrc(wat_comp_id) * gen_auxvar% &
+                         mobility(gid)/mob_tot*gen_auxvar%den(gid) / &
+                         gen_auxvar%den_kg(gid) * gen_auxvar_ss%h(gid)
+      endif
+  else
   
 #ifdef WATER_SRCSINK
   qsrc_mol = 0.d0
@@ -3962,10 +4058,10 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
     J = J + Jg
   endif
 #endif
-
+  endif
   
-  if (dabs(qsrc(air_comp_id)) < 1.d-40 .and. &
-      qsrc(wat_comp_id) < 0.d0) then ! extraction only
+  if (dabs(qsrc(air_comp_id)) < 1.d-40 .and. flow_src_sink_type /= &
+          TOTAL_MASS_RATE_SS .and. qsrc(wat_comp_id) < 0.d0) then ! extraction only
     ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
     ! remove/add the equivalent mole fraction of air in the liquid phase.
     qsrc_mol = Res(wat_comp_id)*gen_auxvar%xmol(air_comp_id,wat_comp_id)
@@ -4002,44 +4098,45 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
-    if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
-      if (associated(gen_auxvar%d)) then
-        hw_dp = gen_auxvar_ss%d%Hl_pl          
-        hw_dT = gen_auxvar_ss%d%Hl_T
+    if (flow_src_sink_type /= TOTAL_MASS_RATE_SS) then
+      if (dabs(qsrc(wat_comp_id)) > 1.d-40) then
+        if (associated(gen_auxvar%d)) then
+          hw_dp = gen_auxvar_ss%d%Hl_pl          
+          hw_dT = gen_auxvar_ss%d%Hl_T
+        endif
+        enthalpy = gen_auxvar_ss%h(wat_comp_id)
+        ! enthalpy units: MJ/kmol                       ! water component mass
+        Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy       
+        if (analytical_derivatives) then
+          Je = 0.d0
+          Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
+          Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT        
+        endif
+        J = J + Je
       endif
-      enthalpy = gen_auxvar_ss%h(wat_comp_id)
-      ! enthalpy units: MJ/kmol                       ! water component mass
-      Res(energy_id) = Res(energy_id) + Res(wat_comp_id) * enthalpy       
-      if (analytical_derivatives) then
-        Je = 0.d0
-        Je(3,1) = Jl(1,1) * enthalpy + Res(wat_comp_id) * hw_dp
-        Je(3,3) = Jl(1,3) * enthalpy + Res(wat_comp_id) * hw_dT        
-      endif
-      J = J + Je
-    endif
       
-    if (dabs(qsrc(air_comp_id)) > 1.d-40) then
-      ! this is pure air, we use the enthalpy of air, NOT the air/water
-      ! mixture in gas
-      ! air enthalpy is only a function of temperature
-      if (associated(gen_auxvar%d)) then
-        ha_dp = gen_auxvar_ss%d%Ha_pg
-        ha_dT = gen_auxvar_ss%d%Ha_T
-      endif
+      if (dabs(qsrc(air_comp_id)) > 1.d-40) then
+        ! this is pure air, we use the enthalpy of air, NOT the air/water
+        ! mixture in gas
+        ! air enthalpy is only a function of temperature
+        if (associated(gen_auxvar%d)) then
+          ha_dp = gen_auxvar_ss%d%Ha_pg
+          ha_dT = gen_auxvar_ss%d%Ha_T
+        endif
         
-      internal_energy = gen_auxvar_ss%u(air_comp_id)
-      enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
-      ! enthalpy units: MJ/kmol                       ! air component mass
-      Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
-      if (analytical_derivatives) then
-        Je = 0.d0
-        Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
-        Je(3,2) = Jg(2,2) * enthalpy
-        Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
-      endif 
-      J = J + Je
+        internal_energy = gen_auxvar_ss%u(air_comp_id)
+        enthalpy = gen_auxvar_ss%h(air_comp_id)                                 
+        ! enthalpy units: MJ/kmol                       ! air component mass
+        Res(energy_id) = Res(energy_id) + Res(air_comp_id) * enthalpy
+        if (analytical_derivatives) then
+          Je = 0.d0
+          Je(3,1) = Jg(2,1) * enthalpy + Res(air_comp_id) * ha_dp
+          Je(3,2) = Jg(2,2) * enthalpy
+          Je(3,3) = Jg(2,3) * enthalpy + Res(air_comp_id) * ha_dT
+        endif 
+        J = J + Je
+      endif
     endif
-    
     Res(energy_id) = Res(energy_id) + qsrc(energy_id)*scale ! MJ/s
     ! no derivative
   endif
@@ -4236,7 +4333,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
     Jdn(GENERAL_GAS_EQUATION_INDEX,:) = 0.d0
     Jdn(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
-  
+
 end subroutine GeneralFluxDerivative
 
 ! ************************************************************************** !
@@ -4401,7 +4498,7 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
     Jac(GENERAL_GAS_EQUATION_INDEX,:) = 0.d0
     Jac(:,GENERAL_GAS_EQUATION_INDEX) = 0.d0
   endif  
-
+  
 end subroutine GeneralSrcSinkDerivative
 
 ! ************************************************************************** !

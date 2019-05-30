@@ -165,6 +165,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SF_KRP11_Create()
           case('BRAGFLO_KRP12')
             this%saturation_function => SF_KRP12_Create()
+          case('IGHCC2_COMP')
+            this%saturation_function => SF_IGHCC2_Comp_Create()
           case default
             call InputKeywordUnrecognized(word,'SATURATION_FUNCTION',option)
         end select
@@ -369,6 +371,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
             phase_keyword = 'LIQUID'
           case('MODIFIED_KOSUGI_GAS')
             rel_perm_function_ptr => RPF_mK_Gas_Create()
+            phase_keyword = 'GAS'
+          case('IGHCC2_COMP_LIQ')
+            rel_perm_function_ptr => RPF_IGHCC2_Comp_Liq_Create()
+            phase_keyword = 'LIQUID'
+          case('IGHCC2_COMP_GAS')
+            rel_perm_function_ptr => RPF_IGHCC2_Comp_Gas_Create()
             phase_keyword = 'GAS'
           case('CONSTANT')
             rel_perm_function_ptr => RPF_Constant_Create()
@@ -621,6 +629,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       error_string = trim(error_string) // 'BRAGFLO_KRP11'
     class is(sat_func_KRP12_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
+    class is(sat_func_IGHCC2_Comp_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP'
   end select
   do
     call InputReadPflotranString(input,option)
@@ -939,6 +949,19 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
         end select
     !------------------------------------------
+      class is(sat_func_IGHCC2_Comp_type)
+        select case(keyword)
+          case('M')
+            call InputReadDouble(input,option,sf%m)
+            call InputErrorMsg(input,option,'m',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'alpha',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+                   'saturation function IGHCC2 Comparison',option)
+        end select
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for ' &
                            // trim(error_string) // '.'
@@ -1075,6 +1098,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_LIQ'
     class is(rpf_mK_gas_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_GAS'
+    class is(rpf_IGHCC2_Comp_liq_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
+    class is(rpf_IGHCC2_Comp_gas_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
   end select
@@ -1543,6 +1570,31 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
+      class is(rpf_IGHCC2_Comp_liq_type)
+        select case(keyword)
+          case('LAMBDA')
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'lambda',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'IGHCC2 Comparison liq rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_IGHCC2_Comp_gas_type)
+        select case(keyword)
+          case('LAMBDA')
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'lambda',error_string)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'IGHCC2 Comparison gas rel perm function', &
+              option)
+        end select
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
                            'permeability function class.'
@@ -1803,6 +1855,10 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
             gas_res_sat = rpf%Sr
           class is(rel_perm_func_default_type)
             gas_res_sat = rpf%Sr
+          class is (rpf_IGHCC2_comp_liq_type)
+            gas_res_sat = rpf%Sr
+          class is (rpf_IGHCC2_comp_gas_type)
+            gas_res_sat = rpf%Srg
           class default
             option%io_buffer = 'Relative permeability class not supported in &
                   &CharCurvesGetGetResidualSats.'

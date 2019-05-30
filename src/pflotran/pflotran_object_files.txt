@@ -77,8 +77,9 @@ mode_obj = \
 	${common_src}flash2.o \
 	${common_src}general.o \
 	${common_src}general_common.o \
-	${common_src}wipp_flow.o \
-	${common_src}wipp_flow_common.o \
+        ${common_src}wipp_flow.o \
+	${common_src}hydrate.o \
+        ${common_src}wipp_flow_common.o \
 	${common_src}toil_ims.o \
 	${common_src}towg.o \
 	${common_src}global.o \

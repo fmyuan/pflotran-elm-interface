@@ -39,6 +39,7 @@ module PM_Subsurface_Flow_class
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
     PetscInt :: logging_verbosity
+
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup

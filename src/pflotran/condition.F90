@@ -57,6 +57,8 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: liquid_pressure
     type(flow_sub_condition_type), pointer :: gas_pressure
     type(flow_sub_condition_type), pointer :: gas_saturation
+    type(flow_sub_condition_type), pointer :: hydrate_saturation
+    type(flow_sub_condition_type), pointer :: ice_saturation
     type(flow_sub_condition_type), pointer :: mole_fraction
     type(flow_sub_condition_type), pointer :: relative_humidity
     type(flow_sub_condition_type), pointer :: temperature
@@ -160,7 +162,7 @@ module Condition_module
 
   public :: FlowConditionCreate, FlowConditionDestroy, FlowConditionRead, &
             FlowConditionGeneralRead, FlowConditionTOilImsRead, &
-            FlowConditionTOWGRead,&
+            FlowConditionTOWGRead, &
             FlowConditionAddToList, FlowConditionInitList, &
             FlowConditionDestroyList, &
             FlowConditionGetPtrFromList, FlowConditionUpdate, &
@@ -285,6 +287,8 @@ function FlowGeneralConditionCreate(option)
   nullify(general_condition%liquid_pressure)
   nullify(general_condition%gas_pressure)
   nullify(general_condition%gas_saturation)
+  nullify(general_condition%hydrate_saturation)
+  nullify(general_condition%ice_saturation)
   nullify(general_condition%relative_humidity)
   nullify(general_condition%mole_fraction)
   nullify(general_condition%temperature)
@@ -426,6 +430,20 @@ function FlowGeneralSubConditionPtr(sub_condition_name,general, &
       else
         sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
         general%gas_saturation => sub_condition_ptr
+      endif
+    case('HYDRATE_SATURATION')
+      if (associated(general%hydrate_saturation)) then
+        sub_condition_ptr => general%hydrate_saturation
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        general%hydrate_saturation => sub_condition_ptr
+      endif
+    case('ICE_SATURATION')
+      if (associated(general%ice_saturation)) then
+        sub_condition_ptr => general%ice_saturation
+      else
+        sub_condition_ptr => FlowSubConditionCreate(ONE_INTEGER)
+        general%ice_saturation => sub_condition_ptr
       endif
     case('TEMPERATURE')
       if (associated(general%temperature)) then
@@ -1109,6 +1127,9 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = NEUMANN_BC
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
+              rate_unit_string = 'kg/sec'
+            case('total_mass_rate')
+              sub_condition_ptr%itype = TOTAL_MASS_RATE_SS
               rate_unit_string = 'kg/sec'
             case('energy_rate')
               sub_condition_ptr%itype = ENERGY_RATE_SS
@@ -1834,6 +1855,9 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
+            case('total_mass_rate')
+              sub_condition_ptr%itype = TOTAL_MASS_RATE_SS
+              rate_string = 'kg/sec'
             case('scaled_mass_rate')
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
@@ -1951,8 +1975,9 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
       case('LIQUID_PRESSURE','GAS_PRESSURE','LIQUID_SATURATION', &
-           'GAS_SATURATION','TEMPERATURE','MOLE_FRACTION','RATE', &
-           'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
+           'ICE_SATURATION','GAS_SATURATION','HYDRATE_SATURATION', &
+           'TEMPERATURE','MOLE_FRACTION','RATE','LIQUID_FLUX','GAS_FLUX', &
+           'ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
             sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
@@ -1962,8 +1987,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         select case(trim(word))
           case('LIQUID_PRESSURE','GAS_PRESSURE')
             internal_units = 'Pa'
-          case('LIQUID_SATURATION','GAS_SATURATION','MOLE_FRACTION', &
-               'RELATIVE_HUMIDITY')
+          case('LIQUID_SATURATION','GAS_SATURATION','HYDRATE_SATURATION', &
+               'ICE_SATURATION','MOLE_FRACTION','RELATIVE_HUMIDITY')
             internal_units = 'unitless'
           case('TEMPERATURE')
             internal_units = 'C'
@@ -2049,9 +2074,19 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         if (.not.associated(general%mole_fraction) .and. &
             .not.associated(general%relative_humidity) .and. &
             .not.associated(general%gas_saturation)) then
-          option%io_buffer = 'General Mode non-rate condition must include &
-            &a mole fraction, relative humidity, or gas/liquid saturation'
-          call printErrMsg(option)
+          if (general_hydrate_flag) then
+            if (.not.associated(general%hydrate_saturation) .and. &
+                    .not.associated(general%ice_saturation)) then
+              option%io_buffer = 'General-Hydrate Mode non-rate condition must &
+                      &include a mole fraction, relative humidity, or &
+                      &gas/liquid/hydrate/ice saturation'
+              call printErrMsg(option)
+            endif
+          else
+            option%io_buffer = 'General Mode non-rate condition must include &
+              &a mole fraction, relative humidity, or gas/liquid saturation'
+            call printErrMsg(option)
+          endif
         endif
         if (.not.associated(general%temperature)) then
           option%io_buffer = 'General Mode non-rate condition must include &
@@ -2066,7 +2101,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           ! multiphase condition
           condition%iphase = MULTI_STATE
         else if (associated(general%gas_pressure) .and. &
-                 associated(general%gas_saturation)) then
+                associated(general%gas_saturation)) then
           ! two phase condition
           condition%iphase = TWO_PHASE_STATE
         else if (associated(general%liquid_pressure) .and. &
@@ -2078,6 +2113,12 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                   associated(general%relative_humidity))) then
           ! gas phase condition
           condition%iphase = GAS_STATE
+        endif
+        if (general_hydrate_flag) then
+          if (associated(general%gas_pressure) .and. &
+              associated(general%hydrate_saturation)) then
+            condition%iphase = 7 !HA_STATE
+          endif
         endif
       else
         if (.not.associated(general%liquid_pressure)) then
@@ -2111,6 +2152,14 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                               PETSC_TRUE)
   word = 'gas saturation'
   call FlowSubConditionVerify(option,condition,word,general%gas_saturation, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'hydrate saturation'
+  call FlowSubConditionVerify(option,condition,word,general%hydrate_saturation, &
+                              default_time_storage, &
+                              PETSC_TRUE)
+  word = 'ice saturation'
+  call FlowSubConditionVerify(option,condition,word,general%ice_saturation, &
                               default_time_storage, &
                               PETSC_TRUE)
   word = 'relative humidity'
@@ -2150,6 +2199,10 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     i = i + 1
   if (associated(general%gas_saturation)) &
     i = i + 1
+  if (associated(general%hydrate_saturation)) &
+    i = i + 1
+  if (associated(general%ice_saturation)) &
+    i = i + 1
   if (associated(general%relative_humidity)) &
     i = i + 1
   if (associated(general%mole_fraction)) &
@@ -2181,6 +2234,14 @@ subroutine FlowConditionGeneralRead(condition,input,option)
   if (associated(general%gas_saturation)) then
     i = i + 1
     condition%sub_condition_ptr(i)%ptr => general%gas_saturation
+  endif
+  if (associated(general%hydrate_saturation)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => general%hydrate_saturation
+  endif
+  if (associated(general%ice_saturation)) then
+    i = i + 1
+    condition%sub_condition_ptr(i)%ptr => general%ice_saturation
   endif
   if (associated(general%relative_humidity)) then
     i = i + 1
@@ -2577,7 +2638,6 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
        &have either temp or enthalpy'
       call printErrMsg(option)
     end if
-
     ! only dirich condition supported for src/sink temp or enthalpy
     if ( associated(toil_ims%temperature) ) then
       if (toil_ims%temperature%itype /= DIRICHLET_BC) then
@@ -2987,8 +3047,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             input%force_units = PETSC_TRUE
           case('OWC_Z','OWC_D','OGC_Z','OGC_D','WGC_Z','WGC_D', &
                'DATUM_Z','DATUM_D')
-            internal_units_string = 'meter' 
-            input%force_units = PETSC_TRUE
+            internal_units_string = 'meter'
+            input%force_units = PETSC_TRUE 
           case('OIL_SATURATION','GAS_SATURATION','SOLVENT_SATURATION')
             internal_units_string = 'unitless'
           case('TEMPERATURE','RTEMP','TEMPERATURE_AT_DATUM')
@@ -3014,7 +3074,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                                       'J/kg' // ',' // 'J/kg'
             else
               internal_units_string = 'J/kg' // ',' // 'J/kg' // ',' // 'J/kg'
-            end if    
+            end if   
           case('LIQUID_FLUX','OIL_FLUX','GAS_FLUX')
             internal_units_string = 'meter/sec'
             input%force_units = PETSC_TRUE
@@ -3040,7 +3100,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                                     sub_condition_ptr%dataset%rarray(:)
         end select
       !PO move BUBBLE_POINT_TABLE to new routine to improve 
-      !  FlowConditionTOWGRead readibility 
+      !  FlowConditionTOWGRead readibility
       case('BUBBLE_POINT_TABLE')
         towg%pbvz_table => LookupTableCreateGeneral(ONE_INTEGER)
         call towg%pbvz_table%LookupTableVarsInit(TWO_INTEGER)
@@ -3100,6 +3160,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                   towg%pbvz_table%var_data(ONE_INTEGER,:) = - &
                                        towg%pbvz_table%var_data(ONE_INTEGER,:)
               end select
+
               pbvz_found = PETSC_TRUE
             case default
               call InputKeywordUnrecognized(word, &
@@ -3262,7 +3323,6 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         call printErrMsg(option)
       end if
     end if
-
   end if ! end if rate
 
   if (condition%iphase == TOWG_NULL_STATE) then
@@ -3627,7 +3687,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
                                                           'TEMPERATURE_UNITS')
             if ( trim(usr_temp_units) /= 'C' ) then
               option%io_buffer = 'TEMPERATURE_TABLE supports only &
-                                  &degree celcius, C'
+                                  &degree celcius, C' 
                call printErrMsg(option)
             end if
             rtempvz_temp_units_found = PETSC_TRUE
@@ -3659,6 +3719,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
                 lkp_table%var_data(ONE_INTEGER,:) = - &
                                          lkp_table%var_data(ONE_INTEGER,:)
             end select
+
             rtempvz_found = PETSC_TRUE
           case default
             call InputKeywordUnrecognized(sub_word, &
