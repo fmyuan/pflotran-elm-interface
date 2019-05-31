@@ -9,6 +9,6 @@ SIMULATION
 END
 
 SUBSURFACE
-  EXTERNAL_FILE material_original.txt
+  EXTERNAL_FILE general_material_original.txt
   EXTERNAL_FILE general_subsurface_block.txt
 END_SUBSURFACE

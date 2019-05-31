@@ -22,6 +22,7 @@ module PM_Subsurface_Flow_class
     PetscBool :: store_porosity_for_transport
     PetscBool :: check_post_convergence
     PetscBool :: revert_parameters_on_restart
+    PetscBool :: replace_init_params_on_restart
     ! these govern the size of subsequent time steps
     PetscReal :: max_pressure_change
     PetscReal :: max_temperature_change
@@ -102,6 +103,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%store_porosity_for_transport = PETSC_FALSE
   this%check_post_convergence = PETSC_FALSE
   this%revert_parameters_on_restart = PETSC_FALSE
+  this%replace_init_params_on_restart = PETSC_FALSE
   
   ! defaults
   this%max_pressure_change = 0.d0
@@ -274,6 +276,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('REVERT_PARAMETERS_ON_RESTART')
       this%revert_parameters_on_restart = PETSC_TRUE
 
+    case('REPLACE_INIT_PARAMS_ON_RESTART')
+      this%replace_init_params_on_restart = PETSC_TRUE
+
     case default
       found = PETSC_FALSE
   end select  
@@ -422,7 +427,9 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
       !geh: for testing only.  In general, we only revert parameter, not flow.
       !call CondControlAssignFlowInitCond(this%realization)
       !call this%UpdateAuxVars()
-    else
+    else if (this%replace_init_params_on_restart) then
+      !geh: this causes the Vecs (porosity0, perm0_XX, etc.) to be updated
+      !     with the checkpointed values.
       call RealizStoreRestartFlowParams(this%realization)
     endif
   endif
@@ -444,9 +451,14 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
                                  POROSITY,POROSITY_MINERAL)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_CURRENT)
+    if (.not.this%realization%option%restart_flag .or. &
+        this%revert_parameters_on_restart) then
+      ! POROSITY_CURRENT should not be updated to porosity0 if we are 
+      ! restarting unless the revert_parameters on restart flag is true.
+      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                   this%realization%field%work_loc, &
+                                   POROSITY,POROSITY_CURRENT)
+    endif
   endif  
 
   call this%PreSolve()

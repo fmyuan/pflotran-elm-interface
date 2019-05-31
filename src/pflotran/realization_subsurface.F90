@@ -1495,6 +1495,8 @@ subroutine RealizStoreRestartFlowParams(realization)
                                      field%perm0_zz,ONEDOF)
   endif   
   call MaterialGetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_MINERAL)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                    field%porosity0,ONEDOF)
