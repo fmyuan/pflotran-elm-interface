@@ -415,24 +415,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     endif
   endif
   
-  ! restart
-  if (this%realization%option%restart_flag) then
-    ! geh - up to this point, parameters from the input file(s) are stored in
-    ! Vecs (porosity0, perm0_XX, etc.) while values from potential restart will
-    ! be stored in the material auxvar.
-    ! If we are truly restarting: material_auxvar -> Vecs
-    ! If we are reverting:        Vecs -> material_auxvar
-    if (this%revert_parameters_on_restart) then
-      call RealizationRevertFlowParameters(this%realization)
-      !geh: for testing only.  In general, we only revert parameter, not flow.
-      !call CondControlAssignFlowInitCond(this%realization)
-      !call this%UpdateAuxVars()
-    else if (this%replace_init_params_on_restart) then
-      !geh: this causes the Vecs (porosity0, perm0_XX, etc.) to be updated
-      !     with the checkpointed values.
-      call RealizStoreRestartFlowParams(this%realization)
-    endif
-  endif
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
   if (associated(this%realization%reaction)) then
@@ -1093,6 +1075,7 @@ subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call RestartFlowProcessModelBinary(viewer,this%realization)
+  call PMSubsurfaceFlowRestartUpdate(this)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
   
@@ -1137,11 +1120,38 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
   integer(HID_T) :: pm_grp_id
 
   call RestartFlowProcessModelHDF5(pm_grp_id, this%realization)
+  call PMSubsurfaceFlowRestartUpdate(this)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
 
 
 end subroutine PMSubsurfaceFlowRestartHDF5
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowRestartUpdate(this)
+  ! 
+  ! Performs revert, replace, etc, after restart has been loaded
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 05/31/19
+
+  class(pm_subsurface_flow_type) :: this
+
+  ! geh - up to this point, parameters from the input file(s) are stored in
+  ! Vecs (porosity0, perm0_XX, etc.) while values from potential restart will
+  ! be stored in the material auxvar.
+  ! If we are truly restarting: material_auxvar -> Vecs
+  ! If we are reverting:        Vecs -> material_auxvar
+  if (this%revert_parameters_on_restart) then
+    call RealizationRevertFlowParameters(this%realization)
+  else if (this%replace_init_params_on_restart) then
+    !geh: this causes the Vecs (porosity0, perm0_XX, etc.) to be updated
+    !     with the checkpointed values.
+    call RealizStoreRestartFlowParams(this%realization)
+  endif
+
+end subroutine PMSubsurfaceFlowRestartUpdate
 
 ! ************************************************************************** !
 
