@@ -1320,7 +1320,8 @@ end subroutine CondControlAssignTranInitCond
 
 subroutine CondControlAssignNWTranInitCond(realization)
   ! 
-  ! Assigns transport initial conditions to model
+  ! Assigns transport initial conditions to model, and equilibrates the 
+  ! initial conditions according to the constraint types.
   ! 
   ! Author: Jenn Frederick
   ! Date: 04/02/2019
@@ -1339,7 +1340,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   use Patch_module
   use NW_Transport_module
   use NW_Transport_Aux_module
-  use Global_Aux_module
+  use Material_Aux_class
   use HDF5_module
   
   implicit none
@@ -1360,7 +1361,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
   type(nw_trans_realization_type), pointer :: nw_trans
-  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   type(tran_constraint_coupler_type), pointer :: constraint_coupler
 
   PetscInt :: iphase
@@ -1384,7 +1385,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
     if (.not.associated(cur_patch)) exit
 
     grid => cur_patch%grid
-    global_auxvars => cur_patch%aux%Global%auxvars
+    material_auxvars => cur_patch%aux%Material%auxvars
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)   
     xx_p = UNINITIALIZED_DOUBLE
@@ -1396,14 +1397,18 @@ subroutine CondControlAssignNWTranInitCond(realization)
       constraint_coupler => &
         initial_condition%tran_condition%cur_constraint_coupler
         
-      ! jenn:todo NW Transport doesn't support reading in constraints via 
-      ! databases. If it did, it would go here. Look at the subroutine above
-      ! to see how its done for reactive transport.
-        
       do icell=1,initial_condition%region%num_cells
       
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
+
+        call NWTEquilibrateConstraint(nw_trans,constraint_coupler%nwt_species, &
+                                      constraint_coupler%nwt_auxvar, &
+                                      constraint_coupler%global_auxvar, &
+                                      material_auxvars(ghosted_id), &
+                                      option)
+        
+      
         iend = local_id*option%ntrandof
         ibegin = iend-option%ntrandof+1
         if (cur_patch%imat(ghosted_id) <= 0) then
@@ -1412,12 +1417,11 @@ subroutine CondControlAssignNWTranInitCond(realization)
         endif
         ! ibegin is the local non-ghosted offset: (local_id-1)*option%ntrandof+1
         offset = ibegin - 1
+        
         ! species concentrations
         do idof = 1, nw_trans%params%nspecies 
           xx_p(offset+idof) = &
-            constraint_coupler%nwt_species%constraint_conc(idof) / &
-            global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 
-            ! convert conc [molarity] -> [molality]
+                           constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
         enddo
 
       enddo ! icell=1,initial_condition%region%num_cells

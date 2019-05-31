@@ -17,7 +17,7 @@ module NW_Transport_Aux_module
   PetscReal, public :: nwt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: nwt_itol_rel_update = UNINITIALIZED_DOUBLE
   PetscReal, public :: nwt_min_saturation = 0.d0
-  
+    
   type, public :: nw_transport_auxvar_type
     ! total mass as bulk concentration
     PetscReal, pointer :: total_bulk_conc(:)   ! mol-species/m^3-bulk
@@ -84,11 +84,10 @@ module NW_Transport_Aux_module
   end type species_type
   
   type, public :: nwt_species_constraint_type
-    ! Any changes here must be incorporated within ReactionProcessConstraint()
-    ! where constraints are reordered??????????
+    ! Any changes here must be incorporated within NWTProcessConstraint(),
+    ! where constraints are reordered
     character(len=MAXWORDLENGTH), pointer :: names(:)
     PetscReal, pointer :: constraint_conc(:)
-    PetscInt, pointer :: constraint_spec_id(:)
     PetscInt, pointer :: constraint_type(:)
   end type nwt_species_constraint_type
   
@@ -126,12 +125,22 @@ module NW_Transport_Aux_module
     module procedure NWTAuxVarArrayDestroy
   end interface NWTAuxVarDestroy
   
-  public :: NWTAuxCreate, NWTSpeciesCreate, NWTRadDecayRxnCreate, &
-            NWTRealizCreate, NWTSpeciesConstraintCreate, &
-            NWTRead, NWTReadPass2, NWTProcessConstraint, &
-            NWTAuxVarInit, NWTAuxVarCopy, NWTAuxVarCopyInitialGuess, &
-            NWTAuxDestroy, NWTAuxVarDestroy, NWTAuxVarStrip, &
-            NWTSpeciesConstraintDestroy, NWTransDestroy
+  public :: NWTAuxCreate, &
+            NWTSpeciesCreate, &
+            NWTRadDecayRxnCreate, &
+            NWTRealizCreate, &
+            NWTSpeciesConstraintCreate, &
+            NWTRead, &
+            NWTReadPass2, &
+            NWTProcessConstraint, &
+            NWTAuxVarInit, &
+            NWTAuxVarCopy, &
+            NWTAuxVarCopyInitialGuess, &
+            NWTAuxDestroy, &
+            NWTAuxVarDestroy, &
+            NWTAuxVarStrip, &
+            NWTSpeciesConstraintDestroy, &
+            NWTransDestroy
             
 contains
 
@@ -536,10 +545,8 @@ function NWTSpeciesConstraintCreate(nw_trans,option)
   constraint%names = ''
   allocate(constraint%constraint_conc(nw_trans%params%nspecies))
   constraint%constraint_conc = 0.d0
-  allocate(constraint%constraint_spec_id(nw_trans%params%nspecies))
-  constraint%constraint_spec_id = 0
   allocate(constraint%constraint_type(nw_trans%params%nspecies))
-  constraint%constraint_spec_id = 0
+  constraint%constraint_type = 0
 
   NWTSpeciesConstraintCreate => constraint
 
@@ -695,7 +702,7 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
                                 nwt_species_constraint,option)
   ! 
   ! Ensures ordering of species is consistant between the nw_trans object
-  ! and the constraint object. I don't know what the point of this is.
+  ! and the constraint object. 
   ! 
   ! Author: Jenn Frederick
   ! Date: 03/22/2019
@@ -716,10 +723,12 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
   PetscBool :: found
   PetscInt :: ispecies, jspecies
   PetscReal :: constraint_conc(nw_trans%params%nspecies)
+  PetscInt :: constraint_type(nw_trans%params%nspecies)
   character(len=MAXWORDLENGTH) :: constraint_species_names( &
                                                      nw_trans%params%nspecies)
   
   constraint_conc = 0.d0
+  constraint_type = 0
   constraint_species_names = ''
   
   do ispecies = 1, nw_trans%params%nspecies
@@ -740,6 +749,8 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
     else
       constraint_conc(jspecies) = &
                                nwt_species_constraint%constraint_conc(ispecies)
+      constraint_type(jspecies) = &
+                               nwt_species_constraint%constraint_type(ispecies)
       constraint_species_names(jspecies) = &
                                          nwt_species_constraint%names(ispecies)
     endif
@@ -747,8 +758,9 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
   
   ! place ordered constraint parameters back in original arrays
   nwt_species_constraint%constraint_conc = constraint_conc
+  nwt_species_constraint%constraint_type = constraint_type
   nwt_species_constraint%names = constraint_species_names
-  
+    
 end subroutine NWTProcessConstraint
 
 ! ************************************************************************** !
@@ -914,7 +926,7 @@ subroutine NWTSpeciesConstraintDestroy(constraint)
   
   call DeallocateArray(constraint%names)
   call DeallocateArray(constraint%constraint_conc)
-  call DeallocateArray(constraint%constraint_spec_id)
+  call DeallocateArray(constraint%constraint_type)
 
   deallocate(constraint)
   nullify(constraint)
