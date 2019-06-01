@@ -18,7 +18,7 @@ path.append('.')
 files = pft.get_tec_filenames('calcite_flow_and_tran',[5])
 filenames = pft.get_full_paths(path,files)
 
-f = plt.figure(figsize=(6,6))
+f = plt.figure(figsize=(8,6))
 plt.subplot(1,1,1)
 f.suptitle("1D Calcite at 25 Years (with Flow)",fontsize=16)
 plt.xlabel('X [m]')
