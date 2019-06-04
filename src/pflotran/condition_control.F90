@@ -180,7 +180,7 @@ subroutine CondControlAssignFlowInitCond(realization)
               ibegin = ibegin - 1
               if (.not.dataset_flag(WIPPFLO_LIQUID_PRESSURE_DOF)) then
                 xx_p(ibegin+WIPPFLO_LIQUID_PRESSURE_DOF) = &
-                  general%gas_pressure%dataset%rarray(1)
+                  general%liquid_pressure%dataset%rarray(1)
               endif
               if (.not.dataset_flag(WIPPFLO_GAS_SATURATION_DOF)) then
                 xx_p(ibegin+WIPPFLO_GAS_SATURATION_DOF) = &
