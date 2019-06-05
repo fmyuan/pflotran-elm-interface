@@ -1859,10 +1859,18 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                   call InputReadDouble(input,option,new_criticality% &
                                        crit_event%crit_start)
                   call InputErrorMsg(input,option,'CRIT_START',error_string)
+                  call InputReadAndConvertUnits(input,new_criticality% &
+                           crit_event%crit_start,'sec', &
+                           trim(error_string)//',CRIT_START', &
+                           option)
                 case('CRIT_END')
                   call InputReadDouble(input,option,new_criticality% &
                                        crit_event%crit_end)
                   call InputErrorMsg(input,option,'CRIT_END',error_string)
+                  call InputReadAndConvertUnits(input,new_criticality% &
+                           crit_event%crit_end,'sec', &
+                           trim(error_string)//',CRIT_END', &
+                           option)
                 case default
                   call InputKeywordUnrecognized(word,error_string,option)
               end select
@@ -5203,6 +5211,8 @@ subroutine CriticalityInitializeRun(this, realization, option)
       enddo
     cur_criticality => cur_criticality%next
   enddo
+  energy_indices_in_residual(:) = energy_indices_in_residual(:) + &
+      realization%patch%grid%global_offset*option%nflowdof
 
   this%total_num_cells = j
 
