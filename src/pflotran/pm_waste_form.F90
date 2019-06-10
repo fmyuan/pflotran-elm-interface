@@ -3261,6 +3261,10 @@ subroutine PMWFSolve(this,time,ierr)
       cur_waste_form%instantaneous_mass_rate = 0.d0
     endif
     !
+    if (associated(this%criticality_mediator)) then
+      call CriticalitySolve(this%criticality_mediator,this%realization,time, &
+                            cur_waste_form%scaling_factor,ierr)
+    endif
     cur_waste_form => cur_waste_form%next
   enddo
  
@@ -3277,10 +3281,6 @@ subroutine PMWFSolve(this,time,ierr)
   
   call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
-  
-  if (associated(this%criticality_mediator)) then
-    call CriticalitySolve(this%criticality_mediator,this%realization,time,ierr)
-  endif
   
   call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
 
@@ -5262,7 +5262,7 @@ end subroutine AssignCritMech
 
 ! ************************************************************************** !
 
-subroutine CriticalitySolve(this,realization,time,ierr)
+subroutine CriticalitySolve(this,realization,time,scaling_factor,ierr)
   !
   !Author: Michael Nole
   !Date: 11/05/18
@@ -5276,6 +5276,7 @@ subroutine CriticalitySolve(this,realization,time,ierr)
   type(criticality_mediator_type), pointer :: this
   class(realization_subsurface_type), pointer :: realization
   PetscReal :: time
+  PetscReal, pointer :: scaling_factor(:)
   PetscErrorCode :: ierr
 
   PetscInt :: i,j
@@ -5308,7 +5309,7 @@ subroutine CriticalitySolve(this,realization,time,ierr)
       endif
 
       ! Distribute heat source throughout all cells in a waste package
-      heat_source(j) = heat_source(j) / cur_criticality%region%num_cells
+      heat_source(j) = heat_source(j) * scaling_factor(j)
     enddo
 
     cur_criticality => cur_criticality%next
