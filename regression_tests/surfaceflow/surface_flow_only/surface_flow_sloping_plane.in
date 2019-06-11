@@ -1,15 +1,14 @@
 #Description: surface flow decoupled from subsurface flow
 
 SIMULATION
-  SIMULATION_TYPE SUBSURFACE
+  SIMULATION_TYPE SURFACE_SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE RICHARDS
-      OPTIONS
-        PRESSURE_DAMPENING_FACTOR 0.1
-        MAX_PRESSURE_CHANGE 1.d4
-      /
     /
+    SURFACE_SUBSURFACE flow
+      MODE RICHARDS
+  /
   /
 END
 
@@ -177,7 +176,7 @@ SURF_FLOW_CONDITION rain
   /
   RATE LIST
     TIME_UNITS sec
-    DATA_UNITS m/sec
+    DATA_UNITS m^3/sec
     0.d0 5.5d-6
     12000.d0 0.d0
   /
