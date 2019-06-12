@@ -340,8 +340,8 @@ subroutine NWTRead(nw_trans,input,option)
           if (k > 50) then
             option%io_buffer = 'More than 50 species are provided in the ' &
                                // trim(error_string) // ', SPECIES block.'
-            call PrintErrMsgToDev('if reducing to less than 50 is not &
-                                  &an option.',option)
+            call PrintErrMsgToDev(option, 'if reducing to less than 50 is not &
+                                  &an option.')
           endif
           new_species => NWTSpeciesCreate()
           call InputReadWord(input,option,word,PETSC_TRUE)

@@ -733,8 +733,8 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             'LOG_FORMULATION for chemistry or truncate concentrations ' // &
             '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block).'
           this%realization%option%io_buffer = string
-          call PrintErrMsgToDev('send your input deck if that does not work', &
-                                this%realization%option)
+          call PrintErrMsgToDev(this%realization%option, 'send your input &
+                                &deck if that does not work')
         endif
         ! scale by 0.99 to make the update slightly smaller than the min_ratio
         dC_p = dC_p*min_ratio*0.99d0
