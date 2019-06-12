@@ -328,8 +328,6 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     select case(option%iflowmode)
       case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                            X_DIRECTION,PETSC_FALSE)
         include_gas_phase = PETSC_TRUE
       case(NULL_MODE)
         if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
@@ -1007,6 +1005,12 @@ subroutine OutputTecplotPoint(realization_base)
   
   if (output_option%print_tecplot_vel_cent) then
     call OutputVelocitiesTecplotPoint(realization_base)
+  endif
+
+  if (output_option%print_tecplot_vel_face) then
+    option%io_buffer = 'OUTPUT of VELOCITY_AT_FACE only supported for &
+                       &FORMAT TECPLOT BLOCK.'
+    call PrintErrMsg(option)
   endif
   
 end subroutine OutputTecplotPoint
