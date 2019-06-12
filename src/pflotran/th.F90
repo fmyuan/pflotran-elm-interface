@@ -43,20 +43,12 @@ subroutine THTimeCut(realization)
   ! 
  
   use Realization_Subsurface_class
-  use Option_module
-  use Field_module
  
   implicit none
   
   type(realization_subsurface_type) :: realization
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  
-  PetscErrorCode :: ierr
 
-  option => realization%option
-  field => realization%field
- 
+  TH_ts_cut_count = TH_ts_cut_count + 1
   call THInitializeTimestep(realization)
  
 end subroutine THTimeCut
@@ -91,6 +83,10 @@ subroutine THSetup(realization)
   list => realization%output_option%output_obs_variable_list
   call THSetPlotVariables(realization,list)
 
+  TH_ts_count = 0
+  TH_ts_cut_count = 0
+  TH_ni_count = 0
+  
 end subroutine THSetup
 
 ! ************************************************************************** !
@@ -990,6 +986,10 @@ subroutine THUpdateSolutionPatch(realization)
     call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
   endif
 
+
+  TH_ts_count = TH_ts_count + 1
+  TH_ts_cut_count = 0
+  TH_ni_count = 0
 
 end subroutine THUpdateSolutionPatch
 
@@ -3594,6 +3594,7 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   use Option_module
   use Variables_module
   use Material_module
+  use Debug_module
 
   implicit none
 
@@ -3607,6 +3608,8 @@ subroutine THResidual(snes,xx,r,realization,ierr)
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
   type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscViewer :: viewer
 
   field => realization%field
   discretization => realization%discretization
@@ -3619,7 +3622,112 @@ subroutine THResidual(snes,xx,r,realization,ierr)
     return
   endif
 
-  ! Communication -----------------------------------------
+  call THResidualPreliminaries(xx,r,realization,ierr)
+
+  call THResidualInternalConn(r,realization,ierr)
+  call THResidualBoundaryConn(r,realization,ierr)
+  call THResidualAccumulation(r,realization,ierr)
+  call THResidualSourceSink(r,realization,ierr)
+
+  if (realization%debug%vecview_residual) then
+    call DebugWriteFilename(realization%debug,string,'THresidual','', &
+                            TH_ts_count,TH_ts_cut_count, &
+                            TH_ni_count)    
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+  if (realization%debug%vecview_solution) then
+    call DebugWriteFilename(realization%debug,string,'THxx','', &
+                            TH_ts_count,TH_ts_cut_count, &
+                            TH_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif 
+  
+end subroutine THResidual
+
+! ************************************************************************** !
+
+subroutine THResidualPreliminaries(xx,r,realization,ierr)
+  ! 
+  ! Perform preliminary work prior to residual computation
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 06/06/2019
+  ! 
+
+  use Connection_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+  
+  implicit none
+
+  Vec, intent(inout) :: xx
+  Vec, intent(inout) :: r
+  type(realization_subsurface_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  option => realization%option
+
+  call VecZeroEntries(r, ierr); CHKERRQ(ierr)
+  
+  call THUpdateLocalVecs(xx,realization,ierr)
+
+  call THUpdateAuxVarsPatch(realization)
+  ! override flags since they will soon be out of date  
+  patch%aux%TH%auxvars_up_to_date = PETSC_FALSE
+
+  if (option%compute_mass_balance_new) then
+    call THZeroMassBalDeltaPatch(realization)
+  endif
+  
+  if (option%surf_flow_on) call THComputeCoeffsForSurfFlux(realization)
+
+end subroutine THResidualPreliminaries
+
+! ************************************************************************** !
+
+subroutine THUpdateLocalVecs(xx,realization,ierr)
+  ! 
+  ! Updates local vectors needed for residual computation
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 06/06/2019
+  ! 
+
+  use Realization_Subsurface_class
+  use Field_module
+  use Discretization_module
+  use Option_module
+  use Logging_module
+  use Material_module
+  use Material_Aux_class
+  use Variables_module
+  use Debug_module
+
+  implicit none
+
+  Vec :: xx
+  type(realization_subsurface_type) :: realization
+  PetscErrorCode :: ierr
+
+  type(discretization_type), pointer :: discretization
+  type(field_type), pointer :: field
+  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: string
+
+  field => realization%field
+  discretization => realization%discretization
+  option => realization%option
+
+   ! Communication -----------------------------------------
   ! These 3 must be called before THUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
@@ -3650,28 +3758,18 @@ subroutine THResidual(snes,xx,r,realization,ierr)
                                   field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
                                PERMEABILITY_Z,ZERO_INTEGER)
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THResidualPatch(snes,xx,r,realization,ierr)
-    cur_patch => cur_patch%next
-  enddo
-
-end subroutine THResidual
+                               
+end subroutine THUpdateLocalVecs
 
 ! ************************************************************************** !
 
-subroutine THResidualPatch(snes,xx,r,realization,ierr)
+subroutine THResidualInternalConn(r,realization,ierr)
   ! 
-  ! Computes the residual equation at patch level
+  ! Perform preliminary work prior to residual computation
   ! 
-  ! Author: ???
-  ! Date: 12/10/07
-  !
-
-  
+  ! Author: Satish Karra, LANL
+  ! Date: 06/06/2019
+  ! 
 
   use Connection_module
   use Realization_Subsurface_class
@@ -3686,9 +3784,209 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   
   implicit none
 
-  SNES, intent(in) :: snes
-  Vec, intent(inout) :: xx
-  Vec, intent(inout) :: r
+  Vec :: r
+  type(realization_subsurface_type) :: realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: ip1, ip2
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
+
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
+
+  PetscInt :: iphase
+  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscReal :: dd_up, dd_dn
+  PetscReal :: dd, f_up, f_dn, ff
+  PetscReal :: perm_up, perm_dn
+           ! thermal conductivity wet constants at upstream, downstream faces.
+  PetscReal :: D_up, D_dn  
+  PetscReal :: Dk_dry_up, Dk_dry_dn ! dry thermal conductivities
+  PetscReal :: Dk_ice_up, Dk_ice_dn ! frozen soil thermal conductivities
+  PetscReal :: alpha_up, alpha_dn
+  PetscReal :: alpha_fr_up, alpha_fr_dn
+  PetscReal :: dw_kg, dw_mol
+
+  PetscReal :: upweight
+  PetscReal :: Res(realization%option%nflowdof)
+  PetscViewer :: viewer
+
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(TH_auxvar_type), pointer :: auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set  
+  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal :: Dq, dphi, v_darcy, ukvr
+
+  PetscInt :: iconn, idof, istart, iend
+  PetscInt :: sum_connection
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity
+  PetscReal :: fluxe_bulk, fluxe_cond
+
+  ! secondary continuum variables
+  PetscReal :: sec_density
+  PetscReal :: sec_dencpr
+  PetscReal :: res_sec_heat
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  TH_parameter => patch%aux%TH%TH_parameter
+  auxvars => patch%aux%TH%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
+  
+! now assign access pointer to local variables
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+  !print *,' Finished scattering non deriv'
+ 
+   ! Interior Flux Terms -----------------------------------
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0  
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+
+      if (patch%imat(ghosted_id_up) <= 0 .or.  &
+          patch%imat(ghosted_id_dn) <= 0) cycle
+
+      if (option%flow%only_vertical_flow) then
+        !geh: place second conditional within first to avoid excessive
+        !     dot products when .not. option%flow%only_vertical_flow
+        if (dot_product(cur_connection_set%dist(1:3,iconn),unit_z) < &
+            1.d-10) cycle
+      endif
+
+      fraction_upwind = cur_connection_set%dist(-1,iconn)
+      distance = cur_connection_set%dist(0,iconn)
+      ! distance = scalar - magnitude of distance
+      ! gravity = vector(3)
+      ! dist(1:3,iconn) = vector(3) - unit vector
+      distance_gravity = distance * &
+                         dot_product(option%gravity, &
+                                     cur_connection_set%dist(1:3,iconn))
+      dd_up = distance*fraction_upwind
+      dd_dn = distance-dd_up ! should avoid truncation error
+      ! upweight could be calculated as 1.d0-fraction_upwind
+      ! however, this introduces ever so slight error causing pflow-overhaul not
+      ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
+      upweight = dd_dn/(dd_up+dd_dn)
+        
+      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
+      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
+      icap_up = int(icap_loc_p(ghosted_id_up))
+      icap_dn = int(icap_loc_p(ghosted_id_dn))
+   
+      D_up = TH_parameter%ckwet(ithrm_up)
+      D_dn = TH_parameter%ckwet(ithrm_dn)
+      
+      Dk_dry_up = TH_parameter%ckdry(ithrm_up)
+      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
+      
+      alpha_up = TH_parameter%alpha(ithrm_up)
+      alpha_dn = TH_parameter%alpha(ithrm_dn)
+
+      if (option%use_th_freezing) then
+         Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
+         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
+      
+         alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
+         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+      else
+         Dk_ice_up = Dk_dry_up
+         Dk_ice_dn = Dk_dry_dn
+      
+         alpha_fr_up = alpha_up
+         alpha_fr_dn = alpha_dn
+      endif
+
+      call THFlux(auxvars(ghosted_id_up),global_auxvars(ghosted_id_up), &
+                  material_auxvars(ghosted_id_up), &
+                  TH_parameter%sir(1,icap_up), &
+                  D_up, &
+                  auxvars(ghosted_id_dn),global_auxvars(ghosted_id_dn), &
+                  material_auxvars(ghosted_id_dn), &
+                  TH_parameter%sir(1,icap_dn), &
+                  D_dn, &
+                  cur_connection_set%area(iconn), &
+                  cur_connection_set%dist(:,iconn), &
+                  upweight,option,v_darcy,Dk_dry_up, &
+                  Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
+                  alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
+                  Res)
+
+      patch%internal_velocities(1,sum_connection) = v_darcy
+      patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+
+      if (local_id_up>0) then
+        iend = local_id_up*option%nflowdof
+        istart = iend-option%nflowdof+1
+        r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
+      endif
+   
+      if (local_id_dn>0) then
+        iend = local_id_dn*option%nflowdof
+        istart = iend-option%nflowdof+1
+        r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
+      endif
+
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo    
+
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+
+  
+end subroutine THResidualInternalConn
+  
+! ************************************************************************** !
+
+subroutine THResidualBoundaryConn(r,realization,ierr)
+  ! 
+  ! Perform preliminary work prior to residual computation
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 06/06/2019
+  ! 
+  
+  use Connection_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Coupler_module  
+  use Field_module
+  use Debug_module
+  use Secondary_Continuum_Aux_module
+  use Secondary_Continuum_module
+  
+  implicit none
+
+  Vec :: r
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -3697,11 +3995,322 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
+
+  PetscInt :: iphase
+  PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
+  PetscReal :: dd_up, dd_dn
+  PetscReal :: dd, f_up, f_dn, ff
+  PetscReal :: perm_up, perm_dn
+           ! thermal conductivity wet constants at upstream, downstream faces.
+  PetscReal :: D_up, D_dn  
+  PetscReal :: Dk_dry_up, Dk_dry_dn ! dry thermal conductivities
+  PetscReal :: Dk_ice_up, Dk_ice_dn ! frozen soil thermal conductivities
+  PetscReal :: alpha_up, alpha_dn
+  PetscReal :: alpha_fr_up, alpha_fr_dn
+  PetscReal :: dw_kg, dw_mol
+
+  PetscReal :: upweight
+  PetscReal :: Res(realization%option%nflowdof)
+  PetscViewer :: viewer
+
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(TH_auxvar_type), pointer :: auxvars(:), auxvars_bc(:)
+  type(TH_auxvar_type), pointer :: auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(coupler_type), pointer :: boundary_condition, source_sink
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set  
+  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscReal, pointer :: mmsrc(:)
+  PetscReal :: well_status
+  PetscReal :: well_factor
+  PetscReal :: pressure_bh
+  PetscReal :: pressure_max
+  PetscReal :: pressure_min
+  PetscReal :: well_inj_water
+  PetscReal :: Dq, dphi, v_darcy, ukvr
+
+  PetscInt :: iconn, idof, istart, iend
+  PetscInt :: sum_connection
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity
+  PetscReal :: vol_frac_prim
+  PetscReal :: fluxe_bulk, fluxe_cond
+
+  ! secondary continuum variables
+  PetscReal :: sec_density
+  PetscReal :: sec_dencpr
+  PetscReal :: res_sec_heat
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  TH_parameter => patch%aux%TH%TH_parameter
+  auxvars => patch%aux%TH%auxvars
+  auxvars_bc => patch%aux%TH%auxvars_bc
+  auxvars_ss => patch%aux%TH%auxvars_ss
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
+  material_auxvars => patch%aux%Material%auxvars
+  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
+  
+! now assign access pointer to local variables
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+  !print *,' Finished scattering non deriv'
+ 
+ 
+  ! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    
+    cur_connection_set => boundary_condition%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      if (ghosted_id<=0) then
+        print *, "Wrong boundary node index... STOP!!!"
+        stop
+      endif
+
+      ithrm_dn = int(ithrm_loc_p(ghosted_id))
+      D_dn = TH_parameter%ckwet(ithrm_dn)
+
+      distance_gravity = cur_connection_set%dist(0,iconn) * &
+                         dot_product(option%gravity, &
+                                     cur_connection_set%dist(1:3,iconn))
+
+      icap_dn = int(icap_loc_p(ghosted_id))
+  
+      call THBCFlux(boundary_condition%flow_condition%itype, &
+                    boundary_condition%flow_aux_real_var(:,iconn), &
+                    auxvars_bc(sum_connection), &
+                    global_auxvars_bc(sum_connection), &
+                    auxvars(ghosted_id), &
+                    global_auxvars(ghosted_id), &
+                    material_auxvars(ghosted_id), &
+                    TH_parameter%sir(1,icap_dn), &
+                    D_dn, &
+                    cur_connection_set%area(iconn), &
+                    cur_connection_set%dist(-1:3,iconn), &
+                    option, &
+                    v_darcy, &
+                    fluxe_bulk, fluxe_cond, &
+                    Res)
+
+      patch%boundary_velocities(1,sum_connection) = v_darcy
+      patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
+      patch%boundary_energy_flux(1,sum_connection) = fluxe_bulk
+      patch%boundary_energy_flux(2,sum_connection) = fluxe_cond
+
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary
+        global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) = &
+          global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) - Res(1)
+      endif
+
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+
+end subroutine THResidualBoundaryConn  
+
+! ************************************************************************** !
+
+subroutine THResidualAccumulation(r,realization,ierr)
+  ! 
+  ! Perform preliminary work prior to residual computation
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 06/06/2019
+  ! 
+  
+  use Connection_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Coupler_module  
+  use Field_module
+  use Debug_module
+  use Secondary_Continuum_Aux_module
+  use Secondary_Continuum_module
+  
+  implicit none
+
+  Vec :: r
+  type(realization_subsurface_type) :: realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: i, jn
+  PetscInt :: ip1, ip2
+  PetscInt :: local_id, ghosted_id
+
   PetscReal, pointer :: accum_p(:)
   PetscReal, pointer :: accum2_p(:)
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: ithrm_loc_p(:)
 
-  PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal :: Res(realization%option%nflowdof)
+  PetscViewer :: viewer
+
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(TH_auxvar_type), pointer :: auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
+  character(len=MAXSTRINGLENGTH) :: string
+
+  PetscInt :: istart, iend
+  PetscReal :: vol_frac_prim
+
+  ! secondary continuum variables
+  PetscReal :: sec_density
+  PetscReal :: sec_dencpr
+  PetscReal :: res_sec_heat
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  TH_parameter => patch%aux%TH%TH_parameter
+  auxvars => patch%aux%TH%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
+  
+! now assign access pointer to local variables
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
+  !print *,' Finished scattering non deriv'
+ 
+  ! Calculating volume fractions for primary and secondary continua
+
+  vol_frac_prim = 1.d0
+
+  ! Accumulation terms ------------------------------------
+  r_p = r_p - accum_p
+
+  do local_id = 1, grid%nlmax  ! For each local node do...
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    iend = local_id*option%nflowdof
+    istart = iend-option%nflowdof+1
+
+    if (option%use_mc) then
+      vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
+    endif
+
+    call THAccumulation(auxvars(ghosted_id),global_auxvars(ghosted_id), &
+                        material_auxvars(ghosted_id), &
+                        TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                        option,vol_frac_prim,Res)
+    r_p(istart:iend) = r_p(istart:iend) + Res
+    accum2_p(istart:iend) = Res
+  enddo
+
+  ! ================== Secondary continuum heat source terms ==================
+  if (option%use_mc) then
+  ! Secondary continuum contribution (Added by SK 06/02/2012)
+  ! only one secondary continuum for now for each primary continuum node
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+    
+      ! secondary rho*c_p same as primary for now
+      sec_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(local_id))) 
+        
+      call THSecondaryHeat(TH_sec_heat_vars(local_id), &
+                          global_auxvars(ghosted_id), &
+!                         TH_parameter%ckdry(int(ithrm_loc_p(local_id))), &
+                          TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
+                          sec_dencpr, &
+                          option,res_sec_heat)
+
+      r_p(iend) = r_p(iend) - res_sec_heat*material_auxvars(ghosted_id)%volume
+    enddo   
+  endif
+
+  call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+
+ 
+end subroutine THResidualAccumulation
+
+! ************************************************************************** !
+
+subroutine THResidualSourceSink(r,realization,ierr)
+  ! 
+  ! Perform preliminary work prior to residual computation
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 06/06/2019
+  ! 
+
+  use Connection_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Coupler_module  
+  use Field_module
+  use Debug_module
+  use Secondary_Continuum_Aux_module
+  use Secondary_Continuum_module
+  
+  implicit none
+
+  Vec :: r
+  type(realization_subsurface_type) :: realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: i, jn
+  PetscInt :: ip1, ip2
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
+
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: xx_loc_p(:), yy_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
   PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
@@ -3773,83 +4382,13 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   
-  call THUpdateAuxVarsPatch(realization)
-  ! override flags since they will soon be out of date  
-  patch%aux%TH%auxvars_up_to_date = PETSC_FALSE
-
-  if (option%compute_mass_balance_new) then
-    call THZeroMassBalDeltaPatch(realization)
-  endif
-
-
 ! now assign access pointer to local variables
+  call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90( r, r_p, ierr);CHKERRQ(ierr)
- 
-  call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
-  
-  if (option%surf_flow_on) call THComputeCoeffsForSurfFlux(realization)
-  
-  ! Calculating volume fractions for primary and secondary continua
-
-  vol_frac_prim = 1.d0
-  r_p = 0.d0
-
-  ! Accumulation terms ------------------------------------
-  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  r_p = - accum_p
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-
-  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax  ! For each local node do...
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    iend = local_id*option%nflowdof
-    istart = iend-option%nflowdof+1
-
-
-    if (option%use_mc) then
-      vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
-    endif
-
-    call THAccumulation(auxvars(ghosted_id),global_auxvars(ghosted_id), &
-                        material_auxvars(ghosted_id), &
-                        TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
-                        option,vol_frac_prim,Res)
-    r_p(istart:iend) = r_p(istart:iend) + Res
-    accum2_p(istart:iend) = Res
-  enddo
-  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
-
-
-  ! ================== Secondary continuum heat source terms ==================
-  if (option%use_mc) then
-  ! Secondary continuum contribution (Added by SK 06/02/2012)
-  ! only one secondary continuum for now for each primary continuum node
-    do local_id = 1, grid%nlmax  ! For each local node do...
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      iend = local_id*option%nflowdof
-      istart = iend-option%nflowdof+1
-    
-      ! secondary rho*c_p same as primary for now
-      sec_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(local_id))) 
-        
-      call THSecondaryHeat(TH_sec_heat_vars(local_id), &
-                          global_auxvars(ghosted_id), &
-!                         TH_parameter%ckdry(int(ithrm_loc_p(local_id))), &
-                          TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
-                          sec_dencpr, &
-                          option,res_sec_heat)
-
-      r_p(iend) = r_p(iend) - res_sec_heat*material_auxvars(ghosted_id)%volume
-    enddo   
-  endif
-  ! ============== end secondary continuum heat source ========================
+ 
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
@@ -3977,172 +4516,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  ! Interior Flux Terms -----------------------------------
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0  
-  do 
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-
-      if (patch%imat(ghosted_id_up) <= 0 .or.  &
-          patch%imat(ghosted_id_dn) <= 0) cycle
-
-      if (option%flow%only_vertical_flow) then
-        !geh: place second conditional within first to avoid excessive
-        !     dot products when .not. option%flow%only_vertical_flow
-        if (dot_product(cur_connection_set%dist(1:3,iconn),unit_z) < &
-            1.d-10) cycle
-      endif
-
-      fraction_upwind = cur_connection_set%dist(-1,iconn)
-      distance = cur_connection_set%dist(0,iconn)
-      ! distance = scalar - magnitude of distance
-      ! gravity = vector(3)
-      ! dist(1:3,iconn) = vector(3) - unit vector
-      distance_gravity = distance * &
-                         dot_product(option%gravity, &
-                                     cur_connection_set%dist(1:3,iconn))
-      dd_up = distance*fraction_upwind
-      dd_dn = distance-dd_up ! should avoid truncation error
-      ! upweight could be calculated as 1.d0-fraction_upwind
-      ! however, this introduces ever so slight error causing pflow-overhaul not
-      ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
-      upweight = dd_dn/(dd_up+dd_dn)
-        
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
-   
-      D_up = TH_parameter%ckwet(ithrm_up)
-      D_dn = TH_parameter%ckwet(ithrm_dn)
-      
-      Dk_dry_up = TH_parameter%ckdry(ithrm_up)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
-      
-      alpha_up = TH_parameter%alpha(ithrm_up)
-      alpha_dn = TH_parameter%alpha(ithrm_dn)
-
-      if (option%use_th_freezing) then
-         Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
-      
-         alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
-      else
-         Dk_ice_up = Dk_dry_up
-         Dk_ice_dn = Dk_dry_dn
-      
-         alpha_fr_up = alpha_up
-         alpha_fr_dn = alpha_dn
-      endif
-
-      call THFlux(auxvars(ghosted_id_up),global_auxvars(ghosted_id_up), &
-                  material_auxvars(ghosted_id_up), &
-                  TH_parameter%sir(1,icap_up), &
-                  D_up, &
-                  auxvars(ghosted_id_dn),global_auxvars(ghosted_id_dn), &
-                  material_auxvars(ghosted_id_dn), &
-                  TH_parameter%sir(1,icap_dn), &
-                  D_dn, &
-                  cur_connection_set%area(iconn), &
-                  cur_connection_set%dist(:,iconn), &
-                  upweight,option,v_darcy,Dk_dry_up, &
-                  Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
-                  alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
-                  Res)
-
-      patch%internal_velocities(1,sum_connection) = v_darcy
-      patch%internal_flow_fluxes(:,sum_connection) = Res(:)
-
-      if (local_id_up>0) then
-        iend = local_id_up*option%nflowdof
-        istart = iend-option%nflowdof+1
-        r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
-      endif
-   
-      if (local_id_dn>0) then
-        iend = local_id_dn*option%nflowdof
-        istart = iend-option%nflowdof+1
-        r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
-      endif
-
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo    
-
-  ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(boundary_condition)) exit
-    
-    cur_connection_set => boundary_condition%connection_set
-    
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-    
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-      if (ghosted_id<=0) then
-        print *, "Wrong boundary node index... STOP!!!"
-        stop
-      endif
-
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = TH_parameter%ckwet(ithrm_dn)
-
-      distance_gravity = cur_connection_set%dist(0,iconn) * &
-                         dot_product(option%gravity, &
-                                     cur_connection_set%dist(1:3,iconn))
-
-      icap_dn = int(icap_loc_p(ghosted_id))
-  
-      call THBCFlux(boundary_condition%flow_condition%itype, &
-                    boundary_condition%flow_aux_real_var(:,iconn), &
-                    auxvars_bc(sum_connection), &
-                    global_auxvars_bc(sum_connection), &
-                    auxvars(ghosted_id), &
-                    global_auxvars(ghosted_id), &
-                    material_auxvars(ghosted_id), &
-                    TH_parameter%sir(1,icap_dn), &
-                    D_dn, &
-                    cur_connection_set%area(iconn), &
-                    cur_connection_set%dist(-1:3,iconn), &
-                    option, &
-                    v_darcy, &
-                    fluxe_bulk, fluxe_cond, &
-                    Res)
-
-      patch%boundary_velocities(1,sum_connection) = v_darcy
-      patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
-      patch%boundary_energy_flux(1,sum_connection) = fluxe_bulk
-      patch%boundary_energy_flux(2,sum_connection) = fluxe_cond
-
-      if (option%compute_mass_balance_new) then
-        ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) - Res(1)
-      endif
-
-      iend = local_id*option%nflowdof
-      istart = iend-option%nflowdof+1
-      r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
-    enddo
-    boundary_condition => boundary_condition%next
-  enddo
-
   ! scale the residual by the volume
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -4168,26 +4541,11 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   endif
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
 
-  if (realization%debug%vecview_residual) then
-    string = 'THresidual'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call VecView(r,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-  if (realization%debug%vecview_solution) then
-    string = 'THxx'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
-end subroutine THResidualPatch
+end subroutine THResidualSourceSink
 
 ! ************************************************************************** !
 
@@ -4243,10 +4601,12 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   enddo
   
   if (realization%debug%matview_Jacobian) then
-    string = 'THjacobian'
+    call DebugWriteFilename(realization%debug,string,'THjacobian','', &
+                            TH_ts_count,TH_ts_cut_count, &
+                            TH_ni_count)
     call DebugCreateViewer(realization%debug,string,realization%option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
   endif
   if (realization%debug%norm_Jacobian) then
     option => realization%option
@@ -4261,6 +4621,9 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
     call printMsg(option)
   endif
   
+    TH_ni_count = TH_ni_count + 1
+
+
 end subroutine THJacobian
 
 ! ************************************************************************** !
