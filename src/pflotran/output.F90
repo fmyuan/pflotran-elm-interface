@@ -936,6 +936,13 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_SATURATION,units, &
                                      ICE_SATURATION)
 
+      case ('HYDRATE_SATURATION')
+        name = 'Hydrate Saturation'
+        units = ''
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_SATURATION,units, &
+                                     HYDRATE_SATURATION)
+
       case ('LIQUID_MOLE_FRACTIONS')
         name = 'X_g^l'
         units = ''

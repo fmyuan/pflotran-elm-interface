@@ -37,7 +37,7 @@ ax.set_zlabel('Volume Fraction')
 #plt.grid(True)
 
 #data = pft.Dataset(filenames[0],6,0)
-data = pft.Dataset(filenames[0],'Jurbanite VF',0)
+data = pft.Dataset(filenames[0],'Jurbanite VF [m^3 mnrl/m^3 bulk]',0)
 X,Y = np.meshgrid(data.get_array('x'),data.get_array('y'))
 Z = data.get_array('z')
 

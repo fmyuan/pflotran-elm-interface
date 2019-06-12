@@ -72,6 +72,7 @@ private
             RealizationAddStrata, &
             RealizUpdateUniformVelocity, &
             RealizationRevertFlowParameters, &
+            RealizStoreRestartFlowParams, &
 !            RealizationGetVariable, &
 !            RealizGetVariableValueAtCell, &
 !            RealizationSetVariable, &
@@ -1425,8 +1426,10 @@ subroutine RealizationRevertFlowParameters(realization)
   use Option_module
   use Field_module
   use Discretization_module
-  use Material_Aux_class
-  use Variables_module
+  use Material_Aux_class, only : material_type, &
+                                 POROSITY_CURRENT, POROSITY_MINERAL
+  use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z, &
+                               POROSITY
 
   implicit none
   
@@ -1459,13 +1462,74 @@ subroutine RealizationRevertFlowParameters(realization)
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)  
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               ZERO_INTEGER)
-  call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
-                                   field%work_loc,ONEDOF)  
-  call MaterialSetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY, &
-                               ZERO_INTEGER)
+                               POROSITY_MINERAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
+  ! tortuosity is not currently checkpointed
+!  call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
+!                                   field%work_loc,ONEDOF)  
+!  call MaterialSetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY, &
+!                               ZERO_INTEGER)
 
 end subroutine RealizationRevertFlowParameters
+
+! ************************************************************************** !
+
+subroutine RealizStoreRestartFlowParams(realization)
+  ! 
+  ! Assigns initial porosity/perms to vecs
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 05/09/08
+  ! 
+
+  use Option_module
+  use Field_module
+  use Discretization_module
+  use Material_Aux_class
+  use Variables_module
+
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  
+  type(field_type), pointer :: field
+  type(option_type), pointer :: option
+  type(discretization_type), pointer :: discretization
+  type(material_type), pointer :: Material
+  
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+  Material => realization%patch%aux%Material
+
+  if (option%nflowdof > 0) then
+    call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_X, &
+                                 ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                     field%perm0_xx,ONEDOF)
+    call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Y, &
+                                 ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                     field%perm0_yy,ONEDOF)
+    call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Z, &
+                                 ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                     field%perm0_zz,ONEDOF)
+  endif   
+  call MaterialGetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_MINERAL)
+  call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                   field%porosity0,ONEDOF)
+  ! tortuosity is not currently checkpointed
+!  call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+!                                   field%tortuosity0,ONEDOF)
+!  call MaterialGetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY, &
+!                               ZERO_INTEGER)
+
+end subroutine RealizStoreRestartFlowParams
 
 ! ************************************************************************** !
 
@@ -2527,7 +2591,7 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
     write(word,*) imin+1 ! zero to one based indexing
     option%io_buffer = 'Incorrect assignment of variable (' &
       // trim(var_name) // ',cell=' // trim(adjustl(word)) // ').'
-    call PrintErrMsgToDev('send your input deck.',option)
+    call PrintErrMsgToDev(option,'send your input deck.')
   endif
 
 end subroutine RealizUnInitializedVar1

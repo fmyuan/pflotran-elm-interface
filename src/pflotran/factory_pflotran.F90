@@ -304,10 +304,9 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         ! this section preserves the legacy implementation
         call InputReadFilename(input,option,option%restart_filename)
         if (input%ierr == 0) then
-          call InputReadDouble(input,option,option%restart_time)
+          call InputReadWord(input,option,word,PETSC_TRUE)
           if (input%ierr == 0) then
-            call InputReadAndConvertUnits(input,option%restart_time, &
-                                        'sec','RESTART,time units',option)
+            option%restart_time = 0.d0
           endif 
           cycle
           ! end legacy implementation

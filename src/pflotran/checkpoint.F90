@@ -345,6 +345,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_CURRENT
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -397,7 +398,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! (We only write diagonal terms of the permeability tensor for now, 
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
-                                  field%work_loc,POROSITY,ZERO_INTEGER)
+                                  field%work_loc,POROSITY,POROSITY_CURRENT)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                       global_vec,ONEDOF)
     call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
@@ -444,6 +445,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_CURRENT
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -510,7 +512,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                                  field%work_loc,POROSITY,ZERO_INTEGER)
+                                  field%work_loc,POROSITY,POROSITY_CURRENT)
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
@@ -1074,10 +1076,12 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_CURRENT
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
+
   implicit none
 
   integer(HID_T) :: pm_grp_id
@@ -1147,7 +1151,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! (We only write diagonal terms of the permeability tensor for now,
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
-                                 field%work_loc,POROSITY,ZERO_INTEGER)
+                                 field%work_loc,POROSITY,POROSITY_CURRENT)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                      global_vec,ONEDOF)
     call DiscretizationGlobalToNatural(discretization, global_vec, &
@@ -1210,10 +1214,12 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_CURRENT
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
+
   implicit none
 
   integer(HID_T) :: pm_grp_id
@@ -1304,7 +1310,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     call DiscretizationGlobalToLocal(discretization, global_vec, field%work_loc, &
                                      ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                                 field%work_loc,POROSITY,ZERO_INTEGER)
+                                 field%work_loc,POROSITY,POROSITY_CURRENT)
 
     dataset_name = "Permeability_X" // CHAR(0)
     call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &

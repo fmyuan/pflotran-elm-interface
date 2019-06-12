@@ -292,15 +292,23 @@ subroutine GeneralUpdateSolution(realization)
   endif
   
   ! update stored state
-  do ghosted_id = 1, grid%ngmax
-    gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
-      global_auxvars(ghosted_id)%istate
-  enddo
-  
+  if (general_hydrate_flag) then
+    do ghosted_id = 1, grid%ngmax
+      gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
+        global_auxvars(ghosted_id)%istate
+      gen_auxvars(ZERO_INTEGER,ghosted_id)%hstate_store(PREV_TS) = &
+        global_auxvars(ghosted_id)%hstate
+    enddo
+  else 
+    do ghosted_id = 1, grid%ngmax
+      gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
+        global_auxvars(ghosted_id)%istate
+    enddo
+  endif
   general_ts_count = general_ts_count + 1
   general_ts_cut_count = 0
   general_ni_count = 0
-  
+ 
 end subroutine GeneralUpdateSolution
 
 ! ************************************************************************** !
@@ -338,10 +346,19 @@ subroutine GeneralTimeCut(realization)
   gen_auxvars => patch%aux%General%auxvars
 
   ! restore stored state
-  do ghosted_id = 1, grid%ngmax
-    global_auxvars(ghosted_id)%istate = &
-      gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
-  enddo
+  if (general_hydrate_flag) then
+    do ghosted_id = 1, grid%ngmax
+      global_auxvars(ghosted_id)%istate = &
+        gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
+      global_auxvars(ghosted_id)%hstate = &
+        gen_auxvars(ZERO_INTEGER,ghosted_id)%hstate_store(PREV_TS)
+    enddo
+  else
+    do ghosted_id = 1, grid%ngmax
+      global_auxvars(ghosted_id)%istate = &
+        gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
+    enddo
+  endif
 
   general_ts_cut_count = general_ts_cut_count + 1
 
@@ -653,6 +670,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   use Material_Aux_class
   use EOS_Water_module
   use Saturation_Function_module
+  use Hydrate_module
   
   implicit none
 
@@ -726,7 +744,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     option%iflag = GENERAL_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
-    call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
+    if (general_hydrate_flag) then
+      call HydrateAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
@@ -734,8 +753,30 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                          patch%sat_func_id(ghosted_id))%ptr, &
                        natural_id, &
                        option)
+    else
+    !hdp - Debugging purposes
+    !write(option%io_buffer,'("cell id: ",i7)') natural_id
+    !call printMsg(option)
+      call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
+                       gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                       global_auxvars(ghosted_id), &
+                       material_auxvars(ghosted_id), &
+                       patch%characteristic_curves_array( &
+                         patch%sat_func_id(ghosted_id))%ptr, &
+                       natural_id, &
+                       option)
+    endif
     if (update_state) then
-      call GeneralAuxVarUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
+      if (general_hydrate_flag) then
+        call HydrateUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
+                                    gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                                    global_auxvars(ghosted_id), &
+                                    material_auxvars(ghosted_id), &
+                                    patch%characteristic_curves_array( &
+                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                    natural_id, option)
+      else
+        call GeneralAuxVarUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
                                     gen_auxvars(ZERO_INTEGER,ghosted_id), &
                                     global_auxvars(ghosted_id), &
                                     material_auxvars(ghosted_id), &
@@ -743,6 +784,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                       patch%sat_func_id(ghosted_id))%ptr, &
                                     natural_id, &  ! for debugging
                                     option)
+      endif
     endif
 #ifdef DEBUG_AUXVARS
 !geh: for debugging
@@ -778,6 +820,15 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                   real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
                   xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
               end select   
+            enddo
+          case(HA_STATE) !MAN: Testing HA_STATE
+            do idof = 1, option%nflowdof
+              select case(boundary_condition%flow_bc_type(idof))
+                case(DIRICHLET_BC,HYDROSTATIC_BC)
+                  real_index = boundary_condition%flow_aux_mapping( &
+                          dof_to_primary_variable(idof,TWO_PHASE_STATE))
+                  xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+              end select
             enddo
           case(TWO_PHASE_STATE)
             do idof = 1, option%nflowdof
@@ -864,7 +915,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
-          real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+          if (istate > 3) then
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,TWO_PHASE_STATE))
+          else
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,istate))
+          endif
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
@@ -874,11 +931,35 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
         enddo
       endif
           
-      ! set this based on data given 
-      global_auxvars_bc(sum_connection)%istate = istate
+      ! set this based on data given
+      if (istate <= 5) then 
+        global_auxvars_bc(sum_connection)%istate = istate
+        global_auxvars_bc(sum_connection)%hstate = istate
+      else
+        global_auxvars_bc(sum_connection)%istate = TWO_PHASE_STATE
+        global_auxvars_bc(sum_connection)%hstate = istate
+      endif
       ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = GENERAL_UPDATE_FOR_BOUNDARY
-      call GeneralAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
+
+      if (general_hydrate_flag) then
+        call HydrateAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
+                                global_auxvars_bc(sum_connection), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                natural_id, &
+                                option)
+      ! update state and update aux var; this could result in two update to
+      ! the aux var as update state updates if the state changes
+         call HydrateUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
+                                    global_auxvars_bc(sum_connection), &
+                                    material_auxvars(ghosted_id), &
+                                    patch%characteristic_curves_array( &
+                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                    natural_id,option)
+      else
+        call GeneralAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
@@ -887,12 +968,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                 option)
       ! update state and update aux var; this could result in two update to 
       ! the aux var as update state updates if the state changes
-      call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
+         call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
                                     global_auxvars_bc(sum_connection), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
                                       patch%sat_func_id(ghosted_id))%ptr, &
                                     natural_id,option)
+      endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1000,7 +1082,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
       option%iflag = GENERAL_UPDATE_FOR_SS
     
       ! Compute state variables 
-      call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
+      if (general_hydrate_flag) then
+        call HydrateAuxVarCompute(xxss,gen_auxvar_ss, &
                                 global_auxvar_ss, &
                                 material_auxvars(source_sink% &
                                 region%cell_ids(1)), &
@@ -1009,6 +1092,17 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                 cell_ids(1)))%ptr, &
                                 source_sink%region%cell_ids(1), &
                                 option)
+      else
+        call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
+                                global_auxvar_ss, &
+                                material_auxvars(source_sink% &
+                                region%cell_ids(1)), &
+                                patch%characteristic_curves_array( &
+                                patch%sat_func_id(source_sink%region% &
+                                cell_ids(1)))%ptr, &
+                                source_sink%region%cell_ids(1), &
+                                option)
+      endif
 
       gen_auxvars_ss(ssn) = gen_auxvar_ss
     enddo
@@ -1037,6 +1131,7 @@ subroutine GeneralUpdateFixedAccum(realization)
   use Field_module
   use Grid_module
   use Material_Aux_class
+  use Hydrate_module
 
   implicit none
   
@@ -1083,7 +1178,9 @@ subroutine GeneralUpdateFixedAccum(realization)
     local_start = local_end - option%nflowdof + 1
     ! GENERAL_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = GENERAL_UPDATE_FOR_FIXED_ACCUM
-    call GeneralAuxVarCompute(xx_p(local_start:local_end), &
+
+    if (general_hydrate_flag) then
+       call HydrateAuxVarCompute(xx_p(local_start:local_end), &
                               gen_auxvars(ZERO_INTEGER,ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
@@ -1091,13 +1188,30 @@ subroutine GeneralUpdateFixedAccum(realization)
                                 patch%sat_func_id(ghosted_id))%ptr, &
                               natural_id, &
                               option)
-    call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
+      call HydrateAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
-                             local_id == general_debug_cell_id) 
+                             local_id == general_debug_cell_id)
+    else
+      call GeneralAuxVarCompute(xx_p(local_start:local_end), &
+                              gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              material_auxvars(ghosted_id), &
+                              patch%characteristic_curves_array( &
+                                patch%sat_func_id(ghosted_id))%ptr, &
+                              natural_id, &
+                              option)
+      call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                             global_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id), &
+                             material_parameter%soil_heat_capacity(imat), &
+                             option,accum_p(local_start:local_end), &
+                             Jac_dummy,PETSC_FALSE, &
+                             local_id == general_debug_cell_id)
+    endif
   enddo
   
   
@@ -1128,6 +1242,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Debug_module
   use Material_Aux_class
   use Upwind_Direction_module
+  use Hydrate_module
 
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
@@ -1270,13 +1385,23 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     if (imat <= 0) cycle
     local_end = local_id * option%nflowdof
     local_start = local_end - option%nflowdof + 1
-    call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
+    if (general_hydrate_flag) then
+      call HydrateAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy, &
                              general_analytical_derivatives, &
-                             local_id == general_debug_cell_id) 
+                             local_id == general_debug_cell_id)
+    else
+      call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                             global_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id), &
+                             material_parameter%soil_heat_capacity(imat), &
+                             option,Res,Jac_dummy, &
+                             general_analytical_derivatives, &
+                             local_id == general_debug_cell_id)
+    endif
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     accum_p2(local_start:local_end) = Res(:)
   enddo
@@ -1548,6 +1673,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Material_Aux_class
   use Upwind_Direction_module
+  use Hydrate_module
 
   implicit none
 
@@ -1628,12 +1754,21 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
       if (patch%imat(ghosted_id) <= 0) cycle
       natural_id = grid%nG2A(ghosted_id)
-      call GeneralAuxVarPerturb(gen_auxvars(:,ghosted_id), &
+      if (general_hydrate_flag) then
+        call HydrateAuxVarPerturb(gen_auxvars(:,ghosted_id), &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                   patch%sat_func_id(ghosted_id))%ptr, &
                                 natural_id,option)
+      else
+        call GeneralAuxVarPerturb(gen_auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                natural_id,option)
+      endif
     enddo
   endif
   

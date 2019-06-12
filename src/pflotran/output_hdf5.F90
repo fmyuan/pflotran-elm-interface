@@ -1270,7 +1270,7 @@ function OutputHDF5FilenameID(output_option,option,var_list_type)
     write(OutputHDF5FilenameID,'(i5)') file_number
   else
     option%io_buffer = 'Plot number exceeds current maximum of 10^5.'
-    call PrintErrMsgToDev('ask for a higher maximum',option)
+    call PrintErrMsgToDev(option,'ask for a higher maximum')
   endif 
   
   OutputHDF5FilenameID = adjustl(OutputHDF5FilenameID)

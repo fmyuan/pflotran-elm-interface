@@ -521,18 +521,18 @@ subroutine SFBaseSurfaceTension(this,T,sigma)
   PetscReal, intent(in) :: T
   PetscReal, intent(out) :: sigma
   
-  PetscReal, parameter :: Tc = 647.096
-  PetscReal, parameter :: B = 235.8
-  PetscReal, parameter :: b_2 = -0.625
-  PetscReal, parameter :: mu = 1.256
-  PetscReal, parameter :: sigma_base = 0.073
+  PetscReal, parameter :: Tc = 647.096d0
+  PetscReal, parameter :: B = 235.8d0
+  PetscReal, parameter :: b_2 = -0.625d0
+  PetscReal, parameter :: mu = 1.256d0
+  PetscReal, parameter :: sigma_base = 0.073d0
   PetscReal :: Temp
   PetscReal :: tao
   
-  Temp=T+273.15
+  Temp=T+273.15d0
   
   if (T <= 373.d0) then
-    tao = 1-Temp/Tc
+    tao = 1.d0-Temp/Tc
     sigma = B*(tao**mu)*(1+b_2*tao)
     sigma = sigma * 1.d-3
   else
