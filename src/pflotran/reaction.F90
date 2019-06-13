@@ -859,7 +859,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         option%io_buffer = 'OPERATOR_SPLIT functionality has not been &
           &reimplemented in the refactored PFLOTRAN at this time.  Please &
           &use GLOBAL_IMPLICIT (remove OPERATOR_SPLIT(TING)).'
-        call PrintErrMsgToDev('if you really need operator splitting',option)
+        call PrintErrMsgToDev(option,'if you really need operator splitting')
         option%transport%reactive_transport_coupling = OPERATOR_SPLIT    
       case('EXPLICIT_ADVECTION')
         option%itranmode = EXPLICIT_ADVECTION
@@ -3153,6 +3153,12 @@ subroutine ReactionReadOutput(reaction,input,option)
         reaction%mineral%print_all = PETSC_TRUE
       case('MINERAL_SATURATION_INDEX')
         reaction%mineral%print_saturation_index = PETSC_TRUE
+      case('MINERAL_VOLUME_FRACTION')
+        reaction%mineral%print_volume_fraction = PETSC_TRUE
+      case('MINERAL_RATE')
+        reaction%mineral%print_rate = PETSC_TRUE
+      case('MINERAL_SURFACE_AREA')
+        reaction%mineral%print_surface_area = PETSC_TRUE
       case('IMMOBILE')
         reaction%immobile%print_all = PETSC_TRUE
       case('PH')
@@ -5951,23 +5957,27 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     endif
   enddo   
 
-  do i=1,reaction%mineral%nkinmnrl
-    if (reaction%mineral%kinmnrl_print(i)) then
-      name = trim(reaction%mineral%kinmnrl_names(i)) // ' VF'
-      units = ''
-      call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
-                                   MINERAL_VOLUME_FRACTION,i)     
-    endif
-  enddo
+  if (reaction%mineral%print_volume_fraction) then
+    do i=1,reaction%mineral%nkinmnrl
+      if (reaction%mineral%kinmnrl_print(i)) then
+        name = trim(reaction%mineral%kinmnrl_names(i)) // ' VF'
+        units = 'm^3 mnrl/m^3 bulk'
+        call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
+                                     MINERAL_VOLUME_FRACTION,i)     
+      endif
+    enddo
+  endif
   
-  do i=1,reaction%mineral%nkinmnrl
-    if (reaction%mineral%kinmnrl_print(i)) then
-      name = trim(reaction%mineral%kinmnrl_names(i)) // ' Rate'
-      units = 'mol/m^3/sec'
-      call OutputVariableAddToList(list,name,OUTPUT_RATE,units, &
-                                   MINERAL_RATE,i)      
-    endif
-  enddo  
+  if (reaction%mineral%print_rate) then
+    do i=1,reaction%mineral%nkinmnrl
+      if (reaction%mineral%kinmnrl_print(i)) then
+        name = trim(reaction%mineral%kinmnrl_names(i)) // ' Rate'
+        units = 'mol/m^3/sec'
+        call OutputVariableAddToList(list,name,OUTPUT_RATE,units, &
+                                     MINERAL_RATE,i)      
+      endif
+    enddo  
+  endif
   
   if (reaction%mineral%print_saturation_index) then
     do i=1,reaction%mineral%nmnrl
@@ -5976,6 +5986,17 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
         units = ''
         call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
                                      MINERAL_SATURATION_INDEX,i)    
+      endif
+    enddo
+  endif
+  
+  if (reaction%mineral%print_surface_area) then
+    do i=1,reaction%mineral%nmnrl
+      if (reaction%mineral%mnrl_print(i)) then
+        name = trim(reaction%mineral%mineral_names(i)) // ' Area'
+        units = 'm^2/m^3'
+        call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                     MINERAL_SURFACE_AREA,i)    
       endif
     enddo
   endif

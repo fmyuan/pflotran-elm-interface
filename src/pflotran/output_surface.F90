@@ -72,8 +72,7 @@ subroutine OutputSurface(surf_realization,realization,snapshot_plot_flag, &
 
   use Realization_Surface_class, only : realization_surface_type
   use Realization_Subsurface_class, only : realization_subsurface_type
-  use Option_module, only : OptionCheckTouch, option_type, &
-                            printMsg, printErrMsg
+  use Option_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -1514,7 +1513,7 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
 
   use Realization_Surface_class, only : realization_surface_type
   use Realization_Subsurface_class, only : realization_subsurface_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg
+  use Option_module
   use Output_Aux_module
   use Output_Common_module, only : OutputGetVariableArray  
   use Surface_Field_module
@@ -1735,7 +1734,7 @@ function OutputSurfaceHDF5FilenameID(output_option,option,var_list_type)
     write(OutputSurfaceHDF5FilenameID,'(i5)') file_number
   else
     option%io_buffer = 'Plot number exceeds current maximum of 10^5.'
-    call PrintErrMsgToDev('ask for a higher maximum',option)
+    call PrintErrMsgToDev(option,'ask for a higher maximum')
   endif 
   
   OutputSurfaceHDF5FilenameID = adjustl(OutputSurfaceHDF5FilenameID)

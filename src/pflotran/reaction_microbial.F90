@@ -245,7 +245,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   ! Date: 10/31/12
   ! 
 
-  use Option_module, only : option_type, printErrMsg
+  use Option_module, only : option_type
   use Reactive_Transport_Aux_module, only : reactive_transport_auxvar_type
   use Global_Aux_module, only : global_auxvar_type
   use Material_Aux_class, only : material_auxvar_type

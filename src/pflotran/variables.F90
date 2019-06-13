@@ -163,4 +163,6 @@ module Variables_module
   PetscInt, parameter, public :: GAS_RELATIVE_PERMEABILITY    = 132
   PetscInt, parameter, public :: SALINITY                = 133
 
+  PetscInt, parameter, public :: HYDRATE_SATURATION      = 134
+
 end module Variables_module

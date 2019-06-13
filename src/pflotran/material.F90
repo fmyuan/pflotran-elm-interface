@@ -1630,6 +1630,9 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
           enddo
+        case default
+          print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
+          stop
       end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
@@ -1735,6 +1738,9 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           do ghosted_id=1, Material%num_aux
             vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_base
           enddo
+        case default
+          print *, 'Error indexing porosity in MaterialGetAuxVarVecLoc()'
+          stop
       end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
@@ -1876,7 +1882,7 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   print *, 'MaterialUpdateAuxVars not implemented.'
   stop
   ! porosity
-!  call MaterialGetAuxVarVecLoc(Material,vec_loc,POROSITY,ZERO_INTEGER)
+!  call MaterialGetAuxVarVecLoc(Material,vec_loc,POROSITY,POROSITY_CURRENT)
 !  call comm1%LocalToLocal(vec_loc,vec_loc)
   ! note that 'time_level' is not ZERO_INTEGER.  thus, this differs
   ! from MaterialAuxVarCommunicate.

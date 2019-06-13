@@ -68,7 +68,6 @@ mode_aux_obj = \
 	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
 	${common_src}pm_waste_form.o \
-	${common_src}criticality.o \
 	${common_src}pm_wipp_srcsink.o \
 	${common_src}pm_ufd_biosphere.o \
 	${common_src}richards_aux.o \
@@ -79,8 +78,9 @@ mode_obj = \
 	${common_src}flash2.o \
 	${common_src}general.o \
 	${common_src}general_common.o \
-	${common_src}wipp_flow.o \
-	${common_src}wipp_flow_common.o \
+        ${common_src}wipp_flow.o \
+	${common_src}hydrate.o \
+        ${common_src}wipp_flow_common.o \
 	${common_src}toil_ims.o \
 	${common_src}towg.o \
 	${common_src}global.o \

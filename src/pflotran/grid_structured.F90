@@ -655,7 +655,6 @@ subroutine StructGridGetIJKFromCoordinate(structured_grid,x,y,z,i,j,k)
   implicit none
     
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: i, j, k
   PetscInt :: i_local, j_local, k_local
   PetscInt :: i_ghosted, j_ghosted, k_ghosted
@@ -743,7 +742,6 @@ subroutine StructGridGetIJKFromLocalID(structured_grid,local_id,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: local_id
   PetscReal :: i, j, k
   
@@ -769,7 +767,6 @@ subroutine StructGridGetIJKFromGhostedID(structured_grid,ghosted_id,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: ghosted_id
   PetscInt :: i, j, k
   
@@ -795,7 +792,6 @@ function StructGridGetLocalIDFromIJK(structured_grid,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: i, j, k
   
   PetscInt :: StructGridGetLocalIDFromIJK
@@ -821,7 +817,6 @@ function StructGridGetGhostedIDFromIJK(structured_grid,i,j,k)
   implicit none
   
   type(grid_structured_type) :: structured_grid
-  type(option_type) :: option
   PetscInt :: i, j, k
   
   PetscInt :: StructGridGetGhostedIDFromIJK
@@ -1123,8 +1118,8 @@ end function StructGridComputeInternConnect
 
 ! ************************************************************************** !
 
-subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface, &
-                                        iconn,ghosted_id,option)
+subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
+                                        iface,iconn,ghosted_id,option)
   ! 
   ! Computes details of connection (area, dist, etc)
   ! 

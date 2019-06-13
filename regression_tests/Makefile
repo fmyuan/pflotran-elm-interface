@@ -42,6 +42,7 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/batch/batch.cfg \
 	default/debug/debug.cfg \
 	default/eos/eos.cfg \
@@ -67,7 +68,8 @@ STANDARD_CFG = \
 	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
-	ngee/ngee.cfg \
+	general/hydrate/hydrate.cfg \
+        ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \

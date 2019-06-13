@@ -203,6 +203,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
   PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
   PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
+  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
   
   PetscInt, parameter, public :: WELL_SS = 100
   

@@ -329,7 +329,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       option%io_buffer = 'Minimum index for pressure array outside of &
         &bounds (' // trim(StringWrite(ipressure)) // ') for hydrostatic &
         &FLOW_CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsgToDev('include your input deck',option)
+      call PrintErrMsgToDev(option,'include your input deck')
     endif
     dist_z = grid%z_max_global-min(datum_dataset_rmin,datum(Z_DIRECTION))
     ipressure = idatum+int(dist_z/delta_z)
@@ -338,7 +338,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         &bounds (' // trim(StringWrite(ipressure)) // ' > ' // &
         trim(StringWrite(num_pressures)) // ') for hydrostatic FLOW_&
         &CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsgToDev('include your input deck',option)
+      call PrintErrMsgToDev(option,'include your input deck')
     endif
 
     call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &

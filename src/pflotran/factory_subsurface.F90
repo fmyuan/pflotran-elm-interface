@@ -707,6 +707,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TOWG_Aux_module
   use PM_Richards_TS_class
   use PM_TH_TS_class
+  use Hydrate_module
+  use General_Aux_module
 
   implicit none
 
@@ -749,23 +751,27 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 2
       option%nflowspec = 2
     class is (pm_general_type)
-      option%iflowmode = G_MODE
-      option%nphase = 2
-      option%liquid_phase = 1  ! liquid_pressure
-      option%gas_phase = 2     ! gas_pressure
+      if (general_hydrate_flag) then
+        call HydrateSetFlowMode(option)
+      else
+        option%iflowmode = G_MODE
+        option%nphase = 2
+        option%liquid_phase = 1  ! liquid_pressure
+        option%gas_phase = 2     ! gas_pressure
 
-      option%air_pressure_id = 3
-      option%capillary_pressure_id = 4
-      option%vapor_pressure_id = 5
-      option%saturation_pressure_id = 6
+        option%air_pressure_id = 3
+        option%capillary_pressure_id = 4
+        option%vapor_pressure_id = 5
+        option%saturation_pressure_id = 6
 
-      option%water_id = 1
-      option%air_id = 2
-      option%energy_id = 3
+        option%water_id = 1
+        option%air_id = 2
+        option%energy_id = 3
 
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%use_isothermal = PETSC_FALSE
+        option%nflowdof = 3
+        option%nflowspec = 2
+        option%use_isothermal = PETSC_FALSE
+      endif
     class is (pm_toil_ims_type)
       option%iflowmode = TOIL_IMS_MODE
       option%nphase = 2
@@ -1645,7 +1651,8 @@ subroutine SetupWaypointList(simulation)
   ! add in periodic time waypoints for checkpointing. these will not appear
   ! in the outer list
   call CheckpointPeriodicTimeWaypoints(simulation%checkpoint_option, &
-                                       simulation%waypoint_list_subsurface)
+                                       simulation%waypoint_list_subsurface, &
+                                       option)
 
   ! clean up waypoints
   if (.not.option%steady_state) then

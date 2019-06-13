@@ -22,6 +22,7 @@ module PM_Subsurface_Flow_class
     PetscBool :: store_porosity_for_transport
     PetscBool :: check_post_convergence
     PetscBool :: revert_parameters_on_restart
+    PetscBool :: replace_init_params_on_restart
     ! these govern the size of subsequent time steps
     PetscReal :: max_pressure_change
     PetscReal :: max_temperature_change
@@ -39,6 +40,7 @@ module PM_Subsurface_Flow_class
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
     PetscInt :: logging_verbosity
+
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
@@ -101,6 +103,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%store_porosity_for_transport = PETSC_FALSE
   this%check_post_convergence = PETSC_FALSE
   this%revert_parameters_on_restart = PETSC_FALSE
+  this%replace_init_params_on_restart = PETSC_FALSE
   
   ! defaults
   this%max_pressure_change = 0.d0
@@ -252,7 +255,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
-
+      
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
 
@@ -272,6 +275,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('REVERT_PARAMETERS_ON_RESTART')
       this%revert_parameters_on_restart = PETSC_TRUE
+
+    case('REPLACE_INIT_PARAMS_ON_RESTART')
+      this%replace_init_params_on_restart = PETSC_TRUE
 
     case default
       found = PETSC_FALSE
@@ -409,13 +415,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     endif
   endif
   
-  ! restart
-  if (this%revert_parameters_on_restart) then
-    call RealizationRevertFlowParameters(this%realization)
-!geh: for testing only.  In general, we only revert parameter, not flow.
-!    call CondControlAssignFlowInitCond(this%realization)
-!    call this%UpdateAuxVars()
-  endif
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
   if (associated(this%realization%reaction)) then
@@ -434,9 +433,14 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
                                  POROSITY,POROSITY_MINERAL)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_CURRENT)
+    if (.not.this%realization%option%restart_flag .or. &
+        this%revert_parameters_on_restart) then
+      ! POROSITY_CURRENT should not be updated to porosity0 if we are 
+      ! restarting unless the revert_parameters on restart flag is true.
+      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                   this%realization%field%work_loc, &
+                                   POROSITY,POROSITY_CURRENT)
+    endif
   endif  
 
   call this%PreSolve()
@@ -1071,6 +1075,7 @@ subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call RestartFlowProcessModelBinary(viewer,this%realization)
+  call PMSubsurfaceFlowRestartUpdate(this)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
   
@@ -1115,11 +1120,38 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
   integer(HID_T) :: pm_grp_id
 
   call RestartFlowProcessModelHDF5(pm_grp_id, this%realization)
+  call PMSubsurfaceFlowRestartUpdate(this)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
 
 
 end subroutine PMSubsurfaceFlowRestartHDF5
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowRestartUpdate(this)
+  ! 
+  ! Performs revert, replace, etc, after restart has been loaded
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 05/31/19
+
+  class(pm_subsurface_flow_type) :: this
+
+  ! geh - up to this point, parameters from the input file(s) are stored in
+  ! Vecs (porosity0, perm0_XX, etc.) while values from potential restart will
+  ! be stored in the material auxvar.
+  ! If we are truly restarting: material_auxvar -> Vecs
+  ! If we are reverting:        Vecs -> material_auxvar
+  if (this%revert_parameters_on_restart) then
+    call RealizationRevertFlowParameters(this%realization)
+  else if (this%replace_init_params_on_restart) then
+    !geh: this causes the Vecs (porosity0, perm0_XX, etc.) to be updated
+    !     with the checkpointed values.
+    call RealizStoreRestartFlowParams(this%realization)
+  endif
+
+end subroutine PMSubsurfaceFlowRestartUpdate
 
 ! ************************************************************************** !
 
