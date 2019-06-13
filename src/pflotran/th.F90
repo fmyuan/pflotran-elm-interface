@@ -4555,7 +4555,7 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   ! 
   ! Author: ???
   ! Date: 12/10/07
-  ! 
+  ! Refactored by Satish Karra, LANL 06/12/2019
 
   use Realization_Subsurface_class
   use Patch_module
@@ -4591,15 +4591,16 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call THJacobianPatch(snes,xx,J,J,realization,ierr)
-    cur_patch => cur_patch%next
-  enddo
   
+#if 0
+   call THNumericalJacobianTest(xx,realization)
+#endif
+
+  call THJacobianInternalConn(J,realization,ierr)
+  call THJacobianBoundaryConn(J,realization,ierr)
+  call THJacobianAccumulation(J,realization,ierr)
+  call THJacobianSourceSink(J,realization,ierr)
+
   if (realization%debug%matview_Jacobian) then
     call DebugWriteFilename(realization%debug,string,'THjacobian','', &
                             TH_ts_count,TH_ts_cut_count, &
@@ -4621,22 +4622,21 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
     call printMsg(option)
   endif
   
-    TH_ni_count = TH_ni_count + 1
-
+  TH_ni_count = TH_ni_count + 1
 
 end subroutine THJacobian
 
 ! ************************************************************************** !
 
-subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
+subroutine THJacobianInternalConn(A,realization,ierr)
   ! 
-  ! Computes the Jacobian
+  ! Computes the jacobian contribution from internal flux 
   ! 
-  ! Author: ???
+  ! Author: ??
   ! Date: 12/13/07
+  ! Refactored by Satish Karra, LANL 06/12/2019
   ! 
-       
-  
+
 
   use Connection_module
   use Option_module
@@ -4648,9 +4648,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   use Debug_module
   use Secondary_Continuum_Aux_module
 
-  SNES :: snes
-  Vec :: xx
-  Mat :: A, B
+  Mat :: A
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
@@ -4659,7 +4657,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscInt :: ip1, ip2 
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
   PetscInt :: icap,iphas,icap_up,icap_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
@@ -4680,12 +4678,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscInt :: ghosted_id_up, ghosted_id_dn
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
-            Jdn(realization%option%nflowdof,realization%option%nflowdof), &
-            Jsrc(realization%option%nflowdof,realization%option%nflowdof)
-  
+               Jdn(realization%option%nflowdof,realization%option%nflowdof)  
   PetscInt :: istart, iend
   
-  type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, idof
@@ -4697,21 +4692,15 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
   type(TH_parameter_type), pointer :: TH_parameter
-  type(TH_auxvar_type), pointer :: auxvars(:), auxvars_bc(:),auxvars_ss(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
+  type(TH_auxvar_type), pointer :: auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  type(sec_heat_type), pointer :: sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
 
   PetscViewer :: viewer
   Vec :: debug_vec
-  PetscReal :: vol_frac_prim
-  
-  ! secondary continuum variables
-  PetscReal :: area_prim_sec
-  PetscReal :: jac_sec_heat
 
   patch => realization%patch
   grid => patch%grid
@@ -4720,154 +4709,13 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
   TH_parameter => patch%aux%TH%TH_parameter
   auxvars => patch%aux%TH%auxvars
-  auxvars_bc => patch%aux%TH%auxvars_bc
-  auxvars_ss => patch%aux%TH%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
-  sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
-  
-#if 0
-   call THNumericalJacobianTest(xx,realization)
-#endif
-
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
   
-  vol_frac_prim = 1.d0
-
-  ! Accumulation terms ------------------------------------
-  do local_id = 1, grid%nlmax  ! For each local node do...
-    ghosted_id = grid%nL2G(local_id)
-    ! Ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
-    iend = local_id*option%nflowdof
-    istart = iend-option%nflowdof+1
-    icap = int(icap_loc_p(ghosted_id))
-    
-    if (option%use_mc) then    
-      vol_frac_prim = sec_heat_vars(local_id)%epsilon
-    endif
-
-    ithrm = int(ithrm_loc_p(ghosted_id))
-    call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
-                            material_auxvars(ghosted_id), &
-                            TH_parameter%dencpr(ithrm), &
-                            TH_parameter, ithrm, option, &
-                            patch%saturation_function_array(icap)%ptr, &
-                            vol_frac_prim,Jup) 
-
-    if (option%use_mc) then
-      call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
-                        TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
-                        TH_parameter%dencpr(int(ithrm_loc_p(local_id))), &
-                        option,jac_sec_heat)
-                        
-      Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
-                               jac_sec_heat*material_auxvars(ghosted_id)%volume
-    endif
-                            
-    ! scale by the volume of the cell
-    Jup = Jup/material_auxvars(ghosted_id)%volume
-
-    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
-  enddo
-
-
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_accum'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
-  ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sink_list%first 
-  sum_connection = 0
-  do
-    if (.not.associated(source_sink)) exit
-
-    cur_connection_set => source_sink%connection_set
-    
-    do iconn = 1, cur_connection_set%num_connections      
-
-      sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
-        source_sink%flow_condition%itype(1) /= WELL_SS) &
-        qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
-      
-      select case (source_sink%flow_condition%rate%itype)
-        case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
-        case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * & 
-               ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
-            source_sink%flow_aux_real_var(ONE_INTEGER,iconn) 
-        case(VOLUMETRIC_RATE_SS)  ! assume local density for now
-          ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3 
-        case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
-          ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
-                   source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
-        case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
-        case default
-          write(string,*) source_sink%flow_condition%rate%itype
-          option%io_buffer = &
-            'TH mode source_sink%flow_condition%rate%itype = ' // &
-            trim(adjustl(string)) // ', not implemented.'
-      end select
-
-      Jsrc = 0.d0
-
-      if (qsrc1 > 0.d0) then ! injection
-        Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = & 
-          -qsrc1*auxvars_ss(sum_connection)%dh_dp
-        ! since tsrc1 is prescribed, there is no derivative
-        ! dresT_dt = -qsrc1*hw_dt 
-        istart = ghosted_id*option%nflowdof
-      else
-        ! extraction
-        Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dp
-        Jsrc(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dt
-        istart = ghosted_id*option%nflowdof
-      endif
-      
-      ! scale by the volume of the cell
-      Jsrc = Jsrc/material_auxvars(ghosted_id)%volume
-         
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
-
-    
-    enddo
-    source_sink => source_sink%next
-  enddo
-
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_srcsink'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
   ! Interior Flux Terms -----------------------------------  
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -4994,6 +4842,103 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
+  
+end subroutine THJacobianInternalConn
+
+! ************************************************************************** !
+
+subroutine THJacobianBoundaryConn(A,realization,ierr)
+  ! 
+  ! Computes the jacobian contribution from boundary flux 
+  ! 
+  ! Author: ??
+  ! Date: 12/13/07
+  ! Refactored by Satish Karra, LANL 06/12/2019
+  ! 
+
+
+  use Connection_module
+  use Option_module
+  use Grid_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Coupler_module
+  use Field_module
+  use Debug_module
+  use Secondary_Continuum_Aux_module
+
+  Mat :: A
+  type(realization_subsurface_type) :: realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: nvar,neq,nr
+  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: ip1, ip2 
+
+  PetscReal, pointer :: xx_loc_p(:)
+  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: ii, jj
+  PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
+  PetscReal :: qsrc1,csrc1
+  PetscReal :: dd_up, dd_dn, dd, f_up, f_dn
+  PetscReal :: perm_up, perm_dn
+  ! thermal conductivity wet constants at upstream, downstream faces.
+  PetscReal :: D_up, D_dn  
+  PetscReal :: Dk_dry_up, Dk_dry_dn ! dry thermal conductivities
+  PetscReal :: Dk_ice_up, Dk_ice_dn ! frozen soil thermal conductivities
+  PetscReal :: alpha_up, alpha_dn
+  PetscReal :: alpha_fr_up, alpha_fr_dn
+  PetscReal :: zero, norm
+  PetscReal :: upweight
+  PetscReal :: max_dev  
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  
+  PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
+            Jdn(realization%option%nflowdof,realization%option%nflowdof)  
+  PetscInt :: istart, iend
+  
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn, idof
+  PetscInt :: sum_connection  
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity 
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option 
+  type(field_type), pointer :: field 
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: ithrm
+
+  PetscViewer :: viewer
+  Vec :: debug_vec
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  TH_parameter => patch%aux%TH%TH_parameter
+  auxvars => patch%aux%TH%auxvars
+  auxvars_bc => patch%aux%TH%auxvars_bc
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
+
+
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
@@ -5069,7 +5014,327 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
+
+end subroutine THJacobianBoundaryConn
+
+! ************************************************************************** !
+
+subroutine THJacobianAccumulation(A,realization,ierr)
+  ! 
+  ! Computes the jacobian contribution from accumulation term
+  ! 
+  ! Author: ??
+  ! Date: 12/13/07
+  ! Refactored by Satish Karra, LANL 06/12/2019
+  ! 
+
+
+  use Connection_module
+  use Option_module
+  use Grid_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Coupler_module
+  use Field_module
+  use Debug_module
+  use Secondary_Continuum_Aux_module
+
+  Mat :: A
+  type(realization_subsurface_type) :: realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: nvar,neq,nr
+  PetscInt :: i
+  PetscInt :: ip1, ip2 
+
+  PetscReal, pointer :: xx_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
+  PetscInt :: icap
+  PetscInt :: ii, jj
+  PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
+  PetscReal :: zero, norm
+  PetscReal :: upweight
+  PetscReal :: max_dev  
+  PetscInt :: local_id, ghosted_id
+  
+  PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
+  
+  PetscInt :: istart, iend
+  
+  PetscInt :: iconn, idof
+  PetscInt :: sum_connection  
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity 
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option 
+  type(field_type), pointer :: field 
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(TH_auxvar_type), pointer :: auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  type(sec_heat_type), pointer :: sec_heat_vars(:)
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: ithrm
+
+  PetscViewer :: viewer
+  Vec :: debug_vec
+  PetscReal :: vol_frac_prim
+  
+  ! secondary continuum variables
+  PetscReal :: area_prim_sec
+  PetscReal :: jac_sec_heat
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  TH_parameter => patch%aux%TH%TH_parameter
+  auxvars => patch%aux%TH%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
+
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+  
+  vol_frac_prim = 1.d0
+
+  ! Accumulation terms ------------------------------------
+  do local_id = 1, grid%nlmax  ! For each local node do...
+    ghosted_id = grid%nL2G(local_id)
+    ! Ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle
+    iend = local_id*option%nflowdof
+    istart = iend-option%nflowdof+1
+    icap = int(icap_loc_p(ghosted_id))
+    
+    if (option%use_mc) then    
+      vol_frac_prim = sec_heat_vars(local_id)%epsilon
+    endif
+
+    ithrm = int(ithrm_loc_p(ghosted_id))
+    call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
+                            material_auxvars(ghosted_id), &
+                            TH_parameter%dencpr(ithrm), &
+                            TH_parameter, ithrm, option, &
+                            patch%saturation_function_array(icap)%ptr, &
+                            vol_frac_prim,Jup) 
+
+    if (option%use_mc) then
+      call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
+                        TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
+                        TH_parameter%dencpr(int(ithrm_loc_p(local_id))), &
+                        option,jac_sec_heat)
+                        
+      Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
+                               jac_sec_heat*material_auxvars(ghosted_id)%volume
+    endif
+                            
+    ! scale by the volume of the cell
+    Jup = Jup/material_auxvars(ghosted_id)%volume
+
+    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+  enddo
+
+
+  if (realization%debug%matview_Jacobian_detailed) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    string = 'jacobian_accum'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+
+ 
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+
+end subroutine THJacobianAccumulation
+
+! ************************************************************************** !
+
+subroutine THJacobianSourceSink(A,realization,ierr)
+  ! 
+  ! Computes the jacobian contribution from source sink
+  ! 
+  ! Author: ??
+  ! Date: 12/13/07
+  ! Refactored by Satish Karra, LANL 06/12/2019
+  ! 
+
+
+  use Connection_module
+  use Option_module
+  use Grid_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Coupler_module
+  use Field_module
+  use Debug_module
+  use Secondary_Continuum_Aux_module
+
+  Mat :: A
+  type(realization_subsurface_type) :: realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: nvar,neq,nr
+  PetscInt :: ithrm_up, ithrm_dn, i
+  PetscInt :: ip1, ip2 
+
+  PetscReal, pointer :: xx_loc_p(:)
+  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscInt :: icap,iphas,icap_up,icap_dn
+  PetscInt :: ii, jj
+  PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
+  PetscReal :: qsrc1,csrc1
+  PetscReal :: dd_up, dd_dn, dd, f_up, f_dn
+  PetscReal :: perm_up, perm_dn
+  ! thermal conductivity wet constants at upstream, downstream faces.
+  PetscReal :: D_up, D_dn  
+  PetscReal :: Dk_dry_up, Dk_dry_dn ! dry thermal conductivities
+  PetscReal :: Dk_ice_up, Dk_ice_dn ! frozen soil thermal conductivities
+  PetscReal :: alpha_up, alpha_dn
+  PetscReal :: alpha_fr_up, alpha_fr_dn
+  PetscReal :: zero, norm
+  PetscReal :: upweight
+  PetscReal :: max_dev  
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  
+  PetscReal :: Jsrc(realization%option%nflowdof,realization%option%nflowdof)
+  
+  PetscInt :: istart, iend
+  
+  type(coupler_type), pointer :: source_sink
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn, idof
+  PetscInt :: sum_connection  
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity 
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option 
+  type(field_type), pointer :: field 
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(TH_auxvar_type), pointer :: auxvars(:), auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: ithrm
+
+  PetscViewer :: viewer
+  Vec :: debug_vec
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  TH_parameter => patch%aux%TH%TH_parameter
+  auxvars => patch%aux%TH%auxvars
+  auxvars_ss => patch%aux%TH%auxvars_ss
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
+  
+  ! Source/sink terms -------------------------------------
+  source_sink => patch%source_sink_list%first 
+  sum_connection = 0
+  do
+    if (.not.associated(source_sink)) exit
+
+    cur_connection_set => source_sink%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections      
+
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS .and. &
+        source_sink%flow_condition%itype(1) /= WELL_SS) &
+        qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
+      
+      select case (source_sink%flow_condition%rate%itype)
+        case(MASS_RATE_SS)
+          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+        case(SCALED_MASS_RATE_SS)
+          qsrc1 = qsrc1 / FMWH2O * & 
+               ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+            source_sink%flow_aux_real_var(ONE_INTEGER,iconn) 
+        case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+          ! qsrc1 = m^3/sec
+          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1) ! den = kmol/m^3 
+        case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+          ! qsrc1 = m^3/sec
+          qsrc1 = qsrc1*global_auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
+                   source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+        case(HET_MASS_RATE_SS)
+          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+        case default
+          write(string,*) source_sink%flow_condition%rate%itype
+          option%io_buffer = &
+            'TH mode source_sink%flow_condition%rate%itype = ' // &
+            trim(adjustl(string)) // ', not implemented.'
+      end select
+
+      Jsrc = 0.d0
+
+      if (qsrc1 > 0.d0) then ! injection
+        Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = & 
+          -qsrc1*auxvars_ss(sum_connection)%dh_dp
+        ! since tsrc1 is prescribed, there is no derivative
+        ! dresT_dt = -qsrc1*hw_dt 
+        istart = ghosted_id*option%nflowdof
+      else
+        ! extraction
+        Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
+          -qsrc1*auxvars(ghosted_id)%dh_dp
+        Jsrc(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
+          -qsrc1*auxvars(ghosted_id)%dh_dt
+        istart = ghosted_id*option%nflowdof
+      endif
+      
+      ! scale by the volume of the cell
+      Jsrc = Jsrc/material_auxvars(ghosted_id)%volume
+         
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+
+    
+    enddo
+    source_sink => source_sink%next
+  enddo
+
+  if (realization%debug%matview_Jacobian_detailed) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    string = 'jacobian_srcsink'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+  endif
+
+ 
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -5105,8 +5370,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                           ierr);CHKERRQ(ierr)
   endif
 #endif
-
-end subroutine THJacobianPatch
+end subroutine THJacobianSourceSink
 
 ! ************************************************************************** !
 

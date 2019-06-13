@@ -121,8 +121,13 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(TH_auxvar_type), pointer :: TH_auxvars(:) 
+  type(TH_parameter_type), pointer :: TH_parameter
   PetscInt :: ghosted_id,local_id,istart,iend
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:),ithrm_loc_p(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: ithrm,icap
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -130,7 +135,10 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   patch => realization%patch
   grid => patch%grid
   TH_auxvars => patch%aux%TH%auxvars
-
+  TH_parameter => patch%aux%TH%TH_parameter
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  
   ! 1. Update auxvars based on new values of pressure, temperature
   call THUpdateAuxVars(realization)
 
@@ -138,22 +146,34 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
   !    dmass_dtime
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p,ierr);CHKERRQ(ierr)
-
+  call VecGetArrayReadF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
+  
+  
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
     !Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle 
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    th_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p((ghosted_id-1)*option%nflowdof+1)
-    th_auxvars(ghosted_id)%dtemp_dtime = xxdot_loc_p((ghosted_id-1)*option%nflowdof+2)
-!    call RichardsAuxVarCompute2ndOrderDeriv(rich_auxvars(ghosted_id), &
-!                                       patch%characteristic_curves_array( &
-!                                         patch%sat_func_id(ghosted_id))%ptr, &
-!                                       option)
+    icap = int(icap_loc_p(ghosted_id))
+    ithrm = int(ithrm_loc_p(ghosted_id))
+
+    th_auxvars(ghosted_id)%dpres_dtime = & 
+      xxdot_loc_p((ghosted_id-1)*option%nflowdof+1)
+    th_auxvars(ghosted_id)%dtemp_dtime = &
+      xxdot_loc_p((ghosted_id-1)*option%nflowdof+2)
+    call THAuxVarCompute2ndOrderDeriv(TH_auxvars(ghosted_id), &
+                                  global_auxvars(ghosted_id), &
+                                  material_auxvars(ghosted_id), &
+                                  TH_parameter,ithrm, &
+                                  patch%saturation_function_array(icap)%ptr, &
+                                  option)
   enddo
 
-  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayReadF90(field%flow_xxdot_loc,xxdot_loc_p, &
                               ierr);CHKERRQ(ierr)
   
@@ -181,6 +201,30 @@ subroutine PMTHTSIFunction(this,ts,time,U,Udot,F,ierr)
   Vec :: U, Udot
   Vec :: F
   PetscErrorCode :: ierr
+
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  class(realization_subsurface_type), pointer :: realization
+  PetscInt :: skip_conn_type
+
+  realization => this%realization
+  field => realization%field
+  discretization => realization%discretization
+
+!  call VecZeroEntries(F, ierr); CHKERRQ(ierr)
+!
+!  call DiscretizationGlobalToLocal(discretization,U,field%flow_xx_loc,NFLOWDOF)
+!  call DiscretizationGlobalToLocal(discretization,Udot,field%flow_xxdot_loc, &
+!                                   NFLOWDOF)
+!
+!  call PMTHTSUpdateAuxVarsPatch(realization)
+!
+!
+!  call THResidualInternalConn(F,realization,ierr)
+!  call THResidualBoundaryConn(F,realization,ierr)
+!  call THResidualSourceSink(F,realization,ierr)
+!  call IFunctionAccumulation(F,realization,ierr)
+
 
 end subroutine PMTHTSIFunction
 
