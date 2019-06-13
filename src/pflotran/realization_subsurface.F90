@@ -319,8 +319,8 @@ subroutine RealizationCreateDiscretization(realization)
       ! access it. This is in general and not specific to below code.
       if ( (associated(realization%reaction) .and. &
            realization%reaction%use_log_formulation) .or. &
-           (associated(realization%reaction) .and. &
-           realization%reaction%use_log_formulation) ) then
+           (associated(realization%nw_trans) .and. &
+           realization%nw_trans%use_log_formulation) ) then
         call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                            field%tran_log_xx)
         call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
@@ -1225,7 +1225,7 @@ subroutine RealizationInitConstraints(realization)
   do
     if (.not.associated(cur_patch)) exit
     call PatchInitConstraints(cur_patch,realization%reaction, &
-                              realization%option)
+                              realization%nw_trans,realization%option)
     cur_patch => cur_patch%next
   enddo
  

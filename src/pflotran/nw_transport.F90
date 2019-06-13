@@ -419,14 +419,16 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(nw_trans_realization_type) :: nw_trans
   type(option_type) :: option
-
-  PetscReal :: ln_conc(nw_trans%params%nspecies)
-
-  ln_conc = log(nwt_auxvar%total_bulk_conc)
   
   ! aqueous concentration (equilibrium)
   nwt_auxvar%aqueous_eq_conc(:) = nwt_auxvar%total_bulk_conc(:) / &
                      (global_auxvar%sat(LIQUID_PHASE)*material_auxvar%porosity)
+                     
+  ! sorbed concentration (equilibrium)
+  nwt_auxvar%sorb_eq_conc(:) = 1.d-40  ! placeholder
+  
+  ! precipitated concentration (equilibrium)
+  nwt_auxvar%mnrl_eq_conc(:) = 1.d-40  ! placeholder
 
 end subroutine NWTAuxVarCompute
 
@@ -493,6 +495,8 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
                               nwt_auxvar%total_bulk_conc(ispecies) / &
                               global_auxvar%sat(LIQUID_PHASE) / &
                               material_auxvar%porosity
+        nwt_auxvar%sorb_eq_conc(ispecies) = 1.d-40  ! placeholder
+        nwt_auxvar%mnrl_eq_conc(ispecies) = 1.d-40  ! placeholder
       case(CONSTRAINT_AQ_EQUILIBRIUM)
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
                               nwt_species_constraint%constraint_conc(ispecies)
@@ -500,20 +504,20 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
                               nwt_auxvar%aqueous_eq_conc(ispecies) * &
                               global_auxvar%sat(LIQUID_PHASE) * &
                               material_auxvar%porosity
+        nwt_auxvar%sorb_eq_conc(ispecies) = 1.d-40  ! placeholder
+        nwt_auxvar%mnrl_eq_conc(ispecies) = 1.d-40  ! placeholder
       case(CONSTRAINT_PPT_EQUILIBRIUM)
         nwt_auxvar%mnrl_eq_conc(ispecies) = &
                               nwt_species_constraint%constraint_conc(ispecies)
-        nwt_auxvar%aqueous_eq_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
-        nwt_auxvar%total_bulk_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+        nwt_auxvar%aqueous_eq_conc(ispecies) = 1.d-40  ! placeholder
+        nwt_auxvar%sorb_eq_conc(ispecies) = 1.d-40  ! placeholder
+        nwt_auxvar%total_bulk_conc(ispecies) = 1.d-40  ! placeholder
       case(CONSTRAINT_SB_EQUILIBRIUM)
         nwt_auxvar%sorb_eq_conc(ispecies) = &
                               nwt_species_constraint%constraint_conc(ispecies)
-        nwt_auxvar%aqueous_eq_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
-        nwt_auxvar%total_bulk_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+        nwt_auxvar%aqueous_eq_conc(ispecies) = 1.d-40  ! placeholder
+        nwt_auxvar%mnrl_eq_conc(ispecies) = 1.d-40  ! placeholder
+        nwt_auxvar%total_bulk_conc(ispecies) = 1.d-40  ! placeholder
     end select
   
   enddo
@@ -1259,7 +1263,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
   Mat :: J
   MatType :: mat_type
-  PetscViewer :: viewer  
+  PetscViewer :: viewer 
+  PetscReal, pointer :: work_loc_p(:) 
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
   type(patch_type), pointer :: patch
@@ -1275,6 +1280,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_list_type), pointer :: connection_set_list
   type(coupler_type), pointer :: boundary_condition
   character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: istart, iend, offset
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -1468,6 +1474,26 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   boundary_condition => boundary_condition%next
   enddo
 #endif
+
+  !== ?????? ==================================================
+  
+  if (nw_trans%use_log_formulation) then
+    call VecGetArrayF90(realization%field%tran_work_loc,work_loc_p, &
+                        ierr);CHKERRQ(ierr)
+    do ghosted_id = 1, grid%ngmax  
+      offset = (ghosted_id-1)*nw_trans%params%ncomp
+      istart = offset + 1
+      iend = offset + nw_trans%params%ncomp
+      
+      if (patch%imat(ghosted_id) <= 0) then
+        work_loc_p(istart:iend) = 1.d0
+      else
+        work_loc_p(istart:iend) = nwt_auxvars(ghosted_id)%total_bulk_conc(:)
+      endif
+    enddo
+    call VecRestoreArrayF90(realization%field%tran_work_loc, work_loc_p,  &
+                            ierr);CHKERRQ(ierr)
+  endif
     
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)  

@@ -3916,7 +3916,7 @@ end subroutine PatchCreateFlowConditionDatasetMap
 
 ! ************************************************************************** !
 
-subroutine PatchInitConstraints(patch,reaction,option)
+subroutine PatchInitConstraints(patch,reaction,nw_trans,option)
   !
   ! Initializes constraint concentrations
   !
@@ -3925,27 +3925,29 @@ subroutine PatchInitConstraints(patch,reaction,option)
   !
 
   use Reaction_Aux_module
+  use NW_Transport_Aux_module
 
   implicit none
 
   type(patch_type) :: patch
-  type(option_type) :: option
   type(reaction_type), pointer :: reaction
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(option_type) :: option
 
   call PatchInitCouplerConstraints(patch%initial_condition_list, &
-                                   reaction,option)
+                                   reaction,nw_trans,option)
 
   call PatchInitCouplerConstraints(patch%boundary_condition_list, &
-                                   reaction,option)
+                                   reaction,nw_trans,option)
 
   call PatchInitCouplerConstraints(patch%source_sink_list, &
-                                   reaction,option)
+                                   reaction,nw_trans,option)
 
 end subroutine PatchInitConstraints
 
 ! ************************************************************************** !
 
-subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
+subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   !
   ! Initializes constraint concentrations
   ! for a given coupler
@@ -3956,6 +3958,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
 
   use Reaction_module
   use Reactive_Transport_Aux_module
+  use NW_Transport_module
   use NW_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
@@ -3967,8 +3970,9 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
   implicit none
 
   type(coupler_list_type), pointer :: coupler_list
-  type(option_type) :: option
   type(reaction_type), pointer :: reaction
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(option_type) :: option
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar
@@ -4058,6 +4062,14 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
                             cur_constraint_coupler%num_iterations, &
                             PETSC_FALSE,option)
       endif
+      
+      if (associated(nw_trans)) then
+        call NWTEquilibrateConstraint(nw_trans, &
+                                      cur_constraint_coupler%nwt_species, &
+                                      nwt_auxvar,global_auxvar, &
+                                      material_auxvar,option)
+      endif
+      
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
       ! jenn:todo Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.

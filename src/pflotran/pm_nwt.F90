@@ -730,8 +730,8 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             'small and will likely cause the solver to mistakenly ' // &
             'converge based on the infinity norm of the update vector. ' // &
             'In this case, it is recommended that you use the ' // &
-            'LOG_FORMULATION for chemistry or truncate concentrations ' // &
-            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block).'
+            'LOG_FORMULATION keyword or TRUNCATE_CONCENTRATION <float> in &
+            &the NUCLEAR_WASTE_TRANSPORT block).'
           this%realization%option%io_buffer = string
           call PrintErrMsgToDev(this%realization%option, 'send your input &
                                 &deck if that does not work')
