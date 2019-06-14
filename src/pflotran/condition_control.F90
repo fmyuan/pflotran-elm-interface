@@ -1439,11 +1439,14 @@ subroutine CondControlAssignNWTranInitCond(realization)
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
 
+#if 0
+!geh: breaks pflotran_rxn build
         call NWTEquilibrateConstraint(nw_trans,constraint_coupler%nwt_species, &
                                       constraint_coupler%nwt_auxvar, &
                                       constraint_coupler%global_auxvar, &
                                       material_auxvars(ghosted_id), &
                                       option)
+#endif
         
       
         iend = local_id*option%ntrandof
@@ -1457,8 +1460,11 @@ subroutine CondControlAssignNWTranInitCond(realization)
         
         ! species concentrations
         do idof = 1, nw_trans%params%nspecies 
+#if 0
+!geh: breaks pflotran_rxn build
           xx_p(offset+idof) = &
                            constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
+#endif
         enddo
 
       enddo ! icell=1,initial_condition%region%num_cells

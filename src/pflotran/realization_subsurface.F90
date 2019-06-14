@@ -1117,9 +1117,12 @@ subroutine RealProcessTranConditions(realization)
                                      cur_constraint%colloids, &
                                      cur_constraint%immobile_species, &
                                      realization%option)
+#if 0
+!geh: breaks pflotran_rxn build
     if (associated(realization%nw_trans)) &
       call NWTProcessConstraint(realization%nw_trans,cur_constraint%name, &
                                 cur_constraint%nwt_species,realization%option)
+#endif
    
     cur_constraint => cur_constraint%next
   enddo
@@ -1146,12 +1149,17 @@ subroutine RealProcessTranConditions(realization)
     do
       if (.not.associated(cur_constraint_coupler)) exit
       ! if aqueous_species exists, it was coupled during the embedded read.
+#if 0
+!geh: breaks pflotran_rxn build
       if ( ((associated(realization%reaction)) .and. &
            (.not.associated(cur_constraint_coupler%aqueous_species))) &
            .or. &
            ((associated(realization%nw_trans)) .and. &
            (.not.associated(cur_constraint_coupler%nwt_species))) ) then
-          
+#else
+      if (associated(realization%reaction) .and. &
+          .not.associated(cur_constraint_coupler%aqueous_species)) then
+#endif
         cur_constraint => realization%transport_constraints%first
         do
           if (.not.associated(cur_constraint)) exit
@@ -1164,11 +1172,17 @@ subroutine RealProcessTranConditions(realization)
           endif
           cur_constraint => cur_constraint%next
         enddo
+#if 0
+!geh: breaks pflotran_rxn build
         if ( ((associated(realization%reaction)) .and. &
            (.not.associated(cur_constraint_coupler%aqueous_species))) &
            .or. &
            ((associated(realization%nw_trans)) .and. &
            (.not.associated(cur_constraint_coupler%nwt_species))) ) then
+#else
+        if (associated(realization%reaction) .and. &
+            .not.associated(cur_constraint_coupler%aqueous_species)) then
+#endif
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'

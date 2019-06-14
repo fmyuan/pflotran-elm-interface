@@ -1066,12 +1066,15 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
           call RTAuxVarInit(cur_constraint_coupler%rt_auxvar,patch%reaction, &
                             option)
         endif
+#if 0
+!geh: breaks pflotran_rxn build
         if ( (associated(patch%nw_trans)) .and. &
              (.not.associated(cur_constraint_coupler%nwt_auxvar)) ) then
           allocate(cur_constraint_coupler%nwt_auxvar)
           call NWTAuxVarInit(cur_constraint_coupler%nwt_auxvar,patch%nw_trans, &
                              option)
         endif
+#endif
         cur_constraint_coupler => cur_constraint_coupler%next
       enddo
     endif
@@ -4051,7 +4054,10 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       if (.not.associated(cur_constraint_coupler)) exit
       global_auxvar => cur_constraint_coupler%global_auxvar
       rt_auxvar => cur_constraint_coupler%rt_auxvar
+#if 0
+!geh: breaks pflotran_rxn build
       nwt_auxvar => cur_constraint_coupler%nwt_auxvar
+#endif
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then

@@ -1027,10 +1027,13 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   ! units of coef = [m^3-liq/sec]
   ! units of aqueous_eq_conc = [mol-species/m^3-liq]
   ! units of residual entries = [mol-species/sec]
+#if 0
+!geh: breaks pflotran_rxn build
   Res(istart:iend) = (coef_in*nwt_auxvar%aqueous_eq_conc(:)) + &
                      (coef_out*source_sink%tran_condition% &
                                cur_constraint_coupler%nwt_auxvar% &
                                aqueous_eq_conc(:))
+#endif
                                
   ! -- Precipitated-Component -----------------------------------
   ! There is no contribution from precipitated components.
