@@ -491,10 +491,10 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           eos_water.o field.o general_aux.o geometry.o global_aux.o grid.o \
           grid_unstructured_cell.o hydrate.o hydrostatic.o \
           hydrostatic_multi_phase.o immis_aux.o integral_flux.o material.o \
-          material_aux.o miscible_aux.o mphase_aux.o nw_transport.o \
-          nw_transport_aux.o observation.o option.o output_aux.o \
-          pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o reaction.o \
-          reaction_aux.o reaction_mineral.o reaction_mineral_aux.o \
+          material_aux.o miscible_aux.o mphase_aux.o nw_transport_aux.o \
+          observation.o option.o output_aux.o pflotran_constants.o \
+          pm_toil_ims_aux.o pm_towg_aux.o reaction.o reaction_aux.o \
+          reaction_mineral.o reaction_mineral_aux.o \
           reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
           richards_aux.o saturation.o saturation_function.o strata.o string.o \
           surface_auxiliary.o surface_field.o surface_material.o th_aux.o \

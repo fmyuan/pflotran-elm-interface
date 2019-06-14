@@ -3958,7 +3958,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
 
   use Reaction_module
   use Reactive_Transport_Aux_module
-  use NW_Transport_module
+  !use NW_Transport_module
   use NW_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
@@ -4064,10 +4064,11 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       endif
       
       if (associated(nw_trans)) then
-        call NWTEquilibrateConstraint(nw_trans, &
-                                      cur_constraint_coupler%nwt_species, &
-                                      nwt_auxvar,global_auxvar, &
-                                      material_auxvar,option)
+       ! jenn:todo Need to fix dependency here!
+       ! call NWTEquilibrateConstraint(nw_trans, &
+       !                               cur_constraint_coupler%nwt_species, &
+       !                               nwt_auxvar,global_auxvar, &
+       !                               material_auxvar,option)
       endif
       
       ! update CO2 mole fraction for CO2 modes
