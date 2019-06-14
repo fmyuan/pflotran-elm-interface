@@ -3914,7 +3914,10 @@ subroutine TranConditionRead(condition,constraint_list,reaction,nw_trans, &
         if (rt_on) then
           call TranConstraintReadRT(constraint,reaction,input,option)
         else
+#if 0
+!geh: breaks pflotran_rxn build
           call TranConstraintReadNWT(constraint,nw_trans,input,option)
+#endif
         endif
         call TranConstraintAddToList(constraint,constraint_list)
         call TranConstraintMapToCoupler(constraint_coupler,constraint)

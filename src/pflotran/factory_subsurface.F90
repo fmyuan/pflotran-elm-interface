@@ -2500,9 +2500,12 @@ subroutine SubsurfaceReadInput(simulation,input)
         call printMsg(option,tran_constraint%name)
         if (associated(reaction)) &
           call TranConstraintReadRT(tran_constraint,reaction,input,option)
+#if 0
+!geh: breaks pflotran_rxn build
         if (associated(realization%nw_trans)) &
           call TranConstraintReadNWT(tran_constraint,realization%nw_trans, &
                                      input,option)
+#endif
         call TranConstraintAddToList(tran_constraint, &
                                      realization%transport_constraints)
         nullify(tran_constraint)

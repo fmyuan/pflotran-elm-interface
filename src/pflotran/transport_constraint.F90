@@ -5,7 +5,10 @@ module Transport_Constraint_module
 
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+#if 0
+!geh: breaks pflotran_rxn build
   use NW_Transport_Aux_module
+#endif
   use Global_Aux_module
   
   use Reaction_Surface_Complexation_Aux_module  
@@ -44,7 +47,10 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
+#if 0
+!geh: breaks pflotran_rxn build
     type(nwt_species_constraint_type), pointer :: nwt_species
+#endif
     PetscBool :: equilibrate_at_each_cell
     type(tran_constraint_type), pointer :: next    
   end type tran_constraint_type
@@ -72,9 +78,12 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
+#if 0
+!geh: breaks pflotran_rxn build
     type(nwt_species_constraint_type), pointer :: nwt_species
-    type(global_auxvar_type), pointer :: global_auxvar
     type(nw_transport_auxvar_type), pointer :: nwt_auxvar
+#endif
+    type(global_auxvar_type), pointer :: global_auxvar
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
     type(tran_constraint_coupler_type), pointer :: next   
   end type tran_constraint_coupler_type
@@ -85,7 +94,10 @@ module Transport_Constraint_module
             TranConstraintGetPtrFromList, &
             TranConstraintCreate, &
             TranConstraintReadRT, &
+#if 0
+!geh: breaks pflotran_rxn build
             TranConstraintReadNWT, &
+#endif
             TranConstraintMapToCoupler, &
             TranConstraintDestroy, &
             TranConstraintCouplerCreate, &
@@ -122,7 +134,10 @@ function TranConstraintCreate(option)
   nullify(constraint%surface_complexes)
   nullify(constraint%colloids)
   nullify(constraint%immobile_species)
+#if 0
+!geh: breaks pflotran_rxn build
   nullify(constraint%nwt_species)
+#endif
   nullify(constraint%next)
   constraint%id = 0
   constraint%name = ''
@@ -159,12 +174,15 @@ function TranConstraintCouplerCreate(option)
   nullify(coupler%surface_complexes)
   nullify(coupler%colloids)
   nullify(coupler%immobile_species)
+#if 0
+!geh: breaks pflotran_rxn build
   nullify(coupler%nwt_species)
+  nullify(coupler%nwt_auxvar)
+#endif
   
   coupler%num_iterations = 0
   coupler%equilibrate_at_each_cell = PETSC_FALSE
   nullify(coupler%rt_auxvar)
-  nullify(coupler%nwt_auxvar)
   nullify(coupler%global_auxvar)
   
   nullify(coupler%next)
@@ -697,6 +715,8 @@ end subroutine TranConstraintReadRT
 
 ! ************************************************************************** !
 
+#if 0
+!geh: breaks pflotran_rxn build
 subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
   ! 
   ! Reads a transport constraint from the input file
@@ -837,6 +857,7 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 
 end subroutine TranConstraintReadNWT
+#endif
 
 ! ************************************************************************** !
 
@@ -943,7 +964,10 @@ subroutine TranConstraintMapToCoupler(constraint_coupler,constraint)
   constraint_coupler%surface_complexes => constraint%surface_complexes
   constraint_coupler%colloids => constraint%colloids
   constraint_coupler%immobile_species => constraint%immobile_species
+#if 0
+!geh: breaks pflotran_rxn build
   constraint_coupler%nwt_species => constraint%nwt_species
+#endif
   constraint_coupler%equilibrate_at_each_cell = &
     constraint%equilibrate_at_each_cell
 
