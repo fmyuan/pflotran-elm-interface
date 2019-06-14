@@ -251,7 +251,8 @@ pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
-        $(deriv_obj)
+	$(deriv_obj)
+
 pflotran_obj = $(pflotran_base_obj) ${pflotran_src}pflotran.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o

@@ -7,11 +7,10 @@ echo "\nStart of test for pull request....\n"
 
 cd ..
 PFLOTRAN_DIR=`pwd`
-MAKE_LOG="make.log"
-TEST_LOG="test.log"
 
 GNU_PFLOTRAN_MAKE_SUCCESS=false
 GNU_PFLOTRAN_TEST_SUCCESS=false
+GNU_PFLOTRAN_RXN_MAKE_SUCCESS=false
 #CMAKE_PFLOTRAN_MAKE_SUCCESS=false
 #CMAKE_PFLOTRAN_TEST_SUCCESS=false
 GNU_INTERFACE_MAKE_SUCCESS=false
@@ -22,6 +21,8 @@ GNU_INTERFACE_TEST_SUCCESS=false
 echo "GNU Make PFLOTRAN"
 
 # build PFLOTRAN
+MAKE_LOG="make.log"
+TEST_LOG="test.log"
 cd $PFLOTRAN_DIR/src/pflotran
 make clean > /dev/null 2>&1
 make pflotran > $MAKE_LOG 2>&1
@@ -47,6 +48,26 @@ if [ -e "pflotran" ] ; then
       echo "  Tests passed."
     fi
   fi
+else
+  MYDIR=`pwd`
+  echo "  Build failed. See $MYDIR/$MAKE_LOG."
+fi
+
+# GNU PFLOTRAN_RXN ------------------------------------------------------------
+
+echo "GNU Make PFLOTRAN_RXN"
+
+# build PFLOTRAN_RXN
+MAKE_LOG="pflotran_rxn_make.log"
+cd $PFLOTRAN_DIR/src/pflotran
+make clean > /dev/null 2>&1
+make pflotran_rxn > $MAKE_LOG 2>&1
+
+if [ -e "pflotran_rxn" ] ; then
+  GNU_PFLOTRAN_RXN_MAKE_SUCCESS=true
+  echo "  Build passed."
+
+# no need to test at this point
 else
   MYDIR=`pwd`
   echo "  Build failed. See $MYDIR/$MAKE_LOG."
@@ -128,6 +149,7 @@ echo "\nEnd of test for pull request....\n"
 
 if [ $GNU_PFLOTRAN_MAKE_SUCCESS = true ] && 
    [ $GNU_PFLOTRAN_TEST_SUCCESS = true ] && 
+   [ $GNU_PFLOTRAN_RXN_MAKE_SUCCESS = true ] && 
 #   [ $CMAKE_PFLOTRAN_MAKE_SUCCESS = true ] &&
 #   [ $CMAKE_PFLOTRAN_TEST_SUCCESS = true ] && 
    [ $GNU_INTERFACE_MAKE_SUCCESS = true ] && 
