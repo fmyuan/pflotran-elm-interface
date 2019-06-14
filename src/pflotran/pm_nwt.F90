@@ -924,7 +924,7 @@ subroutine PMNWTTimeCut(this)
   
   class(pm_nwt_type) :: this
   
-  type(realization_subsurface_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   PetscErrorCode :: ierr
