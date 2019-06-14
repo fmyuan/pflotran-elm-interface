@@ -985,7 +985,7 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(coupler_type), pointer :: source_sink
-  PetscReal, pointer :: ss_flow_vol_fluxes
+  PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
   type(nw_trans_realization_type), pointer :: nw_trans
   PetscReal :: Res(nw_trans%params%nspecies)
@@ -1569,7 +1569,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   class(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(coupler_type), pointer :: source_sink
-  PetscReal, pointer :: ss_flow_vol_fluxes
+  PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
   type(nw_trans_realization_type), pointer :: nw_trans
   PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
