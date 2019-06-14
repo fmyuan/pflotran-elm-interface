@@ -2074,7 +2074,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   PetscErrorCode :: ierr
   
   Mat :: J
-  MatType :: mat_type
+  MatType :: mat_type_A, mat_type_B
   PetscViewer :: viewer
   type(grid_type),  pointer :: grid
   type(option_type), pointer :: option
@@ -2085,8 +2085,9 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
 
   option => realization%option
 
-  call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
-  if (mat_type == MATMFFD) then
+  call MatGetType(A,mat_type_A,ierr);CHKERRQ(ierr)
+  call MatGetType(B,mat_type_B,ierr);CHKERRQ(ierr)
+  if (mat_type_A == MATMFFD) then
     J = B
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2100,6 +2101,13 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   call RichardsJacobianBoundaryConn(J,realization,ierr)
   call RichardsJacobianAccumulation(J,realization,ierr)
   call RichardsJacobianSourceSink(J,realization,ierr)
+
+  if (A /= B .and. mat_type_A /= MATMFFD) then
+    ! If the Jacobian and preconditioner matrices are different (and not 
+    ! because we are using a "matrix free" Jacobian), then we need to 
+    ! copy the computed Jacobian into the preconditioner matrix.
+    call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr);
+  endif
 
   if (realization%debug%matview_Jacobian) then
     call DebugWriteFilename(realization%debug,string,'Rjacobian','', &

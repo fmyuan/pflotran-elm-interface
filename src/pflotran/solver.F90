@@ -1,5 +1,7 @@
 module Solver_module
  
+#include "petsc/finclude/petsc.h"
+  use petsc
 #include "petsc/finclude/petscts.h"
 #if PETSC_VERSION_GE(3,11,0)
 #define KSP_DIVERGED_PCSETUP_FAILED KSP_DIVERGED_PC_FAILED
@@ -160,8 +162,8 @@ function SolverCreate()
   
   solver%J = PETSC_NULL_MAT
   solver%Jpre = PETSC_NULL_MAT
-  solver%J_mat_type = MATBAIJ
-  solver%Jpre_mat_type = ''
+  solver%J_mat_type = PETSC_NULL_CHARACTER
+  solver%Jpre_mat_type = PETSC_NULL_CHARACTER
 !  solver%interpolation = 0
   nullify(solver%interpolation)
   solver%matfdcoloring = PETSC_NULL_MATFDCOLORING
@@ -1045,6 +1047,8 @@ subroutine SolverReadNewton(solver,input,option)
             solver%J_mat_type = MATMFFD
           case('HYPRESTRUCT')
             solver%J_mat_type = MATHYPRESTRUCT
+          case('SELL')
+            solver%J_mat_type = MATSELL
           case default
             option%io_buffer = 'Matrix type: ' // trim(word) // ' unknown.'
             call printErrMsg(option)
@@ -1064,6 +1068,8 @@ subroutine SolverReadNewton(solver,input,option)
             solver%Jpre_mat_type = MATMFFD
           case('HYPRESTRUCT')
              solver%Jpre_mat_type = MATHYPRESTRUCT
+          case('SELL')
+            solver%J_mat_type = MATSELL
           case('SHELL')
              solver%Jpre_mat_type = MATSHELL
           case default

@@ -135,9 +135,21 @@ subroutine PMCGeomechanicsSetupSolvers(this)
                             ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
-  if (solver%Jpre_mat_type == '') then
-    solver%Jpre_mat_type = solver%J_mat_type
+  if (Uninitialized(solver%Jpre_mat_type) .and. &
+      Uninitialized(solver%J_mat_type)) then
+    ! Matrix types not specified, so set to default.
+    solver%Jpre_mat_type = MATBAIJ
+    solver%J_mat_type = solver%Jpre_mat_type
+  else if (Uninitialized(solver%Jpre_mat_type)) then
+    if (solver%J_mat_type == MATMFFD) then
+      solver%Jpre_mat_type = MATBAIJ
+    else
+      solver%Jpre_mat_type = solver%J_mat_type
+    endif
+  else if (Uninitialized(solver%J_mat_type)) then
+    solver%J_mat_type = solver%Jpre_mat_type
   endif
+
   call GeomechDiscretizationCreateJacobian(geomech_realization% &
                                            geomech_discretization,NGEODOF, &
                                            solver%Jpre_mat_type, &
