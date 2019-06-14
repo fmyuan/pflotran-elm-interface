@@ -20,11 +20,9 @@ module Realization_Subsurface_class
   use Field_module
   use Debug_module
   use Output_Aux_module
-  
+  use Patch_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
-  
-  use Patch_module
   
   use PFLOTRAN_Constants_module
 

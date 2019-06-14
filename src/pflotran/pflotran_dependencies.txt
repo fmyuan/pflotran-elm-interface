@@ -416,7 +416,7 @@ multisimulation.o : input_aux.o option.o pflotran_constants.o
 nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  field.o fluid.o global_aux.o grid.o logging.o material.o \
                  material_aux.o nw_transport_aux.o option.o output_aux.o \
-                 patch.o pflotran_constants.o realization_subsurface.o \
+                 pflotran_constants.o realization_subsurface.o \
                  transport_constraint.o
 nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
                      pflotran_constants.o string.o utility.o

@@ -42,7 +42,6 @@ subroutine NWTMaxChange(realization,dcmax)
   use Realization_Subsurface_class
   use Option_module
   use Field_module
-  use Patch_module
   use Grid_module
   
   implicit none
@@ -74,7 +73,6 @@ subroutine NWTSetup(realization)
   ! 
   
   use Realization_Subsurface_class
-  use Patch_module
   use Option_module
   use Grid_module
   use Material_module
@@ -90,7 +88,6 @@ subroutine NWTSetup(realization)
 
   type(realization_subsurface_type) :: realization
   
-  type(patch_type), pointer :: patch
   type(nw_trans_realization_type), pointer :: nw_trans
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -105,14 +102,13 @@ subroutine NWTSetup(realization)
   PetscInt :: flag(3)
   PetscInt :: nspecies, nphase
   
-  patch => realization%patch
-  grid => patch%grid
+  grid => realization%patch%grid
   nw_trans => realization%nw_trans
   option => realization%option
   nspecies = nw_trans%params%nspecies
   nphase = option%transport%nphase
   
-  patch%aux%NWT => NWTAuxCreate()
+  realization%patch%aux%NWT => NWTAuxCreate()
   
   cur_material_property => realization%material_properties
   do                                      
@@ -124,7 +120,7 @@ subroutine NWTSetup(realization)
     cur_material_property => cur_material_property%next
   enddo
   
-  material_auxvars => patch%aux%Material%auxvars
+  material_auxvars => realization%patch%aux%Material%auxvars
   flag = 0
   !TODO(geh): change to looping over ghosted ids once the legacy code is 
   !           history and the communicator can be passed down.
@@ -132,7 +128,7 @@ subroutine NWTSetup(realization)
     ghosted_id = grid%nL2G(local_id)
 
     ! Ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
+    if (realization%patch%imat(ghosted_id) <= 0) cycle
     
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
@@ -167,35 +163,40 @@ subroutine NWTSetup(realization)
 #else  
   option%iflag = 0 ! be sure not to allocate mass_balance array
 #endif
-  allocate(patch%aux%NWT%auxvars(grid%ngmax))
+  allocate(realization%patch%aux%NWT%auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call NWTAuxVarInit(patch%aux%NWT%auxvars(ghosted_id),nw_trans,option)
+    call NWTAuxVarInit(realization%patch%aux%NWT%auxvars(ghosted_id),nw_trans, &
+                      option)
   enddo
-  patch%aux%NWT%num_aux = grid%ngmax
+  realization%patch%aux%NWT%num_aux = grid%ngmax
   
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them
-  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
+  sum_connection = CouplerGetNumConnectionsInList( &
+                                     realization%patch%boundary_condition_list)
   if (sum_connection > 0) then
     option%iflag = 1 ! enable allocation of mass_balance array 
-    allocate(patch%aux%NWT%auxvars_bc(sum_connection))
+    allocate(realization%patch%aux%NWT%auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
-      call NWTAuxVarInit(patch%aux%NWT%auxvars_bc(iconn),nw_trans,option)
+      call NWTAuxVarInit(realization%patch%aux%NWT%auxvars_bc(iconn),nw_trans, &
+                         option)
     enddo
   endif
-  patch%aux%NWT%num_aux_bc = sum_connection
+  realization%patch%aux%NWT%num_aux_bc = sum_connection
   
   ! count the number of source/sink connections and allocate
   ! auxvar data structures for them
-  sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
+  sum_connection = CouplerGetNumConnectionsInList( &
+                                            realization%patch%source_sink_list)
   if (sum_connection > 0) then
     option%iflag = 1 ! enable allocation of mass_balance array 
-    allocate(patch%aux%NWT%auxvars_ss(sum_connection))
+    allocate(realization%patch%aux%NWT%auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
-      call NWTAuxVarInit(patch%aux%NWT%auxvars_ss(iconn),nw_trans,option)
+      call NWTAuxVarInit(realization%patch%aux%NWT%auxvars_ss(iconn),nw_trans, &
+                         option)
     enddo
   endif
-  patch%aux%NWT%num_aux_ss = sum_connection
+  realization%patch%aux%NWT%num_aux_ss = sum_connection
   option%iflag = 0
   
   ! initialize parameters
@@ -253,7 +254,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   ! 
 
   use Realization_Subsurface_class
-  use Patch_module
   use Grid_module
   use Coupler_module
   use Connection_module
@@ -271,7 +271,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch
   type(nw_trans_realization_type), pointer :: nw_trans
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
@@ -291,14 +290,13 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   data icall/0/
 
   option => realization%option
-  patch => realization%patch  
-  grid => patch%grid
+  grid => realization%patch%grid
   field => realization%field
   nw_trans => realization%nw_trans
-  material_auxvars => patch%aux%Material%auxvars
-  nwt_auxvars => patch%aux%NWT%auxvars
-  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
-  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => realization%patch%aux%Material%auxvars
+  nwt_auxvars => realization%patch%aux%NWT%auxvars
+  nwt_auxvars_bc => realization%patch%aux%NWT%auxvars_bc
+  global_auxvars => realization%patch%aux%Global%auxvars
 
   
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -310,7 +308,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
     do ghosted_id = 1, grid%ngmax
       if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
       !geh - Ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
 
       offset = (ghosted_id-1)*nw_trans%params%nspecies
       istart = offset + 1
@@ -332,7 +330,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
     call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
 
-    boundary_condition => patch%boundary_condition_list%first
+    boundary_condition => realization%patch%boundary_condition_list%first
     sum_connection = 0    
     do 
       if (.not.associated(boundary_condition)) exit
@@ -343,7 +341,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
         
-        if (patch%imat(ghosted_id) <= 0) cycle
+        if (realization%patch%imat(ghosted_id) <= 0) cycle
 
         offset = (ghosted_id-1)*nw_trans%params%nspecies
         istart_loc =  1
@@ -368,7 +366,8 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
                                                           xx_loc_p(istart:iend)
             endif
           case(DIRICHLET_ZERO_GRADIENT_BC)
-            if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
+            if (realization%patch%boundary_velocities(iphase,sum_connection) &
+                >= 0.d0) then
                   ! don't need to do anything as the constraint below 
                   ! provides all the concentrations, etc.
               if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
@@ -536,7 +535,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 
   use Realization_Subsurface_class
   use Field_module
-  use Patch_module
   use Coupler_module
   use Connection_module
   use Discretization_module
@@ -561,7 +559,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   PetscInt :: istart, iend, offset
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
-  type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(nw_trans_realization_type), pointer :: nw_trans
@@ -586,20 +583,19 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 
   call PetscLogEventBegin(logging%event_nwt_residual,ierr);CHKERRQ(ierr)
 
-  patch => realization%patch
   field => realization%field
   discretization => realization%discretization
   option => realization%option
-  grid => patch%grid
-  nw_trans => patch%nw_trans
-  nwt_auxvars => patch%aux%NWT%auxvars
-  nwt_auxvars_ss => patch%aux%NWT%auxvars_ss
-  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
-  global_auxvars => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  material_auxvars => patch%aux%Material%auxvars
-  ! note: there is no patch%aux%Material%auxvars_bc
-  material_auxvars_bc => patch%aux%Material%auxvars
+  grid => realization%patch%grid
+  nw_trans => realization%patch%nw_trans
+  nwt_auxvars => realization%patch%aux%NWT%auxvars
+  nwt_auxvars_ss => realization%patch%aux%NWT%auxvars_ss
+  nwt_auxvars_bc => realization%patch%aux%NWT%auxvars_bc
+  global_auxvars => realization%patch%aux%Global%auxvars
+  global_auxvars_bc => realization%patch%aux%Global%auxvars_bc
+  material_auxvars => realization%patch%aux%Material%auxvars
+  ! note: there is no realization%patch%aux%Material%auxvars_bc
+  material_auxvars_bc => realization%patch%aux%Material%auxvars
   nphase = nw_trans%params%nphase
   nspecies = nw_trans%params%nspecies
 
@@ -628,7 +624,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
             
       call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -647,7 +643,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   
 #if 1
   !== Source/Sink Terms =======================================
-  source_sink => patch%source_sink_list%first
+  source_sink => realization%patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -658,19 +654,19 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
             
       call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
-                              source_sink,patch,sum_connection, &
-                              nw_trans,Res)
+                             source_sink,realization%patch%ss_flow_vol_fluxes, &
+                             sum_connection,nw_trans,Res)
       
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
       r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)
       
-      if (associated(patch%ss_tran_fluxes)) then
-        patch%ss_tran_fluxes(:,sum_connection) = - Res(:)
+      if (associated(realization%patch%ss_tran_fluxes)) then
+        realization%patch%ss_tran_fluxes(:,sum_connection) = - Res(:)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary 
@@ -688,7 +684,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     ! ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
+    if (realization%patch%imat(ghosted_id) <= 0) cycle
         
     call NWTResidualRx(nwt_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
@@ -724,19 +720,19 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
       
       ! ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id_up) <= 0 .or.  &
-          patch%imat(ghosted_id_dn) <= 0) cycle
+      if (realization%patch%imat(ghosted_id_up) <= 0 .or.  &
+          realization%patch%imat(ghosted_id_dn) <= 0) cycle
           
       call NWTResidualFlux(nwt_auxvars(ghosted_id_up), &
-                           nwt_auxvars(ghosted_id_dn), &
-                           global_auxvars(ghosted_id_up), &
-                           global_auxvars(ghosted_id_dn), &
-                           material_auxvars(ghosted_id_up), &
-                           material_auxvars(ghosted_id_dn), &
-                           cur_connection_set%area(iconn), &
-                           cur_connection_set%dist(:,iconn), &
-                           patch%internal_velocities(:,sum_connection), &
-                           nw_trans,option,Res_up,Res_dn)
+                      nwt_auxvars(ghosted_id_dn), &
+                      global_auxvars(ghosted_id_up), &
+                      global_auxvars(ghosted_id_dn), &
+                      material_auxvars(ghosted_id_up), &
+                      material_auxvars(ghosted_id_dn), &
+                      cur_connection_set%area(iconn), &
+                      cur_connection_set%dist(:,iconn), &
+                      realization%patch%internal_velocities(:,sum_connection), &
+                      nw_trans,option,Res_up,Res_dn)
                             
       if (local_id_up>0) then
         offset = (local_id_up-1)*nspecies
@@ -752,10 +748,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
       endif
       
-      if (associated(patch%internal_tran_fluxes)) then
+      if (associated(realization%patch%internal_tran_fluxes)) then
       ! jenn:todo Not sure how to handle internal_tran_fluxes = Res, because
       ! I have a Res_up and Res_dn, not just Res.
-      !  patch%internal_tran_fluxes(1:nw_trans%params%nspecies,iconn) = &
+      !  realization%patch%internal_tran_fluxes(1:nw_trans%params%nspecies,iconn) = &
       !      Res(1:nw_trans%params%nspecies)
       endif
       
@@ -764,7 +760,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   enddo
   
   ! Boundary Flux Terms ---------------------------------------
-  boundary_condition => patch%boundary_condition_list%first
+  boundary_condition => realization%patch%boundary_condition_list%first
   sum_connection = 0    
   do
     if (.not.associated(boundary_condition)) exit
@@ -774,18 +770,18 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
 
       ! ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
       
       call NWTResidualFlux(nwt_auxvars_bc(sum_connection), &
-                           nwt_auxvars(ghosted_id), &
-                           global_auxvars_bc(sum_connection), &
-                           global_auxvars(ghosted_id), &
-                           material_auxvars_bc(sum_connection), &
-                           material_auxvars(ghosted_id), &
-                           cur_connection_set%area(iconn), &
-                           cur_connection_set%dist(:,iconn), &
-                           patch%internal_velocities(:,sum_connection), &
-                           nw_trans,option,Res_up,Res_dn)
+                      nwt_auxvars(ghosted_id), &
+                      global_auxvars_bc(sum_connection), &
+                      global_auxvars(ghosted_id), &
+                      material_auxvars_bc(sum_connection), &
+                      material_auxvars(ghosted_id), &
+                      cur_connection_set%area(iconn), &
+                      cur_connection_set%dist(:,iconn), &
+                      realization%patch%internal_velocities(:,sum_connection), &
+                      nw_trans,option,Res_up,Res_dn)
                             
       offset = (local_id-1)*nspecies
       istart = offset + 1
@@ -802,10 +798,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       !    nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
       endif  
                  
-      if (associated(patch%boundary_tran_fluxes)) then
+      if (associated(realization%patch%boundary_tran_fluxes)) then
       ! jenn:todo Not sure how to handle boundary_tran_fluxes = Res, because
       ! I have a Res_up and Res_dn, not just Res.
-      !  patch%boundary_tran_fluxes(1:nw_trans%params%nspecies,sum_connection) = &
+      !  realization%patch%boundary_tran_fluxes(1:nw_trans%params%nspecies,sum_connection) = &
       !      Res(1:nw_trans%params%nspecies)
       endif
   
@@ -849,7 +845,6 @@ subroutine NWTUpdateFixedAccumulation(realization)
   ! 
 
   use Realization_Subsurface_class
-  use Patch_module
   use NW_Transport_Aux_module
   use Option_module
   use Field_module  
@@ -863,7 +858,6 @@ subroutine NWTUpdateFixedAccumulation(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)  
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(nw_trans_realization_type), pointer :: nw_trans
@@ -874,11 +868,10 @@ subroutine NWTUpdateFixedAccumulation(realization)
   
   option => realization%option
   field => realization%field
-  patch => realization%patch
-  nwt_auxvars => patch%aux%NWT%auxvars
-  global_auxvars => patch%aux%Global%auxvars
-  material_auxvars => patch%aux%Material%auxvars
-  grid => patch%grid
+  nwt_auxvars => realization%patch%aux%NWT%auxvars
+  global_auxvars => realization%patch%aux%Global%auxvars
+  material_auxvars => realization%patch%aux%Material%auxvars
+  grid => realization%patch%grid
   nw_trans => realization%nw_trans
 
   ! cannot use tran_xx_loc vector here as it has not yet been updated.
@@ -891,7 +884,7 @@ subroutine NWTUpdateFixedAccumulation(realization)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
+    if (realization%patch%imat(ghosted_id) <= 0) cycle
     
     ! compute offset in solution vector for first dof in grid cell
     dof_offset = (local_id-1)*nw_trans%params%nspecies
@@ -976,7 +969,7 @@ end subroutine NWTResidualAccum
 
 ! ************************************************************************** !
 
-subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,patch, &
+subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
                               sum_connection,nw_trans,Res)
   ! 
   ! Computes the source/sink terms in the residual function.
@@ -986,14 +979,13 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,patch, &
   ! Date: 05/08/2019
   ! 
 
-  use Patch_module
   use Coupler_module
 
   implicit none
   
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(coupler_type), pointer :: source_sink
-  type(patch_type), pointer :: patch
+  PetscReal, pointer :: ss_flow_vol_fluxes
   PetscInt :: sum_connection
   type(nw_trans_realization_type), pointer :: nw_trans
   PetscReal :: Res(nw_trans%params%nspecies)
@@ -1005,9 +997,9 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,patch, &
   iphase = LIQUID_PHASE
   Res = 0.d0
   
-  if (associated(patch%ss_flow_vol_fluxes)) then
+  if (associated(ss_flow_vol_fluxes)) then
     ! qsrc = [m^3-liq/sec] 
-    qsrc = patch%ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+    qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
   endif
       
   istart = 1
@@ -1244,7 +1236,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   ! 
 
   use Realization_Subsurface_class
-  use Patch_module
   use Grid_module
   use Option_module
   use Field_module
@@ -1267,7 +1258,6 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: work_loc_p(:) 
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
-  type(patch_type), pointer :: patch
   type(nw_trans_realization_type), pointer :: nw_trans
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
@@ -1295,17 +1285,16 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   PetscReal :: rdum
     
   option => realization%option
-  patch => realization%patch  
-  grid => patch%grid
+  grid => realization%patch%grid
   nw_trans => realization%nw_trans
   
-  nwt_auxvars => patch%aux%NWT%auxvars
-  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
-  global_auxvars => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  material_auxvars => patch%aux%Material%auxvars
-  ! note: there is no patch%aux%Material%auxvars_bc
-  material_auxvars_bc => patch%aux%Material%auxvars
+  nwt_auxvars => realization%patch%aux%NWT%auxvars
+  nwt_auxvars_bc => realization%patch%aux%NWT%auxvars_bc
+  global_auxvars => realization%patch%aux%Global%auxvars
+  global_auxvars_bc => realization%patch%aux%Global%auxvars_bc
+  material_auxvars => realization%patch%aux%Material%auxvars
+  ! note: there is no realization%patch%aux%Material%auxvars_bc
+  material_auxvars_bc => realization%patch%aux%Material%auxvars
   
   iphase = LIQUID_PHASE
 
@@ -1328,7 +1317,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
       
       call NWTJacobianAccum(material_auxvars(ghosted_id), &
                             nw_trans,option,Jac) 
@@ -1343,7 +1332,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
 
 #if 1
   !== Source/Sink Terms =======================================
-  source_sink => patch%source_sink_list%first 
+  source_sink => realization%patch%source_sink_list%first 
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -1354,11 +1343,12 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
       
       call NWTJacobianSrcSink(material_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id),source_sink, &
-                              patch,sum_connection,nw_trans,Jac) 
+                              realization%patch%ss_flow_vol_fluxes, &
+                              sum_connection,nw_trans,Jac) 
                                 
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
@@ -1375,7 +1365,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   do local_id = 1, grid%nlmax  
     ghosted_id = grid%nL2G(local_id)
     ! ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
+    if (realization%patch%imat(ghosted_id) <= 0) cycle
     
     call NWTJacobianRx(material_auxvars(ghosted_id), &
                        nw_trans,Jac)
@@ -1405,19 +1395,19 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
       
-      if (patch%imat(ghosted_id_up) <= 0 .or.  &
-          patch%imat(ghosted_id_dn) <= 0) cycle
+      if (realization%patch%imat(ghosted_id_up) <= 0 .or.  &
+          realization%patch%imat(ghosted_id_dn) <= 0) cycle
           
       call NWTJacobianFlux(nwt_auxvars(ghosted_id_up), &
-                           nwt_auxvars(ghosted_id_dn), &
-                           global_auxvars(ghosted_id_up), &
-                           global_auxvars(ghosted_id_dn), &
-                           material_auxvars(ghosted_id_up), &
-                           material_auxvars(ghosted_id_dn), &
-                           cur_connection_set%area(iconn), &
-                           cur_connection_set%dist(:,iconn), &
-                           patch%internal_velocities(:,sum_connection), &
-                           nw_trans,option,JacUp,JacDn)
+                      nwt_auxvars(ghosted_id_dn), &
+                      global_auxvars(ghosted_id_up), &
+                      global_auxvars(ghosted_id_dn), &
+                      material_auxvars(ghosted_id_up), &
+                      material_auxvars(ghosted_id_dn), &
+                      cur_connection_set%area(iconn), &
+                      cur_connection_set%dist(:,iconn), &
+                      realization%patch%internal_velocities(:,sum_connection), &
+                      nw_trans,option,JacUp,JacDn)
           
       if (local_id_up>0) then
         ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
@@ -1437,7 +1427,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   enddo
 
   ! Boundary Flux Terms ---------------------------------------
-  boundary_condition => patch%boundary_condition_list%first
+  boundary_condition => realization%patch%boundary_condition_list%first
   sum_connection = 0 
   do 
     if (.not.associated(boundary_condition)) exit
@@ -1450,18 +1440,18 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (realization%patch%imat(ghosted_id) <= 0) cycle
           
       call NWTJacobianFlux(nwt_auxvars_bc(sum_connection), &
-                           nwt_auxvars(ghosted_id), &
-                           global_auxvars_bc(sum_connection), &
-                           global_auxvars(ghosted_id), &
-                           material_auxvars_bc(sum_connection), &
-                           material_auxvars(ghosted_id), &
-                           cur_connection_set%area(iconn), &
-                           cur_connection_set%dist(:,iconn), &
-                           patch%internal_velocities(:,sum_connection), &
-                           nw_trans,option,JacUp,JacDn)
+                      nwt_auxvars(ghosted_id), &
+                      global_auxvars_bc(sum_connection), &
+                      global_auxvars(ghosted_id), &
+                      material_auxvars_bc(sum_connection), &
+                      material_auxvars(ghosted_id), &
+                      cur_connection_set%area(iconn), &
+                      cur_connection_set%dist(:,iconn), &
+                      realization%patch%internal_velocities(:,sum_connection), &
+                      nw_trans,option,JacUp,JacDn)
       
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,JacDn, &
@@ -1485,7 +1475,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       istart = offset + 1
       iend = offset + nw_trans%params%ncomp
       
-      if (patch%imat(ghosted_id) <= 0) then
+      if (realization%patch%imat(ghosted_id) <= 0) then
         work_loc_p(istart:iend) = 1.d0
       else
         work_loc_p(istart:iend) = nwt_auxvars(ghosted_id)%total_bulk_conc(:)
@@ -1563,7 +1553,7 @@ end subroutine NWTJacobianAccum
 ! ************************************************************************** !
 
 subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
-                              patch,sum_connection,nw_trans,Jac)
+                              ss_flow_vol_fluxes,sum_connection,nw_trans,Jac)
   ! 
   ! Computes the source/sink terms in the Jacobian matrix.
   ! All Jacobian entries should be in [m^3-bulk/sec].
@@ -1572,7 +1562,6 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   ! Date: 05/14/2019
   ! 
 
-  use Patch_module
   use Coupler_module
 
   implicit none
@@ -1580,7 +1569,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   class(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
   type(coupler_type), pointer :: source_sink
-  type(patch_type), pointer :: patch
+  PetscReal, pointer :: ss_flow_vol_fluxes
   PetscInt :: sum_connection
   type(nw_trans_realization_type), pointer :: nw_trans
   PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
@@ -1591,9 +1580,9 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   
   Jac = 0.d0
   
-  if (associated(patch%ss_flow_vol_fluxes)) then
+  if (associated(ss_flow_vol_fluxes)) then
     ! qsrc = [m^3-liq/sec] 
-    qsrc = patch%ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
+    qsrc = ss_flow_vol_fluxes(LIQUID_PHASE,sum_connection)
   endif
       
   istart = 1
@@ -1839,7 +1828,6 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
 
   use Realization_Subsurface_class
   use Option_module
-  use Patch_module
   use Field_module
   use Grid_module
 
@@ -1848,7 +1836,6 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   PetscInt :: max_size
   PetscReal :: sum_mol(max_size,4)
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -1867,15 +1854,14 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   PetscReal :: liquid_saturation, porosity, volume
 
   option => realization%option
-  patch => realization%patch
-  grid => patch%grid
+  grid => realization%patch%grid
   field => realization%field
 
   nw_trans => realization%nw_trans
 
-  nwt_auxvars => patch%aux%NWT%auxvars
-  global_auxvars => patch%aux%Global%auxvars
-  material_auxvars => patch%aux%Material%auxvars
+  nwt_auxvars => realization%patch%aux%NWT%auxvars
+  global_auxvars => realization%patch%aux%Global%auxvars
+  material_auxvars => realization%patch%aux%Material%auxvars
 
   sum_mol = 0.d0
   sum_mol_tot = 0.d0
@@ -1888,7 +1874,7 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     ! ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
+    if (realization%patch%imat(ghosted_id) <= 0) cycle
     
     liquid_saturation = global_auxvars(ghosted_id)%sat(LIQUID_PHASE)
     porosity = material_auxvars(ghosted_id)%porosity
@@ -1933,7 +1919,6 @@ subroutine NWTUpdateMassBalance(realization)
  
   use Realization_Subsurface_class
   use Option_module
-  use Patch_module
   use Grid_module
  
   implicit none
@@ -1941,33 +1926,31 @@ subroutine NWTUpdateMassBalance(realization)
   type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_ss(:)
 
   PetscInt :: iconn
 
   option => realization%option
-  patch => realization%patch
 
-  nwt_auxvars_bc => patch%aux%NWT%auxvars_bc
-  nwt_auxvars_ss => patch%aux%NWT%auxvars_ss
+  nwt_auxvars_bc => realization%patch%aux%NWT%auxvars_bc
+  nwt_auxvars_ss => realization%patch%aux%NWT%auxvars_ss
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
-  do iconn = 1, patch%aux%NWT%num_aux
-    patch%aux%NWT%auxvars(iconn)%mass_balance = &
-      patch%aux%NWT%auxvars(iconn)%mass_balance + &
-      patch%aux%NWT%auxvars(iconn)%mass_balance_delta*option%tran_dt
+  do iconn = 1, realization%patch%aux%NWT%num_aux
+    realization%patch%aux%NWT%auxvars(iconn)%mass_balance = &
+      realization%patch%aux%NWT%auxvars(iconn)%mass_balance + &
+      realization%patch%aux%NWT%auxvars(iconn)%mass_balance_delta*option%tran_dt
   enddo
 #endif
 
-  do iconn = 1, patch%aux%NWT%num_aux_bc
+  do iconn = 1, realization%patch%aux%NWT%num_aux_bc
     nwt_auxvars_bc(iconn)%mass_balance = &
       nwt_auxvars_bc(iconn)%mass_balance + &
       nwt_auxvars_bc(iconn)%mass_balance_delta*option%tran_dt
   enddo
 
-  do iconn = 1, patch%aux%NWT%num_aux_ss
+  do iconn = 1, realization%patch%aux%NWT%num_aux_ss
     nwt_auxvars_ss(iconn)%mass_balance = &
       nwt_auxvars_ss(iconn)%mass_balance + &
       nwt_auxvars_ss(iconn)%mass_balance_delta*option%tran_dt
