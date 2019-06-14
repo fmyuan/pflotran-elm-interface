@@ -3867,7 +3867,6 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
     ! because we are using a "matrix free" Jacobian), then we need to 
     ! copy the computed Jacobian into the preconditioner matrix.
     call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr);
-    !call MatCopy(J,B,SAME_NONZERO_PATTERN,ierr);CHKERRQ(ierr);
   endif
 
 !#if 0
