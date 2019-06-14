@@ -7,7 +7,8 @@ module Transport_Constraint_module
   use Reactive_Transport_Aux_module
 #if 0
 !geh: breaks pflotran_rxn build
-  use NW_Transport_Aux_module
+! have to comment line to prevent addition to dependencies
+!  use NW_Transport_Aux_module
 #endif
   use Global_Aux_module
   
@@ -728,7 +729,8 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Option_module
-  use NW_Transport_Aux_module
+! have to comment line to prevent addition to dependencies
+!  use NW_Transport_Aux_module
   use Input_Aux_module
   use String_module
   use Logging_module
