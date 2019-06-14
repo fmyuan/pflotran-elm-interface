@@ -1236,9 +1236,9 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
         TWO_PHASE_STATE
       select case(general%liquid_pressure%itype)
         case(DIRICHLET_BC)
+          real_count = real_count + 1
           select type(dataset => general%liquid_pressure%dataset)
             class is(dataset_ascii_type)
-              real_count = real_count + 1
               coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = &
                 real_count
               coupler%flow_aux_real_var(real_count,1:num_connections) = &
@@ -1274,9 +1274,9 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
       ! in two-phase flow, gas saturation is second dof
       select case(general%gas_saturation%itype)
         case(DIRICHLET_BC)
+          real_count = real_count + 1
           select type(dataset => general%gas_saturation%dataset)
             class is(dataset_ascii_type)
-              real_count = real_count + 1
               coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = &
                 real_count
               coupler%flow_aux_real_var(real_count,1:num_connections) = &
