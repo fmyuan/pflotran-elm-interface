@@ -219,22 +219,22 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 !      - Inside Jacobian routines, will need to check for 
 !        solver%J != solver%Jpre, and populate two matrices if so.
 
-            if (Uninitialized(solver%Jpre_mat_type) .and. &
-                Uninitialized(solver%J_mat_type)) then
-              ! Matrix types not specified, so set to default.
-              solver%Jpre_mat_type = MATBAIJ
-              solver%J_mat_type = solver%Jpre_mat_type
-            else if (Uninitialized(solver%Jpre_mat_type)) then
-              if (solver%J_mat_type == MATMFFD) then
+      if (Uninitialized(solver%Jpre_mat_type) .and. &
+          Uninitialized(solver%J_mat_type)) then
+        ! Matrix types not specified, so set to default.
+        solver%Jpre_mat_type = MATBAIJ
+        solver%J_mat_type = solver%Jpre_mat_type
+      else if (Uninitialized(solver%Jpre_mat_type)) then
+        if (solver%J_mat_type == MATMFFD) then
           solver%Jpre_mat_type = MATBAIJ
-              else
-                solver%Jpre_mat_type = solver%J_mat_type
+        else
+          solver%Jpre_mat_type = solver%J_mat_type
         endif
-            else if (Uninitialized(solver%J_mat_type)) then
-              solver%J_mat_type = solver%Jpre_mat_type
+      else if (Uninitialized(solver%J_mat_type)) then
+        solver%J_mat_type = solver%Jpre_mat_type
       endif
 
-     if (associated(solver%cprstash)) then
+      if (associated(solver%cprstash)) then
         call CPRWorkersCreate(pm, solver, option)
       endif
 
@@ -368,19 +368,19 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     
       if (option%transport%reactive_transport_coupling == &
           GLOBAL_IMPLICIT) then
-              if (Uninitialized(solver%Jpre_mat_type) .and. &
-                  Uninitialized(solver%J_mat_type)) then
-                ! Matrix types not specified, so set to default.
-                solver%Jpre_mat_type = MATBAIJ
-                solver%J_mat_type = solver%Jpre_mat_type
-              else if (Uninitialized(solver%Jpre_mat_type)) then
-                if (solver%J_mat_type == MATMFFD) then
-                  solver%Jpre_mat_type = MATBAIJ
-                else
-                  solver%Jpre_mat_type = solver%J_mat_type
+        if (Uninitialized(solver%Jpre_mat_type) .and. &
+            Uninitialized(solver%J_mat_type)) then
+          ! Matrix types not specified, so set to default.
+          solver%Jpre_mat_type = MATBAIJ
+          solver%J_mat_type = solver%Jpre_mat_type
+        else if (Uninitialized(solver%Jpre_mat_type)) then
+          if (solver%J_mat_type == MATMFFD) then
+            solver%Jpre_mat_type = MATBAIJ
+          else
+            solver%Jpre_mat_type = solver%J_mat_type
           endif
-              else if (Uninitialized(solver%J_mat_type)) then
-                solver%J_mat_type = solver%Jpre_mat_type
+        else if (Uninitialized(solver%J_mat_type)) then
+          solver%J_mat_type = solver%Jpre_mat_type
         endif
 
         call DiscretizationCreateJacobian(pm%realization%discretization, &
