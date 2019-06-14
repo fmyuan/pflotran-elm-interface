@@ -8,6 +8,10 @@ module TH_Aux_module
 
 #include "petsc/finclude/petscsys.h"
 
+  PetscInt, public :: TH_ni_count
+  PetscInt, public :: TH_ts_cut_count
+  PetscInt, public :: TH_ts_count
+
   type, public :: TH_auxvar_type
     PetscReal :: avgmw
     PetscReal :: h
@@ -33,6 +37,15 @@ module TH_Aux_module
     PetscReal :: Ke
     PetscReal :: dKe_dp
     PetscReal :: dKe_dt
+    PetscReal :: dpres_dtime ! for TS
+    PetscReal :: dtemp_dtime  ! for TS
+    PetscReal :: d2sat_dp2
+    PetscReal :: d2den_dp2
+    PetscReal :: d2u_dp2
+    PetscReal :: d2sat_dt2
+    PetscReal :: d2den_dt2
+    PetscReal :: d2u_dt2
+    
     ! for ice
     type(th_ice_type), pointer :: ice
     ! For surface-flow
@@ -108,10 +121,12 @@ module TH_Aux_module
   end type TH_type
 
   PetscReal, parameter :: epsilon = 1.d-6
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
 
   public :: THAuxCreate, THAuxDestroy, &
             THAuxVarComputeNoFreezing, THAuxVarInit, &
-            THAuxVarCopy, THAuxVarDestroy
+            THAuxVarCopy, THAuxVarDestroy, &
+            THAuxVarCompute2ndOrderDeriv
 
   public :: THAuxVarComputeFreezing
 
@@ -854,6 +869,126 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
 end subroutine THAuxVarComputeFreezing
 
+! ************************************************************************** !
+subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
+                                        material_auxvar,th_parameter, &
+                                        ithrm,sat_func,&
+                                        option)
+
+  ! Computes 2nd order derivatives auxiliary variables for each grid cell
+  ! 
+  ! Author: Satish Karra
+  ! Date: 06/06/2019
+  ! 
+  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  use Option_module
+  use Global_Aux_module
+  
+  use EOS_Water_module
+  use Saturation_Function_module
+  use Material_Aux_class
+  
+  implicit none
+
+  type(option_type) :: option
+  type(saturation_function_type) :: sat_func
+  type(TH_auxvar_type) :: TH_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar  
+  PetscInt :: ithrm
+  PetscErrorCode :: ierr
+  
+  type(TH_parameter_type) :: th_parameter
+  PetscInt :: iphase, ideriv
+  type(TH_auxvar_type) :: TH_auxvar_pert
+  type(global_auxvar_type) :: global_auxvar_pert
+  ! leave as type
+  type(material_auxvar_type) :: material_auxvar_pert
+  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
+
+  call GlobalAuxVarInit(global_auxvar_pert,option)
+  call MaterialAuxVarInit(material_auxvar_pert,option)
+
+  call THAuxVarCopy(TH_auxvar,TH_auxvar_pert,option)
+  call GlobalAuxVarCopy(global_auxvar,global_auxvar_pert,option)
+  call MaterialAuxVarCopy(material_auxvar,material_auxvar_pert,option)
+
+  x(1) = global_auxvar%pres(1)
+  x(2) = global_auxvar%temp
+
+!  if (option%use_th_freezing) then
+!    option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
+!    call printErrMsg(option)
+!  else
+!    call THAuxVarComputeNoFreezing(x,TH_auxvar,&
+!                      global_auxvar,material_auxvar,&
+!                      iphase,sat_func, &
+!                      TH_parameter,ithrm, &
+!                      -999,option)
+!  endif
+  
+  TH_auxvar%d2sat_dp2 = 0.d0 
+  TH_auxvar%d2den_dp2 = 0.d0 
+  TH_auxvar%d2u_dp2 = 0.d0 
+  TH_auxvar%d2sat_dt2 = 0.d0 
+  TH_auxvar%d2den_dt2 = 0.d0 
+  TH_auxvar%d2u_dt2 = 0.d0 
+	
+
+  do ideriv = 1,option%nflowdof
+    pert = x(ideriv)*perturbation_tolerance
+    x_pert = x
+    if (option%use_th_freezing) then
+       if (ideriv == 1) then
+          if (x_pert(ideriv) < option%reference_pressure) then
+             pert = - pert
+          endif
+          x_pert(ideriv) = x_pert(ideriv) + pert
+       endif
+
+       if (ideriv == 2) then
+          if (x_pert(ideriv) < 0.d0) then
+             pert = - 1.d-8
+          else
+             pert =  1.d-8
+          endif
+          x_pert(ideriv) = x_pert(ideriv) + pert
+       endif
+    else
+       x_pert(ideriv) = x_pert(ideriv) + pert
+    endif
+
+    if (option%use_th_freezing) then
+      option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
+      call printErrMsg(option)
+    else
+      call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
+                            global_auxvar_pert,material_auxvar_pert,&
+                            iphase,sat_func, &
+                            TH_parameter,ithrm, &
+                            -999,option)
+    endif
+    
+    
+    if (ideriv == 1) then
+      TH_auxvar%d2sat_dp2 = (TH_auxvar_pert%dsat_dp - TH_auxvar%dsat_dp)/pert
+      TH_auxvar%d2den_dp2 = (TH_auxvar_pert%dden_dp - TH_auxvar%dden_dp)/pert
+      TH_auxvar%d2u_dp2 = (TH_auxvar_pert%du_dp - TH_auxvar%du_dp)/pert
+    endif  
+    
+    if (ideriv == 2) then
+      TH_auxvar%d2sat_dt2 = (TH_auxvar_pert%dsat_dt - TH_auxvar%dsat_dt)/pert
+      TH_auxvar%d2den_dt2 = (TH_auxvar_pert%dden_dt - TH_auxvar%dden_dt)/pert
+      TH_auxvar%d2u_dt2 = (TH_auxvar_pert%du_dt - TH_auxvar%du_dt)/pert
+    endif   
+    
+  enddo
+
+end subroutine THAuxVarCompute2ndOrderDeriv  
+  
+  
 ! ************************************************************************** !
 
 subroutine THAuxVarDestroy(auxvar)

@@ -412,20 +412,14 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,optio
     call characteristic_curves%saturation_function% &
                                D2SatDP2(auxvar%pc, &
                                           d2s_dp2,option)
-    saturated = PETSC_FALSE
-    if (auxvar%dsat_dp < 1.d-40) saturated = PETSC_TRUE
-  else
-    saturated = PETSC_TRUE
   endif
 
-  if (saturated) then
-    pw2 = pw1 + dp
-    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
-                         dw_dp_1,dw_dt,ierr)
-    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
-                         dw_dp_2,dw_dt,ierr)
-    d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
-  endif
+  pw2 = pw1 + dp
+  call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
+                       dw_dp_1,dw_dt,ierr)
+  call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
+                       dw_dp_2,dw_dt,ierr)
+  d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
 
   auxvar%d2sat_dp2 = d2s_dp2
   auxvar%d2den_dp2 = d2den_dp2

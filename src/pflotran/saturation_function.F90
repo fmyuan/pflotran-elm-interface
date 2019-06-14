@@ -321,7 +321,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             else
               saturation_function%Sr(:) = tempreal
             endif
-          case(RICHARDS_MODE,TH_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE,TH_TS_MODE)
             call InputReadDouble(input,option,saturation_function%Sr(1))
             call InputErrorMsg(input,option,'residual saturation','SATURATION_FUNCTION')
         end select

@@ -207,7 +207,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = MIS: p, Xs")')
           case(TH_MODE)
             write(*,'(" mode = TH: p, T")')
-          case(RICHARDS_MODE,RICHARDS_TS_MODE)
+          case(RICHARDS_MODE)
             write(*,'(" mode = Richards: p")')
           case(G_MODE) 
             write(*,'(" mode = General: p, sg/X, T")')
@@ -612,7 +612,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
       call printMsg(option,"  Beginning setup of FLOW SNES ")
 
       select case(option%iflowmode)
-        case(RICHARDS_TS_MODE)
+        case(RICHARDS_TS_MODE,TH_TS_MODE)
         case default
           option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
           call printErrMsg(option)
@@ -624,6 +624,8 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
           select case(option%iflowmode)
             case(RICHARDS_TS_MODE)
               write(*,'(" mode = Richards: p")')
+            case(TH_TS_MODE)
+              write(*,'(" mode = TH: p, T")')
           end select
         endif
 
@@ -773,7 +775,7 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
         option     => pmc%realization%option
 
         select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
+          case (RICHARDS_MODE,RICHARDS_TS_MODE)
             call VecScatterBegin(pmc%sim_aux%surf_to_subsurf, &
                                  pmc%sim_aux%surf_mflux_exchange_with_subsurf, &
                                  pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
@@ -853,7 +855,7 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
               coupler => coupler%next
             enddo
 
-          case (TH_MODE)
+          case (TH_MODE,TH_TS_MODE)
             call VecScatterBegin(pmc%sim_aux%surf_to_subsurf, &
                                  pmc%sim_aux%surf_head, &
                                  pmc%sim_aux%subsurf_pres_top_bc, &
@@ -1041,7 +1043,7 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
               ! Find the BC from the list of BCs
               if (StringCompare(coupler%name,'from_surface_bc')) then
                 select case(this%option%iflowmode)
-                  case (RICHARDS_MODE)
+                  case (RICHARDS_MODE,RICHARDS_TS_MODE)
                     call VecGetArrayF90(this%sim_aux%subsurf_pres_top_bc, &
                                         pres_top_bc_p,ierr);CHKERRQ(ierr)
                     do iconn = 1,coupler%connection_set%num_connections
@@ -1050,7 +1052,7 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
                     enddo
                     call VecRestoreArrayF90(this%sim_aux%subsurf_pres_top_bc, &
                                             pres_top_bc_p,ierr);CHKERRQ(ierr)
-                  case (TH_MODE)
+                  case (TH_MODE,TH_TS_MODE)
                     call VecGetArrayF90(this%sim_aux%subsurf_pres_top_bc, &
                                         pres_top_bc_p,ierr);CHKERRQ(ierr)
                     call VecGetArrayF90(this%sim_aux%subsurf_temp_top_bc, &
@@ -1220,7 +1222,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 
 
   select case(this%option%iflowmode)
-    case (TH_MODE)
+    case (TH_MODE,TH_TS_MODE)
       pres_dof = TH_PRESSURE_DOF
       temp_dof = TH_TEMPERATURE_DOF
     case (MPH_MODE)

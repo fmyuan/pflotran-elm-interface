@@ -1049,7 +1049,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     dof_is_active = PETSC_TRUE
 #if defined(ISOTHERMAL)
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
       case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
@@ -1066,7 +1066,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%Richards%n_zero_rows, &
                       realization%patch%aux%Richards%inactive_cells_exist, &
                       option)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%TH%zero_rows_local, &
                       realization%patch%aux%TH%zero_rows_local_ghosted, &

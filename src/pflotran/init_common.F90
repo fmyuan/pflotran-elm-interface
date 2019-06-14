@@ -105,7 +105,7 @@ subroutine setSurfaceFlowMode(option)
   select case(option%iflowmode)
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       option%nsurfflowdof = ONE_INTEGER
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       option%nsurfflowdof = TWO_INTEGER
     case default
       write(option%io_buffer,*) option%iflowmode

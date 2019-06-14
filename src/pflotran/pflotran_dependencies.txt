@@ -169,7 +169,7 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        pm_base_pointer.o pm_flash2.o pm_general.o pm_immis.o \
                        pm_miscible.o pm_mphase.o pm_nwt.o pm_richards.o \
                        pm_richards_ts.o pm_rt.o pm_subsurface_flow.o pm_th.o \
-                       pm_toil_ims.o pm_towg.o pm_towg_aux.o \
+                       pm_th_ts.o pm_toil_ims.o pm_towg.o pm_towg_aux.o \
                        pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
                        pm_wipp_flow.o pm_wipp_srcsink.o pmc_auxiliary.o \
                        pmc_base.o pmc_subsurface.o pmc_third_party.o \
@@ -365,8 +365,8 @@ init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          flash2.o general.o grid.o hdf5.o immis.o \
                          init_common.o material.o miscible.o mphase.o option.o \
                          patch.o pflotran_constants.o pm_richards_ts.o \
-                         realization_subsurface.o richards.o th.o toil_ims.o \
-                         towg.o wipp_flow.o
+                         pm_th_ts.o realization_subsurface.o richards.o th.o \
+                         toil_ims.o towg.o wipp_flow.o
 init_subsurface_transport.o : condition_control.o global.o nw_transport.o \
                               option.o pflotran_constants.o \
                               reactive_transport.o realization_subsurface.o \
@@ -595,6 +595,10 @@ pm_th.o : communicator_base.o communicator_structured.o \
           input_aux.o option.o patch.o pflotran_constants.o pm_base.o \
           pm_subsurface_flow.o realization_subsurface.o saturation_function.o \
           string.o th.o th_aux.o utility.o
+pm_th_ts.o : discretization.o field.o global_aux.o grid.o material_aux.o \
+             option.o patch.o pflotran_constants.o pm_base.o \
+             pm_subsurface_flow.o pm_th.o realization_subsurface.o th.o \
+             th_aux.o
 pm_toil_ims.o : auxvars_toil_ims.o checkpoint.o field.o global.o global_aux.o \
                 grid.o input_aux.o material.o material_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \

@@ -756,7 +756,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
         patch%boundary_flow_fluxes = 0.d0
       endif
       ! surface/subsurface storage
-      if (option%iflowmode == TH_MODE) then
+      if (option%iflowmode == TH_MODE .or. &
+          option%iflowmode == TH_TS_MODE) then
         allocate(patch%boundary_energy_flux(2,temp_int))
         patch%boundary_energy_flux = 0.d0
       endif
@@ -897,7 +898,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
-              case(RICHARDS_MODE, RICHARDS_TS_MODE)
+              case(RICHARDS_MODE,RICHARDS_TS_MODE)
                 temp_int = 1
                 if (associated(coupler%flow_condition%pressure)) then
                   select case(coupler%flow_condition%pressure%itype)
@@ -910,7 +911,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
-              case(TH_MODE)
+              case(TH_MODE,TH_TS_MODE)
                 temp_int = 2
                 select case(coupler%flow_condition%pressure%itype)
                   case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
@@ -991,10 +992,10 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(RICHARDS_MODE, RICHARDS_TS_MODE)
+                  case(RICHARDS_MODE,RICHARDS_TS_MODE)
                     allocate(coupler%flow_aux_real_var(1,num_connections))
                     coupler%flow_aux_real_var = 0.d0
-                  case(TH_MODE)
+                  case(TH_MODE,TH_TS_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case(MPH_MODE,FLASH2_MODE,MIS_MODE,IMS_MODE)
@@ -1168,7 +1169,7 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
             call PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
           case(FLASH2_MODE)
             call PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
-          case(TH_MODE)
+          case(TH_MODE,TH_TS_MODE)
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           case(MIS_MODE)
             call PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
@@ -3703,7 +3704,8 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     select case(option%iflowmode)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,TH_MODE,TOIL_IMS_MODE,WF_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,TH_MODE,TH_TS_MODE, &
+           TOIL_IMS_MODE,WF_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
       case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
@@ -3768,6 +3770,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
 
   if (option%iflowmode/=RICHARDS_MODE .and. &
       option%iflowmode/=TH_MODE .and. &
+      option%iflowmode/=TH_TS_MODE .and. &
       option%iflowmode/=RICHARDS_TS_MODE) then
     option%io_buffer='PatchUpdateHetroCouplerAuxVars only implemented '// &
       ' for RICHARDS or TH mode.'
@@ -5935,7 +5938,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
             vec_ptr(local_id) = &
               patch%aux%Richards%auxvars(grid%nL2G(local_id))%kr
           enddo
-        case(TH_MODE)
+        case(TH_MODE,TH_TS_MODE)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%TH%auxvars(grid%nL2G(local_id))%kvr * &
@@ -7072,7 +7075,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
       select case(option%iflowmode)
         case(RICHARDS_MODE)
           value = patch%aux%Richards%auxvars(ghosted_id)%kr
-        case(TH_MODE)
+        case(TH_MODE,TH_TS_MODE)
           value = patch%aux%TH%auxvars(ghosted_id)%kvr / &
                   patch%aux%TH%auxvars(ghosted_id)%vis
         case(G_MODE)

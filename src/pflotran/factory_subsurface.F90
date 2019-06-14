@@ -777,6 +777,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TOWG_class
   use PM_TOWG_Aux_module
   use PM_Richards_TS_class
+  use PM_TH_TS_class
   use Hydrate_module
   use General_Aux_module
 
@@ -975,6 +976,15 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 1
       option%nflowspec = 1
       option%use_isothermal = PETSC_TRUE
+    class is (pm_th_ts_type)
+      option%iflowmode = TH_TS_MODE
+      option%nphase = 1
+      option%liquid_phase = 1
+      option%gas_phase = 2
+      option%nflowdof = 2
+      option%nflowspec = 1
+      option%use_isothermal = PETSC_FALSE
+      option%flow%store_fluxes = PETSC_TRUE
     class default
       option%io_buffer = ''
       call printErrMsg(option)
@@ -1008,6 +1018,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use PM_TOilIms_class
   use PM_TOWG_class
   use PM_Richards_TS_class
+  use PM_TH_TS_class
   use Init_Common_module
   use General_module
 
@@ -1073,6 +1084,8 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
             pm => PMTOWGCreate(word,option)
           case ('RICHARDS_TS')
             pm => PMRichardsTSCreate()
+          case ('TH_TS')
+            pm => PMTHTSCreate()
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(word,error_string,option)
@@ -2241,7 +2254,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
-  if (option%iflowmode == RICHARDS_TS_MODE) then
+  if ((option%iflowmode == RICHARDS_TS_MODE) .or. &
+      (option%iflowmode == TH_TS_MODE)) then
     flow_timestepper => TimestepperTSCreate()
   else
     flow_timestepper => TimestepperBECreate()
@@ -3646,10 +3660,11 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
         if (option%iflowmode /= TH_MODE .and. &
+            option%iflowmode /= TH_TS_MODE .and. &
             option%iflowmode /= RICHARDS_MODE .and. &
             option%iflowmode /= RICHARDS_TS_MODE) then
           option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS, &
-                              &RICHARDS_TSand TH mode.'
+                              &RICHARDS_TS and TH, TH_TS modes.'
           call printErrMsg(option)
         endif
 
@@ -3660,15 +3675,17 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (option%iflowmode /= RICHARDS_MODE .and. &
             option%iflowmode /= RICHARDS_TS_MODE) then
           option%io_buffer = 'QUASI_3D implemented in RICHARDS and &
-                              &RICHARDS_TS mode.'
+                              &RICHARDS_TS modes.'
           call printErrMsg(option)
         endif
 
 !....................
       case ('ONLY_ENERGY_EQ')
         option%flow%only_energy_eq = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE) then
-          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH mode.'
+        if (option%iflowmode /= TH_MODE .and. &
+            option%iflowmode /= TH_TS_MODE) then
+          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH and &
+                              &TH_TS modes.'
           call printErrMsg(option)
         endif
 
