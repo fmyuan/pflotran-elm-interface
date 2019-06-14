@@ -1245,7 +1245,16 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
                 dataset%rarray(1)
               coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
                 DIRICHLET_BC
+            class is(dataset_gridded_hdf5_type)
+              call PatchUpdateCouplerGridDataset(coupler,option, &
+                                                 patch%grid,dataset, &
+                                                 real_count)
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
+              call PrintMsg(option,'general%liquid_pressure%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(dataset,option, &
+                                       'PatchUpdateCouplerAuxVarsWF')
           end select
           dof1 = PETSC_TRUE
         case(HYDROSTATIC_BC)
@@ -1273,7 +1282,16 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
               coupler%flow_aux_real_var(real_count,1:num_connections) = &
                 dataset%rarray(1)
               coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            class is(dataset_gridded_hdf5_type)
+              call PatchUpdateCouplerGridDataset(coupler,option, &
+                                                 patch%grid,dataset, &
+                                                 real_count)
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
+              call PrintMsg(option,'general%gas_saturation%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(dataset,option, &
+                                       'PatchUpdateCouplerAuxVarsWF')
           end select
           dof2 = PETSC_TRUE
         case default
@@ -1308,12 +1326,13 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
         dof1 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
-        call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
+        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
                                            real_count)
         dof1 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%liquid_flux.'
-        call printErrMsg(option)
+        call PrintMsg(option,'general%liquid_flux%dataset')
+        call DatasetUnknownClass(selector,option, &
+                                 'PatchUpdateCouplerAuxVarsWF')
     end select
   endif
   if (associated(general%gas_flux)) then
@@ -1327,12 +1346,13 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
         dof2 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
-        call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
+        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
                                            real_count)
         dof2 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%gas_flux.'
-        call printErrMsg(option)
+        call PrintMsg(option,'general%gas_flux%dataset')
+        call DatasetUnknownClass(selector,option, &
+                                 'PatchUpdateCouplerAuxVarsWF')
     end select
   endif
   if (associated(general%energy_flux)) then
@@ -1349,7 +1369,7 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
     !    dof3 = PETSC_TRUE
     !  class is(dataset_gridded_hdf5_type)
     !    call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
-    !    call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
+    !    call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
     !                                       real_count)
     !    dof3 = PETSC_TRUE
     !  class default
@@ -1510,9 +1530,9 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
             endif                                       
           enddo
         class default
-          option%io_buffer = 'Unknown dataset class: &
-            &general%gas_saturation%dataset,MULTI_STATE'
-          call printErrMsg(option)
+          call PrintMsg(option,'general%gas_saturation%dataset,MULTI_STATE')
+          call DatasetUnknownClass(dataset,option, &
+                                   'PatchUpdateCouplerAuxVarsG')
       end select
     case(TWO_PHASE_STATE)
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
@@ -1961,12 +1981,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         dof1 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
-        call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
+        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
                                            ONE_INTEGER)
         dof1 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%liquid_flux.'
-        call printErrMsg(option)
+        call PrintMsg(option,'general%liquid_flux%dataset')
+        call DatasetUnknownClass(selector,option, &
+                                 'PatchUpdateCouplerAuxVarsG')
     end select
   endif
   if (associated(general%energy_flux)) then
@@ -1978,12 +1999,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         dof2 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
-        call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
+        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
                                            TWO_INTEGER)
         dof2 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%energy_flux.'
-        call printErrMsg(option)
+        call PrintMsg(option,'general%energy_flux%dataset')
+        call DatasetUnknownClass(selector,option, &
+                                 'PatchUpdateCouplerAuxVarsG')
     end select
   endif
   if (associated(general%gas_flux)) then
@@ -1995,12 +2017,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         dof3 = PETSC_TRUE
       class is(dataset_gridded_hdf5_type)
         call PatchVerifyDatasetGriddedForFlux(selector,coupler,option)
-        call PatchUpdateCouplerFromDataset(coupler,option,patch%grid,selector, &
+        call PatchUpdateCouplerGridDataset(coupler,option,patch%grid,selector, &
                                            THREE_INTEGER)
         dof3 = PETSC_TRUE
       class default
-        option%io_buffer = 'Unknown dataset class for general%gas_flux.'
-        call printErrMsg(option)
+        call PrintMsg(option,'general%gas_flux%dataset')
+        call DatasetUnknownClass(selector,option, &
+                                 'PatchUpdateCouplerAuxVarsG')
     end select
   endif
 
@@ -2123,14 +2146,16 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
                 selector%rarray(1)
               dof1 = PETSC_TRUE
             class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
+              call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
                                                  real_count)
               dof1 = PETSC_TRUE
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
-              option%io_buffer = 'Unknown dataset class (toil_ims%' // &
-                                 'pressure%itype,DIRICHLET_BC)'
-              call printErrMsg(option)
+              call PrintMsg(option,'toil_ims%pressure%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(selector,option, &
+                                       'PatchUpdateCouplerAuxVarsTOI')
           end select
         !case(CONDUCTANCE_BC) !not implemented yet
         !case(SEEPAGE_BC) !not implemented yet
@@ -2154,14 +2179,16 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
                 selector%rarray(1)
               dof2 = PETSC_TRUE
             class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
+              call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
                                                  real_count)
               dof2 = PETSC_TRUE
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
-              option%io_buffer = 'Unknown dataset class (toil_ims%' // &
-                                 'saturation%itype,DIRICHLET_BC)'
-              call printErrMsg(option)
+              call PrintMsg(option,'toil_ims%saturation%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(selector,option, &
+                                       'PatchUpdateCouplerAuxVarsTOI')
           end select
         case default
           string = &
@@ -2183,14 +2210,16 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
                 selector%rarray(1)
               dof3 = PETSC_TRUE
             class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
+              call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
                                                  real_count)
               dof3 = PETSC_TRUE
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
-              option%io_buffer = 'Unknown dataset class (toil_ims%' // &
-                                 'temperature%itype,DIRICHLET_BC)'
-              call printErrMsg(option)
+              call PrintMsg(option,'toil_ims%temperature%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(selector,option, &
+                                       'PatchUpdateCouplerAuxVarsTOI')
           end select
         ! to add here therma gradient option
         case default
@@ -2527,14 +2556,16 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
               selector%rarray(1)
             dof_solv = PETSC_TRUE
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
                                                real_count)
             dof_solv = PETSC_TRUE
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
           class default
-            option%io_buffer = 'Unknown dataset class (towg%' // &
-              'solvent_saturation%itype,DIRICHLET_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'towg%solvent_saturation%itype,DIRICHLET_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTOWG')
         end select
         coupler%flow_bc_type(TOWG_SOLV_EQ_IDX) = DIRICHLET_BC
       case default
@@ -2561,14 +2592,16 @@ subroutine PatchUpdateCouplerAuxVarsTOWG(patch,coupler,option)
                 selector%rarray(1)
               dof_temp = PETSC_TRUE
             class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
+              call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
                                                  real_count)
               dof_temp = PETSC_TRUE
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
-              option%io_buffer = 'Unknown dataset class (towg%' // &
-                'temperature%itype,DIRICHLET_BC)'
-              call printErrMsg(option)
+              call PrintMsg(option,'towg%temperature%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(selector,option, &
+                                       'PatchUpdateCouplerAuxVarsTOWG')
           end select
           coupler%flow_bc_type(towg_energy_eq_idx) = DIRICHLET_BC
         case default
@@ -2978,6 +3011,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
+  use Dataset_module
 
   implicit none
 
@@ -3020,13 +3054,15 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
             coupler%flow_aux_real_var(TH_PRESSURE_DOF,1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
                                                TH_PRESSURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
           class default
-            option%io_buffer = 'Unknown dataset class (TH%' // &
-              'pressure%itype,DIRICHLET_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'th%pressure%itype,DIRICHLET_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTH')
         end select
       case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
@@ -3060,13 +3096,15 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
                   selector%rarray(1)
               endif
             class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
+              call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
                                                  TH_TEMPERATURE_DOF)
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
-              option%io_buffer = 'Unknown dataset class (TH%' // &
-                'temperature%itype,DIRICHLET_BC)'
-              call printErrMsg(option)
+              call PrintMsg(option,'th%temperature%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(selector,option, &
+                                       'PatchUpdateCouplerAuxVarsTH')
           end select
         case (HET_DIRICHLET_BC)
           call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
@@ -3108,13 +3146,15 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
                                       1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
                                                TH_TEMPERATURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
           class default
-            option%io_buffer = 'Unknown dataset class (TH%' // &
-              'pressure%itype,DIRICHLET_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'th%pressure%itype,DIRICHLET_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTH')
         end select
       case (HET_DIRICHLET_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
@@ -3138,13 +3178,13 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
                                       1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
                                                TH_TEMPERATURE_DOF)
           class default
-            option%io_buffer = 'Unknown dataset class (TH%' // &
-              'pressure%itype,NEUMANN_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'th%pressure%itype,NEUMANN_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTH')
         end select
       case default
         string = &
@@ -3316,6 +3356,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
+  use Dataset_module
 
   implicit none
 
@@ -3349,10 +3390,15 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
             coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF, &
                                       1:num_connections) = dataset%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                             patch%grid,dataset, &
                                             RICHARDS_PRESSURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
           class default
+            call PrintMsg(option,'pressure%itype,DIRICHLET-type')
+            call DatasetUnknownClass(dataset,option, &
+                                     'PatchUpdateCouplerAuxVarsRich')
         end select
       case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
@@ -3439,18 +3485,17 @@ subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
       endif
       call DatasetGriddedHDF5InterpolateReal(dataset,x,y,z,value,option)
     class default
-      option%io_buffer = 'Unknown dataset class: &
-                         &PatchGetCouplerValueFromDataset().'
-      call printErrMsg(option)
+      call DatasetUnknownClass(dataset,option, &
+                               'PatchGetCouplerValueFromDataset')
   end select
 
 end subroutine PatchGetCouplerValueFromDataset
 
 ! ************************************************************************** !
 
-subroutine PatchUpdateCouplerFromDataset(coupler,option,grid,dataset,dof)
+subroutine PatchUpdateCouplerGridDataset(coupler,option,grid,dataset,dof)
   !
-  ! Updates auxiliary variables from dataset.
+  ! Updates auxiliary variables from a gridded dataset.
   !
   ! Author: Glenn Hammond
   ! Date: 11/26/07
@@ -3494,7 +3539,7 @@ subroutine PatchUpdateCouplerFromDataset(coupler,option,grid,dataset,dof)
     coupler%flow_aux_real_var(dof,iconn) = temp_real
   enddo
 
-end subroutine PatchUpdateCouplerFromDataset
+end subroutine PatchUpdateCouplerGridDataset
 
 ! ************************************************************************** !
 
@@ -3753,11 +3798,11 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
       enddo
 
     class default
-      option%io_buffer = 'Incorrect dataset class (' // &
-        trim(DatasetGetClass(dataset_base)) // &
-        ') for coupler "' // trim(coupler%name) // &
-        '" in PatchUpdateHetroCouplerAuxVars.'
-      call printErrMsg(option)
+      option%io_buffer = 'Incorrect dataset class for coupler "' // &
+                         trim(coupler%name) // '".'
+      call printMsg(option)
+      call DatasetUnknownClass(selector,option, &
+                               'PatchUpdateHetroCouplerAuxVars')
   end select
 
 end subroutine PatchUpdateHetroCouplerAuxVars

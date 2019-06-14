@@ -27,6 +27,7 @@ module Dataset_module
             DatasetPrint, &
             DatasetReadDoubleOrDataset, &
             DatasetGetMinRValue, &
+            DatasetUnknownClass, &
             DatasetDestroy
 
 contains
@@ -558,6 +559,32 @@ function DatasetGetMinRValue(dataset,option)
   endif
   
 end function DatasetGetMinRValue
+
+! ************************************************************************** !
+
+subroutine DatasetUnknownClass(this,option,string)
+  ! 
+  ! Prints dataset info
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/22/13
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(dataset_base_type) :: this
+  type(option_type) :: option
+  character(len=*) :: string
+
+  option%io_buffer = 'Dataset "' // trim(this%name) // &
+    '" from filename "' // trim(this%filename) // '" of class "' // &
+    trim(DatasetGetClass(this)) // '" is not recognized in "' // &
+    trim(string) // '".'
+  call PrintErrMsg(option)
+            
+end subroutine DatasetUnknownClass
 
 ! ************************************************************************** !
 

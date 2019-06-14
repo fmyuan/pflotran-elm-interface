@@ -43,6 +43,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   use Dataset_Base_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Common_HDF5_class
+  use Dataset_module
   use Grid_module
   use Patch_module
   use EOS_Water_module
@@ -129,6 +130,12 @@ subroutine CondControlAssignFlowInitCond(realization)
             select type(dataset_ptr => dataset)
               class is(dataset_gridded_hdf5_type)
                 ! already mapped to flow_aux_real_var
+                if (.not.associated(initial_condition%flow_aux_real_var)) then
+                  option%io_buffer = 'A gridded dataset is being &
+                    &used with WIPP_FLOW, yet flow_aux_real_var is not &
+                    &allocated.'
+                  call PrintErrMsgToDev(option,'')
+                endif
               class is(dataset_common_hdf5_type)
                 use_dataset = PETSC_TRUE
                 dataset_flag(idof) = PETSC_TRUE
@@ -136,7 +143,6 @@ subroutine CondControlAssignFlowInitCond(realization)
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
-              class default
             end select
           enddo            
 
@@ -736,6 +742,12 @@ subroutine CondControlAssignFlowInitCond(realization)
             select type(dataset_ptr => dataset)
               class is(dataset_gridded_hdf5_type)
                 ! already mapped to flow_aux_real_var
+                if (.not.associated(initial_condition%flow_aux_real_var)) then
+                  option%io_buffer = 'A gridded dataset is being &
+                    &used with ' // trim(option%flowmode) // &
+                    ', yet flow_aux_real_var is not allocated.'
+                  call PrintErrMsgToDev(option,'')
+                endif
               class is(dataset_common_hdf5_type)
                 use_dataset = PETSC_TRUE
                 dataset_flag(idof) = PETSC_TRUE
@@ -743,7 +755,6 @@ subroutine CondControlAssignFlowInitCond(realization)
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
-              class default
             end select
           enddo            
           if (.not.associated(initial_condition%flow_aux_real_var) .and. &
