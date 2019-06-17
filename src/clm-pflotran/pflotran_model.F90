@@ -2034,7 +2034,6 @@ end subroutine pflotranModelSetICs
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
     use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
 
     implicit none
 
@@ -2083,7 +2082,6 @@ end subroutine pflotranModelSetICs
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
     use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
 
     implicit none
 
