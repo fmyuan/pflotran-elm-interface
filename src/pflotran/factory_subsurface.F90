@@ -2882,9 +2882,10 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
+                  option%iflowmode == TH_MODE .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
-            &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, or GENERAL. &
+            &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, TH, or GENERAL. &
             &Use SATURATION_FUNCTION.'
           call PrintErrMsg(option)
         endif
