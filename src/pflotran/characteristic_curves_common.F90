@@ -1897,6 +1897,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
             2.d0*Se**(one_over_m-0.5d0)* &
                 (1.d0-Se_one_over_m)**(this%m-1.d0)* &
                 (1.d0-(1.d0-Se_one_over_m)**this%m)
+
   dSe_sat = 1.d0 / (1.d0 - this%Sr)
   dkr_sat = dkr_Se * dSe_sat
   

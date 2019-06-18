@@ -386,7 +386,7 @@ end subroutine THAuxVarCopy
 
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
-                                     iphase,saturation_function, &
+                                     iphase,characteristic_curves, &
                                      th_parameter, ithrm, natural_id, &
                                      option)
   ! 
@@ -398,15 +398,15 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
   use Option_module
   use Global_Aux_module
-  
+ 
   use EOS_Water_module
-  use Saturation_Function_module  
+  use Characteristic_Curves_module  
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-  type(saturation_function_type) :: saturation_function
+  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -428,7 +428,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: aux(1)
-
+  PetscReal :: dpc_dsat1 !!!!not sure if this is correct??
+  PetscReal :: dkr_dsat1
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
   global_auxvar%sat = 0.d0
@@ -448,7 +449,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
  
 ! auxvar%pc = option%reference_pressure - auxvar%pres
   auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
-                  saturation_function%pcwmax)
+                 characteristic_curves%saturation_function%pcmax)
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
@@ -459,19 +460,29 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%m      = auxvar%bc_lambda
-    endif
-#endif
-    call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
-                                   kr,ds_dp,dkr_dp, &
-                                   saturation_function, &
-                                   material_auxvar%porosity, &
-                                   material_auxvar%permeability(perm_xx_index), &
-                                   option)
+!#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+!    if(auxvar%bc_alpha > 0.d0) then
+!       saturation_function%alpha  = auxvar%bc_alpha
+!       saturation_function%lambda = auxvar%bc_lambda
+!       saturation_function%m      = auxvar%bc_lambda
+!    endif
+    !#endif
+    call characteristic_curves%saturation_function% &
+         Saturation(auxvar%pc,global_auxvar%sat(1), &
+         ds_dp, option)  !dpc_dsat1
+    call characteristic_curves%liq_rel_perm_function% &
+       RelativePermeability(global_auxvar%sat(1),kr,dkr_dsat1,option) !!dkr_dsat1
+!    call characteristic_curves%saturation_function% &
+!         CapillaryPressure(global_auxvar%sat(1), &
+!                           auxvar%pc, dpc_dsat1, option)
+!    call characteristic_curves%liq_rel_perm_function% &
+!          RelativePermeability(global_auxvar%sat(1),kr,dkr_dp,option)
+ !   call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
+ !                                  kr,ds_dp,dkr_dp, &
+ !                                  saturation_function, &
+ !                                  material_auxvar%porosity, &
+ !                                  material_auxvar%permeability(perm_xx_index), &
+ !                                  option)
     dpw_dp = 0.d0
   else
     iphase = 1
@@ -512,8 +523,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   
 !  call VISW_noderiv(option%temp,pw,sat_pressure,visl,ierr)
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
-    dvis_dp = 0.d0
-    dw_dp = 0.d0
+!    dvis_dp = 0.d0
+!    dw_dp = 0.d0
     hw_dp = 0.d0
   endif
 
@@ -524,6 +535,10 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   
   auxvar%h = hw
   auxvar%u = auxvar%h - pw / dw_mol * option%scale
+
+
+
+  
   auxvar%kvr = kr/visl
   
   auxvar%vis = visl
@@ -536,9 +551,15 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   auxvar%dden_dp = dw_dp
   
 !geh: contribution of dvis_dpsat is now added in EOSWaterViscosity
+<<<<<<< d93e39e281fe7cb66ce1145c773becf593bde0b0
 !  auxvar%dkvr_dT = -kr/(visl*visl)*(dvis_dT+dvis_dpsat*dpsat_dT)
   auxvar%dkvr_dT = -kr/(visl*visl)*dvis_dT
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
+=======
+!  auxvar%dkvr_dt = -kr/(visl*visl)*(dvis_dt+dvis_dpsat*dpsat_dt)
+  auxvar%dkvr_dt = -kr/(visl*visl)*dvis_dt
+  auxvar%dkvr_dp = -kr/(visl*visl)*dvis_dp !dkr_dp/visl - kr/(visl*visl)*dvis_dp
+>>>>>>> Replaced saturation functions with characteristic curves on TH
   if (iphase < 3) then !kludge since pw is constant in the unsat zone
     auxvar%dh_dp = hw_dp
     auxvar%du_dp = hw_dp - (dpw_dp/dw_mol-pw/(dw_mol*dw_mol)*dw_dp)*option%scale
