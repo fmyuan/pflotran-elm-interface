@@ -1418,6 +1418,7 @@ subroutine SF_XW_VG_CapillaryPressure(this,wat_saturation,capillary_pressure, &
 
   PetscReal, parameter :: eps_wat=1.0d-5
   PetscReal :: swa
+  PetscReal :: dum
 
   if (wat_saturation < 0.0) then
     swa = eps_wat
@@ -1425,8 +1426,15 @@ subroutine SF_XW_VG_CapillaryPressure(this,wat_saturation,capillary_pressure, &
     swa = wat_saturation
   end if
 
-  call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
-                                          dpc_dsatw,option)
+    if (wat_saturation > 1.D0-1.D-8) then
+    call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
+                                            dum,option)
+    call this%sat_func_sl%CapillaryPressure(1.D0-1.D-8,dum, &
+                                            dpc_dsatw,option)
+  else
+    call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
+                                            dpc_dsatw,option)
+  endif
 
 end subroutine SF_XW_VG_CapillaryPressure
 
@@ -1543,6 +1551,7 @@ subroutine SF_XW_BC_CapillaryPressure(this,wat_saturation,capillary_pressure, &
 
   PetscReal, parameter :: eps_wat=1.0d-5
   PetscReal :: swa
+  PetscReal :: dum
 
   if (wat_saturation < 0.0) then
     swa = eps_wat
@@ -1552,6 +1561,15 @@ subroutine SF_XW_BC_CapillaryPressure(this,wat_saturation,capillary_pressure, &
 
   call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
                                           dpc_dsatw,option)
+  if (wat_saturation > 1.D0-1.D-8) then
+    call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
+                                            dum,option)
+    call this%sat_func_sl%CapillaryPressure(1.D0-1.D-8,dum, &
+                                            dpc_dsatw,option)
+  else
+    call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
+                                            dpc_dsatw,option)
+  endif
 
 end subroutine SF_XW_BC_CapillaryPressure
 
