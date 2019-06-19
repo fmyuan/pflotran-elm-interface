@@ -505,7 +505,12 @@ pflotran.o : factory_pflotran.o factory_subsurface.o multisimulation.o \
              option.o pflotran_constants.o pflotran_provenance.o \
              simulation_base.o
 pflotran_constants.o :
+pflotran_derivative.o : eos.o general_derivative.o option.o
 pflotran_provenance.o :
+pflotran_rxn.o : global_aux.o input_aux.o material_aux.o option.o \
+                 pflotran_constants.o reaction.o reaction_aux.o \
+                 reaction_database.o reactive_transport_aux.o string.o \
+                 transport_constraint.o
 pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
                  input_aux.o option.o pflotran_constants.o pm_base.o \
                  reaction_aux.o reactive_transport_aux.o \
