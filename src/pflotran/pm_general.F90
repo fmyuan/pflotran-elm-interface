@@ -1233,6 +1233,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
+  PetscBool :: flags(37)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=12), parameter :: state_string(3) = &
     ['Liquid State','Gas State   ','2Phase State']
@@ -1319,11 +1320,22 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                        converged_scaled_residual_real(:,:)
     this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
                                        converged_scaled_residual_cell(:,:)
-    mpi_int = 9*MAX_INDEX
     ! do not perform an all reduce on cell id as this info is not printed 
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
+
+    ! geh: since we need to pack other flags into this global reduction,
+    !      convert to 1D array
+    flags(1:9*MAX_INDEX) = reshape(this%converged_flag,(/9*MAX_INDEX/))
+    ! due to the 'and' operation, must invert the boolean using .not.
+    flags(37) = .not.general_high_temp_ts_cut
+    mpi_int = 37
+    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+    this%converged_flag = reshape(flags(1:9*MAX_INDEX),(/3,3,MAX_INDEX/))
+    ! due to the 'and' operation, must invert the boolean using .not.
+    general_high_temp_ts_cut = .not.flags(37)
+
+    mpi_int = 9*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   
@@ -1388,6 +1400,12 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         string = '    Exceeded General Mode Max Newton Iterations'
         call OptionPrint(string,option)
       endif
+    endif
+    if (general_high_temp_ts_cut) then
+      general_high_temp_ts_cut = PETSC_FALSE
+      string = '    Exceeded General Mode EOS max temperature'
+      call OptionPrint(string,option)
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
   endif
 
