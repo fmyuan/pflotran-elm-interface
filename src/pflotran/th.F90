@@ -18,15 +18,30 @@ module TH_module
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: unit_z(3) = [0.d0,0.d0,1.d0]
 
-  public THResidual,THJacobian, &
-         THUpdateFixedAccumulation,THTimeCut,&
-         THSetup, THNumericalJacobianTest, &
-         THMaxChange, THUpdateSolution, &
-         THGetTecplotHeader, THInitializeTimestep, &
-         THComputeMassBalance, THResidualToMass, &
-         THSecondaryHeat, THSecondaryHeatJacobian, & 
-         THUpdateAuxVars, THDestroy, &
-         THUpdateSurfaceBC, THAccumulation
+  public THResidual, &
+         THJacobian, &
+         THUpdateFixedAccumulation, &
+         THTimeCut, &
+         THSetup, &
+         THNumericalJacobianTest, &
+         THMaxChange, &
+         THUpdateSolution, &
+         THGetTecplotHeader, &
+         THInitializeTimestep, &
+         THComputeMassBalance, &
+         THResidualToMass, &
+         THSecondaryHeat, &
+         THSecondaryHeatJacobian, & 
+         THUpdateAuxVars, &
+         THDestroy, &
+         THUpdateSurfaceBC, &
+         THAccumulation, &
+         THResidualInternalConn, &
+         THResidualBoundaryConn, &
+         THResidualSourceSink, &
+         THJacobianInternalConn, &
+         THJacobianBoundaryConn, &
+         THJacobianSourceSink
          
   PetscInt, parameter :: jh2o = 1
 

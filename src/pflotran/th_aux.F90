@@ -45,6 +45,9 @@ module TH_Aux_module
     PetscReal :: d2sat_dt2
     PetscReal :: d2den_dt2
     PetscReal :: d2u_dt2
+    PetscReal :: d2sat_dtdp
+    PetscReal :: d2den_dtdp
+    PetscReal :: d2u_dtdp
     
     ! for ice
     type(th_ice_type), pointer :: ice
@@ -974,8 +977,11 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
     
     if (ideriv == 1) then
       TH_auxvar%d2sat_dp2 = (TH_auxvar_pert%dsat_dp - TH_auxvar%dsat_dp)/pert
+      TH_auxvar%d2sat_dtdp = (TH_auxvar_pert%dsat_dt - TH_auxvar%dsat_dt)/pert
       TH_auxvar%d2den_dp2 = (TH_auxvar_pert%dden_dp - TH_auxvar%dden_dp)/pert
+      TH_auxvar%d2den_dtdp = (TH_auxvar_pert%dden_dt - TH_auxvar%dden_dt)/pert
       TH_auxvar%d2u_dp2 = (TH_auxvar_pert%du_dp - TH_auxvar%du_dp)/pert
+      TH_auxvar%d2u_dtdp = (TH_auxvar_pert%du_dt - TH_auxvar%du_dt)/pert
     endif  
     
     if (ideriv == 2) then
