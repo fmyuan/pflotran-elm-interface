@@ -133,7 +133,7 @@ subroutine FluidPropertyRead(fluid_property,input,option)
   if (.not.(StringCompareIgnoreCase(fluid_property%phase_name,'LIQUID') .or. &
             StringCompareIgnoreCase(fluid_property%phase_name,'GAS'))) then
     option%io_buffer = 'PHASE in FLUID_PROPERTY should be LIQUID or GAS.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 

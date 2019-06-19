@@ -256,7 +256,7 @@ subroutine WIPPGasGenerationSrcSink(this,Residual,Jacobian, &
   if (compute_derivative) then
     option%io_buffer = 'WIPPGasGenerationSrcSink is not configured for &
       &analytical derivatives.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine WIPPGasGenerationSrcSink

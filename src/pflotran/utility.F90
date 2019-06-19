@@ -1295,7 +1295,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
           option%io_buffer = trim(option%io_buffer) // &
             '  Expected ' // trim(adjustl(word2)) // &
             ' but read ' // trim(adjustl(word)) // '.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         exit
       else if (icount == 0) then
@@ -1305,7 +1305,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         else
           option%io_buffer = 'No values read in UtilityReadIntArray().'
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         exit
       endif
@@ -1458,7 +1458,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
           option%io_buffer = trim(option%io_buffer) // &
             '  Expected ' // trim(adjustl(word2)) // &
             ' but read ' // trim(adjustl(word)) // '.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         exit
       else if (icount == 0) then
@@ -1468,7 +1468,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         else
           option%io_buffer = 'No values read in UtilityReadRealArray().'
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         exit
       endif

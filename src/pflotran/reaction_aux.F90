@@ -1077,7 +1077,7 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
   if (return_error .and. GetPrimarySpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
       '" not found among primary species in GetPrimarySpeciesIDFromName().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end function GetPrimarySpeciesIDFromName2
@@ -1214,7 +1214,7 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
   if (return_error .and. GetSecondarySpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
       '" not found among Secondary species in GetSecondarySpeciesIDFromName().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end function GetSecondarySpeciesIDFromName2
@@ -1390,7 +1390,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
 
   if (iflag == 1) then
     option%io_buffer = 'In ReactionFitLogKCoef: log K = 500 for ' // trim(name)
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
   endif
 
   do j = 1, FIVE_INTEGER

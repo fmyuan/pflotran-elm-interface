@@ -358,7 +358,7 @@ contains
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
-            call printErrMsgByRank(option)
+            call PrintErrMsgByRank(option)
         end select
       enddo
       
@@ -386,26 +386,26 @@ contains
           if(wts_row_tmp(ii) < 1) then
             write(*,string),'Row entry for ii = ',ii,' less than 1'
             option%io_buffer = string
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           if(wts_col_tmp(ii) < 1) then
             write(*,string),'Col entry for ii = ',ii,' less than 1'
             option%io_buffer = string
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           if((wts_tmp(ii) < 0.d0).or.(wts_tmp(ii) > 1.d0)) then
             write(*,string),'Invalid wt value for ii = ',ii
             option%io_buffer = string
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           ! ensure that row values in the data are stored in ascending order
           if(wts_row_tmp(ii) < prev_row) then
             write(*,string),'Row value in the mapping data not store in ascending order: ii ',ii
             option%io_buffer = string
-            call printErrMsg(option) 
+            call PrintErrMsg(option)
           endif
           prev_row = wts_row_tmp(ii)
           
@@ -572,7 +572,7 @@ contains
     ! Open group
     group_name = "/row"
     option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)
+    call PrintMsg(option)
 
     ! Open dataset
     call h5dopen_f(file_id,"row",data_set_id,hdf5_err)
@@ -585,7 +585,7 @@ contains
     if (ndims /= 1) then
       option%io_buffer='Dimension of row dataset in ' // trim(map_filename) // &
             ' is not equal to 1.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     ! Get dimensions of dataset
@@ -651,7 +651,7 @@ contains
     ! Open group
     group_name = "/col"
     option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)
+    call PrintMsg(option)
 
     ! Open dataset
     call h5dopen_f(file_id,"col",data_set_id,hdf5_err)
@@ -664,7 +664,7 @@ contains
     if (ndims /= 1) then
       option%io_buffer='Dimension of row dataset in ' // trim(map_filename) // &
             ' is not equal to 1.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     ! Get dimensions of dataset
@@ -722,7 +722,7 @@ contains
     ! Open group
     group_name = "/S"
     option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)
+    call PrintMsg(option)
 
     ! Open dataset
     call h5dopen_f(file_id,"S",data_set_id,hdf5_err)
@@ -735,7 +735,7 @@ contains
     if (ndims /= 1) then
       option%io_buffer='Dimension of row dataset in ' // trim(map_filename) // &
             ' is not equal to 1.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     ! Get dimensions of dataset

@@ -248,7 +248,7 @@ subroutine StrataRead(strata,input,option)
       trim(strata%material_property_name) // '" must have an associated &
       &REGION in the STRATA block.  Otherwise, please use "FILE <filename>" &
       &to read material IDs from a file.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if ((Initialized(strata%start_time) .and. &
@@ -258,7 +258,7 @@ subroutine StrataRead(strata,input,option)
     option%io_buffer = &
       'Both START_TIME and FINAL_TIME must be set for STRATA with region "' // &
       trim(strata%region_name) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Initialized(strata%start_time)) then
     option%flow%transient_porosity = PETSC_TRUE

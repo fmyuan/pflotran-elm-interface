@@ -3885,7 +3885,7 @@ subroutine checkSurfaceDensities(option)
   enddo
 
   if (ierr == 1) then
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine checkSurfaceDensities
@@ -3919,7 +3919,7 @@ subroutine checkSolverAvailable(option)
   endif
   if (wsnx>3) then
     option%io_buffer = 'Wellsolver needs n>3 direct solver for this system'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! Is water present?
@@ -3930,7 +3930,7 @@ subroutine checkSolverAvailable(option)
   enddo
   if (.not.water_found) then
     option%io_buffer = 'Well solver assumes water phase is present'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! Is is a supported mode ?
@@ -3942,13 +3942,13 @@ subroutine checkSolverAvailable(option)
 
   if (.not.mode_ok) then
     option%io_buffer = 'This mode not yet supported by well solver'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   is_grdecl = GetIsGrdecl()
   if (.not.is_grdecl) then
     option%io_buffer = 'Well solver requires grdecl type input'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine checkSolverAvailable

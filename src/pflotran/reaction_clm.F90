@@ -599,7 +599,7 @@ subroutine CLMDec_Read(this,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,' // &
             'NH4+ down regulation cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('CUTOFF_NO3')
         call InputReadDouble(input,option,this%cutoff_no3_0)
@@ -612,7 +612,7 @@ subroutine CLMDec_Read(this,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec' // &
             'NO3- down regulation cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
       case('SMOOTH_NET_N_MINERALIZATION')
@@ -625,7 +625,7 @@ subroutine CLMDec_Read(this,input,option)
         if (this%net_n_min_rate_smooth_0 > this%net_n_min_rate_smooth_1) then
           option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,' // &
             'Net N mineralization smooth 0 concentration > 1 concentration.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
      case('DEBUG_OUTPUT')
@@ -767,7 +767,7 @@ subroutine CLMDec_Read(this,input,option)
             'be included in a CLMDec reaction definition, but not both. ' // &
             'See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else if (turnover_time > 0.d0) then
           new_reaction%rate_constant = 1.d0 / turnover_time
         else
@@ -935,7 +935,7 @@ subroutine CLMDec_Setup(this,reaction,option)
         option%io_buffer = 'For CLMDec pools with no CN ratio defined, ' // &
           'the user must define two immobile species with the same root ' // &
           'name as the pool with "C" or "N" appended, respectively.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     else ! only one species (e.g. SOMX)
       species_id_pool_c(icount) = &
@@ -947,7 +947,7 @@ subroutine CLMDec_Setup(this,reaction,option)
         if (species_id_pool_c(icount) <= 0) then
           option%io_buffer = 'CLMDec pool: ' // cur_pool%name // 'is not ' // &
             'specified either in the IMMOBILE_SPECIES or PRIMARY_SPECIES!'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else
           pool_is_aqueous(icount) = PETSC_TRUE
         endif
@@ -976,7 +976,7 @@ subroutine CLMDec_Setup(this,reaction,option)
       option%io_buffer = 'Upstream pool ' // &
         trim(cur_rxn%upstream_pool_name) // &
         'in reaction not found in list of pools.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       this%upstream_c_id(icount) = species_id_pool_c(ipool)
       this%upstream_n_id(icount) = species_id_pool_n(ipool)
@@ -989,7 +989,7 @@ subroutine CLMDec_Setup(this,reaction,option)
           option%io_buffer = 'SOM decomp. reaction with upstream pool ' // &
             trim(cur_rxn%upstream_pool_name) // &
             'has negative C:N ratio in upstream pool.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif
     endif
@@ -1008,7 +1008,7 @@ subroutine CLMDec_Setup(this,reaction,option)
           option%io_buffer = 'Downstream pool "' // trim(cur_pool%name) // &
             '" in reaction with upstream pool "' // &
             trim(cur_rxn%upstream_pool_name) // '" not found in list of pools.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else
           this%downstream_id(icount, jcount) = species_id_pool_c(ipool)
           this%downstream_stoich(icount, jcount) = cur_pool%stoich 
@@ -1021,7 +1021,7 @@ subroutine CLMDec_Setup(this,reaction,option)
               'tracked individually).  Therefore, pool "' // &
               trim(cur_pool%name) // &
              '" may not be used as a downstream pool.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
       endif
@@ -1058,7 +1058,7 @@ subroutine CLMDec_Setup(this,reaction,option)
       if (stoich_c < -1.0d-10) then
         option%io_buffer = 'CLMDec SOM decomposition reaction has negative' // &
           ' respiration fraction!'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
 
       this%mineral_c_stoich(icount) = stoich_c
@@ -1080,7 +1080,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   if (this%species_id_co2 <= 0) then
     option%io_buffer = 'Neither HCO3- nor CO2(aq) is specified in the ' // &
       'input file for CLMDec!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   word = 'NH4+'
@@ -1105,7 +1105,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   if (this%species_id_nh4 <= 0) then
     option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
       'file for CLMDec!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   word = 'NO3-'
@@ -1442,7 +1442,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if (stoich_c < 0.0d0) then
           option%io_buffer = 'CLMDec litter decomposition reaction has' // &
                              'negative respiration fraction!'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         this%mineral_c_stoich(irxn) = stoich_c
@@ -1472,7 +1472,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if (this%n_downstream_pools(irxn) .ne. 2) then
           option%io_buffer = 'CLM_Microbe litter decomposition reaction ' // &
                               'more than 2 (bacteria and fungi pools)!'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         do i = 1, this%n_downstream_pools(irxn)
@@ -1927,7 +1927,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ispec_d = this%downstream_id(irxn, j)
         if (ispec_d < 0) then
           option%io_buffer = 'Downstream pool species not specified!'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         if (this%downstream_is_aqueous(irxn, j)) then
@@ -1950,7 +1950,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           else
             option%io_buffer = 'Downstream pool for CLM-Microbe should be' // &
                                'either bacteria or fungi!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
       enddo
@@ -2024,7 +2024,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ispec_d = this%downstream_id(irxn, j)
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           if (this%downstream_is_aqueous(irxn, j)) then
             ires_d = ispec_d
@@ -2110,7 +2110,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ispec_d = this%downstream_id(irxn, j)
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2136,7 +2136,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             else
               option%io_buffer ='Downstream pool for CLM-Microbe should be' // &
                                'either bacteria or fungi!'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
           endif
         enddo
@@ -2248,7 +2248,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ispec_d = this%downstream_id(irxn, j)
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2274,7 +2274,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             else
               option%io_buffer ='Downstream pool for CLM-Microbe should be' // &
                                'either bacteria or fungi!'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
           endif
         enddo
@@ -2353,7 +2353,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ispec_d = this%downstream_id(irxn, j)
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           if (this%downstream_is_aqueous(irxn, j)) then
             ires_d = ispec_d
@@ -2496,7 +2496,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ispec_d = this%downstream_id(irxn, j)
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2517,7 +2517,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             else
               option%io_buffer = 'Downstream pool for CLM-Microbe should ' // &
                                  'be either bacteria or fungi!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
             endif
           endif
         enddo
@@ -2585,7 +2585,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2633,7 +2633,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2711,7 +2711,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ispec_d = this%downstream_id(irxn, j)
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2735,7 +2735,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             else
               option%io_buffer = 'Downstream pool for CLM-Microbe should ' // &
                                  'be either bacteria or fungi!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
             endif
           endif
         enddo
@@ -2813,7 +2813,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -2867,7 +2867,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           if (ispec_d < 0) then
             option%io_buffer = 'Downstream pool species not specified!'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
 
           if (this%downstream_is_aqueous(irxn, j)) then
@@ -3301,7 +3301,7 @@ subroutine PlantNRead(this,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,' // &
             'NH4+ cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('CUTOFF_NO3')
         call InputReadDouble(input,option,this%cutoff_no3_0)
@@ -3314,7 +3314,7 @@ subroutine PlantNRead(this,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,' // &
             'NO3- down regulation cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('DEBUG_OUTPUT')
         this%bdebugoutput = PETSC_TRUE
@@ -3376,7 +3376,7 @@ subroutine PlantNSetup(this,reaction,option)
   if (this%ispec_nh4 < 0) then
     option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
       'file for PlantN sandbox!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   word = 'NO3-'
@@ -3397,7 +3397,7 @@ subroutine PlantNSetup(this,reaction,option)
 
   if (this%ispec_plantn < 0) then
     option%io_buffer = 'PlantN is specified in the input file!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   word = 'Ain'
@@ -3500,7 +3500,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   if (this%ispec_plantn < 0) then
     option%io_buffer = 'PlantN is not specified in the input file!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ires_nh4 = -999
@@ -3909,7 +3909,7 @@ subroutine NitrRead(this,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,' // &
             'NH4+ cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('SMOOTH_NH4_2_N2O')
         call InputReadDouble(input,option,this%c_nh4_ugg_0)
@@ -4006,19 +4006,19 @@ subroutine NitrSetup(this,reaction,option)
   if (this%ispec_nh4 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
        'NH3(aq), NH4+, or Ammonium is not specified in the input file.'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
   if (this%ispec_no3 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
                         ' NO3- is not specified in the input file.'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
 !  if (this%ispec_n2o < 0) then
 !     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
 !                        ' N2O(aq) is not specified in the input file.'
-!     call printErrMsg(option)
+!     call PrintErrMsg(option)
 !  endif
 
   word = 'NGASnitr'
@@ -4611,7 +4611,7 @@ subroutine DeniRead(this,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION,' // &
             'NO3- cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('DEBUG_OUTPUT')
         this%bdebugoutput = PETSC_TRUE
@@ -4663,7 +4663,7 @@ subroutine DeniSetup(this,reaction,option)
   if (this%ispec_no3 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
                         ' NO3- or nitrate is not specified in the input file.'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
   word = 'N2(aq)'
@@ -4673,7 +4673,7 @@ subroutine DeniSetup(this,reaction,option)
   if (this%ispec_n2 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
                         ' N2(aq) is not specified in the input file.'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
   word = 'NGASdeni'
@@ -5064,7 +5064,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
             'NH4+ cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('CUTOFF_NO3')
         call InputReadDouble(input,option,cutoff_no3_0)
@@ -5075,7 +5075,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
           option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
             'NO3- down regulation cut off concentration > concentration ' // &
             'where down regulation function = 1.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
       case default
@@ -5254,7 +5254,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   if (ispec_nh4 < 0) then
     option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
       'file for clm_rxn!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   word = 'NO3-'
@@ -5278,7 +5278,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
         ((.not.is_nh4_aqueous) .and. is_no3_aqueous)) then
       option%io_buffer = 'ERROR: Ammonium and nitrate have different phases: one in aqueous, the other in immobile,' // &
         'please use the same in the input file!'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 

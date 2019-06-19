@@ -170,7 +170,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
                  '" in Geomech boundary condition "' // &
                  trim(coupler%name) // &
                  '" not found in Geomech region list'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     ! pointer to geomech condition
@@ -185,14 +185,14 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
                    '" in Geomech boundary condition "' // &
                    trim(coupler%name) // &
                    '" not found in geomech condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       else
         option%io_buffer = &
           'A GEOMECHANICS_CONDITION must be specified in ' // &
           'GEOMECHANICS_BOUNDARY_CONDITION: ' // &
            trim(coupler%name) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     coupler => coupler%next
@@ -213,7 +213,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
                  '" in geomech source/sink "' // &
                  trim(coupler%name) // &
                  '" not found in geomech region list'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     ! pointer to geomech condition
     if (option%ngeomechdof > 0) then    
@@ -227,13 +227,13 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
                    '" in geomech source/sink "' // &
                    trim(coupler%name) // &
                    '" not found in geomech condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       else
         option%io_buffer = &
           'A GEOMECHANICS_CONDITION must be specified in ' // &
           'GEOMECHANICS_SOURCE_SINK: ' // trim(coupler%name) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     coupler => coupler%next
@@ -254,7 +254,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
       if (.not.associated(strata%region)) then
         option%io_buffer = 'Geomech Region "' // trim(strata%region_name) // &
                  '" in geomech strata not found in geomech region list'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       if (strata%active) then
         ! pointer to material
@@ -266,7 +266,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
           option%io_buffer = 'Geomech Material "' // &
                               trim(strata%material_property_name) // &
                               '" not found in geomech material list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif
     else
@@ -295,7 +295,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
                  '" in observation point "' // &
                  trim(observation%name) // &
                  '" not found in region list'                   
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (observation%region%num_cells == 0) then
           ! remove the observation object
@@ -310,7 +310,7 @@ subroutine GeomechPatchProcessGeomechCouplers(patch,conditions,option)
           option%io_buffer = 'Boundary Condition "' // &
                    trim(observation%linkage_name) // &
                    '" not found in Boundary Condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (observation%connection_set%num_connections == 0) then
           ! cannot remove from list, since there must be a global reduction
@@ -407,7 +407,7 @@ subroutine GeomechPatchInitCouplerAuxVars(coupler_list,patch,option)
         endif ! associated(coupler%geomech_condition%displacement_x)
       else if (coupler%itype == GM_SRC_SINK_COUPLER_TYPE) then
         option%io_buffer='Source/Sink not implemented for geomechanics.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif ! coupler%itype == GM_SRC_SINK_COUPLER_TYPE
     endif ! associated(coupler%region)
       
@@ -708,7 +708,7 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in GeomechPatchGetDataset'')') ivar
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine GeomechPatchGetDataset

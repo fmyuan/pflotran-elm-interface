@@ -266,7 +266,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   
   if (row_count == 0) then
     option%io_buffer = 'No values provided in Ascii Dataset.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if (row_count == 1) then
     default_interpolation_method = INTERPOLATION_STEP
   endif
@@ -339,7 +339,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         trim(word) // ') and rank in file ('
       write(word,*) data_count
       option%io_buffer = trim(option%io_buffer) // trim(word) // ').'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   else
     this%array_width = data_count
@@ -350,7 +350,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
     write(word,*) size(internal_data_units_strings)
     option%io_buffer = 'Incorrect internal data units (' // &
       trim(adjustl(word)) // '): ' // error_string
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   deallocate(internal_data_units_strings)
@@ -434,7 +434,7 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
     write(word,*) size(internal_data_units_strings)
     option%io_buffer = 'Incorrect internal data units (' // &
       trim(adjustl(word)) // '): ' // error_string
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   deallocate(internal_data_units_strings)
@@ -497,7 +497,7 @@ subroutine DatasetAsciiVerify(this,dataset_error,option)
     if (this%array_width /= this%dims(1)) then
       option%io_buffer = &
         '"array_width" is not equal to "dims(1)"'
-      call printMsg(option)
+      call PrintMsg(option)
       dataset_error = PETSC_TRUE
     endif
     ! set initial values

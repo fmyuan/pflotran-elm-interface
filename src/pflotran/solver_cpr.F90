@@ -72,7 +72,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case default
             option%io_buffer  = 'CPR T2 Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
 
       case('CPRT1_TYPE')
@@ -89,7 +89,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case default
             option%io_buffer  = 'CPR T1 KSP type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
 
       case('CPR_EXTRACTION_TYPE')
@@ -104,7 +104,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case default
             option%io_buffer  = 'CPR Extraction type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
 
       case('CPR_EX_OFFSET')
@@ -173,7 +173,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
                 case default
                   option%io_buffer  = 'HYPRE BoomerAMG cycle type: ' &
                                       // trim(word) // ' unknown.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             case('BOOMERAMG_MAX_LEVELS')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -397,13 +397,13 @@ subroutine SolverCPRRead(stash, input, option, ierr)
             case default
               option%io_buffer  = 'HYPRE option: ' // trim(keyword) // &
                                   ' unknown.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
         enddo
     case default
       option%io_buffer  = 'CPR preconditioner option: ' // trim(keyword) // &
                           ' unknown.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end select
   enddo
 
@@ -441,7 +441,7 @@ subroutine SolverCPRInit(J, stash, pcin, ierr, option)
     option%io_buffer  = 'CPR preconditioner: not compatible with matrix type: ' // trim(Jtype) // &
                         ' -  Please try again with blocked matrix type BAIJ '                  // &
                         '(for most modes this should be the default).'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 

@@ -150,7 +150,7 @@ subroutine CondControlAssignFlowInitCond(realization)
           if (.not.associated(initial_condition%flow_aux_real_var)) then
             if (.not.associated(initial_condition%flow_condition)) then
               option%io_buffer = 'Flow condition is NULL in initial condition'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
 
             general => initial_condition%flow_condition%general
@@ -165,13 +165,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                 (general%liquid_pressure%itype == DIRICHLET_BC .or. &
                   general%liquid_pressure%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Liquid pressure ' // trim(string)
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
             if (.not. &
                 (general%gas_saturation%itype == DIRICHLET_BC .or. &
                   general%gas_saturation%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Gas saturation ' // trim(string)
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
 
             do icell=1,initial_condition%region%num_cells
@@ -244,7 +244,7 @@ subroutine CondControlAssignFlowInitCond(realization)
           if (.not.associated(initial_condition%flow_aux_real_var)) then
             if (.not.associated(initial_condition%flow_condition)) then
               option%io_buffer = 'Flow condition is NULL in initial condition'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
               
             general => initial_condition%flow_condition%general
@@ -261,39 +261,39 @@ subroutine CondControlAssignFlowInitCond(realization)
                     (general%gas_pressure%itype == DIRICHLET_BC .or. &
                       general%gas_pressure%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas pressure ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
                 if (.not. &
                     (general%gas_saturation%itype == DIRICHLET_BC .or. &
                       general%gas_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
               case(LIQUID_STATE)
                 if (.not. &
                     (general%liquid_pressure%itype == DIRICHLET_BC .or. &
                       general%liquid_pressure%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Liquid pressure ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
                 if (.not. &
                     (general%mole_fraction%itype == DIRICHLET_BC .or. &
                       general%mole_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Mole fraction ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
               case(GAS_STATE)
                 if (.not. &
                     (general%gas_pressure%itype == DIRICHLET_BC .or. &
                       general%gas_pressure%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas pressure ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
                 if (.not. &
                     (general%mole_fraction%itype == DIRICHLET_BC .or. &
                       general%mole_fraction%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
               case (HA_STATE) !MAN: testing HA_STATE (7)
             end select
@@ -301,7 +301,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                 (general%temperature%itype == DIRICHLET_BC .or. &
                   general%temperature%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Temperature ' // trim(string)
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif                              
               
               
@@ -423,7 +423,7 @@ subroutine CondControlAssignFlowInitCond(realization)
           if (.not.associated(initial_condition%flow_aux_real_var)) then
             if (.not.associated(initial_condition%flow_condition)) then
               option%io_buffer = 'Flow condition is NULL in initial condition'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
               
             toil_ims => initial_condition%flow_condition%toil_ims
@@ -438,21 +438,21 @@ subroutine CondControlAssignFlowInitCond(realization)
                (toil_ims%pressure%itype == DIRICHLET_BC .or. &
                  toil_ims%pressure%itype == HYDROSTATIC_BC)) then
                  option%io_buffer = 'Oil pressure ' // trim(string)
-                 call printErrMsg(option)
+                 call PrintErrMsg(option)
             endif
             ! check saturation condition
             if (.not. &
                (toil_ims%saturation%itype == DIRICHLET_BC .or. &
                  toil_ims%saturation%itype == HYDROSTATIC_BC)) then
                  option%io_buffer = 'Oil saturation ' // trim(string)
-                call printErrMsg(option)
+                call PrintErrMsg(option)
             endif
             ! check temperature condition 
             if (.not. &
                 (toil_ims%temperature%itype == DIRICHLET_BC .or. &
                   toil_ims%temperature%itype == HYDROSTATIC_BC)) then
               option%io_buffer = 'Temperature ' // trim(string)
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif                              
             ! error checking.
             do icell=1,initial_condition%region%num_cells
@@ -534,7 +534,7 @@ subroutine CondControlAssignFlowInitCond(realization)
           if (.not.associated(initial_condition%flow_aux_real_var)) then
             if (.not.associated(initial_condition%flow_condition)) then
               option%io_buffer = 'Flow condition is NULL in initial condition'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
 
             towg => initial_condition%flow_condition%towg
@@ -551,25 +551,25 @@ subroutine CondControlAssignFlowInitCond(realization)
                 if (.not.( towg%oil_pressure%itype == DIRICHLET_BC .or. &
                            towg%oil_pressure%itype == HYDROSTATIC_BC) ) then
                   option%io_buffer = 'Oil pressure ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.( towg%oil_saturation%itype == DIRICHLET_BC .or. &
                            towg%oil_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.( towg%gas_saturation%itype == DIRICHLET_BC .or. &
                            towg%gas_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.( towg%bubble_point%itype == DIRICHLET_BC .or. &
                            towg%bubble_point%itype == HYDROSTATIC_BC)) then
                  option%io_buffer = 'Bubble point ' // trim(string)
-                 call printErrMsg(option)
+                 call PrintErrMsg(option)
                 endif
 
               case(TOWG_THREE_PHASE_STATE)  
@@ -577,19 +577,19 @@ subroutine CondControlAssignFlowInitCond(realization)
                 if (.not.( towg%oil_pressure%itype == DIRICHLET_BC .or. &
                       towg%oil_pressure%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil pressure ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.( towg%oil_saturation%itype == DIRICHLET_BC .or. &
                       towg%oil_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.(towg%gas_saturation%itype == DIRICHLET_BC .or. &
                       towg%gas_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Gas saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
               case(TOWG_LIQ_OIL_STATE)
@@ -597,19 +597,19 @@ subroutine CondControlAssignFlowInitCond(realization)
                 if (.not.(towg%oil_pressure%itype == DIRICHLET_BC .or. &
                           towg%oil_pressure%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil pressure ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.(towg%oil_saturation%itype == DIRICHLET_BC .or. &
                           towg%oil_saturation%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Oil saturation ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
                 if (.not.(towg%bubble_point%itype == DIRICHLET_BC .or. &
                           towg%bubble_point%itype == HYDROSTATIC_BC)) then
                   option%io_buffer = 'Bubble point ' // trim(string)
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
 
               case(TOWG_LIQ_GAS_STATE)
@@ -761,7 +761,7 @@ subroutine CondControlAssignFlowInitCond(realization)
           if (.not.associated(initial_condition%flow_aux_real_var) .and. &
               .not.associated(initial_condition%flow_condition)) then
             option%io_buffer = 'Flow condition is NULL in initial condition'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           if (associated(initial_condition%flow_aux_real_var)) then
             num_connections = &
@@ -839,7 +839,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   if (tempreal < 0.d0) then
 !    print *, tempreal
     option%io_buffer = 'Uninitialized cells in domain.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine CondControlAssignFlowInitCond
@@ -1262,10 +1262,10 @@ subroutine CondControlAssignTranInitCond(realization)
         write(option%io_buffer,&
               '("Average number of iterations in ReactionEquilibrateConstraint():", &
               & f5.1)') ave_num_iterations
-        call printMsg(option)
+        call PrintMsg(option)
         write(option%io_buffer,'(f10.2," Seconds to equilibrate constraints")') &
           tend-tstart
-        call printMsg(option)
+        call PrintMsg(option)
       endif
       initial_condition => initial_condition%next
     enddo
@@ -1286,7 +1286,7 @@ subroutine CondControlAssignTranInitCond(realization)
   if (tempreal <= 0.d0) then
     option%io_buffer = 'ERROR: Zero concentrations found in initial ' // &
       'transport solution.'
-    call printMsg(option)
+    call PrintMsg(option)
     ! now figure out which species have zero concentrations
     do idof = 1, option%ntrandof
       call VecStrideMin(field%tran_xx,idof-1,offset,tempreal, &
@@ -1303,21 +1303,21 @@ subroutine CondControlAssignTranInitCond(realization)
           string2 = trim(string2) // &
             '" has zero concentration (' // &
             trim(adjustl(string)) // ').'
-        call printMsg(option,string2)
+        call PrintMsg(option,string2)
       endif
     enddo
     option%io_buffer = ''
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = '*** Begin Note'
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = 'If concentrations = -999., they have not ' // &
               'been initialized properly.'
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = '*** End Note'
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = 'Free ion concentations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! update dependent vectors
@@ -1482,7 +1482,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   if (tempreal <= 0.d0) then
     option%io_buffer = 'ERROR: Zero concentrations found in initial &
                        &transport solution.'
-    call printMsg(option)
+    call PrintMsg(option)
     ! now figure out which species have zero concentrations
     do idof = 1, option%ntrandof
       call VecStrideMin(field%tran_xx,idof-1,offset,tempreal, &
@@ -1492,21 +1492,21 @@ subroutine CondControlAssignNWTranInitCond(realization)
         string2 = '  Species "' // trim(nw_trans%species_names(idof))
         string2 = trim(string2) // '" has zero concentration (' // &
                   trim(adjustl(string)) // ').'
-        call printMsg(option,string2)
+        call PrintMsg(option,string2)
       endif
     enddo
     option%io_buffer = ''
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = '*** Begin Note'
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = 'If concentrations = -999., they have not ' // &
               'been initialized properly.'
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = '*** End Note'
-    call printMsg(option)
+    call PrintMsg(option)
     option%io_buffer = 'Species concentations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! update dependent vectors
@@ -1593,7 +1593,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // &
           '" not supported in ConditionControlMapDatasetToVec.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
 
@@ -1930,7 +1930,7 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
             if (.not.associated(initial_condition%flow_aux_real_var)) then
               if (.not.associated(initial_condition%flow_condition)) then
                 option%io_buffer = 'Flow condition is NULL in initial condition'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               do icell=1,initial_condition%region%num_cells
                 local_id = initial_condition%region%cell_ids(icell)
@@ -1986,7 +1986,7 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
       case default
         option%io_buffer = 'CondControlAssignFlowInitCondSurface not ' // &
           'for this mode'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select 
    
     cur_patch => cur_patch%next

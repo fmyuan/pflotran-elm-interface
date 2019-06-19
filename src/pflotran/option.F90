@@ -682,7 +682,7 @@ subroutine printErrMsg1(option)
 
   type(option_type) :: option
 
-  call printErrMsg2(option,option%io_buffer)
+  call PrintErrMsg2(option,option%io_buffer)
 
 end subroutine printErrMsg1
 
@@ -734,7 +734,7 @@ subroutine printErrMsgByRank1(option)
 
   type(option_type) :: option
 
-  call printErrMsgByRank2(option,option%io_buffer)
+  call PrintErrMsgByRank2(option,option%io_buffer)
 
 end subroutine printErrMsgByRank1
 
@@ -782,7 +782,7 @@ subroutine printErrMsgNoStopByRank1(option)
 
   type(option_type) :: option
 
-  call printErrMsgNoStopByRank2(option,option%io_buffer)
+  call PrintErrMsgNoStopByRank2(option,option%io_buffer)
 
 end subroutine printErrMsgNoStopByRank1
 
@@ -885,7 +885,7 @@ subroutine printWrnMsg1(option)
 
   type(option_type) :: option
 
-  call printWrnMsg2(option,option%io_buffer)
+  call PrintWrnMsg2(option,option%io_buffer)
 
 end subroutine printWrnMsg1
 
@@ -922,7 +922,7 @@ subroutine printMsg1(option)
 
   type(option_type) :: option
 
-  call printMsg2(option,option%io_buffer)
+  call PrintMsg2(option,option%io_buffer)
 
 end subroutine printMsg1
 
@@ -959,7 +959,7 @@ subroutine printMsgAnyRank1(option)
 
   type(option_type) :: option
 
-  if (option%print_to_screen) call printMsgAnyRank2(option%io_buffer)
+  if (option%print_to_screen) call PrintMsgAnyRank2(option%io_buffer)
 
 end subroutine printMsgAnyRank1
 
@@ -995,7 +995,7 @@ subroutine printMsgByRank1(option)
 
   type(option_type) :: option
 
-  call printMsgByRank2(option,option%io_buffer)
+  call PrintMsgByRank2(option,option%io_buffer)
 
 end subroutine printMsgByRank1
 
@@ -1044,7 +1044,7 @@ subroutine printMsgByCell(option,cell_id,string)
   write(word,*) cell_id
   word = adjustl(word)
   option%io_buffer = trim(string) // ' for cell ' // trim(word) // '.'
-  call printMsgByRank(option)
+  call PrintMsgByRank(option)
 
 end subroutine printMsgByCell
 
@@ -1063,7 +1063,7 @@ subroutine printVerboseMsg(option)
   type(option_type) :: option
 
   if (option%verbosity > 0) then
-    call printMsg(option,option%io_buffer)
+    call PrintMsg(option,option%io_buffer)
   endif
 
 end subroutine printVerboseMsg
@@ -1498,7 +1498,7 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
       ') must be equal to or less than the number of processes (' // &
       adjustl(word)
     option%io_buffer = trim(option%io_buffer) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   local_commsize = option%global_commsize / num_groups
   remainder = option%global_commsize - num_groups * local_commsize

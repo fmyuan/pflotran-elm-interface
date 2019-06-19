@@ -186,7 +186,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
         case default
           option%io_buffer = 'Extend OutputTecplotZoneHeader() for ' // &
             'grid%ctype ' // trim(grid%ctype)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       
       if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
@@ -262,7 +262,7 @@ subroutine OutputTecplotBlock(realization_base)
   
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
     call OutputTecplotHeader(OUTPUT_UNIT,realization_base,icolumn)
   endif
@@ -449,7 +449,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot velocity output file: ' // &
                        trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -678,7 +678,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot velocity flux output file: ' // &
                        trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -960,7 +960,7 @@ subroutine OutputTecplotPoint(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // &
                        trim(filename)
-    call printMsg(option)                       
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     if (output_option%print_column_ids) then
@@ -1066,7 +1066,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   if (.not.associated(grid%structured_grid)) then
     option%io_buffer = 'Tecplot Point output format only supported on &
       &structured grids.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   filename = OutputFilename(output_option,option,'tec','vel')
@@ -1074,7 +1074,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot velocity output file: ' // &
                        trim(filename)
-    call printMsg(option)                       
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -1242,7 +1242,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
   ! open file
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -1938,7 +1938,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
     option%io_buffer = 'Number of values to be written to line in ' // &
       'WriteTecplotDataSetNumPerLine() exceeds 100.  ' // &
       'Must fix format statements.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! maximum number of initial messages  
@@ -1958,7 +1958,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
                          MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
       max_local_size_saved = max_local_size
       write(option%io_buffer,'("max_local_size_saved: ",i9)') max_local_size
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     max_local_size = max_local_size_saved
     local_size_mpi = grid%nlmax
@@ -2214,7 +2214,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write rate output file: ' // &
                        trim(filename)
-    call printMsg(option)                       
+    call PrintMsg(option)
   endif
   
   
@@ -2370,7 +2370,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
     
     if (option%myrank == option%io_rank) then
       option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     
     ! open file
@@ -2400,7 +2400,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       option%io_buffer = 'Writing of data at coordinates not ' // &
               'functioning properly for minerals.  Perhaps due to ' // &
               'non-ghosting of vol frac....>? - geh'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
       call WriteTecplotHeaderForCoordSec(OUTPUT_UNIT,realization_base, &
                                          observation%region, &
                                          observation% &

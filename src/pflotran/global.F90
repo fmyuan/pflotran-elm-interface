@@ -569,7 +569,7 @@ subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
       enddo
     case default
       option%io_buffer = 'Variable unrecognized in GlobalGetAuxVarVecLoc.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)

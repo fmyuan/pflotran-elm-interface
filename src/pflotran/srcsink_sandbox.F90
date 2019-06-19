@@ -115,7 +115,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     option%io_buffer = 'Reactive transport may not be simulated when a &
       &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
       &capability exists in the source/sink sandbox for solute mass.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   nullify(new_sandbox)

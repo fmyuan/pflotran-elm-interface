@@ -229,7 +229,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
       option%io_buffer = 'Natural IDs outside geomechanics domain ' // &
         'requested for geomechanics regression output. ' // &
         'Removing non-existent IDs.'
-      call printWrnMsg(option)
+      call PrintWrnMsg(option)
       count = 0
       allocate(int_array(size(geomechanics_regression%natural_vertex_ids)))
       int_array = 0
@@ -327,7 +327,7 @@ subroutine GeomechanicsRegressionCreateMapping(geomechanics_regression, &
       option%io_buffer = 'Number of vertices per process for ' // &
         'GeomechanicsRegression exceeds minimum number of vertices ' // & 
         'per process.  Truncating.'
-      call printMsg(option)
+      call PrintMsg(option)
       geomechanics_regression%num_vertices_per_process = count
     endif
   
@@ -535,7 +535,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
              trim(option%group_prefix) // &  
              '.regression'
     option%io_buffer = '--> write geomechanics_regression output file: ' // trim(string)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=string,action="write")
   endif
     

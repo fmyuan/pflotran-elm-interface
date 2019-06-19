@@ -53,7 +53,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
 
   if (option%iflowmode /= RICHARDS_MODE) then
     option%io_buffer = 'SaturationUpdateCoupler is not set up for this flow mode.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! in this case, the saturation is stored within concentration dataset

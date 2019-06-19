@@ -130,7 +130,7 @@ recursive subroutine PMGeomechForceFinalizeRun(this)
   class(pm_geomech_force_type) :: this
 
 #ifdef PM_GEOMECH_FORCE_DEBUG
-  call printMsg(this%option,'PMGeomechForce%FinalizeRun()')
+  call PrintMsg(this%option,'PMGeomechForce%FinalizeRun()')
 #endif
 
   if (associated(this%next)) then
@@ -182,7 +182,7 @@ subroutine PMGeomechForceInitializeTimestep(this)
   class(pm_geomech_force_type) :: this
 
 #ifdef PM_GEOMECH_FORCE_DEBUG  
-  call printMsg(this%option,'PMGeomechForce%InitializeTimestep()')
+  call PrintMsg(this%option,'PMGeomechForce%InitializeTimestep()')
 #endif
 
   call PMBasePrintHeader(this)
@@ -211,7 +211,7 @@ subroutine PMGeomechForceResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
   
 #ifdef PM_GEOMECH_FORCE_DEBUG  
-  call printMsg(this%option,'PMGeomechForce%Residual()')
+  call PrintMsg(this%option,'PMGeomechForce%Residual()')
 #endif
   
   call GeomechForceResidual(snes,xx,r,this%geomech_realization,ierr)
@@ -239,7 +239,7 @@ subroutine PMGeomechForceJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
   
 #ifdef PM_GEOMECH_FORCE_DEBUG  
-  call printMsg(this%option,'PMGeomechForce%Jacobian()')
+  call PrintMsg(this%option,'PMGeomechForce%Jacobian()')
 #endif
   
   call GeomechForceJacobian(snes,xx,A,B,this%geomech_realization,ierr)
@@ -287,7 +287,7 @@ subroutine PMGeomechForceUpdateSolution(this)
   PetscBool :: force_update_flag = PETSC_FALSE
 
 #ifdef PM_GEOMECH_FORCE_DEBUG
-  call printMsg(this%option,'PMGeomechForce%UpdateSolution()')
+  call PrintMsg(this%option,'PMGeomechForce%UpdateSolution()')
 #endif
 
   ! begin from RealizationUpdate()
@@ -353,7 +353,7 @@ subroutine PMGeomechForceFinalizeTimestep(this)
   class(pm_geomech_force_type) :: this
   
 #ifdef PM_GEOMECH_FORCE_DEBUG  
-  call printMsg(this%option,'PMGeomechForce%FinalizeTimestep()')
+  call PrintMsg(this%option,'PMGeomechForce%FinalizeTimestep()')
 #endif
 
 end subroutine PMGeomechForceFinalizeTimestep
@@ -376,7 +376,7 @@ subroutine PMGeomechForceCheckpointBinary(this,viewer)
   class(pm_geomech_force_type) :: this
   PetscViewer :: viewer
   
-  call printErrMsg(this%option,'add code for checkpointing Geomech in PM approach')
+  call PrintErrMsg(this%option,'add code for checkpointing Geomech in PM approach')
   
 end subroutine PMGeomechForceCheckpointBinary
 
@@ -398,7 +398,7 @@ subroutine PMGeomechForceRestartBinary(this,viewer)
   class(pm_geomech_force_type) :: this
   PetscViewer :: viewer
   
-  call printErrMsg(this%option,'add code for restarting Geomech in PM approach')
+  call PrintErrMsg(this%option,'add code for restarting Geomech in PM approach')
   
 end subroutine PMGeomechForceRestartBinary
 
@@ -447,7 +447,7 @@ subroutine PMGeomechForceDestroy(this)
   endif
 
 #ifdef PM_GEOMECH_FORCE_DEBUG
-  call printMsg(this%option,'PMGeomechForce%Destroy()')
+  call PrintMsg(this%option,'PMGeomechForce%Destroy()')
 #endif
 
   call GeomechRealizDestroy(this%geomech_realization)

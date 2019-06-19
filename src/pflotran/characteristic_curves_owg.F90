@@ -824,7 +824,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
                              &requires an hydrocarbon residual sarturation, &
                              &instead of an oil residual saturation: &
                              & Shcr = Socr + Sgcr + Sscr must be entered' 
-              call printErrMsg(option)              
+              call PrintErrMsg(option)
             end if  
             call InputReadDouble(input,option,rpf%Sowcr)
             call InputErrorMsg(input,option,'OIL_RESIDUAL_SATURATION', &
@@ -999,7 +999,7 @@ subroutine SFOWGBaseVerify(this,name,option)
     option%io_buffer = 'Analytical derivatives are not available for the &
       &capillary pressure - saturation function chosen: ' // &
       trim(name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SFOWGBaseVerify
@@ -1017,7 +1017,7 @@ subroutine SFOWGBaseTest(this,cc_name,option)
   type(option_type), intent(inout) :: option
 
   option%io_buffer = 'SFOWGBaseTest must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFOWGBaseTest
 
@@ -1033,7 +1033,7 @@ subroutine SFOWGBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer = 'SF OWG Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFOWGBaseSetupPolynomials
 
@@ -1139,12 +1139,12 @@ subroutine SFXWBaseVerify(this,name,option)
 
   if (Uninitialized(this%Swco)) then
     option%io_buffer = UninitializedMessage('WATER_CONNATE_SATURATION',name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%Swcr)) then
     option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SFXWBaseVerify
@@ -1217,7 +1217,7 @@ subroutine SFXWBaseCapillaryPressure(this,wat_saturation,capillary_pressure,&
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   option%io_buffer = 'SFXWBaseCapillaryPressure must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFXWBaseCapillaryPressure
 
@@ -1236,7 +1236,7 @@ subroutine SFXWBaseSaturation(this,capillary_pressure,wat_saturation, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   option%io_buffer = 'SFXWBaseSaturation must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFXWBaseSaturation
 
@@ -1382,19 +1382,19 @@ subroutine SF_XW_VG_Verify(this,name,option)
 
   if (Uninitialized(this%alpha)) then
     option%io_buffer = UninitializedMessage('ALPHA = 1/Pcc',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if ( .not.associated(this%sat_func_sl) ) then
     option%io_buffer = 'Not analytical function associated with the capillary &
       & pressure between X and water - saturation function chosen: ' // &
       trim(string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   call this%sat_func_sl%verify(name,option)
@@ -1508,19 +1508,19 @@ subroutine SF_XW_BC_Verify(this,name,option)
 
   if (Uninitialized(this%alpha)) then
     option%io_buffer = UninitializedMessage('ALPHA = 1/Pcc',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if ( .not.associated(this%sat_func_sl) ) then
     option%io_buffer = 'Not analytical function associated with the capillary &
       & pressure between X and water - saturation function chosen: ' // &
       trim(string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   call this%sat_func_sl%verify(name,option)
@@ -1699,7 +1699,7 @@ subroutine SF_XW_constant_Verify(this,name,option)
   if (Uninitialized(this%constant_capillary_pressure)) then
     option%io_buffer = 'CONSTANT_CAPILLARY_PRESSURE must be specified &
       &for ' // trim(string) // '.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SF_XW_constant_Verify
@@ -1739,7 +1739,7 @@ subroutine SF_XW_const_Saturation(this,capillary_pressure,wat_saturation, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   option%io_buffer = 'SF_XW_const_Saturation not supported.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SF_XW_const_Saturation
 
@@ -1783,12 +1783,12 @@ subroutine SFOGBaseVerify(this,name,option)
   
   if (Uninitialized(this%Sgcr)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%Sgco)) then
     option%io_buffer = UninitializedMessage('GAS_CONNATE_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SFOGBaseVerify
@@ -1854,7 +1854,7 @@ subroutine SFOGBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer = 'SF OG Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFOGBaseSetupPolynomials
 
@@ -1873,7 +1873,7 @@ subroutine SFOGBaseCapillaryPressure(this,gas_saturation,capillary_pressure, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   option%io_buffer = 'SFOGBaseCapillaryPressure must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFOGBaseCapillaryPressure
 
@@ -1894,7 +1894,7 @@ subroutine SFOGBaseSaturation(this,capillary_pressure,gas_saturation, &
   PetscErrorCode :: ierr
 
   option%io_buffer = 'SFOGBaseSaturation must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine SFOGBaseSaturation
 
@@ -2033,7 +2033,7 @@ subroutine SF_OG_constant_Verify(this,name,option)
 
   if (Uninitialized(this%constant_capillary_pressure)) then
     option%io_buffer = UninitializedMessage('Pcog_const',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SF_OG_constant_Verify
@@ -2123,7 +2123,7 @@ subroutine SF_OG_VG_SL_Verify(this,name,option)
     option%io_buffer = 'Not analytical function associated with the capillary &
       & pressure between oil and gas - saturation function chosen: ' // &
       trim(string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   !call SFOWGBaseVerify(this,string,option)
@@ -2131,17 +2131,17 @@ subroutine SF_OG_VG_SL_Verify(this,name,option)
 
   if (Uninitialized(this%Slcr)) then
     option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%alpha)) then
     option%io_buffer = UninitializedMessage('alpha = 1/Pcc',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call this%sat_func_sl%verify(name,option)
@@ -2293,14 +2293,14 @@ subroutine RPFOWGBaseVerify(this,name,option)
   if ( this%kr_max < 0.0 .or. this%kr_max > 1.0 ) then
     option%io_buffer = adjustl(trim(name)) // ' MAX_REL_PERM entered &
                                    &not valid, must be 0 <= Kr_max <= 1'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ((.not.this%analytical_derivative_available) .and. &
       (.not.option%flow%numerical_derivatives)) then
     option%io_buffer = 'Analytical derivatives are not available for the &
       &relative permeability function chosen: ' // trim(name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPFOWGBaseVerify
@@ -2320,7 +2320,7 @@ subroutine RPFOWGBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer = 'RPF Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFOWGBaseSetupPolynomials
 
@@ -2520,18 +2520,18 @@ subroutine RPFWatOWGBaseVerify(this,name,option)
 
   if (Uninitialized(this%Swco)) then
     option%io_buffer = UninitializedMessage('WATER_CONNATE_SATURATION',name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%Swcr)) then
     option%io_buffer = UninitializedMessage('WATER_RESIDUAL_SATURATION',name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (this%Swco > this%Swcr ) then
     option%io_buffer = adjustl(trim(name)) // &
                                ',water connate sat > water critical sat'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if  
 
 end subroutine RPFWatOWGBaseVerify
@@ -2591,7 +2591,7 @@ subroutine RPFWatOWGBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer = 'RPF Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFWatOWGBaseSetupPolynomials
 
@@ -2610,7 +2610,7 @@ subroutine RPFWatOWGBaseRelPerm(this,wat_sat,rel_perm, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   option%io_buffer = 'RPFWatOWGBaseRelPerm must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFWatOWGBaseRelPerm
 
@@ -2699,12 +2699,12 @@ subroutine RPF_wat_owg_MBC_Verify(this,name,option)
 
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%Sowcr)) then
     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPF_wat_owg_MBC_Verify
@@ -2819,7 +2819,7 @@ subroutine RPF_wat_owg_func_sl_Verify(this,name,option)
 
   if (.not.associated(this%rel_perm_func_sl) ) then
     option%io_buffer = trim(string) // ' Sub SL analytical model not defined'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else
     call this%rel_perm_func_sl%verify(string,option)
   end if
@@ -2828,12 +2828,12 @@ subroutine RPF_wat_owg_func_sl_Verify(this,name,option)
     class is(RPF_wat_owg_Burdine_BC_type)
       if (Uninitialized(rpf%lambda)) then
         option%io_buffer = UninitializedMessage('LAMBDA',string)
-        call printErrMsg(option)      
+        call PrintErrMsg(option)
       end if
     class default
       if (Uninitialized(this%m)) then
         option%io_buffer = UninitializedMessage('M',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
   end select  
 
@@ -3004,17 +3004,17 @@ subroutine RPFGasOWGBaseVerify(this,name,option)
 
   if (Uninitialized(this%Sgco)) then
     option%io_buffer = UninitializedMessage('GAS_CONNATE_SATURATION',name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%Sgcr)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (this%Sgco > 0.0 ) then
     option%io_buffer = trim(name) // ', WARNING Sgco > 0 has been set'
-    call printMsg(option)
+    call PrintMsg(option)
 end if
 
 end subroutine RPFGasOWGBaseVerify
@@ -3074,7 +3074,7 @@ subroutine RPFGasOWGBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer = 'RPF Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFGasOWGBaseSetupPolynomials
 
@@ -3093,7 +3093,7 @@ subroutine RPFGasOWGBaseRelPerm(this,gas_sat,rel_perm, &
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
   option%io_buffer = 'RPFGasOWGBaseRelPerm must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFGasOWGBaseRelPerm
 
@@ -3183,16 +3183,16 @@ subroutine RPF_gas_owg_MBC_Verify(this,name,option)
 
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (Uninitialized(this%Sogcr)) then
     option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%Swco)) then
     option%io_buffer = UninitializedMessage('WAT_CONNATE_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPF_gas_owg_MBC_Verify
@@ -3309,7 +3309,7 @@ subroutine RPF_gas_owg_func_sl_Verify(this,name,option)
 
   if (.not.associated(this%rel_perm_func_sl) ) then
     option%io_buffer = trim(string) // ' Sub SL analytical model not defined'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else
     call this%rel_perm_func_sl%verify(string,option)
   end if
@@ -3317,19 +3317,19 @@ subroutine RPF_gas_owg_func_sl_Verify(this,name,option)
   if (Uninitialized(this%Slcr)) then
     option%io_buffer = UninitializedMessage('LIQUID_CRITICAL_SATURATION', &
                                                                        string)
-    call printErrMsg(option)          
+    call PrintErrMsg(option)
   end if
 
   select type(rpf => this)
     class is(RPF_gas_owg_Burdine_BC_type)
       if (Uninitialized(rpf%lambda)) then
         option%io_buffer = UninitializedMessage('LAMBDA',string)
-        call printErrMsg(option)      
+        call PrintErrMsg(option)
       end if  
     class default
       if (Uninitialized(this%m)) then
         option%io_buffer = UninitializedMessage('M',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       end if
   end select  
 
@@ -3533,19 +3533,19 @@ subroutine RPFOWOWGBaseVerify(this,name,option)
 
    if (this%Soco > 0.0) then
      option%io_buffer = 'Oil Connate Sat /=0; Oil-wet system not supported'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
    end if
 
    if (this%So_is_Sh) then
      if (Uninitialized(this%Sowcr)) then
        option%io_buffer = &
              UninitializedMessage('HYDROCARBON_RESIDUAL_SATURATION',name)
-       call printErrMsg(option)
+       call PrintErrMsg(option)
      endif
    else
      if (Uninitialized(this%Sowcr)) then
        option%io_buffer = UninitializedMessage('OW_RESIDUAL_SATURATION',name)
-       call printErrMsg(option)
+       call PrintErrMsg(option)
      endif
    end if
 
@@ -3616,7 +3616,7 @@ subroutine RPFOWOWGBaseSetupPoly(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer ='RPF OW Smoothing not supported for' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFOWOWGBaseSetupPoly
 
@@ -3637,7 +3637,7 @@ subroutine RPFOWOWGBaseRelPerm(this,oil_sat,rel_perm, &
  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
  option%io_buffer ='RPFOWOWGBaseRelPerm must be extended.'
- call printErrMsg(option)
+ call PrintErrMsg(option)
 
 end subroutine RPFOWOWGBaseRelPerm
 
@@ -3815,12 +3815,12 @@ subroutine RPF_ow_owg_MBC_Verify(this,name,option)
 
   if (Uninitialized(this%Swcr)) then
     option%io_buffer = UninitializedMessage('WATER_CRITICAL_SATURATION',string)
-    call printErrMsg(option)          
+    call PrintErrMsg(option)
   end if
 
   if (Uninitialized(this%m)) then
    option%io_buffer = UninitializedMessage('M',string)
-   call printErrMsg(option)          
+   call PrintErrMsg(option)
   end if
 
 end subroutine RPF_ow_owg_MBC_Verify
@@ -3970,12 +3970,12 @@ subroutine RPFOGOWGBaseVerify(this,name,option)
 
    if ( this%Soco > 0.0d0 ) then
      option%io_buffer = 'Oil Connate Sat /=0; Oil-wet system not supported'
-     call printErrMsg(option)    
+     call PrintErrMsg(option)
    end if
 
    if (Uninitialized(this%Sogcr)) then
      option%io_buffer = UninitializedMessage('OG_CRITICAL_SATURATION',name)
-     call printErrMsg(option)          
+     call PrintErrMsg(option)
    end if
 
 end subroutine RPFOGOWGBaseVerify
@@ -4034,7 +4034,7 @@ subroutine RPFOGOWGBaseSetupPoly(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
 
   option%io_buffer ='RPF OG Smoothing not supported for' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine RPFOGOWGBaseSetupPoly
 
@@ -4055,7 +4055,7 @@ subroutine RPFOGOWGBaseRelPerm(this,oil_sat,rel_perm, &
  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
  option%io_buffer ='RPFOWOWGBaseRelPerm must be extended.'
- call printErrMsg(option)
+ call PrintErrMsg(option)
 
 end subroutine RPFOGOWGBaseRelPerm
 
@@ -4128,17 +4128,17 @@ subroutine RPF_og_owg_MBC_Verify(this,name,option)
 
   if (Uninitialized(this%Sgcr)) then
     option%io_buffer = UninitializedMessage('GAS_CRITICAL_SATURATION',string)
-    call printErrMsg(option)          
+    call PrintErrMsg(option)
   end if
 
   if (Uninitialized(this%Swco)) then
     option%io_buffer = UninitializedMessage('WAT_CONNATE_SATURATION',string)
-    call printErrMsg(option)          
+    call PrintErrMsg(option)
   end if
 
   if (Uninitialized(this%m)) then
    option%io_buffer = UninitializedMessage('M',string)
-   call printErrMsg(option)          
+   call PrintErrMsg(option)
   end if
 
 end subroutine RPF_og_owg_MBC_Verify
@@ -4292,7 +4292,7 @@ subroutine RPFOilOWGBaseVerify(this,name,option)
 
    if (Uninitialized(this%Socr)) then
      option%io_buffer = UninitializedMessage('OIL_CRITICAL_SATURATION',name)
-     call printErrMsg(option)          
+     call PrintErrMsg(option)
    end if
 
 end subroutine RPFOilOWGBaseVerify
@@ -4381,7 +4381,7 @@ subroutine RPFOilOWGBaseRelPerm(this,oil_sat,gas_sat,rel_perm, &
  PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
  option%io_buffer ='RPFOilOWGBaseRelPerm must be extended.'
- call printErrMsg(option)
+ call PrintErrMsg(option)
 
 end subroutine RPFOilOWGBaseRelPerm
 
@@ -4480,19 +4480,19 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
 
    if (Uninitialized(this%Swco)) then
      option%io_buffer = UninitializedMessage('WAT_CONNATE_SATURATION',string)
-     call printErrMsg(option)          
+     call PrintErrMsg(option)
    end if
 
    if ( .not.associated(this%rel_perm_ow) ) then
      option%io_buffer = trim(string) // ' ,RPF_OIL_WATER not defined'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
    else
      call this%rel_perm_ow%Verify(string,option)
    end if
 
    if ( .not.associated(this%rel_perm_og) ) then
      option%io_buffer = trim(string) // ' ,RPF_OIL_GAS not defined'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
    else
      call this%rel_perm_og%Verify(string,option)
    end if   
@@ -4507,7 +4507,7 @@ subroutine RPF_oil_ecl_Verify(this,name,option)
                                                
    if ( krow_max /= krog_max ) then
      option%io_buffer = trim(string) // ' krow_max /= krog_max '
-     call printErrMsg(option)
+     call PrintErrMsg(option)
    end if 
 
    if ( this%rel_perm_ow%analytical_derivative_available .and. &

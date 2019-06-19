@@ -364,7 +364,7 @@ subroutine NWTRead(nw_trans,input,option)
           option%io_buffer = 'ERROR: At least one species &
                               &must be provided in the ' // &
                               trim(error_string) // ' block.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         allocate(nw_trans%species_names(k))
         nw_trans%species_names(1:k) = temp_species_names(1:k)
@@ -640,13 +640,13 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
     if (.not.parent_found) then
       option%io_buffer = 'ERROR: Radioactive species ' // trim(rad_rxn%name) &
                          // ' must also be included in the SPECIES block.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (.not.daughter_found) then
       option%io_buffer = 'ERROR: Radioactive species ' // &
                          trim(rad_rxn%daughter_name) &
                          // ' must also be included in the SPECIES block.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     
     ! assign the parent information
@@ -745,7 +745,7 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
                'Species ' // trim(nwt_species_constraint%names(ispecies)) // &
                ' from CONSTRAINT ' // trim(constraint_name) // &
                ' not found among species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       constraint_conc(jspecies) = &
                                nwt_species_constraint%constraint_conc(ispecies)

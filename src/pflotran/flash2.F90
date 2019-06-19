@@ -136,7 +136,7 @@ subroutine Flash2SetupPatch(realization)
 !  option%io_buffer = 'Before Flash2 can be run, the thc_parameter object ' // &
 !                     'must be initialized with the proper variables ' // &
 !                     'Flash2AuxCreate() is called anyhwere.'
-!  call printErrMsg(option)
+!  call PrintErrMsg(option)
   !print *,' Flash2 setup get Aux', option%nphase, size(patch%saturation_function_array)
 ! Flash2_parameters create *********************************************
 ! Sir
@@ -550,7 +550,7 @@ subroutine Flash2UpdateReasonPatch(reason,realization)
 !     error message and let someone sort the use of option%dpmxe later
         option%io_buffer = 'option%dpmxe and option%dtmpmxe needs to be ' // &
           'refactored in Flash2UpdateReasonPatch'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 !geh      if (dabs(xx_p(n0 + 1) - yy_p(n0 + 1)) > (10.0D0 * option%dpmxe)) then
         re=0; print *,'huge change in p', xx_p(n0 + 1), yy_p(n0 + 1)
         exit
@@ -1181,7 +1181,7 @@ subroutine Flash2SourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
       endif  
     
       if (msrc(2) > 0.d0) then ! CO2 injection
-!        call printErrMsg(option,"concentration source not yet implemented in Flash2")
+!        call PrintErrMsg(option,"concentration source not yet implemented in Flash2")
         if (option%co2eos == EOS_SPAN_WAGNER) then
          !  span-wagner
           rho = auxvar%den(jco2)*FMWCO2  
@@ -1212,7 +1212,7 @@ subroutine Flash2SourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
             enth_src_co2 = enth_src_co2*FMWCO2*option%scale
             qsrc_phase(2) = msrc(2)/auxvar%den(jco2)
         else
-          call printErrMsg(option,'pflow Flash2 ERROR: Need specify CO2 EOS')
+          call PrintErrMsg(option,'pflow Flash2 ERROR: Need specify CO2 EOS')
         endif
   
         Res(jco2) = Res(jco2) + msrc(2)*option%flow_dt
@@ -3349,13 +3349,13 @@ subroutine Flash2Jacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 #endif
 
@@ -3907,13 +3907,13 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
   if (realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
 !    call GridCreateVector(grid,ONEDOF,debug_vec,GLOBAL)
 !    call MatGetRowMaxAbs(A,debug_vec,PETSC_NULL_INTEGER,ierr)
 !    call VecMax(debug_vec,i,norm,ierr)
@@ -4633,13 +4633,13 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
   if (realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
 !    call GridCreateVector(grid,ONEDOF,debug_vec,GLOBAL)
 !    call MatGetRowMaxAbs(A,debug_vec,PETSC_NULL_INTEGER,ierr)
 !    call VecMax(debug_vec,i,norm,ierr)

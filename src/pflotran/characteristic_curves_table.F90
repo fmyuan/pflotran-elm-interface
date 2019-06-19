@@ -192,7 +192,7 @@ subroutine CharCurvesTableRead(this,input,option)
 
  if ( .not. table_found ) then
    option%io_buffer = trim(error_string) // ', data block not found.'
-   call printErrMsg(option)
+   call PrintErrMsg(option)
  end if
 
  select case (this%itype)
@@ -200,14 +200,14 @@ subroutine CharCurvesTableRead(this,input,option)
      if ( .not.press_unit_found ) then
        option%io_buffer = trim(error_string) //  &
                                 ', SWFN table pressure unit not defined.'
-       call printErrMsg(option)
+       call PrintErrMsg(option)
      end if
      this%lookup_table%var_array(CCT_PCXW)%ptr%user_units = trim(press_unit)
    case(CCT_SGFN)
      if ( .not.press_unit_found ) then
        option%io_buffer = trim(error_string) //  &
                           ', SGFN table pressure unit not defined.'
-       call printErrMsg(option)
+       call PrintErrMsg(option)
      end if
      this%lookup_table%var_array(CCT_PCOG)%ptr%user_units = trim(press_unit)
  end select 
@@ -231,7 +231,7 @@ subroutine CharCurvesTableRead(this,input,option)
  if ( .not. AxisIsSMInc(ONE_INTEGER) ) then
    option%io_buffer = trim(error_string) //  &
                                    ', saturation not monotonically increasing.'
-   call printErrMsg(option)
+   call PrintErrMsg(option)
  end if
 
  deallocate(AxisIsSMInc)
@@ -631,7 +631,7 @@ function CharCurveTableGetPtrFromList(cc_table_name,list,error_string,option)
     error_string = trim(error_string) // "table name =" // &
                     trim(cc_table_name) // " not found"
     option%io_buffer = error_string
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
     
 end function CharCurveTableGetPtrFromList
@@ -682,11 +682,11 @@ subroutine SearchCCTVarInCCTableList(list,var_iname,cc_table_name, &
   else if (num_occurrences > 1) then
     option%io_buffer = trim(error_string) // &
             ' data found in multiple tables - please select one of the tables'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if ( num_occurrences < 1) then
     option%io_buffer = trim(error_string) // &
                                'data not found within the tables'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
     
 end subroutine SearchCCTVarInCCTableList
@@ -716,7 +716,7 @@ subroutine CheckCCTVariableExists(this,var_iname,error_string,option)
   if (.not.this%lookup_table%LookupTableVarIsPresent(var_iname)) then
     error_string_lc = 'data not found in table = ' // trim(this%name)
     option%io_buffer = error_string_lc
-    call printErrMsg(option)      
+    call PrintErrMsg(option)
   end if
 
 end subroutine CheckCCTVariableExists

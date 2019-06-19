@@ -292,7 +292,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
       write(string,*) model_id
       option%io_buffer = 'geomechanical compressibility model "' // &
         trim(string) // '" not recognized.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end select
           
 end subroutine GeomechanicsSubsurfacePropsPoroEvaluate
@@ -451,7 +451,7 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
       write(string,*) model_id
       option%io_buffer = 'geomechanical perm model "' // &
       trim(string) // '" not recognized.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine GeomechanicsSubsurfacePropsPermEvaluate

@@ -419,7 +419,7 @@ subroutine PMWIPPFloRead(this,input)
           if (icount+1 > max_dirichlet_bc) then
             option%io_buffer = 'Must increase size of "max_dirichlet_bc" & 
               &in PMWIPPFloRead'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           call InputReadInt(input,option,temp_int)
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -452,23 +452,23 @@ subroutine PMWIPPFloRead(this,input)
       this%gas_sat_thresh_force_ts_cut) then
     option%io_buffer = 'The value of GAS_SAT_THRESH_FORCE_TS_CUT must &
                        &be larger than GAS_SAT_THRESH_FORCE_EXTRA_NI.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   ! Check the sign of given variables
   if (this%gas_sat_thresh_force_ts_cut < 0.d0) then
     option%io_buffer = 'The value of GAS_SAT_THRESH_FORCE_TS_CUT &
                        &must be positive.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (this%min_liq_pres_force_ts_cut > 0.d0) then
     option%io_buffer = 'The value of MIN_LIQ_PRES_FORCE_TS_CUT &
                        &must be negative.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (this%gas_sat_thresh_force_extra_ni < 0.d0) then
     option%io_buffer = 'The value of GAS_SAT_THRESH_FORCE_EXTRA_NI &
                        &must be positive.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   ! always calculate neg_log10_rel_gas_sat_change_ni automatically
   this%neg_log10_rel_gas_sat_change_ni = &
@@ -581,12 +581,12 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
         this%option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
-        call printErrMsg(this%option)
+        call PrintErrMsg(this%option)
     end select
   else
     if (.not.wippflo_default_alpha .and. wippflo_use_lumped_harm_flux) then
       this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-      call printErrMsg(this%option)
+      call PrintErrMsg(this%option)
     endif
   endif
 
@@ -624,7 +624,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       class default
         this%option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
           &Elevation.'
-        call printErrMsg(this%option)
+        call PrintErrMsg(this%option)
     end select
   else if (Initialized(this%rotation_angle)) then
     if (.not.Initialized(this%rotation_origin(3))) then
@@ -1034,7 +1034,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
 !    if (this%option%mycommsize > 1) then
 !      this%option%io_buffer = 'WIPP FLOW matrix scaling not allowed in &
 !        &parallel.'
-!      call printErrMsg(this%option)
+!      call PrintErrMsg(this%option)
 !    endif
     call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
     call VecSet(this%scaling_vec,1.d0,ierr);CHKERRQ(ierr)
@@ -1075,13 +1075,13 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   if (this%realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(this%option)
+    call PrintMsg(this%option)
     call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(this%option)
+    call PrintMsg(this%option)
     call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(this%option)
+    call PrintMsg(this%option)
   endif
 
 end subroutine PMWIPPFloJacobian

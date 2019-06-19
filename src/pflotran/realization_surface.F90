@@ -599,7 +599,7 @@ subroutine RealizSurfProcessFlowConditions(surf_realization)
         enddo
       case default
         option%io_buffer='RealizSurfProcessFlowConditions not implemented in this mode'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
     cur_surf_flow_condition => cur_surf_flow_condition%next
   enddo
@@ -758,7 +758,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   if (found.eqv.PETSC_FALSE) then
     option%io_buffer = 'When running with -DSURFACE_FLOW need to specify ' // &
       ' in the inputfile explicitly region: top '
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call MatCreateAIJ(option%mycomm, &
@@ -1148,7 +1148,7 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
     enddo
     if (max_value<3) then
       option%io_buffer = 'Atleast three vertices need to form a face'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
 
@@ -1464,7 +1464,7 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
     final_time = cur_waypoint%time
   else
     option%io_buffer = 'Final time not found in RealizSurfAddWaypointsToList'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! add update of flow conditions
@@ -1485,7 +1485,7 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
               '" dataset "' // trim(sub_condition%name) // &
               '", the number of times is excessive for synchronization ' // &
               'with waypoints.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           do itime = 1, size(times)
             waypoint => WaypointCreate()

@@ -605,7 +605,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
     option%io_buffer = 'Activity coefficients not currently supported in &
       &CyberReact().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   temperature_scaling_factor = 1.d0

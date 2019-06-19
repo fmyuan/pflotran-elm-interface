@@ -98,7 +98,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
   
     hint = 'Explicit Unstructured Grid CELLS'
@@ -219,7 +219,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
   
     hint = 'Explicit Unstructured Grid CONNECTIONS'
@@ -382,7 +382,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
 
     !at this point, as we read the grid, the output_mesh_type is not known yet 
@@ -492,7 +492,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   explicit_grid => ugrid%explicit_grid
   
 #if UGRID_DEBUG
-  call printMsg(option,'Adjacency matrix')
+  call PrintMsg(option,'Adjacency matrix')
 #endif
 
   num_cells_local_old = size(explicit_grid%cell_ids)
@@ -608,7 +608,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   call MatView(Adj_mat,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
-!  call printErrMsg(option,'debugg')
+!  call PrintErrMsg(option,'debugg')
 
   ! Create the Dual matrix.
   call MatCreateAIJ(option%mycomm,num_cells_local_old,PETSC_DECIDE, &
@@ -687,7 +687,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   if (.not.success .or. num_rows /= num_cells_local_old) then
     print *, option%myrank, num_rows, success, num_cells_local_old
     option%io_buffer = 'Error getting IJ row indices from dual matrix'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call MatRestoreRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
@@ -741,7 +741,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
     write(string,*) num_rows, temp_int
     option%io_buffer = 'Number of rows in Adj and Dual matrices inconsistent:'
     option%io_buffer = trim(option%io_buffer) // trim(adjustl(string))
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
 
   call VecGetArrayF90(cells_old,vec_ptr,ierr);CHKERRQ(ierr)
@@ -772,7 +772,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
     if (num_cols > ugrid%max_ndual_per_cell) then
       option%io_buffer = &
         'Number of columns in Adj matrix is larger then max_ndual_per_cell.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     do icol = 1, ugrid%max_ndual_per_cell
       count = count + 1
@@ -795,7 +795,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
     if (num_cols > ugrid%max_ndual_per_cell) then
       option%io_buffer = &
         'Number of columns in Dual matrix is larger then max_ndual_per_cell.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     do icol = 1, ugrid%max_ndual_per_cell
       count = count + 1
@@ -946,7 +946,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
     write(string,'(2i6)') count, num_connections_total
     option%io_buffer = 'Inconsistent values for num_connections_total: ' // &
       trim(adjustl(string))
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   num_connections_total = UNINITIALIZED_INTEGER ! set to uninitialized value to catch bugs
   
@@ -976,7 +976,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
                             ierr);CHKERRQ(ierr)
   call ISView(is_gather,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  call printMsg(option,'Scatter/gathering local connection info')
+  call PrintMsg(option,'Scatter/gathering local connection info')
 #endif  
   
   ! scatter all the connection data from the old to local
@@ -1018,7 +1018,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
           write(string,'(2i5)') ghosted_id, conn_id
           option%io_buffer = 'Too many local cells match connection: ' // &
             trim(adjustl(string))
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       enddo
     enddo
@@ -1065,7 +1065,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
         option%io_buffer = 'downwind cell not found: '
       endif
       option%io_buffer = trim(option%io_buffer) // trim(adjustl(string))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     id_up = int_array2d(1,iconn)
     id_dn = int_array2d(2,iconn)
@@ -1339,7 +1339,7 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
       endif
       option%io_buffer = trim(option%io_buffer) // ' Please check the &
         &location of the cell centers and face center.'
-      call printMsgByRank(option)
+      call PrintMsgByRank(option)
     endif
     connections%dist(-1,iconn) = upwind_fraction
     connections%dist(0,iconn) = distance
@@ -1356,7 +1356,7 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
   if (error) then
     option%io_buffer = 'Errors in UGridExplicitSetInternConnect(). &
       &See details above.'
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   
   UGridExplicitSetInternConnect => connections
@@ -1457,7 +1457,7 @@ function UGridExplicitSetBoundaryConnect(explicit_grid,cell_ids, &
       error = PETSC_TRUE
       option%io_buffer = 'Coincident cell and face centroids found at (' // &
         trim(adjustl(string)) // ') '
-      call printMsgByRank(option)
+      call PrintMsgByRank(option)
     endif
     connections%dist(-1,iconn) = 0.d0
     connections%dist(0,iconn) = distance
@@ -1468,7 +1468,7 @@ function UGridExplicitSetBoundaryConnect(explicit_grid,cell_ids, &
     option%io_buffer = 'Coincident cell and face centroids found in ' // &
       'UGridExplicitSetBoundaryConnect() for region "' // trim(region_name) // &
       '".  See details above.'
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   
   UGridExplicitSetBoundaryConnect => connections

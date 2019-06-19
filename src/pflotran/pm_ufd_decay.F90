@@ -289,7 +289,7 @@ subroutine PMUFDDecayRead(this,input)
   option => this%option
   
   option%io_buffer = 'pflotran card:: UFD_Decay'
-  call printMsg(option)
+  call PrintMsg(option)
   
   input%ierr = 0
   nullify(prev_isotope)
@@ -339,7 +339,7 @@ subroutine PMUFDDecayRead(this,input)
                   write(word,*) i-1
                   option%io_buffer = 'Kd array in PMUFDDecayRead() must be &
                     &allocated larger than ' // trim(adjustl(word)) // '.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'Kd material name', &
@@ -351,7 +351,7 @@ subroutine PMUFDDecayRead(this,input)
               if (i == 0) then
                 option%io_buffer = 'No KD/material combinations specified &
                   &under ' // trim(error_string) // '.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               allocate(element%Kd(i))
               element%Kd = Kd(1:i)
@@ -632,7 +632,7 @@ subroutine PMUFDDecayInit(this)
     else
       option%io_buffer = 'Element "' // trim(element%name) // '" in &
         &UFD_DECAY block must have a solubility greater than zero.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     this%element_name(element%ielement) = element%name
     if (.not.associated(element%Kd)) then
@@ -640,7 +640,7 @@ subroutine PMUFDDecayInit(this)
       option%io_buffer = trim(adjustl(word)) // ' Kds must be defined for &
         &element "' // trim(element%name) // '", one for each &
         &MATERIAL_PROPERTY in the format "<string> <double>".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (size(element%Kd) /= size(material_property_array)) then
       write(word,*) size(element%Kd)
@@ -650,7 +650,7 @@ subroutine PMUFDDecayInit(this)
       option%io_buffer = trim(option%io_buffer) // &
         trim(adjustl(word)) // ') for UFD Decay element "' // &
         trim(element%name) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     do icount = 1, size(element%Kd_material_name)
       material_property => &
@@ -664,7 +664,7 @@ subroutine PMUFDDecayInit(this)
         option%io_buffer = 'Uninitialized KD in UFD Decay element "' // &
           trim(element%name) // '" for material "' // &
           trim(material_property_array(icount)%ptr%name) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     enddo
     element => element%next
@@ -693,7 +693,7 @@ subroutine PMUFDDecayInit(this)
       option%io_buffer = 'Element "' // trim(isotope%element) // &
         '" of isotope "' // trim(isotope%name) // &
         '" not found among list of elements.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     daughter => isotope%daughter_list
     icount = 0
@@ -766,7 +766,7 @@ subroutine PMUFDDecayInit(this)
       if (.not.found) then
         option%io_buffer = 'Daughter "' // trim(daughter%name) // &
                            '" not found among isotope list.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       daughter => daughter%next
     enddo
@@ -803,7 +803,7 @@ subroutine PMUFDDecayInit(this)
     if (Uninitialized(this%isotope_decay_rate(iisotope))) then
       option%io_buffer = 'A decay rate must be defined for isotope "' // &
         trim(this%isotope_name(iisotope)) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     ! ensure that a stoichiometry is defined for all daughters
     do d = 1, this%isotope_daughters(0,iisotope)
@@ -812,7 +812,7 @@ subroutine PMUFDDecayInit(this)
         option%io_buffer = 'A stoichiomtry must be defined for isotope ' // &
           trim(this%isotope_name(iisotope)) // "'s daughter " // '"' // &
           trim(this%isotope_name(id)) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     enddo
     ! ensure that a daughter is not the same as a parent or grandparent. this 
@@ -823,7 +823,7 @@ subroutine PMUFDDecayInit(this)
         option%io_buffer = 'PM UFD_DECAY isotope "' // &
           trim(this%isotope_name(iisotope)) // &
           '" is the same as its parent.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       do g = 1, this%isotope_parents(0,ip)
         ig = this%isotope_parents(g,ip)
@@ -831,7 +831,7 @@ subroutine PMUFDDecayInit(this)
           option%io_buffer = 'PM UFD_DECAY isotope "' // &
             trim(this%isotope_name(iisotope)) // &
             '" is the same as its grandparent.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       enddo
     enddo
@@ -957,7 +957,7 @@ recursive subroutine PMUFDDecayInitializeRun(this)
   if (maxval(this%isotope_daughter_stoich) > 1.d0) then
     this%option%io_buffer = 'Daughter stoichiometries have not been set up &
       &in pm_ufd_decay.F90.'
-    call printErrMsg(this%option)
+    call PrintErrMsg(this%option)
   endif
   
   if (this%print_output) then
@@ -1552,7 +1552,7 @@ subroutine PMUFDDecayUpdateAuxVars(this)
 ! --------------------------------
 
   this%option%io_buffer = 'PMUFDDecayUpdateAuxVars() must be extended.'
-  call printErrMsg(this%option)
+  call PrintErrMsg(this%option)
 
 end subroutine PMUFDDecayUpdateAuxVars   
 

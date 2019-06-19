@@ -879,7 +879,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
             if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
 
               if (Equal(rich_auxvar_dn%vars_for_sflow(7),-99999.d0)) then
-                call printErrMsg(option,'Coeffs for linear approx for darcy flux not set')
+                call PrintErrMsg(option,'Coeffs for linear approx for darcy flux not set')
               endif
 
               ! Linear approximation
@@ -894,7 +894,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
             else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
 
               if (Equal(rich_auxvar_dn%vars_for_sflow(3),-99999.d0)) then
-                call printErrMsg(option,'Coeffs for cubic approx for darcy flux not set')
+                call PrintErrMsg(option,'Coeffs for cubic approx for darcy flux not set')
               endif
 
               ! Cubic approximation

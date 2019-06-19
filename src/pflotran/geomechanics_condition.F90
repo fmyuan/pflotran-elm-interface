@@ -203,7 +203,7 @@ subroutine GeomechSubConditionVerify(option, condition, sub_condition_name, &
   if (len_trim(sub_condition%ctype) == NULL_CONDITION) then
     option%io_buffer = 'TYPE of condition ' // trim(condition%name) // &
       ' ' // trim(sub_condition_name) // ' dataset not defined.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   header = 'GEOMECHANICS_CONDITION' // '/' // &
@@ -503,7 +503,7 @@ subroutine GeomechConditionRead(condition,input,option)
   if (num_sub_conditions == 0) then
     option%io_buffer = 'displacement/force condition null in condition: ' // &
                         trim(condition%name)
-    call printErrMsg(option)   
+    call PrintErrMsg(option)
   endif
 
   condition%num_sub_conditions = num_sub_conditions
@@ -626,7 +626,7 @@ subroutine GeomechConditionPrintSubCondition(subcondition,option)
   if (associated(subcondition%dataset)) then
 !geh    call DatasetPrint(subcondition%dataset,option)
     option%io_buffer = 'TODO(geh): add DatasetPrint()'
-    call printMsg(option)
+    call PrintMsg(option)
   endif
             
 end subroutine GeomechConditionPrintSubCondition

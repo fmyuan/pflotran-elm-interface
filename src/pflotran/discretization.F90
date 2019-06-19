@@ -255,7 +255,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   if (discretization%itype == NULL_GRID) then
     option%io_buffer = 'Discretization type not defined under ' // &
                        'keyword GRID.' 
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   grid => GridCreate()
@@ -288,7 +288,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
           if (index(discretization%filename,'.h5') > 0 ) then
             !call UGridPolyhedraReadHDF5(un_str_grid,discretization%filename,option)
-            call printErrMsg(option,'Add UGridPolyhedraReadHDF5')
+            call PrintErrMsg(option,'Add UGridPolyhedraReadHDF5')
           else
             call UGridPolyhedraRead(un_str_grid,discretization%filename,option)
           endif
@@ -299,7 +299,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
     case(STRUCTURED_GRID)      
       call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_LINEAR,option)
       if (nx*ny*nz <= 0) &
-        call printErrMsg(option,'NXYZ not set correctly for structured grid.')
+        call PrintErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
       str_grid%nx = nx
       str_grid%ny = ny
@@ -381,7 +381,7 @@ subroutine DiscretizationRead(discretization,input,option)
           case(STRUCTURED_GRID)
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
           case default
-            call printErrMsg(option,&
+            call PrintErrMsg(option,&
                            'Keyword "DXYZ" not supported for unstructured grid')
         end select
         call InputReadPflotranString(input,option) ! read END card
@@ -389,7 +389,7 @@ subroutine DiscretizationRead(discretization,input,option)
         if (.not.(InputCheckExit(input,option))) then
           option%io_buffer = 'Card DXYZ should include either 3 entires ' // &
                    '(one for each grid direction or NX+NY+NZ entries)'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('BOUNDS')
         bounds_read = PETSC_TRUE
@@ -521,13 +521,13 @@ subroutine DiscretizationRead(discretization,input,option)
           case default
             option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
                                &unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case('UPWIND_FRACTION_METHOD')
         if (discretization%itype == STRUCTURED_GRID) then
           option%io_buffer = 'UPWIND_FRACTION_METHOD not supported for &
             &structured grids.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
@@ -587,7 +587,7 @@ subroutine DiscretizationRead(discretization,input,option)
   if (bounds_read .and. dxyz_read) then
     option%io_buffer = 'Only BOUNDS or DXYZ may be set in the GRID &
                        &block, not both.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine DiscretizationRead
@@ -641,7 +641,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
 #if !defined(PETSC_HAVE_PARMETIS)
             option%io_buffer = &
              'Must compile with Parmetis in order to use implicit unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 #endif
           call UGridDecompose(discretization%grid%unstructured_grid, &
                               option)
@@ -649,7 +649,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
 #if !defined(PETSC_HAVE_PARMETIS) && !defined(PETSC_HAVE_PTSCOTCH)
             option%io_buffer = &
              'Must compile with either Parmetis or PTSCOTCH in order to use explicit unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 #endif
           ugrid => discretization%grid%unstructured_grid
           call UGridExplicitDecompose(ugrid,option)
@@ -657,7 +657,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
 #if !defined(PETSC_HAVE_PARMETIS)
             option%io_buffer = &
              'Must compile with Parmetis in order to use implicit unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 #endif
           ugrid => discretization%grid%unstructured_grid
           call UGridPolyhedraDecompose(ugrid,option)

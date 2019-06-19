@@ -349,7 +349,7 @@ subroutine ImmisAuxVarCompute_NINC(x,auxvar,saturation_function, &
         hg = hg*FMWCO2*option%scale
           !      print *, 'translator', p2, t, dg,hg,visg
       else
-        call printErrMsg(option,'pflow Immis ERROR: Need specify CO2 EOS')
+        call PrintErrMsg(option,'pflow Immis ERROR: Need specify CO2 EOS')
       endif
     else      
       call ideal_gaseos_noderiv(p2,t,dg,hg,eng)

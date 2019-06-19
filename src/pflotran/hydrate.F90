@@ -866,7 +866,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
         write(option%io_buffer,*) global_auxvar%hstate
         option%io_buffer = 'State (' // trim(adjustl(option%io_buffer)) // &
           ') not recognized in HydrateUpdateState.'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
 
     end select
 
@@ -1012,7 +1012,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         write(option%io_buffer,'(''Negative gas pressure at cell '', &
           & i8,'' in HydrateAuxVarCompute(LIQUID_STATE).  Attempting bailout.'')') &
           natural_id
-        call printMsgByRank(option)
+        call PrintMsgByRank(option)
         gen_auxvar%pres(vpid) = 0.5d0*gen_auxvar%pres(spid)
         gen_auxvar%pres(gid) = gen_auxvar%pres(vpid) + gen_auxvar%pres(apid)
       else
@@ -1607,7 +1607,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       write(option%io_buffer,*) global_auxvar%hstate
       option%io_buffer = 'State (' // trim(adjustl(option%io_buffer)) // &
         ') not recognized in HydrateAuxVarCompute.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
 
   end select
 

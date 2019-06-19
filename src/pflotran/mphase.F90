@@ -147,7 +147,7 @@ subroutine MphaseSetupPatch(realization)
 !  option%io_buffer = 'Before Mphase can be run, the thc_parameter object ' // &
 !                     'must be initialized with the proper variables ' // &
 !                     'MphaseAuxCreate() is called anywhere.'
-!  call printErrMsg(option)  
+!  call PrintErrMsg(option)
 
 ! mphase_parameters create *********************************************
 ! Sir
@@ -647,7 +647,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
 !     error message and let someone sort the use of option%dpmxe later
         option%io_buffer = 'option%dpmxe and option%dtmpmxe needs to be ' // &
           'refactored in MPhaseUpdateReasonPatch'
-        call printErrMsg(option)      
+        call PrintErrMsg(option)
 !geh      if (dabs(xx_p(n0 + 1) - yy_p(n0 + 1)) > (1000.0D0 * option%dpmxe)) then
         re = 0; print *,'large change in p', xx_p(n0 + 1), yy_p(n0 + 1)
         exit
@@ -1521,7 +1521,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
       endif  
     
       if (msrc(2) > 0.d0) then ! CO2 injection
-!       call printErrMsg(option,"concentration source not yet implemented in Mphase")
+!       call PrintErrMsg(option,"concentration source not yet implemented in Mphase")
         if (option%co2eos == EOS_SPAN_WAGNER) then
          !  span-wagner
           rho = auxvar%den(jco2)*FMWCO2  
@@ -1557,7 +1557,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
           !qsrc_phase(2) = msrc(2)*rho/FMWCO2
           enth_src_co2 = enth_src_co2*FMWCO2*option%scale
         else
-          call printErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
+          call PrintErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
         endif
               
         Res(jco2) = Res(jco2) + msrc(2)*option%flow_dt
@@ -2216,7 +2216,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
   if (min_value < 0.d0) then
     write(option%io_buffer,*) 'Warning: saturation or mole fraction negative at cell ', &
       idum, min_value 
-    call printMsg(option)
+    call PrintMsg(option)
     option%force_newton_iteration = PETSC_TRUE
   endif
 #endif
@@ -3186,13 +3186,13 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option)    
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option)    
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
   endif
 
 end subroutine MphaseJacobian

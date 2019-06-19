@@ -213,7 +213,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
  !             option%io_buffer = 'Writing of data at coordinates not ' // &
  !               'functioning properly for minerals.  Perhaps due to ' // &
  !               'non-ghosting of vol frac....>? - geh'
- !             call printErrMsg(option)
+ !             call PrintErrMsg(option)
               call WriteObservationHeaderForCoord(fid,realization_base, &
                                                   observation%region, &
                                                  observation%print_velocities, &
@@ -527,7 +527,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
               option%io_buffer = 'Writing of data at coordinates not &
                 &functioning properly for minerals.  Perhaps due to &
                 &non-ghosting of vol frac....>? - geh'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
               call WriteObservationHeaderForCoordSec(fid,realization_base, &
                                                   observation%region, &
                                                   observation% &
@@ -1096,7 +1096,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
       case(WF_MODE)
         option%io_buffer = 'WriteObservationDataForBC() needs to be set up &
           & for WIPP Flow, and perhaps the other multiphase flow modes.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case(MIS_MODE)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         sum_volumetric_flux = 0.d0
@@ -1703,7 +1703,7 @@ subroutine OutputIntegralFlux(realization_base)
   if (option%myrank == option%io_rank) then
 
 !geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call printMsg(option)    
+!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2012,7 +2012,7 @@ subroutine OutputMassBalance(realization_base)
   if (option%myrank == option%io_rank) then
 
 !geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call printMsg(option)    
+!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2249,7 +2249,7 @@ subroutine OutputMassBalance(realization_base)
             if (reaction%primary_species_print(i)) then
 !              option%io_buffer = 'Check OutputObservation to ensure that ' // &
 !                'reactive transport species units are really kmol.'
-!              call printErrMsg(option)
+!              call PrintErrMsg(option)
               string = trim(coupler%name) // ' ' // &
                        trim(reaction%primary_species_names(i))
               call OutputWriteToHeader(fid,string,'mol','',icol)
@@ -2383,7 +2383,7 @@ subroutine OutputMassBalance(realization_base)
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     int_mpi = option%nflowspec*option%nphase
@@ -2442,7 +2442,7 @@ subroutine OutputMassBalance(realization_base)
       !           to reactive_transport.F90.
       option%io_buffer = 'OutputMassBalance() needs to be refactored to &
         &consider species in the gas phase.'
-!      call printErrMsg(option)
+!      call PrintErrMsg(option)
     endif
     max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
                         reaction%immobile%nimmobile,reaction%gas%nactive_gas)
@@ -2455,7 +2455,7 @@ subroutine OutputMassBalance(realization_base)
         call RTComputeMassBalance(realization_base,max_tran_size,sum_mol)
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
     int_mpi = max_tran_size*8
     call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
@@ -3155,7 +3155,7 @@ subroutine OutputEclipseFiles(realization_base)
 
   if (.not.is_grdecl) then
     option%io_buffer = 'Eclipse file output requires grdecl type input'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   !  Find mass balance
@@ -3172,7 +3172,7 @@ subroutine OutputEclipseFiles(realization_base)
     class default
       option%io_buffer = &
         'Unrecognized realization class in OutputEclipseFiles().'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   int_mpi = option%nflowspec*option%nphase
