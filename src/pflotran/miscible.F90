@@ -129,7 +129,7 @@ subroutine MiscibleSetupPatch(realization)
 !  option%io_buffer = 'Before Miscible can be run, the Miscible_parameter object ' // &
 !                     'must be initialized with the proper variables ' // &
 !                     'MiscibleAuxCreate() is called anyhwere.'
-!  call printErrMsg(option)
+!  call PrintErrMsg(option)
      
 ! Miscible_parameters create *********************************************
   allocate(patch%aux%Miscible%Miscible_parameter%sir(option%nphase, &
@@ -2190,13 +2190,13 @@ subroutine MiscibleJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 #endif
 
@@ -2910,13 +2910,13 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
   if (realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
 !    call GridCreateVector(grid,ONEDOF,debug_vec,GLOBAL)
 !    call MatGetRowMaxAbs(A,debug_vec,PETSC_NULL_INTEGER,ierr)
 !    call VecMax(debug_vec,i,norm,ierr)

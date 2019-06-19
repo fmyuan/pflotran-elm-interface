@@ -25,7 +25,7 @@ MAKE_LOG="make.log"
 TEST_LOG="test.log"
 cd $PFLOTRAN_DIR/src/pflotran
 make clean > /dev/null 2>&1
-make pflotran > $MAKE_LOG 2>&1
+make -j4 codecov=1 pflotran > $MAKE_LOG 2>&1
 
 if [ -e "pflotran" ] ; then
   GNU_PFLOTRAN_MAKE_SUCCESS=true
@@ -61,7 +61,7 @@ echo "GNU Make PFLOTRAN_RXN"
 MAKE_LOG="pflotran_rxn_make.log"
 cd $PFLOTRAN_DIR/src/pflotran
 make clean > /dev/null 2>&1
-make pflotran_rxn > $MAKE_LOG 2>&1
+make -j4 codecov=1 pflotran_rxn > $MAKE_LOG 2>&1
 
 if [ -e "pflotran_rxn" ] ; then
   GNU_PFLOTRAN_RXN_MAKE_SUCCESS=true

@@ -335,7 +335,7 @@ subroutine PMSurfaceFlowDestroy(this)
   endif
 
 #ifdef PM_SURFACE_FLOW_DEBUG
-  call printMsg(this%option,'PMSurfaceFlowDestroy()')
+  call PrintMsg(this%option,'PMSurfaceFlowDestroy()')
 #endif
 
 #ifndef SIMPLIFY

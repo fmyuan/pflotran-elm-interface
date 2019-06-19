@@ -314,7 +314,7 @@ function InverseLookupTableCreateGen(lookup_table,new_axis_var_iname,option)
   call LookupTableAxisInit(inv_lookup_table%axis1)
   if (Inv_lookup_table%dim > 1) then
     option%io_buffer = "only 1D inverse lookup are supported"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   nullify(inv_lookup_table%data)
@@ -335,7 +335,7 @@ function InverseLookupTableCreateGen(lookup_table,new_axis_var_iname,option)
   else
     option%io_buffer = "InverseLookupTableCreateGen: cannot create " // &
       "inverse gradient lookup as the new axis var selected is not monotonic "
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
     
   !assumes that any unit conversion on lookup_table%var_data is already done
@@ -2086,14 +2086,14 @@ subroutine CreateAddLookupTableVar(this,var_iname,internal_units,user_units, &
   if ( .not.associated(this%var_array) ) then
     option%io_buffer = 'CreateAddLookupTableVar: Cannot add a lookup variable &
                         &without intialising the lookup variable list'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( var_iname > size (this%var_array(:)) .or. &
        var_iname <= 0 ) then
     option%io_buffer = 'var_iname must be larger than zero and not larger &
                         &than the maximum number of lookup variables'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   lookup_var => CreateLookupTableVar(var_iname,internal_units, &
@@ -2133,7 +2133,7 @@ subroutine LookupTableVarInitGradients(this,option)
   else
     option%io_buffer = "LookupTableVarInitGradients: cannot initialise " // &
                         "var gradient before defining table dims"
-    call printErrMsg(option)    
+    call PrintErrMsg(option)
   end if  
 
 end subroutine LookupTableVarInitGradients
@@ -2187,7 +2187,7 @@ subroutine VarDataRead(this,input,num_fields,min_entries,error_string,option)
     if (InputCheckExit(input,option)) exit
     if (InputError(input)) then
       option%io_buffer = 'Lookup table var_data reading'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     num_entries = num_entries + 1
     !press_idx = press_idx + 1
@@ -2206,7 +2206,7 @@ subroutine VarDataRead(this,input,num_fields,min_entries,error_string,option)
     write(word1,*) min_entries
     option%io_buffer = trim(error_string) // &
                        ', number of entries less than = ' // trim(word1)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   allocate(this%var_data(num_fields,num_entries))
@@ -2235,7 +2235,7 @@ subroutine VarDataReverse(this,option)
 
   if ( .not. associated(this%var_data) ) then
     option%io_buffer = 'Cannot reverse VarData as not allocated'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
   num_entries = size(this%var_data,2)
 
@@ -2382,7 +2382,7 @@ subroutine SetupVarLinLogInterp(this,var_iname,option)
     else
       option%io_buffer = "SetupVarLinLogInterp: cannot setup " // &
             "LinLog inteprolation method for a var not defined as lookupvar"
-      call printErrMsg(option)      
+      call PrintErrMsg(option)
     end if  
   end if
 
@@ -2411,7 +2411,7 @@ subroutine SetupVarUserUnits(this,var_iname,var_user_units,option)
     else
       option%io_buffer = "SetupVarUserUnits: cannot setup " // &
             "User Units for a var not defined as lookupvar"
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
   end if
 

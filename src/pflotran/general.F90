@@ -84,17 +84,17 @@ subroutine GeneralSetup(realization)
   error_found = PETSC_FALSE
   if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   
@@ -108,35 +108,35 @@ subroutine GeneralSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'ERROR: Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'ERROR: Non-initialized soil particle density.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
   
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in GeneralSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! allocate auxvar data structures for all grid cells  
@@ -198,13 +198,13 @@ subroutine GeneralSetup(realization)
       diffusion_coefficient(LIQUID_PHASE))) then
     option%io_buffer = &
       UninitializedMessage('Liquid phase diffusion coefficient','')
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(patch%aux%General%general_parameter% &
       diffusion_coefficient(GAS_PHASE))) then
     option%io_buffer = &
       UninitializedMessage('Gas phase diffusion coefficient','')
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   list => realization%output_option%output_snap_variable_list
@@ -756,7 +756,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     else
     !hdp - Debugging purposes
     !write(option%io_buffer,'("cell id: ",i7)') natural_id
-    !call printMsg(option)
+    !call PrintMsg(option)
       call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
@@ -848,7 +848,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                         option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" needs gas pressure defined.'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                       endif
                     ! for air pressure dof
                     case(GENERAL_AIR_PRESSURE_INDEX)
@@ -871,13 +871,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                 trim(boundary_condition%flow_condition%name) // &
                                 '" needs gas pressure defined to calculate air ' // &
                                 'pressure from temperature.'
-                              call printErrMsg(option)
+                              call PrintErrMsg(option)
                             endif
                           endif
                           xxbc(idof) = gas_pressure - saturation_pressure
                         else
                           option%io_buffer = 'Cannot find boundary constraint for air pressure.'
-                          call printErrMsg(option)
+                          call PrintErrMsg(option)
                         endif
                       else
                         xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
@@ -892,7 +892,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 !                        option%io_buffer = 'Mixed FLOW_CONDITION "' // &
 !                          trim(boundary_condition%flow_condition%name) // &
 !                          '" needs saturation defined.'
-!                        call printErrMsg(option)
+!                        call PrintErrMsg(option)
                       endif
                     case(GENERAL_TEMPERATURE_INDEX)
                       real_index = boundary_condition%flow_aux_mapping(variable)
@@ -902,13 +902,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                         option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" needs temperature defined.'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                       endif
                   end select
                 case(NEUMANN_BC)
                 case default
                   option%io_buffer = 'Unknown BC type in GeneralUpdateAuxVars().'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             enddo  
         end select
@@ -926,7 +926,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
             option%io_buffer = 'Error setting up boundary condition in GeneralUpdateAuxVars'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo
       endif
@@ -2024,13 +2024,13 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 !  call MatView(J,PETSC_VIEWER_STDOUT_WORLD,ierr)

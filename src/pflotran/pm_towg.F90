@@ -151,12 +151,12 @@ function PMTOWGCreate(miscibility_model,option)
 
   if (Uninitialized(towg_energy_dof)) then 
     option%io_buffer = 'towg_energy_dof not set up'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if  
 
   if (Uninitialized(towg_energy_eq_idx)) then 
     option%io_buffer = 'towg_energy_eq_idx not set up'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if  
 
 
@@ -302,7 +302,7 @@ subroutine PMTOWGRead(this,input)
 
   !if (Uninitialized(towg_miscibility_model)) then 
   !  option%io_buffer = 'TOWG MISCIBILITY_MODEL not set up'
-  !  call printErrMsg(option)
+  !  call PrintErrMsg(option)
   !end if  
 
   !here set up functions in TOWG and pm_TOWG_aux based on miscibility model 
@@ -311,7 +311,7 @@ subroutine PMTOWGRead(this,input)
   !    !set up towg and pm_towg_aux functions   
   !  case default
   !    option%io_buffer = 'only immiscible TOWG currently implemented' 
-  !    call printErrMsg(option)
+  !    call PrintErrMsg(option)
   !end select
 
 end subroutine PMTOWGRead
@@ -581,7 +581,7 @@ subroutine PMTOWGUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   type(field_type), pointer :: field
   
 #ifdef PM_TOWG_DEBUG  
-  call printMsg(this%option,'PMTOWG%UpdateTimestep()')
+  call PrintMsg(this%option,'PMTOWG%UpdateTimestep()')
 #endif
   
   fac = 0.5d0
@@ -760,7 +760,7 @@ subroutine FMISOWGRead(input,option)
   else
     if( fmis_su<=fmis_sl ) then
       option%io_buffer = 'Second FMIS value must exceed first'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
       fmis_av=0.5*(fmis_sl+fmis_su)
       fmis_sl=fmis_av-0.5*eps
       fmis_su=fmis_av+0.5*eps

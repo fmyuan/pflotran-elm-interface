@@ -193,13 +193,13 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
     if ( (rtempvz_table%axis1%values(1) - 1.0) > z_min ) then
       option%io_buffer = 'Hydrostatic equilibration: Temperature table - &
                           &range does not cover deepest layers'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     tbl_size = size(rtempvz_table%axis1%values(:))
     if ( (rtempvz_table%axis1%values(tbl_size) + 1.0) < z_max  ) then
       option%io_buffer = 'Hydrostatic equilibration: Temperature table - &
                           &range does not cover most shallow layers'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
   endif
   ! determine what are the transition zones present
@@ -214,13 +214,13 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   !check that water is heavier than oil and oil heavier than gas
   if ( owc_z > ogc_z .and. oil_wat_zone .and. oil_gas_zone ) then
     option%io_buffer = 'Hydrostatic Equilibration input error: owc > ogc'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( dabs(ogc_z - owc_z) < 0.1d0 .and. oil_wat_zone .and. oil_gas_zone ) then
     option%io_buffer = 'Hydrostatic Equilibration error: owc and ogc &
                         &less than 10 cm apart, consider to switch to wgc'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   ! wat_gas_zone determined in HydrostaticPMLoader
@@ -283,7 +283,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
   g_z = option%gravity(Z_DIRECTION)
   if (dabs(gravity_magnitude-EARTH_GRAVITY) > 0.1d0) then
     option%io_buffer = 'Magnitude of gravity vector is not near 9.81.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   !create 1d grid
@@ -480,7 +480,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
         if ( .not.cc_ptr%oil_wat_sat_func%sat_func_of_pc_available ) then
            option%io_buffer = 'The Pcow function used for&
                               & hydrostatic equilibration is not valid.'
-           call printErrMsg(option)
+           call PrintErrMsg(option)
         end if
         call cc_ptr%oil_wat_sat_func%Saturation(pow_cell,sw_cell, &
                                                 dsat_dp,option)
@@ -499,7 +499,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
         if ( .not.cc_ptr%oil_gas_sat_func%sat_func_of_pc_available ) then
           option%io_buffer = 'The Pcog function used for&
                              & hydrostatic equilibration is not valid.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if  
         call cc_ptr%oil_gas_sat_func%Saturation(pog_cell,sg_cell, &
                                                 dsat_dp,option)
@@ -523,7 +523,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
         if ( .not.cc_ptr%gas_wat_sat_func%sat_func_of_pc_available ) then
           option%io_buffer = 'The Pcgw function used for&
                              & hydrostatic equilibration is not valid.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
         call cc_ptr%gas_wat_sat_func%Saturation(pwg_cell,sw_cell, &
                                                 dsat_dp,option)
@@ -582,7 +582,7 @@ subroutine HydrostaticMPUpdateCoupler(coupler,option,grid, &
         else if ( pwg_cell > pcwg_min .and. pwg_cell < pcwg_max ) then
           !call Non-linear solution of: Pcwg(Sw) = Pcog(1-Sw) + Pcow(Sw) = pwg_cell
           !option%io_buffer = 'hydrostatic: Sw + Sg > 1 not supported yet'
-          !call printErrMsg(option)
+          !call PrintErrMsg(option)
           call SolvePcwg(cc_ptr,sw_min,sw_max,pw_cell,pg_cell,sw_cell,option)
           sg_cell = 1.0 - sw_cell
         else if ( pwg_cell >= pcwg_max ) then
@@ -770,7 +770,7 @@ subroutine HydrostaticPMLoader(condition,option)
       if ( associated(condition%toil_ims%owc) .and. & 
            associated(condition%toil_ims%owc_z) ) then
         option%io_buffer = 'OWC defined twice in owc(1:3) and owc_z'
-        call printErrMsg(option)      
+        call PrintErrMsg(option)
       else if ( associated(condition%toil_ims%owc) ) then
          owc_z = condition%toil_ims%owc%dataset%rarray(Z_DIRECTION) 
       else if ( associated(condition%toil_ims%owc_z) ) then
@@ -795,7 +795,7 @@ subroutine HydrostaticPMLoader(condition,option)
        associated(condition%datum) &
       ) then
     option%io_buffer = 'TOWG datum defined twice in datum and datum_z'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if ( associated(condition%datum_z) ) then
     datum_z = condition%datum_z%dataset%rarray(1)
   else if (associated(condition%datum)) then
@@ -810,7 +810,7 @@ subroutine HydrostaticPMLoader(condition,option)
             if ( dabs(ogc_z - datum_z) > z_eps ) then
               option%io_buffer = 'Hydrostatic equilibration: PB table not defined, &
                                   &datum and OGC must be in the same location'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             end if  
           end if
       end select    
@@ -819,7 +819,7 @@ subroutine HydrostaticPMLoader(condition,option)
   if (.not.press_at_datum_found) then
     option%io_buffer = 'TOWG Equilibration condition input error: &
                         &a pressure value at datum must be input'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( associated(condition%rtempvz_table) ) then
@@ -840,7 +840,7 @@ subroutine HydrostaticPMLoader(condition,option)
      option%io_buffer = 'MP Equilibration input: a temperature value, table &
                          &or gradient with temperature at datum must be input &
                          &to initialise the reservoir'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   end if
   
   !avoid that both a gradient and a table are defined for the temperature
@@ -848,7 +848,7 @@ subroutine HydrostaticPMLoader(condition,option)
     option%io_buffer = 'MP Equilibration: a constant temperature value &
                     &or gradient with temperature at datum, &
                     &and a table have been defined. Only one option allowed.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
 end subroutine HydrostaticPMLoader
@@ -948,7 +948,7 @@ subroutine HydrostaticPMCellInit(option,z,pw,po,pg,sw,so,sg,iconn,coupler)
             option%io_buffer = 'MP Equilibration warning: oil saturated cell &
                 &found below OGC, resetting to undersaturated depth (-z) = ' &
                 // word
-            call printMsg(option)
+            call PrintMsg(option)
           end if
           ! ---- to go on pm_towg_aux
           ! Put cells into saturated or undersaturated state (one or other in this case)
@@ -1132,7 +1132,7 @@ subroutine SolvePcwg(cc,sw_min,sw_max,pw,pg,sw,option)
 
   if ( .not.has_converged ) then
     option%io_buffer = 'hydrostatic: Sw + Sg > 1, Solusion of Pcwg(Sw) failed'
-    call printMsg(option)
+    call PrintMsg(option)
   end if
 
 end subroutine SolvePcwg

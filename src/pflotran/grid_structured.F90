@@ -407,7 +407,7 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
     if (structured_grid%bounds(1,1) < -1.d19) then 
       option%io_buffer = 'Bounds have not been set for grid and DXYZ ' // & 
         'does not exist'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     allocate(structured_grid%dx_global(structured_grid%nx))
     allocate(structured_grid%dy_global(structured_grid%ny))
@@ -485,11 +485,11 @@ subroutine StructGridComputeSpacing(structured_grid,origin_global,option)
   endif
 
   option%io_buffer = 'Domain Bounds (x y z):'
-  call printMsg(option)
+  call PrintMsg(option)
   write(option%io_buffer,'(2x,3es18.10)') structured_grid%bounds(:,LOWER)
-  call printMsg(option)
+  call PrintMsg(option)
   write(option%io_buffer,'(2x,3es18.10)') structured_grid%bounds(:,UPPER)
-  call printMsg(option)
+  call PrintMsg(option)
 
   structured_grid%dxg_local(1:structured_grid%ngx) = &
     structured_grid%dx_global(structured_grid%gxs+1:structured_grid%gxe)
@@ -1030,10 +1030,10 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
         ghost_count = tvd_ghost_offset
       case(CYLINDRICAL_GRID)
         option%io_buffer = 'For cylindrical coordinates, NY must be equal to 1.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case(SPHERICAL_GRID)
         option%io_buffer = 'For spherical coordinates, NY must be equal to 1.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
       
@@ -1108,7 +1108,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
         enddo
       case(SPHERICAL_GRID)
         option%io_buffer = 'For spherical coordinates, NZ must be equal to 1.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
   end select
   endif
 
@@ -1248,7 +1248,7 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
                 if (iface == TOP_FACE) then 
                   option%io_buffer = 'Need to ensure that direction of ' // &
                     'inverted z is correct in StructGridPopulateConnection()'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                   connection%dist(3,iconn) = -1.d0
                 else
                   connection%dist(3,iconn) = 1.d0
@@ -1288,7 +1288,7 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
             case(SPHERICAL_GRID)
               option%io_buffer = &
                 'Areas for spherical coordinates for z-axis not applicable.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
       end select
       if (connection%area(iconn) < 1.d-20) then
@@ -1296,7 +1296,7 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection, &
         option%io_buffer = &
           'Zero area in boundary connection at grid cell ' // &
           trim(adjustl(option%io_buffer)) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     case(INITIAL_CONNECTION_TYPE)
     case(SRC_SINK_CONNECTION_TYPE)
@@ -1573,7 +1573,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
     case(DMDA_STENCIL_BOX)
       option%io_buffer = 'DMDA_STENCIL_BOX not yet supported in ' // &
         'StructGridGetNeighbors.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine StructGridGetGhostedNeighbors
@@ -1639,7 +1639,7 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
   !  case(DMDA_STENCIL_BOX)
   !    option%io_buffer = 'DMDA_STENCIL_BOX not yet supported in ' // &
   !      'StructGridGetNeighbors.'
-  !    call printErrMsg(option)
+  !    call PrintErrMsg(option)
   !end select
 
 end subroutine StructGridGetGhostedNeighborsCorners
@@ -1742,7 +1742,7 @@ subroutine StructGridCreateTVDGhosts(structured_grid,ndof,global_vec, &
   
   if (vector_size == 0) then
     option%io_buffer = 'TVD does not handle a single grid cell.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call VecCreateSeq(PETSC_COMM_SELF,vector_size*ndof,ghost_vec, &
@@ -1866,7 +1866,7 @@ subroutine StructGridCreateTVDGhosts(structured_grid,ndof,global_vec, &
 
   if (vector_size /= icount) then
     option%io_buffer = 'Mis-count in TVD ghosting.'
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
 
   ! since global_indices_from was base-zero, global_indices_from is base-zero.
@@ -1978,7 +1978,7 @@ function StructGetTVDGhostConnection(ghosted_id,structured_grid,iface,option)
       endif
   end select
 
-  if (error) call printErrMsg(option)
+  if (error) call PrintErrMsg(option)
   
   call StructGridGetIJKFromGhostedID(structured_grid,ghosted_id,i,j,k)
   offset = 0
@@ -2043,7 +2043,7 @@ function StructGetTVDGhostConnection(ghosted_id,structured_grid,iface,option)
   if (error) then
     write(option%io_buffer, '(''StructGetTVDGhostConnection not on '', a, &
     & ''face for cell:'',3i6)') trim(string), i,j,k
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   
   StructGetTVDGhostConnection = -index

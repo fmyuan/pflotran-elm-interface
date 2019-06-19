@@ -156,7 +156,7 @@ subroutine RichardsSetupPatch(realization)
   error_found = PETSC_FALSE
   if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   material_auxvars => patch%aux%Material%auxvars
@@ -169,24 +169,24 @@ subroutine RichardsSetupPatch(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
 
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in RichardsSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! allocate auxvar data structures for all grid cells  
@@ -254,7 +254,7 @@ subroutine RichardsSetupPatch(realization)
         else if( associated(grid%unstructured_grid%polyhedra_grid) ) then
           option%io_buffer = 'richards.F90:RichardsSetupPatch() --> &
              &unsupported grid type, could not compute top cell half heights.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else !implicit unstructured 
           minz  = 0.0d0
           maxz  = 0.0d0
@@ -277,7 +277,7 @@ subroutine RichardsSetupPatch(realization)
       else
         option%io_buffer = 'richards.F90:RichardsSetupPatch() --> &
           &unsupported grid type, could not compute top cell half heights.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
 
       ! set Manning's coefficient
@@ -309,7 +309,7 @@ subroutine RichardsSetupPatch(realization)
             option%io_buffer = 'richards.F90:RichardsSetupPatch() --> &
               &surface boundary condition, assigned to a region which is &
               &not the boundary of the inline surface region.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo
         sum_connection = sum_connection + coupler%connection_set%num_connections
@@ -614,7 +614,7 @@ subroutine RichardsUpdatePermPatch(realization)
   if (.not.associated(patch%imat)) then
     option%io_buffer = 'Materials IDs not present in run.  Material ' // &
       ' properties cannot be updated without material ids'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
@@ -2121,13 +2121,13 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 #if 0
@@ -2145,7 +2145,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
 #endif
 
   call PetscLogEventEnd(logging%event_r_jacobian,ierr);CHKERRQ(ierr)
-!  call printErrMsg(option)
+!  call PrintErrMsg(option)
 
   richards_ni_count = richards_ni_count + 1
   
@@ -3049,7 +3049,7 @@ subroutine RichardsUpdateSurfacePress(realization)
 
       if (boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
          HET_SURF_SEEPAGE_BC) then
-        call printErrMsg(option,'from_surface_bc is not of type ' // &
+        call PrintErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
 
@@ -3191,7 +3191,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            itype(RICHARDS_PRESSURE_DOF)
 
       if (pressure_bc_type /= HET_SURF_SEEPAGE_BC) then
-        call printErrMsg(option,'from_surface_bc is not of type ' // &
+        call PrintErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
 

@@ -163,7 +163,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       if (option%flow%resdef) then
         option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, &
           &overwritting the RESERVOIR_DEFAULTS default'
-        call printMsg(option)
+        call PrintMsg(option)
       endif
 
     case('MAX_TEMPERATURE_CHANGE')
@@ -210,7 +210,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       if (option%flow%resdef) then
         option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
           &overwritting the RESERVOIR_DEFAULTS default'
-        call printMsg(option)
+        call PrintMsg(option)
       endif
 
     case('ANALYTICAL_JACOBIAN')
@@ -220,18 +220,18 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       option%flow%resdef = PETSC_TRUE
       option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
         &process model options'
-      call printMsg(option)
+      call PrintMsg(option)
 
       option%flow%numerical_derivatives = PETSC_FALSE
       option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has &
         &been automatically selected (RESERVOIR_DEFAULTS)'
-      call printMsg(option)
+      call PrintMsg(option)
 
       this%pressure_change_governor=5.5d6
       call InputDefaultMsg(input,option,'dpmxe')
       option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
         &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
-      call printMsg(option)
+      call PrintMsg(option)
 
     case('ANALYTICAL_DERIVATIVES')
       option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
@@ -346,7 +346,7 @@ subroutine PMSubsurfaceFlowSetup(this)
               &Please chose a different mode, such as General Mode or &
               &WIPP Flow Mode, or use &
               &the IGNORE_PERMEABILITY feature, and provide ALPHA.'
-            call printErrMsg(this%option)
+            call PrintErrMsg(this%option)
           endif
       end select
       endif
@@ -541,7 +541,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
         class is(dataset_gridded_hdf5_type)
           option%io_buffer = 'Gridded dataset "' // trim(dataset%name) // &
             ' not yet suppored in RealizSetSoilReferencePressure().'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         class is(dataset_common_hdf5_type)
           dataset_name = dataset%hdf5_dataset_name
           group_name = ''
@@ -553,7 +553,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
         class default
           option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
             &wrong type for RealizSetSoilReferencePressure()'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       call DiscretizationGlobalToLocal(realization%discretization, &
                                        realization%field%work, &
@@ -582,7 +582,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
     option%io_buffer = 'Restarted simulations (restarted with time > 0) &
       &that set reference pressure based on the initial pressure will be &
       &incorrect as the initial pressure is not stored in a checkpoint file.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (dataset_vec /= PETSC_NULL_VEC) then
@@ -647,12 +647,12 @@ subroutine InitialiseAllWells(this)
     is_grdecl = GetIsGrdecl()
     if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl)) then
       option%io_buffer='WELL_DATA well specification can only be used with structured grids'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     if (.not.cast_ok) then
       option%io_buffer='WELL_DATA call cannot cast CLASS to TYPE'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
 
       do
@@ -816,7 +816,7 @@ subroutine PMSubsurfaceFlowPostSolve(this)
   class(pm_subsurface_flow_type) :: this
   
   this%option%io_buffer = 'PMSubsurfaceFlowPostSolve() must be extended.'
-  call printErrMsg(this%option)  
+  call PrintErrMsg(this%option)
   
 end subroutine PMSubsurfaceFlowPostSolve
 
@@ -1032,7 +1032,7 @@ subroutine PMSubsurfaceFlowUpdateAuxVars(this)
   class(pm_subsurface_flow_type) :: this
 
   this%option%io_buffer = 'PMSubsurfaceFlowUpdateAuxVars() must be extended.'
-  call printErrMsg(this%option)
+  call PrintErrMsg(this%option)
 
 end subroutine PMSubsurfaceFlowUpdateAuxVars   
 

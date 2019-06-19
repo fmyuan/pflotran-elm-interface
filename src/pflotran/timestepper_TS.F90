@@ -638,7 +638,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
   character(len=MAXSTRINGLENGTH) :: string
   
 #ifdef DEBUG
-  call printMsg(option,'TimestepperBEFinalizeRun()')
+  call PrintMsg(option,'TimestepperBEFinalizeRun()')
 #endif
   
   if (OptionPrintToScreen(option)) then

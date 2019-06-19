@@ -499,7 +499,7 @@ subroutine RealizationLocalizeRegions(realization)
       if (.not.associated(cur_region2)) exit
       if (StringCompare(cur_region%name,cur_region2%name,MAXWORDLENGTH)) then
         option%io_buffer = 'Duplicate region names: ' // trim(cur_region%name)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       cur_region2 => cur_region2%next
     enddo
@@ -521,7 +521,7 @@ subroutine RealizationLocalizeRegions(realization)
              &Regions() --> Could not find a required region named "' // &
              trim(option%inline_surface_region_name) // &
              '" from the list of regions.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
      endif
      call GridRestrictRegionalConnect(realization%patch%grid,region)
    endif
@@ -797,7 +797,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         option%io_buffer = 'Characteristic curve "' // &
           trim(cur_material_property%saturation_function_name) // &
           '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         if (associated(patch%characteristic_curves_array)) then
           call CharCurvesProcessTables(patch%characteristic_curves_array(  &
@@ -820,7 +820,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%porosity_dataset => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for porosity.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
     if (associated(cur_material_property%tortuosity_dataset)) then
@@ -836,7 +836,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%tortuosity_dataset => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for tortuosity.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
     if (associated(cur_material_property%permeability_dataset)) then
@@ -853,7 +853,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         class default
           option%io_buffer = 'Incorrect dataset type for permeability or &
                              &permeability X.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select      
     endif
     if (associated(cur_material_property%permeability_dataset_y)) then
@@ -869,7 +869,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%permeability_dataset_y => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for permeability Y.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select      
     endif
     if (associated(cur_material_property%permeability_dataset_z)) then
@@ -885,7 +885,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%permeability_dataset_z => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for permeability Z.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select      
     endif
     if (associated(cur_material_property%soil_reference_pressure_dataset)) then
@@ -902,7 +902,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         class default
           option%io_buffer = 'Incorrect dataset type for soil reference &
                               &pressure.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
     if (associated(cur_material_property%compressibility_dataset)) then
@@ -918,7 +918,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%compressibility_dataset => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for soil_compressibility.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select      
     endif
     
@@ -984,7 +984,7 @@ subroutine RealProcessFluidProperties(realization)
       if( maxsatn > ncc ) then
         option%io_buffer = &
          'SATNUM data does not match CHARACTERISTIC CURVES count'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       do icc = 1, ncc
         call CharCurvesProcessTables( &
@@ -992,7 +992,7 @@ subroutine RealProcessFluidProperties(realization)
       end do
     else
       option%io_buffer = 'SATNUM data but no CHARACTERISTIC CURVES'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
   endif
 
@@ -1099,7 +1099,7 @@ subroutine RealProcessTranConditions(realization)
       if (found) then
         option%io_buffer = 'Duplicate transport constraints named "' // &
                  trim(cur_constraint%name) // '"'
-        call printErrMsg(realization%option)
+        call PrintErrMsg(realization%option)
       endif
     cur_constraint => cur_constraint%next
   enddo
@@ -1187,7 +1187,7 @@ subroutine RealProcessTranConditions(realization)
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'
-          call printErrMsg(realization%option)
+          call PrintErrMsg(realization%option)
         endif
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
@@ -1624,7 +1624,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
     final_time = cur_waypoint%time
   else
     option%io_buffer = 'Final time not found in RealizationAddWaypointsToList'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! add update of flow conditions
@@ -1645,7 +1645,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
               '" dataset "' // trim(sub_condition%name) // &
               '", the number of times is excessive for synchronization ' // &
               'with waypoints.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           do itime = 1, size(times)
             waypoint => WaypointCreate()
@@ -2031,7 +2031,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   if (min_value < 0.d0) then
     write(option%io_buffer,*) 'Sum of mineral volume fractions has ' // &
       'exceeded 1.d0 at cell (note PETSc numbering): ', ivalue
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
    
 end subroutine RealizationUpdatePropertiesTS

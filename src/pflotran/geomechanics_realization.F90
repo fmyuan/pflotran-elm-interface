@@ -502,7 +502,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
     option%io_buffer = 'The number of cells specified in ' // &
                        'input file might not be same as the ' // &
                        'SUBSURF->GEOMECH mapping used.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 #if GEOMECH_DEBUG
@@ -573,7 +573,7 @@ subroutine GeomechRealizMapSubsurfGeomechGrid(realization, &
     option%io_buffer = 'The number of cells specified in ' // &
                        'input file might not be same as the ' // &
                        'GEOMECH->SUBSURF mapping used.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 #if GEOMECH_DEBUG
@@ -1083,7 +1083,7 @@ subroutine GeomechRealizAddWaypointsToList(geomech_realization,waypoint_list)
     final_time = cur_waypoint%time
   else
     option%io_buffer = 'Final time not found in GeomechRealizAddWaypointsToList'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! add update of geomech conditions
@@ -1103,7 +1103,7 @@ subroutine GeomechRealizAddWaypointsToList(geomech_realization,waypoint_list)
               '" dataset "' // trim(sub_condition%name) // &
               '", the number of times is excessive for synchronization ' // &
               'with waypoints.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           do itime = 1, size(times)
             waypoint => WaypointCreate()

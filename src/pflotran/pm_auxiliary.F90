@@ -249,7 +249,7 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
     case default
       this%option%io_buffer = 'Function pointer "' // trim(string) // '" not &
         &found among available functions in PMAuxiliarySetFunctionPointer.'
-      call printErrMsg(this%option)
+      call PrintErrMsg(this%option)
   end select
   
 end subroutine PMAuxiliarySetFunctionPointer

@@ -91,7 +91,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
 
  
 #ifdef GEOMECH_DEBUG
-  call printMsg(option,'Copying unstructured grid to geomechanics grid')
+  call PrintMsg(option,'Copying unstructured grid to geomechanics grid')
 #endif
   
   geomech_grid%global_offset_elem = ugrid%global_offset
@@ -114,7 +114,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   geomech_grid%nlmax_node = ugrid%num_vertices_natural
 
 #ifdef GEOMECH_DEBUG
-  call printMsg(option,'Removing ghosted elements (cells)')
+  call PrintMsg(option,'Removing ghosted elements (cells)')
 #endif
   
   ! Type of element
@@ -124,7 +124,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   enddo
 
 #ifdef GEOMECH_DEBUG
-  call printMsg(option,'Reordering nodes (vertices)')
+  call PrintMsg(option,'Reordering nodes (vertices)')
 #endif
 
   ! First calculate number of elements on local domain (without ghosted elements)
@@ -338,7 +338,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
     if (geomech_grid%nlmax_node > geomech_grid%ngmax_node) then
       option%io_buffer = 'Error: nlmax_node cannot be greater than' // &
                          ' ngmax_node.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
 
@@ -353,7 +353,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
                      
   if (nlmax_node < 1) then
     option%io_buffer = 'Error: Too many processes for the size of the domain.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! Create an index set of the ranks of each vertex    
@@ -495,7 +495,7 @@ subroutine CopySubsurfaceGridtoGeomechGrid(ugrid,geomech_grid,option)
   
   if (vertex_count /= geomech_grid%ngmax_node - geomech_grid%nlmax_node) then
     option%io_buffer = 'Error in number of ghost nodes!'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 #ifdef GEOMECH_DEBUG
@@ -776,7 +776,7 @@ subroutine GeomechGridLocalizeRegions(grid,region_list,option)
       option%io_buffer = 'GeomechGridLocalizeRegions: define region only ' // &
                          'by list of vertices is currently implemented: ' //  &
                           trim(region%name)
-      call printErrMsg(option)     
+      call PrintErrMsg(option)
     else
       call GeomechGridLocalizeRegFromVertIDs(grid,region,option)
     endif
@@ -1177,7 +1177,7 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
       if (InputError(input)) then
         option%io_buffer = 'ERROR while reading ' // &
           'GEOMECHANICS_SUBSURFACE_COUPLING mapping file.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       vertex_ids_geomech(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
@@ -1213,7 +1213,7 @@ subroutine GeomechSubsurfMapFromFileId(grid,input,option)
     option%io_buffer = &
       'Provide a flow cell_id and a geomech vertex_id per ' // &
       'line in GEOMECHANICS_SUBSURFACE_COUPLING mapping file.'
-    call printErrMsg(option) 
+    call PrintErrMsg(option)
   endif
   
   deallocate(temp_int_array)

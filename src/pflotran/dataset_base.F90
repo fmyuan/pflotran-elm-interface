@@ -177,27 +177,27 @@ subroutine DatasetBaseVerify(this,dataset_error,option)
     if (this%data_type == 0) then
       option%io_buffer = '"data_type" not defined in dataset: ' // &
                          trim(this%name)
-      call printMsg(option)
+      call PrintMsg(option)
       dataset_error = PETSC_TRUE
     endif
     if (associated(this%ibuffer) .or. associated(this%rbuffer)) then
       if (.not.associated(this%dims)) then
         option%io_buffer = '"dims" not allocated in dataset: ' // &
                            trim(this%name)
-        call printMsg(option)
+        call PrintMsg(option)
         dataset_error = PETSC_TRUE
       endif
       if (this%dims(1) == 0) then
         option%io_buffer = '"dims" not defined in dataset: ' // &
                            trim(this%name)
-        call printMsg(option)
+        call PrintMsg(option)
         dataset_error = PETSC_TRUE
       endif
       if (size(this%dims) /= this%rank) then
         option%io_buffer = 'Size of "dims" not match "rank" in dataset: ' // &
                             trim(this%name)
         dataset_error = PETSC_TRUE
-        call printMsg(option)
+        call PrintMsg(option)
       endif
     endif
     if (associated(this%ibuffer) .and. .not.associated(this%iarray)) then
@@ -210,7 +210,7 @@ subroutine DatasetBaseVerify(this,dataset_error,option)
     endif
   else if (len_trim(this%name) < 1) then
     option%io_buffer = 'ERROR: No value or dataset specified.'
-    call printMsg(option)
+    call PrintMsg(option)
     dataset_error = PETSC_TRUE
   endif
     
@@ -337,7 +337,7 @@ subroutine DatasetBaseReorder(this,option)
   
   if (this%data_type == DATASET_INTEGER) then
     option%io_buffer = 'Reordering of integer data sets not yet supported.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! set each dim to 1 by default for loop below
@@ -478,7 +478,7 @@ function DatasetBaseGetPointer(dataset_list, dataset_name, debug_string, &
   if (.not.found) then
     option%io_buffer = 'Dataset "' // trim(dataset_name) // '" in "' // &
              trim(debug_string) // '" not found among available datasets.'
-    call printErrMsgByRank(option)    
+    call PrintErrMsgByRank(option)
   endif
 
 end function DatasetBaseGetPointer

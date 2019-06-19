@@ -252,7 +252,7 @@ subroutine CLM_CN_Read(this,input,option)
             'be included in a CLM-CN reaction definition, but not both. ' // &
             'See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else if (turnover_time > 0.d0) then
           new_reaction%rate_constant = 1.d0 / turnover_time
         else
@@ -265,7 +265,7 @@ subroutine CLM_CN_Read(this,input,option)
             'zero and one (i.e. 0. <= rf <= 1.) in a CLM-CN reaction ' // &
             'definition. See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! If no downstream pool exists, ensure that respiration fraction = 1
         if (len_trim(new_reaction%downstream_pool_name) < 1 .and. &
@@ -274,7 +274,7 @@ subroutine CLM_CN_Read(this,input,option)
             '1.0 if no downstream pool is specified in a CLM-CN reaction ' // &
             'definition. See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (associated(this%reactions)) then
           prev_reaction%next => new_reaction
@@ -406,7 +406,7 @@ subroutine CLM_CN_Map(this,reaction,option)
         option%io_buffer = 'For CLM-CN pools with no CN ratio defined, ' // &
           'the user must define two immobile species with the same root ' // &
           'name as the pool with "C" or "N" appended, respectively.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     else ! only one species (e.g. SOMX)
       this%pool_id_to_species_id(SOM_INDEX,icount) = &
@@ -439,7 +439,7 @@ subroutine CLM_CN_Map(this,reaction,option)
         trim(cur_rxn%upstream_pool_name) // &
         '" in reaction with downstream pool "' // &
         trim(cur_rxn%downstream_pool_name) // '" not found in list of pools.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (len_trim(cur_rxn%downstream_pool_name) > 0) then
       this%downstream_pool_id(icount) = &
@@ -449,7 +449,7 @@ subroutine CLM_CN_Map(this,reaction,option)
           trim(cur_rxn%downstream_pool_name) // &
           '" in reaction with upstream pool "' // &
           trim(cur_rxn%upstream_pool_name) // '" not found in list of pools.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       if (this%CN_ratio(this%downstream_pool_id(icount)) < 0.d0) then
         option%io_buffer = 'For CLM-CN reactions, downstream pools ' // &
@@ -457,7 +457,7 @@ subroutine CLM_CN_Map(this,reaction,option)
           ' individually.  Therefore, pool "' // &
           trim(cur_rxn%downstream_pool_name) // &
           '" may not be used as a downstream pool.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     this%rate_constant(icount) = cur_rxn%rate_constant

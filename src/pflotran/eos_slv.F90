@@ -1010,7 +1010,7 @@ subroutine throwDerivativeError(option)
   type(option_type) :: option
 
   option%io_buffer = 'Derivatives are not available'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine throwDerivativeError
 

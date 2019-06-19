@@ -126,7 +126,7 @@ subroutine SurfaceJumpStart(simulation)
   if (option%steady_state) then
     option%io_buffer = 'Running in steady-state not yet supported for &
                        &surface-flow.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
     return
   endif
   
@@ -145,7 +145,7 @@ subroutine SurfaceJumpStart(simulation)
     if (option%time /= option%surf_flow_time) then
       option%io_buffer = 'option%time does not match option%surf_flow_time &
         &while restarting simulation. Check the restart files.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     if (surf_flow_read) then
@@ -166,14 +166,14 @@ subroutine SurfaceJumpStart(simulation)
 
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
   if (master_timestepper%max_time_step < 0) then
-    call printMsg(option,'')
+    call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
                        '), specified by TIMESTEPPER->MAX_STEPS, &
                        &has been met.  Stopping....'  
-    call printMsg(option)
-    call printMsg(option,'')
+    call PrintMsg(option)
+    call PrintMsg(option,'')
     return
   endif
 
@@ -190,14 +190,14 @@ subroutine SurfaceJumpStart(simulation)
   
   !if TIMESTEPPER->MAX_STEPS < 1, print out initial condition only
   if (master_timestepper%max_time_step < 1) then
-    call printMsg(option,'')
+    call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
                        '), specified by TIMESTEPPER->MAX_STEPS, &
                        &has been met.  Stopping....'  
-    call printMsg(option)
-    call printMsg(option,'') 
+    call PrintMsg(option)
+    call PrintMsg(option,'')
     return
   endif
 
@@ -208,7 +208,7 @@ subroutine SurfaceJumpStart(simulation)
   if (.not.associated(surf_flow_timestepper%cur_waypoint)) then
     option%io_buffer = &
       'Null flow waypoint list; final time likely equal to start time.'
-    call printMsg(option)
+    call PrintMsg(option)
     return
   else
     surf_flow_timestepper%dt_max = surf_flow_timestepper%cur_waypoint%dt_max
@@ -369,7 +369,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         region => RegionCreate()
         call InputReadWord(input,option,region%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','SURF_REGION')
-        call printMsg(option,region%name)
+        call PrintMsg(option,region%name)
         call RegionRead(region,input,option)
         ! we don't copy regions down to patches quite yet, since we
         ! don't want to duplicate IO in reading the regions
@@ -381,7 +381,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         flow_condition => FlowConditionCreate(option)
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'SURF_FLOW_CONDITION','name')
-        call printMsg(option,flow_condition%name)
+        call PrintMsg(option,flow_condition%name)
         if (option%iflowmode == G_MODE .or. &
             option%iflowmode == WF_MODE) then
           call FlowConditionGeneralRead(flow_condition,input,option)
@@ -441,7 +441,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
             option%subsurf_surf_coupling = SEQ_COUPLED
           case default
             option%io_buffer = 'Invalid value for SURF_SUBSURFACE_COUPLING'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
         call InputSkipToEND(input,option,trim(word))
 
@@ -475,12 +475,12 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
             case('PERMEABILITY')
               option%io_buffer = 'PERMEABILITY output must now be entered &
                                  &under OUTPUT/VARIABLES card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
 !              output_option%print_permeability = PETSC_TRUE
             case('POROSITY')
               option%io_buffer = 'POROSITY output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
 !              output_option%print_porosity = PETSC_TRUE
             case('PRINT_COLUMN_IDS')
               output_option%print_column_ids = PETSC_TRUE
@@ -686,7 +686,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                     case default
                       option%io_buffer = 'TECPLOT format (' // trim(word) // &
                                          ') not recongnized.'
-                      call printErrMsg(option)
+                      call PrintErrMsg(option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
                       .and. option%mycommsize > 1) then
@@ -714,7 +714,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
             case('PROCESSOR_ID')
               option%io_buffer = 'PROCESSOR_ID output must now be entered &
                                  &under OUTPUT/VARIABLES card as PROCESS_ID.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
 !              output_option%print_iproc = PETSC_TRUE
             case('FLOWRATES','FLOWRATE')
               mass_flowrate = PETSC_TRUE
@@ -761,14 +761,14 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                 option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ &
                   &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without &
                   &PERIODIC TIME being set.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
             endif
             option%flow%store_fluxes = PETSC_TRUE
           else
             option%io_buffer='Output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE &
               &only available in HDF5 format'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
 
@@ -849,7 +849,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
 
   if (option%restart_flag .neqv. option%surf_restart_flag) then
     option%io_buffer='option%restart_flag /= option%surf_restart_flag'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SurfaceReadInput

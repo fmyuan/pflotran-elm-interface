@@ -216,7 +216,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
 
   if (len_trim(integral_flux%name) < 1) then
     option%io_buffer = 'All INTEGRAL_FLUXes must have a name.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine IntegralFluxRead

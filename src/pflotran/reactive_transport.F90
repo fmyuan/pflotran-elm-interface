@@ -164,7 +164,7 @@ subroutine RTSetup(realization)
       option%io_buffer = 'The number of transport phases is set &
         &incorrectly for transport with active gases. Please email &
         &your input deck to pflotran-dev@googlegroups.com' 
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -209,24 +209,24 @@ subroutine RTSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (reaction%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
         option%io_buffer = 'Non-initialized soil particle density.'
-        call printMsg(option)
+        call PrintMsg(option)
       endif
     endif
     if (associated(reaction%surface_complexation)) then
@@ -238,7 +238,7 @@ subroutine RTSetup(realization)
               flag(4) == 0) then
             flag(4) = 1
             option%io_buffer = 'Non-initialized soil particle density.'
-            call printMsg(option)
+            call PrintMsg(option)
           endif
         enddo
       endif
@@ -248,7 +248,7 @@ subroutine RTSetup(realization)
   if (maxval(flag) > 0) then
     option%io_buffer = &
       'Material property errors found in RTSetup (reactive transport).'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
   
 !============== Create secondary continuum variables - SK 2/5/13 ===============
@@ -349,7 +349,7 @@ subroutine RTSetup(realization)
       option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
         '" listed in aqueous diffusion coefficient list not found among &
         &aqueous species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     rt_parameter%diffusion_coefficient(i,iphase) = &
         cur_generic_parameter%rvalue
@@ -359,7 +359,7 @@ subroutine RTSetup(realization)
     if (rt_parameter%nphase <= 1) then
       option%io_buffer = 'GAS_DIFFUSION_COEFFICIENTS may not be set when &
         &an ACTIVE_GAS is not included in the CHEMISTRY block'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     ! gas diffusion
     iphase = option%gas_phase
@@ -382,7 +382,7 @@ subroutine RTSetup(realization)
         option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
           '" listed in gas diffusion coefficient list has no aqueous &
           &counterpart'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       cur_generic_parameter => cur_generic_parameter%next
     enddo
@@ -394,7 +394,7 @@ subroutine RTSetup(realization)
         option%io_buffer = 'Active gas transprot is not supported when &
           &gas species are not defined as a one to one match with the &
           &primary species [e.g. O2(aq) <-> O2(g)].'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     if (reaction%neqcplx > 0) then
@@ -402,7 +402,7 @@ subroutine RTSetup(realization)
         &with aqueous speciation since fluxes are currently implemented &
         &based on the total aqueous component concentration and the &
         &diffusion of secondary complexes is lumped.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
  
@@ -1359,7 +1359,7 @@ subroutine RTCalculateRHS_t1(realization)
   
   iphase = 1
   option%io_buffer = 'RTCalculateRHS_t1 must be refactored'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 #if 0
 !geh - activity coef updates must always be off!!!
@@ -3570,7 +3570,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
           option%io_buffer = 'Current multicomponent implementation is for '// &
                              'aqueous reactions only'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         
         if (rt_sec_transport_vars(local_id)%sec_jac_update) then
@@ -3578,7 +3578,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         else
           option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
          
         Jup = Jup - jac_transport                                                                   
@@ -3601,7 +3601,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
     
     if (reaction%ncoll > 0) then
       option%io_buffer = 'Source/sink not yet implemented for colloids'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     cur_connection_set => source_sink%connection_set
@@ -4827,22 +4827,22 @@ subroutine RTExplicitAdvection(realization)
   if (reaction%ncoll > 0) then
     option%io_buffer = &
       'Need to add colloidal source/sinks to RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (patch%aux%RT%rt_parameter%nphase > 1) then
     option%io_buffer = &
       'Need to add multiphase source/sinks to RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (reaction%ncomp /= reaction%naqcomp) then
     option%io_buffer = &
       'Need to account for non-aqueous species to RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (option%compute_mass_balance_new) then  
     option%io_buffer = &
       'Mass balance not yet supported in RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 ! Interior Flux Terms -----------------------------------

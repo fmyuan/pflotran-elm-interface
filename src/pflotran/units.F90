@@ -73,7 +73,7 @@ function UnitsConvertToInternal(units,internal_units,option)
   
   if (.not.successful) then
     option%io_buffer = error_msg
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   UnitsConvertToInternal = conversion_factor

@@ -106,7 +106,7 @@ function UCellComputeCentroid(cell_type,vertices,option)
       UCellComputeCentroid = UCellComputeCentroid / 3.d0
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end function UCellComputeCentroid
@@ -191,10 +191,10 @@ function UCellComputeVolume(cell_type,vertices,option)
     case(QUAD_TYPE, TRI_TYPE)
       option%io_buffer = 'Cell type is QUAD or TRI, thus one should call '// &
         'UCellComputeArea instead of UCellComputeVolume'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end function UCellComputeVolume
@@ -262,7 +262,7 @@ function UCellComputeArea(cell_type,vertices,option)
       UCellComputeArea = area1
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end function UCellComputeArea
@@ -357,7 +357,7 @@ function UCellGetNVertices(cell_type,option)
       UCellGetNVertices = 3
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select  
   
 end function UCellGetNVertices
@@ -424,7 +424,7 @@ function UCellGetNFaces(cell_type,option)
       UCellGetNFaces = 3
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select  
   
 end function UCellGetNFaces
@@ -470,7 +470,7 @@ function UCellGetNFaceVertices(cell_type,iface,option)
       UCellGetNFaceVertices = 2
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
       
 end function UCellGetNFaceVertices
@@ -516,7 +516,7 @@ function UCellGetFaceType(cell_type,iface,option)
       UCellGetFaceType = LINE_FACE_TYPE
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
 end function UCellGetFaceType
@@ -554,7 +554,7 @@ function UCellTypeToWord(cell_type,option)
       UCellTypeToWord = 'triangle'
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
 end function UCellTypeToWord
@@ -586,7 +586,7 @@ function UCellFaceTypeToWord(face_type,option)
       UCellFaceTypeToWord = 'line'
     case default
       option%io_buffer = 'Face type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
 end function UCellFaceTypeToWord
@@ -697,7 +697,7 @@ subroutine UCellGetFaceVertices(option,cell_type,iface,vertex_ids)
           vertex_ids(3) = 6
        case default
           option%io_buffer='Cell WEDGE_TYPE has only 5 faces'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
        end select
     case(PYR_TYPE)
       select case(iface)
@@ -724,7 +724,7 @@ subroutine UCellGetFaceVertices(option,cell_type,iface,vertex_ids)
           vertex_ids(4) = 2
        case default
           option%io_buffer='Cell PYR_TYPE has only 5 faces'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
        end select
     case(TET_TYPE)
       select case(iface)
@@ -746,7 +746,7 @@ subroutine UCellGetFaceVertices(option,cell_type,iface,vertex_ids)
           vertex_ids(3) = 2
         case default
           option%io_buffer='Cell TET_TYPE has only 4 faces'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select       
     case(QUAD_TYPE)
       select case(iface)
@@ -764,7 +764,7 @@ subroutine UCellGetFaceVertices(option,cell_type,iface,vertex_ids)
           vertex_ids(2) = 1
         case default
           option%io_buffer='Cell QUAD_TYPE has only 4 faces'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(TRI_TYPE)
       select case(iface)
@@ -779,11 +779,11 @@ subroutine UCellGetFaceVertices(option,cell_type,iface,vertex_ids)
           vertex_ids(2) = 1
         case default
           option%io_buffer='Cell TRI_TYPE has only 3 faces'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case default
       option%io_buffer = 'Cell type not recognized'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine UCellGetFaceVertices

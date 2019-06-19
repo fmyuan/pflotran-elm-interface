@@ -555,7 +555,7 @@ subroutine CreepClosureRead(this,input,option)
   
   if (len_trim(filename) < 1) then
     option%io_buffer = 'FILENAME must be specified for CREEP_CLOSURE.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
@@ -589,7 +589,7 @@ subroutine CreepClosureRead(this,input,option)
             Uninitialized(this%num_values_per_time)) then
           option%io_buffer = 'NUM_TIMES and NUM_VALUES_PER_TIME must be ' // &
             'specified prior to reading the corresponding arrays.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         this%lookup_table%dims(1) = this%num_times
         this%lookup_table%dims(2) = this%num_values_per_time
@@ -622,19 +622,19 @@ subroutine CreepClosureRead(this,input,option)
   
   if (size(this%lookup_table%axis1%values) /= this%num_times) then
     option%io_buffer = 'Number of times does not match NUM_TIMES.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
   if (size(this%lookup_table%axis2%values) /= &
     this%num_times*this%num_values_per_time) then
     option%io_buffer = 'Number of pressures does not match NUM_TIMES * ' // &
                        'NUM_VALUES_PER_TIME.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (size(this%lookup_table%data) /= &
     this%num_times*this%num_values_per_time) then
     option%io_buffer = 'Number of porosities does not match NUM_TIMES * ' // &
                        'NUM_VALUES_PER_TIME.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! set limits
@@ -763,7 +763,7 @@ function CreepClosureGetID(creep_closure_array, &
            '" in material property "' // &
            trim(material_property_name) // &
            '" not found among available creep closure tables.'
-  call printErrMsg(option)    
+  call PrintErrMsg(option)
 
 end function CreepClosureGetID
 
@@ -980,12 +980,12 @@ subroutine KlinkenbergRead(this,input,option)
   if (Uninitialized(this%a)) then
     option%io_buffer = &
       'Parameter "a" must be included to model the Klinkenberg Effect.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%b)) then
     option%io_buffer = &
       'Parameter "b" must be included to model the Klinkenberg Effect.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine KlinkenbergRead
@@ -1403,7 +1403,7 @@ subroutine WIPPCCVerify(saturation_func, &
     print *, 'lswr: ', lswr, ltype
     print *, 'gswr: ', gswr, gtype
     option%io_buffer = 'Unequal liquid residual saturations.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
  
   if ((Initialized(ssgr) .and. .not.Equal(ssgr,lsgr)) .or. &
@@ -1412,7 +1412,7 @@ subroutine WIPPCCVerify(saturation_func, &
     print *, 'lsgr: ', lsgr, ltype
     print *, 'gsgr: ', gsgr, gtype
     option%io_buffer = 'Unequal gas residual saturations.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
  
   if ((Initialized(slamda) .and. .not.Equal(slamda,llamda)) .or. &
@@ -1421,7 +1421,7 @@ subroutine WIPPCCVerify(saturation_func, &
     print *, 'llamda: ', llamda, ltype
     print *, 'glamda: ', glamda, gtype
     option%io_buffer = 'Unequal lambdas.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
  
 end subroutine WIPPCCVerify

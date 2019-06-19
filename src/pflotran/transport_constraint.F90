@@ -273,7 +273,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                                'exceeds number of primary chemical ' // &
                                'components in constraint: ' // &
                                 trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,aq_species_constraint%names(icomp), &
@@ -281,7 +281,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'aqueous species name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(aq_species_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           
           call InputReadDouble(input,option, &
                                aq_species_constraint%constraint_conc(icomp))
@@ -306,14 +306,14 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                   option%io_buffer = 'TOTAL_AQ_PLUS_SORB constraint may not &
                     &be used unless equilibrium sorption is employed within &
                     &the CHEMISTRY block.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_AQ_PLUS_SORB
               case('S')
                 option%io_buffer = '"S" constraint type no longer ' // &
                   'supported as of March 4, 2013.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               case('P','PH')
                 aq_species_constraint%constraint_type(icomp) = CONSTRAINT_PH
               case('L','LOG')
@@ -369,13 +369,13 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
                    'number of primary species in aqueous constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         if (icomp > reaction%naqcomp) then
           option%io_buffer = &
                    'Number of concentration constraints is greater than ' // &
                    'number of primary species in aqueous constraint.'
-          call printWrnMsg(option)        
+          call PrintWrnMsg(option)
         endif
         
         if (associated(constraint%aqueous_species)) &
@@ -401,7 +401,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                                'exceeds number of primary chemical ' // &
                                'components in constraint: ' // &
                                 trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option, &
@@ -410,7 +410,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'free ion guess name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(free_ion_guess_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           
           call InputReadDouble(input,option,free_ion_guess_constraint%conc(icomp))
           call InputErrorMsg(input,option,'free ion guess',block_string)
@@ -420,13 +420,13 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           option%io_buffer = &
                    'Number of free ion guess constraints is less than ' // &
                    'number of primary species in aqueous constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         if (icomp > reaction%naqcomp) then
           option%io_buffer = &
                    'Number of free ion guess constraints is greater than ' // &
                    'number of primary species in aqueous constraint.'
-          call printWrnMsg(option)        
+          call PrintWrnMsg(option)
         endif
         
         if (associated(constraint%free_ion_guess)) &
@@ -453,7 +453,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                      'Number of mineral constraints exceeds number of ' // &
                      'kinetic minerals in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,mineral_constraint%names(imnrl), &
@@ -461,7 +461,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'mineral name',block_string)
           option%io_buffer = 'Constraint Minerals: ' // &
                              trim(mineral_constraint%names(imnrl))
-          call printMsg(option)
+          call PrintMsg(option)
 
           ! volume fraction
           string = trim(input%buf)
@@ -514,7 +514,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                    '(listed under MINERAL_KINETICS card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present (just ' // &
                    'assign a zero volume fraction if not present).'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%minerals)) then
@@ -542,7 +542,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                      'Number of surface complex constraints exceeds ' // &
                      'number of kinetic surface complexes in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,srfcplx_constraint%names(isrfcplx), &
@@ -550,7 +550,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'surface complex name',block_string)
           option%io_buffer = 'Constraint Surface Complex: ' // &
                              trim(srfcplx_constraint%names(isrfcplx))
-          call printMsg(option)
+          call PrintMsg(option)
           call InputReadDouble(input,option, &
                                srfcplx_constraint%constraint_conc(isrfcplx))
           call InputErrorMsg(input,option,'concentration',block_string)
@@ -561,7 +561,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                    'Number of surface complex constraints is less than ' // &
                    'number of kinetic surface complexes in surface ' // &
                    'complex constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%surface_complexes)) then
@@ -588,7 +588,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                      'Number of colloid constraints exceeds number of ' // &
                      'colloids in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,colloid_constraint%names(icomp), &
@@ -596,7 +596,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'colloid name',block_string)
           option%io_buffer = 'Constraint Colloids: ' // &
                              trim(colloid_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           call InputReadDouble(input,option, &
                                colloid_constraint%constraint_conc_mob(icomp))
           call InputErrorMsg(input,option,'mobile concentration',block_string)
@@ -614,7 +614,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                    '(listed under the COLLOIDS card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present (just ' // &
                    'assign a small value (e.g. 1.d-40) if not present).'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%colloids)) then
@@ -644,7 +644,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                      'Number of immobile constraints exceeds number of ' // &
                      'immobile species in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option, &
@@ -652,7 +652,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'immobile name',block_string)
           option%io_buffer = 'Constraint Immobile: ' // &
                              trim(immobile_constraint%names(iimmobile))
-          call printMsg(option)
+          call PrintMsg(option)
 
           ! concentration
           string = trim(input%buf)
@@ -694,7 +694,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
                    'concentration for all immobile species ' // &
                    '(listed under IMMOBILE card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%immobile_species)) then
@@ -785,7 +785,7 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
                                &the number of species given in the &
                                &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT block. &
                                &Error in constraint: ' // trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,nwt_species_constraint%names(icomp), &
@@ -793,7 +793,7 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
           call InputErrorMsg(input,option,'species name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(nwt_species_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           
           call InputReadDouble(input,option, &
                                nwt_species_constraint%constraint_conc(icomp))
@@ -822,13 +822,13 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
                   &species ' // trim(nwt_species_constraint%names(icomp)) // &
                   ' is not recognized: ' // trim(word) // '. &
                   &Options include: T, AQ, PPT, or SB only.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
             end select
           else
             option%io_buffer = 'Error in constraint: ' // &
               trim(constraint%name) // '. A constraint type was not specified &
               &for species ' // trim(nwt_species_constraint%names(icomp)) // '.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo  
         
@@ -836,13 +836,13 @@ subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
                    'number of species in species constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         if (icomp > nw_trans%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is greater than ' // &
                    'number of species in species constraint.'
-          call printWrnMsg(option)        
+          call PrintWrnMsg(option)
         endif
         
         if (associated(constraint%nwt_species)) &

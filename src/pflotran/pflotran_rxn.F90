@@ -162,18 +162,18 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
     card = trim(word)
 
     option%io_buffer = 'pflotran card:: ' // trim(card)
-    call printMsg(option)
+    call PrintMsg(option)
 
     select case(trim(card))
       case('CONSTRAINT')
         if (.not.associated(reaction)) then
           option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         tran_constraint => TranConstraintCreate(option)
         call InputReadWord(input, option, tran_constraint%name, PETSC_TRUE)
         call InputErrorMsg(input, option, 'constraint', 'name') 
-        call printMsg(option, tran_constraint%name)
+        call PrintMsg(option, tran_constraint%name)
         call TranConstraintReadRT(tran_constraint, reaction, input, option)
         call TranConstraintAddToList(tran_constraint, transport_constraints)
         nullify(tran_constraint)
@@ -196,7 +196,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      if (.not. associated(tran_constraint)) exit
      ! initialize constraints
      option%io_buffer = "initializing constraint : " // tran_constraint%name
-     call printMsg(option)
+     call PrintMsg(option)
      call ReactionProcessConstraint(reaction, &
                                     tran_constraint%name, &
                                     tran_constraint%aqueous_species, &
@@ -219,7 +219,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      
      ! equilibrate
      option%io_buffer = "equilibrate constraint : " // tran_constraint%name
-     call printMsg(option)
+     call PrintMsg(option)
      call ReactionEquilibrateConstraint(rt_auxvars, global_auxvars, &
                                         material_auxvars, reaction, &
                                         tran_constraint%name, &

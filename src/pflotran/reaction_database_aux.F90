@@ -181,7 +181,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
             option%io_buffer = 'Keyword "' // trim(word) // &
                '" not recognized in reaction string "' // &
                trim(reaction_string) // '".'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           ! negate if negative stoichiometry
           if (negative_flag) value = -1.0*value
@@ -229,7 +229,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
               option%io_buffer = 'Species ' // trim(word) // &
                 ' in reaction not found among primary aqueous species list.'
             endif
-            call printErrMsg(option)     
+            call PrintErrMsg(option)
           else
             icount = icount + 1
           endif
@@ -326,7 +326,7 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
       option%io_buffer = trim(rxn_species_names(i_rxn_species)) // &
                ' not found in basis (BasisAlignSpeciesInRxn) for species ' // &
                trim(species_name)
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
   
@@ -350,7 +350,7 @@ subroutine BasisAlignSpeciesInRxn(num_basis_species,basis_names, &
     write(option%io_buffer,*) &
                    'Number of reaction species does not match original:', &
                     i_rxn_species, num_rxn_species
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine BasisAlignSpeciesInRxn 
@@ -598,7 +598,7 @@ function DatabaseCheckLegitimateLogKs(dbaserxn,species_name,temperatures, &
     option%io_buffer = 'Undefined log Ks for temperatures (' // &
                        trim(adjustl(string)) // ') for species "' // &
                        trim(species_name) // '" in database.'
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
   endif
   
 end function DatabaseCheckLegitimateLogKs

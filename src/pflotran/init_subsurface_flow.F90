@@ -90,7 +90,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call TOWGSetup(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -132,7 +132,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call TOWGUpdateAuxVars(realization,PETSC_FALSE)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then

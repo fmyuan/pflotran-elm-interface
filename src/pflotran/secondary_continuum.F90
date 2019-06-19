@@ -305,7 +305,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
   if (abs(sum - 1.d0) > 1.d-6) then
     option%io_buffer = 'Error: Sum of the volume fractions of the' // &
                        ' secondary cells is not equal to 1.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine SecondaryContinuumType
@@ -351,7 +351,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
       if (Equal(sec_continuum_area,0.d0)) then
         option%io_buffer = 'Keyword "AREA" not specified for SLAB type ' // &
                            'under SECONDARY_CONTINUUM'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       sec_continuum%slab%area = sec_continuum_area
     case("NESTED_CUBES")
@@ -364,7 +364,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
     case default
       option%io_buffer = 'Keyword "' // trim(sec_continuum_name) // '" not ' // &
                          'recognized in SecondaryContinuumSetProperties()'
-      call printErrMsg(option)  
+      call PrintErrMsg(option)
   end select
       
 end subroutine SecondaryContinuumSetProperties  
@@ -410,7 +410,7 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   if (mod(sec_num_cells,2) /= 0) then
      option%io_buffer = 'NUM_CELLS under SECONDARY_CONTINUUM has to be' // &
                         ' even for logarithmic grid spacing'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
   
   delta = 0.99d0
@@ -430,7 +430,7 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   if (i == maxit) then
      option%io_buffer = 'Log Grid spacing solution has not converged' // &
                         ' with given fracture values.'
-     call printErrMsg(option)    
+     call PrintErrMsg(option)
   endif
 
   inner_grid_size = outer_grid_size/delta**(sec_num_cells - 1)
@@ -1051,7 +1051,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       if (ncomp /= 1) then
         option%io_buffer = 'THOMAS algorithm can be used only with single '// &
                            'component chemistry'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       do i = 2, ngcells
         m = coeff_left_dm(ncomp,ncomp,i)/coeff_diag_dm(ncomp,ncomp,i-1)
@@ -1062,7 +1062,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
                          'HINDMARSH or KEARST. For single component'// &
                          'chemistry THOMAS can be used.'
-      call printErrMsg(option)  
+      call PrintErrMsg(option)
   end select
   
   ! Set the values of D_M matrix and create identity matrix of size ncomp x ncomp  
@@ -1115,7 +1115,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       if (ncomp /= 1) then
         option%io_buffer = 'THOMAS algorithm can be used only with single '// &
                            'component chemistry'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       do i = 2, ngcells
         m = coeff_left(ncomp,ncomp,i)/coeff_diag(ncomp,ncomp,i-1)
@@ -1128,7 +1128,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
                          'HINDMARSH or KEARST. For single component'// &
                          'chemistry THOMAS can be used.'
-      call printErrMsg(option)  
+      call PrintErrMsg(option)
   end select
     
   ! Update the secondary concentrations
@@ -1330,7 +1330,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         if (ncomp /= 1) then
           option%io_buffer = 'THOMAS algorithm can be used only with '// &
                              'single component chemistry'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         do i = 2, ngcells
           m = coeff_left_pert(ncomp,ncomp,i)/coeff_diag_pert(ncomp,ncomp,i-1)
@@ -1343,7 +1343,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
         option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
                            'HINDMARSH or KEARST. For single component'// &
                            'chemistry THOMAS can be used.'
-        call printErrMsg(option)  
+        call PrintErrMsg(option)
       end select      
     
       ! Update the secondary concentrations
@@ -1846,7 +1846,7 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
       option%io_buffer = 'SECONDARY_CONTINUUM_SOLVER can be only ' // &
                          'HINDMARSH or KEARST. For single component'// &
                          'chemistry THOMAS can be used.'
-      call printErrMsg(option)  
+      call PrintErrMsg(option)
   end select  
   
   do j = 1, ncomp

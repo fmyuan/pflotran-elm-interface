@@ -486,7 +486,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                        'Error in THAuxVarComputeNoFreezing->EOSWaterDensity')
     endif
     call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,dpsat_dt,visl, &
@@ -496,7 +496,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                      'Error in THAuxVarComputeNoFreezing->EOSWaterDensityExt')
     endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,dpsat_dt,aux, &
@@ -733,12 +733,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                        saturation_function, p_th, option) 
     case default
       option%io_buffer = 'THCAuxVarComputeIce: Ice model not recognized.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
   if (ierr /= 0) then
-    call printMsgByCell(option,natural_id, &
+    call PrintMsgByCell(option,natural_id, &
                         'Error in THAuxVarComputeFreezing->EOSWaterDensity')
   endif
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
@@ -791,7 +791,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call EOSWaterDensityIce(global_auxvar%temp, global_auxvar%pres(1), &
                           den_ice, dden_ice_dT, dden_ice_dP, ierr)
   if (ierr /= 0) then
-    call printMsgByCell(option,natural_id, &
+    call PrintMsgByCell(option,natural_id, &
                       'Error in THAuxVarComputeFreezing->EOSWaterDensityIce')
   endif
   call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
@@ -920,7 +920,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
 
 !  if (option%use_th_freezing) then
 !    option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
-!    call printErrMsg(option)
+!    call PrintErrMsg(option)
 !  else
 !    call THAuxVarComputeNoFreezing(x,TH_auxvar,&
 !                      global_auxvar,material_auxvar,&
@@ -962,7 +962,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
 
     if (option%use_th_freezing) then
       option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                             global_auxvar_pert,material_auxvar_pert,&
