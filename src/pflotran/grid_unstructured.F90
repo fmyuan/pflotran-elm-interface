@@ -159,6 +159,10 @@ subroutine UGridRead(unstructured_grid,filename,option)
             num_vertices = 4
           case('Q')
             num_vertices = 4
+          case default
+            option%io_buffer = 'Unrecognized element type "' // trim(word) // &
+              '" in ' // trim(filename) // '.'
+            call PrintErrMsg(option)
         end select
         do ivertex = 1, num_vertices
           call InputReadInt(input,option,temp_int_array(ivertex,icell))
