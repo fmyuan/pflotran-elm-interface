@@ -2856,6 +2856,8 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == TOIL_IMS_MODE .or. &
             option%iflowmode == TOWG_MODE .or. &
             option%iflowmode == G_MODE .or. &
+            option%iflowmode == TH_MODE .and. &
+            .not. option%use_th_freezing .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
             'Must compile with legacy_saturation_function=1 to use the &
@@ -2882,7 +2884,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
-                  option%iflowmode == TH_MODE .or. &
+                  option%iflowmode == TH_MODE .and. &
+                  .not. option%use_th_freezing .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
             &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, TH, or GENERAL. &

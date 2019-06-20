@@ -428,8 +428,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: aux(1)
-  PetscReal :: dpc_dsat1 !!!!not sure if this is correct??
   PetscReal :: dkr_dsat1
+  
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
   global_auxvar%sat = 0.d0
@@ -459,30 +459,47 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   dkr_dp = 0.d0
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
-    iphase = 3
-!#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-!    if(auxvar%bc_alpha > 0.d0) then
-!       saturation_function%alpha  = auxvar%bc_alpha
-!       saturation_function%lambda = auxvar%bc_lambda
-!       saturation_function%m      = auxvar%bc_lambda
-!    endif
-    !#endif
+     iphase = 3
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if (auxvar%bc_alpha > 0.d0) then
+      select type(sf => characteristic_curves%saturation_function)
+        class is(sat_func_VG_type)
+          sf%m     = auxvar%bc_lambda
+          sf%alpha = auxvar%bc_alpha
+        class is(sat_func_BC_type)
+            sf%lambda = auxvar%bc_lambda
+            sf%alpha  = auxvar%bc_alpha
+        class default
+          option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
+            'sat_func_VG_type and sat_func_BC_type'
+          call printErrMsg(option)
+      end select
+
+      select type(rpf => characteristic_curves%liq_rel_perm_function)
+        class is(rpf_Mualem_VG_liq_type)
+          rpf%m = auxvar%bc_lambda
+        class is(rpf_Burdine_BC_liq_type)
+          rpf%lambda = auxvar%bc_lambda
+        class is(rpf_Mualem_BC_liq_type)
+          rpf%lambda = auxvar%bc_lambda
+        class is(rpf_Burdine_VG_liq_type)
+          rpf%m = auxvar%bc_lambda
+        class default
+          option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
+          call printErrMsg(option)
+      end select
+    endif
+#endif
+
     call characteristic_curves%saturation_function% &
          Saturation(auxvar%pc,global_auxvar%sat(1), &
-         ds_dp, option)  !dpc_dsat1
+         ds_dp, option)  
     call characteristic_curves%liq_rel_perm_function% &
-       RelativePermeability(global_auxvar%sat(1),kr,dkr_dsat1,option) !!dkr_dsat1
-!    call characteristic_curves%saturation_function% &
-!         CapillaryPressure(global_auxvar%sat(1), &
-!                           auxvar%pc, dpc_dsat1, option)
-!    call characteristic_curves%liq_rel_perm_function% &
-!          RelativePermeability(global_auxvar%sat(1),kr,dkr_dp,option)
- !   call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
- !                                  kr,ds_dp,dkr_dp, &
- !                                  saturation_function, &
- !                                  material_auxvar%porosity, &
- !                                  material_auxvar%permeability(perm_xx_index), &
- !                                  option)
+       RelativePermeability(global_auxvar%sat(1),kr,dkr_dsat1,option) 
+
+
+    dkr_dp=ds_dp*dkr_dsat1
     dpw_dp = 0.d0
   else
     iphase = 1
@@ -523,8 +540,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   
 !  call VISW_noderiv(option%temp,pw,sat_pressure,visl,ierr)
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
-!    dvis_dp = 0.d0
-!    dw_dp = 0.d0
+    dvis_dp = 0.d0
+    dw_dp = 0.d0
     hw_dp = 0.d0
   endif
 
@@ -535,10 +552,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   
   auxvar%h = hw
   auxvar%u = auxvar%h - pw / dw_mol * option%scale
-
-
-
-  
   auxvar%kvr = kr/visl
   
   auxvar%vis = visl
@@ -551,15 +564,9 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   auxvar%dden_dp = dw_dp
   
 !geh: contribution of dvis_dpsat is now added in EOSWaterViscosity
-<<<<<<< d93e39e281fe7cb66ce1145c773becf593bde0b0
 !  auxvar%dkvr_dT = -kr/(visl*visl)*(dvis_dT+dvis_dpsat*dpsat_dT)
   auxvar%dkvr_dT = -kr/(visl*visl)*dvis_dT
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
-=======
-!  auxvar%dkvr_dt = -kr/(visl*visl)*(dvis_dt+dvis_dpsat*dpsat_dt)
-  auxvar%dkvr_dt = -kr/(visl*visl)*dvis_dt
-  auxvar%dkvr_dp = -kr/(visl*visl)*dvis_dp !dkr_dp/visl - kr/(visl*visl)*dvis_dp
->>>>>>> Replaced saturation functions with characteristic curves on TH
   if (iphase < 3) then !kludge since pw is constant in the unsat zone
     auxvar%dh_dp = hw_dp
     auxvar%du_dp = hw_dp - (dpw_dp/dw_mol-pw/(dw_mol*dw_mol)*dw_dp)*option%scale
