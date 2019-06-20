@@ -527,6 +527,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dpc_dsatl
   character(len=8) :: state_char
   PetscErrorCode :: ierr
+  PetscErrorCode :: eos_henry_ierr
   
   PetscReal :: sigma
 
@@ -553,6 +554,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   acid = option%air_id ! air component id
   wid = option%water_id
   eid = option%energy_id
+  
+  eos_henry_ierr = 0
   
   
 #ifdef DEBUG_GENERAL  
@@ -629,20 +632,16 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%psat_p = 0.d0
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-        endif
+                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                          eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-       endif
+        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                         eos_henry_ierr)
     endif
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
@@ -696,18 +695,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%psat_p = 0.d0
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-        endif
+                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                          eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-        endif
+        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                         eos_henry_ierr)
       endif
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       ! set water mole fraction to zero as there is no water in liquid phase
@@ -769,18 +764,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
           gen_auxvar%d%psat_p = 0.d0
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                            gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
-          if (ierr /= 0) then
-            call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-          endif
+                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                           eos_henry_ierr)
           gen_auxvar%d%Hc = K_H_tilde
         else
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
-          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
-          if (ierr /= 0) then
-            call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-          endif
+          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                           eos_henry_ierr)
         endif
         if (general_immiscible) then
           gen_auxvar%pres(spid) = GENERAL_IMMISCIBLE_VALUE
@@ -868,6 +859,11 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   end select
 
+  if (eos_henry_ierr /= 0) then
+     call GeneralEOSGasError(natural_id,eos_henry_ierr,gen_auxvar,option)
+  endif
+
+  
   cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
                       gen_auxvar%pres(spid))
         
@@ -1286,7 +1282,8 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
     option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
                                ' exceeds the equation of state temperature bound with ' // &
                                trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-    call PrintErrMsgByRank(option)
+    call PrintMsgByRank(option)
+    general_high_temp_ts_cut = PETSC_TRUE
   endif
 
   

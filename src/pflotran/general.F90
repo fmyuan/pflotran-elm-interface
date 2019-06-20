@@ -1338,7 +1338,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before GeneralUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   
-                                             ! do update state
+  ! do update state
+  general_high_temp_ts_cut = PETSC_FALSE
   call GeneralUpdateAuxVars(realization,PETSC_TRUE)
 
 ! for debugging a single grid cell
@@ -1632,6 +1633,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif  
 
+  if (general_high_temp_ts_cut) then
+    call VecSet(r,1.d20,ierr); CHKERRQ(ierr)
+  endif
+  
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Gresidual','', &
                             general_ts_count,general_ts_cut_count, &
