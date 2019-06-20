@@ -2926,7 +2926,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       end select
       J = J + Jl
     endif
-  endif                   
+  endif         
 #endif
 #ifdef GAS_DARCY_FLUX
   iphase = GAS_PHASE

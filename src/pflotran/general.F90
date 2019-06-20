@@ -1592,6 +1592,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
   endif
   
+  if (general_high_temp_ts_cut) then
+    r_p(:) = 1.d20
+  endif
+
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   
   call GeneralSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
@@ -1632,10 +1636,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif  
-
-  if (general_high_temp_ts_cut) then
-    call VecSet(r,1.d20,ierr); CHKERRQ(ierr)
-  endif
   
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Gresidual','', &
