@@ -786,7 +786,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
   ! timestep, newton iteration, solver iteration output
-  if (associated(flow_timestepper) .or. (associated(flow_ts_timestepper))) then
+  if (associated(flow_timestepper)) then
     call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
     call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
     if (option%myrank == option%io_rank) then
@@ -800,6 +800,24 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
         flow_timestepper%cumulative_linear_iterations
       write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
         flow_timestepper%cumulative_time_step_cuts
+      write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+      write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+    endif
+  endif
+  if (associated(flow_ts_timestepper)) then
+    call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+    call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+    if (option%myrank == option%io_rank) then
+      write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
+      write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+        flow_ts_timestepper%cumulative_solver_time
+      write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_ts_timestepper%steps
+      write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+        flow_ts_timestepper%cumulative_newton_iterations
+      write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+        flow_ts_timestepper%cumulative_linear_iterations
+      write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+        flow_ts_timestepper%cumulative_time_step_cuts
       write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
       write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
     endif
