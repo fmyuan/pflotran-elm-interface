@@ -157,11 +157,14 @@ subroutine THSetupPatch(realization)
 !                    'must be initialized with the proper variables ' // &
 !                    'THAuxCreate() is called anywhere.'
 
-! call PrintErrMsg(option)
-  allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
-                                  size(patch%characteristic_curves_array)))
+! call printErrMsg(option)
 
-  
+  if (option%use_th_freezing) then
+    allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+                                  size(patch%saturation_function_array)))
+ endif
+ 
+
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only 
   !single value in the array <modified pcl 1-13-11>
   allocate(patch%aux%TH%TH_parameter%dencpr( &
@@ -246,6 +249,13 @@ subroutine THSetupPatch(realization)
     call PrintErrMsg(option)
   endif
 
+  if (option%use_th_freezing) then
+     do i = 1, size(patch%saturation_function_array)
+        patch%aux%TH%TH_parameter% &
+             sir(:,patch%saturation_function_array(i)%ptr%id) = &
+             patch%saturation_function_array(i)%ptr%Sr(:)
+     enddo
+  endif
 
   ! allocate auxvar data structures for all grid cells
   allocate(TH_auxvars(grid%ngmax))
@@ -1578,6 +1588,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                             ithrm_dn, &
                             area, &
                             dist, upweight, &
+                            sir_up, sir_dn, &
                             option,sf_up,sf_dn, &
                             cc_up,cc_dn, &   
                             Dk_dry_up,Dk_dry_dn, &
@@ -1607,6 +1618,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
+  PetscReal :: sir_up, sir_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: perm_up, perm_dn
   PetscReal :: Dk_up, Dk_dn
@@ -1687,6 +1699,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: dfv_dp_up, dfv_dp_dn
   PetscReal :: dmolg_dp_up, dmolg_dp_dn
   PetscReal :: fv_up_pert
+
+  PetscBool :: is_flowing
   
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
@@ -1747,8 +1761,24 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   endif
 
   ! Flow term
-  if (auxvar_up%kvr +  &  
-      auxvar_dn%kvr > 0) then
+
+  is_flowing = PETSC_FALSE
+  
+  if (option%use_th_freezing) then
+    if (global_auxvar_up%sat(1) > sir_up .or.  &
+         global_auxvar_dn%sat(1) > sir_dn) then
+       is_flowing=PETSC_TRUE
+    endif
+  else
+    if (auxvar_up%kvr > eps .or. &  
+         auxvar_dn%kvr > eps) then
+       is_flowing=PETSC_TRUE
+    endif
+  endif
+  
+
+  if (is_flowing) then 
+     
     if (global_auxvar_up%sat(1) <eps) then
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) <eps) then 
@@ -1872,6 +1902,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                                q*density_ave*duh_dT_dn
 
     endif
+
+
   endif 
 
   if (option%use_th_freezing) then
@@ -2103,6 +2135,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       Dk_dn, &
       area, &
       dist, upweight, &
+      sir_up, sir_dn, &
       option,v_darcy,Dk_dry_up,Dk_dry_dn, &
       Dk_ice_up,Dk_ice_dn, &
       alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2181,6 +2214,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                    Dk_dn, &
                    area, &
                    dist, upweight, &
+                   sir_up, sir_dn, &
                    option,v_darcy,Dk_dry_up, &
                    Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                    alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2193,6 +2227,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                    Dk_dn, &
                    area, &
                    dist, upweight, &
+                   sir_up, sir_dn, &
                    option,v_darcy,Dk_dry_up, &
                    Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                    alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2222,6 +2257,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
                   area, &
                   dist, &
                   upweight, &
+                  sir_up, sir_dn, &
                   option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                   alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2244,7 +2280,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-!  PetscReal :: sir_up, sir_dn
+  PetscReal :: sir_up, sir_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: Dk_up, Dk_dn
   PetscReal :: Dk_dry_up, Dk_dry_dn
@@ -2278,6 +2314,8 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscErrorCode :: ierr
   PetscReal :: Ke_fr_up,Ke_fr_dn   ! frozen soil Kersten numbers
   PetscReal :: fv_up, fv_dn
+
+  PetscBool :: is_flowing
      
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
@@ -2297,8 +2335,23 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   v_darcy = 0.D0  
 
   ! Flow term
-  if (auxvar_up%kvr + &
-      auxvar_dn%kvr > 0) then
+
+  is_flowing = PETSC_FALSE
+  
+  if (option%use_th_freezing) then
+    if (global_auxvar_up%sat(1) > sir_up .or.  &
+         global_auxvar_dn%sat(1) > sir_dn) then
+       is_flowing=PETSC_TRUE
+    endif
+  else
+    if (auxvar_up%kvr > eps .or. &  
+         auxvar_dn%kvr > eps) then
+       is_flowing=PETSC_TRUE
+    endif
+ endif
+ 
+  if (is_flowing) then
+
     if (global_auxvar_up%sat(1) < eps) then 
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) < eps) then 
@@ -2436,6 +2489,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                               Dk_dn, &
                               area, &
                               dist, &
+                              sir_dn, &
                               option, &
                               sf_dn, &
                               cc_dn, &
@@ -2463,6 +2517,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
+
+  PetscReal :: sir_dn
+  PetscBool :: is_flowing
+  
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: por_dn,perm_dn,Dk_dn,tor_dn
   PetscReal :: area
@@ -2588,8 +2646,22 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         Dq = perm_dn / dd_dn
       endif
       ! Flow term
-      if (auxvar_up%kvr +  &  
-          auxvar_dn%kvr > 0) then
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+         if (global_auxvar_up%sat(1) > sir_dn .or.  &
+              global_auxvar_dn%sat(1) > sir_dn) then
+            is_flowing=PETSC_TRUE
+         endif
+      else
+         if (auxvar_up%kvr > eps .or. &  
+              auxvar_dn%kvr > eps) then
+            is_flowing=PETSC_TRUE
+         endif
+      endif
+      
+      if (is_flowing) then
+ 
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then
           upweight=0.d0
@@ -2667,7 +2739,23 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
     case(HET_SURF_SEEPAGE_BC)
       Dq = perm_dn / dd_dn
       ! Flow term
-      if (auxvar_dn%kvr > 0)  then
+      
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+         if (global_auxvar_up%sat(1) > sir_dn .or.  &
+              global_auxvar_dn%sat(1) > sir_dn) then
+            is_flowing=PETSC_TRUE
+         endif
+      else
+         if (auxvar_up%kvr > eps .or. &  
+              auxvar_dn%kvr > eps) then
+            is_flowing=PETSC_TRUE
+         endif
+      endif
+
+      if (is_flowing) then
+
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then
           upweight=0.d0
@@ -3116,7 +3204,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   auxvar_dn,global_auxvar_dn, &
                   material_auxvar_dn, &
                   Dk_dn, &
-                  area,dist_gravity,option,v_darcy, &
+                  area,dist_gravity, sir_dn, option,v_darcy, &
                   fluxe_bulk, fluxe_cond, &
                   res)
     if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC .or. &
@@ -3183,7 +3271,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                     auxvar_pert_dn,global_auxvar_pert_dn, &
                     material_auxvar_pert_dn, &
                     Dk_dn, &
-                    area,dist_gravity,option,v_darcy, &
+                    area,dist_gravity,sir_dn, option,v_darcy, &
                     fluxe_bulk, fluxe_cond, &
                     res_pert_dn)
       J_pert_dn(:,ideriv) = (res_pert_dn(:)-res(:))/pert_dn
@@ -3203,7 +3291,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                     material_auxvar_dn, &
                     Dk_dn, &
                     area, &
-                    dist, &
+                    dist, sir_dn, &
                     option,v_darcy, &
                     fluxe_bulk, fluxe_cond, &
                     Res)
@@ -3226,7 +3314,10 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-!  PetscReal :: sir_dn
+  PetscReal :: sir_dn
+
+  PetscBool :: is_flowing
+  
   PetscReal :: auxvars(:) ! from aux_real_var array
   PetscReal :: Dk_dn
   PetscReal :: v_darcy, area
@@ -3298,8 +3389,23 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       endif
 
       ! Flow term
-      if (auxvar_dn%kvr > 0 .or. &
-          auxvar_dn%kvr > 0) then
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+         if (global_auxvar_up%sat(1) > sir_dn .or.  &
+              global_auxvar_dn%sat(1) > sir_dn) then
+            is_flowing=PETSC_TRUE
+         endif
+      else
+         if (auxvar_up%kvr > eps .or. &  
+              auxvar_dn%kvr > eps) then
+            is_flowing=PETSC_TRUE
+         endif
+      endif
+  
+
+      if (is_flowing) then
+
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
@@ -3351,8 +3457,23 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
     case(HET_SURF_SEEPAGE_BC)
       Dq = perm_dn / dd_dn
       ! Flow term
-      if (auxvar_dn%kvr > 0 .or. &
-          auxvar_dn%kvr > 0) then
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+         if (global_auxvar_up%sat(1) > sir_dn .or.  &
+              global_auxvar_dn%sat(1) > sir_dn) then
+            is_flowing=PETSC_TRUE
+         endif
+      else
+         if (auxvar_up%kvr > eps .or. &  
+              auxvar_dn%kvr > eps) then
+            is_flowing=PETSC_TRUE
+         endif
+      endif
+  
+
+      if (is_flowing) then
+
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
@@ -3953,7 +4074,9 @@ subroutine THResidualInternalConn(r,realization,ierr)
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
-                  upweight,option,v_darcy,Dk_dry_up, &
+                  upweight, Th_parameter%sir(1,icap_up), &
+                  TH_parameter%sir(1,icap_dn), &
+                  option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                   alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
                   Res)
@@ -4135,6 +4258,7 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                     D_dn, &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(-1:3,iconn), &
+                    TH_parameter%sir(1,icap_dn), &
                     option, &
                     v_darcy, &
                     fluxe_bulk, fluxe_cond, &
@@ -4530,8 +4654,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
       endif
       if (associated(patch%ss_flow_fluxes)) then
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
-<<<<<<< d93e39e281fe7cb66ce1145c773becf593bde0b0
-=======
+
       endif
 
 
@@ -5621,7 +5744,9 @@ subroutine THJacobianSourceSink(A,realization,ierr)
                              ithrm_dn, &
                              cur_connection_set%area(iconn), &
                              cur_connection_set%dist(-1:3,iconn), &
-                             upweight,option, &
+                             upweight, TH_parameter%sir(1,icap_up), &
+                             TH_parameter%sir(1,icap_dn), &
+                             option, &
                              sf_up, sf_dn, &
                              cc_up,cc_dn, &
                              Dk_dry_up,Dk_dry_dn, &
@@ -5710,6 +5835,7 @@ subroutine THJacobianSourceSink(A,realization,ierr)
                               D_dn, &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
+                              TH_parameter%sir(1,icap_dn),&
                               option, sat_func, &
                               characteristic_curves, &
                               Dk_dry_dn,Dk_ice_dn, &
@@ -6806,6 +6932,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   PetscReal :: dist(-1:3)
   PetscReal :: gravity
   PetscReal :: Dq
+  PetscReal :: sir_dn
   PetscReal :: P_max_pert,P_min_pert,temp_pert
   PetscReal :: perm_dn
   PetscReal :: area
@@ -6886,13 +7013,13 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         area = cur_connection_set%area(iconn)
 
         icap_dn = patch%sat_func_id(ghosted_id)
-
+        sir_dn = th_parameter%sir(1,icap_dn)
 
         ithrm_up = int(ithrm_loc_p(ghosted_id))
         ithrm_dn = int(ithrm_loc_p(ghosted_id))
 
         if (option%use_th_freezing) then
-           sat_func = patch%saturation_function_array(icap_dn)%ptr
+           sat_func => patch%saturation_function_array(icap_dn)%ptr
         else
            characteristic_curves => patch%characteristic_curves_array(icap_dn)%ptr
         endif
@@ -6911,6 +7038,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                     dist_gravity, &
                                     area, &
                                     Dq, &
+                                    sir_dn, &
                                     option, &
                                     th_auxvar_dn%surface%P_min, &
                                     th_auxvar_dn%surface%P_max, &
@@ -6932,6 +7060,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                    dist_gravity, &
                                    area, &
                                    Dq, &
+                                   sir_dn, &
                                    option, &
                                    P_min_pert, &
                                    P_max_pert, &
@@ -7004,6 +7133,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                   dist_gravity, &
                                   area, &
                                   Dq, &
+                                  sir_dn, &
                                   option, &
                                   P_min, P_max, &
                                   coeff_for_cubic_approx, &
@@ -7040,7 +7170,8 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   PetscReal :: dist_gravity
   PetscReal :: area
   PetscReal :: Dq
-
+  PetscReal :: sir_dn
+  PetscBool :: is_flowing
   type(option_type) :: option
   PetscReal, intent(out) :: P_min
   PetscReal, intent(out) :: P_max
@@ -7189,8 +7320,21 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    -999,option)
   endif
 
-  if (th_auxvar_up%kvr + &
-      th_auxvar_dn%kvr > 0) then 
+  is_flowing=PETSC_FALSE
+  if (option%use_th_freezing) then
+    if (global_auxvar_up%sat(1) > sir_dn .or. &
+         global_auxvar_max%sat(1) > sir_dn) then
+
+       is_flowing=PETSC_TRUE
+    endif
+  else  
+     if (th_auxvar_up%kvr > eps .or. &
+          th_auxvar_dn%kvr > eps) then
+        is_flowing=PETSC_TRUE
+     endif
+  endif
+
+  if (is_flowing) then
       
 
     upweight=1.D0
