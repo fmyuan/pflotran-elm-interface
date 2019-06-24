@@ -53,7 +53,8 @@ module PM_TH_class
   end type pm_th_type
   
   public :: PMTHCreate, &
-            PMTHDestroy
+            PMTHDestroy, &
+            PMTHCheckConvergence
   
 contains
 

@@ -214,7 +214,6 @@ subroutine PMTHTSIFunction(this,ts,time,U,Udot,F,ierr)
 
   call THUpdateLocalVecs(U,realization,ierr)
 
-!  call DiscretizationGlobalToLocal(discretization,U,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationGlobalToLocal(discretization,Udot,field%flow_xxdot_loc, &
                                    NFLOWDOF)
 
@@ -770,29 +769,7 @@ subroutine PMTHTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   class(pm_th_ts_type) :: this
   PetscErrorCode :: ierr
 
-  character(len=MAXSTRINGLENGTH) :: string
-
-  call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
-                            0,ierr);CHKERRQ(ierr)
-
-  if (this%option%print_screen_flag) then
-    select case(int(reason))
-      case(2)
-        string = 'atol'
-      case(3)
-        string = 'rtol'
-      case(4)
-        string = 'stol'
-      case default
-        write(string,'(i3)') reason
-    end select
-
-    write(*,'(i3," 2r:",es9.2, &
-            & " 2x:",es9.2, &
-            & " 2u:",es9.2, &
-            & " rsn: ",a)') &
-            it, fnorm, xnorm, unorm, trim(string)
-  endif
+  call PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
 end subroutine PMTHTSCheckConvergence
 
