@@ -41,7 +41,8 @@ module TH_module
          THResidualSourceSink, &
          THJacobianInternalConn, &
          THJacobianBoundaryConn, &
-         THJacobianSourceSink
+         THJacobianSourceSink, &
+         THUpdateLocalVecs
          
   PetscInt, parameter :: jh2o = 1
 
@@ -5725,70 +5726,6 @@ subroutine THSetPlotVariables(realization,list)
 !                              PHASE)
 
 end subroutine THSetPlotVariables
-
-! ************************************************************************** !
-
-subroutine THComputeGradient(grid, global_auxvars, ghosted_id, gradient, &
-                              option) 
-  ! 
-  ! Computes the gradient of temperature (for now) using
-  ! least square fit of values from neighboring cells
-  ! See:I. Bijelonja, I. Demirdzic, S. Muzaferija -- A finite volume method
-  ! for incompressible linear elasticity, CMAME
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 2/20/12
-  ! 
-
-#include "petsc/finclude/petscdmda.h"
-  use petscdmda
-  use Grid_module
-  use Global_Aux_module
-  use Option_module
-  use Utility_module
-
-  implicit none
-
-  type(option_type) :: option
-  type(grid_type), pointer :: grid
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-
-  
-  PetscInt :: ghosted_neighbors_size, ghosted_id
-  PetscInt :: ghosted_neighbors(26)
-  PetscReal :: gradient(3), disp_vec(3,1), disp_mat(3,3)
-  PetscReal :: temp_weighted(3,1)
-  PetscInt :: i
-  
-  PetscInt :: INDX(3)
-  PetscInt :: D
-   
-  call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
-                                         DMDA_STENCIL_STAR, &
-                                         ONE_INTEGER,ONE_INTEGER,ONE_INTEGER, &
-                                         ghosted_neighbors_size, &
-                                         ghosted_neighbors, &
-                                         option)   
-
-  disp_vec = 0.d0
-  disp_mat = 0.d0
-  temp_weighted = 0.d0
-  do i = 1, ghosted_neighbors_size
-    disp_vec(1,1) = grid%x(ghosted_neighbors(i)) - grid%x(ghosted_id)
-    disp_vec(2,1) = grid%y(ghosted_neighbors(i)) - grid%y(ghosted_id)
-    disp_vec(3,1) = grid%z(ghosted_neighbors(i)) - grid%z(ghosted_id)
-    disp_mat = disp_mat + matmul(disp_vec,transpose(disp_vec))
-    temp_weighted = temp_weighted + disp_vec* &
-                    (global_auxvars(ghosted_neighbors(i))%temp - &
-                     global_auxvars(ghosted_id)%temp)
-  enddo
-
-  call ludcmp(disp_mat,THREE_INTEGER,INDX,D)
-  call lubksb(disp_mat,THREE_INTEGER,INDX,temp_weighted)
-  
-  gradient(:) = temp_weighted(:,1)
-  
-end subroutine THComputeGradient
 
 ! ************************************************************************** !
 

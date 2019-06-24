@@ -30,7 +30,7 @@ module PM_TH_TS_class
 
   public :: PMTHTSCreate, &
             PMTHTSUpdateAuxVarsPatch
-  	
+
   
 contains
 
@@ -212,7 +212,9 @@ subroutine PMTHTSIFunction(this,ts,time,U,Udot,F,ierr)
 
   call VecZeroEntries(F, ierr); CHKERRQ(ierr)
 
-  call DiscretizationGlobalToLocal(discretization,U,field%flow_xx_loc,NFLOWDOF)
+  call THUpdateLocalVecs(U,realization,ierr)
+
+!  call DiscretizationGlobalToLocal(discretization,U,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationGlobalToLocal(discretization,Udot,field%flow_xxdot_loc, &
                                    NFLOWDOF)
 
@@ -243,6 +245,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   use Patch_module
   use Option_module
   use Material_Aux_class
+  use Field_module
 
   implicit none
   
@@ -255,7 +258,9 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(TH_parameter_type), pointer :: TH_parameter
   PetscInt :: local_id, ghosted_id
 
   PetscInt :: istart, iend
@@ -268,15 +273,20 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   PetscReal :: dden_dP, dden_dt
   PetscReal :: dsat_dP, dsat_dt
   PetscReal  :: du_dP, du_dt
-
+  PetscReal :: rock_dencpr
+  PetscReal, pointer :: ithrm_loc_p(:)
+  
   option => realization%option
   grid => realization%patch%grid
   patch => realization%patch
+  field => realization%field
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
+  TH_parameter => patch%aux%TH%TH_parameter
 
   call VecGetArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -307,6 +317,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     dsat_dt = TH_auxvars(ghosted_id)%dsat_dt
     du_dP = TH_auxvars(ghosted_id)%du_dp
     du_dt = TH_auxvars(ghosted_id)%du_dt
+    rock_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
 
     ! A_M = d(rho*phi*s)/dP * dP_dtime *Vol + d(rho*phi*s)/dT * dT_dtime *Vol
     dmass_dP = den     * dpor_dP * sat     + &
@@ -326,20 +337,18 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     
     ! A_E = [d(rho*phi*s*U)/dP + d(rho*(1-phi)*T)/dP] * dP_dtime *Vol + 
     !       [d(rho*phi*s*U)/dT + d(rho*(1-phi)*T)/dT] * dT_dtime *Vol
-    denergy_dP = dden_dP * por        * sat     * u     + &
-                 den     * dpor_dP    * sat     * u     + &
-                 den     * por        * dsat_dP * u     + &
-                 den     * por        * sat     * du_dP + &
-                 dden_dP * (1-por)    * temp            + &
-                 den     * (-dpor_dP) * temp 
-                 								 
-    denergy_dt = dden_dt * por        * sat     * u     + &
-                 den     * dpor_dt    * sat     * u     + &
-                 den     * por        * dsat_dt * u     + &
-                 den     * por        * sat     * du_dt + &                          
-                 dden_dt * (1-por)    * temp            + &
-                 den     * (-dpor_dt) * temp            + &
-                 den     * (1-por)    
+    denergy_dP = dden_dP     * por        * sat     * u     + &
+                 den         * dpor_dP    * sat     * u     + &
+                 den         * por        * dsat_dP * u     + &
+                 den         * por        * sat     * du_dP + &
+                 rock_dencpr * (-dpor_dP) * temp
+
+    denergy_dt = dden_dt     * por        * sat     * u     + &
+                 den         * dpor_dt    * sat     * u     + &
+                 den         * por        * dsat_dt * u     + &
+                 den         * por        * sat     * du_dt + &
+                 rock_dencpr * (-dpor_dt) * temp            + &
+                 rock_dencpr * (1-por)
                  
                                   
     f_p(iend) = f_p(iend) + &
@@ -352,6 +361,7 @@ subroutine IFunctionAccumulation(F,realization,ierr)
   enddo
     
   call VecRestoreArrayF90(F, f_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     
     
 end subroutine IFunctionAccumulation
@@ -368,7 +378,9 @@ subroutine PMTHTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   use Realization_Subsurface_class
   use Field_module
   use Discretization_module
-
+  use Debug_module
+  use Option_module
+  
   implicit none
   
   class(pm_th_ts_type) :: this
@@ -378,15 +390,18 @@ subroutine PMTHTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   PetscReal :: shift
   Mat :: A, B
   PetscErrorCode :: ierr  
-  
+  PetscViewer :: viewer
+
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
+  type(option_type), pointer :: option
   class(realization_subsurface_type), pointer :: realization
   Mat :: J
 
   realization => this%realization
   field => realization%field
   discretization => realization%discretization
+  option => realization%option
 
   J = B
 
@@ -402,6 +417,13 @@ subroutine PMTHTSIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr);
   endif  
   
+  
+  call PetscViewerASCIIOpen(option%mycomm,'THTSjacobian.out',viewer, &
+                            ierr);CHKERRQ(ierr)
+  call MatView(J,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+
+ 
   
 end subroutine PMTHTSIJacobian
 
@@ -421,6 +443,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   use Patch_module
   use Option_module
   use Material_Aux_class
+  use Field_module
 
   implicit none
   
@@ -434,10 +457,12 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(TH_parameter_type), pointer :: TH_parameter
+
   PetscInt :: local_id, ghosted_id
   PetscInt :: istart, iend
-  PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
   PetscReal :: por, dpor_dP, d2por_dP2, dpor_dt, d2por_dt2
   PetscReal :: d2por_dtdP, d2por_dPdt
@@ -452,14 +477,20 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
   PetscReal :: denergy_dt, d2energy_dt2, d2energy_dtdP
   PetscReal :: Jlocal(2,2)
   PetscReal :: temp
-
+  PetscReal :: rock_dencpr
+  PetscReal, pointer :: ithrm_loc_p(:)
 
   option => realization%option
   grid => realization%patch%grid
   patch => realization%patch
+  field => realization%field
   TH_auxvars => patch%aux%TH%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars  
+  TH_parameter => patch%aux%TH%TH_parameter
+
+
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -483,6 +514,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     sat = global_auxvars(ghosted_id)%sat(1)
     temp = global_auxvars(ghosted_id)%temp
     u = TH_auxvars(ghosted_id)%u
+    rock_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id)))
     dden_dP = TH_auxvars(ghosted_id)%dden_dp
     dsat_dP = TH_auxvars(ghosted_id)%dsat_dp
     dpor_dt = 0.d0
@@ -579,65 +611,57 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                    material_auxvars(ghosted_id)%volume
     
     
-    ! A_E = [d(rho*phi*s*U)/dP + d(rho*(1-phi)*T)/dP] * dP_dtime *Vol + 
-    !       [d(rho*phi*s*U)/dT + d(rho*(1-phi)*T)/dT] * dT_dtime *Vol
+    ! A_E = [d(rho*phi*s*U)/dP + d(rock_dencpr*(1-phi)*T)/dP] * dP_dtime *Vol + 
+    !       [d(rho*phi*s*U)/dT + d(rock_dencpr*(1-phi)*T)/dT] * dT_dtime *Vol
     
     
     ! Jlocal(2,1) = shift*d(A_E)/d(Pdot) + d(A_E)/d(P)
-    !             = shift*[d(rho*phi*s*U)/dP + d(rho*(1-phi)*T)/dP]*Vol + 
-    !               [d2(rho*phi*s*U)/dP2 + d2(rho*(1-phi)*T)/dP2]*dP_dtime*Vol +
-    !               [d2(rho*phi*s*U)/dTdP + d2(rho*(1-phi)*T)/dTdP]*dT_dtime*Vol
+    !             = shift*[d(rho*phi*s*U)/dP + d(rock_dencpr*(1-phi)*T)/dP]*Vol + 
+    !               [d2(rho*phi*s*U)/dP2 + d2(rock_dencpr*(1-phi)*T)/dP2]*dP_dtime*Vol +
+    !               [d2(rho*phi*s*U)/dTdP + d2(rock_dencpr*(1-phi)*T)/dTdP]*dT_dtime*Vol
     
-    denergy_dP = dden_dP * por        * sat     * u     + &
-                 den     * dpor_dP    * sat     * u     + &
-                 den     * por        * dsat_dP * u     + &
-                 den     * por        * sat     * du_dp + &
-                 dden_dP * (1-por)    * temp            + &
-                 den     * (-dpor_dP) * temp 
+    denergy_dP = dden_dP     * por        * sat     * u     + &
+                 den         * dpor_dP    * sat     * u     + &
+                 den         * por        * dsat_dP * u     + &
+                 den         * por        * sat     * du_dp + &
+                 rock_dencpr * (-dpor_dP) * temp 
     
-    d2energy_dP2 = d2den_dP2 * por          * sat       * u       + &
-                   dden_dP   * dpor_dP      * sat       * u       + &
-                   dden_dP   * por          * dsat_dP   * u       + &
-                   dden_dP   * por          * sat       * du_dP   + &
-                   dden_dP   * dpor_dP      * sat       * u       + &
-                   den       * d2por_dP2    * sat       * u       + &
-                   den       * dpor_dP      * dsat_dP   * u       + &
-                   den       * dpor_dP      * sat       * du_dP   + &
-                   dden_dP   * por          * dsat_dP   * u       + &
-                   den       * dpor_dP      * dsat_dP   * u       + &
-                   den       * por          * d2sat_dP2 * u       + &
-                   den       * por          * dsat_dP   * du_dP   + &
-                   dden_dP   * por          * sat       * du_dP   + &
-                   den       * dpor_dP      * sat       * du_dP   + &
-                   den       * por          * dsat_dP   * du_dP   + &
-                   den       * por          * sat       * d2u_dP2 + &
-                   d2den_dP2 * (1-por)      * temp                + &
-                   dden_dP   * (-dpor_dP)   * temp                + &
-                   dden_dP   * (-dpor_dP)   * temp                + &
-                   den       * (-d2por_dP2) * temp 
+    d2energy_dP2 = d2den_dP2   * por          * sat       * u       + &
+                   dden_dP     * dpor_dP      * sat       * u       + &
+                   dden_dP     * por          * dsat_dP   * u       + &
+                   dden_dP     * por          * sat       * du_dP   + &
+                   dden_dP     * dpor_dP      * sat       * u       + &
+                   den         * d2por_dP2    * sat       * u       + &
+                   den         * dpor_dP      * dsat_dP   * u       + &
+                   den         * dpor_dP      * sat       * du_dP   + &
+                   dden_dP     * por          * dsat_dP   * u       + &
+                   den         * dpor_dP      * dsat_dP   * u       + &
+                   den         * por          * d2sat_dP2 * u       + &
+                   den         * por          * dsat_dP   * du_dP   + &
+                   dden_dP     * por          * sat       * du_dP   + &
+                   den         * dpor_dP      * sat       * du_dP   + &
+                   den         * por          * dsat_dP   * du_dP   + &
+                   den         * por          * sat       * d2u_dP2 + &
+                   rock_dencpr * (-d2por_dP2) * temp 
 
-    d2energy_dPdt = d2den_dPdt * por           * sat        * u        + &
-                    dden_dP    * dpor_dt       * sat        * u        + &
-                    dden_dP    * por           * dsat_dt    * u        + &
-                    dden_dP    * por           * sat        * du_dt    + &
-                    dden_dt    * dpor_dP       * sat        * u        + &
-                    den        * d2por_dPdt    * sat        * u        + &
-                    den        * dpor_dP       * dsat_dt    * u        + &
-                    den        * dpor_dP       * sat        * du_dt    + &
-                    dden_dt    * por           * dsat_dP    * u        + &
-                    den        * dpor_dt       * dsat_dP    * u        + &
-                    den        * por           * d2sat_dPdt * u        + &
-                    den        * por           * dsat_dP    * du_dt    + &
-                    dden_dt    * por           * sat        * du_dP    + &
-                    den        * dpor_dt       * sat        * du_dP    + &
-                    den        * por           * dsat_dt    * du_dP    + &
-                    den        * por           * sat        * d2u_dPdt + &
-                    d2den_dPdt * (1-por)       * temp                  + &
-                    dden_dP    * (-dpor_dt)    * temp                  + &
-                    dden_dP    * (1-por)                               + &
-                    dden_dt    * (-dpor_dP)    * temp                  + &
-                    den        * (-d2por_dPdt) * temp                  + &
-                    den        * (-dpor_dP)    * temp 
+    d2energy_dPdt = d2den_dPdt  * por           * sat        * u        + &
+                    dden_dP     * dpor_dt       * sat        * u        + &
+                    dden_dP     * por           * dsat_dt    * u        + &
+                    dden_dP     * por           * sat        * du_dt    + &
+                    dden_dt     * dpor_dP       * sat        * u        + &
+                    den         * d2por_dPdt    * sat        * u        + &
+                    den         * dpor_dP       * dsat_dt    * u        + &
+                    den         * dpor_dP       * sat        * du_dt    + &
+                    dden_dt     * por           * dsat_dP    * u        + &
+                    den         * dpor_dt       * dsat_dP    * u        + &
+                    den         * por           * d2sat_dPdt * u        + &
+                    den         * por           * dsat_dP    * du_dt    + &
+                    dden_dt     * por           * sat        * du_dP    + &
+                    den         * dpor_dt       * sat        * du_dP    + &
+                    den         * por           * dsat_dt    * du_dP    + &
+                    den         * por           * sat        * d2u_dPdt + &
+                    rock_dencpr * (-d2por_dPdt) * temp                 + &
+                    rock_dencpr * (-dpor_dP)  
 
     d2energy_dtdP = d2energy_dPdt
 
@@ -649,42 +673,36 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
 
     ! Jlocal(2,2) = shift*d(A_E)/d(Tdot) + d(A_E)/d(T) 
-    !             = shift*[d(rho*phi*s*U)/dT + d(rho*(1-phi)*T)/dT]*Vol + 
-    !               [d2(rho*phi*s*U)/dPdt + d2(rho*(1-phi)*T)/dPdt]*dP_dtime*Vol +
-    !               [d2(rho*phi*s*U)/dT2 + d2(rho*(1-phi)*T)/dT2]*dT_dtime*Vol
+    !             = shift*[d(rho*phi*s*U)/dT + d(rock_dencpr*(1-phi)*T)/dT]*Vol + 
+    !               [d2(rho*phi*s*U)/dPdt + d2(rock_dencpr*(1-phi)*T)/dPdt]*dP_dtime*Vol +
+    !               [d2(rho*phi*s*U)/dT2 + d2(rock_dencpr*(1-phi)*T)/dT2]*dT_dtime*Vol
 
-    denergy_dt = dden_dt * por        * sat     * u     + &
-                 den     * dpor_dt    * sat     * u     + &
-                 den     * por        * dsat_dt * u     + &
-                 den     * por        * sat     * du_dt + &                          
-                 dden_dt * (1-por)    * temp            + &
-                 den     * (-dpor_dt) * temp            + &
-                 den     * (1-por)    
+    denergy_dt = dden_dt     * por        * sat     * u     + &
+                 den         * dpor_dt    * sat     * u     + &
+                 den         * por        * dsat_dt * u     + &
+                 den         * por        * sat     * du_dt + &                          
+                 rock_dencpr * (-dpor_dt) * temp            + &
+                 rock_dencpr * (1-por)     
                  
-    d2energy_dt2 = d2den_dt2 * por          * sat       * u       + &
-                   dden_dt   * dpor_dt      * sat       * u       + &
-                   dden_dt   * por          * dsat_dt   * u       + &
-                   dden_dt   * por          * sat       * du_dt   + &
-                   dden_dt   * dpor_dt      * sat       * u       + &
-                   den       * d2por_dt2    * sat       * u       + &
-                   den       * dpor_dt      * dsat_dt   * u       + &
-                   den       * dpor_dt      * sat       * du_dt   + &
-                   dden_dt   * por          * dsat_dt   * u       + &
-                   den       * dpor_dt      * dsat_dt   * u       + &
-                   den       * por          * d2sat_dt2 * u       + &
-                   den       * por          * dsat_dt   * du_dt   + &
-                   dden_dt   * por          * sat       * du_dt   + &
-                   den       * dpor_dt      * sat       * du_dt   + &
-                   den       * por          * dsat_dt   * du_dt   + &
-                   den       * por          * sat       * d2u_dt2 + &
-                   d2den_dt2 * (1-por)      * temp                + &
-                   dden_dt   * (-dpor_dt)   * temp                + &
-                   dden_dt   * (1-por)                            + &
-                   dden_dt   * (-dpor_dt)   * temp                + &
-                   den       * (-d2por_dt2) * temp                + &
-                   den       * (-dpor_dt)                         + &
-                   dden_dt   * (1-por)                            + &
-                   den       * (-dpor_dt)
+    d2energy_dt2 = d2den_dt2   * por          * sat       * u       + &
+                   dden_dt     * dpor_dt      * sat       * u       + &
+                   dden_dt     * por          * dsat_dt   * u       + &
+                   dden_dt     * por          * sat       * du_dt   + &
+                   dden_dt     * dpor_dt      * sat       * u       + &
+                   den         * d2por_dt2    * sat       * u       + &
+                   den         * dpor_dt      * dsat_dt   * u       + &
+                   den         * dpor_dt      * sat       * du_dt   + &
+                   dden_dt     * por          * dsat_dt   * u       + &
+                   den         * dpor_dt      * dsat_dt   * u       + &
+                   den         * por          * d2sat_dt2 * u       + &
+                   den         * por          * dsat_dt   * du_dt   + &
+                   dden_dt     * por          * sat       * du_dt   + &
+                   den         * dpor_dt      * sat       * du_dt   + &
+                   den         * por          * dsat_dt   * du_dt   + &
+                   den         * por          * sat       * d2u_dt2 + &
+                   rock_dencpr * (-d2por_dt2) * temp              + &
+                   rock_dencpr * (-dpor_dt)                       + &
+                   rock_dencpr * (-dpor_dt)
 
 
     Jlocal(2,2) = (shift*denergy_dt + &
@@ -692,13 +710,18 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
                    d2energy_dPdt*TH_auxvars(ghosted_id)%dpres_dtime)* &
                    material_auxvars(ghosted_id)%volume
 
-
     call MatSetValuesBlockedLocal(J,1,ghosted_id-1,1,ghosted_id-1,Jlocal, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)    
     
     
   enddo
     
+  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+  
+  call MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+      
 end subroutine IJacobianAccumulation
 
 ! ************************************************************************** !
