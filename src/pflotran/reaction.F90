@@ -3546,13 +3546,13 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
 
     if (num_iterations > 50) then
       scale = 1.d0
-      if (num_iterations > 50) then
+      if (num_iterations < 100) then
         scale = 0.1d0
-      else if (num_iterations > 100) then
+      else if (num_iterations < 150) then
         scale = 0.01d0
-      else if (num_iterations > 150) then
+      else if (num_iterations <= 500) then
         scale = 0.001d0
-      else if (num_iterations > 500) then
+      else
         print *, 'Maximum iterations in RReact: stop: ',num_iterations
         print *, 'Maximum iterations in RReact: residual: ',residual
         print *, 'Maximum iterations in RReact: new solution: ',new_solution
