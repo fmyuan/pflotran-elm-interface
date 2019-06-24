@@ -493,13 +493,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 #endif
 
     call characteristic_curves%saturation_function% &
-         Saturation(auxvar%pc,global_auxvar%sat(1), &
-         ds_dp, option)  
+        Saturation(auxvar%pc,global_auxvar%sat(1), &
+                    ds_dp, option)  
     call characteristic_curves%liq_rel_perm_function% &
-       RelativePermeability(global_auxvar%sat(1),kr,dkr_dsat1,option) 
+        RelativePermeability(global_auxvar%sat(1),kr, &
+                              dkr_dsat1,option) 
 
-
-    dkr_dp=ds_dp*dkr_dsat1
+    dkr_dp = ds_dp * dkr_dsat1
     dpw_dp = 0.d0
   else
     iphase = 1
