@@ -372,6 +372,7 @@ subroutine SubsurfaceFinalizeRun(this)
   call SimulationBaseFinalizeRun(this)
   
   nullify(flow_timestepper)
+  nullify(flow_ts_timestepper)
   nullify(tran_timestepper)
   if (associated(this%flow_process_model_coupler)) then
     select type(ts => this%flow_process_model_coupler%timestepper)
