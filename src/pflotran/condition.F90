@@ -2128,7 +2128,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         endif
         if (.not.associated(general%gas_saturation)) then
           option%io_buffer = 'WIPP Flow Mode non-rate condition must include &
-            &a liquid saturation'
+            &a gas saturation'
           call PrintErrMsg(option)
         endif
         condition%iphase = TWO_PHASE_STATE
