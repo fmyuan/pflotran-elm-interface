@@ -80,7 +80,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(flow_towg_condition_type), pointer :: towg
   class(dataset_base_type), pointer :: dataset
   type(global_auxvar_type) :: global_aux
-  PetscBool :: use_dataset
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
   PetscInt, pointer :: conn_id_ptr(:)
@@ -123,7 +122,6 @@ subroutine CondControlAssignFlowInitCond(realization)
 
           if (.not.associated(initial_condition)) exit
 
-          use_dataset = PETSC_FALSE
           dataset_flag = PETSC_FALSE
           do idof = 1, option%nflowdof
             dataset =>  initial_condition%flow_condition% &
@@ -138,12 +136,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsgToDev(option,'')
                 endif
               class is(dataset_common_hdf5_type)
-                use_dataset = PETSC_TRUE
                 dataset_flag(idof) = PETSC_TRUE
+                call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
                 call ConditionControlMapDatasetToVec(realization, &
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
+                call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
             end select
           enddo            
 
@@ -735,7 +734,6 @@ subroutine CondControlAssignFlowInitCond(realization)
       
           if (.not.associated(initial_condition)) exit
 
-          use_dataset = PETSC_FALSE
           dataset_flag = PETSC_FALSE
           do idof = 1, option%nflowdof
             dataset =>  initial_condition%flow_condition% &
@@ -750,12 +748,13 @@ subroutine CondControlAssignFlowInitCond(realization)
                   call PrintErrMsgToDev(option,'')
                 endif
               class is(dataset_common_hdf5_type)
-                use_dataset = PETSC_TRUE
                 dataset_flag(idof) = PETSC_TRUE
+                call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
                 call ConditionControlMapDatasetToVec(realization, &
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
+                call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
             end select
           enddo            
           if (.not.associated(initial_condition%flow_aux_real_var) .and. &
