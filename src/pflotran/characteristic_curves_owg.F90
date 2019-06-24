@@ -1426,7 +1426,7 @@ subroutine SF_XW_VG_CapillaryPressure(this,wat_saturation,capillary_pressure, &
     swa = wat_saturation
   end if
 
-    if (wat_saturation > 1.D0-1.D-8) then
+  if (wat_saturation > 1.D0-1.D-8) then
     call this%sat_func_sl%CapillaryPressure(swa,capillary_pressure, &
                                             dum,option)
     call this%sat_func_sl%CapillaryPressure(1.D0-1.D-8,dum, &
