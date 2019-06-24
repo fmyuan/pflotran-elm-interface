@@ -476,7 +476,7 @@ end subroutine RegressionCreateMapping
 ! ************************************************************************** !
 
 subroutine RegressionOutput(regression,realization,flow_timestepper, &
-                            tran_timestepper)
+                            tran_timestepper,flow_ts_timestepper)
   !
   ! Prints regression output through the io_rank
   ! 
@@ -486,6 +486,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 
   use Realization_Subsurface_class
   use Timestepper_BE_class
+  use Timestepper_TS_class
   use Option_module
   use Discretization_module
   use Output_module
@@ -500,7 +501,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   ! these must be pointers as they can be null
   class(timestepper_BE_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper  
-  
+  class(timestepper_TS_type), pointer :: flow_ts_timestepper
+
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec
   Vec :: global_vec_vx,global_vec_vy,global_vec_vz
@@ -784,7 +786,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
   ! timestep, newton iteration, solver iteration output
-  if (associated(flow_timestepper)) then
+  if (associated(flow_timestepper) .or. (associated(flow_ts_timestepper))) then
     call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
     call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
     if (option%myrank == option%io_rank) then

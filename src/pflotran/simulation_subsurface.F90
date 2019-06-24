@@ -348,6 +348,7 @@ subroutine SubsurfaceFinalizeRun(this)
   ! 
 
   use Timestepper_BE_class
+  use Timestepper_TS_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
@@ -362,6 +363,7 @@ subroutine SubsurfaceFinalizeRun(this)
   
   class(timestepper_BE_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper
+  class(timestepper_TS_type), pointer :: flow_ts_timestepper
 
 #ifdef DEBUG
   call printMsg(this%option,'SubsurfaceFinalizeRun()')
@@ -375,6 +377,8 @@ subroutine SubsurfaceFinalizeRun(this)
     select type(ts => this%flow_process_model_coupler%timestepper)
       class is(timestepper_BE_type)
         flow_timestepper => ts
+      class is(timestepper_TS_type)
+        flow_ts_timestepper => ts
     end select
     call SSSandboxDestroyList()
     call WIPPDestroy()
@@ -390,7 +394,8 @@ subroutine SubsurfaceFinalizeRun(this)
   endif
   
   call RegressionOutput(this%regression,this%realization, &
-                        flow_timestepper,tran_timestepper)  
+                        flow_timestepper,tran_timestepper, &
+                        flow_ts_timestepper)  
   
 end subroutine SubsurfaceFinalizeRun
 
