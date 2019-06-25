@@ -39,6 +39,8 @@ module Option_module
     PetscMPIInt :: io_rank
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
     PetscBool :: broadcast_read
+    PetscBool :: blocking
+    PetscBool :: error_while_nonblocking
 
     character(len=MAXSTRINGLENGTH) :: io_buffer
 
@@ -303,6 +305,8 @@ module Option_module
             OptionCreateProcessorGroups, &
             OptionBeginTiming, &
             OptionEndTiming, &
+            OptionSetBlocking, &
+            OptionCheckNonBlockingError, &
             OptionFinalize, &
             OptionDestroy
 
@@ -382,6 +386,8 @@ subroutine OptionInitAll(option)
   option%io_rank = 0
   option%hdf5_read_group_size = 0
   option%hdf5_write_group_size = 0
+  option%blocking = PETSC_TRUE
+  option%error_while_nonblocking = PETSC_FALSE
 
   option%input_record = PETSC_FALSE
   option%print_screen_flag = PETSC_FALSE
@@ -710,14 +716,50 @@ subroutine PrintErrMsg2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  call MPI_Barrier(option%mycomm,ierr)
-  call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
-  if (petsc_initialized) then
-    call PetscFinalize(ierr);CHKERRQ(ierr)
+  if (option%blocking) then
+    call MPI_Barrier(option%mycomm,ierr)
+    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    if (petsc_initialized) then
+      call PetscFinalize(ierr);CHKERRQ(ierr)
+    endif
+    stop
+  else
+    option%error_while_nonblocking = PETSC_TRUE
   endif
-  stop
 
 end subroutine PrintErrMsg2
+
+! ************************************************************************** !
+
+subroutine OptionCheckNonBlockingError(option)
+  !
+  ! Checks whether error_while_nonblocking was set and stops if TRUE
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/2/19
+  !
+
+  implicit none
+
+  type(option_type) :: option
+
+  PetscBool :: petsc_initialized
+  PetscMPIInt :: mpi_int
+  PetscErrorCode :: ierr
+
+  mpi_int = 1
+  call MPI_Allreduce(MPI_IN_PLACE,option%error_while_nonblocking, &
+                     mpi_int,MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+  if (option%error_while_nonblocking) then
+    call MPI_Barrier(option%mycomm,ierr)
+    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    if (petsc_initialized) then
+      call PetscFinalize(ierr);CHKERRQ(ierr)
+    endif
+    stop
+  endif
+
+end subroutine OptionCheckNonBlockingError
 
 ! ************************************************************************** !
 
@@ -1520,6 +1562,25 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
   call MPI_Comm_size(option%mycomm,option%mycommsize,ierr)
 
 end subroutine OptionCreateProcessorGroups
+
+! ************************************************************************** !
+
+subroutine OptionSetBlocking(option,flag)
+  !
+  ! Sets blocking flag
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/24/19
+  !
+
+  implicit none
+
+  type(option_type) :: option
+  PetscBool :: flag
+
+  option%blocking = flag
+
+end subroutine OptionSetBlocking
 
 ! ************************************************************************** !
 

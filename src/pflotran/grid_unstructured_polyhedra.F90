@@ -73,6 +73,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   num_faces_local_save = 0
 
   max_nvert_per_cell = -1
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     fileid = 86
     input => InputCreate(fileid,filename,option)
@@ -85,13 +86,15 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call PrintErrMsgByRank(option)
+      call PrintErrMsg(option)
     endif
   
     hint = 'Polyhedra Unstructured Grid CELLS'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of cells',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
@@ -126,6 +129,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   ! Read all cells from ASCII file through io_rank and communicate
   ! to other ranks
   max_nface_per_cell = 0
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
 
     allocate(temp_real_array(7,num_cells_local_save+1))
@@ -220,6 +224,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       num_faces_local_save = num_faces_local
       pgrid%num_faces_local = num_faces_local
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   deallocate(temp_real_array)
 
   call MPI_Bcast(max_nvert_per_cell,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -228,6 +234,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   pgrid%max_nvert_per_cell = max_nvert_per_cell
   allocate(pgrid%cell_vertids(max_nvert_per_cell,num_cells_local))
 
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
 
     call InputReadPflotranString(input,option)
@@ -237,13 +244,15 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecongnized keyword "' // trim(card) // &
         '" in polyhedra grid file.'
-      call PrintErrMsgByRank(option)
+      call PrintErrMsg(option)
     endif
 
     hint = 'Polyhedra Unstructured Grid FACES'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of faces',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -267,6 +276,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   ! read all faces from ASCII file through io_rank and communicate
   ! to other ranks
   max_nvert_per_face = 0
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(7+max_nvert_per_cell,num_faces_local_save))
     do irank = 0, option%mycommsize-1
@@ -360,8 +370,11 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
     enddo
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   deallocate(temp_real_array)
 
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     call InputReadPflotranString(input,option)
     call InputReadWord(input,option,card,PETSC_TRUE)
@@ -376,6 +389,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of vertices',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -401,6 +416,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
   ! read all vertices from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for all processors
@@ -447,6 +463,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       pgrid%vertex_coordinates(ivert)%z = temp_real_array(3,ivert)
     enddo
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   deallocate(temp_real_array)
   deallocate(nfaces_per_proc)

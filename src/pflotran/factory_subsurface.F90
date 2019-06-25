@@ -3129,6 +3129,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                      case ('CELL_CENTERED')
                        grid%unstructured_grid%explicit_grid% &
                           output_mesh_type = CELL_CENTERED_OUTPUT_MESH
+                       call OptionSetBlocking(option,PETSC_FALSE)
                        if ( option%myrank == option%io_rank ) then
                          if (grid%unstructured_grid% &
                              explicit_grid%num_elems /= &
@@ -3143,6 +3144,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                            call PrintErrMsg(option)
                          end if
                        end if
+                       call OptionSetBlocking(option,PETSC_TRUE)
+                       call OptionCheckNonBlockingError(option)
                      case default
                        option%io_buffer ='EXPLICIT_GRID_PRIMAL_GRID_TYPE &
                                   &only VERTEX_CENTERED and CELL_CENTERED &
