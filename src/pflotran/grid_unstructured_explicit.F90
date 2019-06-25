@@ -85,6 +85,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 ! id_up_M id_dn_M x_M y_M z_M area_M
 ! -----------------------------------------------------------------
 
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
   
     fileid = 86
@@ -98,13 +99,15 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call PrintErrMsgByRank(option)
+      call PrintErrMsg(option)
     endif
   
     hint = 'Explicit Unstructured Grid CELLS'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of cells',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
@@ -132,6 +135,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   
   ! for now, read all cells from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(5,num_cells_local_save+1))
     ! read for other processors
@@ -206,11 +210,12 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     enddo
     
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   deallocate(temp_real_array)
   
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
-  
- 
     call InputReadPflotranString(input,option)
     ! read CONNECTIONS card, though we already know the
     call InputReadWord(input,option,card,PETSC_TRUE)
@@ -219,13 +224,15 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call PrintErrMsgByRank(option)
+      call PrintErrMsg(option)
     endif
   
     hint = 'Explicit Unstructured Grid CONNECTIONS'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of connections',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   
   int_mpi = 1
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -253,6 +260,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
         
   ! for now, read all cells from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(6,num_connections_local_save+1))
     ! read for other processors
@@ -332,94 +340,103 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     enddo
     
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   deallocate(temp_real_array)  
   
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     call InputReadPflotranString(input,option)
     ! read ELEMENTS card, we only use this for tecplot output
     ! not used while solving the PDEs
     call InputReadWord(input,option,card,PETSC_TRUE)
     word = 'ELEMENTS'
-    if (.not.StringCompare(word,card)) return
-    card = 'Explicit Unstruct. Grid ELEMENTS'
-    call InputReadInt(input,option,num_elems)
-    call InputErrorMsg(input,option,'number of elements',card)
-        explicit_grid%num_elems = num_elems
-    unstructured_grid%max_nvert_per_cell = 8 ! Initial guess
-    allocate(explicit_grid%cell_vertices(0:unstructured_grid% &
-                                  max_nvert_per_cell,num_elems)) 
-    do iconn = 1, num_elems
-      call InputReadPflotranString(input,option)
-      call InputReadStringErrorMsg(input,option,card)  
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,'element_type',card)
-      call StringtoUpper(word)
-      select case (word)
-        case('H')
-          num_vertices = 8
-        case('W')
-          num_vertices = 6
-        case('P')
-          num_vertices = 5
-        case('T')
-          num_vertices = 4
-        case('Q')
-          num_vertices = 4
-        case('TRI')
-          num_vertices = 3
-      end select
-      explicit_grid%cell_vertices(0,iconn) = num_vertices
-      do ivertex = 1, num_vertices
-        call InputReadInt(input,option,explicit_grid%cell_vertices(ivertex,iconn))
-        call InputErrorMsg(input,option,'vertex id',hint)
+    if (StringCompare(word,card)) then
+      card = 'Explicit Unstruct. Grid ELEMENTS'
+      call InputReadInt(input,option,num_elems)
+      call InputErrorMsg(input,option,'number of elements',card)
+          explicit_grid%num_elems = num_elems
+      unstructured_grid%max_nvert_per_cell = 8 ! Initial guess
+      allocate(explicit_grid%cell_vertices(0:unstructured_grid% &
+                                    max_nvert_per_cell,num_elems)) 
+      do iconn = 1, num_elems
+        call InputReadPflotranString(input,option)
+        call InputReadStringErrorMsg(input,option,card)  
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'element_type',card)
+        call StringtoUpper(word)
+        select case (word)
+          case('H')
+            num_vertices = 8
+          case('W')
+            num_vertices = 6
+          case('P')
+            num_vertices = 5
+          case('T')
+            num_vertices = 4
+          case('Q')
+            num_vertices = 4
+          case('TRI')
+            num_vertices = 3
+        end select
+        explicit_grid%cell_vertices(0,iconn) = num_vertices
+        do ivertex = 1, num_vertices
+          call InputReadInt(input,option, &
+                            explicit_grid%cell_vertices(ivertex,iconn))
+          call InputErrorMsg(input,option,'vertex id',hint)
+        enddo
       enddo
-    enddo
-    call InputReadPflotranString(input,option)
-    ! read VERTICES card, not used for calcuations, only tecplot output
-    call InputReadWord(input,option,card,PETSC_TRUE)
-    word = 'VERTICES'
-    call InputErrorMsg(input,option,word,card)
-    if (.not.StringCompare(word,card)) then
-      option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
-        '" in explicit grid file.'
-      call PrintErrMsgByRank(option)
-    endif
-
-    !at this point, as we read the grid, the output_mesh_type is not known yet 
-    call InputReadInt(input,option,num_grid_vertices)
-
-    if (InputError(input)) then
-      input%ierr = 0
-      !if num_grid_vertices not entered assumes vertex_centered based - default
-      explicit_grid%num_vertices = explicit_grid%num_cells_global
-    else   
-      explicit_grid%num_vertices = num_grid_vertices
-    end if
-
-    allocate(explicit_grid%vertex_coordinates(explicit_grid%num_vertices))
-    do icell = 1, explicit_grid%num_vertices
-      explicit_grid%vertex_coordinates(icell)%x = 0.d0
-      explicit_grid%vertex_coordinates(icell)%y = 0.d0
-      explicit_grid%vertex_coordinates(icell)%z = 0.d0
-    enddo
-    do icell = 1, explicit_grid%num_vertices
       call InputReadPflotranString(input,option)
-      call InputReadStringErrorMsg(input,option,card)  
-      call InputReadDouble(input,option, &
-                           explicit_grid%vertex_coordinates(icell)%x)
-      call InputErrorMsg(input,option,'vertex 1',card)
-      call InputReadDouble(input,option, &
-                           explicit_grid%vertex_coordinates(icell)%y)
-      call InputErrorMsg(input,option,'vertex 2',card)
-      call InputReadDouble(input,option, &
-                           explicit_grid%vertex_coordinates(icell)%z)
-      call InputErrorMsg(input,option,'vertex 3',card)
-    enddo
+      ! read VERTICES card, not used for calcuations, only tecplot output
+      call InputReadWord(input,option,card,PETSC_TRUE)
+      word = 'VERTICES'
+      call InputErrorMsg(input,option,word,card)
+      if (.not.StringCompare(word,card)) then
+        option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
+          '" in explicit grid file.'
+        call PrintErrMsg(option)
+      endif
+  
+      ! at this point, as we read the grid, the output_mesh_type is 
+      ! not known yet 
+      call InputReadInt(input,option,num_grid_vertices)
+  
+      if (InputError(input)) then
+        input%ierr = 0
+        ! if num_grid_vertices not entered assumes vertex_centered 
+        ! based - default
+        explicit_grid%num_vertices = explicit_grid%num_cells_global
+      else   
+        explicit_grid%num_vertices = num_grid_vertices
+      end if
+  
+      allocate(explicit_grid%vertex_coordinates(explicit_grid%num_vertices))
+      do icell = 1, explicit_grid%num_vertices
+        explicit_grid%vertex_coordinates(icell)%x = 0.d0
+        explicit_grid%vertex_coordinates(icell)%y = 0.d0
+        explicit_grid%vertex_coordinates(icell)%z = 0.d0
+      enddo
+      do icell = 1, explicit_grid%num_vertices
+        call InputReadPflotranString(input,option)
+        call InputReadStringErrorMsg(input,option,card)  
+        call InputReadDouble(input,option, &
+                             explicit_grid%vertex_coordinates(icell)%x)
+        call InputErrorMsg(input,option,'vertex 1',card)
+        call InputReadDouble(input,option, &
+                             explicit_grid%vertex_coordinates(icell)%y)
+        call InputErrorMsg(input,option,'vertex 2',card)
+        call InputReadDouble(input,option, &
+                             explicit_grid%vertex_coordinates(icell)%z)
+        call InputErrorMsg(input,option,'vertex 3',card)
+      enddo
+    endif
   endif
   
   if (option%myrank == option%io_rank) then
     call InputDestroy(input)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
     
 end subroutine UGridExplicitRead
 

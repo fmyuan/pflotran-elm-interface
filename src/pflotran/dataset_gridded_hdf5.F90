@@ -211,6 +211,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
 #define BROADCAST_DATASET
 #ifdef BROADCAST_DATASET
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (first_time .or. option%myrank == option%io_rank) then
 #endif
 
@@ -327,6 +328,8 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
 #ifdef BROADCAST_DATASET
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 #endif
 
   num_spatial_dims = DatasetGriddedHDF5GetNDimensions(this)
@@ -341,6 +344,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   endif
   
 #ifdef BROADCAST_DATASET
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (first_time .or. option%myrank == option%io_rank) then
 #endif
   ! open the "data" dataset
@@ -420,6 +424,8 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
 #ifdef BROADCAST_DATASET
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 #endif
 
 #ifdef TIME_DATASET

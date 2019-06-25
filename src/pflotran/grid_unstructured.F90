@@ -133,6 +133,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
 
   ! for now, read all cells from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             num_cells_local_save+1))
@@ -208,6 +209,8 @@ subroutine UGridRead(unstructured_grid,filename,option)
                   MPIU_INTEGER,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
 
   ! divide vertices across ranks
@@ -223,6 +226,7 @@ subroutine UGridRead(unstructured_grid,filename,option)
   vertex_coordinates = 0.d0
 
   ! just like above, but this time for vertex coordinates
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for other processors
@@ -255,6 +259,8 @@ subroutine UGridRead(unstructured_grid,filename,option)
                   MPI_DOUBLE_PRECISION,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   
   ! fill the vertices data structure
   allocate(unstructured_grid%vertices(num_vertices_local))
@@ -366,6 +372,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 
   ! for now, read all cells from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             unstructured_grid%nmax))
@@ -397,6 +404,8 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
       enddo
     enddo
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
 
   ! divide vertices across ranks
@@ -412,6 +421,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
   vertex_coordinates = 0.d0
 
   ! just like above, but this time for vertex coordinates
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for other processors
@@ -444,6 +454,8 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
                   MPI_DOUBLE_PRECISION,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   
   ! fill the vertices data structure
   allocate(unstructured_grid%vertices(num_vertices_local))
@@ -486,6 +498,7 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
 
   ! for now, read all faces from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_int_array(unstructured_grid%max_nvert_per_cell, &
                             num_cells_local_save+1))
@@ -552,6 +565,8 @@ subroutine UGridReadSurfGrid(unstructured_grid,filename,surf_filename,option)
                   MPIU_INTEGER,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   unstructured_grid%nlmax = num_cells_local
 
