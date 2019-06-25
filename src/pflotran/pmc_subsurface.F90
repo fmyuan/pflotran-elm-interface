@@ -130,6 +130,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use Discretization_module
   use Realization_Subsurface_class
   use Option_module
+  use General_Aux_module
   use PMC_Base_class
   use PM_Base_Pointer_module
   use PM_Base_class
@@ -162,6 +163,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   PetscBool :: add_pre_check, check_update, check_post_convergence
   PetscInt :: itransport, RT, NWT
   PetscInt :: trans_coupling
+  SNESType :: snes_type
   PetscErrorCode :: ierr
 
 #ifdef DEBUG
@@ -211,6 +213,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = Richards: p")')
           case(G_MODE) 
             write(*,'(" mode = General: p, sg/X, T")')
+            call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
+            if (trim(snes_type) == 'newtontr') then
+              general_using_newtontr = PETSC_TRUE
+            endif
           case(WF_MODE) 
             write(*,'(" mode = WIPP Flow: p, sg")')
           case(TOIL_IMS_MODE)   

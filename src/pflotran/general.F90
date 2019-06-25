@@ -238,7 +238,7 @@ subroutine GeneralInitializeTimestep(realization)
   type(realization_subsurface_type) :: realization
   
   if (realization%option%restrict_state_chng) then
-    realization%patch%aux%global%auxvars%istatechng = PETSC_FALSE
+    realization%patch%aux%global%auxvars(:)%istatechng = PETSC_FALSE
   endif
   
   general_newton_iteration_number = 0
