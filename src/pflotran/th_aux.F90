@@ -449,7 +449,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
  
 ! auxvar%pc = option%reference_pressure - auxvar%pres
   auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
-                 characteristic_curves%saturation_function%pcmax)
+                  characteristic_curves%saturation_function%pcmax)
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
@@ -494,10 +494,10 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
     call characteristic_curves%saturation_function% &
         Saturation(auxvar%pc,global_auxvar%sat(1), &
-                    ds_dp, option)  
+                   ds_dp, option)  
     call characteristic_curves%liq_rel_perm_function% &
-        RelativePermeability(global_auxvar%sat(1),kr, &
-                              dkr_dsat1,option) 
+           RelativePermeability(global_auxvar%sat(1),kr, &
+                                dkr_dsat1,option) 
 
     dkr_dp = ds_dp * dkr_dsat1
     dpw_dp = 0.d0

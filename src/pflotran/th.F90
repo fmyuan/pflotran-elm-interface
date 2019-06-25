@@ -250,11 +250,11 @@ subroutine THSetupPatch(realization)
   endif
 
   if (option%use_th_freezing) then
-     do i = 1, size(patch%saturation_function_array)
-        patch%aux%TH%TH_parameter% &
-             sir(:,patch%saturation_function_array(i)%ptr%id) = &
-             patch%saturation_function_array(i)%ptr%Sr(:)
-     enddo
+    do i = 1, size(patch%saturation_function_array)
+      patch%aux%TH%TH_parameter% &
+        sir(:,patch%saturation_function_array(i)%ptr%id) = &
+        patch%saturation_function_array(i)%ptr%Sr(:)
+    enddo
   endif
 
   ! allocate auxvar data structures for all grid cells
@@ -1642,10 +1642,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: fluxm,fluxe,q
   PetscReal :: uh,ukvr,DK,Dq
   PetscReal :: upweight,density_ave,cond,gravity,dphi
-
-  PetscReal :: up_scale, dn_scale
-  PetscReal :: dtot_flux_dp_up, dtot_flux_dt_dn, dtot_flux_dt_up, dtot_flux_dp_dn
-  PetscReal :: tot_flux, tot_flux_ddphi
   
   PetscReal :: dden_ave_dp_up, dden_ave_dp_dn, dden_ave_dT_up, dden_ave_dT_dn
   PetscReal :: dgravity_dden_up, dgravity_dden_dn
@@ -1764,12 +1760,12 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   
   if (option%use_th_freezing) then
     if (global_auxvar_up%sat(1) > sir_up .or. &
-         global_auxvar_dn%sat(1) > sir_dn) then
+        global_auxvar_dn%sat(1) > sir_dn) then
       is_flowing = PETSC_TRUE
     endif
   else
     if (auxvar_up%kvr > eps .or. &  
-         auxvar_dn%kvr > eps) then
+        auxvar_dn%kvr > eps) then
       is_flowing = PETSC_TRUE
     endif
   endif  
@@ -2635,12 +2631,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
       if (option%use_th_freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
-             global_auxvar_dn%sat(1) > sir_dn) then
+            global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
         endif
       else
         if (auxvar_up%kvr > eps .or. &  
-             auxvar_dn%kvr > eps) then
+            auxvar_dn%kvr > eps) then
           is_flowing = PETSC_TRUE
         endif
       endif
@@ -2728,12 +2724,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
       if (option%use_th_freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
-             global_auxvar_dn%sat(1) > sir_dn) then
+            global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
         endif
       else
         if (auxvar_up%kvr > eps .or. &  
-             auxvar_dn%kvr > eps) then
+            auxvar_dn%kvr > eps) then
           is_flowing = PETSC_TRUE
         endif
       endif
@@ -3375,12 +3371,12 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
       if (option%use_th_freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
-             global_auxvar_dn%sat(1) > sir_dn) then
+            global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
         endif
       else
         if (auxvar_up%kvr > eps .or. &  
-             auxvar_dn%kvr > eps) then
+            auxvar_dn%kvr > eps) then
           is_flowing = PETSC_TRUE
         endif
       endif
@@ -7302,12 +7298,12 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   
   if (option%use_th_freezing) then
     if (global_auxvar_up%sat(1) > sir_dn .or. &
-         global_auxvar_max%sat(1) > sir_dn) then
+        global_auxvar_max%sat(1) > sir_dn) then
       is_flowing = PETSC_TRUE
     endif
   else  
     if (th_auxvar_up%kvr > eps .or. &
-         th_auxvar_dn%kvr > eps) then
+        th_auxvar_dn%kvr > eps) then
       is_flowing = PETSC_TRUE
     endif
   endif
