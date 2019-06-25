@@ -3256,8 +3256,8 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            option)
 
 
-        if (rich_auxvar_up%kvr + &
-             rich_auxvar_dn%kvr > eps) then
+        if (rich_auxvar_up%kvr > eps .or. &
+            rich_auxvar_dn%kvr > eps) then
 
            upweight=1.D0
           if (global_auxvar_up%sat(1) < eps) then

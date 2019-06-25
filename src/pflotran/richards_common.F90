@@ -250,7 +250,7 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
   
 ! Flow term
-  if (rich_auxvar_up%kvr + &
+  if (rich_auxvar_up%kvr > eps .or. &
       rich_auxvar_dn%kvr > eps) then
    
     if (global_auxvar_up%sat(1) <eps) then 
@@ -406,7 +406,7 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
   
 ! Flow term
-  if (rich_auxvar_up%kvr + &
+  if (rich_auxvar_up%kvr > eps .or. &
       rich_auxvar_dn%kvr > eps) then
     if (global_auxvar_up%sat(1) <eps) then 
       upweight=0.d0
@@ -550,7 +550,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         Dq = perm_dn / dist(0)
       endif
       ! Flow term
-      if (rich_auxvar_up%kvr + &
+      if (rich_auxvar_up%kvr > eps .or. &
           rich_auxvar_dn%kvr > eps) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
@@ -825,7 +825,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
         Dq = perm_dn / dist(0)
       endif
       ! Flow term
-      if (rich_auxvar_up%kvr + &
+      if (rich_auxvar_up%kvr > eps .or. &
           rich_auxvar_dn%kvr > eps) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
