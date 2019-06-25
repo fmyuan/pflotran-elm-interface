@@ -421,7 +421,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   ndof_word = adjustl(ndof_word)
   ndof_word = '_' // trim(ndof_word)
   string = 'Vectors' // ndof_word
-  call printMsg(option,string)
+  call PrintMsg(option,string)
 #endif
 
   ! create global vec
@@ -497,7 +497,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   
 #if UGRID_DEBUG
   string = 'Index Sets' // ndof_word
-  call printMsg(option,'Index Sets')
+  call PrintMsg(option,'Index Sets')
 #endif
 
   ! IS for local numbering of ghosts cells
@@ -581,7 +581,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   ! create a local to global mapping
 #if UGRID_DEBUG
   string = 'ISLocalToGlobalMapping' // ndof_word
-  call printMsg(option,string)
+  call PrintMsg(option,string)
 #endif
 
   call ISLocalToGlobalMappingCreateIS(ugdm%is_ghosted_petsc, &
@@ -597,7 +597,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
                
 #if UGRID_DEBUG
   string = 'local to global' // ndof_word
-  call printMsg(option,string)
+  call PrintMsg(option,string)
 #endif
 
   ! Create local to global scatter
@@ -615,7 +615,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
 
 #if UGRID_DEBUG
   string = 'global to local' // ndof_word
-  call printMsg(option,string)
+  call PrintMsg(option,string)
 #endif
 
   ! Create global to local scatter
@@ -633,7 +633,7 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
 
 #if UGRID_DEBUG
   string = 'local to local' // ndof_word
-  call printMsg(option,string)
+  call PrintMsg(option,string)
 #endif
   
   ! Create local to local scatter.  Essentially remap the global to local as
@@ -1055,7 +1055,7 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   PetscErrorCode :: ierr
 
 #if UGRID_DEBUG
-  call printMsg(option,'Partitioning')
+  call PrintMsg(option,'Partitioning')
 #endif
 
   ! create the partitioning
@@ -1094,7 +1094,7 @@ subroutine UGridPartition(ugrid,option,Dual_mat,is_new, &
   deallocate(cell_counts)
   if (iflag < 1) then
     option%io_buffer = 'A processor core has been assigned zero cells.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine UGridPartition  
@@ -1247,7 +1247,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecSetFromOptions(elements_natural,ierr);CHKERRQ(ierr)
   
 #if UGRID_DEBUG
-  call printMsg(option,'Before element scatter')
+  call PrintMsg(option,'Before element scatter')
 #endif
 
   ! scatter all the cell data from the old decomposition (as read in in 
@@ -1262,7 +1262,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecScatterDestroy(vec_scatter,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
-  call printMsg(option,'After element scatter')
+  call PrintMsg(option,'After element scatter')
   if (ugrid%grid_type == THREE_DIM_GRID) then
     call PetscViewerASCIIOpen(option%mycomm,'elements_old_suburf.out',viewer, &
                               ierr);CHKERRQ(ierr)
@@ -1303,7 +1303,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecCopy(elements_natural,elements_petsc,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
-  call printMsg(option,'Lists of ids')
+  call PrintMsg(option,'Lists of ids')
 #endif
 
   ! now we unpack the decomposed cell data
@@ -1391,7 +1391,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecRestoreArrayF90(elements_natural,vec_ptr,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
-  call printMsg(option,'Application ordering')
+  call PrintMsg(option,'Application ordering')
 #endif
 
   ! convert the dual ids in int_array from natural to petsc numbering
@@ -1401,7 +1401,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   int_array = int_array + 1                
 
 #if UGRID_DEBUG
-  call printMsg(option,'PETSc-ordered duals')
+  call PrintMsg(option,'PETSc-ordered duals')
 #endif
 
   ! load mapped petsc-ordered dual ids back into duplicated vector
@@ -1445,7 +1445,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 
   ! make a list of ghosted ids in petsc numbering
 #if UGRID_DEBUG
-  call printMsg(option,'Renumbering ghost ids to petsc numbering')
+  call PrintMsg(option,'Renumbering ghost ids to petsc numbering')
 #endif
   
   call VecGetArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1501,7 +1501,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
  
 
 #if UGRID_DEBUG
-  call printMsg(option,'  Sorting local ghost ids')
+  call PrintMsg(option,'  Sorting local ghost ids')
 #endif
 
   if (ghost_cell_count > 0) then
@@ -1550,7 +1550,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
       int_array3(1:ghost_cell_count)
 
 #if UGRID_DEBUG
-  call printMsg(option,'  Remappping ghost ids')
+  call PrintMsg(option,'  Remappping ghost ids')
 #endif
 
     ! remap of duals of ghost cells
@@ -1596,7 +1596,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
 #endif
 
 #if UGRID_DEBUG
-  call printMsg(option,'Resizing natural cell id array')
+  call PrintMsg(option,'Resizing natural cell id array')
 #endif
 
   ! Resize cell_ids_natural to include ghosted cells
@@ -1622,7 +1622,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   if (minval(ugrid%cell_ids_natural) < 1) then
     write(string,*) minval( ugrid%cell_ids_natural)
     option%io_buffer = 'Negative natural id: ' // trim(adjustl(string))
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   call VecRestoreArrayF90(elements_petsc,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(elements_natural,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -1631,7 +1631,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! NOW START ON GHOSTING CELLS
 
 #if UGRID_DEBUG
-  call printMsg(option,'Ghosting local element vectors')
+  call PrintMsg(option,'Ghosting local element vectors')
 #endif
 
   ! load cell neighbors into array
@@ -1735,7 +1735,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
     if ( ugrid%nmax /= global_num_cells ) then
       option%io_buffer = 'number of cells after partitioning /= &
                           &number of cells read in the grid'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     
     allocate(elements_global_petsc(1:global_num_cells*stride))
@@ -2028,7 +2028,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   call VecView(elements_local,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
-  call printMsg(option,'Scatter/gathering local ghosted vertices')
+  call PrintMsg(option,'Scatter/gathering local ghosted vertices')
 #endif
 
 end subroutine UGridNaturalToPetsc  
@@ -2346,7 +2346,7 @@ subroutine UGridCalculateDist(pt_up, pt_dn, pt_center, vol_up, vol_dn, &
         endif
         option%io_buffer = trim(option%io_buffer) // ' Please check the &
           &location of the cell centers and face center.'
-        call printMsgByRank(option)
+        call PrintMsgByRank(option)
       endif
     case(UGRID_UPWIND_FRACTION_CELL_VOL)
       upwind_fraction = vol_up / (vol_up+vol_dn)

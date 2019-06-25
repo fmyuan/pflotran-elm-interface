@@ -256,7 +256,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
                 &unless you are running in WIPP_FLOW mode and intend to &
                 &include gas generation.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             case('SURFACE_SUBSURFACE')
               call SurfSubsurfaceReadFlowPM(input,option,new_pm)
             case('GEOMECHANICS_SUBSURFACE')
@@ -265,7 +265,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('AUXILIARY')
               if (len_trim(pm_name) < 1) then
                 option%io_buffer = 'AUXILIARY process models must have a name.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               new_pm => PMAuxiliaryCreate()
               input%buf = pm_name
@@ -342,7 +342,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               &"-restart" be present in the restart file name so that the &
               &realization id can be inserted prior to -restart.  E.g. &
               &pflotran-restart.h5 -> pflotranR1-restart.h5'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           option%restart_filename = trim(string)
         endif
@@ -357,7 +357,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
 
   if (.not.associated(pm_master)) then
     option%io_buffer = 'No process models defined in SIMULATION block.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if (option%print_ekg) then
@@ -381,7 +381,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
       if (len_trim(simulation_type) == 0) then
         option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
           &SUBSURFACE") must be specified within the SIMULATION block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call InputKeywordUnrecognized(simulation_type, &
                      'SIMULATION,SIMULATION_TYPE',option)            
@@ -548,7 +548,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   if (pflotranin_option_found .and. input_prefix_option_found) then
     option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
       '"-input_prefix" on the command lines.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if (pflotranin_option_found) then
     strings => StringSplit(option%input_filename,'.')
     option%input_prefix = strings(1)
@@ -590,7 +590,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   if (option_found) then
     if (i < 1) then
       option%io_buffer = 'realization_id must be greater than zero.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%id = i
   endif

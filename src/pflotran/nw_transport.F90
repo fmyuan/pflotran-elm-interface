@@ -133,17 +133,17 @@ subroutine NWTSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif 
   
   enddo 
@@ -151,7 +151,7 @@ subroutine NWTSetup(realization)
   if (maxval(flag) > 0) then
     option%io_buffer = &
       'Material property errors found in NWTSetup (Nuclear Waste Transport).'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! jenn:todo Should we make this compatible with secondary continuum?

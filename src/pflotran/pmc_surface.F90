@@ -125,7 +125,7 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   if (stop_flag == TS_STOP_FAILURE) return
   
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
-  call printVerboseMsg(this%option)
+  call PrintVerboseMsg(this%option)
   
   ! Get data of other process-model
   if (this%option%restart_flag .and. this%option%first_step_after_restart) then
@@ -478,7 +478,7 @@ subroutine PMCSurfaceSetAuxData(this)
                           &a temperature condition that is either a &
                           &ENERGY_RATE_SS/HET_ENERGY_RATE_SS/DIRICHLET_BC/ &
                           &HET_DIRICHLET_BC'
-                        call printErrMsg(this%option)
+                        call PrintErrMsg(this%option)
                     end select
 
                     ! Only when no standing water is present, the atmospheric
@@ -511,7 +511,7 @@ subroutine PMCSurfaceSetAuxData(this)
             if (.not.(found)) then
               this%option%io_buffer = 'atm_energy_ss/clm_energy_srf_ss not ' // &
                 'found in surface-flow model'
-              call printErrMsg(this%option)
+              call PrintErrMsg(this%option)
             endif
         end select
     end select
@@ -676,7 +676,7 @@ recursive subroutine PMCSurfaceFinalizeRun(this)
   
   class(pmc_surface_type), target :: this
   
-  call printMsg(this%option,'PMCSurface%FinalizeRun()')
+  call PrintMsg(this%option,'PMCSurface%FinalizeRun()')
   
   nullify(this%surf_realization)
 !  nullify(this%surf_timestepper)
@@ -717,7 +717,7 @@ recursive subroutine PMCSurfaceDestroy(this)
   class(pmc_surface_type) :: this
   
 #ifdef DEBUG
-  call printMsg(this%option,'PMCSurface%Destroy()')
+  call PrintMsg(this%option,'PMCSurface%Destroy()')
 #endif
 
   if (associated(this%child)) then

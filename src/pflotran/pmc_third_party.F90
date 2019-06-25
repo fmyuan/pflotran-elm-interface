@@ -96,7 +96,7 @@ recursive subroutine PMCThirdPartyRunToTime(this,sync_time,stop_flag)
   if (stop_flag == TS_STOP_FAILURE) return
   
   this%option%io_buffer = trim(this%name)
-  call printVerboseMsg(this%option)
+  call PrintVerboseMsg(this%option)
   
   call this%GetAuxData()
   
@@ -155,7 +155,7 @@ recursive subroutine PMCThirdPartyFinalizeRun(this)
   
   class(pmc_third_party_type) :: this
   
-!  call printMsg(this%option,'PMCThirdParty%FinalizeRun()')
+!  call PrintMsg(this%option,'PMCThirdParty%FinalizeRun()')
   
 end subroutine PMCThirdPartyFinalizeRun
 
@@ -197,7 +197,7 @@ recursive subroutine PMCThirdPartyDestroy(this)
 
   PetscErrorCode :: ierr
   
-!  call printMsg(this%option,'PMCThirdParty%Destroy()')
+!  call PrintMsg(this%option,'PMCThirdParty%Destroy()')
   
   call PMCThirdPartyStrip(this)
   

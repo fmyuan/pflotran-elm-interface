@@ -369,14 +369,14 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
         write(*,*) 'In SurfaceFlowFlux: ', surf_global_auxvars(ghosted_id_up)%head(1), &
           surf_global_auxvars(ghosted_id_dn)%head(1),ghosted_id_up,ghosted_id_dn
           option%io_buffer='stopping: -ve head values '
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       endif
 
       select case(option%surface_flow_formulation)
         case (KINEMATIC_WAVE)
           option%io_buffer='Explicit Surface flow not implemented for ' // &
             'Kinematic wave'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         case (DIFFUSION_WAVE)
           call SurfaceFlowFlux(surf_global_auxvars(ghosted_id_up), &
                                zc(ghosted_id_up), &
@@ -466,7 +466,7 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
           qsrc = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)*area_p(local_id)
         case default
           option%io_buffer = 'Source/Sink flow condition type not recognized'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       
       ff_p(local_id) = ff_p(local_id) + qsrc/area_p(local_id)

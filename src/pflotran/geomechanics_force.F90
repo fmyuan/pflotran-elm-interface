@@ -688,7 +688,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
            ! do nothing
           case(NEUMANN_BC)
             option%io_buffer = 'Neumann BC for displacement not available.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       endif
       
@@ -702,7 +702,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
            ! do nothing
           case(NEUMANN_BC)
             option%io_buffer = 'Neumann BC for displacement not available.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       endif
       
@@ -716,7 +716,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
            ! do nothing
           case(NEUMANN_BC)
             option%io_buffer = 'Neumann BC for displacement not available.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       endif
       
@@ -754,7 +754,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
            ! do nothing
           case(NEUMANN_BC)
             option%io_buffer = 'Neumann BC for force not available.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       endif
       
@@ -770,7 +770,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
            ! do nothing
           case(NEUMANN_BC)
             option%io_buffer = 'Neumann BC for force not available.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 
         end select
       endif
@@ -787,7 +787,7 @@ subroutine GeomechForceResidualPatch(snes,xx,r,geomech_realization,ierr)
            ! do nothing
           case(NEUMANN_BC)
             option%io_buffer = 'Neumann BC for force not available.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       endif
  
@@ -896,7 +896,7 @@ subroutine GeomechForceLocalElemResidual(size_elenodes,local_coordinates, &
     if (detJ_map <= 0.d0) then
       option%io_buffer = 'GEOMECHANICS: Determinant of J_map has' // &
                          ' to be positive!' 
-      call printErrMsg(option)        
+      call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
     ! Set identity matrix
@@ -1031,7 +1031,7 @@ subroutine GeomechForceLocalElemError(size_elenodes,local_coordinates, &
     if (detJ_map <= 0.d0) then
       option%io_buffer = 'GEOMECHANICS: Determinant of J_map has' // &
                          ' to be positive!' 
-      call printErrMsg(option)        
+      call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
     ! Set identity matrix
@@ -1184,7 +1184,7 @@ subroutine GeomechForceLocalElemJacobian(size_elenodes,local_coordinates, &
     if (detJ_map <= 0.d0) then
       option%io_buffer = 'GEOMECHANICS: Determinant of J_map has' // &
                          ' to be positive!' 
-      call printErrMsg(option)        
+      call PrintErrMsg(option)
     endif
     ! Find the inverse of J_map
     ! Set identity matrix
@@ -1343,13 +1343,13 @@ subroutine GeomechForceJacobian(snes,xx,A,B,geomech_realization,ierr)
     option => geomech_realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 end subroutine GeomechForceJacobian

@@ -258,7 +258,7 @@ subroutine EOSRead(input,option)
               else
                 option%io_buffer = 'Temperature distribution type "' // &
                   trim(word) // '" for EOS Water not recognized.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'pressure distribution type', &
@@ -270,7 +270,7 @@ subroutine EOSRead(input,option)
               else
                 option%io_buffer = 'Pressure distribution type "' // &
                   trim(word) // '" for EOS Water not recognized.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               call InputReadWord(input,option,word,PETSC_TRUE)
               test_filename = ''
@@ -293,7 +293,7 @@ subroutine EOSRead(input,option)
         if (len_trim(string) > 1) then
           option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     case('GAS')
       do
@@ -470,7 +470,7 @@ subroutine EOSRead(input,option)
               else
                 option%io_buffer = 'Temperature distribution type "' // &
                   trim(word) // '" for EOS Gas not recognized.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'pressure distribution type', &
@@ -482,7 +482,7 @@ subroutine EOSRead(input,option)
               else
                 option%io_buffer = 'Pressure distribution type "' // &
                   trim(word) // '" for EOS Gas not recognized.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               call InputReadWord(input,option,word,PETSC_TRUE)
               test_filename = ''
@@ -593,19 +593,19 @@ subroutine EOSRead(input,option)
         if (len_trim(string) > 1) then
           option%io_buffer =  trim(string) // ': ' // trim(option%io_buffer)
         endif
-        call printMsg(option)
+        call PrintMsg(option)
       !else if (ierr == 6) then
       !  option%io_buffer = 'set as default value for gas fmw'
       !  if (len_trim(string) > 1) then
       !    option%io_buffer =  trim(string) // ': ' // trim(option%io_buffer)
       !  endif
-      !  call printMsg(option)
+      !  call PrintMsg(option)
       else if (ierr /= 0) then
         option%io_buffer = 'Error in Gas EOS'
         if (len_trim(string) > 1) then
           option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     case('OIL')
       do
@@ -834,7 +834,7 @@ subroutine EOSRead(input,option)
         if (len_trim(string) > 1) then
           option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     case('SOLVENT')
       do
@@ -915,7 +915,7 @@ subroutine EOSRead(input,option)
         if (len_trim(string) > 1) then
           option%io_buffer = trim(option%io_buffer) // ': ' // trim(string)
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     case default
       call InputKeywordUnrecognized(keyword,'EOS',option)
@@ -953,25 +953,25 @@ subroutine EOSReferenceDensity(option)
       if (Initialized(option%liquid_phase)) then
         if ( Uninitialized( EOSWaterGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Water, ' // trim(error_string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if  
       end if
       if (Initialized(option%gas_phase)) then
         if ( Uninitialized( EOSGasGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Gas, ' // trim(error_string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
       end if
       if (Initialized(option%oil_phase)) then
         if ( Uninitialized( EOSOilGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Oil, ' // trim(error_string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
       end if
       if (Initialized(option%solvent_phase)) then
         if ( Uninitialized( EOSSlvGetSurfaceDensity() ) ) then
           option%io_buffer = 'EOS Solvent, ' // trim(error_string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
       end if
   case default

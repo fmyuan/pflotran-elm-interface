@@ -512,7 +512,7 @@ subroutine PMGeneralRead(this,input)
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
     option%io_buffer = 'Isothermal GENERAL mode may only be run with ' // &
                        'temperature as the two phase energy dof.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine PMGeneralRead
@@ -653,7 +653,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   type(field_type), pointer :: field
   
 #ifdef PM_GENERAL_DEBUG  
-  call printMsg(this%option,'PMGeneral%UpdateTimestep()')
+  call PrintMsg(this%option,'PMGeneral%UpdateTimestep()')
 #endif
   
   fac = 0.5d0

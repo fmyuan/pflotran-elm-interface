@@ -373,17 +373,17 @@ subroutine TOWGSetup(realization)
 
   if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil residual saturation.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil thermal conductivity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   
@@ -398,35 +398,35 @@ subroutine TOWGSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'Non-initialized soil particle density.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
 
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in TOWGSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   num_bc_connection = &
@@ -455,7 +455,7 @@ subroutine TOWGSetup(realization)
   !    diffusion_coefficient(option%liquid_phase))) then
   !  option%io_buffer = &
   !    UninitializedMessage('Liquid phase diffusion coefficient','')
-  !  call printErrMsg(option)
+  !  call PrintErrMsg(option)
   !endif
   !
 
@@ -500,7 +500,7 @@ subroutine TOWGSetup(realization)
        end select
     case default
        option%io_buffer = 'TOWGSetup: mode not supported.'
-       call printErrMsg(option)
+       call PrintErrMsg(option)
   end select
 
 !------------------------------------------------------------------------------
@@ -516,7 +516,7 @@ subroutine TOWGSetup(realization)
        TOWGBCFlux => TOWGImsTLBOBCFlux
     case default
       option%io_buffer = 'TOWGSetup: mode not supported.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 #ifdef DEBUG_TOWG_FILEOUTPUT
@@ -756,7 +756,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                         option%io_buffer = 'TOWG Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" needs oil pressure defined.'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                       endif
                     ! for oil saturation dof
                     case(TOWG_OIL_SATURATION_INDEX)
@@ -768,7 +768,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                         !option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                         !  trim(boundary_condition%flow_condition%name) // &
                         !  '" needs oil saturation defined.'
-                        !call printErrMsg(option)
+                        !call PrintErrMsg(option)
                       endif
                     case(TOWG_GAS_SATURATION_INDEX)
                       real_index = boundary_condition%flow_aux_mapping(variable)
@@ -779,7 +779,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                         !option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                         !  trim(boundary_condition%flow_condition%name) // &
                         !  '" needs gas saturation defined.'
-                        !call printErrMsg(option)
+                        !call PrintErrMsg(option)
                       endif
                     case(TOWG_TEMPERATURE_INDEX)
                       real_index = boundary_condition%flow_aux_mapping(variable)
@@ -789,13 +789,13 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
                         option%io_buffer = 'TOWG Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" needs temperature defined.'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                       endif
                   end select
                 case(NEUMANN_BC)
                 case default
                   option%io_buffer = 'Unknown BC type in TOWGUpdateAuxVars().'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             enddo  
         end select
@@ -809,7 +809,7 @@ subroutine TOWGImsTLBOUpdateAuxVars(realization,update_state)
           else
             option%io_buffer = 'Error setting up boundary ' // &
                                 'condition in TOWGUpdateAuxVars'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo
       endif
@@ -2115,7 +2115,7 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
       ! something has gone horribly wrong here
       option%io_buffer = 'TOWGImsTLBOFlux: analytical derivatives mode is ON but &
                           intermediate workers are not allocated.'
-     call printErrMsg(option)
+     call PrintErrMsg(option)
     endif
   endif
 #endif
@@ -2792,7 +2792,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
 ! The values at TOWG_LIQ_CONDUCTANCE_INDEX etc are not actually set
          option%io_buffer = 'Boundary conductances are not available'
-         call printErrMsg(option)
+         call PrintErrMsg(option)
 
           select case(option%phase_map(iphase)) 
             case(LIQUID_PHASE)
@@ -3005,7 +3005,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       case default
         option%io_buffer = &
          'Boundary condition type not recognized in TOWGImsTLBOBCFlux phase loop'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     if (dabs(v_darcy(iphase)) > 0.d0 .OR. analytical_derivatives) then   !!!!! CHECK - need exception for aderivs here too?  -YES
@@ -3016,7 +3016,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       endif
       if (density_ave < 1.d-40) then
         option%io_buffer = 'Zero density in TOWGImsTLBOBCFlux()'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
       ! mole_flux[kmol phase/sec] = q[m^3 phase/sec] * 
       !                              density_ave[kmol phase/m^3 phase]
@@ -3170,7 +3170,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     case default
       option%io_buffer = 'Boundary condition type not recognized in ' // &
         'TOWGImsTLBOBCFlux heat conduction loop.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
 ! CONDUCTION
@@ -3265,7 +3265,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
 #if 0
   if (analytical_derivatives) then
     option%io_buffer = 'TOWGImsTLSrcSink: analytical derivatives are not yet available.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 #endif
 
@@ -3286,7 +3286,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   if (.not.associated(src_sink_condition%rate) ) then
     option%io_buffer = 'TOWGImsTLSrcSink fow condition rate not defined ' // &
     'rate is needed for a valid src/sink term'
-    call printErrMsg(option)  
+    call PrintErrMsg(option)
   end if
 
   qsrc => src_sink_condition%rate%dataset%rarray
@@ -3307,7 +3307,7 @@ subroutine TOWGImsTLSrcSink(option,src_sink_condition, auxvar, &
   !   ) then
   !   option%io_buffer = "TOilImsSrcSink error: " // &
   !     "src(wat) and src(oil) with opposite sign"
-  !   call printErrMsg(option)
+  !   call PrintErrMsg(option)
   ! end if
 
   ! if not given, approximates BHP with pressure of perforated cell
@@ -3691,7 +3691,7 @@ subroutine TOWGBOSrcSink(option,src_sink_condition, auxvar, &
   if (.not.associated(src_sink_condition%rate) ) then
     option%io_buffer = 'TOWGBOSrcSink flow condition rate not defined ' // &
     'rate is needed for a valid src/sink term'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   qsrc => src_sink_condition%rate%dataset%rarray
@@ -5648,13 +5648,13 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 !  call MatView(J,PETSC_VIEWER_STDOUT_WORLD,ierr)

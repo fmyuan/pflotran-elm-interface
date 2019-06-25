@@ -230,7 +230,7 @@ subroutine RegressionCreateMapping(regression,realization)
     if (grid%nmax > 100) then
       option%io_buffer = 'Printing regression info for ALL_CELLS not &
         &supported for problem sizes greater than 100 cells.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call DeallocateArray(regression%natural_cell_ids)
     allocate(regression%natural_cell_ids(grid%nmax))
@@ -245,7 +245,7 @@ subroutine RegressionCreateMapping(regression,realization)
     if (maxval(regression%natural_cell_ids) > grid%nmax) then
       option%io_buffer = 'Natural IDs outside problem domain requested ' // &
         'for regression output.  Removing non-existent IDs.'
-      call printWrnMsg(option)
+      call PrintWrnMsg(option)
       count = 0
       allocate(int_array(size(regression%natural_cell_ids)))
       int_array = 0
@@ -331,7 +331,7 @@ subroutine RegressionCreateMapping(regression,realization)
       option%io_buffer = 'Number of cells per process for regression file&
         &exceeds minimum number of cells per process.  Truncating to ' // &
         trim(adjustl(word)) // '.'
-      call printMsg(option)
+      call PrintMsg(option)
       regression%num_cells_per_process = count
     endif
   
@@ -526,7 +526,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
              trim(option%group_prefix) // &  
              '.regression'
     option%io_buffer = '--> write regression output file: ' // trim(string)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=string,action="write")
   endif
   

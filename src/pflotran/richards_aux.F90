@@ -282,7 +282,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         class default
           option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
             'sat_func_VG_type and sat_func_BC_type'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
@@ -296,7 +296,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
           rpf%m = auxvar%bc_lambda
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
 #endif
@@ -332,7 +332,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                          dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensity')
     endif
     ! may need to compute dpsat_dt to pass to VISW
@@ -345,7 +345,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
     endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &

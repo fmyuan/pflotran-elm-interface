@@ -105,7 +105,7 @@ subroutine MassRateRead(this,input,option)
               write(word,*) i
               option%io_buffer = 'Unknown dof #' // trim(adjustl(word)) // &
                                  ' in MassRateRead.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
           call InputReadDouble(input,option,this%rate(i))
           call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,MASS_RATE')
@@ -154,7 +154,7 @@ subroutine MassRateSetup(this,grid,option)
     case default
       option%io_buffer = 'Rate conversion not set up for flow mode in ' // &
                          'MassRateSetup'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine MassRateSetup 

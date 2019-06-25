@@ -73,6 +73,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   num_faces_local_save = 0
 
   max_nvert_per_cell = -1
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     fileid = 86
     input => InputCreate(fileid,filename,option)
@@ -85,13 +86,15 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
         '" in explicit grid file.'
-      call printErrMsgByRank(option)
+      call PrintErrMsg(option)
     endif
   
     hint = 'Polyhedra Unstructured Grid CELLS'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of cells',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
@@ -126,6 +129,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   ! Read all cells from ASCII file through io_rank and communicate
   ! to other ranks
   max_nface_per_cell = 0
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
 
     allocate(temp_real_array(7,num_cells_local_save+1))
@@ -220,6 +224,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       num_faces_local_save = num_faces_local
       pgrid%num_faces_local = num_faces_local
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   deallocate(temp_real_array)
 
   call MPI_Bcast(max_nvert_per_cell,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -228,6 +234,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   pgrid%max_nvert_per_cell = max_nvert_per_cell
   allocate(pgrid%cell_vertids(max_nvert_per_cell,num_cells_local))
 
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
 
     call InputReadPflotranString(input,option)
@@ -237,13 +244,15 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecongnized keyword "' // trim(card) // &
         '" in polyhedra grid file.'
-      call printErrMsgByRank(option)
+      call PrintErrMsg(option)
     endif
 
     hint = 'Polyhedra Unstructured Grid FACES'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of faces',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -267,6 +276,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   ! read all faces from ASCII file through io_rank and communicate
   ! to other ranks
   max_nvert_per_face = 0
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(7+max_nvert_per_cell,num_faces_local_save))
     do irank = 0, option%mycommsize-1
@@ -360,8 +370,11 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
     enddo
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
   deallocate(temp_real_array)
 
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     call InputReadPflotranString(input,option)
     call InputReadWord(input,option,card,PETSC_TRUE)
@@ -370,12 +383,14 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
     if (.not.StringCompare(word,card)) then
       option%io_buffer = 'Unrecongnized keyword "' // trim(card) // &
         '" in polyhedra grid file.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     hint = 'Polyhedra Unstructured Grid VERTICES'
     call InputReadInt(input,option,temp_int)
     call InputErrorMsg(input,option,'number of vertices',hint)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   int_mpi = 1
   call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER,option%io_rank, &
@@ -401,6 +416,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
   ! read all vertices from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_real_array(3,num_vertices_local_save+1))
     ! read for all processors
@@ -447,6 +463,8 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
       pgrid%vertex_coordinates(ivert)%z = temp_real_array(3,ivert)
     enddo
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   deallocate(temp_real_array)
   deallocate(nfaces_per_proc)
@@ -573,7 +591,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       if (pgrid%face_cellids(iface) /= &
           pgrid%cell_ids(icell)) then
         option%io_buffer = 'Face ID does not correspond to cell'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
       do ivertex = 1, pgrid%face_nverts(iface)
         do ivertex2 = 1, max_nvert_per_cell
@@ -618,7 +636,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
                      ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MIN,option%mycomm,ierr)
 
   if (index_format_flag /= 0 .and. index_format_flag /= 1) then
-    call printErrMsg(option,'Min. vertex id is neither 0 nor 1. Check input mesh.')
+    call PrintErrMsg(option,'Min. vertex id is neither 0 nor 1. Check input mesh.')
   endif
 
   num_cells_local_old = pgrid%num_cells_local
@@ -642,13 +660,13 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 #if UGRID_DEBUG
   write(string,*) ugrid%max_nvert_per_cell
   option%io_buffer = 'Maximum number of vertices per cell: ' // adjustl(string)
-  call printMsg(option)
+  call PrintMsg(option)
   write(string,*) index_format_flag
   option%io_buffer = 'Vertex indexing starts at: ' // adjustl(string)
-  call printMsg(option)
+  call PrintMsg(option)
   if (index_format_flag == 0) then
     option%io_buffer = 'Changing vertex indexing to 1-based.'
-    call printMsg(option)
+    call PrintMsg(option)
   endif
 #endif
 
@@ -677,7 +695,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       num_common_vertices = 3 ! cells must share at least this number of vertices
     case default
         option%io_buffer = 'Grid type not recognized '
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
   ! determine the global offset from 0 for cells on this rank
@@ -687,7 +705,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 
   ! create an adjacency matrix for calculating the duals (connnections)
 #if UGRID_DEBUG
-  call printMsg(option,'Adjacency matrix')
+  call PrintMsg(option,'Adjacency matrix')
 #endif
 
   call MatCreateMPIAdj(option%mycomm,num_cells_local_old, &
@@ -712,7 +730,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 #endif
 
 #if UGRID_DEBUG
-  call printMsg(option,'Dual matrix')
+  call PrintMsg(option,'Dual matrix')
 #endif
 
 #if defined(PETSC_HAVE_PARMETIS)
@@ -747,14 +765,14 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   if (.not.success .or. num_rows /= num_cells_local_old) then
     print *, option%myrank, num_rows, success, num_cells_local_old
     option%io_buffer = 'Error getting IJ row indices from dual matrix'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 
   if (.not.success .or. num_rows /= num_cells_local_old) then
     print *, option%myrank, num_rows, success, num_cells_local_old
     option%io_buffer = 'Error getting IJ row indices from dual matrix'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! calculate maximum number of connections for any given cell
@@ -774,7 +792,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
 #if UGRID_DEBUG
   write(string,*) max_ndual_per_cell
   option%io_buffer = 'Maximum number of duals per cell: ' // adjustl(string)
-  call printMsg(option)
+  call PrintMsg(option)
 #endif
   
   call MatRestoreRowIJF90(Dual_mat,ZERO_INTEGER,PETSC_FALSE,PETSC_FALSE, &
@@ -953,7 +971,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
     if (num_cols > max_ndual_per_cell) then
       option%io_buffer = &
         'Number of columns in Dual matrix is larger then max_ndual_per_cell.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     do icol = 1, max_ndual_per_cell
       count = count + 1
@@ -1350,7 +1368,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
   call VecDestroy(vertices_new,ierr);CHKERRQ(ierr)
 
 #if UGRID_DEBUG
-  call printMsg(option,'Setting cell types')
+  call PrintMsg(option,'Setting cell types')
 #endif
 
   allocate(ugrid%cell_type(ugrid%ngmax))
@@ -1362,7 +1380,7 @@ subroutine UGridPolyhedraDecompose(ugrid, option)
       enddo
     case default
       option%io_buffer = 'Grid type not recognized in UGridPolyhedraDecompose.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine UGridPolyhedraDecompose
@@ -1630,7 +1648,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
 #ifdef UGRID_DEBUG
                   write(string,*) option%myrank, face_id2, ' -> ', face_id
                   option%io_buffer = 'Duplicated face removed:' // trim(string)
-                  call printMsg(option)
+                  call PrintMsg(option)
 #endif
                   cell_to_face(iface2,cell_id2) = face_id
                   ! flag face_id2 as removed
@@ -1643,7 +1661,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
 #ifdef UGRID_DEBUG                
                   write(string,*) option%myrank, face_id, ' -> ', face_id2
                   option%io_buffer = 'Duplicated face removed:' // trim(string)
-                  call printMsg(option)
+                  call PrintMsg(option)
 #endif
                   cell_to_face(iface,cell_id) = face_id2
                   ! flag face_id as removed  
@@ -1674,7 +1692,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
                      ugrid%cell_vertices(ivertex2,cell_id2)), &
                      ivertex2=1,ugrid%cell_vertices(0,cell_id2))
                option%io_buffer='No shared face found.'
-               call printErrMsgByRank(option)
+               call PrintErrMsgByRank(option)
             endif
 
           enddo ! do-loop iface2
@@ -1700,7 +1718,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
                      ugrid%cell_vertices(ivertex2,cell_id2)), &
                      ivertex2=1,ugrid%cell_vertices(0,cell_id2))
         option%io_buffer='No shared face found.'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
 
     enddo ! do-loop 'idual'
@@ -1763,7 +1781,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
 
       if (.not.cell_found) then
         option%io_buffer = 'POLYHEDRA_UGRID: Remapping of cell face id unsuccessful'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     enddo
   enddo
@@ -1779,7 +1797,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
               ugrid%max_cells_sharing_a_vertex, &
               ' cells. Rank = ', option%myrank, ' vertex_id = ', vertex_id, ' exceeds it.'
         option%io_buffer = string
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       vertex_to_cell(count,vertex_id) = ghosted_id
       vertex_to_cell(0,vertex_id) = count
@@ -1829,7 +1847,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
         else
           write(string,*) option%myrank,local_id,dual_local_id 
           option%io_buffer = 'face not found in connection loop' // trim(string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         face_found = PETSC_FALSE
@@ -1844,7 +1862,7 @@ function UGridPolyhedraComputeInternConnect(ugrid, grid_x, &
         if (.not.face_found) then
           write(string,*) option%myrank, iface, cell_id2
           option%io_buffer = 'global face not found' // trim(string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         connections%id_up(iconn) = local_id
@@ -2091,7 +2109,7 @@ subroutine UGridPolyhedraPopulateConnection(ugrid, connection, iface_cell, &
         option%io_buffer = 'Face id undefined for cell ' // &
           trim(adjustl(word)) // &
           ' in boundary condition.  Should this be a source/sink?'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
       ! Compute cell centeroid
       v2(1) = pgrid%cell_centroids(ghosted_id)%x

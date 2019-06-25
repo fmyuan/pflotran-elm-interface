@@ -191,7 +191,7 @@ subroutine ReadUserUnits(this,input,option)
           if (trim(word) /= "C") then
             option%io_buffer = "EOS data only Temperatures in Celcius " // &
                                 "are supported"
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           end if
         end if
         this%temp_unit_conv_factor = 1.0
@@ -422,18 +422,18 @@ subroutine AddEOSProp(this,new_var,option)
 
   !if( Uninitialized(new_var%extrapolation_itype) ) then
   !  option%io_buffer = UninitializedMessage('Extrapolation type',string)
-  !  call printErrMsg(option)
+  !  call PrintErrMsg(option)
   !end if
 
   if( Uninitialized(new_var%iname) ) then
     option%io_buffer = UninitializedMessage('EOS property iname',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if (.not.EOSPropExistInDictionary(new_var%iname)) then
     write(word_error,*) new_var%iname
     option%io_buffer = 'EOS property with iname = ' // word_error
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   call LookupTableVarAddToList(new_var,vars)
@@ -682,7 +682,7 @@ subroutine EOSDatabaseRead(this,option)
 
   if (len_trim(this%file_name) < 1) then
     option%io_buffer = 'FILENAME must be specified for EOS_DATABASE.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   input_table => InputCreate(IUNIT_TEMP,this%file_name,option)
@@ -691,7 +691,7 @@ subroutine EOSDatabaseRead(this,option)
 
   !if ( option%myrank == 0 ) then
     option%io_buffer = 'Reading database = ' // trim(this%file_name)
-    call printMsg(option)
+    call PrintMsg(option)
   !end if
 
   !set deafult user units - identical to internal units
@@ -719,7 +719,7 @@ subroutine EOSDatabaseRead(this,option)
           option%io_buffer =  'EOS database = ' // trim(this%file_name) // &
                               ", values given for only one pressure, " // &
                               "please specify at least two"
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
       case('NUM_T')
         call InputReadInt(input_table,option,this%num_t)
@@ -728,7 +728,7 @@ subroutine EOSDatabaseRead(this,option)
           option%io_buffer =  'EOS database = ' // trim(this%file_name) // &
                               ", values given for only one temperature, " // &
                               "please specify at least two"
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
       case('DATA_LIST_ORDER')
         pres_present = PETSC_FALSE; 
@@ -785,7 +785,7 @@ subroutine EOSDatabaseRead(this,option)
         if ( prop_count == 0 ) then
           option%io_buffer =  'EOS databse = ' // trim(this%file_name) // &
                               ", No thermodynamics properties found"
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
         ! go back to DATA_LIST_ORDER - read variable again to comput
         ! unit covnertion factors
@@ -795,11 +795,11 @@ subroutine EOSDatabaseRead(this,option)
 
         if (.not.pres_present) then
           option%io_buffer = 'PRESSURE must be present in any EOS_DATABASE.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
         if (.not.temp_present) then
           option%io_buffer = 'TEMPERATURE must be present in any EOS_DATABASE.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
       case('VISCOSITY_LINLOG_INTERPOLATION')
         set_visc_lin_log = PETSC_TRUE
@@ -855,7 +855,7 @@ subroutine EOSDatabaseRead(this,option)
              tempreal * this%press_unit_conv_factor ) > val_eps ) then
              option%io_buffer =  trim(error_string) // &
                                  ", pressure discretisation grid not uniform"
-             call printErrMsg(option)
+             call PrintErrMsg(option)
         end if
       end if
       !loads temperature values for the first pressure value
@@ -871,7 +871,7 @@ subroutine EOSDatabaseRead(this,option)
              > val_eps ) then
              option%io_buffer =  trim(error_string) // &
                                 ", temperature discretisation grid not uniform"
-             call printErrMsg(option)
+             call PrintErrMsg(option)
         end if
       end if
       prop_count = i_idx + (j_idx-1) * this%num_t
@@ -892,12 +892,12 @@ subroutine EOSDatabaseRead(this,option)
   if ( .not. AxisIsSMInc(ONE_INTEGER) ) then
     option%io_buffer =  'EOS databse = ' // trim(this%file_name) // &
                         ", Temperature not Monotonically increasing"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
   if ( .not. AxisIsSMInc(TWO_INTEGER) ) then
     option%io_buffer =  'EOS databse = ' // trim(this%file_name) // &
                         ", Pressure not Monotonically increasing"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
   deallocate(AxisIsSMInc)
 
@@ -1139,7 +1139,7 @@ subroutine EOSTableRead(this,input,option)
     if (InputCheckExit(input,option)) exit
     if (InputError(input)) then
       option%io_buffer = 'Error found as reading PVT table'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
@@ -1154,7 +1154,7 @@ subroutine EOSTableRead(this,input,option)
           if (InputError(input)) then
             option%io_buffer = 'Error found as reading ' // trim(this%name) &
                                // ' DATA block'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           end if
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'word',error_string)
@@ -1177,14 +1177,14 @@ subroutine EOSTableRead(this,input,option)
                   option%io_buffer =  'PVT Table = ' // trim(this%name) // &
                                       ", has only one pressure entry, " // &
                                       "please specify at least two."
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 end if
               else
                 if ( n_press_count_cur /= n_press_count_first ) then
                   option%io_buffer =  'PVT Table = ' // trim(this%name) // &
                               ", PVT tables with a number pressure points " // &
                               "that varies with T not currently supported."
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 end if
               end if
             case default
@@ -1205,7 +1205,7 @@ subroutine EOSTableRead(this,input,option)
     option%io_buffer = 'PVT Table = ' // trim(this%name) // &
                        ', DATA block must contain at least one ' // &
                        'TEMPERATURE block.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   this%num_t = n_temp_count
@@ -1259,18 +1259,18 @@ subroutine EOSTableRead(this,input,option)
    if ( .not. AxisIsSMInc(ONE_INTEGER) ) then
      option%io_buffer =  'PVT table = ' // trim(this%name) // &
                          ", Pressure not Monotonically increasing"
-     call printErrMsg(option)
+     call PrintErrMsg(option)
    end if 
   else if ( this%lookup_table_gen%dim == 2) then
     if ( .not. AxisIsSMInc(ONE_INTEGER) ) then
      option%io_buffer =  'PVT table = ' // trim(this%name) // &
                          ", Temperature not Monotonically increasing"
-     call printErrMsg(option)
+     call PrintErrMsg(option)
     end if
     if ( .not. AxisIsSMInc(TWO_INTEGER) ) then
      option%io_buffer =  'PVT table = ' // trim(this%name) // &
                          ", Pressure not Monotonically increasing"
-     call printErrMsg(option)
+     call PrintErrMsg(option)
     end if
   end if
   deallocate(AxisIsSMInc)
@@ -1354,7 +1354,7 @@ subroutine ReadPressureTable(input,option,press_idx,n_press,press_data_array,&
     if (InputCheckExit(input,option)) exit
     if (InputError(input)) then
       option%io_buffer = trim(error_string) // ', Reading Pressure Table'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     n_press = n_press + 1
     press_idx = press_idx + 1

@@ -72,7 +72,7 @@ subroutine OutputVTK(realization_base)
   
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write vtk output file: ' // trim(filename)
-    call printMsg(option)    
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -210,7 +210,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   if (option%myrank == option%io_rank) then
    option%io_buffer = '--> write vtk velocity output file: ' // &
                       trim(filename)
-    call printMsg(option)                      
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header

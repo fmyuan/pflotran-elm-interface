@@ -156,7 +156,7 @@ subroutine THSetupPatch(realization)
 ! option%io_buffer = 'Before TH can be run, the TH_parameter object ' // &
 !                    'must be initialized with the proper variables ' // &
 !                    'THAuxCreate() is called anywhere.'
-! call printErrMsg(option)
+! call PrintErrMsg(option)
   allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
                                   size(patch%saturation_function_array)))
   
@@ -181,7 +181,7 @@ subroutine THSetupPatch(realization)
     if (Uninitialized(patch%material_property_array(i)%ptr%specific_heat)) then
       option%io_buffer = 'ERROR: Non-initialized HEAT_CAPACITY in material ' &
                          // trim(word)
-      call printMsg(option)
+      call PrintMsg(option)
       error_found = PETSC_TRUE
     endif
     if (Uninitialized(patch%material_property_array(i)%ptr% &
@@ -189,7 +189,7 @@ subroutine THSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_WET in &
                          &material ' // &
                          trim(word)
-      call printMsg(option)
+      call PrintMsg(option)
       error_found = PETSC_TRUE
     endif
     if (Uninitialized(patch%material_property_array(i)%ptr% &
@@ -197,7 +197,7 @@ subroutine THSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_DRY in &
                          &material ' // &
                          trim(word)
-      call printMsg(option)
+      call PrintMsg(option)
       error_found = PETSC_TRUE
     endif
     if (option%use_th_freezing) then
@@ -205,14 +205,14 @@ subroutine THSetupPatch(realization)
                         thermal_conductivity_frozen)) then
         option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_&
                            &FROZEN in material ' // trim(word)
-        call printMsg(option)
+        call PrintMsg(option)
         error_found = PETSC_TRUE
       endif
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         alpha_fr)) then
         option%io_buffer = 'ERROR: Non-initialized THERMAL_COND_EXPONENT&
                            &_FROZEN in material ' // trim(word)
-        call printMsg(option)
+        call PrintMsg(option)
         error_found = PETSC_TRUE
       endif
     endif
@@ -241,7 +241,7 @@ subroutine THSetupPatch(realization)
 
   if (error_found) then
     option%io_buffer = 'Material property errors found in THSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   do i = 1, size(patch%saturation_function_array)
@@ -825,7 +825,7 @@ subroutine THUpdateAuxVarsPatch(realization)
         case default
           option%io_buffer='Unsupported temperature flow condtion for ' // &
             'a source-sink in TH mode: ' // trim(source_sink%name)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
 
       xx(1) = xx_loc_p(istart)
@@ -3470,7 +3470,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       option%io_buffer = 'BC type "' // &
         trim(GetSubConditionName(ibndtype(TH_PRESSURE_DOF))) // &
         '" not implemented in TH mode.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
 
   end select
 
@@ -3582,7 +3582,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       option%io_buffer = 'BC type "' // &
         trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
         '" not implemented in TH mode.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   ! If only solving the energy equation, set Res(1) is 0.d0
@@ -4629,13 +4629,13 @@ subroutine THJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
   endif
   
   TH_ni_count = TH_ni_count + 1
@@ -5996,7 +5996,7 @@ subroutine EnergyToTemperatureBisection(T,TL,TR,h,energy,Cwi,Pr,option)
      print *,"[fL,fR] = ",fL,fR
      write(option%io_buffer,'("th.F90: EnergyToTemperatureBisection -->&
                               & root is not bracketed")')
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
   T = 0.5d0*(TL+TR)
@@ -6029,7 +6029,7 @@ subroutine EnergyToTemperatureBisection(T,TL,TR,h,energy,Cwi,Pr,option)
      print *,"[TL,T,TR] = ",TL,T,TR
      write(option%io_buffer,'("th.F90: EnergyToTemperatureBisection -->&
                               & root not found!")')
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
 end subroutine EnergyToTemperatureBisection
@@ -6131,7 +6131,7 @@ subroutine THUpdateSurfaceBC(realization)
 
       if (boundary_condition%flow_condition%itype(TH_PRESSURE_DOF) /= &
          HET_SURF_SEEPAGE_BC) then
-        call printErrMsg(option,'from_surface_bc is not of type ' // &
+        call PrintErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
 
@@ -6471,7 +6471,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         boundary_condition%flow_condition%itype(TH_PRESSURE_DOF)
 
       if (pressure_bc_type /= HET_SURF_SEEPAGE_BC) then
-        call printErrMsg(option,'from_surface_bc is not of type &
+        call PrintErrMsg(option,'from_surface_bc is not of type &
                          &HET_SURF_SEEPAGE_BC')
       endif
 

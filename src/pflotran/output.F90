@@ -194,11 +194,11 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('OBSERVATION_FILE')
             option%io_buffer = 'TOTAL_MASS_REGIONS cannot be specified for &
                                &OUTPUT,OBSERVATION_FILE block.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           case('SNAPSHOT_FILE')
             option%io_buffer = 'TOTAL_MASS_REGIONS cannot be specified for &
                                &OUTPUT,SNAPSHOT_FILE block.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
             string = 'OUTPUT,' // trim(block_name) // ',TOTAL_MASS_REGIONS'
             output_option%mass_balance_region_flag = PETSC_TRUE
@@ -433,12 +433,12 @@ subroutine OutputFileRead(input,realization,output_option, &
             option%io_buffer = 'FORMAT cannot be specified within &
                  &the OUTPUT,OBSERVATION_FILE block. Observation output is &
                  &written in TECPLOT format only.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
             option%io_buffer = 'FORMAT cannot be specified within &
                  &the OUTPUT,MASS_BALANCE_FILE block. Mass balance output is &
                  &written in TECPLOT format only.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',string) 
@@ -535,7 +535,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             option%io_buffer = 'A variable list cannot be specified within &
                  &the MASS_BALANCE_FILE block. Mass balance variables are &
                  &determined internally.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
         
 !.............................
@@ -605,12 +605,12 @@ subroutine OutputFileRead(input,realization,output_option, &
     if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
       option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without &
                          &PERIODIC TIME being set.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if(.not.output_option%print_hdf5) then
       option%io_buffer = 'Keyword: AVERAGE_VARIABLES only defined for &
                          &FORMAT HDF5'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -626,7 +626,7 @@ subroutine OutputFileRead(input,realization,output_option, &
           option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/&
                              &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE &
                              &defined without PERIODIC TIME being set.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif
     endif
@@ -1257,7 +1257,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
           case (IMPLICIT_UNSTRUCTURED_GRID)
             call OutputHDF5UGridXDMF(realization_base,INSTANTANEOUS_VARS)
           case (POLYHEDRA_UNSTRUCTURED_GRID)
-            call printErrMsg(option,'Add code for HDF5 output for &
+            call PrintErrMsg(option,'Add code for HDF5 output for &
                                     &Polyhedra mesh')
         end select
       else
@@ -1267,7 +1267,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
-      call printMsg(option)
+      call PrintMsg(option)
     endif
    
     if (realization_base%output_option%print_tecplot) then
@@ -1283,7 +1283,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to Tecplot file(s)")') &
             tend-tstart
-      call printMsg(option)        
+      call PrintMsg(option)
     endif
     
     if (realization_base%output_option%print_explicit_flowrate) then
@@ -1294,7 +1294,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to Rates file.")') &
             tend-tstart
-      call printMsg(option)        
+      call PrintMsg(option)
     endif
 
     if (realization_base%output_option%print_vtk) then
@@ -1306,7 +1306,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to VTK file(s)")') &
             tend-tstart
-      call printMsg(option) 
+      call PrintMsg(option)
     endif
       
     if (realization_base%output_option%print_mad) then
@@ -1318,7 +1318,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to MAD HDF5 &
                              &file(s)")') tend-tstart
-      call printMsg(option) 
+      call PrintMsg(option)
     endif
     
     ! Print secondary continuum variables vs sec. continuum dist.
@@ -1334,7 +1334,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
         write(option%io_buffer,'(f10.2," Seconds to write to secondary' // &
               ' continuum Tecplot file(s)")') &
               tend-tstart
-        call printMsg(option) 
+        call PrintMsg(option)
       endif
     endif
       
@@ -2169,7 +2169,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   if (len_trim(flow_debug%coupler_string) == 0) then
     option%io_buffer = &
       'Coupler debugging requested, but no string of coupler names was included.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   select case(option%iflowmode)
@@ -2192,7 +2192,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
   coupler_string = flow_debug%coupler_string
@@ -2402,7 +2402,7 @@ subroutine OutputAvegVars(realization_base)
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+      call PrintMsg(option)
     endif
 
     ! Reset the vectors to zero
@@ -2496,7 +2496,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   if (error_count > 0) then
     option%io_buffer = 'Simulation was stopped due to undefined output &
                        &variables.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine OutputListEnsureVariablesExist
@@ -2562,7 +2562,7 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
     write(word,*) iabs(idof)
     option%io_buffer = trim(option%io_buffer) // ' ' // &
       trim(adjustl(word)) //  '.'
-    call printMsgByRank(option)
+    call PrintMsgByRank(option)
   enddo
 
 end subroutine OutputFindNaNOrInfInVec

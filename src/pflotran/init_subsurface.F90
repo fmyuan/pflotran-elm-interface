@@ -378,23 +378,23 @@ subroutine InitSubsurfAssignMatProperties(realization)
           option%io_buffer = 'No material property for material id ' // &
                               trim(adjustl(string)) &
                               //  ' defined in input file.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       endif
     else if (Uninitialized(material_id)) then 
       write(string,*) grid%nG2A(ghosted_id)
       option%io_buffer = 'Uninitialized material id in patch at cell ' // &
                           trim(adjustl(string))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else if (material_id > size(patch%material_property_array)) then
       write(option%io_buffer,*) patch%imat_internal_to_external(material_id)
       option%io_buffer = 'Unmatched material id in patch: ' // &
         adjustl(trim(option%io_buffer))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else
       option%io_buffer = 'Something messed up with material ids. Possibly &
         &material ids not assigned to all grid cells. Contact Glenn!'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     if (option%nflowdof > 0) then
       patch%sat_func_id(ghosted_id) = &
@@ -935,7 +935,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
           &wrong type for SubsurfReadDatasetToVecWithMask()'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   else
     call PetscLogEventBegin(logging%event_hash_map,ierr);CHKERRQ(ierr)

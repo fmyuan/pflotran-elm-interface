@@ -311,7 +311,7 @@ subroutine GeomechanicsJumpStart(simulation)
   if (option%steady_state) then
     option%io_buffer = 'Running in steady-state not yet supported for &
                        &surface-flow.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
     return
   endif
   
@@ -453,7 +453,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             geomech_realization%geomech_patch => patch
           case default
             option%io_buffer = 'Geomechanics supports only unstructured grid'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case ('GRAVITY')
         call InputReadDouble(input,option,option%geomech_gravity(X_DIRECTION))
@@ -561,7 +561,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS')
     call StringToUpper(word)
     option%io_buffer = 'word :: ' // trim(word)
-    call printMsg(option)   
+    call PrintMsg(option)
 
     select case(trim(word))
     
@@ -590,7 +590,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
         region => GeomechRegionCreate()
         call InputReadWord(input,option,region%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','GEOMECHANICS_REGION')
-        call printMsg(option,region%name)
+        call PrintMsg(option,region%name)
         call GeomechRegionRead(region,input,option)
         ! we don't copy regions down to patches quite yet, since we
         ! don't want to duplicate IO in reading the regions
@@ -602,7 +602,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
         condition => GeomechConditionCreate(option)
         call InputReadWord(input,option,condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'GEOMECHANICS_CONDITION','name')
-        call printMsg(option,condition%name)
+        call PrintMsg(option,condition%name)
         call GeomechConditionRead(condition,input,option)
         call GeomechConditionAddToList(condition,geomech_realization%geomech_conditions)
         nullify(condition)
@@ -715,7 +715,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
               option%io_buffer = 'Subsurface times are now used for ' // &
               'geomechanics as well. No need for TIMES keyword under ' // &
               'GEOMECHANICS_OUTPUT.'
-              call printWrnMsg(option)
+              call PrintWrnMsg(option)
             case('FORMAT')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'keyword','GEOMECHANICS_OUTPUT,&
@@ -739,7 +739,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                         option%io_buffer = 'HDF5 keyword (' // trim(word) // &
                           ') not recongnized.  Use "SINGLE_FILE" or ' // &
                           '"MULTIPLE_FILES".'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                     end select
                   endif
                 case ('MAD')
@@ -852,7 +852,7 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
     if (.not.associated(strata%region) .and. strata%active) then
       option%io_buffer = 'Reading of material prop from file for' // &
         ' geomech is not implemented.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     ! Otherwise, set based on region
     else if (strata%active) then
       update_ghosted_material_ids = PETSC_TRUE
@@ -904,24 +904,24 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
         option%io_buffer = 'No material property for geomech material id ' // &
                             trim(adjustl(dataset_name)) &
                             //  ' defined in input file.'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
     else if (Uninitialized(geomech_material_id)) then 
       write(dataset_name,*) grid%nG2A(ghosted_id)
       option%io_buffer = 'Uninitialized geomech material id in patch at cell ' // &
                          trim(adjustl(dataset_name))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else if (geomech_material_id > size(geomech_realization% &
       geomech_material_property_array)) then
       write(option%io_buffer,*) geomech_material_id
       option%io_buffer = 'Unmatched geomech material id in patch:' // &
         adjustl(trim(option%io_buffer))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else
       option%io_buffer = 'Something messed up with geomech material ids. ' // &
         ' Possibly material ids not assigned to all grid cells. ' // &
         ' Contact Glenn/Satish!'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     imech_loc_p(ghosted_id) = geomech_material_property%id
   enddo ! local_id - loop
@@ -1035,11 +1035,11 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
 print *, 'GeomechInitSetupSolvers cannot be removed.'
 stop
   
-  call printMsg(option,"  Beginning setup of GEOMECH SNES ")
+  call PrintMsg(option,"  Beginning setup of GEOMECH SNES ")
     
   if (solver%J_mat_type == MATAIJ) then
     option%io_buffer = 'AIJ matrix not supported for geomechanics.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call SolverCreateSNES(solver,option%mycomm)  
@@ -1085,9 +1085,9 @@ stop
   call SolverSetSNESOptions(solver,option)
 
   option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
-  call printMsg(option)
+  call PrintMsg(option)
   option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
-  call printMsg(option)
+  call PrintMsg(option)
 
   ! shell for custom convergence test.  The default SNES convergence test
   ! is call within this function.
@@ -1097,7 +1097,7 @@ stop
                               convergence_context, &
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)                                                  
 
-  call printMsg(option,"  Finished setting up GEOMECH SNES ")
+  call PrintMsg(option,"  Finished setting up GEOMECH SNES ")
     
 end subroutine GeomechInitSetupSolvers
 

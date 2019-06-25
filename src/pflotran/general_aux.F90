@@ -454,7 +454,7 @@ subroutine GeneralAuxSetEnergyDOF(energy_keyword,option)
     case default
       option%io_buffer = 'Energy Keyword: ' // trim(energy_keyword) // &
                           ' not recognized in General Mode'    
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine GeneralAuxSetEnergyDOF
@@ -653,8 +653,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         write(option%io_buffer,'(''Negative gas pressure at cell '', &
           & i8,'' in GeneralAuxVarCompute(LIQUID_STATE).  Attempting bailout.'')') &
           natural_id
-!        call printErrMsgByRank(option)
-        call printMsgByRank(option)
+!        call PrintErrMsgByRank(option)
+        call PrintMsgByRank(option)
         ! set vapor pressure to just under saturation pressure
         gen_auxvar%pres(vpid) = 0.5d0*gen_auxvar%pres(spid)
         ! set gas pressure to vapor pressure + air pressure
@@ -863,7 +863,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       write(option%io_buffer,*) global_auxvar%istate
       option%io_buffer = 'State (' // trim(adjustl(option%io_buffer)) // &
         ') not recognized in GeneralAuxVarCompute.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
 
   end select
 
@@ -1279,13 +1279,13 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
   type(option_type) :: option
   
   
-  call printMsgByCell(option,natural_id, &
+  call PrintMsgByCell(option,natural_id, &
                       'Error in GeneralAuxVarCompute->EOSGasHenry')
   if (ierr == EOS_GAS_TEMP_BOUND_EXCEEDED) then
     option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
                                ' exceeds the equation of state temperature bound with ' // &
                                trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-    call printErrMsgByRank(option)         
+    call PrintErrMsgByRank(option)
   endif
 
   
@@ -1516,7 +1516,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
             write(state_change_string,*) natural_id
             option%io_buffer = 'Negative air pressure during state change ' // &
               'at ' // trim(adjustl(state_change_string))
-            call printMsgByRank(option)
+            call PrintMsgByRank(option)
             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
               0.01d0*x(GENERAL_GAS_PRESSURE_DOF)
           endif
@@ -1528,7 +1528,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           characteristic_curves,natural_id,option)
     state_change_string = 'State Transition: ' // trim(state_change_string)
     if (general_print_state_transition) then
-      call printMsgByRank(option,state_change_string)
+      call PrintMsgByRank(option,state_change_string)
     endif
 #ifdef DEBUG_GENERAL_INFO
     call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
@@ -1761,11 +1761,11 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
             &'(''Change in state due to perturbation: '',i3,'' -> '',i3, &
             &'' at cell '',i3,'' for dof '',i3)') &
         global_auxvar%istate, global_auxvar_debug%istate, natural_id, idof
-      call printMsg(option)
+      call PrintMsg(option)
       write(option%io_buffer,'(''orig: '',6es17.8)') x(1:3)
-      call printMsg(option)
+      call PrintMsg(option)
       write(option%io_buffer,'(''pert: '',6es17.8)') x_pert_save(1:3)
-      call printMsg(option)
+      call PrintMsg(option)
     endif
 #endif
 

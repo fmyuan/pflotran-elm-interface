@@ -250,7 +250,7 @@ subroutine GeomechRegionRead(region,input,option)
         call GeomechRegionReadFromFilename(region,option,region%filename)
       case('LIST')
         option%io_buffer = 'GEOMECHANICS_REGION LIST currently not implemented'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case default
         call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGION',option)
     end select
@@ -382,7 +382,7 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
     deallocate(vertex_ids)
   else
    option%io_buffer = 'Provide one vertex_id per line, GEOMECHANICS_REGION.'
-   call printErrMsg(option) 
+   call PrintErrMsg(option)
   endif
   
   deallocate(temp_int_array)

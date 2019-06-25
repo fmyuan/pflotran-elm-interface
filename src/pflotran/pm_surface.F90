@@ -143,7 +143,7 @@ subroutine PMSurfaceSetup(this)
   select case(this%surf_realization%discretization%itype)
     case(STRUCTURED_GRID)
       this%option%io_buffer='Surface flow not supported on structured grids'
-      call printErrMsg(this%option)
+      call PrintErrMsg(this%option)
     case(UNSTRUCTURED_GRID)
       this%comm1 => UnstructuredCommunicatorCreate()
   end select
@@ -208,7 +208,7 @@ subroutine PMSurfacePreSolve(this)
   class(pm_surface_type) :: this
   
   this%option%io_buffer = 'PMSurfacePreSolve() must be extended.'
-  call printErrMsg(this%option)  
+  call PrintErrMsg(this%option)
 
 end subroutine PMSurfacePreSolve
 
@@ -227,7 +227,7 @@ subroutine PMSurfacePostSolve(this)
   class(pm_surface_type) :: this
   
   this%option%io_buffer = 'PMSurfacePostSolve() must be extended.'
-  call printErrMsg(this%option)  
+  call PrintErrMsg(this%option)
   
 end subroutine PMSurfacePostSolve
 
@@ -271,7 +271,7 @@ subroutine PMSurfaceUpdateAuxVars(this)
   class(pm_surface_type) :: this
 
   this%option%io_buffer = 'PMSurfaceUpdateAuxVars() must be extended.'
-  call printErrMsg(this%option)
+  call PrintErrMsg(this%option)
 
 end subroutine PMSurfaceUpdateAuxVars
 

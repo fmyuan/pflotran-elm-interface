@@ -229,7 +229,7 @@ subroutine PMTHRead(this,input)
       case('FREEZING')
         option%use_th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
-        call printMsg(option)
+        call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
@@ -252,7 +252,7 @@ subroutine PMTHRead(this,input)
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
              ' or DALL_AMICO.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           end select
       case default
         call InputKeywordUnrecognized(word,error_string,option)
@@ -393,7 +393,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: ifac
   
 #ifdef PM_TH_DEBUG
-  call printMsg(this%option,'PMTH%UpdateTimestep()')
+  call PrintMsg(this%option,'PMTH%UpdateTimestep()')
 #endif
   
   if (iacceleration > 0) then
@@ -546,7 +546,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (press_limit < dabs(delP)) then
         write(option%io_buffer,'("dP_trunc:",1i7,2es15.7)') &         
           grid%nG2A(grid%nL2G(local_id)),press_limit,dabs(delP)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       endif
       delP = sign(min(dabs(delP),press_limit),delP)
       dX_p(istart) = delP
@@ -572,7 +572,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (abs(delP) > abs(temp_limit)) then
         write(option%io_buffer,'("dT_trunc:",1i7,2es15.7)') &
           grid%nG2A(grid%nL2G(local_id)),temp_limit,dabs(delP)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       endif
       delP = sign(min(dabs(delP),temp_limit),delP)
       dX_p(iend) = delP
@@ -601,24 +601,24 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (P0 < P_R .and. P1 > P_R) then
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1 
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #if 0
         ghosted_id = grid%nL2G(local_id)
         call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id),ghosted_id)
         write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #endif
       else if (P1 < P_R .and. P0 > P_R) then
         write(option%io_buffer,'("S -> U:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #if 0
         ghosted_id = grid%nL2G(local_id)
         call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id),ghosted_id)
         write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #endif
       endif
       ! transition from unsaturated to saturated

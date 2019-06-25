@@ -337,7 +337,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         if (Uninitialized(radioactive_decay_rxn%rate_constant)) then
           option%io_buffer = 'RATE_CONSTANT or HALF_LIFE must be set in ' // &
             'RADIOACTIVE_DECAY_REACTION.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (.not.associated(reaction%radioactive_decay_rxn_list)) then
           reaction%radioactive_decay_rxn_list => radioactive_decay_rxn
@@ -498,7 +498,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         enddo       
 #else
         option%io_buffer = 'To use solid solutions, must compile with -DSOLID_SOLUTION'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 #endif
 
       case('COLLOIDS')
@@ -604,7 +604,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                          if (.not.option%use_mc) then
                            option%io_buffer = 'Make sure MULTIPLE_CONTINUUM ' &
                                    // 'keyword is set, SECONDARY_CONTINUUM_KD.'
-                           call printErrMsg(option)
+                           call PrintErrMsg(option)
                          else
                            call InputReadDouble(input,option,sec_cont_kd_rxn%Kd)
                            call InputErrorMsg(input,option, &
@@ -732,7 +732,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                     if (len_trim(string) == 0) then
                       option%io_buffer = &
                         'Reference cation missing in Ion Exchange reaction.'
-                      call printErrMsg(option)
+                      call PrintErrMsg(option)
                     endif
                     cation => ionx_rxn%cation_list
                     nullify(prev_cation)
@@ -742,7 +742,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                         if (dabs(cation%k - 1.d0) > 1.d-40) then
                           option%io_buffer = 'Reference cation "' // &
                             trim(cation%name) // '" must have k = 1.d0.'
-                          call printErrMsg(option)
+                          call PrintErrMsg(option)
                         endif
                         ! move it to the front of the list
                         if (associated(prev_cation)) then
@@ -883,7 +883,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                         'CHEMISTRY,EXPLICIT_ADVECTION',option)
           end select
           option%io_buffer = 'Flux Limiter: ' // trim(word)
-          call printMsg(option)
+          call PrintMsg(option)
         else
           call InputDefaultMsg(input,option,'TVD Flux Limiter')
         endif
@@ -955,7 +955,7 @@ subroutine ReactionReadPass1(reaction,input,option)
     option%io_buffer = 'UPDATE_POROSITY must be listed under CHEMISTRY ' // &
       'card when UPDATE_TORTUOSITY, UPDATE_PERMEABILITY, or ' // &
       'UPDATE_MNRL_SURF_WITH_POR are listed.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
     
   if (len_trim(reaction%database_filename) < 2) &
@@ -1138,7 +1138,7 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
     if (.not.associated(cur_species)) then
       option%io_buffer = 'Decoupled equlibrium reaction species "' // &
         trim(name) // '" not found among primary species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
   
@@ -1214,7 +1214,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                'Species ' // trim(aq_species_constraint%names(icomp)) // &
                ' from CONSTRAINT ' // trim(constraint_name) // &
                ' not found among primary species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       constraint_type(jcomp) = aq_species_constraint%constraint_type(icomp)
       constraint_aux_string(jcomp) = &
@@ -1242,7 +1242,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                      trim(reaction%primary_species_names(jcomp)) // &
                      ' in constraint: ' // &
                      trim(constraint_name) // ' not found.' 
-            call printErrMsg(option)         
+            call PrintErrMsg(option)
           endif
         case(CONSTRAINT_GAS, CONSTRAINT_SUPERCRIT_CO2)
           found = PETSC_FALSE
@@ -1262,7 +1262,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                      trim(reaction%primary_species_names(jcomp)) // &
                      ' in constraint: ' // &
                      trim(constraint_name) // ' not found.' 
-            call printErrMsg(option)         
+            call PrintErrMsg(option)
           endif
       end select
 
@@ -1293,7 +1293,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
         end select
         option%io_buffer = trim(option%io_buffer) // ' in CONSTRAINT "' // &
           trim(constraint_name) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     enddo
   enddo
@@ -1326,7 +1326,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                  'Guess species ' // trim(free_ion_guess%names(icomp)) // &
                  ' from CONSTRAINT ' // trim(constraint_name) // &
                  ' not found among primary species.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         constraint_conc(jcomp) = free_ion_guess%conc(icomp)
       endif
@@ -1568,7 +1568,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                          trim(constraint_name) // &
                          ') for species other than H+ or OH-: ' // &
                          trim(reaction%primary_species_names(icomp))
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
             endif
             free_conc(icomp) = 10.d0**(-conc(icomp))
@@ -1577,7 +1577,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                      'pH specified as constraint (constraint =' // &
                      trim(constraint_name) // &
                      '), but H+ not found in chemical species.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif        
       case(CONSTRAINT_MINERAL)
@@ -1703,7 +1703,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                        ' may not satisfy constraint ' // &
                        trim(constraint_name) // &
                        '.  Molality already below 1.e-20.'
-              call printMsg(option)
+              call PrintMsg(option)
               charge_balance_warning_flag = PETSC_TRUE
               rt_auxvar%pri_molal(icomp) = 1.e-3 ! reset guess
             endif
@@ -1942,7 +1942,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (tempreal <= 0.d0) then
       option%io_buffer = 'ERROR: Zero concentrations found in ' // &
         'constraint "' // trim(constraint_name) // '".'
-      call printMsgByRank(option)
+      call PrintMsgByRank(option)
       ! now figure out which species have zero concentrations
       do idof = 1, reaction%naqcomp
         if (rt_auxvar%pri_molal(idof) <= 0.d0) then
@@ -1951,12 +1951,12 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
             trim(reaction%primary_species_names(idof)) // &
             '" has zero concentration (' // &
             trim(adjustl(string)) // ').'
-          call printMsgByRank(option)
+          call PrintMsgByRank(option)
         endif
       enddo
       option%io_buffer = 'Free ion concentations RESULTING from ' // &
         'constraint concentrations must be positive.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     
 #if 0
@@ -1976,7 +1976,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         '" in constraint "' // trim(constraint_name) // &
         '" in ReactionEquilibrateConstraint. Email input deck to ' // &
         'pflotran-dev@googlegroups.com.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 #endif
     
@@ -1988,13 +1988,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (mod(num_iterations,1000) == 0) then
 100   format('Constraint iteration count has exceeded: ',i5)
       write(option%io_buffer,100) num_iterations
-      call printMsg(option)
+      call PrintMsg(option)
       option%io_buffer = 'species_name  prev_free_ion  residual'
-      call printMsg(option)
+      call PrintMsg(option)
       do icomp=1,reaction%naqcomp
         write(option%io_buffer,200) reaction%primary_species_names(icomp), &
         prev_molal(icomp),Res(icomp)
-        call printMsg(option)
+        call PrintMsg(option)
       enddo
 200   format(a12,1x,1p2e12.4)
       if (num_iterations >= 10000) then
@@ -2005,7 +2005,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         option%io_buffer = 'Equilibration of constraint "' // &
           trim(constraint_name) // &
           '" stopping due to excessive iteration count!'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
     endif
     
@@ -2071,7 +2071,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           option%io_buffer = 'Free site concentration for site ' // &
             trim(surface_complexation%srfcplxrxn_site_names(isite)) // &
             ' is less than zero.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       enddo
       srfcplx_constraint%basis_free_site_conc = &
@@ -2097,7 +2097,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 !  endif
     
 !  write(option%io_buffer,111) trim(constraint_name),num_iterations
-!  call printMsg(option)
+!  call PrintMsg(option)
 !111 format(' Equilibrate Constraint: ',a30,i4)
 
 end subroutine ReactionEquilibrateConstraint
@@ -2246,7 +2246,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
                 &global_auxvar_type solely so you can set reaction%&
                 &%gas%paseqlogK(igas) within ReactionPrintConstraint&
                 & is not acceptable.  Find another way! - Regards, Glenn'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
 !geh              reaction%gas%paseqlogK(igas) = global_auxvar%scco2_eq_logK
             endif
           endif
@@ -3310,7 +3310,7 @@ subroutine ReactionReadOutput(reaction,input,option)
         if (.not.found) then
           option%io_buffer = 'CHEMISTRY,OUTPUT species name: '//trim(name)// &
                              ' not found among chemical species'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
     end select
 
@@ -3335,7 +3335,7 @@ subroutine ReactionReadOutput(reaction,input,option)
             reaction%print_free_ion)) then
     option%io_buffer = 'FREE_ION or TOTAL must be specified to print a ' // &
       'primary species.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine ReactionReadOutput
@@ -3373,7 +3373,7 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   call RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
                             reaction,option)
   option%io_buffer = 'RJumpStartKineticSorption needs to be fixed'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 #if 0  
   !TODO(geh): sort this out
   do irate = 1, reaction%kinmr_nrate
@@ -3441,7 +3441,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   
   if (reaction%ncoll > 0) then
     option%io_buffer = 'Colloids not set up for operator split mode.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 ! skip chemistry if species nonreacting 
@@ -3546,13 +3546,13 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
 
     if (num_iterations > 50) then
       scale = 1.d0
-      if (num_iterations > 50) then
+      if (num_iterations < 100) then
         scale = 0.1d0
-      else if (num_iterations > 100) then
+      else if (num_iterations < 150) then
         scale = 0.01d0
-      else if (num_iterations > 150) then
+      else if (num_iterations <= 500) then
         scale = 0.001d0
-      else if (num_iterations > 500) then
+      else
         print *, 'Maximum iterations in RReact: stop: ',num_iterations
         print *, 'Maximum iterations in RReact: residual: ',residual
         print *, 'Maximum iterations in RReact: new solution: ',new_solution
@@ -3861,12 +3861,12 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
   else
     option%io_buffer = 'reaction%species_idx not set in RCO2MoleFraction(). &
       &Have you defined CO2(aq) as a species in the input deck?'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (ico2 == 0) then
     option%io_buffer = 'CO2 is not set in RCO2MoleFraction(). Have you &
       &defined CO2(aq) as a species in the input deck?'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   sum_co2 = rt_auxvar%pri_molal(ico2)
@@ -3938,7 +3938,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
         write(option%io_buffer,*) &
           ' too many iterations in computing activity coefficients-stop',it,f,I, &
           ' setting all activity coefficients to NaNs to crash the code.'
-        call printErrMsgNoStopByRank(option)
+        call PrintErrMsgNoStopByRank(option)
         NaN = 0.d0
         NaN = 1.d0/NaN
         NaN = 0.d0*NaN
@@ -3994,7 +3994,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
       if (II < 0.d0) then
         write(option%io_buffer,*) 'ionic strength negative! it =',it, &
           ' I= ',I,II,den,didi,dcdi,sum
-        call printErrMsgByRank(option)        
+        call PrintErrMsgByRank(option)
       endif
     
   ! compute activity coefficients
@@ -4056,7 +4056,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
           rt_auxvar%ln_act_h2o = 0.d0
           write(option%io_buffer,*) 'activity of H2O negative! ln act H2O =', &
             rt_auxvar%ln_act_h2o
-          call printMsg(option)
+          call PrintMsg(option)
         endif
       endif
 
@@ -4487,7 +4487,7 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
         it = it + 1
         if (it > 20000) then
           option%io_buffer = 'Too many Newton iterations in ion exchange.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
         ref_cation_X = KDj*(ref_cation_k*ref_cation_conc)
         cation_X(1) = ref_cation_X
@@ -5429,7 +5429,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   enddo
   write(option%io_buffer,'(''Diagonal Fill (%): '',f6.2)') &
     sum / (reaction%ncomp*reaction%ncomp) * 100.d0
-  call printMsg(option)
+  call PrintMsg(option)
  
  
   sum = 0.d0
@@ -5440,7 +5440,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   enddo
   write(option%io_buffer,'(''Off-Diagonal Fill (%): '',f6.2)') &
     sum / (reaction%ncomp*reaction%ncomp) * 100.d0
-  call printMsg(option)
+  call PrintMsg(option)
 
 end subroutine RCalculateCompression
 
@@ -5647,7 +5647,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
     if (associated(reaction%surface_complexation%srfcplx_logKcoef)) then
       option%io_buffer = 'Temperature dependent surface complexation ' // &
         'coefficients not yet function for high pressure/temperature.'
-      call printMsg(option)   
+      call PrintMsg(option)
     endif
   endif 
   
@@ -5839,7 +5839,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     else
       option%io_buffer = 'pH may not be printed when H+ is not ' // &
         'defined as a species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif  
   
@@ -5852,7 +5852,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     else
       option%io_buffer = 'Eh may not be printed when O2(g) is not ' // &
         'defined as a species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif  
   
@@ -5865,7 +5865,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     else
       option%io_buffer = 'pe may not be printed when O2(g) is not ' // &
         'defined as a species.'
-      call printErrMsg(option)   
+      call PrintErrMsg(option)
     endif
   endif  
   
@@ -5878,7 +5878,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
     else
       option%io_buffer = 'logfO2 may not be printed when O2(g) is not ' // &
         'defined as a species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif  
   
@@ -6044,7 +6044,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   do i=1,reaction%surface_complexation%nkinsrfcplxrxn
     if (reaction%surface_complexation%srfcplxrxn_site_print(i)) then
       option%io_buffer = 'Printing of kinetic surface complexes needs to be fixed'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
       name = 'Free ' // &
              trim(reaction%surface_complexation%srfcplxrxn_site_names(i))
       units = 'mol/m^3 bulk'
@@ -6056,7 +6056,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   do i=1,reaction%surface_complexation%nkinsrfcplx
     if (reaction%surface_complexation%srfcplx_print(i)) then
       option%io_buffer = 'Printing of kinetic surface complexes needs to be fixed'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
       name = reaction%surface_complexation%srfcplx_names(i)
       units = 'mol/m^3 bulk'
       call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &

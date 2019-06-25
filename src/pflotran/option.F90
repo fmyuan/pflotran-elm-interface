@@ -39,6 +39,8 @@ module Option_module
     PetscMPIInt :: io_rank
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
     PetscBool :: broadcast_read
+    PetscBool :: blocking
+    PetscBool :: error_while_nonblocking
 
     character(len=MAXSTRINGLENGTH) :: io_buffer
 
@@ -236,39 +238,39 @@ module Option_module
   PetscInt, parameter, public :: MULTISIMULATION_SIM_TYPE = 2
   PetscInt, parameter, public :: STOCHASTIC_SIM_TYPE = 3
 
-  interface printMsg
-    module procedure printMsg1
-    module procedure printMsg2
+  interface PrintMsg
+    module procedure PrintMsg1
+    module procedure PrintMsg2
   end interface
 
-  interface printMsgAnyRank
-    module procedure printMsgAnyRank1
-    module procedure printMsgAnyRank2
+  interface PrintMsgAnyRank
+    module procedure PrintMsgAnyRank1
+    module procedure PrintMsgAnyRank2
   end interface
 
-  interface printMsgByRank
-    module procedure printMsgByRank1
-    module procedure printMsgByRank2
+  interface PrintMsgByRank
+    module procedure PrintMsgByRank1
+    module procedure PrintMsgByRank2
   end interface
 
-  interface printErrMsgByRank
-    module procedure printErrMsgByRank1
-    module procedure printErrMsgByRank2
+  interface PrintErrMsgByRank
+    module procedure PrintErrMsgByRank1
+    module procedure PrintErrMsgByRank2
   end interface
 
-  interface printErrMsgNoStopByRank
-    module procedure printErrMsgNoStopByRank1
-    module procedure printErrMsgNoStopByRank2
+  interface PrintErrMsgNoStopByRank
+    module procedure PrintErrMsgNoStopByRank1
+    module procedure PrintErrMsgNoStopByRank2
   end interface
 
-  interface printErrMsg
-    module procedure printErrMsg1
-    module procedure printErrMsg2
+  interface PrintErrMsg
+    module procedure PrintErrMsg1
+    module procedure PrintErrMsg2
   end interface
 
-  interface printWrnMsg
-    module procedure printWrnMsg1
-    module procedure printWrnMsg2
+  interface PrintWrnMsg
+    module procedure PrintWrnMsg1
+    module procedure PrintWrnMsg2
   end interface
 
   interface OptionInitMPI
@@ -278,17 +280,17 @@ module Option_module
 
   public :: OptionCreate, &
             OptionCheckCommandLine, &
-            printErrMsg, &
+            PrintErrMsg, &
             PrintErrMsgToDev, &
-            printErrMsgByRank, &
+            PrintErrMsgByRank, &
             PrintErrMsgByRankToDev, &
-            printWrnMsg, &
-            printMsg, &
-            printMsgAnyRank, &
-            printMsgByRank, &
-            printMsgByCell, &
-            printErrMsgNoStopByRank, &
-            printVerboseMsg, &
+            PrintWrnMsg, &
+            PrintMsg, &
+            PrintMsgAnyRank, &
+            PrintMsgByRank, &
+            PrintMsgByCell, &
+            PrintErrMsgNoStopByRank, &
+            PrintVerboseMsg, &
             OptionCheckTouch, &
             OptionPrint, &
             OptionPrintToScreen, &
@@ -303,6 +305,8 @@ module Option_module
             OptionCreateProcessorGroups, &
             OptionBeginTiming, &
             OptionEndTiming, &
+            OptionSetBlocking, &
+            OptionCheckNonBlockingError, &
             OptionFinalize, &
             OptionDestroy
 
@@ -382,6 +386,8 @@ subroutine OptionInitAll(option)
   option%io_rank = 0
   option%hdf5_read_group_size = 0
   option%hdf5_write_group_size = 0
+  option%blocking = PETSC_TRUE
+  option%error_while_nonblocking = PETSC_FALSE
 
   option%input_record = PETSC_FALSE
   option%print_screen_flag = PETSC_FALSE
@@ -670,7 +676,7 @@ end subroutine OptionCheckCommandLine
 
 ! ************************************************************************** !
 
-subroutine printErrMsg1(option)
+subroutine PrintErrMsg1(option)
   !
   ! Prints the error message from p0 and stops
   !
@@ -682,13 +688,13 @@ subroutine printErrMsg1(option)
 
   type(option_type) :: option
 
-  call printErrMsg2(option,option%io_buffer)
+  call PrintErrMsg2(option,option%io_buffer)
 
-end subroutine printErrMsg1
+end subroutine PrintErrMsg1
 
 ! ************************************************************************** !
 
-subroutine printErrMsg2(option,string)
+subroutine PrintErrMsg2(option,string)
   !
   ! Prints the error message from p0 and stops
   !
@@ -710,18 +716,54 @@ subroutine printErrMsg2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  call MPI_Barrier(option%mycomm,ierr)
-  call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
-  if (petsc_initialized) then
-    call PetscFinalize(ierr);CHKERRQ(ierr)
+  if (option%blocking) then
+    call MPI_Barrier(option%mycomm,ierr)
+    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    if (petsc_initialized) then
+      call PetscFinalize(ierr);CHKERRQ(ierr)
+    endif
+    stop
+  else
+    option%error_while_nonblocking = PETSC_TRUE
   endif
-  stop
 
-end subroutine printErrMsg2
+end subroutine PrintErrMsg2
 
 ! ************************************************************************** !
 
-subroutine printErrMsgByRank1(option)
+subroutine OptionCheckNonBlockingError(option)
+  !
+  ! Checks whether error_while_nonblocking was set and stops if TRUE
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/2/19
+  !
+
+  implicit none
+
+  type(option_type) :: option
+
+  PetscBool :: petsc_initialized
+  PetscMPIInt :: mpi_int
+  PetscErrorCode :: ierr
+
+  mpi_int = 1
+  call MPI_Allreduce(MPI_IN_PLACE,option%error_while_nonblocking, &
+                     mpi_int,MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+  if (option%error_while_nonblocking) then
+    call MPI_Barrier(option%mycomm,ierr)
+    call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
+    if (petsc_initialized) then
+      call PetscFinalize(ierr);CHKERRQ(ierr)
+    endif
+    stop
+  endif
+
+end subroutine OptionCheckNonBlockingError
+
+! ************************************************************************** !
+
+subroutine PrintErrMsgByRank1(option)
   !
   ! Prints the error message from processor with error along
   ! with rank
@@ -734,13 +776,13 @@ subroutine printErrMsgByRank1(option)
 
   type(option_type) :: option
 
-  call printErrMsgByRank2(option,option%io_buffer)
+  call PrintErrMsgByRank2(option,option%io_buffer)
 
-end subroutine printErrMsgByRank1
+end subroutine PrintErrMsgByRank1
 
 ! ************************************************************************** !
 
-subroutine printErrMsgByRank2(option,string)
+subroutine PrintErrMsgByRank2(option,string)
   !
   ! Prints the error message from processor with error along
   ! with rank
@@ -765,11 +807,11 @@ subroutine printErrMsgByRank2(option,string)
   endif
   stop
 
-end subroutine printErrMsgByRank2
+end subroutine PrintErrMsgByRank2
 
 ! ************************************************************************** !
 
-subroutine printErrMsgNoStopByRank1(option)
+subroutine PrintErrMsgNoStopByRank1(option)
   !
   ! Prints the error message from processor with error along
   ! with rank
@@ -782,13 +824,13 @@ subroutine printErrMsgNoStopByRank1(option)
 
   type(option_type) :: option
 
-  call printErrMsgNoStopByRank2(option,option%io_buffer)
+  call PrintErrMsgNoStopByRank2(option,option%io_buffer)
 
-end subroutine printErrMsgNoStopByRank1
+end subroutine PrintErrMsgNoStopByRank1
 
 ! ************************************************************************** !
 
-subroutine printErrMsgNoStopByRank2(option,string)
+subroutine PrintErrMsgNoStopByRank2(option,string)
   !
   ! Prints the error message from processor with error along
   ! with rank
@@ -811,7 +853,7 @@ subroutine printErrMsgNoStopByRank2(option,string)
     print *
   endif
 
-end subroutine printErrMsgNoStopByRank2
+end subroutine PrintErrMsgNoStopByRank2
 
 ! ************************************************************************** !
 
@@ -873,7 +915,7 @@ end subroutine PrintErrMsgByRankToDev
 
 ! ************************************************************************** !
 
-subroutine printWrnMsg1(option)
+subroutine PrintWrnMsg1(option)
   !
   ! Prints the warning message from p0
   !
@@ -885,13 +927,13 @@ subroutine printWrnMsg1(option)
 
   type(option_type) :: option
 
-  call printWrnMsg2(option,option%io_buffer)
+  call PrintWrnMsg2(option,option%io_buffer)
 
-end subroutine printWrnMsg1
+end subroutine PrintWrnMsg1
 
 ! ************************************************************************** !
 
-subroutine printWrnMsg2(option,string)
+subroutine PrintWrnMsg2(option,string)
   !
   ! Prints the warning message from p0
   !
@@ -906,11 +948,11 @@ subroutine printWrnMsg2(option,string)
 
   if (OptionPrintToScreen(option)) print *, 'WARNING: ' // trim(string)
 
-end subroutine printWrnMsg2
+end subroutine PrintWrnMsg2
 
 ! ************************************************************************** !
 
-subroutine printMsg1(option)
+subroutine PrintMsg1(option)
   !
   ! Prints the message from p0
   !
@@ -922,13 +964,13 @@ subroutine printMsg1(option)
 
   type(option_type) :: option
 
-  call printMsg2(option,option%io_buffer)
+  call PrintMsg2(option,option%io_buffer)
 
-end subroutine printMsg1
+end subroutine PrintMsg1
 
 ! ************************************************************************** !
 
-subroutine printMsg2(option,string)
+subroutine PrintMsg2(option,string)
   !
   ! Prints the message from p0
   !
@@ -943,11 +985,11 @@ subroutine printMsg2(option,string)
 
   if (OptionPrintToScreen(option)) print *, trim(string)
 
-end subroutine printMsg2
+end subroutine PrintMsg2
 
 ! ************************************************************************** !
 
-subroutine printMsgAnyRank1(option)
+subroutine PrintMsgAnyRank1(option)
   !
   ! Prints the message from any processor core
   !
@@ -959,13 +1001,13 @@ subroutine printMsgAnyRank1(option)
 
   type(option_type) :: option
 
-  if (option%print_to_screen) call printMsgAnyRank2(option%io_buffer)
+  if (option%print_to_screen) call PrintMsgAnyRank2(option%io_buffer)
 
-end subroutine printMsgAnyRank1
+end subroutine PrintMsgAnyRank1
 
 ! ************************************************************************** !
 
-subroutine printMsgAnyRank2(string)
+subroutine PrintMsgAnyRank2(string)
   !
   ! Prints the message from any processor core
   !
@@ -979,11 +1021,11 @@ subroutine printMsgAnyRank2(string)
   
   print *, trim(string)
 
-end subroutine printMsgAnyRank2
+end subroutine PrintMsgAnyRank2
 
 ! ************************************************************************** !
 
-subroutine printMsgByRank1(option)
+subroutine PrintMsgByRank1(option)
   !
   ! Prints a message from processor along with rank
   !
@@ -995,13 +1037,13 @@ subroutine printMsgByRank1(option)
 
   type(option_type) :: option
 
-  call printMsgByRank2(option,option%io_buffer)
+  call PrintMsgByRank2(option,option%io_buffer)
 
-end subroutine printMsgByRank1
+end subroutine PrintMsgByRank1
 
 ! ************************************************************************** !
 
-subroutine printMsgByRank2(option,string)
+subroutine PrintMsgByRank2(option,string)
   !
   ! Prints a message from processor along with rank
   !
@@ -1021,11 +1063,11 @@ subroutine printMsgByRank2(option,string)
     print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
   endif
 
-end subroutine printMsgByRank2
+end subroutine PrintMsgByRank2
 
 ! ************************************************************************** !
 
-subroutine printMsgByCell(option,cell_id,string)
+subroutine PrintMsgByCell(option,cell_id,string)
   !
   ! Prints the message from p0
   !
@@ -1044,13 +1086,13 @@ subroutine printMsgByCell(option,cell_id,string)
   write(word,*) cell_id
   word = adjustl(word)
   option%io_buffer = trim(string) // ' for cell ' // trim(word) // '.'
-  call printMsgByRank(option)
+  call PrintMsgByRank(option)
 
-end subroutine printMsgByCell
+end subroutine PrintMsgByCell
 
 ! ************************************************************************** !
 
-subroutine printVerboseMsg(option)
+subroutine PrintVerboseMsg(option)
   !
   ! Prints the message from p0
   !
@@ -1063,10 +1105,10 @@ subroutine printVerboseMsg(option)
   type(option_type) :: option
 
   if (option%verbosity > 0) then
-    call printMsg(option,option%io_buffer)
+    call PrintMsg(option,option%io_buffer)
   endif
 
-end subroutine printVerboseMsg
+end subroutine PrintVerboseMsg
 
 ! ************************************************************************** !
 
@@ -1498,7 +1540,7 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
       ') must be equal to or less than the number of processes (' // &
       adjustl(word)
     option%io_buffer = trim(option%io_buffer) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   local_commsize = option%global_commsize / num_groups
   remainder = option%global_commsize - num_groups * local_commsize
@@ -1520,6 +1562,25 @@ subroutine OptionCreateProcessorGroups(option,num_groups)
   call MPI_Comm_size(option%mycomm,option%mycommsize,ierr)
 
 end subroutine OptionCreateProcessorGroups
+
+! ************************************************************************** !
+
+subroutine OptionSetBlocking(option,flag)
+  !
+  ! Sets blocking flag
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/24/19
+  !
+
+  implicit none
+
+  type(option_type) :: option
+  PetscBool :: flag
+
+  option%blocking = flag
+
+end subroutine OptionSetBlocking
 
 ! ************************************************************************** !
 

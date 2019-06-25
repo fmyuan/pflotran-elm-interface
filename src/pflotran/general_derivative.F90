@@ -203,7 +203,7 @@ subroutine GeneralDerivativeDriver(option)
                                     material_auxvar,srcsink_scale,option)
     case default
       option%io_buffer = 'The user must specify a process to be tested.'
-      call printWrnMsg(option)
+      call PrintWrnMsg(option)
   end select
   
   ! Destroy objects

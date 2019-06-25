@@ -139,7 +139,7 @@ subroutine ImmisSetupPatch(realization)
 !  option%io_buffer = 'Before Immis can be run, the thc_parameter object ' // &
 !                     'must be initialized with the proper variables ' // &
 !                     'ImmisAuxCreate() is called anyhwere.'
-!  call printErrMsg(option)
+!  call PrintErrMsg(option)
 ! print *,' ims setup get Aux', option%nphase, size(patch%saturation_function_array)     
 ! immis_parameters create *********************************************
 ! Sir
@@ -463,7 +463,7 @@ subroutine ImmisUpdateReasonPatch(reason,realization)
 !     error message and let someone sort the use of option%dpmxe later
         option%io_buffer = 'option%dpmxe and option%dtmpmxe needs to be ' // &
           'refactored in ImmisUpdateReasonPatch'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 !geh        if (dabs(xx_p(n0 + 1)- yy_p(n0 + 1))> (10.0D0 * option%dpmxe))then
            re=0; print *,'huge change in p', xx_p(n0 + 1), yy_p(n0 + 1)
            exit
@@ -1182,7 +1182,7 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
       endif  
     
       if (msrc(2) > 0.d0) then ! CO2 injection
-!       call printErrMsg(option,"concentration source not yet implemented in Immis")
+!       call PrintErrMsg(option,"concentration source not yet implemented in Immis")
         if (option%co2eos == EOS_SPAN_WAGNER) then
          !  span-wagner
           rho = auxvar%den(jco2)*FMWCO2  
@@ -1216,7 +1216,7 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
           qsrc_phase(2) = msrc(2)/auxvar%den(jco2)
           enth_src_co2 = enth_src_co2*FMWCO2*option%scale
       else
-         call printErrMsg(option,'pflow Immis ERROR: Need specify CO2 EOS')
+         call PrintErrMsg(option,'pflow Immis ERROR: Need specify CO2 EOS')
       endif
               
       Res(jco2) = Res(jco2) + msrc(2)*option%flow_dt
@@ -2779,13 +2779,13 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
   if (realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
     call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option)
+    call PrintMsg(option)
 !    call GridCreateVector(grid,ONEDOF,debug_vec,GLOBAL)
 !    call MatGetRowMaxAbs(A,debug_vec,PETSC_NULL_INTEGER,ierr)
 !    call VecMax(debug_vec,i,norm,ierr)

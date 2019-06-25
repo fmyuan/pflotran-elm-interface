@@ -263,7 +263,7 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
   else
     option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
                          model type is not recognized.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine MaterialAuxSetPermTensorModel

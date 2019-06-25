@@ -163,7 +163,7 @@ subroutine DownregRead(this,input,option)
         if (this%pressure_delta <= 1.0d-10) then
           option%io_buffer = 'SRCSINK_SANDBOX,DOWNREG,DELTA_REG_PRESSURE' // &
             ': the pressure delta is too close to 0 Pa.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif 
       case default
         call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
@@ -300,7 +300,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
     else
       option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
                          'only for RICHARDS mode.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
   
@@ -313,7 +313,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       else
         option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
                            'only for RICHARDS mode.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     enddo
   endif
