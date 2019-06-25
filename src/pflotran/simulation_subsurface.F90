@@ -347,8 +347,7 @@ subroutine SubsurfaceFinalizeRun(this)
   ! Date: 03/18/13
   ! 
 
-  use Timestepper_BE_class
-  use Timestepper_TS_class
+  use Timestepper_Base_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
@@ -361,9 +360,8 @@ subroutine SubsurfaceFinalizeRun(this)
   
   PetscErrorCode :: ierr
   
-  class(timestepper_BE_type), pointer :: flow_timestepper
-  class(timestepper_BE_type), pointer :: tran_timestepper
-  class(timestepper_TS_type), pointer :: flow_ts_timestepper
+  class(timestepper_base_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: tran_timestepper
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SubsurfaceFinalizeRun()')
@@ -372,31 +370,21 @@ subroutine SubsurfaceFinalizeRun(this)
   call SimulationBaseFinalizeRun(this)
   
   nullify(flow_timestepper)
-  nullify(flow_ts_timestepper)
   nullify(tran_timestepper)
   if (associated(this%flow_process_model_coupler)) then
-    select type(ts => this%flow_process_model_coupler%timestepper)
-      class is(timestepper_BE_type)
-        flow_timestepper => ts
-      class is(timestepper_TS_type)
-        flow_ts_timestepper => ts
-    end select
+    flow_timestepper => this%flow_process_model_coupler%timestepper
     call SSSandboxDestroyList()
     call WIPPDestroy()
     call KlinkenbergDestroy()
   endif
   if (associated(this%rt_process_model_coupler)) then
-    select type(ts => this%rt_process_model_coupler%timestepper)
-      class is(timestepper_BE_type)
-        tran_timestepper => ts
-    end select
+    tran_timestepper => this%rt_process_model_coupler%timestepper
     call RSandboxDestroy()
     call RCLMRxnDestroy()
   endif
   
   call RegressionOutput(this%regression,this%realization, &
-                        flow_timestepper,tran_timestepper, &
-                        flow_ts_timestepper)  
+                        flow_timestepper,tran_timestepper)  
   
 end subroutine SubsurfaceFinalizeRun
 

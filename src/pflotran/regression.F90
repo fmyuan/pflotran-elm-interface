@@ -476,7 +476,7 @@ end subroutine RegressionCreateMapping
 ! ************************************************************************** !
 
 subroutine RegressionOutput(regression,realization,flow_timestepper, &
-                            tran_timestepper,flow_ts_timestepper)
+                            tran_timestepper)
   !
   ! Prints regression output through the io_rank
   ! 
@@ -485,8 +485,9 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   ! 
 
   use Realization_Subsurface_class
-  use Timestepper_BE_class
+  use Timestepper_Base_class
   use Timestepper_TS_class
+  use Timestepper_BE_class
   use Option_module
   use Discretization_module
   use Output_module
@@ -499,9 +500,8 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   type(regression_type), pointer :: regression
   class(realization_subsurface_type) :: realization
   ! these must be pointers as they can be null
-  class(timestepper_BE_type), pointer :: flow_timestepper
-  class(timestepper_BE_type), pointer :: tran_timestepper  
-  class(timestepper_TS_type), pointer :: flow_ts_timestepper
+  class(timestepper_base_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: tran_timestepper  
 
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec
@@ -787,62 +787,68 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
 
   ! timestep, newton iteration, solver iteration output
   if (associated(flow_timestepper)) then
-    call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-    call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
-      write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-      write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-        flow_timestepper%cumulative_solver_time
-      write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_timestepper%steps
-      write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
-        flow_timestepper%cumulative_newton_iterations
-      write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
-        flow_timestepper%cumulative_linear_iterations
-      write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
-        flow_timestepper%cumulative_time_step_cuts
-      write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-      write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
-    endif
+    select type(flow_stepper => flow_timestepper)
+      class is(timestepper_BE_type)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        if (option%myrank == option%io_rank) then
+          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
+          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          flow_stepper%cumulative_solver_time
+          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          flow_stepper%cumulative_newton_iterations
+          write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+          flow_stepper%cumulative_linear_iterations
+          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          flow_stepper%cumulative_time_step_cuts
+          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+        endif
+      class is(timestepper_TS_type)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        if (option%myrank == option%io_rank) then
+          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
+          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          flow_stepper%cumulative_solver_time
+          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          flow_stepper%cumulative_newton_iterations
+          write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+          flow_stepper%cumulative_linear_iterations
+          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          flow_stepper%cumulative_time_step_cuts
+          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+        endif
+    end select
   endif
-  if (associated(flow_ts_timestepper)) then
-    call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-    call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
-      write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-      write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-        flow_ts_timestepper%cumulative_solver_time
-      write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_ts_timestepper%steps
-      write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
-        flow_ts_timestepper%cumulative_newton_iterations
-      write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
-        flow_ts_timestepper%cumulative_linear_iterations
-      write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
-        flow_ts_timestepper%cumulative_time_step_cuts
-      write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-      write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
-    endif
-  endif
+
   if (associated(tran_timestepper)) then
-    call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-      call VecNorm(realization%field%tran_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-    endif
-    if (option%myrank == option%io_rank) then
-      write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
-      write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-        tran_timestepper%cumulative_solver_time
-      write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') tran_timestepper%steps
-      write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
-        tran_timestepper%cumulative_newton_iterations
-      write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
-        tran_timestepper%cumulative_linear_iterations
-      write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
-        tran_timestepper%cumulative_time_step_cuts
-      write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-      if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-        write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
-      endif
-    endif
+    select type(tran_stepper => tran_timestepper)
+      class is(timestepper_BE_type)
+        call VecNorm(realization%field%tran_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+          call VecNorm(realization%field%tran_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        endif
+        if (option%myrank == option%io_rank) then
+          write(OUTPUT_UNIT,'(''-- SOLUTION: Transport --'')')
+          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+            tran_stepper%cumulative_solver_time
+          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') tran_stepper%steps
+          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+            tran_stepper%cumulative_newton_iterations
+          write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+            tran_stepper%cumulative_linear_iterations
+          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+            tran_stepper%cumulative_time_step_cuts
+          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+            write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+          endif
+        endif
+    end select
   endif
   
   close(OUTPUT_UNIT)
