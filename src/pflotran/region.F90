@@ -966,6 +966,7 @@ subroutine RegionReadSideSet(sideset,filename,option)
 
   ! for now, read all faces from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_int_array(max_nvert_per_face, &
                             num_faces_local_save+1))
@@ -1037,6 +1038,8 @@ subroutine RegionReadSideSet(sideset,filename,option)
                   MPIU_INTEGER,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
 !  unstructured_grid%nlmax = num_faces_local
 !  unstructured_grid%num_vertices_local = num_vertices_local
