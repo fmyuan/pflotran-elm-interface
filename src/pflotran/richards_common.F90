@@ -170,9 +170,9 @@ end subroutine RichardsAccumulation
 ! ************************************************************************** !
 
 subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
-                                  material_auxvar_up,sir_up, & 
+                                  material_auxvar_up, & 
                                   rich_auxvar_dn,global_auxvar_dn, &
-                                  material_auxvar_dn,sir_dn, &
+                                  material_auxvar_dn, &
                                   area, dist, &
                                   option, &
                                   characteristic_curves_up, &
@@ -196,7 +196,6 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up, sir_dn
   PetscReal :: v_darcy, area, dist(-1:3)
   type(characteristic_curves_type) :: characteristic_curves_up
   type(characteristic_curves_type) :: characteristic_curves_dn
@@ -251,7 +250,9 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
   
 ! Flow term
-  if (global_auxvar_up%sat(1) > sir_up .or. global_auxvar_dn%sat(1) > sir_dn) then
+  if (rich_auxvar_up%kvr + &
+      rich_auxvar_dn%kvr > eps) then
+   
     if (global_auxvar_up%sat(1) <eps) then 
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) <eps) then 
@@ -309,9 +310,7 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
     x_up(1) = global_auxvar_up%pres(1)
     x_dn(1) = global_auxvar_dn%pres(1)
     call RichardsFlux(rich_auxvar_up,global_auxvar_up,material_auxvar_up, &
-                      sir_up, &
                       rich_auxvar_dn,global_auxvar_dn,material_auxvar_dn, &
-                      sir_dn, &
                       area, dist, &
                       option,v_darcy,res)
     ideriv = 1
@@ -338,15 +337,15 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
                                -999, &
                                option)
     call RichardsFlux(rich_auxvar_pert_up,global_auxvar_pert_up, &
-                      material_auxvar_pert_up,sir_up, &
+                      material_auxvar_pert_up, &
                       rich_auxvar_dn,global_auxvar_dn, &
-                      material_auxvar_dn,sir_dn, &
+                      material_auxvar_dn, &
                       area, dist, &
                       option,v_darcy,res_pert_up)
     call RichardsFlux(rich_auxvar_up,global_auxvar_up, &
-                      material_auxvar_up,sir_up, &
+                      material_auxvar_up, &
                       rich_auxvar_pert_dn,global_auxvar_pert_dn, &
-                      material_auxvar_pert_dn,sir_dn, &
+                      material_auxvar_pert_dn, &
                       area, dist, &
                       option,v_darcy,res_pert_dn)
     J_pert_up(1,ideriv) = (res_pert_up(1)-res(1))/pert_up
@@ -364,9 +363,9 @@ end subroutine RichardsFluxDerivative
 ! ************************************************************************** !
 
 subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
-                        material_auxvar_up,sir_up, &
+                        material_auxvar_up, &
                         rich_auxvar_dn,global_auxvar_dn, &
-                        material_auxvar_dn,sir_dn, &
+                        material_auxvar_dn, &
                         area, dist, &
                         option,v_darcy,Res)
   ! 
@@ -385,7 +384,6 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up, sir_dn
   PetscReal :: v_darcy, area, dist(-1:3)
   PetscReal :: Res(1:option%nflowdof) 
      
@@ -408,7 +406,8 @@ subroutine RichardsFlux(rich_auxvar_up,global_auxvar_up, &
   Dq = (perm_up * perm_dn)/(dd_up*perm_dn + dd_dn*perm_up)
   
 ! Flow term
-  if (global_auxvar_up%sat(1) > sir_up .or. global_auxvar_dn%sat(1) > sir_dn) then
+  if (rich_auxvar_up%kvr + &
+      rich_auxvar_dn%kvr > eps) then
     if (global_auxvar_up%sat(1) <eps) then 
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) <eps) then 
@@ -452,7 +451,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                                     rich_auxvar_up,global_auxvar_up, &
                                     rich_auxvar_dn,global_auxvar_dn, &
                                     material_auxvar_dn, &
-                                    sir_dn, &
                                     area,dist,option, &
                                     characteristic_curves_dn, &
                                     Jdn)
@@ -476,7 +474,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: area
   ! dist(-1) = fraction_upwind
@@ -553,8 +550,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         Dq = perm_dn / dist(0)
       endif
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. &
-          global_auxvar_dn%sat(1) > sir_dn) then
+      if (rich_auxvar_up%kvr + &
+          rich_auxvar_dn%kvr > eps) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
@@ -661,8 +658,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
     case(UNIT_GRADIENT_BC)
 
-      if (global_auxvar_dn%sat(1) > sir_dn) then
-
+      if(rich_auxvar_dn%kvr > eps) then
         dphi = dot_product(option%gravity,dist(1:3))* &
                            global_auxvar_dn%den(1)*FMWH2O      
         density_ave = global_auxvar_dn%den(1)
@@ -711,7 +707,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                         rich_auxvar_up,global_auxvar_up, &
                         rich_auxvar_dn,global_auxvar_dn, &
                         material_auxvar_dn, &
-                        sir_dn, &
                         area,dist,option,v_darcy,res)
     if (pressure_bc_type == ZERO_GRADIENT_BC) then
       x_pert_up = x_up
@@ -742,7 +737,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                         rich_auxvar_pert_up,global_auxvar_pert_up, &
                         rich_auxvar_pert_dn,global_auxvar_pert_dn, &
                         material_auxvar_pert_dn, &
-                        sir_dn, &
                         area,dist,option,v_darcy,res_pert_dn)
     J_pert_dn(1,ideriv) = (res_pert_dn(1)-res(1))/pert_dn
     Jdn = J_pert_dn
@@ -761,7 +755,6 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                           rich_auxvar_up, global_auxvar_up, &
                           rich_auxvar_dn, global_auxvar_dn, &
                           material_auxvar_dn, &
-                          sir_dn, &
                           area, dist, option,v_darcy,Res)
   ! 
   ! Computes the  boundary flux terms for the residual
@@ -781,7 +774,6 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn
   PetscReal :: auxvars(:) ! from aux_real_var array
   PetscReal :: v_darcy, area
   ! dist(-1) = fraction_upwind - not applicable here
@@ -833,7 +825,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
         Dq = perm_dn / dist(0)
       endif
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
+      if (rich_auxvar_up%kvr + &
+          rich_auxvar_dn%kvr > eps) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
