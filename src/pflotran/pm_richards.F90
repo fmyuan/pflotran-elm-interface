@@ -47,7 +47,9 @@ module PM_Richards_class
   
   public :: PMRichardsCreate, &
             PMRichardsInit, &
-            PMRichardsDestroy
+            PMRichardsDestroy, &
+            PMRichardsCheckConvergence
+
   
 contains
 

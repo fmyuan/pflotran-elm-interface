@@ -436,11 +436,6 @@ subroutine PMRichardsTSInitializeTimestep(this)
   class(pm_richards_ts_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," RICHARDS TS FLOW ",60("="))')
-  endif
-
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMRichardsTSInitializeTimestep
@@ -472,27 +467,8 @@ subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
   character(len=MAXSTRINGLENGTH) :: string
 
-  call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
-                            0,ierr);CHKERRQ(ierr)
 
-  if (this%option%print_screen_flag) then
-    select case(int(reason))
-      case(2)
-        string = 'atol'
-      case(3)
-        string = 'rtol'
-      case(4)
-        string = 'stol'
-      case default
-        write(string,'(i3)') reason
-    end select
-
-    write(*,'(i3," 2r:",es9.2, &
-            & " 2x:",es9.2, &
-            & " 2u:",es9.2, &
-            & " rsn: ",a)') &
-            it, fnorm, xnorm, unorm, trim(string)
-  endif
+  call PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
 end subroutine PMRichardsTSCheckConvergence
 
