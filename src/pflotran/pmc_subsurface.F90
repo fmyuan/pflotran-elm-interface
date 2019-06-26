@@ -225,7 +225,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
           if (trim(snes_type) == 'newtontr') then
             general_using_newtontr = PETSC_TRUE
           endif
-      end selectf
+      end select
 
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
