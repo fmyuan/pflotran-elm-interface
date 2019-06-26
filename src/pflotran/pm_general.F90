@@ -1407,6 +1407,13 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call OptionPrint(string,option)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
+    if (option%convergence == CONVERGENCE_CONVERGED .and. &
+        general_using_newtontr .and. general_sub_newton_iter_num > 1) then
+        ! if we reach convergence in an inner newton iteration of TR
+        ! then we must force an outer iteration to allow state change
+        ! in case the solutions are out-of-bounds of the states -hdp
+        option%convergence = CONVERGENCE_FORCE_ITERATION
+    endif
   endif
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
