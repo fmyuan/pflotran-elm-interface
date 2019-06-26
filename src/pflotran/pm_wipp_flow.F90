@@ -520,15 +520,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscInt :: ghosted_id, local_id
 
   grid => this%realization%patch%grid
+  field => this%realization%field
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
-                           this%realization%field%max_change_vecs, &
+  call VecDuplicateVecsF90(field%work,SIX_INTEGER,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
   do i = 1, 3
-    call RealizationGetVariable(this%realization, &
-                                this%realization%field%max_change_vecs(i), &
+    call RealizationGetVariable(this%realization,field%max_change_vecs(i), &
                                 this%max_change_ivar(i),ZERO_INTEGER)
   enddo
 
@@ -553,7 +552,6 @@ recursive subroutine PMWIPPFloInitializeRun(this)
 
   ! read in alphas
   if (len_trim(this%alpha_dataset_name) > 0) then
-    field => this%realization%field
     string = 'BRAGFLO ALPHA Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%alpha_dataset_name, &
@@ -570,14 +568,13 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           d%realization_dependent)
         wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                                ierr);CHKERRQ(ierr)
+        call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
         do ghosted_id = 1, this%realization%patch%grid%ngmax
           do idof = 0, this%option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%alpha = work_loc_p(ghosted_id)
           enddo
         enddo
-        call VecRestoreArrayReadF90(this%realization%field%work_loc, &
+        call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
         this%option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
@@ -593,7 +590,6 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! read in elevations
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   if (len_trim(this%elevation_dataset_name) > 0) then
-    field => this%realization%field
     string = 'BRAGFLO Elevation Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%elevation_dataset_name, &
@@ -610,8 +606,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           d%realization_dependent)
         wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                                ierr);CHKERRQ(ierr)
+        call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
         do ghosted_id = 1, this%realization%patch%grid%ngmax
           do idof = 0, this%option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
@@ -619,7 +614,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           !geh: remove after 9/30/19
           !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
         enddo
-        call VecRestoreArrayReadF90(this%realization%field%work_loc, &
+        call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
         this%option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
@@ -631,7 +626,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       this%option%io_buffer = 'An origin must be defined for dip rotation.'
       call PrintErrMsg(this%option)
     endif
-    call VecGetArrayF90(this%realization%field%work,work_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       z = grid%z(ghosted_id)
@@ -674,11 +669,9 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         enddo
       enddo
     endif
-    call VecRestoreArrayF90(this%realization%field%work,work_p, &
-                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-    call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                            ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax 
       do idof = 0, this%option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
@@ -686,8 +679,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       !geh: remove after 9/30/19
       !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
     enddo
-    call VecRestoreArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                                ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
       do idof = 0, this%option%nflowdof
