@@ -241,7 +241,8 @@ subroutine GeneralInitializeTimestep(realization)
     realization%patch%aux%global%auxvars(:)%istatechng = PETSC_FALSE
   endif
   
-  general_newton_iteration_number = 0
+  general_newton_iteration_number = -1
+  general_nonlinear_fail_num = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
@@ -1289,6 +1290,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt, save :: iplot = 0
   PetscInt :: flow_src_sink_type
 
+  PetscInt :: temp_iter_num
+  PetscInt :: temp_fail_num
+  PetscInt :: snes_iter_num
+  
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
@@ -1322,8 +1327,28 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
   
+  temp_iter_num = general_newton_iteration_number
+  call SNESGetIterationNumber(snes,general_newton_iteration_number, &
+                              ierr); CHKERRQ(ierr)
+  if (temp_iter_num < general_newton_iteration_number) then
+    general_sub_newton_iter_num = 1
+  endif
+  temp_fail_num = general_nonlinear_fail_num
+  call SNESGetNonlinearStepFailures(snes,general_nonlinear_fail_num, &
+                                    ierr); CHKERRQ(ierr)
+  if (temp_fail_num == general_nonlinear_fail_num) then
+    general_sub_newton_iter_num = 1
+  else
+    general_sub_newton_iter_num = general_sub_newton_iter_num + 1
+  endif
+  if (temp_iter_num == -1) then
+    general_newton_iteration_number = 0
+  else
+    general_newton_iteration_number = general_newton_iteration_number + 1
+  endif
+ 
   
-  general_newton_iteration_number = general_newton_iteration_number + 1
+!  general_newton_iteration_number = general_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop
   !   it > 1 and mod(it-1,frequency) == 0

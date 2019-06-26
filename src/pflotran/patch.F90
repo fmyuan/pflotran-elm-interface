@@ -943,7 +943,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               case(WF_MODE)
                 allocate(coupler%flow_aux_mapping(WIPPFLO_MAX_INDEX))
                 allocate(coupler%flow_bc_type(THREE_INTEGER))
-                allocate(coupler%flow_aux_real_var(THREE_INTEGER, &
+                allocate(coupler%flow_aux_real_var(TWO_INTEGER, &
                                                    num_connections))
                 allocate(coupler%flow_aux_int_var(ONE_INTEGER,num_connections))
                 coupler%flow_aux_mapping = 0
@@ -1252,10 +1252,9 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
       select case(general%liquid_pressure%itype)
         case(DIRICHLET_BC)
           real_count = real_count + 1
+          coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = real_count
           select type(dataset => general%liquid_pressure%dataset)
             class is(dataset_ascii_type)
-              coupler%flow_aux_mapping(WIPPFLO_LIQUID_PRESSURE_INDEX) = &
-                real_count
               coupler%flow_aux_real_var(real_count,1:num_connections) = &
                 dataset%rarray(1)
               coupler%flow_bc_type(WIPPFLO_LIQUID_EQUATION_INDEX) = &
@@ -1290,10 +1289,9 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
       select case(general%gas_saturation%itype)
         case(DIRICHLET_BC)
           real_count = real_count + 1
+          coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = real_count
           select type(dataset => general%gas_saturation%dataset)
             class is(dataset_ascii_type)
-              coupler%flow_aux_mapping(WIPPFLO_GAS_SATURATION_INDEX) = &
-                real_count
               coupler%flow_aux_real_var(real_count,1:num_connections) = &
                 dataset%rarray(1)
               coupler%flow_bc_type(WIPPFLO_GAS_EQUATION_INDEX) = DIRICHLET_BC
@@ -1391,6 +1389,12 @@ subroutine PatchUpdateCouplerAuxVarsWF(patch,coupler,option)
     !    option%io_buffer = 'Unknown dataset class for general%energy_flux.'
     !    call PrintErrMsg(option)
     !end select
+  endif
+
+  if (real_count > 2) then
+    option%io_buffer = &
+      'More than two dofs assigned in PatchUpdateCouplerAuxVarsWF.'
+    call PrintErrMsg(option)
   endif
 
   if (associated(general%rate)) then
