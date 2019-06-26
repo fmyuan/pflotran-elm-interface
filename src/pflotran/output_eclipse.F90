@@ -233,7 +233,7 @@ end subroutine WriteEclipseFilesInit
 
 ! *************************************************************************** !
 
-subroutine WriteEclipseFilesSpec(zm, zn, zu, ni)
+subroutine WriteEclipseFilesSpec(zm, zn, zu, ni, is_restart, restart_filename)
   !
   ! Writes spec file: this is an index to the values in the summary files
   !
@@ -244,12 +244,14 @@ subroutine WriteEclipseFilesSpec(zm, zn, zu, ni)
 
   character(len = 8), intent(in) :: zm(:), zn(:), zu(:)
   PetscInt, intent(in) :: ni
+  PetscBool, intent(in) :: is_restart
+  character(len=8), intent(in) :: restart_filename(9)
 
   if (e_opened) then
 
   ! Write spec file
 
-    call WriteSpecFile(zm, zn, zu, ni)
+    call WriteSpecFile(zm, zn, zu, ni, is_restart, restart_filename)
 
   ! Spec file complete, so can close
 
@@ -363,7 +365,8 @@ end subroutine SetProblemSize
 
 ! *************************************************************************** !
 
-subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
+subroutine WriteSpecFile(vmnem, vwgname, vunits, ni, &
+                         is_restart, restart_filename)
   !
   ! Write the spec file, containing mnemonics, well/group names and units
   !
@@ -374,6 +377,8 @@ subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
 
   character(len = 8), intent(in) :: vmnem(:), vwgname(:), vunits(:)
   PetscInt, intent(in) :: ni
+  PetscBool, intent(in) :: is_restart
+  character(len=8), intent(in) :: restart_filename(9)
 
   PetscInt, parameter :: nDimens    = 6
   PetscInt, parameter :: nStartData = 6
@@ -411,6 +416,9 @@ subroutine WriteSpecFile(vmnem, vwgname, vunits, ni)
 
   ! Write out values
 
+  if (is_restart) then
+    call WriteBlockC(restart_filename, 'RESTART', 9)
+  endif
   call WriteBlockI(vdimens  , 'DIMENS'  , nDimens   )
   call WriteBlockC(vmnem    , 'KEYWORDS', ni)
   call WriteBlockC(vwgname  , 'WGNAMES' , ni)
@@ -743,7 +751,7 @@ subroutine WriteRestFile(vsoll, nsol, zsol, time, is_ioproc, &
   PetscReal, allocatable :: vbuf(:)
 
   PetscReal :: conv, tconv
-  PetscBool :: is_pressure
+  PetscBool :: is_pressure,is_psat
 
   PetscInt :: isol, hours, mins, microsecs, years, months, days, &
               ic, il, nproc, &
@@ -818,9 +826,11 @@ subroutine WriteRestFile(vsoll, nsol, zsol, time, is_ioproc, &
   do isol = 1, nsol
 
     is_pressure = StringCompareIgnoreCase(zsol(isol), 'PRESSURE')
+    is_psat     = StringCompareIgnoreCase(zsol(isol), 'PSAT'    )
 
+! Conv. from Pflotran Pa to Eclipse Bars
     conv = 1.0
-    if (is_pressure) conv = 1.0E-5 ! Conv. from Pflotran Pa to Eclipse Bars
+    if (is_pressure .or. is_psat) conv = 1.0E-5
 
     if (is_ioproc) then
       ! Add the local bit on this proc
@@ -1011,8 +1021,13 @@ subroutine WriteWells(wname, wtype, wncmpl, ixcmpl, iycmpl, izcmpl, idcmpl)
 
     ! Set up well locations
 
-    iwpx = ixcmpl(ibcmpl+1)
-    iwpy = iycmpl(ibcmpl+1)
+   if (ncmpl > 0) then
+      iwpx = ixcmpl(ibcmpl+1)
+      iwpy = iycmpl(ibcmpl+1)
+    else
+      iwpx = 1
+      iwpy = 1
+    endif
 
     ! Find required base pointers into well structures
 
