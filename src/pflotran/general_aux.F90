@@ -28,6 +28,8 @@ module General_Aux_module
   PetscBool, public :: general_harmonic_diff_density = PETSC_TRUE
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
+  PetscInt, public :: general_sub_newton_iter_num = 0
+  PetscInt, public :: general_nonlinear_fail_num = 0
 
   PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
 
