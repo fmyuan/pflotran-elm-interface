@@ -5,11 +5,6 @@ module Transport_Constraint_module
 
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-#if 0
-!geh: breaks pflotran_rxn build
-! have to comment line to prevent addition to dependencies
-!  use NW_Transport_Aux_module
-#endif
   use Global_Aux_module
   
   use Reaction_Surface_Complexation_Aux_module  
@@ -48,10 +43,6 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
-#if 0
-!geh: breaks pflotran_rxn build
-    type(nwt_species_constraint_type), pointer :: nwt_species
-#endif
     PetscBool :: equilibrate_at_each_cell
     type(tran_constraint_type), pointer :: next    
   end type tran_constraint_type
@@ -79,11 +70,6 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
-#if 0
-!geh: breaks pflotran_rxn build
-    type(nwt_species_constraint_type), pointer :: nwt_species
-    type(nw_transport_auxvar_type), pointer :: nwt_auxvar
-#endif
     type(global_auxvar_type), pointer :: global_auxvar
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
     type(tran_constraint_coupler_type), pointer :: next   
@@ -94,11 +80,7 @@ module Transport_Constraint_module
             TranConstraintDestroyList, &
             TranConstraintGetPtrFromList, &
             TranConstraintCreate, &
-            TranConstraintReadRT, &
-#if 0
-!geh: breaks pflotran_rxn build
-            TranConstraintReadNWT, &
-#endif
+            TranConstraintRead, &
             TranConstraintMapToCoupler, &
             TranConstraintDestroy, &
             TranConstraintCouplerCreate, &
@@ -135,10 +117,6 @@ function TranConstraintCreate(option)
   nullify(constraint%surface_complexes)
   nullify(constraint%colloids)
   nullify(constraint%immobile_species)
-#if 0
-!geh: breaks pflotran_rxn build
-  nullify(constraint%nwt_species)
-#endif
   nullify(constraint%next)
   constraint%id = 0
   constraint%name = ''
@@ -175,11 +153,6 @@ function TranConstraintCouplerCreate(option)
   nullify(coupler%surface_complexes)
   nullify(coupler%colloids)
   nullify(coupler%immobile_species)
-#if 0
-!geh: breaks pflotran_rxn build
-  nullify(coupler%nwt_species)
-  nullify(coupler%nwt_auxvar)
-#endif
   
   coupler%num_iterations = 0
   coupler%equilibrate_at_each_cell = PETSC_FALSE
@@ -197,7 +170,7 @@ end function TranConstraintCouplerCreate
 
 ! ************************************************************************** !
 
-subroutine TranConstraintReadRT(constraint,reaction,input,option)
+subroutine TranConstraintRead(constraint,reaction,input,option)
   ! 
   ! Reads a transport constraint from the input file
   ! 
@@ -712,154 +685,7 @@ subroutine TranConstraintReadRT(constraint,reaction,input,option)
   
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 
-end subroutine TranConstraintReadRT
-
-! ************************************************************************** !
-
-#if 0
-!geh: breaks pflotran_rxn build
-subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
-  ! 
-  ! Reads a transport constraint from the input file
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 05/29/2019
-  ! 
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-  use Option_module
-! have to comment line to prevent addition to dependencies
-!  use NW_Transport_Aux_module
-  use Input_Aux_module
-  use String_module
-  use Logging_module
-
-  implicit none
-  
-  type(tran_constraint_type) :: constraint
-  type(nw_trans_realization_type) :: nw_trans
-  type(input_type), pointer :: input
-  type(option_type) :: option
-  
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: block_string
-  PetscInt :: icomp
-  type(nwt_species_constraint_type), pointer :: nwt_species_constraint
-  PetscErrorCode :: ierr
-
-  call PetscLogEventBegin(logging%event_tran_constraint_read, &
-                          ierr);CHKERRQ(ierr)
-
-  ! read the constraint
-  input%ierr = 0
-  do
-  
-    call InputReadPflotranString(input,option)
-    call InputReadStringErrorMsg(input,option,'CONSTRAINT')
-        
-    if (InputCheckExit(input,option)) exit  
-
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
-      
-    select case(trim(word))
-
-      case('CONC','CONCENTRATIONS')
-
-        nwt_species_constraint => &
-          NWTSpeciesConstraintCreate(nw_trans,option)
-
-        block_string = 'CONSTRAINT, CONCENTRATIONS'
-        icomp = 0
-        do
-          call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option,block_string)
-          
-          if (InputCheckExit(input,option)) exit  
-          
-          icomp = icomp + 1        
-          
-          if (icomp > nw_trans%params%nspecies) then
-            option%io_buffer = 'Number of concentration constraints exceeds &
-                               &the number of species given in the &
-                               &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT block. &
-                               &Error in constraint: ' // trim(constraint%name)
-            call PrintErrMsg(option)
-          endif
-          
-          call InputReadWord(input,option,nwt_species_constraint%names(icomp), &
-                          PETSC_TRUE)
-          call InputErrorMsg(input,option,'species name',block_string)
-          option%io_buffer = 'Constraint Species: ' // &
-                             trim(nwt_species_constraint%names(icomp))
-          call PrintMsg(option)
-          
-          call InputReadDouble(input,option, &
-                               nwt_species_constraint%constraint_conc(icomp))
-          call InputErrorMsg(input,option,'concentration',block_string)
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputDefaultMsg(input,option,trim(block_string) // &
-                               'constraint type')
-          if (len_trim(word) > 0) then
-            call StringToUpper(word)
-            select case(word)
-              case('AQ','AQUEOUS')
-                nwt_species_constraint%constraint_type(icomp) = &
-                                                    CONSTRAINT_AQ_EQUILIBRIUM
-              case('PPT','PRECIPITATED')
-                nwt_species_constraint%constraint_type(icomp) = &
-                                                    CONSTRAINT_PPT_EQUILIBRIUM
-              case('SB','SORBED')
-                nwt_species_constraint%constraint_type(icomp) = &
-                                                    CONSTRAINT_SB_EQUILIBRIUM
-              case('T','TOTAL')
-                nwt_species_constraint%constraint_type(icomp) = &
-                                                    CONSTRAINT_T_EQUILIBRIUM
-              case default
-                option%io_buffer = 'Error in constraint: ' // &
-                  trim(constraint%name) // '. The constraint type given for &
-                  &species ' // trim(nwt_species_constraint%names(icomp)) // &
-                  ' is not recognized: ' // trim(word) // '. &
-                  &Options include: T, AQ, PPT, or SB only.'
-                call PrintErrMsg(option)
-            end select
-          else
-            option%io_buffer = 'Error in constraint: ' // &
-              trim(constraint%name) // '. A constraint type was not specified &
-              &for species ' // trim(nwt_species_constraint%names(icomp)) // '.'
-            call PrintErrMsg(option)
-          endif
-        enddo  
-        
-        if (icomp < nw_trans%params%nspecies) then
-          option%io_buffer = &
-                   'Number of concentration constraints is less than ' // &
-                   'number of species in species constraint.'
-          call PrintErrMsg(option)
-        endif
-        if (icomp > nw_trans%params%nspecies) then
-          option%io_buffer = &
-                   'Number of concentration constraints is greater than ' // &
-                   'number of species in species constraint.'
-          call PrintWrnMsg(option)
-        endif
-        
-        if (associated(constraint%nwt_species)) &
-          call NWTSpeciesConstraintDestroy(constraint%nwt_species)
-        constraint%nwt_species => nwt_species_constraint 
-               
-        
-      case default
-        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
-    end select 
-  
-  enddo  
-  
-  call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
-
-end subroutine TranConstraintReadNWT
-#endif
+end subroutine TranConstraintRead
 
 ! ************************************************************************** !
 
@@ -966,10 +792,6 @@ subroutine TranConstraintMapToCoupler(constraint_coupler,constraint)
   constraint_coupler%surface_complexes => constraint%surface_complexes
   constraint_coupler%colloids => constraint%colloids
   constraint_coupler%immobile_species => constraint%immobile_species
-#if 0
-!geh: breaks pflotran_rxn build
-  constraint_coupler%nwt_species => constraint%nwt_species
-#endif
   constraint_coupler%equilibrate_at_each_cell = &
     constraint%equilibrate_at_each_cell
 

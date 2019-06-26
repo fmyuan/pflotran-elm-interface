@@ -83,14 +83,6 @@ module NW_Transport_Aux_module
     type(species_type), pointer :: next
   end type species_type
   
-  type, public :: nwt_species_constraint_type
-    ! Any changes here must be incorporated within NWTProcessConstraint(),
-    ! where constraints are reordered
-    character(len=MAXWORDLENGTH), pointer :: names(:)
-    PetscReal, pointer :: constraint_conc(:)
-    PetscInt, pointer :: constraint_type(:)
-  end type nwt_species_constraint_type
-  
   type, public :: radioactive_decay_rxn_type
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: daughter_name
@@ -129,17 +121,14 @@ module NW_Transport_Aux_module
             NWTSpeciesCreate, &
             NWTRadDecayRxnCreate, &
             NWTRealizCreate, &
-            NWTSpeciesConstraintCreate, &
             NWTRead, &
             NWTReadPass2, &
-            NWTProcessConstraint, &
             NWTAuxVarInit, &
             NWTAuxVarCopy, &
             NWTAuxVarCopyInitialGuess, &
             NWTAuxDestroy, &
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
-            NWTSpeciesConstraintDestroy, &
             NWTransDestroy
             
 contains
@@ -523,37 +512,6 @@ end function NWTSpeciesCreate
 
 ! ************************************************************************** !
 
-function NWTSpeciesConstraintCreate(nw_trans,option)
-  ! 
-  ! Creates a nuclear waste transport species constraint object
-  ! 
-  ! Author: Jenn Frederick      
-  ! Date: 03/21/2019
-  ! 
-  use Option_module
-  
-  implicit none
-  
-  type(nw_trans_realization_type) :: nw_trans
-  type(option_type) :: option
-  type(nwt_species_constraint_type), pointer :: NWTSpeciesConstraintCreate
-
-  type(nwt_species_constraint_type), pointer :: constraint
-  
-  allocate(constraint)
-  allocate(constraint%names(nw_trans%params%nspecies))
-  constraint%names = ''
-  allocate(constraint%constraint_conc(nw_trans%params%nspecies))
-  constraint%constraint_conc = 0.d0
-  allocate(constraint%constraint_type(nw_trans%params%nspecies))
-  constraint%constraint_type = 0
-
-  NWTSpeciesConstraintCreate => constraint
-
-end function NWTSpeciesConstraintCreate
-
-! ************************************************************************** !
-
 function NWTRadDecayRxnCreate()
   ! 
   ! Allocate and initialize a radioactive decay reaction object.
@@ -695,73 +653,6 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
   enddo
     
 end subroutine NWTVerifySpecies
-
-! ************************************************************************** ! 
-
-subroutine NWTProcessConstraint(nw_trans,constraint_name, &
-                                nwt_species_constraint,option)
-  ! 
-  ! Ensures ordering of species is consistant between the nw_trans object
-  ! and the constraint object. 
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/22/2019
-  ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
-  use Option_module
-  use String_module
-  use Utility_module
-  
-  implicit none
-  
-  type(nw_trans_realization_type), pointer :: nw_trans
-  character(len=MAXWORDLENGTH) :: constraint_name
-  type(nwt_species_constraint_type), pointer :: nwt_species_constraint
-  type(option_type) :: option
-  
-  PetscBool :: found
-  PetscInt :: ispecies, jspecies
-  PetscReal :: constraint_conc(nw_trans%params%nspecies)
-  PetscInt :: constraint_type(nw_trans%params%nspecies)
-  character(len=MAXWORDLENGTH) :: constraint_species_names( &
-                                                     nw_trans%params%nspecies)
-  
-  constraint_conc = 0.d0
-  constraint_type = 0
-  constraint_species_names = ''
-  
-  do ispecies = 1, nw_trans%params%nspecies
-    found = PETSC_FALSE
-    do jspecies = 1, nw_trans%params%nspecies
-      if (StringCompare(nwt_species_constraint%names(ispecies), &
-                        nw_trans%species_names(jspecies),MAXWORDLENGTH)) then
-        found = PETSC_TRUE
-        exit
-      endif
-    enddo
-    if (.not.found) then
-      option%io_buffer = &
-               'Species ' // trim(nwt_species_constraint%names(ispecies)) // &
-               ' from CONSTRAINT ' // trim(constraint_name) // &
-               ' not found among species.'
-      call PrintErrMsg(option)
-    else
-      constraint_conc(jspecies) = &
-                               nwt_species_constraint%constraint_conc(ispecies)
-      constraint_type(jspecies) = &
-                               nwt_species_constraint%constraint_type(ispecies)
-      constraint_species_names(jspecies) = &
-                                         nwt_species_constraint%names(ispecies)
-    endif
-  enddo
-  
-  ! place ordered constraint parameters back in original arrays
-  nwt_species_constraint%constraint_conc = constraint_conc
-  nwt_species_constraint%constraint_type = constraint_type
-  nwt_species_constraint%names = constraint_species_names
-    
-end subroutine NWTProcessConstraint
 
 ! ************************************************************************** !
 
@@ -905,33 +796,6 @@ subroutine NWTAuxDestroy(aux)
   nullify(aux)
 
 end subroutine NWTAuxDestroy
-
-! ************************************************************************** !
-
-subroutine NWTSpeciesConstraintDestroy(constraint)
-  ! 
-  ! Deallocates a nuclear waste transport species constraint object
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/21/2019
-  ! 
-
-  use Utility_module, only: DeallocateArray
-  
-  implicit none
-  
-  type(nwt_species_constraint_type), pointer :: constraint
-  
-  if (.not.associated(constraint)) return
-  
-  call DeallocateArray(constraint%names)
-  call DeallocateArray(constraint%constraint_conc)
-  call DeallocateArray(constraint%constraint_type)
-
-  deallocate(constraint)
-  nullify(constraint)
-
-end subroutine NWTSpeciesConstraintDestroy
 
 ! ************************************************************************** !
 

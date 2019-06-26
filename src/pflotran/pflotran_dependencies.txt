@@ -56,17 +56,19 @@ communicator_unstructured.o : communicator_base.o dm_kludge.o \
                               pflotran_constants.o
 condition.o : dataset.o dataset_ascii.o dataset_base.o general_aux.o \
               global_aux.o hdf5_aux.o input_aux.o logging.o lookup_table.o \
-              nw_transport_aux.o option.o pflotran_constants.o \
-              pm_toil_ims_aux.o pm_towg_aux.o reaction_aux.o string.o \
-              time_storage.o transport_constraint.o units.o utility.o
+              nw_transport_aux.o nw_transport_constraint.o option.o \
+              pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
+              reaction_aux.o string.o time_storage.o transport_constraint.o \
+              units.o utility.o
 condition_control.o : condition.o connection.o coupler.o dataset.o \
                       dataset_base.o dataset_common_hdf5.o \
                       dataset_gridded_hdf5.o discretization.o eos_water.o \
                       field.o general_aux.o global.o global_aux.o grid.o \
                       hdf5.o hydrate.o material_aux.o nw_transport.o \
-                      nw_transport_aux.o option.o patch.o pflotran_constants.o \
-                      pm_toil_ims_aux.o pm_towg_aux.o reaction.o \
-                      reaction_aux.o reactive_transport.o \
+                      nw_transport_aux.o nw_transport_constraint.o \
+                      nw_transport_equilibrium.o option.o patch.o \
+                      pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
+                      reaction.o reaction_aux.o reactive_transport.o \
                       reactive_transport_aux.o realization_subsurface.o \
                       realization_surface.o region.o surface_field.o \
                       surface_global_aux.o surface_th_aux.o \
@@ -163,8 +165,9 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        hdf5_aux.o hydrate.o init_common.o init_subsurface.o \
                        init_subsurface_flow.o init_subsurface_transport.o \
                        input_aux.o integral_flux.o logging.o material.o \
-                       nw_transport.o nw_transport_aux.o observation.o \
-                       option.o output.o output_aux.o output_tecplot.o patch.o \
+                       nw_transport.o nw_transport_aux.o \
+                       nw_transport_constraint.o observation.o option.o \
+                       output.o output_aux.o output_tecplot.o patch.o \
                        pflotran_constants.o pm_auxiliary.o pm_base.o \
                        pm_base_pointer.o pm_flash2.o pm_general.o pm_immis.o \
                        pm_miscible.o pm_mphase.o pm_nwt.o pm_richards.o \
@@ -421,6 +424,12 @@ nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  transport_constraint.o
 nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
                      pflotran_constants.o string.o utility.o
+nw_transport_constraint.o : global_aux.o input_aux.o logging.o \
+                            nw_transport_aux.o option.o pflotran_constants.o \
+                            string.o utility.o
+nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
+                             nw_transport_constraint.o option.o \
+                             pflotran_constants.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
                 region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
@@ -493,14 +502,14 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           grid_unstructured_cell.o hydrate.o hydrostatic.o \
           hydrostatic_multi_phase.o immis_aux.o integral_flux.o material.o \
           material_aux.o miscible_aux.o mphase_aux.o nw_transport_aux.o \
-          observation.o option.o output_aux.o pflotran_constants.o \
-          pm_toil_ims_aux.o pm_towg_aux.o reaction.o reaction_aux.o \
-          reaction_mineral.o reaction_mineral_aux.o \
-          reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
-          richards_aux.o saturation.o saturation_function.o strata.o string.o \
-          surface_auxiliary.o surface_field.o surface_material.o th_aux.o \
-          transport_constraint.o upwind_direction.o utility.o variables.o \
-          wipp_flow_aux.o
+          nw_transport_constraint.o nw_transport_equilibrium.o observation.o \
+          option.o output_aux.o pflotran_constants.o pm_toil_ims_aux.o \
+          pm_towg_aux.o reaction.o reaction_aux.o reaction_mineral.o \
+          reaction_mineral_aux.o reaction_surf_complex_aux.o \
+          reactive_transport_aux.o region.o richards_aux.o saturation.o \
+          saturation_function.o strata.o string.o surface_auxiliary.o \
+          surface_field.o surface_material.o th_aux.o transport_constraint.o \
+          upwind_direction.o utility.o variables.o wipp_flow_aux.o
 pflotran.o : factory_pflotran.o factory_subsurface.o multisimulation.o \
              option.o pflotran_constants.o pflotran_provenance.o \
              simulation_base.o
@@ -826,13 +835,14 @@ realization_subsurface.o : characteristic_curves.o communicator_structured.o \
                            fluid.o grid.o grid_grdecl.o grid_structured.o \
                            grid_unstructured.o grid_unstructured_aux.o \
                            grid_unstructured_cell.o input_aux.o material.o \
-                           material_aux.o nw_transport_aux.o option.o \
-                           output_aux.o output_eclipse.o patch.o \
-                           pflotran_constants.o reaction.o reaction_aux.o \
-                           reactive_transport_aux.o realization_base.o \
-                           region.o saturation_function.o strata.o string.o \
-                           time_storage.o transport_constraint.o variables.o \
-                           waypoint.o well_data.o
+                           material_aux.o nw_transport_aux.o \
+                           nw_transport_constraint.o option.o output_aux.o \
+                           output_eclipse.o patch.o pflotran_constants.o \
+                           reaction.o reaction_aux.o reactive_transport_aux.o \
+                           realization_base.o region.o saturation_function.o \
+                           strata.o string.o time_storage.o \
+                           transport_constraint.o variables.o waypoint.o \
+                           well_data.o
 realization_surface.o : condition.o coupler.o dataset.o dataset_base.o debug.o \
                         discretization.o dm_kludge.o field.o grid.o \
                         grid_unstructured.o grid_unstructured_aux.o \

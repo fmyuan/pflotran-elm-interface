@@ -846,6 +846,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use NW_Transport_Aux_module
+  use NWT_Constraint_module
   use Global_Aux_module
   use Condition_module
   use Transport_Constraint_module
@@ -866,6 +867,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
   type(coupler_type), pointer :: coupler
   type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
+  type(nwt_constraint_coupler_type), pointer :: cur_nwt_constraint_coupler
   PetscInt :: idof
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: temp_int
@@ -1046,40 +1048,59 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
     endif ! associated(coupler%connection_set)
 
     ! TRANSPORT
-    if (associated(coupler%tran_condition)) then
-      cur_constraint_coupler => &
-        coupler%tran_condition%constraint_coupler_list
-      do
-        if (.not.associated(cur_constraint_coupler)) exit
-        ! Setting option%iflag = 0 ensures that the "mass_balance" array
-        ! is not allocated.
-        option%iflag = 0
-        ! Only allocate the XXX_auxvar objects if they have not been allocated.
-        ! Since coupler%tran_condition is a pointer to a separate list of
-        ! tran conditions, the XXX_auxvar object may already be allocated.
-        if (.not.associated(cur_constraint_coupler%global_auxvar)) then
-          allocate(cur_constraint_coupler%global_auxvar)
-          call GlobalAuxVarInit(cur_constraint_coupler%global_auxvar,option)
-        endif
-        if ( (associated(patch%reaction)) .and. &
-             (.not.associated(cur_constraint_coupler%rt_auxvar)) ) then
-          allocate(cur_constraint_coupler%rt_auxvar)
-          call RTAuxVarInit(cur_constraint_coupler%rt_auxvar,patch%reaction, &
-                            option)
-        endif
-#if 0
-!geh: breaks pflotran_rxn build
-        if ( (associated(patch%nw_trans)) .and. &
-             (.not.associated(cur_constraint_coupler%nwt_auxvar)) ) then
-          allocate(cur_constraint_coupler%nwt_auxvar)
-          call NWTAuxVarInit(cur_constraint_coupler%nwt_auxvar,patch%nw_trans, &
-                             option)
-        endif
-#endif
-        cur_constraint_coupler => cur_constraint_coupler%next
-      enddo
+    if (associated(patch%reaction)) then
+      if (associated(coupler%tran_condition)) then
+        cur_constraint_coupler => &
+                                coupler%tran_condition%constraint_coupler_list
+        do
+          if (.not.associated(cur_constraint_coupler)) exit
+          ! Setting option%iflag = 0 ensures that the "mass_balance" array
+          ! is not allocated.
+          option%iflag = 0
+          ! Only allocate the XXX_auxvar objects if they have not been allocated.
+          ! Since coupler%tran_condition is a pointer to a separate list of
+          ! tran conditions, the XXX_auxvar object may already be allocated.
+          if (.not.associated(cur_constraint_coupler%global_auxvar)) then
+            allocate(cur_constraint_coupler%global_auxvar)
+            call GlobalAuxVarInit(cur_constraint_coupler%global_auxvar,option)
+          endif
+          if (.not.associated(cur_constraint_coupler%rt_auxvar)) then
+            allocate(cur_constraint_coupler%rt_auxvar)
+            call RTAuxVarInit(cur_constraint_coupler%rt_auxvar,patch%reaction, &
+                              option)
+          endif
+          cur_constraint_coupler => cur_constraint_coupler%next
+        enddo
+      endif
     endif
-
+    
+    if (associated(patch%nw_trans)) then
+      if (associated(coupler%tran_condition)) then
+        cur_nwt_constraint_coupler => &
+                             coupler%tran_condition%nwt_constraint_coupler_list
+        do
+          if (.not.associated(cur_nwt_constraint_coupler)) exit
+          ! Setting option%iflag = 0 ensures that the "mass_balance" array
+          ! is not allocated.
+          option%iflag = 0
+          ! Only allocate the XXX_auxvar objects if they have not been allocated.
+          ! Since coupler%tran_condition is a pointer to a separate list of
+          ! tran conditions, the XXX_auxvar object may already be allocated.
+          if (.not.associated(cur_nwt_constraint_coupler%global_auxvar)) then
+            allocate(cur_nwt_constraint_coupler%global_auxvar)
+            call GlobalAuxVarInit(cur_nwt_constraint_coupler%global_auxvar, &
+                                  option)
+          endif
+          if (.not.associated(cur_nwt_constraint_coupler%nwt_auxvar)) then
+            allocate(cur_nwt_constraint_coupler%nwt_auxvar)
+            call NWTAuxVarInit(cur_nwt_constraint_coupler%nwt_auxvar, &
+                               patch%nw_trans,option)
+          endif
+          cur_nwt_constraint_coupler => cur_nwt_constraint_coupler%next
+        enddo
+      endif
+    endif
+    
     coupler => coupler%next
   enddo
 
@@ -4013,8 +4034,9 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
 
   use Reaction_module
   use Reactive_Transport_Aux_module
-  !use NW_Transport_module
   use NW_Transport_Aux_module
+  use NWT_Equilibrium_module
+  use NWT_Constraint_module
   use Reaction_Aux_module
   use Global_Aux_module
   use Material_Aux_class
@@ -4035,6 +4057,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   class(material_auxvar_type), allocatable :: material_auxvar
   type(coupler_type), pointer :: cur_coupler
   type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
+  type(nwt_constraint_coupler_type), pointer :: cur_nwt_constraint_coupler
   PetscReal :: dum1
   PetscErrorCode :: ierr
 
@@ -4055,16 +4078,25 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       call PrintErrMsg(option)
     endif
 
-    cur_constraint_coupler => &
-      cur_coupler%tran_condition%constraint_coupler_list
+    if (associated(reaction)) then
+      cur_constraint_coupler => &
+        cur_coupler%tran_condition%constraint_coupler_list
+    endif
+    if (associated(nw_trans)) then
+      cur_nwt_constraint_coupler => &
+        cur_coupler%tran_condition%nwt_constraint_coupler_list
+    endif
     do
-      if (.not.associated(cur_constraint_coupler)) exit
-      global_auxvar => cur_constraint_coupler%global_auxvar
-      rt_auxvar => cur_constraint_coupler%rt_auxvar
-#if 0
-!geh: breaks pflotran_rxn build
-      nwt_auxvar => cur_constraint_coupler%nwt_auxvar
-#endif
+      if (associated(reaction)) then
+        if (.not.associated(cur_constraint_coupler)) exit
+        global_auxvar => cur_constraint_coupler%global_auxvar
+        rt_auxvar => cur_constraint_coupler%rt_auxvar
+      endif
+      if (associated(nw_trans)) then
+        if (.not.associated(cur_nwt_constraint_coupler)) exit
+        global_auxvar => cur_nwt_constraint_coupler%global_auxvar
+        nwt_auxvar => cur_nwt_constraint_coupler%nwt_auxvar
+      endif
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then
@@ -4109,8 +4141,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
 
       if (associated(reaction)) then
         call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
-                            material_auxvar, &
-                            reaction,cur_constraint_coupler%constraint_name, &
+                            material_auxvar,reaction, &
+                            cur_constraint_coupler%constraint_name, &
                             cur_constraint_coupler%aqueous_species, &
                             cur_constraint_coupler%free_ion_guess, &
                             cur_constraint_coupler%minerals, &
@@ -4122,11 +4154,10 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       endif
       
       if (associated(nw_trans)) then
-       ! jenn:todo Need to fix dependency here!
-       ! call NWTEquilibrateConstraint(nw_trans, &
-       !                               cur_constraint_coupler%nwt_species, &
-       !                               nwt_auxvar,global_auxvar, &
-       !                               material_auxvar,option)
+        call NWTEquilibrateConstraint(nw_trans, &
+                                      cur_nwt_constraint_coupler%nwt_species, &
+                                      nwt_auxvar,global_auxvar, &
+                                      material_auxvar,option)
       endif
       
       ! update CO2 mole fraction for CO2 modes
@@ -4142,7 +4173,12 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
             endif
           endif
       end select
-      cur_constraint_coupler => cur_constraint_coupler%next
+      if (associated(reaction)) then
+        cur_constraint_coupler => cur_constraint_coupler%next
+      endif
+      if (associated(nw_trans)) then
+        cur_nwt_constraint_coupler => cur_nwt_constraint_coupler%next
+      endif
     enddo
     cur_coupler => cur_coupler%next
   enddo

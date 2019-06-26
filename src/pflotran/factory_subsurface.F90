@@ -2139,6 +2139,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Reaction_Aux_module
   use NW_Transport_module
   use NW_Transport_Aux_module
+  use NWT_Constraint_module
   use Discretization_module
   use Input_Aux_module
   use String_module
@@ -2201,6 +2202,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
   type(tran_constraint_type), pointer :: tran_constraint
+  type(nwt_constraint_type), pointer :: nwt_constraint
   type(tran_constraint_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
@@ -2494,7 +2496,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name')
         call PrintMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
-                               realization%transport_constraints,reaction, &
+                               realization%transport_constraints, &
+                               realization%nwt_constraints, &
+                               reaction, &
                                realization%nw_trans,rt_on,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
@@ -2508,22 +2512,28 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call PrintErrMsg(option)
         endif
-        tran_constraint => TranConstraintCreate(option)
-        call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'constraint','name')
-        call PrintMsg(option,tran_constraint%name)
-        if (associated(reaction)) &
-          call TranConstraintReadRT(tran_constraint,reaction,input,option)
-#if 0
-!geh: breaks pflotran_rxn build
-        if (associated(realization%nw_trans)) &
-          call TranConstraintReadNWT(tran_constraint,realization%nw_trans, &
-                                     input,option)
-#endif
-        call TranConstraintAddToList(tran_constraint, &
-                                     realization%transport_constraints)
-        nullify(tran_constraint)
-
+        
+        if (associated(reaction)) then
+          tran_constraint => TranConstraintCreate(option)
+          call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint','name')
+          call PrintMsg(option,tran_constraint%name)
+          call TranConstraintRead(tran_constraint,reaction,input,option)
+          call TranConstraintAddToList(tran_constraint, &
+                                       realization%transport_constraints)
+          nullify(tran_constraint)
+        endif
+        if (associated(realization%nw_trans)) then
+          nwt_constraint => NWTConstraintCreate(option)
+          call InputReadWord(input,option,nwt_constraint%name,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint','name')
+          call PrintMsg(option,nwt_constraint%name)
+          call NWTConstraintRead(nwt_constraint,realization%nw_trans, &
+                                 input,option)
+          call NWTConstraintAddToList(nwt_constraint, &
+                                      realization%nwt_constraints)
+          nullify(nwt_constraint)
+        endif
 
 !....................
       case ('BOUNDARY_CONDITION')
@@ -2714,7 +2724,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'secondary constraint','name')
         call PrintMsg(option,sec_tran_constraint%name)
-        call TranConstraintReadRT(sec_tran_constraint,reaction,input,option)
+        call TranConstraintRead(sec_tran_constraint,reaction,input,option)
         realization%sec_transport_constraint => sec_tran_constraint
         nullify(sec_tran_constraint)
 

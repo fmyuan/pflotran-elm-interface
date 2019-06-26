@@ -144,7 +144,9 @@ chem_obj = \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
-	${common_src}reaction_surf_complex_aux.o 
+	${common_src}reaction_surf_complex_aux.o \
+	${common_src}nw_transport_equilibrium.o \
+	${common_src}nw_transport_constraint.o 
 
 grid_obj = \
 	${common_src}connection.o \

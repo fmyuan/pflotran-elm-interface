@@ -1376,6 +1376,8 @@ subroutine CondControlAssignNWTranInitCond(realization)
   use Patch_module
   use NW_Transport_module
   use NW_Transport_Aux_module
+  use NWT_Constraint_module
+  use NWT_Equilibrium_module
   use Material_Aux_class
   use HDF5_module
   
@@ -1398,7 +1400,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(patch_type), pointer :: cur_patch
   type(nw_trans_realization_type), pointer :: nw_trans
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler
+  type(nwt_constraint_coupler_type), pointer :: constraint_coupler
 
   PetscInt :: iphase
   PetscInt :: offset
@@ -1431,21 +1433,18 @@ subroutine CondControlAssignNWTranInitCond(realization)
       if (.not.associated(initial_condition)) exit
         
       constraint_coupler => &
-        initial_condition%tran_condition%cur_constraint_coupler
+        initial_condition%tran_condition%cur_nwt_constraint_coupler
         
       do icell=1,initial_condition%region%num_cells
       
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
 
-#if 0
-!geh: breaks pflotran_rxn build
         call NWTEquilibrateConstraint(nw_trans,constraint_coupler%nwt_species, &
                                       constraint_coupler%nwt_auxvar, &
                                       constraint_coupler%global_auxvar, &
                                       material_auxvars(ghosted_id), &
                                       option)
-#endif
         
       
         iend = local_id*option%ntrandof
@@ -1459,11 +1458,8 @@ subroutine CondControlAssignNWTranInitCond(realization)
         
         ! species concentrations
         do idof = 1, nw_trans%params%nspecies 
-#if 0
-!geh: breaks pflotran_rxn build
           xx_p(offset+idof) = &
                            constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
-#endif
         enddo
 
       enddo ! icell=1,initial_condition%region%num_cells
