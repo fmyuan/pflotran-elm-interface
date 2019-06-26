@@ -1657,13 +1657,17 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          min_perturbation
        if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
            1.d3 * perturbation_tolerance) then
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * (perturbation_tolerance * &
-                                                 x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
-                                                 min_mole_fraction_pert)
+          pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+!         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * (perturbation_tolerance * &
+!                                                 x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
+!                                                 min_mole_fraction_pert)
        else
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
-                                                  x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
-                                                  min_mole_fraction_pert
+          pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
+!         I think it should be what's below, has to confirm with M. Nole. -hdp         
+!         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
+!                                                  x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
+!                                                  min_mole_fraction_pert
        endif
        pert(GENERAL_ENERGY_DOF) = -1.d0 * &
          (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
@@ -1739,7 +1743,7 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 !       x(GENERAL_AIR_PRESSURE_DOF) = &
 !         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
        x(GENERAL_GAS_SATURATION_DOF) = &
-            gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+         gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
 #ifdef HEEHO_PERTURBATION
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
           x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
@@ -1801,11 +1805,15 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        ! always perturb toward 0.5
        if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
          pert(GENERAL_GAS_SATURATION_DOF) = &
-           -1.d0*(perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF) + &
-           min_perturbation)
+           -1.d0*(perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)      
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+!           -1.d0*(perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF) + &
+!           min_perturbation)
        else
          pert(GENERAL_GAS_SATURATION_DOF) = &
-           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF) + min_perturbation
+           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)  
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+!           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF) + min_perturbation
        endif
 #else
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
@@ -1831,11 +1839,15 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        pert(GENERAL_GAS_PRESSURE_DOF) = &
          perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
        if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
-         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance * &
-                                            x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+!         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance * &
+!                                            x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
        else
-         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
-                                            x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance         
+!         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
+!                                            x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
        endif
 #endif
 #endif
