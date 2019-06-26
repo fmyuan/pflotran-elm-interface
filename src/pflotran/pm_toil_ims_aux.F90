@@ -1131,13 +1131,16 @@ type(option_type) :: option
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id,iphase
   PetscBool :: ispres
+  PetscBool :: istemp
 
   material_auxvars => material%auxvars
 
   ispres=PETSC_FALSE
+  istemp=PETSC_FALSE
   iphase=0
 
   if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
+  if( StringCompareIgnoreCase(zsol,'Temp'    ) ) istemp=PETSC_TRUE
   if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
   if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
 
@@ -1146,6 +1149,8 @@ type(option_type) :: option
     if (imat(ghosted_id) <= 0) cycle
     if( ispres ) then
       vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if( istemp ) then
+      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%temp
     else if ( iphase>0 ) then
       vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
     else
