@@ -213,15 +213,19 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
             write(*,'(" mode = Richards: p")')
           case(G_MODE) 
             write(*,'(" mode = General: p, sg/X, T")')
-            call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
-            if (trim(snes_type) == 'newtontr') then
-              general_using_newtontr = PETSC_TRUE
-            endif
           case(WF_MODE) 
             write(*,'(" mode = WIPP Flow: p, sg")')
           case(TOIL_IMS_MODE)   
         end select
       endif
+
+      select case(option%iflowmode)
+        case(G_MODE)
+          call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
+          if (trim(snes_type) == 'newtontr') then
+            general_using_newtontr = PETSC_TRUE
+          endif
+      end selectf
 
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
