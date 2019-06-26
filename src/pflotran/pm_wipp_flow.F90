@@ -419,7 +419,7 @@ subroutine PMWIPPFloRead(this,input)
           if (icount+1 > max_dirichlet_bc) then
             option%io_buffer = 'Must increase size of "max_dirichlet_bc" & 
               &in PMWIPPFloRead'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           call InputReadInt(input,option,temp_int)
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -452,23 +452,23 @@ subroutine PMWIPPFloRead(this,input)
       this%gas_sat_thresh_force_ts_cut) then
     option%io_buffer = 'The value of GAS_SAT_THRESH_FORCE_TS_CUT must &
                        &be larger than GAS_SAT_THRESH_FORCE_EXTRA_NI.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   ! Check the sign of given variables
   if (this%gas_sat_thresh_force_ts_cut < 0.d0) then
     option%io_buffer = 'The value of GAS_SAT_THRESH_FORCE_TS_CUT &
                        &must be positive.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (this%min_liq_pres_force_ts_cut > 0.d0) then
     option%io_buffer = 'The value of MIN_LIQ_PRES_FORCE_TS_CUT &
                        &must be negative.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (this%gas_sat_thresh_force_extra_ni < 0.d0) then
     option%io_buffer = 'The value of GAS_SAT_THRESH_FORCE_EXTRA_NI &
                        &must be positive.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   ! always calculate neg_log10_rel_gas_sat_change_ni automatically
   this%neg_log10_rel_gas_sat_change_ni = &
@@ -520,15 +520,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscInt :: ghosted_id, local_id
 
   grid => this%realization%patch%grid
+  field => this%realization%field
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
-                           this%realization%field%max_change_vecs, &
+  call VecDuplicateVecsF90(field%work,SIX_INTEGER,field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
   do i = 1, 3
-    call RealizationGetVariable(this%realization, &
-                                this%realization%field%max_change_vecs(i), &
+    call RealizationGetVariable(this%realization,field%max_change_vecs(i), &
                                 this%max_change_ivar(i),ZERO_INTEGER)
   enddo
 
@@ -553,7 +552,6 @@ recursive subroutine PMWIPPFloInitializeRun(this)
 
   ! read in alphas
   if (len_trim(this%alpha_dataset_name) > 0) then
-    field => this%realization%field
     string = 'BRAGFLO ALPHA Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%alpha_dataset_name, &
@@ -570,30 +568,28 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           d%realization_dependent)
         wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                                ierr);CHKERRQ(ierr)
+        call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
         do ghosted_id = 1, this%realization%patch%grid%ngmax
           do idof = 0, this%option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%alpha = work_loc_p(ghosted_id)
           enddo
         enddo
-        call VecRestoreArrayReadF90(this%realization%field%work_loc, &
+        call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
         this%option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
-        call printErrMsg(this%option)
+        call PrintErrMsg(this%option)
     end select
   else
     if (.not.wippflo_default_alpha .and. wippflo_use_lumped_harm_flux) then
       this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-      call printErrMsg(this%option)
+      call PrintErrMsg(this%option)
     endif
   endif
 
   ! read in elevations
   wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
   if (len_trim(this%elevation_dataset_name) > 0) then
-    field => this%realization%field
     string = 'BRAGFLO Elevation Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%elevation_dataset_name, &
@@ -610,8 +606,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           d%realization_dependent)
         wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-        call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                                ierr);CHKERRQ(ierr)
+        call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
         do ghosted_id = 1, this%realization%patch%grid%ngmax
           do idof = 0, this%option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
@@ -619,19 +614,19 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           !geh: remove after 9/30/19
           !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
         enddo
-        call VecRestoreArrayReadF90(this%realization%field%work_loc, &
+        call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
         this%option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
           &Elevation.'
-        call printErrMsg(this%option)
+        call PrintErrMsg(this%option)
     end select
   else if (Initialized(this%rotation_angle)) then
     if (.not.Initialized(this%rotation_origin(3))) then
       this%option%io_buffer = 'An origin must be defined for dip rotation.'
       call PrintErrMsg(this%option)
     endif
-    call VecGetArrayF90(this%realization%field%work,work_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       z = grid%z(ghosted_id)
@@ -674,11 +669,9 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         enddo
       enddo
     endif
-    call VecRestoreArrayF90(this%realization%field%work,work_p, &
-                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
-    call VecGetArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                            ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax 
       do idof = 0, this%option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
@@ -686,8 +679,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       !geh: remove after 9/30/19
       !print *, ghosted_id, wippflo_auxvars(0,ghosted_id)%elevation
     enddo
-    call VecRestoreArrayReadF90(this%realization%field%work_loc,work_loc_p, &
-                                ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
       do idof = 0, this%option%nflowdof
@@ -1034,7 +1026,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
 !    if (this%option%mycommsize > 1) then
 !      this%option%io_buffer = 'WIPP FLOW matrix scaling not allowed in &
 !        &parallel.'
-!      call printErrMsg(this%option)
+!      call PrintErrMsg(this%option)
 !    endif
     call VecGetLocalSize(this%scaling_vec,matsize,ierr);CHKERRQ(ierr)
     call VecSet(this%scaling_vec,1.d0,ierr);CHKERRQ(ierr)
@@ -1075,13 +1067,13 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   if (this%realization%debug%norm_Jacobian) then
     call MatNorm(A,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(this%option)
+    call PrintMsg(this%option)
     call MatNorm(A,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(this%option)
+    call PrintMsg(this%option)
     call MatNorm(A,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(this%option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(this%option)
+    call PrintMsg(this%option)
   endif
 
 end subroutine PMWIPPFloJacobian

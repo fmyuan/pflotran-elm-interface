@@ -100,7 +100,7 @@ subroutine TimeStorageVerify(default_time, time_storage, &
   if (time_storage%time_interpolation_method == INTERPOLATION_NULL) then
     option%io_buffer = 'Time interpolation method must be specified in ' // &
       trim(header) // '.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   time_storage%max_time_index = 1

@@ -225,7 +225,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   !
   !   option%io_buffer = 'NUMERICAL_JACOBIAN_RXN must always be used ' // &
   !                      'due to assumptions in Example'
-  !   call printErrMsg(option)
+  !   call PrintErrMsg(option)
   !
   ! rt_auxvar - Object holding chemistry information (e.g. concentrations,
   !   activity coefficients, mineral volume fractions, etc.).  See

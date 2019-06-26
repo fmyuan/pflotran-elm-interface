@@ -378,23 +378,23 @@ subroutine InitSubsurfAssignMatProperties(realization)
           option%io_buffer = 'No material property for material id ' // &
                               trim(adjustl(string)) &
                               //  ' defined in input file.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       endif
     else if (Uninitialized(material_id)) then 
       write(string,*) grid%nG2A(ghosted_id)
       option%io_buffer = 'Uninitialized material id in patch at cell ' // &
                           trim(adjustl(string))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else if (material_id > size(patch%material_property_array)) then
       write(option%io_buffer,*) patch%imat_internal_to_external(material_id)
       option%io_buffer = 'Unmatched material id in patch: ' // &
         adjustl(trim(option%io_buffer))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else
       option%io_buffer = 'Something messed up with material ids. Possibly &
         &material ids not assigned to all grid cells. Contact Glenn!'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     if (option%nflowdof > 0) then
       patch%sat_func_id(ghosted_id) = &
@@ -935,7 +935,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
           &wrong type for SubsurfReadDatasetToVecWithMask()'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   else
     call PetscLogEventBegin(logging%event_hash_map,ierr);CHKERRQ(ierr)
@@ -1049,7 +1049,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     dof_is_active = PETSC_TRUE
 #if defined(ISOTHERMAL)
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
       case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
@@ -1066,7 +1066,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%Richards%n_zero_rows, &
                       realization%patch%aux%Richards%inactive_cells_exist, &
                       option)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%TH%zero_rows_local, &
                       realization%patch%aux%TH%zero_rows_local_ghosted, &
@@ -1135,21 +1135,39 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
   endif
 
   if (option%ntrandof > 0) then
-    ! remove ndof above if this is moved
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-      ndof = realization%reaction%ncomp
-    else
-      ndof = 1
-    endif
-    allocate(dof_is_active(ndof))
-    dof_is_active = PETSC_TRUE  
-    call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                  realization%patch%aux%RT%zero_rows_local, &
-                  realization%patch%aux%RT%zero_rows_local_ghosted, &
-                  realization%patch%aux%RT%n_zero_rows, &
-                  realization%patch%aux%RT%inactive_cells_exist, &
-                  option)
-    deallocate(dof_is_active)
+    select case(option%itranmode)
+      case(NULL_MODE,EXPLICIT_ADVECTION)
+        ! remove ndof above if this is moved
+        if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+          ndof = realization%reaction%ncomp
+        else
+          ndof = 1
+        endif
+        allocate(dof_is_active(ndof))
+        dof_is_active = PETSC_TRUE  
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%RT%zero_rows_local, &
+                      realization%patch%aux%RT%zero_rows_local_ghosted, &
+                      realization%patch%aux%RT%n_zero_rows, &
+                      realization%patch%aux%RT%inactive_cells_exist, &
+                      option)
+        deallocate(dof_is_active)
+      case(NW_TRANSPORT)
+        if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
+          ndof = realization%nw_trans%params%nspecies
+        else
+          ndof = 1
+        endif
+        allocate(dof_is_active(ndof))
+        dof_is_active = PETSC_TRUE 
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%NWT%zero_rows_local, &
+                      realization%patch%aux%NWT%zero_rows_local_ghosted, &
+                      realization%patch%aux%NWT%n_zero_rows, &
+                      realization%patch%aux%NWT%inactive_cells_exist, &
+                      option)
+        deallocate(dof_is_active)
+    end select
   endif  
 
 end subroutine InitSubsurfaceSetupZeroArrays

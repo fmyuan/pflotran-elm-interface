@@ -167,7 +167,7 @@ subroutine MicrobialRead(microbial,input,option)
           option%io_buffer = 'A SPECIES_NAME, TYPE, and INHIBITION_CON' // &
             'STANT must be defined for INHIBITION in MICROBIAL_REACTION ' // &
             'with REACTION "' // trim(microbial_rxn%reaction) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! append to list
         if (.not.associated(microbial_rxn%inhibition)) then

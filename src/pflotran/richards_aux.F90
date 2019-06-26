@@ -282,7 +282,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         class default
           option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
             'sat_func_VG_type and sat_func_BC_type'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
@@ -296,7 +296,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
           rpf%m = auxvar%bc_lambda
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
 #endif
@@ -332,7 +332,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                          dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensity')
     endif
     ! may need to compute dpsat_dt to pass to VISW
@@ -345,7 +345,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
     endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
@@ -412,20 +412,14 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,optio
     call characteristic_curves%saturation_function% &
                                D2SatDP2(auxvar%pc, &
                                           d2s_dp2,option)
-    saturated = PETSC_FALSE
-    if (auxvar%dsat_dp < 1.d-40) saturated = PETSC_TRUE
-  else
-    saturated = PETSC_TRUE
   endif
 
-  if (saturated) then
-    pw2 = pw1 + dp
-    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
-                         dw_dp_1,dw_dt,ierr)
-    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
-                         dw_dp_2,dw_dt,ierr)
-    d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
-  endif
+  pw2 = pw1 + dp
+  call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
+                       dw_dp_1,dw_dt,ierr)
+  call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
+                       dw_dp_2,dw_dt,ierr)
+  d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
 
   auxvar%d2sat_dp2 = d2s_dp2
   auxvar%d2den_dp2 = d2den_dp2

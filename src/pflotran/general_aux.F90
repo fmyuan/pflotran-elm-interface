@@ -28,7 +28,8 @@ module General_Aux_module
   PetscBool, public :: general_harmonic_diff_density = PETSC_TRUE
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
-  
+
+  PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
 
   ! debugging
   PetscInt, public :: general_ni_count
@@ -90,6 +91,7 @@ module General_Aux_module
   
   type, public :: general_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
+    PetscInt :: hstate_store(2) 
     PetscReal, pointer :: pres(:)   ! (iphase)
     PetscReal, pointer :: sat(:)    ! (iphase)
     PetscReal, pointer :: den(:)    ! (iphase) kmol/m^3 phase
@@ -297,6 +299,7 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   type(option_type) :: option
 
   auxvar%istate_store = NULL_STATE
+  auxvar%hstate_store = NULL_STATE
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
@@ -408,6 +411,7 @@ subroutine GeneralAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%istate_store = auxvar%istate_store
+  auxvar2%hstate_store = auxvar%hstate_store
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
@@ -450,7 +454,7 @@ subroutine GeneralAuxSetEnergyDOF(energy_keyword,option)
     case default
       option%io_buffer = 'Energy Keyword: ' // trim(energy_keyword) // &
                           ' not recognized in General Mode'    
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine GeneralAuxSetEnergyDOF
@@ -571,7 +575,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       state_char = '2P'
   end select
 #else
-  !geh: do not initialize gen_auxvar%temp a the previous value is used as the
+  !geh: do not initialize gen_auxvar%temp as the previous value is used as the
   !     initial guess for two phase.
   gen_auxvar%H = 0.d0
   gen_auxvar%U = 0.d0
@@ -649,8 +653,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         write(option%io_buffer,'(''Negative gas pressure at cell '', &
           & i8,'' in GeneralAuxVarCompute(LIQUID_STATE).  Attempting bailout.'')') &
           natural_id
-!        call printErrMsgByRank(option)
-        call printMsgByRank(option)
+!        call PrintErrMsgByRank(option)
+        call PrintMsgByRank(option)
         ! set vapor pressure to just under saturation pressure
         gen_auxvar%pres(vpid) = 0.5d0*gen_auxvar%pres(spid)
         ! set gas pressure to vapor pressure + air pressure
@@ -740,8 +744,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%xmol_p(acid,lid) = 1.d0/gen_auxvar%pres(gid)
         gen_auxvar%d%xmol_p(wid,lid) = -gen_auxvar%d%xmol_p(acid,lid)
       endif                             
-      
+
     case(TWO_PHASE_STATE)
+
       gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
       
       !man
@@ -858,7 +863,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       write(option%io_buffer,*) global_auxvar%istate
       option%io_buffer = 'State (' // trim(adjustl(option%io_buffer)) // &
         ') not recognized in GeneralAuxVarCompute.'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
 
   end select
 
@@ -968,7 +973,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                         1.d-6)
 
   ! Gas phase thermodynamic properties
-  ! we cannot use %pres(vpid) as vapor pressre in the liquid phase, since
+  ! we cannot use %pres(vpid) as vapor pressure in the liquid phase, since
   ! it can go negative
   if (global_auxvar%istate /= LIQUID_STATE) then
     if (global_auxvar%istate == GAS_STATE) then
@@ -1274,13 +1279,13 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
   type(option_type) :: option
   
   
-  call printMsgByCell(option,natural_id, &
+  call PrintMsgByCell(option,natural_id, &
                       'Error in GeneralAuxVarCompute->EOSGasHenry')
   if (ierr == EOS_GAS_TEMP_BOUND_EXCEEDED) then
     option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
                                ' exceeds the equation of state temperature bound with ' // &
                                trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
 
   
@@ -1511,7 +1516,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
             write(state_change_string,*) natural_id
             option%io_buffer = 'Negative air pressure during state change ' // &
               'at ' // trim(adjustl(state_change_string))
-            call printMsgByRank(option)
+            call PrintMsgByRank(option)
             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
               0.01d0*x(GENERAL_GAS_PRESSURE_DOF)
           endif
@@ -1523,7 +1528,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           characteristic_curves,natural_id,option)
     state_change_string = 'State Transition: ' // trim(state_change_string)
     if (general_print_state_transition) then
-      call printMsgByRank(option,state_change_string)
+      call PrintMsgByRank(option,state_change_string)
     endif
 #ifdef DEBUG_GENERAL_INFO
     call GeneralPrintAuxVars(gen_auxvar,global_auxvar,material_auxvar, &
@@ -1858,11 +1863,11 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
             &'(''Change in state due to perturbation: '',i3,'' -> '',i3, &
             &'' at cell '',i3,'' for dof '',i3)') &
         global_auxvar%istate, global_auxvar_debug%istate, natural_id, idof
-      call printMsg(option)
+      call PrintMsg(option)
       write(option%io_buffer,'(''orig: '',6es17.8)') x(1:3)
-      call printMsg(option)
+      call PrintMsg(option)
       write(option%io_buffer,'(''pert: '',6es17.8)') x_pert_save(1:3)
-      call printMsg(option)
+      call PrintMsg(option)
     endif
 #endif
 

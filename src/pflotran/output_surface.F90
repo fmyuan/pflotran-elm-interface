@@ -216,7 +216,7 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
     
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
     call OutputTecplotHeader(OUTPUT_UNIT,surf_realization,icolumn)
   endif
@@ -825,7 +825,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+  call PrintMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -837,7 +837,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write xmf output file: ' // trim(xmf_filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeader(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &
@@ -1613,7 +1613,7 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+      call PrintMsg(option)
     endif
 
     ! Reset the vectors to zero
@@ -2052,14 +2052,14 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   surf_field => surf_realization%surf_field
 
   select case(option%iflowmode)
-    case (RICHARDS_MODE)
+    case (RICHARDS_MODE,RICHARDS_TS_MODE)
       ndof=1
-    case (TH_MODE)
+    case (TH_MODE,TH_TS_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate.and.output_option%print_hdf5_energy_flowrate) ndof = 2
     case default
       option%io_buffer='FLOWRATE output not supported in this mode'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call VecGetLocalSize(surf_field%flowrate_inst,local_size,ierr);CHKERRQ(ierr)
@@ -2092,9 +2092,9 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
         string = "Mass_Flowrate [kg_s]" // CHAR(0)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_s]" // CHAR(0)
         else
@@ -2102,7 +2102,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
         endif
       case default
         option%io_buffer='FLOWRATE output not implemented in this mode.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     if (var_list_type==AVERAGED_VARS) string = 'Aveg_' // trim(string) // CHAR(0)

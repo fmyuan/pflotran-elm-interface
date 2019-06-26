@@ -811,7 +811,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     case default
       option%io_buffer = &
         'Boundary condition type not recognized in WIPPFloBCFlux phase loop.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
@@ -919,7 +919,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
     case default
       option%io_buffer = &
         'Boundary condition type not recognized in WIPPFloBCFlux phase loop.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   if (dabs(v_darcy(iphase)) > 0.d0 .or. mobility > 0.d0) then
@@ -1121,7 +1121,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
     case default
       option%io_buffer = &
         'Boundary condition type not recognized in BRAGFloBCFlux phase loop.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   if (dabs(v_darcy(iphase)) > 0.d0 .or. rel_perm > 0.d0) then
     ! q[m^3 phase/sec] = v_darcy[m/sec] * area[m^2]
@@ -1212,7 +1212,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
     case default
       option%io_buffer = &
         'Boundary condition type not recognized in BRAGFloBCFlux phase loop.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   if (dabs(v_darcy(iphase)) > 0.d0 .or. rel_perm > 0.d0) then

@@ -9,7 +9,7 @@ module Global_Aux_module
   private 
 
   type, public :: global_auxvar_type
-    PetscInt :: istate
+    PetscInt :: istate, hstate
     PetscReal :: temp
     PetscReal, pointer :: pres(:)
     PetscReal, pointer :: pres_store(:,:)
@@ -104,6 +104,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   PetscInt :: nphase
   
   auxvar%istate = 0
+  auxvar%hstate = 0
   auxvar%temp = 0.d0
   auxvar%istatechng = PETSC_FALSE
 
@@ -140,7 +141,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
 
-  ! need these for reactive transport only if if flow if computed
+  ! need these for reactive transport only if flow is computed
   if (option%nflowdof > 0 .and. option%ntrandof > 0) then
     allocate(auxvar%sat_store(nphase,TWO_INTEGER))
     auxvar%sat_store = 0.d0
@@ -173,7 +174,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       auxvar%reaction_rate = 0.d0
       allocate(auxvar%reaction_rate_store(option%nflowspec))
       auxvar%reaction_rate_store = 0.d0
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
     ! allocate(auxvar%xmass(nphase))
     ! auxvar%xmass = 1.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))
@@ -244,6 +245,7 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%istate = auxvar%istate
+  auxvar2%hstate = auxvar%hstate
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat

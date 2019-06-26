@@ -441,7 +441,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+  call PrintMsg(option)
 
 end subroutine OutputHDF5OpenFile
 
@@ -630,7 +630,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename_path)
   endif
-  call printMsg(option)
+  call PrintMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -642,7 +642,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write xmf output file: ' // trim(filename_path)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeader(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &
@@ -1029,7 +1029,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     option%io_buffer = '--> appending to hdf5 output file: ' // &
                        trim(filename_path)
   endif
-  call printMsg(option)
+  call PrintMsg(option)
   
   domain_filename_path = trim(option%global_prefix) // '-domain.h5'
   domain_filename_header = trim(option%output_file_name_prefix) // '-domain.h5'
@@ -1047,7 +1047,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       domain_filename_header = domain_filename_path
         ! initialize fortran hdf5 interface 
       option%io_buffer = 'Opening hdf5 file: ' // trim(domain_filename_path)
-!      call printMsg(option)
+!      call PrintMsg(option)
       call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
       call HDF5OpenFileReadOnly(domain_filename_path,file_id2,prop_id,option)
       call h5pclose_f(prop_id,hdf5_err)
@@ -1056,7 +1056,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       if (hdf5_err /= 0) then
         option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
           &in file "' // trim(domain_filename_path) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
       ! should be a rank=2 data space
@@ -1070,7 +1070,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
       if (hdf5_err /= 0) then
         option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
           &in file "' // trim(domain_filename_path) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
       ! should be a rank=2 data space
@@ -1109,7 +1109,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   
   if (write_xdmf) then
     option%io_buffer = '--> write xmf output file: ' // trim(xmf_filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeader(OUTPUT_UNIT, &
                        option%time/output_option%tconv, &
@@ -2691,13 +2691,13 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   select case(option%iflowmode)
     case (RICHARDS_MODE,RICHARDS_TS_MODE)
       ndof=1
-    case (TH_MODE)
+    case (TH_MODE,TH_TS_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate .and. &
           output_option%print_hdf5_energy_flowrate) ndof = 2
     case default
       option%io_buffer='FLOWRATE output not supported in this mode'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call VecGetLocalSize(field%flowrate_inst,local_size,ierr);CHKERRQ(ierr)
@@ -2729,7 +2729,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     select case(option%iflowmode)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
         else
@@ -2737,7 +2737,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
         endif
       case default
         option%io_buffer='FLOWRATE output not implemented in this mode.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     if (var_list_type==AVERAGED_VARS) string = 'Aveg_' // trim(string) // &
@@ -2938,7 +2938,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   if (option%nphase == 1 .and. option%transport%nphase > 1) then
     option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
       &transport without flow in the gas phase.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
   local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)

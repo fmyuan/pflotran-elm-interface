@@ -404,7 +404,7 @@ subroutine SurfaceTHRHSFunction(ts,t,xx,ff,surf_realization,ierr)
           qsrc = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)*area_p(local_id)
         case default
           option%io_buffer = 'Source/Sink flow condition type not recognized'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       
       esrc = 0.d0
@@ -713,7 +713,7 @@ subroutine SurfaceTHComputeMaxDt(surf_realization,max_allowable_dt)
     write(option%io_buffer, &
           '("surface_th.F90: SurfaceTHComputeMaxDt --> negative max_allowable_dt!",es15.7)') &
           max_allowable_dt
-    call printErrMsg(option)     
+    call PrintErrMsg(option)
   endif
 
 end subroutine SurfaceTHComputeMaxDt
@@ -959,7 +959,7 @@ subroutine SurfaceTHBCFlux(ibndtype, &
       den      =  surf_global_auxvar_dn%den_kg(1)
     case default
       option%io_buffer = 'Unknown pressure_bc_type for surface flow '
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   if (vel>0.d0) then
@@ -974,7 +974,7 @@ subroutine SurfaceTHBCFlux(ibndtype, &
         dtemp = surf_global_auxvar_up%temp - surf_global_auxvar_dn%temp
       case default
         option%io_buffer = 'Unknown temperature_bc_type for surface flow '
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
 
@@ -1200,7 +1200,7 @@ subroutine EnergyToTemperatureBisection(T,TL,TR,h,energy,Cwi,Pr,option)
      print *,"[TL,TR] = ",TL,TR
      print *,"[fL,fR] = ",fL,fR
      write(option%io_buffer,'("surface_th.F90: EnergyToTemperatureBisection --> root is not bracketed")')
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
   T = 0.5d0*(TL+TR)
@@ -1232,7 +1232,7 @@ subroutine EnergyToTemperatureBisection(T,TL,TR,h,energy,Cwi,Pr,option)
   if (found .eqv. PETSC_FALSE) then
      print *,"[TL,T,TR] = ",TL,T,TR
      write(option%io_buffer,'("surface_th.F90: EnergyToTemperatureBisection --> root not found!")')
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
 end subroutine EnergyToTemperatureBisection
@@ -1478,7 +1478,7 @@ subroutine AtmEnergyToTemperatureBisection(T,TL,TR,shift,RHS,Pr,option)
      print *,"[TL,TR] = ",TL,TR
      print *,"[fL,fR] = ",fL,fR
      write(option%io_buffer,'("surface_th.F90: AtmEnergyToTemperatureBisection --> root is not bracketed")')
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
   T = 0.5d0*(TL+TR)
@@ -1510,7 +1510,7 @@ subroutine AtmEnergyToTemperatureBisection(T,TL,TR,shift,RHS,Pr,option)
   if (found .eqv. PETSC_FALSE) then
      print *,"[TL,T,TR] = ",TL,T,TR
      write(option%io_buffer,'("surface_th.F90: AtmEnergyToTemperatureBisection --> root not found!")')
-     call printErrMsg(option)
+     call PrintErrMsg(option)
   endif
 
 end subroutine AtmEnergyToTemperatureBisection

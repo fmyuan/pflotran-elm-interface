@@ -182,7 +182,7 @@ subroutine PMRTRead(this,input)
       case('INCLUDE_GAS_PHASE')
         option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
                            &has been deprecated.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
       case('MAX_CFL')
@@ -223,7 +223,7 @@ subroutine PMRTSetup(this)
   type(reactive_transport_param_type), pointer :: rt_parameter
 
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%Setup()')
+  call PrintMsg(this%option,'PMRT%Setup()')
 #endif
 
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
@@ -281,7 +281,7 @@ subroutine PMRTSetRealization(this,realization)
   class(realization_subsurface_type), pointer :: realization
 
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%SetRealization()')
+  call PrintMsg(this%option,'PMRT%SetRealization()')
 #endif
   
   this%realization => realization
@@ -322,7 +322,7 @@ recursive subroutine PMRTInitializeRun(this)
   PetscErrorCode :: ierr
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%InitializeRun()')
+  call PrintMsg(this%option,'PMRT%InitializeRun()')
 #endif
 
   ! check for uninitialized flow variables
@@ -365,7 +365,7 @@ recursive subroutine PMRTInitializeRun(this)
         'restarted simulation.  ReactionEquilibrateConstraint() will ' // &
         'appropriately set sorbed initial concentrations for a normal ' // &
         '(non-restarted) simulation.'
-      call printErrMsg(this%option)
+      call PrintErrMsg(this%option)
     endif
     call RTJumpStartKineticSorption(this%realization)
   endif
@@ -392,10 +392,9 @@ subroutine PMRTInitializeTimestep(this)
   implicit none
   
   class(pm_rt_type) :: this
-  PetscReal :: time
  
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%InitializeTimestep()')
+  call PrintMsg(this%option,'PMRT%InitializeTimestep()')
 #endif
 
   this%option%tran_dt = this%option%dt
@@ -451,7 +450,7 @@ subroutine PMRTPreSolve(this)
   PetscErrorCode :: ierr
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%UpdatePreSolve()')
+  call PrintMsg(this%option,'PMRT%UpdatePreSolve()')
 #endif
   
   ! set densities and saturations to t+dt
@@ -509,7 +508,7 @@ subroutine PMRTPostSolve(this)
   class(pm_rt_type) :: this
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%PostSolve()')
+  call PrintMsg(this%option,'PMRT%PostSolve()')
 #endif
   
 end subroutine PMRTPostSolve
@@ -592,7 +591,7 @@ function PMRTAcceptSolution(this)
   PetscBool :: PMRTAcceptSolution
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%AcceptSolution()')
+  call PrintMsg(this%option,'PMRT%AcceptSolution()')
 #endif
   ! do nothing
   PMRTAcceptSolution = PETSC_TRUE
@@ -624,7 +623,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal, parameter :: pert = 1.d-20
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%UpdateTimestep()')  
+  call PrintMsg(this%option,'PMRT%UpdateTimestep()')
 #endif
   
   if (this%volfrac_change_governor < 1.d0) then
@@ -688,7 +687,7 @@ recursive subroutine PMRTFinalizeRun(this)
   class(pm_rt_type) :: this
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%PMRTFinalizeRun()')
+  call PrintMsg(this%option,'PMRT%PMRTFinalizeRun()')
 #endif
   
   ! do something here
@@ -718,7 +717,7 @@ subroutine PMRTResidual(this,snes,xx,r,ierr)
   PetscErrorCode :: ierr
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%Residual()')  
+  call PrintMsg(this%option,'PMRT%Residual()')
 #endif
   
   call RTResidual(snes,xx,r,this%realization,ierr)
@@ -744,7 +743,7 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   PetscErrorCode :: ierr
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%Jacobian()')  
+  call PrintMsg(this%option,'PMRT%Jacobian()')
 #endif
 
   call RTJacobian(snes,xx,A,B,this%realization,ierr)
@@ -1039,7 +1038,7 @@ subroutine PMRTTimeCut(this)
   class(pm_rt_type) :: this
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%TimeCut()')
+  call PrintMsg(this%option,'PMRT%TimeCut()')
 #endif
   
   this%option%tran_dt = this%option%dt
@@ -1087,7 +1086,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   PetscBool :: update_kinetics
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%UpdateSolution()')
+  call PrintMsg(this%option,'PMRT%UpdateSolution()')
 #endif
   
   ! begin from RealizationUpdate()
@@ -1152,7 +1151,7 @@ subroutine PMRTMaxChange(this)
   class(pm_rt_type) :: this
   
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%MaxChange()')
+  call PrintMsg(this%option,'PMRT%MaxChange()')
 #endif
 
   print *, 'PMRTMaxChange not implemented'
@@ -1177,7 +1176,7 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
   PetscReal :: mass_balance_array(:)
 
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%MassBalance()')
+  call PrintMsg(this%option,'PMRT%MassBalance()')
 #endif
 
 #ifndef SIMPLIFY 

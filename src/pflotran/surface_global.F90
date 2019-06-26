@@ -366,7 +366,7 @@ subroutine SurfaceGlobalUpdateAuxVars(surf_realization,time_level)
                                     LIQUID_DENSITY,time_level)
 
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       ! head
       call RealizSurfGetVariable(surf_realization,surf_field%work, &
               SURFACE_LIQUID_HEAD,ZERO_INTEGER)

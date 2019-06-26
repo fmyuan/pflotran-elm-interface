@@ -173,7 +173,7 @@ subroutine ObservationRead(observation,input,option)
         else
           option%io_buffer = 'Keyword SECONDARY_TEMPERATURE can only be used' // &
                              ' MULTIPLE_CONTINUUM keyword'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('SECONDARY_CONCENTRATION')
         if (option%use_mc) then
@@ -181,7 +181,7 @@ subroutine ObservationRead(observation,input,option)
         else
           option%io_buffer = 'Keyword SECONDARY_CONCENTRATION can only be used' // &
                              ' MULTIPLE_CONTINUUM keyword'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_VOLFRAC')
         if (option%use_mc) then
@@ -189,7 +189,7 @@ subroutine ObservationRead(observation,input,option)
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_VOLFRAC can ' // &
                              'only be used MULTIPLE_CONTINUUM keyword'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_RATE')
         if (option%use_mc) then
@@ -197,7 +197,7 @@ subroutine ObservationRead(observation,input,option)
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_RATE can ' // &
                              'only be used MULTIPLE_CONTINUUM keyword'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('SECONDARY_MINERAL_SI')
         if (option%use_mc) then
@@ -205,7 +205,7 @@ subroutine ObservationRead(observation,input,option)
         else
           option%io_buffer = 'Keyword SECONDARY_MINERAL_SI can ' // &
                              'only be used MULTIPLE_CONTINUUM keyword'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       case('AT_CELL_CENTER')
         observation%at_cell_center = PETSC_TRUE

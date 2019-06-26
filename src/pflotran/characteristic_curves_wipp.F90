@@ -341,24 +341,24 @@ subroutine SF_WIPP_Verify(this,name,option)
   if (.not.this%ignore_permeability) then
     if (Uninitialized(this%pct_a)) then
       option%io_buffer = UninitializedMessage('PCT_A',string)
-      call printMsg(option)
+      call PrintMsg(option)
       num_errors = num_errors + 1
     endif   
     if (Uninitialized(this%pct_exp)) then
       option%io_buffer = UninitializedMessage('PCT_EXP',string)
-      call printMsg(option)
+      call PrintMsg(option)
       num_errors = num_errors + 1
     endif 
   else
     if (Uninitialized(this%alpha)) then
       option%io_buffer = UninitializedMessage('ALPHA',string)
-      call printMsg(option)
+      call PrintMsg(option)
       num_errors = num_errors + 1
     endif   
   endif
   if (Uninitialized(this%kpc)) then
     option%io_buffer = UninitializedMessage('KPC',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif 
    
@@ -366,7 +366,7 @@ subroutine SF_WIPP_Verify(this,name,option)
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SF_WIPP_Verify
@@ -386,7 +386,7 @@ subroutine SF_WIPP_CapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'SF_WIPP_CapillaryPressure must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine SF_WIPP_CapillaryPressure
 
@@ -405,7 +405,7 @@ subroutine SF_WIPP_Saturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'SF_WIPP_Saturation must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine SF_WIPP_Saturation
 
@@ -533,19 +533,19 @@ subroutine SF_KRP1_Verify(this,name,option)
   
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SF_KRP1_Verify
@@ -591,7 +591,7 @@ subroutine SF_KRP1_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP1_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -664,7 +664,7 @@ subroutine SF_KRP1_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP1_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -745,7 +745,7 @@ subroutine SF_KRP2_Verify(this,name,option)
   
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif    
 
 end subroutine SF_KRP2_Verify
@@ -787,7 +787,7 @@ subroutine SF_KRP2_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP2_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -841,7 +841,7 @@ subroutine SF_KRP2_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP2_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -918,19 +918,19 @@ subroutine SF_KRP3_Verify(this,name,option)
   num_errors = 0
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
 
 end subroutine SF_KRP3_Verify
@@ -973,7 +973,7 @@ subroutine SF_KRP3_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP3_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1031,7 +1031,7 @@ subroutine SF_KRP3_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP3_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1110,19 +1110,19 @@ subroutine SF_KRP4_Verify(this,name,option)
   num_errors = 0
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
 
 end subroutine SF_KRP4_Verify
@@ -1165,7 +1165,7 @@ subroutine SF_KRP4_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP4_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1223,7 +1223,7 @@ subroutine SF_KRP4_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP1_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1302,19 +1302,19 @@ subroutine SF_KRP5_Verify(this,name,option)
   num_errors = 0
   if (Uninitialized(this%pcmax)) then
     option%io_buffer = UninitializedMessage('MAX_CAPILLARY_PRESSURE',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif   
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
 
 end subroutine SF_KRP5_Verify
@@ -1357,7 +1357,7 @@ subroutine SF_KRP5_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP5_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1411,7 +1411,7 @@ subroutine SF_KRP5_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP5_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1487,19 +1487,19 @@ subroutine SF_KRP8_Verify(this,name,option)
   
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif    
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif 
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SF_KRP8_Verify
@@ -1544,7 +1544,7 @@ subroutine SF_KRP8_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP8_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1609,7 +1609,7 @@ subroutine SF_KRP8_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP8_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -1971,24 +1971,24 @@ subroutine SF_KRP12_Verify(this,name,option)
  
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%s_min)) then
     option%io_buffer = UninitializedMessage('S_MIN',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%s_effmin)) then
     option%io_buffer = UninitializedMessage('S_EFFMIN',string)
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (num_errors > 0) then
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' // trim(string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine SF_KRP12_Verify
@@ -2033,7 +2033,7 @@ subroutine SF_KRP12_CapillaryPressure(this,liquid_saturation, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP12_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -2088,7 +2088,7 @@ subroutine SF_KRP12_Saturation(this,capillary_pressure, &
     if (.not.option%pct_updated) then
       option%io_buffer = '!! this%pct has not been updated: &
                          &sat_func_KRP12_type. STOPPING.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%pct_updated = PETSC_FALSE
   endif
@@ -2161,11 +2161,11 @@ subroutine RPF_KRP1_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine RPF_KRP1_Liq_Verify
@@ -2279,11 +2279,11 @@ subroutine RPF_KRP1_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif 
   
 end subroutine RPF_KRP1_Gas_Verify
@@ -2396,7 +2396,7 @@ subroutine RPF_KRP2_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   
 end subroutine RPF_KRP2_Liq_Verify
@@ -2502,7 +2502,7 @@ subroutine RPF_KRP2_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   
 end subroutine RPF_KRP2_Gas_Verify
@@ -2611,11 +2611,11 @@ subroutine RPF_KRP3_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif 
   
 end subroutine RPF_KRP3_Liq_Verify
@@ -2719,11 +2719,11 @@ subroutine RPF_KRP3_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif 
   
 end subroutine RPF_KRP3_Gas_Verify
@@ -2811,11 +2811,11 @@ subroutine RPF_KRP4_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif 
   
 end subroutine RPF_KRP4_Liq_Verify
@@ -2904,11 +2904,11 @@ subroutine RPF_KRP4_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
   
 end subroutine RPF_KRP4_Gas_Verify
@@ -2968,7 +2968,7 @@ subroutine RPF_KRP5_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
     
 end subroutine RPF_KRP5_Liq_Verify
@@ -3062,7 +3062,7 @@ subroutine RPF_KRP5_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
     
 end subroutine RPF_KRP5_Gas_Verify
@@ -3160,7 +3160,7 @@ subroutine RPF_KRP8_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   
 end subroutine RPF_KRP8_Liq_Verify
@@ -3273,7 +3273,7 @@ subroutine RPF_KRP8_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%m)) then
     option%io_buffer = UninitializedMessage('M',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif   
   
 end subroutine RPF_KRP8_Gas_Verify
@@ -3594,11 +3594,11 @@ subroutine RPF_KRP11_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%tolc)) then
     option%io_buffer = UninitializedMessage('TOLC',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPF_KRP11_Liq_Verify
@@ -3688,11 +3688,11 @@ subroutine RPF_KRP11_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%tolc)) then
     option%io_buffer = UninitializedMessage('TOLC',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPF_KRP11_Gas_Verify
@@ -3783,11 +3783,11 @@ subroutine RPF_KRP12_Liq_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPF_KRP12_Liq_Verify
@@ -3877,11 +3877,11 @@ subroutine RPF_KRP12_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%lambda)) then
     option%io_buffer = UninitializedMessage('LAMBDA',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine RPF_KRP12_Gas_Verify
@@ -3988,7 +3988,7 @@ subroutine RPF_TOUGH2_IRP7_Gas_Verify(this,name,option)
   call RPFBaseVerify(this,string,option)
   if (Uninitialized(this%Srg)) then
     option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
   
 end subroutine RPF_TOUGH2_IRP7_Gas_Verify

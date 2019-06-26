@@ -294,7 +294,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'Toil ims auxvars: toil_analytical_derivatives is true, &
                           but toil_auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     getDerivs = PETSC_TRUE
 
@@ -582,7 +582,7 @@ subroutine CheckDerivNotNAN(d, option, nm)
     option%io_buffer = ''
     option%io_buffer = 'A derivative is not initialized "' // &
                        trim(nm) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 

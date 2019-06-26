@@ -471,7 +471,7 @@ subroutine RegionRead(region,input,option)
           case default
             option%io_buffer = 'Cartesian boundary face "' // trim(word) // &
               '" not recognized.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case('COORDINATE')
         region%def_type = DEFINED_BY_COORD
@@ -516,7 +516,7 @@ subroutine RegionRead(region,input,option)
                 case default
                   option%io_buffer = 'REGION->POLYGON->"' // trim(word) // &
                     '" not recognized.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             case('XY')
               call GeometryReadCoordinates(input,option,region%name, &
@@ -529,7 +529,7 @@ subroutine RegionRead(region,input,option)
                                          region%polygonal_volume%yz_coordinates)
             case default
               option%io_buffer = 'Keyword not recognized for REGION POLYGON.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
         enddo
       case('FILE')
@@ -537,7 +537,7 @@ subroutine RegionRead(region,input,option)
         call InputErrorMsg(input,option,'filename','REGION')
       case('LIST')
         option%io_buffer = 'REGION LIST currently not implemented'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case('FACE')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'face','REGION')
@@ -558,7 +558,7 @@ subroutine RegionRead(region,input,option)
           case default
             option%io_buffer = 'FACE "' // trim(word) // &
               '" not recognized.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case default
         call InputKeywordUnrecognized(keyword,'REGION',option)
@@ -750,7 +750,7 @@ subroutine RegionReadFromFileId(region,input,option)
       if (InputError(input)) then
         option%io_buffer = 'ERROR while reading the region "' // &
           trim(region%name) // '" from file'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       face_ids_p(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
@@ -806,7 +806,7 @@ subroutine RegionReadFromFileId(region,input,option)
         if (InputError(input)) then
           option%io_buffer = 'ERROR while reading the region "' // &
             trim(region%name) // '" from file'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         select case(ii)
@@ -966,6 +966,7 @@ subroutine RegionReadSideSet(sideset,filename,option)
 
   ! for now, read all faces from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_int_array(max_nvert_per_face, &
                             num_faces_local_save+1))
@@ -1037,6 +1038,8 @@ subroutine RegionReadSideSet(sideset,filename,option)
                   MPIU_INTEGER,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
 !  unstructured_grid%nlmax = num_faces_local
 !  unstructured_grid%num_vertices_local = num_vertices_local

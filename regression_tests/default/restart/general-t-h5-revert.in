@@ -21,15 +21,13 @@ SIMULATION
 END
 
 SUBSURFACE
-  EXTERNAL_FILE material_revised.txt
+  EXTERNAL_FILE general_material_revised.txt
   EXTERNAL_FILE general_subsurface_block.txt
-
   OUTPUT
     VARIABLES
-      POROSITY      ! should be 0.3
-      TORTUOSITY    ! should be 1, but is not checkpointed
-      PERMEABILITY  ! should be 5e-13
+      POROSITY
+      TORTUOSITY
+      PERMEABILITY
     /
-  END
-
+  /
 END_SUBSURFACE

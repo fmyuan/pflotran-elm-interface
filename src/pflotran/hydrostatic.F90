@@ -183,7 +183,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           option%io_buffer = 'HDF5-type datasets for temperature are not &
             &supported in combination with hydrostatic, seepage, or &
             &conductance boundary conditions for pressure.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (condition%temperature%itype == DIRICHLET_BC) then
 #ifndef THDIRICHLET_TEMP_BC_HACK
@@ -243,14 +243,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           'Incorrect dataset type in HydrostaticUpdateCoupler. Dataset "' // &
           trim(condition%datum%name) // '" in file "' // &
           trim(condition%datum%filename) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
       
   call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                           aux,rho_kg,dummy,ierr)
   if (ierr /= 0) then
-    call printMsgByCell(option,-1, &
+    call PrintMsgByCell(option,-1, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
   endif
   
@@ -258,7 +258,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   
   if (dabs(gravity_magnitude-EARTH_GRAVITY) > 0.1d0) then
     option%io_buffer = 'Magnitude of gravity vector is not near 9.81.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! if a pressure gradient is prescribed in Z (at this point it will be a
@@ -344,7 +344,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                             aux,rho_kg,dummy,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,-2, &
+      call PrintMsgByCell(option,-2, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
     endif
     temperature = temperature_at_datum
@@ -357,14 +357,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE, &
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE, &
              TOIL_IMS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0, &
                               aux,rho_kg,dummy,ierr)
       if (ierr /= 0) then
-        call printMsgByCell(option,-3, &
+        call PrintMsgByCell(option,-3, &
                       'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
       endif
       num_iteration = 0
@@ -373,7 +373,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,-4, &
+          call PrintMsgByCell(option,-4, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
         endif
 !geh        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
@@ -398,7 +398,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE,TOIL_IMS_MODE)
+      case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE,TOIL_IMS_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -406,13 +406,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE, &
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE, &
           TOIL_IMS_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
       if (ierr /= 0) then
-        call printMsgByCell(option,-5, &
+        call PrintMsgByCell(option,-5, &
                       'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
       endif
       num_iteration = 0
@@ -421,7 +421,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,-6, &
+          call PrintMsgByCell(option,-6, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
         endif
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
@@ -490,7 +490,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       if (ipressure < 1 .or. ipressure > num_pressures) then
         option%io_buffer = 'Hydrostatic pressure array sampled outside &
           &bounds: ' // trim(StringWrite(ipressure))
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-(z(ipressure) + z_offset)
       pressure = pressure_array(ipressure) + &
@@ -529,7 +529,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             case(RICHARDS_MODE,RICHARDS_TS_MODE)
               coupler%flow_aux_real_var(RICHARDS_CONDUCTANCE_DOF,iconn) = &
                 condition%pressure%aux_real(1)
-            case(TH_MODE)
+            case(TH_MODE,TH_TS_MODE)
               coupler%flow_aux_real_var(TH_CONDUCTANCE_DOF,iconn) = &
                 condition%pressure%aux_real(1)
           end select
@@ -550,7 +550,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         coupler%flow_aux_real_var(3,iconn) = concentration_at_datum
 
         coupler%flow_aux_int_var(1,iconn) = condition%iphase
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m
                     temperature_gradient(X_DIRECTION)*dist_x + & 

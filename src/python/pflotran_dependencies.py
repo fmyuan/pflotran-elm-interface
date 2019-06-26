@@ -6,6 +6,9 @@ import sys
 # and writes the dependencies to pflotran_dependencies.txt.  The developer
 # must then insert the contents of this file within the PFLOTRAN makefile.
 
+# YOU MUST RUN THIS SCRIPT FROM WITHIN PFLOTRAN_DIR/src/pflotran
+# > python ../python/pflotran_dependencies.py
+
 def get_filename(root,suffix):
   filename = []
   filename.append(root)
@@ -38,6 +41,8 @@ for line in open('pflotran_object_files.txt','r'):
 #    print(w2[0])
     source_file_roots.append(w2[0])
 source_file_roots.append('pflotran')
+source_file_roots.append('pflotran_rxn')
+source_file_roots.append('pflotran_derivative')
 
 # Alphabetize
 source_file_roots.sort()

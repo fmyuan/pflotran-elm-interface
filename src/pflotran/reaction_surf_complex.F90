@@ -208,7 +208,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   if (num_times_surface_type_set > 1) then
     option%io_buffer = 'Surface site type (e.g. MINERAL, ROCK_DENSITY, ' // &
       'COLLOID) may only be set once under the SURFACE_COMPLEXATION_RXN card.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if (.not.associated(surface_complexation%rxn_list)) then
@@ -293,7 +293,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           trim(adjustl(word)) // &
           ') does not match the number of surface fractions (' // &
           trim(adjustl(string)) // ').'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       tempreal = 0.d0
       do i = 1, size(srfcplx_rxn%site_fractions)
@@ -307,7 +307,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         option%io_buffer = 'The sum of the surface site fractions for ' // &
           'multirate kinetic sorption does not add up to 1.d0 (' // &
           trim(adjustl(string)) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     case(SRFCMPLX_RXN_KINETIC)
       ! match up rates with their corresponding surface complex
@@ -343,14 +343,14 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         if (.not.found) then
           option%io_buffer = 'Rates for surface complex ' // &
             trim(cur_srfcplx%name) // ' not found in kinetic rate list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         cur_srfcplx => cur_srfcplx%next
       enddo
       ! check to ensure that rates are matched
       if (associated(rate_list)) then
         option%io_buffer = '# of rates is greater than # of surface complexes'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       nullify(cur_srfcplx)
       nullify(prev_srfcplx)
@@ -405,7 +405,7 @@ subroutine SrfCplxProcessConstraint(surface_complexation,constraint_name, &
     option%io_buffer = 'Surface complexation specified in constraint "' // &
       trim(constraint_name) // '" requires that kinetic surface ' // &
       'complexation be defined in the CHEMISTRY section.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   srfcplx_name = ''
@@ -426,7 +426,7 @@ subroutine SrfCplxProcessConstraint(surface_complexation,constraint_name, &
                 'Surface complex ' // trim(constraint%names(isrfcplx)) // &
                 'from CONSTRAINT ' // trim(constraint_name) // &
                 ' not found among kinetic surface complexes.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       constraint_conc(jsrfcplx) = &
         constraint%constraint_conc(isrfcplx)

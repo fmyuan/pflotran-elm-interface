@@ -9,7 +9,7 @@ module Init_Subsurface_Tran_module
   private
 
 
-  public :: InitSubsurfTranSetupRealization
+  public :: InitSubsurfTranSetupRealization, InitNWTranSetupRealization
   
 contains
 
@@ -24,11 +24,8 @@ subroutine InitSubsurfTranSetupRealization(realization)
   ! 
   use Realization_Subsurface_class
   use Option_module
-  
   use Reactive_Transport_module
-  use Global_module
   use Condition_Control_module
-  use Variables_module
   
   implicit none
   
@@ -39,7 +36,66 @@ subroutine InitSubsurfTranSetupRealization(realization)
   option => realization%option
   
   call RTSetup(realization)
+  
+  ! initialize densities and saturations
+  call InitFlowGlobalAuxVar(realization,option)
 
+  ! initial concentrations must be assigned after densities are set !!!
+  call CondControlAssignTranInitCond(realization)
+  
+end subroutine InitSubsurfTranSetupRealization
+
+! ************************************************************************** !
+
+subroutine InitNWTranSetupRealization(realization)
+  ! 
+  ! Initializes material property data structres and assign them to the domain.
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/12/2019
+  ! 
+  use Realization_Subsurface_class
+  use Option_module  
+  use NW_Transport_module
+  use Condition_Control_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  
+  type(option_type), pointer :: option
+  
+  option => realization%option
+  
+  call NWTSetup(realization)
+  
+  ! initialize densities and saturations
+  call InitFlowGlobalAuxVar(realization,option)
+  
+  ! initial concentrations must be assigned after densities are set !!!
+  call CondControlAssignNWTranInitCond(realization)
+  
+end subroutine InitNWTranSetupRealization
+
+! ************************************************************************** !
+
+subroutine InitFlowGlobalAuxVar(realization,option)
+  !
+  ! Initializes flow global aux var after transport setup routines.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 12/04/14
+  ! 
+  use Realization_Subsurface_class
+  use Option_module 
+  use Global_module
+  use Variables_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  type(option_type), pointer :: option
+  
   ! initialize densities and saturations
   if (option%nflowdof == 0) then
     call GlobalSetAuxVarScalar(realization,option%reference_pressure, &
@@ -62,10 +118,9 @@ subroutine InitSubsurfTranSetupRealization(realization)
     call GlobalUpdateAuxVars(realization,TIME_T,0.d0)
     call GlobalWeightAuxVars(realization,0.d0)
   endif
-
-  ! initial concentrations must be assigned after densities are set !!!
-  call CondControlAssignTranInitCond(realization)
   
-end subroutine InitSubsurfTranSetupRealization
+end subroutine InitFlowGlobalAuxVar
+
+! ************************************************************************** !
 
 end module Init_Subsurface_Tran_module

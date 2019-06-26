@@ -186,7 +186,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
         case default
           option%io_buffer = 'Extend OutputTecplotZoneHeader() for ' // &
             'grid%ctype ' // trim(grid%ctype)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       
       if (grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
@@ -262,7 +262,7 @@ subroutine OutputTecplotBlock(realization_base)
   
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
     call OutputTecplotHeader(OUTPUT_UNIT,realization_base,icolumn)
   endif
@@ -328,8 +328,6 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     select case(option%iflowmode)
       case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,WF_MODE)
-        call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
-                                            X_DIRECTION,PETSC_FALSE)
         include_gas_phase = PETSC_TRUE
       case(NULL_MODE)
         if (option%transport%nphase > 1) include_gas_phase = PETSC_TRUE
@@ -451,7 +449,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot velocity output file: ' // &
                        trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -680,7 +678,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot velocity flux output file: ' // &
                        trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -962,7 +960,7 @@ subroutine OutputTecplotPoint(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // &
                        trim(filename)
-    call printMsg(option)                       
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     if (output_option%print_column_ids) then
@@ -1007,6 +1005,12 @@ subroutine OutputTecplotPoint(realization_base)
   
   if (output_option%print_tecplot_vel_cent) then
     call OutputVelocitiesTecplotPoint(realization_base)
+  endif
+
+  if (output_option%print_tecplot_vel_face) then
+    option%io_buffer = 'OUTPUT of VELOCITY_AT_FACE only supported for &
+                       &FORMAT TECPLOT BLOCK.'
+    call PrintErrMsg(option)
   endif
   
 end subroutine OutputTecplotPoint
@@ -1062,7 +1066,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   if (.not.associated(grid%structured_grid)) then
     option%io_buffer = 'Tecplot Point output format only supported on &
       &structured grids.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   filename = OutputFilename(output_option,option,'tec','vel')
@@ -1070,7 +1074,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot velocity output file: ' // &
                        trim(filename)
-    call printMsg(option)                       
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -1238,7 +1242,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
   ! open file
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
   
     ! write header
@@ -1934,7 +1938,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
     option%io_buffer = 'Number of values to be written to line in ' // &
       'WriteTecplotDataSetNumPerLine() exceeds 100.  ' // &
       'Must fix format statements.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! maximum number of initial messages  
@@ -1954,7 +1958,7 @@ subroutine WriteTecplotDataSetNumPerLine(fid,realization_base,array,datatype, &
                          MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
       max_local_size_saved = max_local_size
       write(option%io_buffer,'("max_local_size_saved: ",i9)') max_local_size
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     max_local_size = max_local_size_saved
     local_size_mpi = grid%nlmax
@@ -2210,7 +2214,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write rate output file: ' // &
                        trim(filename)
-    call printMsg(option)                       
+    call PrintMsg(option)
   endif
   
   
@@ -2333,6 +2337,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       reaction => realization_base%reaction
     endif
     if (option%iflowmode == TH_MODE &
+        .or. option%iflowmode == TH_TS_MODE &
         .or. option%iflowmode == MPH_MODE) then
       sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
     endif
@@ -2365,7 +2370,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
     
     if (option%myrank == option%io_rank) then
       option%io_buffer = '--> write tecplot output file: ' // trim(filename)
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     
     ! open file
@@ -2395,7 +2400,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
       option%io_buffer = 'Writing of data at coordinates not ' // &
               'functioning properly for minerals.  Perhaps due to ' // &
               'non-ghosting of vol frac....>? - geh'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
       call WriteTecplotHeaderForCoordSec(OUTPUT_UNIT,realization_base, &
                                          observation%region, &
                                          observation% &
@@ -2625,7 +2630,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   ! add secondary temperature to header
   if (print_secondary_data(1)) then
     select case (option%iflowmode) 
-      case (TH_MODE, MPH_MODE)
+      case (TH_MODE,TH_TS_MODE,MPH_MODE)
         string = 'T'
         call OutputWriteToHeader(fid,string,'C',cell_string,icolumn)
       case default

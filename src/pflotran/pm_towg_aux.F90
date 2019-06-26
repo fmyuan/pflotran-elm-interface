@@ -215,7 +215,7 @@ function TOWGAuxCreate(option)
     option%io_buffer = 'TOWG: gas FMW not initialised. ' // &
                        'Define its value in the the input deck' // &
                        ' or add EOS GAS card to default to FMWAIR'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   towg_fmw_comp(1) = FMWH2O
@@ -230,7 +230,7 @@ function TOWGAuxCreate(option)
       option%io_buffer = 'Solvent FMW not initialised. ' // &
                          'Define its value in the the input deck' // &
                          ' or add EOS SOLVENT card to default to FMWCO2'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     towg_fmw_comp(4) =EOSSlvGetFMW()
   end if
@@ -721,7 +721,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'towg bo auxvars: towg_analytical_derivatives is true, &
                           but auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     auxvar%D_pres = 0.d0
@@ -896,11 +896,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%bo%xo < 0.d0) then
     print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
     option%io_buffer = 'xo has gone negative; xo and bubble point are'
-    call printMsg(option)
+    call PrintMsg(option)
     write(option%io_buffer,*) auxvar%bo%xo
-    call printMsg(option)
+    call PrintMsg(option)
     write(option%io_buffer,*) auxvar%bo%bubble_point
-    call printMsg(option)
+    call PrintMsg(option)
   endif
 
 !==============================================================================
@@ -1618,7 +1618,7 @@ if (towg_analytical_derivatives) then
     option%io_buffer = 'towg tl4p auxvars: towg_analytical_derivatives is true, &
                         but auxvar%has_derivs is false, should both be true. &
                         How did this happen?'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   auxvar%D_pres = 0.d0
@@ -2947,7 +2947,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'towg tl auxvars: towg_analytical_derivatives is true, &
                           but auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     auxvar%D_pres = 0.d0
@@ -3429,7 +3429,7 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_denotl).AND.present(D_dengtl)                    )) then
       option%io_buffer = 'vToddLongstaff(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
           
 
@@ -3541,7 +3541,7 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
             present(D_viscotl).AND.present(D_viscgtl)                   )) then
       option%io_buffer = 'vToddLongstaffViscosity(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
@@ -3674,7 +3674,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
             present(D_denotl).AND.present(D_dengtl)                                            )) then
       option%io_buffer = 'vToddLongstaffDensity(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
 
 !--Set up complement of omega--------------------------------------------------

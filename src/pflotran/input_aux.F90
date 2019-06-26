@@ -195,7 +195,7 @@ function InputCreate1(fid,path,filename,option)
   if (fid == MAX_IN_UNIT) then
     option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be &
       &increased to accommodate a larger number of embedded files.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   full_path = trim(input%path) // trim(input%filename)
@@ -204,7 +204,7 @@ function InputCreate1(fid,path,filename,option)
   if (istatus /= 0) then
     if (len_trim(full_path) == 0) full_path = '<blank>'
     option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   InputCreate1 => input
@@ -302,7 +302,7 @@ subroutine InputDefaultMsg2(input,option)
   if (InputError(input)) then
     option%io_buffer =  '"' // trim(input%err_buf) // &
                         '" set to default value.'
-    call printMsg(option)
+    call PrintMsg(option)
     input%ierr = 0
   endif
 
@@ -350,7 +350,7 @@ subroutine InputErrorMsg2(input,option)
   if (InputError(input)) then
     option%io_buffer = 'While reading "' // trim(input%err_buf) // &
                        '" under keyword: ' // trim(input%err_buf2) // '.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine InputErrorMsg2
@@ -396,7 +396,7 @@ subroutine InputReadStringErrorMsg2(input, option)
   if (InputError(input)) then
     option%io_buffer = 'While reading in string in "' // &
                        trim(input%err_buf) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine InputReadStringErrorMsg2
@@ -420,7 +420,7 @@ subroutine InputFindStringErrorMsg(input, option, string)
   if (InputError(input)) then
     option%io_buffer = 'Card (' // trim(string) // ') not &
                        &found in file.'
-    call printErrMsg(option)    
+    call PrintErrMsg(option)
   endif
 
 end subroutine InputFindStringErrorMsg
@@ -787,7 +787,7 @@ subroutine InputReadPflotranStringSlave(input, option)
           option%io_buffer = 'End of file reached in ' // &
               'InputReadPflotranStringSlave.  SKIP encountered ' // &
               'without a matching NOSKIP.'
-          call printErrMsg(option)              
+          call PrintErrMsg(option)
         endif
         call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
         call StringToUpper(word)
@@ -1389,7 +1389,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
 
   if (.not.found .and. print_warning) then
     option%io_buffer = 'Card (' // trim(string) // ') not found in input file.'
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
     input%ierr = 1
   endif
 
@@ -1552,7 +1552,7 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
       if (InputError(ierr)) then
         option%io_buffer = 'Integer argument for command line argument "' // &
                            trim(adjustl(string)) // '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       exit
     endif
@@ -1603,7 +1603,7 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
       if (InputError(ierr)) then
         option%io_buffer = 'Real argument for command line argument "' // &
                            trim(adjustl(string)) // '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       exit
     endif
@@ -1655,7 +1655,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
                              trim(adjustl(string_value)) // & 
                              ') for command line argument "' // &
                              trim(adjustl(string)) // '" not recognized.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       else
         ierr = 1
@@ -1663,7 +1663,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
       if (InputError(ierr)) then
         option%io_buffer = 'String argument for command line argument "' // &
                            trim(adjustl(string)) // '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       exit
     endif
@@ -1728,7 +1728,7 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
         case default
           option%io_buffer = 'Truth argument for command line argument "' // &
                              trim(adjustl(string)) // '" not recognized.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
   enddo
@@ -2006,7 +2006,7 @@ subroutine InputReadASCIIDbase(filename,option)
     if (len_trim(string) > MAXWORDLENGTH) then
       option%io_buffer = 'ASCII DBASE object names must be shorter than &
         &32 characters: ' // trim(string)
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     word = trim(string)
     if (StringStartsWithAlpha(word)) then
@@ -2042,7 +2042,7 @@ subroutine InputReadASCIIDbase(filename,option)
         trim(filename) // &
         '" is too small (' // trim(adjustl(word)) // &
         ') for number of realizations.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     value_index = option%id
   endif
@@ -2103,7 +2103,7 @@ subroutine InputReadASCIIDbase(filename,option)
         write(word,*) num_values_in_dataset
         option%io_buffer = trim(option%io_buffer) // &
           trim(adjustl(word)) // ').'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call StringToUpper(object_name)
       string = words(value_index)
@@ -2417,7 +2417,7 @@ subroutine InputKeywordUnrecognized2(keyword,string,string2,option)
     option%io_buffer = trim(option%io_buffer) // ' ' // &
                      trim(string2) // '.'
   endif
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine InputKeywordUnrecognized2
 
@@ -2444,7 +2444,7 @@ subroutine InputCheckMandatoryUnits(input,option)
                          trim(input%err_buf) // ',' // &
                          trim(input%err_buf2) // '.'
     endif
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine InputCheckMandatoryUnits
@@ -2479,7 +2479,7 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
     if (len_trim(internal_units) < 1) then
       option%io_buffer = 'No internal units provided in &
                          &InputReadAndConvertUnits()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     internal_units_word = trim(internal_units)
     double_value = double_value * &
@@ -2523,7 +2523,7 @@ function UnitReadAndConversionFactor(input,internal_units, &
     if (len_trim(internal_units) < 1) then
       option%io_buffer = 'No internal units provided in &
                          & UnitReadAndConversionFactor()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     internal_units_word = trim(internal_units)
     UnitReadAndConversionFactor =  &

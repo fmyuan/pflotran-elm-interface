@@ -175,7 +175,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       option%io_buffer = 'SATURATION_FUNCTION card is no longer ' // &
         'supported for GENERAL mode.  Please use CHARACTERISTIC_' // &
         'CURVES card defined on the PFLOTRAN wiki.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
   input%ierr = 0
@@ -321,7 +321,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             else
               saturation_function%Sr(:) = tempreal
             endif
-          case(RICHARDS_MODE,TH_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE,TH_TS_MODE)
             call InputReadDouble(input,option,saturation_function%Sr(1))
             call InputErrorMsg(input,option,'residual saturation','SATURATION_FUNCTION')
         end select
@@ -366,7 +366,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     option%io_buffer = 'Saturation function parameter "m" not set ' // &
                        'properly in saturation function "' // &
                        trim(saturation_function%name) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call SaturationFunctionSetTypes(saturation_function,option)
@@ -414,7 +414,7 @@ subroutine SaturationFunctionSetTypes(saturation_function,option)
                           '" not recognized ' // &
                           ' in saturation function ' // &
                           trim(saturation_function%name)
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
     
   ! set saturation function integer type
@@ -444,7 +444,7 @@ subroutine SaturationFunctionSetTypes(saturation_function,option)
                           '" not recognized ' // &
                           ' in saturation function ' // &
                           trim(saturation_function%name)
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select  
 
 end subroutine SaturationFunctionSetTypes
@@ -877,7 +877,7 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
           dkr_dpc = dkr_dSe*dSe_dpc
         case default
           option%io_buffer = 'Unknown relative permeabilty function' 
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(BROOKS_COREY)
       ! reference #1
@@ -928,7 +928,7 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
           dkr_dpc = dkr_dSe*dSe_dpc
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(LINEAR_MODEL)
       ! Added by Bwalya Malama 01/30/2014
@@ -967,7 +967,7 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
           relative_perm = (Se**power)*(pc_log_ratio**2.d0)
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(THOMEER_COREY)
       pc = capillary_pressure
@@ -997,7 +997,7 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
       endif
     case default
       option%io_buffer = 'Unknown saturation function'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   dsat_dpres = -dsat_dpc 
@@ -1148,7 +1148,7 @@ implicit none
       endif           
     case default
       option%io_buffer = 'Ice module only supports Van Genuchten'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
   liquid_saturation = 1.d0/(function_A + function_B - 1.d0)
@@ -1202,7 +1202,7 @@ implicit none
       dkr_temp = dkr_ds_liq*dsl_temp
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
    
 end subroutine SatFuncComputeIcePExplicit
@@ -1599,7 +1599,7 @@ implicit none
                                       dsl_dT)
     case default  
       option%io_buffer = 'Only van Genuchten supported with ice'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
  
   ! Check for bounds on saturations         
@@ -1641,7 +1641,7 @@ implicit none
       dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select 
 
 #if 0  
@@ -1730,7 +1730,7 @@ implicit none
       T = T - T_0 ! change back to C 
     case default  
       option%io_buffer = 'Only van Genuchten supported with ice'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
  
   ! Check for bounds on saturations         
@@ -1772,7 +1772,7 @@ implicit none
       dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select 
 
 #if 0
@@ -1864,7 +1864,7 @@ implicit none
       T = T - T_0 ! change back to C 
     case default  
       option%io_buffer = 'Only van Genuchten supported with ice'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
  
   ! Check for bounds on saturations         
@@ -1906,7 +1906,7 @@ implicit none
       dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem' 
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select 
 
 #if 0
@@ -2065,7 +2065,7 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
 
     case default
       option%io_buffer = 'Only van Genuchten supported with ice'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   ! Calculate relative permeability
@@ -2091,7 +2091,7 @@ subroutine SatFuncComputeIceDallAmico(pl, T, &
       dkr_dT = dkr_dsl*dsl_dT
     case default
       option%io_buffer = 'Ice module only supports Mualem'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine SatFuncComputeIceDallAmico
@@ -2171,7 +2171,7 @@ subroutine SatFuncGetLiqRelPermFromSat(saturation,relative_perm,dkr_dSe, &
           endif
         case default
           option%io_buffer = 'Unknown relative permeabilty function' 
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(BROOKS_COREY)
       select case(saturation_function%permeability_function_itype)
@@ -2189,7 +2189,7 @@ subroutine SatFuncGetLiqRelPermFromSat(saturation,relative_perm,dkr_dSe, &
           dkr_dSe = power*relative_perm/Se
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(LINEAR_MODEL)
       select case(saturation_function%permeability_function_itype)
@@ -2210,7 +2210,7 @@ subroutine SatFuncGetLiqRelPermFromSat(saturation,relative_perm,dkr_dSe, &
           relative_perm = (Se**power)*(pc_log_ratio**2.d0)
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(LEVERETT)
       select case(saturation_function%permeability_function_itype)
@@ -2221,7 +2221,7 @@ subroutine SatFuncGetLiqRelPermFromSat(saturation,relative_perm,dkr_dSe, &
           endif
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
   end select
   
@@ -2291,7 +2291,7 @@ subroutine SatFuncGetGasRelPermFromSat(liquid_saturation, &
           gas_relative_perm = sqrt(Sg)*(1.d0-S_hat**(1.d0/m))**(2.d0*m)
         case default
           option%io_buffer = 'Unknown relative permeabilty function' 
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(BROOKS_COREY)
       lambda = saturation_function%lambda
@@ -2306,12 +2306,12 @@ subroutine SatFuncGetGasRelPermFromSat(liquid_saturation, &
                               (1.d0-S_hat**(1.d0+1.d0/lambda))**2.d0
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(LINEAR_MODEL)
       option%io_buffer = &
         'Linear model not yet supported in SatFuncGetGasRelPermFromSat.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
       select case(saturation_function%permeability_function_itype)
         case(BURDINE)
           gas_relative_perm = Sg  
@@ -2329,7 +2329,7 @@ subroutine SatFuncGetGasRelPermFromSat(liquid_saturation, &
           gas_relative_perm = Sg**power * liq_relative_perm * S_hat**(-power)
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     case(LEVERETT)
       select case(saturation_function%permeability_function_itype)
@@ -2337,7 +2337,7 @@ subroutine SatFuncGetGasRelPermFromSat(liquid_saturation, &
           gas_relative_perm = Sg**3
         case default
           option%io_buffer = 'Unknown relative permeabilty function'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
   end select
 
@@ -2542,7 +2542,7 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
 #endif
     case default
       option%io_buffer = 'Unknown saturation function'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   capillary_pressure = min(capillary_pressure,saturation_function%pcwmax)
@@ -2594,7 +2594,7 @@ function SaturationFunctionGetID(saturation_function_list, &
              '" in material property "' // &
              trim(material_property_name) // &
              '" not found among available saturation functions.'
-    call printErrMsg(option)    
+    call PrintErrMsg(option)
   endif
 
 end function SaturationFunctionGetID

@@ -571,7 +571,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
           case default
             option%io_buffer = 'WELL_DATA keyword: ' &
                                // trim(keyword) // ' not recognized'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case('CONST_DRILL_DIR')
         this%w_const_drill_dir_set = PETSC_TRUE
@@ -589,7 +589,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
           case default
             option%io_buffer = &
             'Drilling direction ' // trim(keyword) // ' not recognized'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case('Z_REF')
         this%w_z_ref_set = PETSC_TRUE
@@ -678,7 +678,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
     case default
         option%io_buffer = 'WELL_DATA keyword: ' &
                            // trim(keyword) // ' not recognized'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   enddo
 
@@ -2263,7 +2263,7 @@ subroutine readWellTarget(this, input, option, keyword, word, target_type)
 
   if (InputError(input)) then
     option%io_buffer = 'Keyword ' // trim(keyword) // ' units not found'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else
     ! All OK, convert units and store
     units = trim(word)

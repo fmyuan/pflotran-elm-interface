@@ -229,7 +229,7 @@ subroutine GeomechanicsMaterialPropConvertListToArray(list,array,option)
       write(string,*) i
       option%io_buffer = 'Material ID ' // trim(adjustl(string)) // &
         ' is duplicated in input file.'
-      call printMsg(option)
+      call PrintMsg(option)
       error_flag = PETSC_TRUE
     endif
   enddo
@@ -238,7 +238,7 @@ subroutine GeomechanicsMaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material IDs.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! ensure unique material names
@@ -254,7 +254,7 @@ subroutine GeomechanicsMaterialPropConvertListToArray(list,array,option)
             option%io_buffer = 'Material name "' // &
               trim(adjustl(array(i)%ptr%name)) // &
               '" is duplicated in input file.'
-            call printMsg(option)
+            call PrintMsg(option)
             error_flag = PETSC_TRUE
           endif
         endif
@@ -264,7 +264,7 @@ subroutine GeomechanicsMaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material names.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine GeomechanicsMaterialPropConvertListToArray
