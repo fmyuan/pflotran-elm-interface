@@ -1292,7 +1292,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
 
   PetscInt :: temp_iter_num
   PetscInt :: temp_fail_num
-  PetscBool :: allow_state_change
   
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
@@ -1365,13 +1364,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   
   ! do update state
   general_high_temp_ts_cut = PETSC_FALSE
-  allow_state_change = PETSC_TRUE
+  general_restrict_state_change = PETSC_FALSE
   if (general_sub_newton_iter_num > 1 .and. general_using_newtontr) then
     ! when newtonTR is active and has inner iterations to re-evaluate the residual,
     ! primary variables must not change. -hdp
-    allow_state_change = PETSC_FALSE
+    general_restrict_state_change = PETSC_TRUE
   endif
-  call GeneralUpdateAuxVars(realization,allow_state_change)
+  call GeneralUpdateAuxVars(realization,PETSC_TRUE)
 
 ! for debugging a single grid cell
 !  i = 6
