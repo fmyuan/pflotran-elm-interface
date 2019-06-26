@@ -600,8 +600,8 @@ pm_th.o : communicator_base.o communicator_structured.o \
           input_aux.o option.o patch.o pflotran_constants.o pm_base.o \
           pm_subsurface_flow.o realization_subsurface.o saturation_function.o \
           string.o th.o th_aux.o utility.o
-pm_th_ts.o : discretization.o field.o global_aux.o grid.o material_aux.o \
-             option.o patch.o pflotran_constants.o pm_base.o \
+pm_th_ts.o : debug.o discretization.o field.o global_aux.o grid.o \
+             material_aux.o option.o patch.o pflotran_constants.o pm_base.o \
              pm_subsurface_flow.o pm_th.o realization_subsurface.o th.o \
              th_aux.o
 pm_toil_ims.o : auxvars_toil_ims.o checkpoint.o field.o global.o global_aux.o \
@@ -846,7 +846,8 @@ region.o : geometry.o grid_structured.o grid_unstructured_cell.o input_aux.o \
            logging.o option.o pflotran_constants.o string.o utility.o
 regression.o : discretization.o grid.o input_aux.o option.o output.o \
                output_aux.o output_common.o pflotran_constants.o \
-               realization_subsurface.o string.o timestepper_BE.o utility.o
+               realization_subsurface.o string.o timestepper_BE.o \
+               timestepper_TS.o timestepper_base.o utility.o
 richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              field.o global_aux.o grid.o inlinesurface.o inlinesurface_aux.o \
              logging.o material.o material_aux.o matrix_buffer.o option.o \
@@ -893,8 +894,7 @@ simulation_subsurface.o : characteristic_curves.o condition.o discretization.o \
                           reaction_clm.o reaction_sandbox.o \
                           realization_subsurface.o region.o regression.o \
                           simulation_base.o srcsink_sandbox.o strata.o \
-                          timestepper_BE.o timestepper_base.o waypoint.o \
-                          wipp.o
+                          timestepper_base.o waypoint.o wipp.o
 simulation_surface.o : logging.o option.o output.o pflotran_constants.o \
                        pmc_base.o pmc_surface.o realization_surface.o \
                        regression.o simulation_base.o timestepper_base.o \
