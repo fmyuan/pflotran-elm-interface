@@ -1499,11 +1499,9 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
       call RichardsFlux(rich_auxvars(ghosted_id_up), &
                       global_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_up), &
-                      material_parameter%soil_residual_saturation(1,icap_up), &
                       rich_auxvars(ghosted_id_dn), &
                       global_auxvars(ghosted_id_dn), &
                       material_auxvars(ghosted_id_dn), &
-                      material_parameter%soil_residual_saturation(1,icap_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       option,v_darcy,Res)
@@ -1671,7 +1669,6 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
                        rich_auxvars(ghosted_id), &
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
-                       material_parameter%soil_residual_saturation(1,icap_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        option, &
@@ -2262,11 +2259,9 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
       call RichardsFluxDerivative(rich_auxvars(ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_residual_saturation(1,icap_up), &
                      rich_auxvars(ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_residual_saturation(1,icap_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(-1:3,iconn),&
                      option,&
@@ -2486,7 +2481,6 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
                      rich_auxvars(ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     material_parameter%soil_residual_saturation(1,icap_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      option, &
@@ -3141,7 +3135,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   PetscReal :: upweight,gravity,dphi
   PetscReal :: ukvr,Dq
   PetscReal :: P_allowable
-  PetscReal :: sir_dn
   PetscReal :: v_darcy_allowable,v_darcy
   PetscReal :: q
   PetscReal :: q_allowable
@@ -3262,12 +3255,11 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            -grid%nG2A(ghosted_id), &
                            option)
 
-        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
 
-        if (global_auxvar_up%sat(1) > sir_dn .or. &
-            global_auxvar_max%sat(1) > sir_dn) then
+        if (rich_auxvar_up%kvr > eps .or. &
+            rich_auxvar_dn%kvr > eps) then
 
-          upweight=1.D0
+           upweight=1.D0
           if (global_auxvar_up%sat(1) < eps) then
             upweight=0.d0
           else if (global_auxvar_max%sat(1) < eps) then
