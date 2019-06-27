@@ -4914,27 +4914,27 @@ subroutine THJacobianInternalConn(A,realization,ierr)
 
 
       call THFluxDerivative(auxvars(ghosted_id_up), &
-                             global_auxvars(ghosted_id_up), &
-                             material_auxvars(ghosted_id_up), &
-                             D_up, &
-                             ithrm_up, &
-                             auxvars(ghosted_id_dn), &
-                             global_auxvars(ghosted_id_dn), &
-                             material_auxvars(ghosted_id_dn), &                
-                             D_dn, &
-                             ithrm_dn, &
-                             cur_connection_set%area(iconn), &
-                             cur_connection_set%dist(-1:3,iconn), &
-                             upweight, &
-                             TH_parameter%sir(1,icap_up), &
-			     TH_parameter%sir(1,icap_dn), &
-                             option, &
-                             sf_up,sf_dn,cc_up,cc_dn, &
-                             Dk_dry_up,Dk_dry_dn, &
-                             Dk_ice_up,Dk_ice_dn, &
-                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
-                             TH_parameter, &
-                             Jup,Jdn)
+                            global_auxvars(ghosted_id_up), &
+                            material_auxvars(ghosted_id_up), &
+                            D_up, &
+                            ithrm_up, &
+                            auxvars(ghosted_id_dn), &
+                            global_auxvars(ghosted_id_dn), &
+                            material_auxvars(ghosted_id_dn), &                
+                            D_dn, &
+                            ithrm_dn, &
+                            cur_connection_set%area(iconn), &
+                            cur_connection_set%dist(-1:3,iconn), &
+                            upweight, &
+                            TH_parameter%sir(1,icap_up), &
+			    TH_parameter%sir(1,icap_dn), &
+                            option, &
+                            sf_up,sf_dn,cc_up,cc_dn, &
+                            Dk_dry_up,Dk_dry_dn, &
+                            Dk_ice_up,Dk_ice_dn, &
+                            alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
+                            TH_parameter, &
+                            Jup,Jdn)
       
 !  scale by the volume of the cell                      
       

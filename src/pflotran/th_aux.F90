@@ -400,7 +400,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   use Global_Aux_module
  
   use EOS_Water_module
-  use Characteristic_Curves_module  
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module  
   use Material_Aux_class
   
   implicit none
