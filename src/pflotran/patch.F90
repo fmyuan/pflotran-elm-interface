@@ -4260,7 +4260,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
 
   type(option_type), pointer :: option
   type(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type) :: nw_trans
+  type(nw_trans_realization_type), pointer :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
