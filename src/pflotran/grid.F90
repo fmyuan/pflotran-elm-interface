@@ -784,8 +784,6 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   PetscInt :: iface
   PetscInt :: tempfacearray(20)
   PetscInt :: facecount
-  PetscInt :: cell_id_max_local
-  PetscInt :: cell_id_max_global
   PetscReal :: tempreal, prevreal, facereal
   PetscReal, parameter :: offset = 0.1d0
   PetscReal, pointer :: v_loc_p(:)
@@ -805,7 +803,8 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
   allocate(tmp_int_array(region%num_cells))
   allocate(tmp_scl_array(region%num_cells))
 
-  cell_id_max_local = -1
+  call RegionCheckCellIndexBounds(region,grid%nmax,option)
+
   do ii = 1, region%num_cells
     tmp_int_array(ii) = region%cell_ids(ii) - 1
     if (associated(region%faces)) then
@@ -821,17 +820,7 @@ subroutine GridLocalizeRegionsFromCellIDs(grid, region, option)
       ! use 0.1 as it will take 100 connections to conflict with faces
       tmp_scl_array(ii) = 0.1d0
     endif
-    cell_id_max_local = max(cell_id_max_local, region%cell_ids(ii))
   enddo
-
-  call MPI_Allreduce(cell_id_max_local, cell_id_max_global, ONE_INTEGER_MPI, &
-                     MPI_INTEGER, MPI_MAX, option%mycomm,ierr)
-  if (cell_id_max_global > grid%nmax) then
-    option%io_buffer = 'The following region includes a cell-id that is &
-      &greater than number of control volumes present in the grid: ' // &
-    trim(region%name)
-    call PrintErrMsg(option)
-  endif
 
   call VecSetValues(vec_cell_ids, region%num_cells, tmp_int_array, &
                     tmp_scl_array, ADD_VALUES, ierr);CHKERRQ(ierr)
@@ -975,6 +964,8 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   explicit_grid => ugrid%explicit_grid
   faceset => region%explicit_faceset
   
+  call RegionCheckCellIndexBounds(region,ugrid%nmax,option)
+
   ! convert ids to petsc
   region%cell_ids = region%cell_ids - 1
   call AOApplicationToPetsc(ugrid%ao_natural_to_petsc,size(region%cell_ids), &
