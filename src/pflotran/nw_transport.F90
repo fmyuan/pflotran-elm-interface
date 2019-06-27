@@ -1543,6 +1543,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
         ! represents inside of the domain
         coef_in = u
       endif
+      coef_in = u  ! added this line to force u.
   end select
   
   ! units of coef = [m^3-bulk/sec]
