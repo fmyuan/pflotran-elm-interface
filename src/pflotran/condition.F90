@@ -3782,7 +3782,7 @@ end subroutine FlowConditionCommonRead
 
 subroutine TranConditionRead(condition,tran_constraint_list, &
                              nwt_constraint_list,reaction,nw_trans, &
-                             rt_on,input,option)
+                             input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -3804,9 +3804,8 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: tran_constraint_list
   type(nwt_constraint_list_type) :: nwt_constraint_list
-  type(reaction_type) :: reaction
-  type(nw_trans_realization_type) :: nw_trans
-  PetscBool :: rt_on
+  type(reaction_type), pointer :: reaction
+  type(nw_trans_realization_type), pointer :: nw_trans
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -3884,7 +3883,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
           if (InputCheckExit(input,option)) exit
 
-          if (rt_on) then
+          if (associated(reaction)) then
             tran_constraint_coupler => TranConstraintCouplerCreate(option)
             call InputReadDouble(input,option,tran_constraint_coupler%time)
             call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
@@ -3919,7 +3918,8 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
               enddo
               cur_tran_coupler%next => tran_constraint_coupler
             endif
-          else
+          endif
+          if (associated(nw_trans)) then
             nwt_constraint_coupler => NWTConstraintCouplerCreate(option)
             call InputReadDouble(input,option,nwt_constraint_coupler%time)
             call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
@@ -3958,7 +3958,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
         enddo
         
       case('CONSTRAINT')
-        if (rt_on) then
+        if (associated(reaction)) then
           tran_constraint => TranConstraintCreate(option)
           tran_constraint_coupler => TranConstraintCouplerCreate(option)
           call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
@@ -3981,7 +3981,8 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             enddo
             cur_tran_coupler%next => tran_constraint_coupler
           endif
-        else
+        endif
+        if (associated(nw_trans)) then
           nwt_constraint => NWTConstraintCreate(option)
           nwt_constraint_coupler => NWTConstraintCouplerCreate(option)
           call InputReadWord(input,option,nwt_constraint%name,PETSC_TRUE)
@@ -4011,13 +4012,14 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
   enddo
 
-  if (rt_on) then
+  if (associated(reaction)) then
     if (.not.associated(condition%constraint_coupler_list)) then
       option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
                          &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
       call PrintErrMsg(option)
     endif
-  else
+  endif
+  if (associated(nw_trans)) then
     if (.not.associated(condition%nwt_constraint_coupler_list)) then
       option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
                          &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
@@ -4030,7 +4032,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
                                         option)
-    if (rt_on) then
+    if (associated(reaction)) then
       cur_tran_coupler => condition%constraint_coupler_list
       do
         if (.not.associated(cur_tran_coupler)) exit
@@ -4039,7 +4041,8 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
         endif
         cur_tran_coupler => cur_tran_coupler%next
       enddo
-    else
+    endif
+    if (associated(nw_trans)) then
       cur_nwt_coupler => condition%nwt_constraint_coupler_list
       do
         if (.not.associated(cur_nwt_coupler)) exit

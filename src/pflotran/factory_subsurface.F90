@@ -2193,7 +2193,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
   PetscBool :: bool_flag,unsupported_output
-  PetscBool :: rt_on
 
   PetscInt :: flag1, flag2
 
@@ -2270,9 +2269,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
                           
-  rt_on = PETSC_FALSE
-  if (associated(realization%reaction)) rt_on = PETSC_TRUE
-
   call InputRewind(input)
   string = 'SUBSURFACE'
   call InputFindStringInFile(input,option,string)
@@ -2498,8 +2494,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call TranConditionRead(tran_condition, &
                                realization%transport_constraints, &
                                realization%nwt_constraints, &
-                               reaction, &
-                               realization%nw_trans,rt_on,input,option)
+                               reaction,realization%nw_trans,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
         nullify(tran_condition)
