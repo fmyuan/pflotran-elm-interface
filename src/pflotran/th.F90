@@ -2323,12 +2323,12 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   
   if (option%use_th_freezing) then
     if (global_auxvar_up%sat(1) > sir_up .or.  &
-         global_auxvar_dn%sat(1) > sir_dn) then
+        global_auxvar_dn%sat(1) > sir_dn) then
       is_flowing = PETSC_TRUE
     endif
   else
     if (auxvar_up%kvr > eps .or. &  
-         auxvar_dn%kvr > eps) then
+        auxvar_dn%kvr > eps) then
       is_flowing = PETSC_TRUE
     endif
   endif
@@ -3437,12 +3437,12 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
       if (option%use_th_freezing) then
         if (global_auxvar_up%sat(1) > sir_dn .or.  &
-             global_auxvar_dn%sat(1) > sir_dn) then
+            global_auxvar_dn%sat(1) > sir_dn) then
           is_flowing = PETSC_TRUE
         endif
       else
         if (auxvar_up%kvr > eps .or. &  
-             auxvar_dn%kvr > eps) then
+            auxvar_dn%kvr > eps) then
           is_flowing = PETSC_TRUE
         endif
       endif 
