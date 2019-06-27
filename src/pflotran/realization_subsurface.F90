@@ -314,16 +314,21 @@ subroutine RealizationCreateDiscretization(realization)
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx_loc, &
                                       LOCAL,option)
       
-      ! jenn:todo Check that realization%reaction is associated before trying to 
-      ! access it. This is in general and not specific to below code.
-      if ( (associated(realization%reaction) .and. &
-           realization%reaction%use_log_formulation) .or. &
-           (associated(realization%nw_trans) .and. &
-           realization%nw_trans%use_log_formulation) ) then
-        call DiscretizationDuplicateVector(discretization,field%tran_xx, &
-                                           field%tran_log_xx)
-        call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
-                                           field%tran_work_loc)
+      if (associated(realization%reaction)) then
+        if (realization%reaction%use_log_formulation) then
+          call DiscretizationDuplicateVector(discretization,field%tran_xx, &
+                                             field%tran_log_xx)
+          call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
+                                             field%tran_work_loc)
+        endif
+      endif
+      if (associated(realization%nw_trans)) then
+        if (realization%nw_trans%use_log_formulation) then
+          call DiscretizationDuplicateVector(discretization,field%tran_xx, &
+                                             field%tran_log_xx)
+          call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
+                                             field%tran_work_loc)
+        endif
       endif
  
     else ! operator splitting
