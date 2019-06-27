@@ -903,7 +903,7 @@ end subroutine THAuxVarComputeFreezing
 ! ************************************************************************** !
 subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
                                         material_auxvar,th_parameter, &
-                                        ithrm,sat_func,&
+                                        ithrm,characteristic_curves,&
                                         option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
@@ -918,13 +918,13 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   use Global_Aux_module
   
   use EOS_Water_module
-  use Saturation_Function_module
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-  type(saturation_function_type) :: sat_func
+  class(characteristic_curves_type) :: characteristic_curves
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar  
@@ -997,7 +997,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
     else
       call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                             global_auxvar_pert,material_auxvar_pert,&
-                            iphase,sat_func, &
+                            iphase,characteristic_curves, &
                             TH_parameter,ithrm, &
                             -999,option)
     endif

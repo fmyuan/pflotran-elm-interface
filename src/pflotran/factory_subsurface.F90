@@ -2857,7 +2857,8 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == TOWG_MODE .or. &
             option%iflowmode == G_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
-              .not. option%use_th_freezing) .or. &
+             .not. option%use_th_freezing) .or. &
+            option%iflowmode == TH_TS_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
             'Must compile with legacy_saturation_function=1 to use the &
@@ -2884,6 +2885,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
+                  option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
                     .not. option%use_th_freezing) .or. &
                   option%iflowmode == WF_MODE)) then

@@ -4040,11 +4040,9 @@ subroutine THResidualInternalConn(r,realization,ierr)
 
       call THFlux(auxvars(ghosted_id_up),global_auxvars(ghosted_id_up), &
                   material_auxvars(ghosted_id_up), &
-                  TH_parameter%sir(1,icap_up), &
                   D_up, &
                   auxvars(ghosted_id_dn),global_auxvars(ghosted_id_dn), &
                   material_auxvars(ghosted_id_dn), &
-                  TH_parameter%sir(1,icap_dn), &
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
@@ -4228,7 +4226,6 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                     auxvars(ghosted_id), &
                     global_auxvars(ghosted_id), &
                     material_auxvars(ghosted_id), &
-                    TH_parameter%sir(1,icap_dn), &
                     D_dn, &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(-1:3,iconn), &
@@ -4636,168 +4633,6 @@ subroutine THResidualSourceSink(r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  ! Interior Flux Terms -----------------------------------
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0  
-  do 
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-
-      if (patch%imat(ghosted_id_up) <= 0 .or.  &
-          patch%imat(ghosted_id_dn) <= 0) cycle
-
-      if (option%flow%only_vertical_flow) then
-        !geh: place second conditional within first to avoid excessive
-        !     dot products when .not. option%flow%only_vertical_flow
-        if (dot_product(cur_connection_set%dist(1:3,iconn),unit_z) < &
-            1.d-10) cycle
-      endif
-
-      fraction_upwind = cur_connection_set%dist(-1,iconn)
-      distance = cur_connection_set%dist(0,iconn)
-      ! distance = scalar - magnitude of distance
-      ! gravity = vector(3)
-      ! dist(1:3,iconn) = vector(3) - unit vector
-      distance_gravity = distance * &
-                         dot_product(option%gravity, &
-                                     cur_connection_set%dist(1:3,iconn))
-      dd_up = distance*fraction_upwind
-      dd_dn = distance-dd_up ! should avoid truncation error
-      ! upweight could be calculated as 1.d0-fraction_upwind
-      ! however, this introduces ever so slight error causing pflow-overhaul not
-      ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
-      upweight = dd_dn/(dd_up+dd_dn)
-        
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
-   
-      D_up = TH_parameter%ckwet(ithrm_up)
-      D_dn = TH_parameter%ckwet(ithrm_dn)
-      
-      Dk_dry_up = TH_parameter%ckdry(ithrm_up)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
-      
-      alpha_up = TH_parameter%alpha(ithrm_up)
-      alpha_dn = TH_parameter%alpha(ithrm_dn)
-
-      if (option%use_th_freezing) then
-         Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
-      
-         alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
-      else
-         Dk_ice_up = Dk_dry_up
-         Dk_ice_dn = Dk_dry_dn
-      
-         alpha_fr_up = alpha_up
-         alpha_fr_dn = alpha_dn
-      endif
-
-      call THFlux(auxvars(ghosted_id_up),global_auxvars(ghosted_id_up), &
-                  material_auxvars(ghosted_id_up), &
-                  D_up, &
-                  auxvars(ghosted_id_dn),global_auxvars(ghosted_id_dn), &
-                  material_auxvars(ghosted_id_dn), &
-                  D_dn, &
-                  cur_connection_set%area(iconn), &
-                  cur_connection_set%dist(:,iconn), &
-                  upweight,option,v_darcy,Dk_dry_up, &
-                  Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
-                  alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
-                  Res)
-
-      patch%internal_velocities(1,sum_connection) = v_darcy
-      patch%internal_flow_fluxes(:,sum_connection) = Res(:)
-
-      if (local_id_up>0) then
-        iend = local_id_up*option%nflowdof
-        istart = iend-option%nflowdof+1
-        r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
-      endif
-   
-      if (local_id_dn>0) then
-        iend = local_id_dn*option%nflowdof
-        istart = iend-option%nflowdof+1
-        r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
-      endif
-
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo    
-
-  ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(boundary_condition)) exit
-    
-    cur_connection_set => boundary_condition%connection_set
-    
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-    
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-      if (ghosted_id<=0) then
-        print *, "Wrong boundary node index... STOP!!!"
-        stop
-      endif
-
-      ithrm_dn = int(ithrm_loc_p(ghosted_id))
-      D_dn = TH_parameter%ckwet(ithrm_dn)
-
-      distance_gravity = cur_connection_set%dist(0,iconn) * &
-                         dot_product(option%gravity, &
-                                     cur_connection_set%dist(1:3,iconn))
-
-      icap_dn = int(icap_loc_p(ghosted_id))
-  
-      call THBCFlux(boundary_condition%flow_condition%itype, &
-                    boundary_condition%flow_aux_real_var(:,iconn), &
-                    auxvars_bc(sum_connection), &
-                    global_auxvars_bc(sum_connection), &
-                    auxvars(ghosted_id), &
-                    global_auxvars(ghosted_id), &
-                    material_auxvars(ghosted_id), &
-                    D_dn, &
-                    cur_connection_set%area(iconn), &
-                    cur_connection_set%dist(-1:3,iconn), &
-                    option, &
-                    v_darcy, &
-                    fluxe_bulk, fluxe_cond, &
-                    Res)
-
-      patch%boundary_velocities(1,sum_connection) = v_darcy
-      patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
-      patch%boundary_energy_flux(1,sum_connection) = fluxe_bulk
-      patch%boundary_energy_flux(2,sum_connection) = fluxe_cond
-
-      if (option%compute_mass_balance_new) then
-        ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) - Res(1)
-
-      endif
-
-
-    enddo
-    source_sink => source_sink%next
-  enddo
-
   ! scale the residual by the volume
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -4929,6 +4764,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Saturation_Function_module
+  use Characteristic_Curves_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -4977,6 +4814,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(saturation_function_type), pointer :: sf_dn, sf_up
+  class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
@@ -5050,40 +4889,47 @@ subroutine THJacobianInternalConn(A,realization,ierr)
       alpha_up = TH_parameter%alpha(ithrm_up)
       alpha_dn = TH_parameter%alpha(ithrm_dn)
 
+      icap_up = int(icap_loc_p(ghosted_id_up))
+      icap_dn = int(icap_loc_p(ghosted_id_dn))
+
       if (option%use_th_freezing) then
          Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
          DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
       
          alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+
+         sf_up => patch%saturation_function_array(icap_up)%ptr
+         sf_dn => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
       
          alpha_fr_up = alpha_up
          alpha_fr_dn = alpha_dn
+
+         cc_up => patch%characteristic_curves_array(icap_up)%ptr
+         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr 
       endif
 
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
 
       call THFluxDerivative(auxvars(ghosted_id_up), &
                              global_auxvars(ghosted_id_up), &
                              material_auxvars(ghosted_id_up), &
-                             TH_parameter%sir(1,icap_up), &
                              D_up, &
                              ithrm_up, &
                              auxvars(ghosted_id_dn), &
                              global_auxvars(ghosted_id_dn), &
-                             material_auxvars(ghosted_id_dn), &
-                             TH_parameter%sir(1,icap_dn), &
+                             material_auxvars(ghosted_id_dn), &                
                              D_dn, &
                              ithrm_dn, &
                              cur_connection_set%area(iconn), &
                              cur_connection_set%dist(-1:3,iconn), &
-                             upweight,option, &
-                             patch%saturation_function_array(icap_up)%ptr, &
-                             patch%saturation_function_array(icap_dn)%ptr, &
+                             upweight, &
+                             TH_parameter%sir(1,icap_up), &
+			     TH_parameter%sir(1,icap_dn), &
+                             option, &
+                             sf_up,sf_dn,cc_up,cc_dn, &
                              Dk_dry_up,Dk_dry_dn, &
                              Dk_ice_up,Dk_ice_dn, &
                              alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -5148,6 +4994,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Saturation_Function_module
+  use Characteristic_Curves_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -5197,6 +5045,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(Saturation_Function_type), pointer :: sf_dn
+  class(Characteristic_Curves_type), pointer :: cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
@@ -5252,9 +5102,13 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
       if (option%use_th_freezing) then
          DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+
+         sf_dn => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_dn = Dk_dry_dn
          alpha_fr_dn = alpha_dn
+
+         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr
       endif
 
       call THBCFluxDerivative(boundary_condition%flow_condition%itype, &
@@ -5264,12 +5118,12 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              TH_parameter%sir(1,icap_dn), &
                               D_dn, &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
+			      TH_parameter%sir(1,icap_dn), &
                               option, &
-                              patch%saturation_function_array(icap_dn)%ptr,&
+                              sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
@@ -5411,8 +5265,7 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     if (option%use_th_freezing) then
       sat_func => patch%saturation_function_array(icap)%ptr
     else
-      characteristic_curves => patch%characteristic_curves_array( &
-        int(icap_loc_p(ghosted_id)))%ptr
+      characteristic_curves => patch%characteristic_curves_array(icap)%ptr
     endif
     
     call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
@@ -5627,198 +5480,6 @@ subroutine THJacobianSourceSink(A,realization,ierr)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-
-
-  ! Interior Flux Terms -----------------------------------  
-  connection_set_list => grid%internal_connection_set_list
-  cur_connection_set => connection_set_list%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(cur_connection_set)) exit
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-    
-      ghosted_id_up = cur_connection_set%id_up(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-
-      if (patch%imat(ghosted_id_up) <= 0 .or. &
-          patch%imat(ghosted_id_dn) <= 0) cycle
-
-      if (option%flow%only_vertical_flow) then
-        !geh: place second conditional within first to avoid excessive
-        !     dot products when .not. option%flow%only_vertical_flow
-        if (dot_product(cur_connection_set%dist(1:3,iconn),unit_z) < &
-            1.d-10) cycle
-      endif
-
-      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
-      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
-   
-      fraction_upwind = cur_connection_set%dist(-1,iconn)
-      distance = cur_connection_set%dist(0,iconn)
-      ! distance = scalar - magnitude of distance
-      ! gravity = vector(3)
-      ! dist(1:3,iconn) = vector(3) - unit vector
-      distance_gravity = distance * &
-                         dot_product(option%gravity, &
-                                     cur_connection_set%dist(1:3,iconn))
-      dd_up = distance*fraction_upwind
-      dd_dn = distance-dd_up ! should avoid truncation error
-      ! upweight could be calculated as 1.d0-fraction_upwind
-      ! however, this introduces ever so slight error causing pflow-overhaul not
-      ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
-      upweight = dd_dn/(dd_up+dd_dn)
-    
-      ithrm_up = int(ithrm_loc_p(ghosted_id_up))
-      ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
-      
-      D_up = TH_parameter%ckwet(ithrm_up)
-      D_dn = TH_parameter%ckwet(ithrm_dn)
-    
-      Dk_dry_up = TH_parameter%ckdry(ithrm_up)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
-      
-      alpha_up = TH_parameter%alpha(ithrm_up)
-      alpha_dn = TH_parameter%alpha(ithrm_dn)
-
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
-
-      if (option%use_th_freezing) then
-         Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
-      
-         alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
-
-         sf_up => patch%saturation_function_array(icap_up)%ptr
-         sf_dn => patch%saturation_function_array(icap_dn)%ptr
-      else
-         Dk_ice_up = Dk_dry_up
-         Dk_ice_dn = Dk_dry_dn
-      
-         alpha_fr_up = alpha_up
-         alpha_fr_dn = alpha_dn
-
-         cc_up => patch%characteristic_curves_array(icap_up)%ptr
-         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr
-      endif
-      
-      call THFluxDerivative(auxvars(ghosted_id_up), &
-                             global_auxvars(ghosted_id_up), &
-                             material_auxvars(ghosted_id_up), &
-                             D_up, &
-                             ithrm_up, &
-                             auxvars(ghosted_id_dn), &
-                             global_auxvars(ghosted_id_dn), &
-                             material_auxvars(ghosted_id_dn), &
-                             D_dn, &
-                             ithrm_dn, &
-                             cur_connection_set%area(iconn), &
-                             cur_connection_set%dist(-1:3,iconn), &
-                             upweight,TH_parameter%sir(1,icap_up), &
-                             TH_parameter%sir(1,icap_dn), &
-                             option, &
-                             sf_up,sf_dn, &
-                             cc_up,cc_dn, &
-                             Dk_dry_up,Dk_dry_dn, &
-                             Dk_ice_up,Dk_ice_dn, &
-                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
-                             TH_parameter, &
-                             Jup,Jdn)
-      
-!  scale by the volume of the cell                      
-      
-      if (local_id_up > 0) then
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                  Jup/material_auxvars(ghosted_id_up)%volume, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                                  Jdn/material_auxvars(ghosted_id_up)%volume, &
-                                  ADD_VALUES,ierr);CHKERRQ(ierr)
-      endif
-      if (local_id_dn > 0) then
-        Jup = -Jup
-        Jdn = -Jdn
-        
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                   Jdn/material_auxvars(ghosted_id_dn)%volume, &
-                                   ADD_VALUES,ierr);CHKERRQ(ierr)
-        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                                   Jup/material_auxvars(ghosted_id_dn)%volume, &
-                                   ADD_VALUES,ierr);CHKERRQ(ierr)
-      endif
-    enddo
-    cur_connection_set => cur_connection_set%next
-  enddo
-
-  if (realization%debug%matview_Jacobian_detailed) then
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    string = 'jacobian_flux'
-    call DebugCreateViewer(realization%debug,string,option,viewer)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-  endif
-
-  ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_condition_list%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(boundary_condition)) exit
-    
-    cur_connection_set => boundary_condition%connection_set
-    
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-    
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-      if (ghosted_id<=0) then
-        print *, "Wrong boundary node index... STOP!!!"
-        stop
-      endif
-
-      ithrm_dn  = int(ithrm_loc_p(ghosted_id))
-      D_dn      = TH_parameter%ckwet(ithrm_dn)
-      Dk_dry_dn = TH_parameter%ckdry(ithrm_dn)
-      alpha_dn  = TH_parameter%alpha(ithrm_dn)
-
-      icap_dn = int(icap_loc_p(ghosted_id))
-
-      if (option%use_th_freezing) then
-         DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
-         alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
-      else
-         Dk_ice_dn = Dk_dry_dn
-         alpha_fr_dn = alpha_dn
-      endif
-
-      call THBCFluxDerivative(boundary_condition%flow_condition%itype, &
-                              boundary_condition%flow_aux_real_var(:,iconn), &
-                              auxvars_bc(sum_connection), &
-                              global_auxvars_bc(sum_connection), &
-                              auxvars(ghosted_id), &
-                              global_auxvars(ghosted_id), &
-                              material_auxvars(ghosted_id), &
-                              D_dn, &
-                              cur_connection_set%area(iconn), &
-                              cur_connection_set%dist(-1:3,iconn), &
-                              TH_parameter%sir(1,icap_dn), &
-                              option,sat_func, &
-                              characteristic_curves, &
-                              Dk_dry_dn,Dk_ice_dn, &
-                              Jdn)
-      Jdn = -Jdn
-  
-      !  scale by the volume of the cell
-      Jdn = Jdn/material_auxvars(ghosted_id)%volume
-      
-      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
-                                    ADD_VALUES,ierr);CHKERRQ(ierr)
 
  
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
