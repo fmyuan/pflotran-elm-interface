@@ -454,6 +454,7 @@ subroutine UGridExplicitDecompose(ugrid,option)
   use petscdm
   use Option_module
   use Utility_module, only: ReallocateArray, SearchOrderedArray
+  use String_module
   
   implicit none
 
@@ -511,6 +512,19 @@ subroutine UGridExplicitDecompose(ugrid,option)
 #if UGRID_DEBUG
   call PrintMsg(option,'Adjacency matrix')
 #endif
+
+  
+  temp_int = minval(explicit_grid%cell_ids)
+  call MPI_Allreduce(MPI_IN_PLACE,temp_int, &
+                     ONE_INTEGER_MPI,MPIU_INTEGER, &
+                     MPI_MIN,option%mycomm,ierr)  
+  if (temp_int < 1) then
+    option%io_buffer = 'The minimum cell ID (' // &
+      trim(StringWrite(temp_int)) // ') in the explicit unstructured &
+      &grid used is less than 1. Grid cell IDs must be contiguous &
+      &starting at 1.'
+    call PrintErrMsg(option)
+  endif
 
   num_cells_local_old = size(explicit_grid%cell_ids)
   
