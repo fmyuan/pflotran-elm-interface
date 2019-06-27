@@ -40,6 +40,10 @@ module Well_Data_class
 
   PetscReal :: f_hpav = 0.0
 
+  ! Default wellbore radius
+
+  PetscReal, parameter :: w_vrdef  =  0.25
+
   ! Flag on use of well_data wells
 
   PetscBool :: use_wells = PETSC_FALSE
@@ -337,7 +341,7 @@ subroutine WellDataInit(this)
   this%w_skin_factor_set = PETSC_FALSE
   this%w_theta_frac_set  = PETSC_FALSE
 
-  this%w_radius          = 0.25
+  this%w_radius          = w_vrdef
   this%w_skin_factor     = 0.0
   this%w_theta_frac      = 1.0
 
@@ -501,19 +505,23 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
 
     select case(trim(keyword))
       case('RADIUS')  ! this has a conversion factor to account for
-        call InputReadDouble(input, option, this%w_radius)
+        ! Read value
+        v = 0.0
+        call InputReadDouble(input, option, v)
         call InputErrorMsg(input, option, 'well-radius' , 'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
+        ! Sort out units and convert if required
         internal_units = 'meter'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          this%w_radius = this%w_radius &
-                         *UnitsConvertToInternal(units, internal_units, option)
-          this%w_radius_set = PETSC_TRUE
+          v = v*UnitsConvertToInternal(units, internal_units, option)
         endif
+        ! Store value
+        this%w_radius     = v
+        this%w_radius_set = PETSC_TRUE
       case('SKIN_FACTOR')
         call InputReadDouble(input, option, this%w_skin_factor)
         this%w_skin_factor_set = PETSC_TRUE
@@ -525,24 +533,29 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
         call InputErrorMsg(input, option, 'theta angle fraction', 'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
       case('INJECTION_ENTHALPY_P')
+        !  Read value
+        v = 101325.0
         call InputReadDouble(input, option, v)
         call InputErrorMsg(input, option, &
                            'Injection enthalpy pressure', 'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
+        ! Sort out units and convert if required
         internal_units = 'Pa'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          v = UnitsConvertToInternal(units, internal_units, option)*v
-          if (this%w_readtime > 0.0) then
-            call StoreEvent(this, EVENT_PINJ, ival, v)
-          else
-            this%w_injection_p = v
-          endif
+          v = v*UnitsConvertToInternal(units, internal_units, option)
+        endif
+        ! Store value
+        if (this%w_readtime > 0.0) then
+          call StoreEvent(this, EVENT_PINJ, ival, v)
+        else
+          this%w_injection_p = v
         endif
       case('INJECTION_ENTHALPY_T')
+        v = 15.0
         call InputReadDouble(input, option, v)
         call InputErrorMsg(input, option, 'injection enthalpy temp', &
                            'WELL_DATA')
@@ -591,23 +604,30 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
             'Drilling direction ' // trim(keyword) // ' not recognized'
             call PrintErrMsg(option)
         end select
-      case('Z_REF')
-        this%w_z_ref_set = PETSC_TRUE
+      case('Z_REF','D_REF')
+        ! Read value
+        v = 0.0
         call InputReadDouble(input, option, v)
         call InputErrorMsg(input, option, 'z_ref', 'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
+        ! Sort out units and convert if required
         internal_units = 'meter'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          this%w_z_ref = v*UnitsConvertToInternal(units, internal_units, &
-                                                  option)
+          v = v*UnitsConvertToInternal(units, internal_units, option)
         endif
+        ! Case of DREF - convert depth to elevation
+        if( trim(keyword) == 'D_REF' ) v = -v
+        ! Store value
+        this%w_z_ref     = v
+        this%w_z_ref_set = PETSC_TRUE
       case('CIJK', 'CIJK_Z', 'CIJK_D')
       case('BHPL')
   ! Read a well bhp limit (will be max for injector, min for producer)
+        v = 101325.0
         call InputReadDouble(input, option, v)
         call InputErrorMsg(input, option, 'BHPL', 'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
@@ -617,12 +637,12 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          v = UnitsConvertToInternal(units, internal_units, option)*v
-          if (this%w_readtime > 0.0) then
-            call StoreEvent(this, EVENT_TARG, W_BHP_LIMIT, v)
-          else
-            this%w_targets(W_BHP_LIMIT) = v
-          endif
+          v = v*UnitsConvertToInternal(units, internal_units, option)
+        endif
+        if (this%w_readtime > 0.0) then
+          call StoreEvent(this, EVENT_TARG, W_BHP_LIMIT, v)
+        else
+          this%w_targets(W_BHP_LIMIT) = v
         endif
       case('OPEN')
           if (this%w_readtime>0.0) then
@@ -637,22 +657,25 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
             this%w_status    = W_STATUS_SHUT
           endif
       case('TIME')
-  ! Read the time associated with susbsequent instructions
+        ! Read the time associated with susbsequent instructions
+        v = 0.0
         call InputReadDouble(input, option, v)
         call InputErrorMsg(input, option, 'TIME', 'WELL_DATA')
         call InputReadWord(input, option, word, PETSC_TRUE)
+        ! Sort out units and convert if required
         internal_units = 'sec'
         if (InputError(input)) then
           word = trim(keyword) // ' UNITS'
           call InputDefaultMsg(input, option, word)
         else
           units = trim(word)
-          v = UnitsConvertToInternal(units, internal_units, option)*v
-          this%w_readtime = v
-          if (nwaytime+1 > mwaytime) call ReallocateArray(waytime, mwaytime)
-          waytime(nwaytime+1) = v
-          nwaytime = nwaytime + 1
+          v = v*UnitsConvertToInternal(units, internal_units, option)
         endif
+        ! Store value
+        this%w_readtime = v
+        if (nwaytime+1 > mwaytime) call ReallocateArray(waytime, mwaytime)
+        waytime(nwaytime+1) = v
+        nwaytime = nwaytime + 1
   ! Read a surface volume rate (several options)
       case('TARG_OSV')
         call readWellTarget(this, input, option, 'TARG_OSV', word, W_TARG_OSV)
@@ -2250,6 +2273,7 @@ subroutine readWellTarget(this, input, option, keyword, word, target_type)
   PetscReal                    :: v
 
   ! Read a well surface target rate int v
+  v = 0.0
   call InputReadDouble(input, option, v)
   call InputErrorMsg(input, option, keyword, 'WELL_DATA')
   ! Read the units into word
@@ -2267,7 +2291,7 @@ subroutine readWellTarget(this, input, option, keyword, word, target_type)
   else
     ! All OK, convert units and store
     units = trim(word)
-    v = UnitsConvertToInternal(units, internal_units, option)*v
+    v = v*UnitsConvertToInternal(units, internal_units, option)
     if (this%w_readtime>0.0) then
       call StoreEvent(this, EVENT_TARG, target_type, v)
     else
@@ -2580,12 +2604,11 @@ subroutine CheckCompletionCount(this)
   class(well_data_type) :: this
 
   PetscInt :: mold, mnew, nreq
-  PetscReal :: vneg, vzero, vunity, vrdef
+  PetscReal :: vneg, vzero, vunity
 
   vneg   = -1.0
   vzero  =  0.0
   vunity =  1.0
-  vrdef  =  0.25
 
   if (this%w_mCmpl == 0 .or. (this%w_ncmpl >= this%w_mcmpl)) then
 
@@ -2606,7 +2629,7 @@ subroutine CheckCompletionCount(this)
     call AllocOrReallocR(this%c_dy         , vneg       , mold, mnew, nreq)
     call AllocOrReallocR(this%c_dz         , vneg       , mold, mnew, nreq)
 
-    call AllocOrReallocR(this%c_radius     , vrdef      , mold, mnew, nreq)
+    call AllocOrReallocR(this%c_radius     , w_vrdef    , mold, mnew, nreq)
     call AllocOrReallocR(this%c_skin_factor, vzero      , mold, mnew, nreq)
     call AllocOrReallocR(this%c_theta_frac , vunity     , mold, mnew, nreq)
     call AllocOrReallocI(this%c_drill_dir  , Z_DIRECTION, mold, mnew, nreq)
