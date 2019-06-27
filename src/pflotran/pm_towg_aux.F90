@@ -5381,7 +5381,9 @@ subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
   if (StringCompareIgnoreCase(zsol,'Sgas'    )) iphase = option%gas_phase
   if (StringCompareIgnoreCase(zsol,'Swat'    )) iphase = option%liquid_phase
   if (StringCompareIgnoreCase(zsol,'Sslv'    )) then
-    if (towg_miscibility_model == TOWG_SOLVENT_TL) iphase = option%solvent_phase
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+      iphase = option%solvent_phase
+    endif
   endif
 
 !  Extract value
@@ -5390,13 +5392,17 @@ subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
     ghosted_id = grid%nL2G(local_id)
     if (imat(ghosted_id) <= 0) cycle
     if (ispres) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
     else if (ispsat) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%bo%bubble_point
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%bo%bubble_point
     else if (isTemp) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%temp
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%temp
     else if (iphase>0) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
     else
       vsoll(local_id,isol) = 0.0
     endif
