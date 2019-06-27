@@ -137,7 +137,7 @@ module Grid_Grdecl_module
 
 !  Null test flag
 
-  PetscBool :: g_geometry_test = PETSC_TRUE
+  PetscBool :: g_geometry_test = PETSC_FALSE
 
   ! Public access to this module
 
@@ -349,6 +349,13 @@ subroutine UGrdEclExplicitRead(unstructured_grid, filename, option)
 
   ! Read on io_rank only
 
+  !  Set non-blocking error detection only (reader will not exit)
+
+  call OptionSetBlocking(option,PETSC_FALSE)
+  option%error_while_nonblocking = PETSC_FALSE
+
+  !  Now read grdecl file on the io-rank only
+
   if (option%myrank == option%io_rank) then
     call GrdeclReader(input, option)
   endif
@@ -360,6 +367,11 @@ subroutine UGrdEclExplicitRead(unstructured_grid, filename, option)
                    option%io_rank, option%mycomm, ierr)
     call InputErrorMsg(input, option, 'GRDECL file', g_error_string)
   endif
+
+  ! Reset default blocking error state
+
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
   ! Destroy the input system
 
@@ -782,7 +794,7 @@ subroutine GrdeclReader(input, option)
   PetscInt, parameter :: mzbuf = 10
 
   PetscInt  :: ierr, nread, nxsg, nysg, nzsg
-  PetscBool :: qerr, is_metric
+  PetscBool :: qerr, is_metric, newtran_force, oldtran_force
   PetscReal :: dimens(3)
   character(len = MAXWORDLENGTH) :: word
   character(len = MAXWORDLENGTH) :: zbuf(mzbuf)
@@ -793,11 +805,19 @@ subroutine GrdeclReader(input, option)
   zbuf = ' '
   dimens = 1.0
 
+  newtran_force = PETSC_FALSE
+  oldtran_force = PETSC_FALSE
+
   ! Read through items in the grdecl file
 
   do
 
     call InputReadPflotranStringNotComment(input, option)
+    if (option%error_while_nonblocking) then
+      ! I/O error detected so set qerr and exit
+      call SetError('Unable to read from GRDECL file', qerr)
+      exit;
+    endif
     if (input%ierr /= 0) exit                   ! Detect eof and leave
 
   ! Keyword found
@@ -875,8 +895,10 @@ subroutine GrdeclReader(input, option)
                          input, option, nn_yes, qerr)
       case('NEWTRAN')
         g_isnewtran   = PETSC_TRUE
+        newtran_force = PETSC_TRUE
       case('OLDTRAN')
         g_isnewtran   = PETSC_FALSE
+        oldtran_force = PETSC_TRUE
       case('ADD', 'COPY', 'EQUALS', 'MULTIPLY')
        call HandleOpKeyword(word, input, option, qerr)
       case('FAULTS')
@@ -928,18 +950,45 @@ subroutine GrdeclReader(input, option)
        call SetError(zmess, qerr)
     end select
 
-!  Leave if error flag set
+   !  Leave if error flag set
 
     if (qerr) exit
   enddo
 
-  ! Process the grid data read
+  !  Case in which NEWTRAN or OLDTRAN specified explicitly
 
-  call ProcessGridData()
+  if (newtran_force .and. oldtran_force) then
+    zmess = 'Both NEWTRAN and OLDTRAN specified'
+    call SetError(zmess, qerr)
+  elseif (newtran_force) then
+    g_isnewtran = PETSC_TRUE
+  elseif (oldtran_force) then
+    g_isnewtran = PETSC_FALSE
+  endif
 
-  ! Process the well data read
+  !  Check for errors and process data
 
-  call ProcessWellData(qerr)
+  if( .not.qerr ) then
+
+    ! Process the grid data read
+
+    call ProcessGridData()
+    if (g_na == 0) then
+
+!  Case of no active cells: error
+
+      zmess = 'Problem has no active cells'
+      call SetError(zmess, qerr)
+
+    else
+
+    ! Process the well data read
+
+      call ProcessWellData(qerr)
+
+    endif
+
+  endif
 
 end subroutine GrdeclReader
 
@@ -963,11 +1012,11 @@ subroutine ReadFaults(zkey, input, option, qerr)
   PetscBool, intent(inout) :: qerr
 
   PetscInt, parameter :: ma = 8
-  character(len = MAXWORDLENGTH) :: za(ma)
+  character(len = MAXWORDLENGTH) :: za(ma),zface
 
-  PetscInt  :: ixl, ixu, iyl, iyu, izl, izu
+  PetscInt  :: ixl, ixu, iyl, iyu, izl, izu , izle, izue
 
-!  Initialise values
+!  Initialise values (note read in Eclipse iz convention)
 
   qerr = PETSC_FALSE
 
@@ -977,8 +1026,8 @@ subroutine ReadFaults(zkey, input, option, qerr)
   iyl = 1
   iyu = g_ny
 
-  izl = 1
-  izu = g_nz
+  izle = 1
+  izue = g_nz
 
 !  Loop through data until a null record found
 
@@ -991,16 +1040,26 @@ subroutine ReadFaults(zkey, input, option, qerr)
 
     if (StringCompareIgnoreCase(za(1), '/')) exit
 
-    call ProcessArgToInt(ixl, za(2), zkey, 1  , g_nx, qerr); if (qerr) exit
-    call ProcessArgToInt(ixu, za(3), zkey, ixl, g_nx, qerr); if (qerr) exit
+   ! Read and error-check data
 
-    call ProcessArgToInt(iyl, za(4), zkey, 1  , g_ny, qerr); if (qerr) exit
-    call ProcessArgToInt(iyu, za(5), zkey, iyl, g_ny, qerr); if (qerr) exit
+    call ProcessArgToInt(ixl , za(2), zkey, 1   , g_nx, qerr); if (qerr) exit
+    call ProcessArgToInt(ixu , za(3), zkey, ixl , g_nx, qerr); if (qerr) exit
 
-    call ProcessArgToInt(izl, za(6), zkey, 1  , g_nz, qerr); if (qerr) exit
-    call ProcessArgToInt(izu, za(7), zkey, izl, g_nz, qerr); if (qerr) exit
+    call ProcessArgToInt(iyl , za(4), zkey, 1   , g_ny, qerr); if (qerr) exit
+    call ProcessArgToInt(iyu , za(5), zkey, iyl , g_ny, qerr); if (qerr) exit
 
-    call StoreFault(za(1), ixl, ixu, iyl, iyu, izl, izu, za(8), qerr)
+    call ProcessArgToInt(izle, za(6), zkey, 1   , g_nz, qerr); if (qerr) exit
+    call ProcessArgToInt(izue, za(7), zkey, izle, g_nz, qerr); if (qerr) exit
+
+    zface = za(8)
+
+!   Convert to Pflotran layer convention
+!   Note lower E-conv. layer becomes the upper P-conv. layer and v.v.
+
+    izl=g_nz-izue+1
+    izu=g_nz-izle+1
+
+    call StoreFault(za(1), ixl, ixu, iyl, iyu, izl, izu, zface, qerr)
     if (qerr) exit
 
   enddo
@@ -1071,6 +1130,7 @@ subroutine StoreFault( zname, il, iu, jl, ju, kl, ku, zface, qerr )
   PetscBool, intent(out) :: qerr
 
   PetscInt :: ifault, iface
+  character(len = MAXSTRINGLENGTH) :: zmess
 
   qerr = PETSC_FALSE
   iface = 0
@@ -1081,12 +1141,38 @@ subroutine StoreFault( zname, il, iu, jl, ju, kl, ku, zface, qerr )
     call ExtendFaultData()
   endif
 
-  if (StringCompareIgnoreCase(zface, 'I' )) iface = g_facei
-  if (StringCompareIgnoreCase(zface, 'I-')) iface = g_faceim
-  if (StringCompareIgnoreCase(zface, 'J' )) iface = g_facej
-  if (StringCompareIgnoreCase(zface, 'J-')) iface = g_facejm
-  if (StringCompareIgnoreCase(zface, 'K' )) iface = g_facek
-  if (StringCompareIgnoreCase(zface, 'K-')) iface = g_facekm
+  ! Positive or negative X-face (I accepted as alias)
+
+  if (     StringCompareIgnoreCase(zface, 'I' ) &
+      .or. StringCompareIgnoreCase(zface, 'X' )) iface = g_facei
+
+  if (     StringCompareIgnoreCase(zface, 'I-') &
+      .or. StringCompareIgnoreCase(zface, 'X-')) iface = g_faceim
+
+  ! Positive or negative Y-face (J accepted as alias)
+
+  if (     StringCompareIgnoreCase(zface, 'J' ) &
+      .or. StringCompareIgnoreCase(zface, 'Y' )) iface = g_facej
+
+  if (     StringCompareIgnoreCase(zface, 'J-') &
+      .or. StringCompareIgnoreCase(zface, 'Y-')) iface = g_facejm
+
+  ! Positive or negative Z-face (K accepted as alias)
+
+  if (     StringCompareIgnoreCase(zface, 'K' ) &
+      .or. StringCompareIgnoreCase(zface, 'Z' )) iface = g_facek
+
+  if (     StringCompareIgnoreCase(zface, 'K-') &
+      .or. StringCompareIgnoreCase(zface, 'Z-')) iface = g_facekm
+
+  ! Error trap on face string (a harmless null fault will be stored)
+
+  if (iface == 0 ) then
+    zmess = 'Face '//trim(zface)//' not recognised'
+    call SetError(zmess, qerr)
+  endif
+
+  ! Store values
 
   g_fault_data(ifault)%zname = zname
   g_fault_data(ifault)%il    = il
@@ -1153,7 +1239,7 @@ subroutine HandleOpKeyword(zkey, input, option, qerr)
   character(len = MAXWORDLENGTH) :: za(ma)
 
   PetscBool :: isadd, iscpy, iseql, ismlt
-  PetscInt  :: ixl, ixu, iyl, iyu, izl, izu
+  PetscInt  :: ixl, ixu, iyl, iyu, izl, izu, izle, izue
 
 !  Initialise values
 
@@ -1164,14 +1250,16 @@ subroutine HandleOpKeyword(zkey, input, option, qerr)
   iseql = StringCompareIgnoreCase(zkey, 'equals'  )
   ismlt = StringCompareIgnoreCase(zkey, 'multiply')
 
-  ixl = 1
-  ixu = g_nx
+!  Initialise values (note read in Eclipse iz convention)
 
-  iyl = 1
-  iyu = g_ny
+  ixl  = 1
+  ixu  = g_nx
 
-  izl = 1
-  izu = g_nz
+  iyl  = 1
+  iyu  = g_ny
+
+  izle = 1
+  izue = g_nz
 
   do
 
@@ -1182,14 +1270,20 @@ subroutine HandleOpKeyword(zkey, input, option, qerr)
 
     if (StringCompareIgnoreCase(za(1), '/')) exit
 
-    call ProcessArgToInt(ixl, za(3), zkey, 1  , g_nx, qerr); if (qerr) exit
-    call ProcessArgToInt(ixu, za(4), zkey, ixl, g_nx, qerr); if (qerr) exit
+    call ProcessArgToInt(ixl , za(3), zkey, 1   , g_nx, qerr); if (qerr) exit
+    call ProcessArgToInt(ixu , za(4), zkey, ixl , g_nx, qerr); if (qerr) exit
 
-    call ProcessArgToInt(iyl, za(5), zkey, 1  , g_ny, qerr); if (qerr) exit
-    call ProcessArgToInt(iyu, za(6), zkey, iyl, g_ny, qerr); if (qerr) exit
+    call ProcessArgToInt(iyl , za(5), zkey, 1   , g_ny, qerr); if (qerr) exit
+    call ProcessArgToInt(iyu , za(6), zkey, iyl , g_ny, qerr); if (qerr) exit
 
-    call ProcessArgToInt(izl, za(7), zkey, 1  , g_nz, qerr); if (qerr) exit
-    call ProcessArgToInt(izu, za(8), zkey, izl, g_nz, qerr); if (qerr) exit
+    call ProcessArgToInt(izle, za(7), zkey, 1   , g_nz, qerr); if (qerr) exit
+    call ProcessArgToInt(izue, za(8), zkey, izle, g_nz, qerr); if (qerr) exit
+
+!   Convert to Pflotran layer convention
+!   Note lower E-conv. layer becomes the upper P-conv. layer and v.v.
+
+    izl=g_nz-izue+1
+    izu=g_nz-izle+1
 
     call BoxOp( za(1), za(2), ixl, ixu, iyl, iyu, izl, izu, &
                 isadd, iscpy, iseql, ismlt, zkey, qerr )
@@ -1221,11 +1315,15 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
   character(len = *), intent(in) :: zk
   PetscBool, intent(out) :: qerr
 
-  PetscBool :: isint, isreal, isintb, isrealb, is_mult_only, is_mult_dummy
+  PetscBool :: isint, isreal, isintb, isrealb, &
+               is_mult_only , is_mult_dummy, &
+               is_depth     , is_depth_dummy, &
+               is_perm      , is_perm_dummy
+
   PetscInt , pointer :: ai(:), bi(:)
   PetscReal, pointer :: ar(:), br(:)
 
-  PetscReal :: v
+  PetscReal :: v,conv
   PetscInt  :: ix, iy, iz, ig, iv
 
 !  Initialise values
@@ -1238,6 +1336,12 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
   is_mult_only  = PETSC_FALSE
   is_mult_dummy = PETSC_FALSE
 
+  is_depth       = PETSC_FALSE
+  is_depth_dummy = PETSC_FALSE
+
+  is_perm        = PETSC_FALSE
+  is_perm_dummy  = PETSC_FALSE
+
   nullify(ai, ar, bi, br)
 
   v = 0.0
@@ -1247,9 +1351,11 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
 
 !  Get the required arrays
 
-  call GetGridArrayPointer(zto, isint, isreal, ai, ar, qerr, is_mult_only)
+  call GetGridArrayPointer( zto, isint, isreal, ai, ar, qerr, &
+                            is_mult_only, is_depth, is_perm )
   if (iscpy) then
-    call GetGridArrayPointer(zfr, isintb, isrealb, bi, br, qerr, is_mult_dummy)
+    call GetGridArrayPointer( zfr, isintb, isrealb, bi, br, qerr, &
+                              is_mult_dummy, is_depth_dummy, is_perm_dummy)
   else
     call ProcessArgToReal(v, zfr, zk, qerr)
   endif
@@ -1263,11 +1369,27 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
 !  Carry out operations
 
     if (.not.qerr) then
+
+!     Case of depth array like TOPS: convert set-or-add value to an elevation
+
+      if (is_depth) then
+        if (isadd .or. iseql) v=-v
+      endif
+
+!     Case of perm array like PERMX: convert set-or-add value from mD to m^2
+
+      if (is_perm) then
+        conv = GetMDtoM2Conv()
+        if (isadd .or. iseql) v=v*conv
+      endif
+
       do iz = izl, izu
         do iy = iyl, iyu
           do ix = ixl, ixu
 
             ig = GetNaturalIndex(ix, iy, iz)
+
+!  Case of integer array
             if (isint) then
               iv = nint(v)
               if (isadd) ai(ig) = ai(ig) + iv
@@ -1278,6 +1400,8 @@ subroutine BoxOp( zto, zfr, ixl, ixu, &
               if (iseql) ai(ig) = iv
               if (ismlt) ai(ig) = ai(ig) * iv
             endif
+
+! Case of real array
             if (isreal) then
               if (isadd) ar(ig) = ar(ig) + v
               if (iscpy) then
@@ -1298,7 +1422,8 @@ end subroutine BoxOp
 
 ! *************************************************************************** !
 
-subroutine GetGridArrayPointer(za, isint, isreal, ai, ar, qerr, is_mult_only)
+subroutine GetGridArrayPointer(za, isint, isreal, ai, ar, qerr, &
+                               is_mult_only, is_depth, is_perm)
   !
   ! Get a pointer to the grid array with mnemonic za
   !
@@ -1319,6 +1444,8 @@ subroutine GetGridArrayPointer(za, isint, isreal, ai, ar, qerr, is_mult_only)
   PetscReal, pointer, intent(out) :: ar(:)
 
   PetscBool, intent(out) :: is_mult_only
+  PetscBool, intent(out) :: is_depth
+  PetscBool, intent(out) :: is_perm
 
   PetscBool, intent(out) :: qerr
 
@@ -1328,27 +1455,60 @@ subroutine GetGridArrayPointer(za, isint, isreal, ai, ar, qerr, is_mult_only)
   qerr = PETSC_FALSE
 
   is_mult_only = PETSC_FALSE
+  is_depth     = PETSC_FALSE
 
   nullify(ai, ar)
+
+! Cell dimensions
 
   if (StringCompareIgnoreCase(za, 'dx'    )) ar => g_dx
   if (StringCompareIgnoreCase(za, 'dy'    )) ar => g_dy
   if (StringCompareIgnoreCase(za, 'dz'    )) ar => g_dz
 
-  if (StringCompareIgnoreCase(za, 'permx' )) ar => g_kx
-  if (StringCompareIgnoreCase(za, 'permy' )) ar => g_ky
-  if (StringCompareIgnoreCase(za, 'permz' )) ar => g_kz
+!  Permeabilities
+
+  if (StringCompareIgnoreCase(za, 'permx' )) then
+    ar => g_kx
+    is_perm = PETSC_TRUE
+  endif
+
+  if (StringCompareIgnoreCase(za, 'permy' )) then
+    ar => g_ky
+    is_perm = PETSC_TRUE
+  endif
+
+  if (StringCompareIgnoreCase(za, 'permz' )) then
+    ar => g_kz
+    is_perm = PETSC_TRUE
+  endif
+
+! Multipliers
 
   if (StringCompareIgnoreCase(za, 'multx' )) ar => g_mx
   if (StringCompareIgnoreCase(za, 'multy' )) ar => g_my
   if (StringCompareIgnoreCase(za, 'multz' )) ar => g_mz
 
+! Porosity
+
   if (StringCompareIgnoreCase(za, 'poro'  )) ar => g_poro
-  if (StringCompareIgnoreCase(za, 'tops'  )) ar => g_tops
+
+! Tops (note this is a depth, so mark as such)
+
+  if (StringCompareIgnoreCase(za, 'tops'  )) then
+    ar => g_tops
+    is_depth = PETSC_TRUE
+  endif
+
+! Net to gross
+
   if (StringCompareIgnoreCase(za, 'ntg'   )) ar => g_ntg
+
+!  Integer actnum and satnum
 
   if (StringCompareIgnoreCase(za, 'actnum')) ai => g_actn
   if (StringCompareIgnoreCase(za, 'satnum')) ai => g_satn
+
+!  Transmissibilities (can only be multiplied)
 
   if (StringCompareIgnoreCase(za, 'tranx' )) then
     ar => g_mx
@@ -1365,10 +1525,14 @@ subroutine GetGridArrayPointer(za, isint, isreal, ai, ar, qerr, is_mult_only)
     is_mult_only = PETSC_TRUE
   endif
 
+!  Pore volumes (can only be multiplied)
+
   if (StringCompareIgnoreCase(za, 'porv'  )) then
     ar => g_poro
     is_mult_only = PETSC_TRUE
   endif
+
+! Set up the type
 
   if (associated(ai)) then
     isint  = PETSC_TRUE
@@ -1611,49 +1775,55 @@ subroutine ProcessGridData()
     enddo
   enddo
 
-  allocate(g_atog(g_na));g_atog = -1
-  allocate(g_atoc(g_na));g_atoc = -1
+  ! Only continue if some active cells
 
-  ! Set up a to g
+  if (g_na>0) then
 
-  ng = g_nx*g_ny*g_nz
-  do ig = 1, ng
-    ia = g_gtoa(ig)
-    if (ia>-1) then
-      g_atog(ia) = ig
-    endif
-  enddo
+    allocate(g_atog(g_na));g_atog = -1
+    allocate(g_atoc(g_na));g_atoc = -1
 
-  ! Set up atoc (loop over cells in Eclipse compressed natural order)
+    ! Set up a to g
 
-  ic = 0
-  do ize = 1, g_nz
-    izp = g_nz-ize+1
-    do iy = 1, g_ny
-      do ix = 1, g_nx
-        ig = GetNaturalIndex(ix, iy, izp)
-        ia = g_gtoa(ig)
-        if (ia>-1) then
-          ic = ic+1
-          g_atoc(ia) = ic
-        endif
+    ng = g_nx*g_ny*g_nz
+    do ig = 1, ng
+      ia = g_gtoa(ig)
+      if (ia>-1) then
+        g_atog(ia) = ig
+      endif
+    enddo
+
+    ! Set up atoc (loop over cells in Eclipse compressed natural order)
+
+    ic = 0
+    do ize = 1, g_nz
+      izp = g_nz-ize+1
+      do iy = 1, g_ny
+        do ix = 1, g_nx
+          ig = GetNaturalIndex(ix, iy, izp)
+          ia = g_gtoa(ig)
+          if (ia>-1) then
+            ic = ic+1
+            g_atoc(ia) = ic
+          endif
+        enddo
       enddo
     enddo
-  enddo
 
-  ! Initial estmate for number of connections
-  ! Sufficient for normal connections + some space for wells
+    ! Initial estmate for number of connections
+    ! Sufficient for normal connections + some space for wells
 
-  g_mc = 3*g_na
-  g_nc = 0
+    g_mc = 3*g_na
+    g_nc = 0
 
-  ! Allocate active arrays
+    ! Allocate active arrays
 
-  call AllocateActiveArrays()
+    call AllocateActiveArrays()
 
-  ! Find the cell locations and connections
+    ! Find the cell locations and connections
 
-  call GenerateGridConnections()
+    call GenerateGridConnections()
+
+  endif
 
 end subroutine ProcessGridData
 
@@ -1704,24 +1874,31 @@ subroutine ProcessFaults()
 
             ig =  GetNaturalIndex(i, j, k)
 
-             if (iface == g_facei) g_mx(ig) = g_mx(ig)*vm
-             if (iface == g_facej) g_my(ig) = g_my(ig)*vm
-             if (iface == g_facek) g_mz(ig) = g_mz(ig)*vm
+            ! Positive values set MULTX/Y/Z for the fault cell
 
-             if (iface == g_faceim .and. i>1) then
-               jg =  GetNaturalIndex(i-1, j, k)
-               g_mx(jg) = g_mx(jg)*vm
-             endif
+            if (iface == g_facei) g_mx(ig) = g_mx(ig)*vm
+            if (iface == g_facej) g_my(ig) = g_my(ig)*vm
+            if (iface == g_facek) g_mz(ig) = g_mz(ig)*vm
 
-             if (iface == g_facejm .and. j>1) then
-               jg =  GetNaturalIndex(i, j-1, k)
-               g_my(jg) = g_my(jg)*vm
-             endif
+            ! Negative values set MULTX/Y/Z for the neighbouring cell
 
-             if (iface == g_facekm .and. k>1) then
-               jg =  GetNaturalIndex(i, j, k-1)
-               g_mz(jg) = g_mz(jg)*vm
-             endif
+            if (iface == g_faceim .and. i>1) then
+              jg =  GetNaturalIndex(i-1, j, k)
+              g_mx(jg) = g_mx(jg)*vm
+            endif
+
+            if (iface == g_facejm .and. j>1) then
+              jg =  GetNaturalIndex(i, j-1, k)
+              g_my(jg) = g_my(jg)*vm
+            endif
+
+            !  Care needed to modify MULTZ for correct cell:
+            !  Lower in Eclipse terms is upper in Pflotran terms
+
+            if (iface == g_facekm .and. k<g_nz) then
+              jg =  GetNaturalIndex(i, j, k+1)
+              g_mz(jg) = g_mz(jg)*vm
+            endif
 
           enddo
         enddo
@@ -2441,7 +2618,7 @@ subroutine GenerateGridConnections
   implicit none
 
   PetscInt  :: ix, iy, iz, ig, ia
-  PetscReal :: x, y, z, dx, dy, dz, mx, my, mz, ntg
+  PetscReal :: x, y, z, dx, dy, dz, mx, my, ntgi
   PetscReal :: x000(3), x100(3), x010(3), x110(3), &
                x001(3), x101(3), x011(3), x111(3)
 
@@ -2463,9 +2640,8 @@ subroutine GenerateGridConnections
 
           mx = g_mx(ig)
           my = g_my(ig)
-          mz = g_mz(ig)
 
-          ntg = g_ntg(ig)
+          ntgi = g_ntg(ig)
 
           if (g_iscpg) then
             call GetCorners( ix, iy, iz, &
@@ -2490,10 +2666,10 @@ subroutine GenerateGridConnections
 
           if (ix < g_nx) then
             if (g_isnewtran) then
-              call getArea1( ia, ix, iy, iz, g_xdir, mx, my, mz, ntg )
+              call getArea1( ia, ix, iy, iz, g_xdir, mx, my, ntgi )
             else
-              call getArea0( ia, ix, iy, iz, g_xdir, &
-                             x, y, z, dx, dy, dz, mx, my, mz, ntg )
+              call getArea0( ia, ig, ix, iy, iz, g_xdir, &
+                             x, y, z, dx, dy, dz, mx, my, ntgi )
             endif
           endif
 
@@ -2501,10 +2677,10 @@ subroutine GenerateGridConnections
 
           if (iy< g_ny) then
             if (g_isnewtran) then
-              call getArea1( ia, ix, iy, iz, g_ydir, mx, my, mz, ntg )
+              call getArea1( ia, ix, iy, iz, g_ydir, mx, my, ntgi )
             else
-              call getArea0( ia, ix, iy, iz, g_ydir, &
-                             x, y, z, dx, dy, dz, mx, my , mz, ntg )
+              call getArea0( ia, ig, ix, iy, iz, g_ydir, &
+                             x, y, z, dx, dy, dz, mx, my, ntgi )
             endif
           endif
 
@@ -2512,10 +2688,10 @@ subroutine GenerateGridConnections
 
           if (iz < g_nz) then
             if (g_isnewtran) then
-              call getArea1( ia, ix, iy, iz, g_zdir, mx, my, mz, ntg )
+              call getArea1( ia, ix, iy, iz, g_zdir, mx, my, ntgi )
             else
-              call getArea0( ia, ix, iy, iz, g_zdir, &
-                             x, y, z, dx, dy, dz, mx, my, mz, ntg )
+              call getArea0( ia, ig, ix, iy, iz, g_zdir, &
+                             x, y, z, dx, dy, dz, mx, my, ntgi )
             endif
           endif
 
@@ -3149,7 +3325,7 @@ subroutine GetHexDims( x000, x100, x010, x110, &
   PetscReal, intent(out) :: vdx, vdy, vdz, vpx, vpy, vpz
 
   PetscInt  :: idir
-  PetscReal :: dx(3), dy(3), dz(3)
+  PetscReal :: dx(3), dy(3), dz(3), prx, pry
 
   ! Cell centre is just the average
 
@@ -3186,36 +3362,21 @@ subroutine GetHexDims( x000, x100, x010, x110, &
 
   enddo
 
-  ! Find scalar distances
+  ! Find dx and dy scalar distances from x- and y-direction projections
 
-  vdx = GetScalarLength(dx)
-  vdy = GetScalarLength(dy)
-  vdz = GetScalarLength(dz)
+  prx = dx(g_xdir)
+  pry = dx(g_ydir)
+  vdx = sqrt(prx**2+pry**2)
+
+  prx = dy(g_xdir)
+  pry = dy(g_ydir)
+  vdy = sqrt(prx**2+pry**2)
+
+  ! Find dz from the block vertical thickness
+
+  vdz = abs(dz(g_zdir))
 
 end subroutine GetHexDims
-
-! *************************************************************************** !
-
-function GetScalarLength(v)
-  !
-  ! Get the scalar length of a three-vector
-  !
-  ! Author: Dave Ponting
-  ! Date: 11/13/18
-
-  implicit none
-
-  PetscReal :: GetScalarLength
-  PetscReal, intent(in) :: v(g_ndir)
-  PetscReal :: sum
-
-  sum = v(g_xdir)*v(g_xdir) &
-       +v(g_ydir)*v(g_ydir) &
-       +v(g_zdir)*v(g_zdir)
-
-  GetScalarLength = sqrt(sum)
-
-end function GetScalarLength
 
 ! *************************************************************************** !
 
@@ -3778,7 +3939,11 @@ subroutine ReadEstrings(zkey, a, n, input, option, qerr)
   nstack = 0
 
   call InputReadPflotranStringNotComment(input, option)
-  if (InputCheckExit(input, option)) exittime = PETSC_TRUE
+  if (input%ierr /= 0) then
+    exittime = PETSC_TRUE
+  else
+    if (InputCheckExit(input, option)) exittime = PETSC_TRUE
+  endif
 
   if (.not. exittime) then
 
@@ -4446,8 +4611,8 @@ end function  findVolume1
 
 ! *************************************************************************** !
 
-subroutine getArea0(ia, ix, iy, iz, idir, x, y, z, dx, dy, dz, &
-                    mx, my, mz, ntg)
+subroutine getArea0(ia, ig, ix, iy, iz, idir, x, y, z, &
+                    dxi, dyi, dzi, mx, my, ntgi)
   !
   ! Do a block-based area calculation between cell (ix,iy,iz) and its
   ! positive neighbour in the idir-direction (g_xdir,..,g_z_dir)
@@ -4457,11 +4622,16 @@ subroutine getArea0(ia, ix, iy, iz, idir, x, y, z, dx, dy, dz, &
 
   implicit none
 
-  PetscInt , intent(in) :: ia, ix, iy, iz, idir
-  PetscReal, intent(in) :: x, y, z, dx, dy, dz, mx, my, mz, ntg
+  PetscInt , intent(in) :: ia, ig, ix, iy, iz, idir
+  PetscReal, intent(in) :: x, y, z, dxi, dyi, dzi, mx, my, ntgi
 
   PetscInt  :: jx, jy, jz, jg, ja
-  PetscReal :: xf, yf, zf, a
+  PetscReal :: xf, yf, zf, a, ai, aj, mz, ntgj, dxj, dyj, dzj, wi, wj, dd, dh
+  PetscReal :: dxij, dyij, dzij, dip, dipc
+
+  !  Default mz
+
+  mz = 1.0
 
   ! Find neighbour
 
@@ -4478,19 +4648,83 @@ subroutine getArea0(ia, ix, iy, iz, idir, x, y, z, dx, dy, dz, &
 
   if (ja > 0) then
 
-    xf = x
-    yf = y
-    zf = z
+!   If z-dir, multz of lower cell in Eclipse is from cell above in Pflotran
 
-    if (idir == g_xdir) xf = xf + 0.5 * dx
-    if (idir == g_ydir) yf = yf + 0.5 * dy
-    if (idir == g_zdir) zf = zf + 0.5 * dz
+    if (idir == g_zdir) mz = g_mz(jg)
 
-    if (idir == g_xdir) a = mx * dy * dz * ntg
-    if (idir == g_ydir) a = my * dz * dx * ntg
-    if (idir == g_zdir) a = mz * dx * dy
+!   Get ntg for cell j
 
-    call AddConnection(ia, ja, xf, yf, zf, a)
+    ntgj = g_ntg(jg)
+
+!   Get size values in each direction
+
+    dxj  = g_dx(jg)
+    dyj  = g_dy(jg)
+    dzj  = g_dz(jg)
+
+    dxij = dxi + dxj
+    dyij = dyi + dyj
+    dzij = dzi + dzj
+
+    ! Weights (if dxi>>dxj, wi->1, wj->0)
+
+    wi = 0.5
+    wj = 0.5
+
+    ! Depth difference for dip corrections
+
+    dd   = abs(g_zloc(ig)-g_zloc(jg))
+    dipc = 1.0
+
+    ! x-direction
+
+    if (idir == g_xdir) then
+      if (dxij>0.0) then
+        dh   = 0.5*dxij
+        dip  = atan(dd/dh)
+        dipc = cos(dip)
+        wi   = dxi/dxij
+        wj   = dxj/dxij
+      endif
+      ai = dyi * dzi * ntgi
+      aj = dyj * dzj * ntgj
+      a  = mx * (ai*wj + aj*wi)*dipc
+    endif
+
+    if (idir == g_ydir) then
+      if (dyij>0.0) then
+        dh   = 0.5*dyij
+        dip  = atan(dd/dh)
+        dipc = cos(dip)
+        wi   = dyi/dyij
+        wj   = dyj/dyij
+      endif
+      ai  = dzi * dxi * ntgi
+      aj  = dzj * dxj * ntgj
+      a  = my * (ai*wj + aj*wi)*dipc
+    endif
+
+    if (idir == g_zdir) then
+      if (dzij>0.0) then
+        wi = dzi/dzij
+        wj = dzj/dzij
+      endif
+      ai = dxi * dyi
+      aj = dxj * dyj
+      a  = mz *  (ai*wj + aj*wi)
+    endif
+
+    ! Set up the interface along the line from i to j, weighted by cell size
+
+    xf = wj*g_xloc(ig)+wi*g_xloc(jg)
+    yf = wj*g_yloc(ig)+wi*g_yloc(jg)
+    zf = wj*g_zloc(ig)+wi*g_zloc(jg)
+
+    ! Add in the connection
+
+    if( a>0.0 ) then
+      call AddConnection(ia, ja, xf, yf, zf, a)
+    endif
 
   endif
 
@@ -4498,7 +4732,7 @@ end subroutine getArea0
 
 ! *************************************************************************** !
 
-subroutine getArea1(ia, ix, iy, iz, idir, mx, my, mz, ntg)
+subroutine getArea1(ia, ix, iy, iz, idir, mx, my, ntgi)
   !
   ! Do a corner-point-based area calculation between cell (ix,iy,iz) and its
   ! positive neighbour in the id-direction (g_xdir,..,g_z_dir)
@@ -4509,10 +4743,10 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, mz, ntg)
   implicit none
 
   PetscInt , intent(in) :: ia, ix, iy, iz, idir
-  PetscReal, intent(in) :: mx, my, mz, ntg
+  PetscReal, intent(in) :: mx, my, ntgi
 
   PetscInt  :: jx, jy, jz, jg, ja, kz, kg, ka
-  PetscReal :: a, xf, yf, zf, f, pod
+  PetscReal :: a, xf, yf, zf, fm, fntg , af, pod
   PetscBool :: match, matchingNeighbourFound, found
 
   ! Set up natural neighbour location
@@ -4525,26 +4759,43 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, mz, ntg)
   if (idir == g_ydir) jy = jy + 1
   if (idir == g_zdir) jz = jz + 1
 
-  f = 1.0
-  if (idir == g_xdir) f = mx*ntg
-  if (idir == g_ydir) f = my*ntg
-  if (idir == g_zdir) f = mz
-
   ! Initialise flags
 
   match                  = PETSC_FALSE
   matchingNeighbourFound = PETSC_FALSE
   found                  = PETSC_FALSE
 
+  !  Set mult factor for first cell
+
+  fm  = 1.0
+  if (idir == g_xdir) fm = mx
+  if (idir == g_ydir) fm = my
+
   ! Look at the natural neighbour
 
   jg = GetNaturalIndex(jx, jy, jz)
+
+  !  Find average ntg and set ntg factor
+
+  fntg = 1.0
+  if(     (idir == g_xdir) &
+     .or. (idir == g_ydir) ) then
+    fntg  = 0.5*(ntgi+g_ntg(jg))
+  endif
+
+  ! Take z-mult from upper cell (downwards dirn, lower cell in Eclipse terms)
+
+  if (idir == g_zdir) fm = g_mz(jg)
+
   ja = g_gtoa(jg)
   if (ja > 0) then
     call GetMif(ix, iy, iz, jx, jy, jz, idir, a, xf, yf, zf, match, found)
     if (match) matchingNeighbourFound = PETSC_TRUE
     if (found) then
-      call AddConnection(ia, ja, xf, yf, zf, a*f)
+      af = a*fm*fntg
+      if (af>0.0) then
+        call AddConnection(ia, ja, xf, yf, zf, af)
+      endif
     endif
   endif
 
@@ -4558,14 +4809,20 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, mz, ntg)
       do kz = 1, g_nz
         if (kz /= jz) then !  Have looked already
           kg = GetNaturalIndex(jx, jy, kz)
+
+  !       Find ntg factor
+
+          fntg  = 0.5*(ntgi+g_ntg(kg))
+
           ka = g_gtoa(kg)
           if (ka > 0) then
             call GetMif(ix, iy, iz, jx, jy, kz, idir, &
                         a, xf, yf, zf, match, found)
             if (found) then
               g_nf = g_nf + 1
-              if (a*f > 0.0) then
-                call AddConnection(ia, ka, xf, yf, zf, a*f)
+              af = a*fm*fntg
+              if (af > 0.0) then
+                call AddConnection(ia, ka, xf, yf, zf, af)
               endif
             endif
           endif
@@ -4584,7 +4841,15 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, mz, ntg)
         ! Look for active cell
 
         kg = GetNaturalIndex(ix, iy, kz)
-        ka = g_gtoa(kg)
+
+        ! Take z-mult from upper cell (down dirn, lower cell in Eclipse terms)
+
+        fm = g_mz(kg)
+
+        !  No ntg in vertical
+
+        fntg = 1.0
+
         if (ka > 0) then
 
           ! Find pinch-out distance
@@ -4594,8 +4859,11 @@ subroutine getArea1(ia, ix, iy, iz, idir, mx, my, mz, ntg)
             call GetMif(ix, iy, iz, jx, jy, kz, idir, &
                         a, xf, yf, zf, match, found)
             if (found) then
-              g_npo = g_npo + 1
-              call AddConnection(ia, ka, xf, yf, zf, a*f)
+              af = a*fm*fntg
+              if (af > 0.0) then
+                 g_npo = g_npo + 1
+                call AddConnection(ia, ka, xf, yf, zf, af)
+              endif
             endif
           endif
 

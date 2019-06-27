@@ -5352,28 +5352,59 @@ subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
   character(len=8)::zsol
   PetscInt::iphase
   PetscBool::ispres
+  PetscBool::ispsat
+  PetscBool::istemp
+
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id
 
   material_auxvars => material%auxvars
 
-  ispres=PETSC_FALSE
-  iphase=0
+!  Initialise phase pointer and solution flags
 
-  if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
-  if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
-  if( StringCompareIgnoreCase(zsol,'Sgas')     ) iphase=option%gas_phase
-  if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
+  ispres = PETSC_FALSE
+  ispsat = PETSC_FALSE
+  istemp = PETSC_FALSE
+  iphase = 0
+
+!  Set phase pointer and solution flags
+
+  if (StringCompareIgnoreCase(zsol,'Pressure')) ispres = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Psat'    )) then
+    if (     (towg_miscibility_model == TOWG_SOLVENT_TL) &
+        .or. (towg_miscibility_model == TOWG_BLACK_OIL ) ) then
+      ispsat = PETSC_TRUE
+    endif
+  endif
+  if (StringCompareIgnoreCase(zsol,'Temp'    )) istemp = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Soil'    )) iphase = option%oil_phase
+  if (StringCompareIgnoreCase(zsol,'Sgas'    )) iphase = option%gas_phase
+  if (StringCompareIgnoreCase(zsol,'Swat'    )) iphase = option%liquid_phase
+  if (StringCompareIgnoreCase(zsol,'Sslv'    )) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+      iphase = option%solvent_phase
+    endif
+  endif
+
+!  Extract value
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (imat(ghosted_id) <= 0) cycle
-    if( isPres ) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
-    else if ( iphase>0 ) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    if (ispres) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if (ispsat) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%bo%bubble_point
+    else if (isTemp) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%temp
+    else if (iphase>0) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
     else
-      vsoll(local_id,isol)=0.0
+      vsoll(local_id,isol) = 0.0
     endif
   end do
 
