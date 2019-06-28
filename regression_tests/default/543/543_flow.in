@@ -24,7 +24,7 @@ END
 
 #=========================== solver options ===================================
 TIMESTEPPER FLOW
-  TS_ACCELERATION 8
+  TS_ACCELERATION 0
 END
 
 NEWTON_SOLVER FLOW
@@ -188,9 +188,9 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 100.d0 d
-  INITIAL_TIMESTEP_SIZE 1.d-6 d
-  MAXIMUM_TIMESTEP_SIZE 10.d0 d
+  FINAL_TIME 10.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-1 d
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 d
 END
 
 #=========================== regions ==========================================

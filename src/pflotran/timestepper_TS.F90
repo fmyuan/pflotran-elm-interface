@@ -214,6 +214,8 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   PetscInt :: ts_reason
   PetscInt :: num_linear_iterations
   PetscInt :: num_newton_iterations
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
   solver => this%solver
@@ -236,8 +238,14 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
 #endif
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
-
+ 
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+
+  this%cumulative_solver_time = &
+    this%cumulative_solver_time + &
+    (log_end_time - log_start_time)
 
   call TSGetConvergedReason(solver%ts,ts_reason,ierr);CHKERRQ(ierr)
   call TSGetTime(solver%ts,time,ierr);CHKERRQ(ierr)
