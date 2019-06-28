@@ -94,6 +94,7 @@ class RegressionTest(object):
         self._TOL_MIN_THRESHOLD = 2
         self._TOL_MAX_THRESHOLD = 3
         self._PFLOTRAN_SUCCESS = 86
+        self._PFLOTRAN_USER_ERROR = 87
         self._RESTART_PREFIX = "tmp-restart"
         # misc test parameters
         self._pprint = pprint.PrettyPrinter(indent=2)
@@ -113,6 +114,7 @@ class RegressionTest(object):
         self._skip_check_regression = False
         self._check_performance = False
         self._num_failed = 0
+        self._num_errored = 0
         self._test_name = None
         self._ascii_output_filenames = None
         self._output_files = None
@@ -196,7 +198,7 @@ class RegressionTest(object):
                     self._run_test(mpiexec, executable, restart_name, 
                                    dry_run, status, testlog)
                 elif not status.skipped:
-                    status.fail = 1
+                    status.error = 3
                     message = self._txtwrap.fill(
                         "ERROR: restart test '{0}' did not generate a "
                         "required checkpoint file. This can occur if the "
@@ -282,9 +284,13 @@ class RegressionTest(object):
         # pflotran returns 0 on an error (e.g. can't find an input
         # file), 86 on success. 59 for timeout errors?
         if pflotran_status != self._PFLOTRAN_SUCCESS:
-            status.fail = 1
+            if pflotran_status == self._PFLOTRAN_USER_ERROR:
+                # error was caught and the code properly shut down
+                status.error = 1
+            else:
+                status.error = 2
             message = self._txtwrap.fill(
-                "FAIL : {name} : pflotran return an error "
+                "ERROR : {name} : pflotran returned an error "
                 "code ({status}) indicating the simulation may have "
                 "failed. Please check '{name}.out' and '{name}.stdout' "
                 "for error messages (included below).".format(
@@ -395,11 +401,11 @@ class RegressionTest(object):
             for current_filename in filenames:
                 if not os.path.isfile(current_filename):
                     message = self._txtwrap.fill(
-                        "FAIL: could not find expected output file "
+                        "ERROR: could not find expected output file "
                         "'{0}'. Please check simulation output for "
                         "errors.".format(current_filename))
                     print("".join(['\n', message, '\n']), file=testlog)
-                    status.fail = 1
+                    status.error = 3
 
     def _check_gold(self, status, run_id, testlog):
         """
@@ -433,11 +439,11 @@ class RegressionTest(object):
                 for current_filename in filenames:
                     if not os.path.isfile(current_filename):
                         message = self._txtwrap.fill(
-                            "FAIL: could not find ASCII output test file '{0}'."
-                            " Please check the standard output file for "
-                            "errors.".format(current_filename))
+                            "ERROR: could not find ASCII output test file "
+                            "'{0}'. Please check the standard output file "
+                            "for errors.".format(current_filename))
                         print("".join(['\n', message, '\n']), file=testlog)
-                        status.fail = 1
+                        status.error = 3
                         return
                     else:
                         with open(current_filename, 'rU') as current_file:
@@ -449,7 +455,7 @@ class RegressionTest(object):
                             "FAIL: could not find ASCII output gold file "
                             "'{0}'.".format(gold_filename))
                         print("".join(['\n', message, '\n']), file=testlog)
-                        status.fail = 1
+                        status.error = 3
                         return
                     else:
                         with open(gold_filename, 'rU') as gold_file:
@@ -459,7 +465,7 @@ class RegressionTest(object):
                           current_filename), file=testlog)
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog)
-                if status.fail == 0:
+                if status.error == 0 and status.fail == 0:
                     print("    Passed ASCII output comparison check.", 
                           file=testlog)
 
@@ -475,11 +481,11 @@ class RegressionTest(object):
         if not self._skip_check_regression:
             if not os.path.isfile(gold_filename):
                 message = self._txtwrap.fill(
-                    "FAIL: could not find regression test gold file "
+                    "ERROR: could not find regression test gold file "
                     "'{0}'. If this is a new test, please create "
                     "it with '--new-test'.".format(gold_filename))
                 print("".join(['\n', message, '\n']), file=testlog)
-                status.fail = 1
+                status.error = 3
                 return
             else:
                 with open(gold_filename, 'rU') as gold_file:
@@ -487,11 +493,11 @@ class RegressionTest(object):
     
             if not os.path.isfile(current_filename):
                 message = self._txtwrap.fill(
-                    "FAIL: could not find regression test file '{0}'."
+                    "ERROR: could not find regression test file '{0}'."
                     " Please check the standard output file for "
                     "errors.".format(current_filename))
                 print("".join(['\n', message, '\n']), file=testlog)
-                status.fail = 1
+                status.error = 3
                 return
             else:
                 with open(current_filename, 'rU') as current_file:
@@ -511,7 +517,7 @@ class RegressionTest(object):
             # look for sections that are in gold but not current
             for section in gold_sections:
                 if section not in current_sections:
-                    self._num_failed += 1
+                    self._num_errored += 1
                     print("    FAIL: section '{0}' is in the gold output, but "
                           "not the current output.".format(section), 
                           file=testlog)
@@ -519,7 +525,7 @@ class RegressionTest(object):
             # look for sections that are in current but not gold
             for section in current_sections:
                 if section not in gold_sections:
-                    self._num_failed += 1
+                    self._num_errored += 1
                     print("    FAIL: section '{0}' is in the current output, "
                           "but not the gold output.".format(section), 
                           file=testlog)
@@ -532,11 +538,13 @@ class RegressionTest(object):
                             gold_sections[section], current_sections[section],
                             testlog)
                     except Exception as error:
-                        self._num_failed += 1
+                        self._num_errored += 1
                         print(error, file=testlog)
     
             if self._num_failed > 0:
                 status.fail = 1
+            if self._num_errored > 0:
+                status.error = 3
 
 
     def _check_restart(self, status, testlog):
@@ -596,9 +604,9 @@ class RegressionTest(object):
             hash_digest = restart_hash.hexdigest()
         else:
             message = self._txtwrap.fill(
-                "FAIL: could not find restart file '{0}'".format(filename))
+                "ERROR: could not find restart file '{0}'".format(filename))
             print("".join(['\n', message, '\n']), file=testlog)
-            status.fail = 1
+            status.error = 3
         return hash_digest
 
     def _check_hdf5(self, status, testlog):
@@ -613,16 +621,16 @@ class RegressionTest(object):
         try:
             h5_current = h5py.File(filename, 'r')
         except Exception as e:
-            print("    FAIL: Could not open file: '{0}'".format(filename), file=testlog)
-            status.fail = 1
+            print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+            status.error = 3
             h5_current = None
 
         filename = "{0}.gold".format(filename)
         try:
             h5_gold = h5py.File(filename, 'r')
         except Exception as e:
-            print("    FAIL: Could not open file: '{0}'".format(filename), file=testlog)
-            status.fail = 1
+            print("    ERROR: Could not open file: '{0}'".format(filename), file=testlog)
+            status.error = 3
             h5_gold = None
 
         if h5_gold is not None and h5_current is not None:
@@ -641,8 +649,8 @@ class RegressionTest(object):
         """
 
         if len(h5_current.keys()) != len(h5_gold.keys()):
-            status.fail = 1
-            print("    FAIL: current and gold hdf5 files do not have the same number of groups!", file=testlog)
+            status.error = 3
+            print("    ERROR: current and gold hdf5 files do not have the same number of groups!", file=testlog)
             print("    h5_gold : {0}".format(h5_gold.keys()), file=testlog)
             print("    h5_current : {0}".format(h5_current.keys()), file=testlog)
             return
@@ -651,7 +659,7 @@ class RegressionTest(object):
             if group == "Provenance":
                 continue
             if len(h5_current[group].keys()) != len(h5_gold[group].keys()):
-                status.fail = 1
+                status.error = 3
                 print("    FAIL: group '{0}' does not have the same number of datasets!".format(group), file=testlog)
                 print("    h5_gold : {0} : {1}".format(
                     group, h5_gold[group].keys()), file=testlog)
@@ -660,18 +668,18 @@ class RegressionTest(object):
             else:
                 for dataset in h5_gold[group].keys():
                     if not h5_current[group].get(dataset):
-                        status.fail = 1
-                        print("    FAIL: current group '{0}' does not have dataset '{1}'!".format(group, dataset), file=testlog)
+                        status.error = 3
+                        print("    ERROR: current group '{0}' does not have dataset '{1}'!".format(group, dataset), file=testlog)
                     else:
                         if h5_gold[group][dataset].shape != h5_current[group][dataset].shape:
-                            status.fail = 1
-                            print("    FAIL: current dataset '/{0}/{1}' does not have the correct shape!".format(group, dataset), file=testlog)
+                            status.error = 3
+                            print("    ERROR: current dataset '/{0}/{1}' does not have the correct shape!".format(group, dataset), file=testlog)
                             print("        gold : {0}".format(
                                 h5_gold[group][dataset].shape), file=testlog)
                             print("        current : {0}".format(
                                 h5_current[group][dataset].shape), file=testlog)
                         if h5_gold[group][dataset].dtype != h5_current[group][dataset].dtype:
-                            status.fail = 1
+                            status.error = 3
                             print("    FAIL: current dataset '/{0}/{1}' does not have the correct data type!".format(group, dataset), file=testlog)
                             print("        gold : {0}".format(
                                 h5_gold[group][dataset].dtype), file=testlog)
@@ -679,7 +687,7 @@ class RegressionTest(object):
                                 h5_current[group][dataset].dtype), file=testlog)
 
 
-        if status.fail == 0:
+        if status.fail == 0 and status.error == 0:
             print("    Passed hdf5 check.", file=testlog)
 
     def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog):
@@ -712,14 +720,14 @@ class RegressionTest(object):
             print("ERROR: test '{0}' results can not be updated "
                   "because a gold file does not "
                   "exist!".format(self.name()), file=testlog)
-            status.error = 1
+            status.error = 3
 
         # verify that the regression file exists
         if not os.path.isfile(current_name):
             print("ERROR: test '{0}' results can not be updated "
                   "because no regression file "
                   "exists!".format(self.name()), file=testlog)
-            status.error = 1
+            status.error = 3
         try:
             print("  updating test '{0}'... ".format(self.name()),
                   end='', file=testlog)
@@ -728,12 +736,12 @@ class RegressionTest(object):
         except Exception as error:
             status = 1
             message = str(error)
-            message += "\nFAIL : Could not rename '{0}' to '{1}'. "
+            message += "\nERROR : Could not rename '{0}' to '{1}'. "
             message += "Please rename the file manually!".format(current_name,
                                                                  gold_name)
             message += "    mv {0} {1}".format(current_name, gold_name)
             print(message, file=testlog)
-            status.fail = 1
+            status.error = 3
 
     def new_test(self, status, testlog):
         """
@@ -756,7 +764,7 @@ class RegressionTest(object):
             print("ERROR: could not create new gold file for "
                   "test '{0}' because no regression file "
                   "exists!".format(self.name()), file=testlog)
-            status.error = 1
+            status.error = 3
 
         try:
             print("  creating gold file '{0}'... ".format(self.name()),
@@ -767,12 +775,12 @@ class RegressionTest(object):
         except Exception as error:
             status = 1
             message = str(error)
-            message += "\nFAIL : Could not rename '{0}' to '{1}'. "
+            message += "\nERROR : Could not rename '{0}' to '{1}'. "
             message += "Please rename the file manually!".format(current_name,
                                                                  gold_name)
             message += "    mv {0} {1}".format(current_name, gold_name)
             print(message, file=testlog)
-            status.fail = 1
+            status.error = 3
 
     def _get_sections(self, output):
         """
@@ -1310,7 +1318,7 @@ class RegressionTestManager(object):
 
             test.run(mpiexec, executable, dry_run, status, testlog)
 
-            if not dry_run and status.skipped == 0:
+            if not dry_run and status.error == 0 and status.skipped == 0:
                 test.check(status, testlog)
 
             self._add_to_file_status(status)
@@ -1334,7 +1342,7 @@ class RegressionTestManager(object):
             status = TestStatus()
             self._test_header(test.name(), testlog)
 
-            if not dry_run and status.skipped == 0:
+            if not dry_run and status.error == 0 and status.skipped == 0:
                 test.check(status, testlog)
 
             self._add_to_file_status(status)
@@ -1407,18 +1415,25 @@ class RegressionTestManager(object):
             print(" dry run.", file=testlog)
         else:
             if (status.fail == 0 and
-                    status.warning == 0 and
-                    status.error == 0 and
-                    status.skipped == 0):
+                status.warning == 0 and
+                status.error == 0 and
+                status.skipped == 0):
                 print(".", end='', file=sys.stdout)
                 print("{0}... {1}.".format(name, success_message), file=testlog)
+            elif status.error != 0:
+#                print('error {}'.format(status.error))
+                if status.error == 1:
+                    print("E", end='', file=sys.stdout)
+                elif status.error == 2:
+                    print("X", end='', file=sys.stdout)
+                else:
+                    print("L", end='', file=sys.stdout)
+                print("{0}... errored.".format(name), file=testlog)
             elif status.fail != 0:
                 print("F", end='', file=sys.stdout)
                 print("{0}... {1}.".format(name, fail_message), file=testlog)
             elif status.warning != 0:
                 print("W", end='', file=sys.stdout)
-            elif status.error != 0:
-                print("E", end='', file=sys.stdout)
             elif status.skipped != 0:
                 print("S", end='', file=sys.stdout)
                 print("{0}... skipped.".format(name), file=testlog)
@@ -1439,6 +1454,9 @@ class RegressionTestManager(object):
         else:
             line = "{0} : {1} tests : ".format(self._config_filename,
                                                self._file_status.test_count)
+            if self._file_status.error > 0:
+                line = "{0} {1} tests {2} due to errors, ".format(
+                    line, self._file_status.error, fail_message)
             if self._file_status.fail > 0:
                 line = "{0} {1} tests {2}, ".format(
                     line, self._file_status.fail, fail_message)
@@ -1456,7 +1474,9 @@ class RegressionTestManager(object):
         """
         self._file_status.fail += status.fail
         self._file_status.warning += status.warning
-        self._file_status.error += status.error
+        # status.error may be greater than 1
+        if (status.error > 0):
+          self._file_status.error += 1
         self._file_status.skipped += status.skipped
         self._file_status.test_count += 1
 
@@ -1875,14 +1895,20 @@ def summary_report_by_file(report, outfile):
         if report[filename].test_count == 0:
             line = "{0}... no tests were run.".format(line)
         else:
+            if report[filename].error > 0:
+                line = "{0} {1} tests errored, ".format(line, report[filename].error)
             if report[filename].fail > 0:
                 line = "{0} {1} tests failed, ".format(line, report[filename].fail)
             if report[filename].skipped > 0:
                 line = "{0} {1} tests skipped, ".format(line, report[filename].skipped)
-            if report[filename].fail == 0 and report[filename].skipped == 0:
+            if report[filename].error == 0 and \
+               report[filename].fail == 0 and \
+               report[filename].skipped == 0:
                 line = "{0} all tests passed".format(line)
             else:
-                num_passed = (report[filename].test_count - report[filename].fail -
+                num_passed = (report[filename].test_count - 
+                              report[filename].error -
+                              report[filename].fail -
                               report[filename].skipped)
                 line = "{0} {1} passed.".format(line, num_passed)
 
@@ -2124,9 +2150,9 @@ def main(options):
             print(''.join(['\n', message, '\n']), file=testlog)
             if options.backtrace:
                 traceback.print_exc()
-            print('F', end='', file=sys.stdout)
+            print('E', end='', file=sys.stdout)
             report[filename] = TestStatus()
-            report[filename].fail = 1
+            report[filename].error = 1
 
     stop = time.time()
     status = 0

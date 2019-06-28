@@ -722,7 +722,7 @@ subroutine PrintErrMsg2(option,string)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    stop
+    call exit(EXIT_USER_ERROR)
   else
     option%error_while_nonblocking = PETSC_TRUE
   endif
@@ -756,7 +756,7 @@ subroutine OptionCheckNonBlockingError(option)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    stop
+    call exit(EXIT_USER_ERROR)
   endif
 
 end subroutine OptionCheckNonBlockingError
@@ -805,7 +805,7 @@ subroutine PrintErrMsgByRank2(option,string)
     print *
     print *, 'Stopping!'
   endif
-  stop
+  call exit(EXIT_USER_ERROR)
 
 end subroutine PrintErrMsgByRank2
 
