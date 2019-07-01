@@ -1526,7 +1526,8 @@ subroutine PMGeneralMaxChange(this)
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
         max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
       endif
-      if (global_auxvars(j)%istate == TWO_PHASE_STATE .and. &
+      ghosted_id = grid%nl2g(j)
+      if (global_auxvars(ghosted_id)%istate == TWO_PHASE_STATE .and. &
           .not. general_2ph_liq_pres_limit .and. i==1) then
         max_change = 0.d0 !ignore liquid pressure change
       endif
