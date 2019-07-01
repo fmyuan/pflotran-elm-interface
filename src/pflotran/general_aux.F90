@@ -31,6 +31,8 @@ module General_Aux_module
 
   PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
 
+  PetscBool, public :: general_2ph_liq_pres_limit = PETSC_TRUE
+
   ! debugging
   PetscInt, public :: general_ni_count
   PetscInt, public :: general_ts_cut_count

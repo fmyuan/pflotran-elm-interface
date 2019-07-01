@@ -502,6 +502,8 @@ subroutine PMGeneralRead(this,input)
         general_harmonic_diff_density = PETSC_FALSE
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
+      case('UNRESTRICT_2PH_LIQUID_PRES')
+        general_2ph_liq_pres_limit = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select
@@ -1487,6 +1489,7 @@ subroutine PMGeneralMaxChange(this)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscReal :: max_change_local(6)
   PetscReal :: max_change_global(6)
@@ -1501,6 +1504,8 @@ subroutine PMGeneralMaxChange(this)
   option => realization%option
   field => realization%field
   grid => realization%patch%grid
+
+  global_auxvars => realization%patch%aux%global%auxvars
 
   max_change_global = 0.d0
   max_change_local = 0.d0
@@ -1521,7 +1526,12 @@ subroutine PMGeneralMaxChange(this)
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
         max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
       endif
+      if (global_auxvars(j)%istate == TWO_PHASE_STATE .and. &
+          .not. general_2ph_liq_pres_limit .and. i==1) then
+        max_change = 0.d0 !ignore liquid pressure change
+      endif
     enddo
+
     max_change_local(i) = max_change
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
