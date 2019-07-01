@@ -30,7 +30,7 @@ module Global_Aux_module
     PetscReal, pointer :: reaction_rate_store(:)
     PetscReal, pointer :: dphi(:,:) !geh: why here?
 !geh    PetscReal :: scco2_eq_logK ! SC CO2
-    PetscBool :: istatechng
+!    PetscBool :: istatechng
   end type global_auxvar_type
   
   type, public :: global_type
@@ -106,7 +106,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   auxvar%istate = 0
   auxvar%hstate = 0
   auxvar%temp = 0.d0
-  auxvar%istatechng = PETSC_FALSE
+!  auxvar%istatechng = PETSC_FALSE
 
   ! nullify everthing to begin with and allocate later
   nullify(auxvar%pres)
@@ -251,7 +251,7 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%sat = auxvar%sat
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
-  auxvar2%istatechng = auxvar%istatechng
+!  auxvar2%istatechng = auxvar%istatechng
 !  auxvar2%dphi = auxvar%dphi
   
   if (associated(auxvar2%reaction_rate)) then

@@ -165,7 +165,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
   PetscBool :: istatechng
   PetscErrorCode :: ierr
 
-  if (general_immiscible .or. global_auxvar%istatechng) return
+  if (general_immiscible .or. gen_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -738,7 +738,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
 
   if (istatechng) then
 
-    if (option%restrict_state_chng) global_auxvar%istatechng = PETSC_TRUE
+    if (restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%hstate)
 
@@ -1300,7 +1300,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
      
       gen_auxvar%xmol(acid,lid) = max(0.d0,gen_auxvar%xmol(acid,lid))
 
-      if (global_auxvar%istatechng) then
+      if (gen_auxvar%istatechng) then
         gen_auxvar%sat(lid) = max(0.d0,min(1.d0,gen_auxvar%sat(lid)))
       endif
 
