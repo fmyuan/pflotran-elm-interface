@@ -1521,15 +1521,19 @@ subroutine PMGeneralMaxChange(this)
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
     max_change = 0.d0
+    if (i==1 .and. .not. general_2ph_liq_pres_limit) then
+      do j = 1,grid%nlmax
+        ghosted_id = grid%nL2G(j)
+        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE) then
+          vec_ptr(j) = 0.d0
+        endif
+      enddo
+    endif
+    
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
         max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
-      endif
-      ghosted_id = grid%nl2g(j)
-      if (global_auxvars(ghosted_id)%istate == TWO_PHASE_STATE .and. &
-          .not. general_2ph_liq_pres_limit .and. i==1) then
-        max_change = 0.d0 !ignore liquid pressure change
       endif
     enddo
 
