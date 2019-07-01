@@ -425,8 +425,13 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
                        -999, &
                        option)   
 
-  rich_auxvar%d2sat_dp2 = (rich_auxvar_pert%dsat_dp - rich_auxvar%dsat_dp)/pert
   rich_auxvar%d2den_dp2 = (rich_auxvar_pert%dden_dp - rich_auxvar%dden_dp)/pert
+  if (rich_auxvar%pc > 0.d0) then
+    call characteristic_curves%saturation_function% &
+                               D2SatDP2(rich_auxvar%pc, &
+                                          rich_auxvar%d2sat_dp2,option)
+  endif
+
     
   call GlobalAuxVarStrip(global_auxvar_pert)  
   call MaterialAuxVarStrip(material_auxvar_pert)  
