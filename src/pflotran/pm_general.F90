@@ -502,8 +502,8 @@ subroutine PMGeneralRead(this,input)
         general_harmonic_diff_density = PETSC_FALSE
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
-      case('UNRESTRICT_2PH_LIQUID_PRES')
-        general_2ph_liq_pres_limit = PETSC_FALSE
+      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
+        gen_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select
@@ -1521,7 +1521,7 @@ subroutine PMGeneralMaxChange(this)
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
     max_change = 0.d0
-    if (i==1 .and. .not. general_2ph_liq_pres_limit) then
+    if (i==1 .and. gen_chk_max_dpl_liq_state_only) then
       do j = 1,grid%nlmax
         ghosted_id = grid%nL2G(j)
         if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE) then
