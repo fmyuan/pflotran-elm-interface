@@ -968,14 +968,14 @@ surface_th.o : connection.o coupler.o debug.o discretization.o dm_kludge.o \
                surface_material.o surface_th_aux.o utility.o variables.o
 surface_th_aux.o : eos_water.o option.o pflotran_constants.o \
                    surface_global_aux.o
-th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
-       field.o fluid.o global_aux.o grid.o logging.o material.o material_aux.o \
-       option.o output_aux.o patch.o pflotran_constants.o \
-       realization_subsurface.o region.o saturation_function.o \
-       secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
-       utility.o variables.o
-th_aux.o : eos_water.o global_aux.o material_aux.o option.o \
-           pflotran_constants.o saturation_function.o
+th.o : characteristic_curves.o condition.o connection.o coupler.o debug.o \
+       discretization.o eos_water.o field.o fluid.o global_aux.o grid.o \
+       logging.o material.o material_aux.o option.o output_aux.o patch.o \
+       pflotran_constants.o realization_subsurface.o region.o \
+       saturation_function.o secondary_continuum.o secondary_continuum_aux.o \
+       string.o th_aux.o utility.o variables.o
+th_aux.o : characteristic_curves.o eos_water.o global_aux.o material_aux.o \
+           option.o pflotran_constants.o saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \

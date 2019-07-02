@@ -386,7 +386,7 @@ end subroutine THAuxVarCopy
 
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
-                                     iphase,saturation_function, &
+                                     iphase,characteristic_curves, &
                                      th_parameter, ithrm, natural_id, &
                                      option)
   ! 
@@ -398,15 +398,16 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
   use Option_module
   use Global_Aux_module
-  
+ 
   use EOS_Water_module
-  use Saturation_Function_module  
+  use Characteristic_Curves_module
+  use Characteristic_Curves_Common_module  
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-  type(saturation_function_type) :: saturation_function
+  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -428,7 +429,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: aux(1)
-
+  PetscReal :: dkr_dsat1
+  
 ! auxvar%den = 0.d0
 ! auxvar%den_kg = 0.d0
   global_auxvar%sat = 0.d0
@@ -448,7 +450,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
  
 ! auxvar%pc = option%reference_pressure - auxvar%pres
   auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
-                  saturation_function%pcwmax)
+                  characteristic_curves%saturation_function%pcmax)
 
 !***************  Liquid phase properties **************************
   auxvar%avgmw = FMWH2O
@@ -458,20 +460,47 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   dkr_dp = 0.d0
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
-    iphase = 3
+     iphase = 3
+
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%m      = auxvar%bc_lambda
+    if (auxvar%bc_alpha > 0.d0) then
+      select type(sf => characteristic_curves%saturation_function)
+        class is(sat_func_VG_type)
+          sf%m     = auxvar%bc_lambda
+          sf%alpha = auxvar%bc_alpha
+        class is(sat_func_BC_type)
+            sf%lambda = auxvar%bc_lambda
+            sf%alpha  = auxvar%bc_alpha
+        class default
+          option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
+            'sat_func_VG_type and sat_func_BC_type'
+          call printErrMsg(option)
+      end select
+
+      select type(rpf => characteristic_curves%liq_rel_perm_function)
+        class is(rpf_Mualem_VG_liq_type)
+          rpf%m = auxvar%bc_lambda
+        class is(rpf_Burdine_BC_liq_type)
+          rpf%lambda = auxvar%bc_lambda
+        class is(rpf_Mualem_BC_liq_type)
+          rpf%lambda = auxvar%bc_lambda
+        class is(rpf_Burdine_VG_liq_type)
+          rpf%m = auxvar%bc_lambda
+        class default
+          option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
+          call printErrMsg(option)
+      end select
     endif
 #endif
-    call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
-                                   kr,ds_dp,dkr_dp, &
-                                   saturation_function, &
-                                   material_auxvar%porosity, &
-                                   material_auxvar%permeability(perm_xx_index), &
-                                   option)
+
+    call characteristic_curves%saturation_function% &
+        Saturation(auxvar%pc,global_auxvar%sat(1), &
+                   ds_dp, option)  
+    call characteristic_curves%liq_rel_perm_function% &
+           RelativePermeability(global_auxvar%sat(1),kr, &
+                                dkr_dsat1,option) 
+
+    dkr_dp = ds_dp * dkr_dsat1
     dpw_dp = 0.d0
   else
     iphase = 1
@@ -875,7 +904,7 @@ end subroutine THAuxVarComputeFreezing
 ! ************************************************************************** !
 subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
                                         material_auxvar,th_parameter, &
-                                        ithrm,sat_func,&
+                                        ithrm,characteristic_curves,&
                                         option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
@@ -890,13 +919,13 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   use Global_Aux_module
   
   use EOS_Water_module
-  use Saturation_Function_module
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-  type(saturation_function_type) :: sat_func
+  class(characteristic_curves_type) :: characteristic_curves
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar  
@@ -969,7 +998,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
     else
       call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                             global_auxvar_pert,material_auxvar_pert,&
-                            iphase,sat_func, &
+                            iphase,characteristic_curves, &
                             TH_parameter,ithrm, &
                             -999,option)
     endif
