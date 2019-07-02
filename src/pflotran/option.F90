@@ -67,7 +67,7 @@ module Option_module
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
-    PetscBool :: use_th_freezing
+!    PetscBool :: use_th_freezing
 
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
@@ -455,7 +455,7 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
-  option%use_th_freezing = PETSC_FALSE
+!  option%use_th_freezing = PETSC_FALSE
 
   option%linerept = PETSC_FALSE
   option%linpernl = 0

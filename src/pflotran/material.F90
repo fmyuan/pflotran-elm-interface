@@ -9,6 +9,7 @@ module Material_module
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
   use Utility_module, only : Equal
+
   
   implicit none
 
@@ -136,6 +137,7 @@ function MaterialPropertyCreate()
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   ! 
+
   
   implicit none
 
@@ -191,7 +193,7 @@ function MaterialPropertyCreate()
 !  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
-  material_property%thermal_conductivity_frozen = 0.d0
+  material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE          ! 0.d0
   material_property%alpha_fr = 0.95d0
 
   material_property%thermal_expansitivity = 0.d0  
@@ -765,21 +767,21 @@ subroutine MaterialPropertyRead(material_property,input,option)
       trim(material_property%permeability_dataset%name) // 'X'
   endif
 
-  if (option%iflowmode == TH_MODE .or. &
-      option%iflowmode == TH_TS_MODE) then
-     if (option%use_th_freezing .eqv. PETSC_TRUE) then
-        if (.not. therm_k_frz) then
-           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
-             &in inputdeck for MODE TH ICE'
-           call PrintErrMsg(option)
-        endif
-        if (.not. therm_k_exp_frz) then
-           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
-             &in inputdeck for MODE TH ICE'
-           call PrintErrMsg(option)
-        endif
-     endif
-  endif
+!  if (option%iflowmode == TH_MODE .or. &
+!      option%iflowmode == TH_TS_MODE) then
+!     if (use_th_freezing) then
+!        if (.not. therm_k_frz) then
+!           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
+!             &in inputdeck for MODE TH ICE'
+!           call PrintErrMsg(option)
+!        endif
+!        if (.not. therm_k_exp_frz) then
+!           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
+!             &in inputdeck for MODE TH ICE'
+!           call PrintErrMsg(option)
+!        endif
+!     endif
+!  endif
 
   if (len_trim(material_property%soil_compressibility_function) > 0) then
     word = material_property%soil_compressibility_function
