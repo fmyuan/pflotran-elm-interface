@@ -457,6 +457,8 @@ subroutine PMGeneralRead(this,input)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
         call GeneralAuxSetAirMassDOF(word,option)
+        this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
+        this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
       case('ISOTHERMAL')
         general_isothermal = PETSC_TRUE
       case('NO_AIR')
