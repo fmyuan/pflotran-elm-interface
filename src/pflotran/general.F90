@@ -237,7 +237,7 @@ subroutine GeneralInitializeTimestep(realization)
   
   type(realization_subsurface_type) :: realization
   
-  if (restrict_state_chng) then
+  if (general_restrict_state_chng) then
     realization%patch%aux%general%auxvars%istatechng = PETSC_FALSE
   endif
   

@@ -12,7 +12,7 @@ module General_Aux_module
   PetscBool, public :: general_print_state_transition = PETSC_TRUE
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
-  PetscBool, public :: restrict_state_chng = PETSC_FALSE
+  PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: general_max_pressure_change = 5.d4
@@ -93,7 +93,6 @@ module General_Aux_module
   type, public :: general_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
     PetscInt :: hstate_store(2)
-
     PetscBool :: istatechng
     
     PetscReal, pointer :: pres(:)   ! (iphase)
@@ -1466,7 +1465,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
 
   if (istatechng) then
 
-    if (restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
+    if (general_restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%istate)
       case(LIQUID_STATE)

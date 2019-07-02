@@ -284,8 +284,7 @@ subroutine PMGeneralRead(this,input)
         option%phase_chng_epsilon = tempreal
       
       case('RESTRICT_STATE_CHANGE')
-         !        option%restrict_state_chng = PETSC_TRUE
-         restrict_state_chng = PETSC_TRUE
+         general_restrict_state_chng = PETSC_TRUE
       ! Tolerances
       
       case('NO_STATE_TRANSITION_OUTPUT')

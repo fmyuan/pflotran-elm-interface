@@ -738,7 +738,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
 
   if (istatechng) then
 
-    if (restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
+    if (general_restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%hstate)
 

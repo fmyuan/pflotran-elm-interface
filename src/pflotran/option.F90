@@ -228,9 +228,6 @@ module Option_module
     
     !man: change the initial saturation upon phase change
     PetscReal :: phase_chng_epsilon
-    
-    !man: impose restrictions on when a grid block can change state 
-!    PetscBool :: restrict_state_chng
 
   end type option_type
 
@@ -610,8 +607,6 @@ subroutine OptionInitRealization(option)
   option%inline_surface_region_name    = ""
   
   option%phase_chng_epsilon = 1.d-6 !1.d-6
-  
-!  option%restrict_state_chng = PETSC_FALSE
 
 end subroutine OptionInitRealization
 
