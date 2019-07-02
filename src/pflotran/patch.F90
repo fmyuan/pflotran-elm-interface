@@ -1501,6 +1501,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
     coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 3
     coupler%flow_aux_mapping(GENERAL_GAS_FLUX_INDEX) = 3
+    coupler%flow_aux_mapping(GENERAL_GAS_WATER_MOL_FRAC_INDEX) = 3
   endif
 
   select case(flow_condition%iphase)
@@ -1852,10 +1853,17 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                     &state with GAS_PRESSURE and GAS_SATURATION should be used.'
                   call PrintErrMsg(option)
                 endif
-                coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
-                dof3 = PETSC_TRUE
-                coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
+                  dof3 = PETSC_TRUE
+                  coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                                                                     DIRICHLET_BC
+                else
+                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = 1.d0 - xmol
+                  dof3 = PETSC_TRUE
+                  coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
                                                                     DIRICHLET_BC
+                endif
               case default
                 string = GetSubConditionName(general%mole_fraction%itype)
                 option%io_buffer = &

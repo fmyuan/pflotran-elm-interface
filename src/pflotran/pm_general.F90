@@ -453,6 +453,10 @@ subroutine PMGeneralRead(this,input)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call GeneralAuxSetEnergyDOF(word,option)
+      case('GAS_PHASE_AIR_MASS_DOF')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
+        call GeneralAuxSetAirMassDOF(word,option)
       case('ISOTHERMAL')
         general_isothermal = PETSC_TRUE
       case('NO_AIR')
@@ -1026,8 +1030,10 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
           air_pressure_index = offset + GENERAL_GAS_STATE_AIR_PRESSURE_DOF
           dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
                                      GENERAL_PRESSURE_SCALE
-          dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                     GENERAL_PRESSURE_SCALE
+          if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+            dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
+                                      GENERAL_PRESSURE_SCALE
+          endif
       end select
       scale = min(scale,temp_scale)
     enddo
