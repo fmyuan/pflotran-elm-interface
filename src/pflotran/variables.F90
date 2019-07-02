@@ -164,5 +164,12 @@ module Variables_module
   PetscInt, parameter, public :: SALINITY                = 133
 
   PetscInt, parameter, public :: HYDRATE_SATURATION      = 134
+  
+  PetscInt, parameter, public :: AQUEOUS_EQ_CONC         = 1001
+  PetscInt, parameter, public :: MNRL_EQ_CONC            = 1002
+  PetscInt, parameter, public :: SORB_EQ_CONC            = 1003
+  PetscInt, parameter, public :: TOTAL_BULK_CONC         = 1004
+  
+  
 
 end module Variables_module

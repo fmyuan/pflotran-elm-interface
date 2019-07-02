@@ -5525,7 +5525,32 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
 
       endif
 
-    ! jenn:todo Add patch%aux%NWT to PatchGetVariable
+    ! NUCLEAR_WASTE_TRANSPORT:
+    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC)
+      select case(ivar)
+        case(TOTAL_BULK_CONC)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+            patch%aux%NWT%auxvars(grid%nL2G(local_id))%total_bulk_conc(isubvar)
+          enddo
+        case(AQUEOUS_EQ_CONC)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+            patch%aux%NWT%auxvars(grid%nL2G(local_id))%aqueous_eq_conc(isubvar)
+          enddo
+        case(MNRL_EQ_CONC)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%NWT%auxvars(grid%nL2G(local_id))%mnrl_eq_conc(isubvar)
+          enddo
+        case(SORB_EQ_CONC)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%NWT%auxvars(grid%nL2G(local_id))%sorb_eq_conc(isubvar)
+          enddo
+      end select
+    
+    
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY,TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_RATE,MINERAL_VOLUME_FRACTION,MINERAL_SATURATION_INDEX, &
@@ -6839,7 +6864,19 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
 
       endif
 
-    ! jenn:todo Add patch%aux%NWT to PatchGetVariableValueAtCell
+    ! NUCLEAR_WASTE_TRANSPORT:
+    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC)
+      select case(ivar)
+        case(TOTAL_BULK_CONC)
+          value = patch%aux%NWT%auxvars(ghosted_id)%total_bulk_conc(isubvar)
+        case(AQUEOUS_EQ_CONC)
+          value = patch%aux%NWT%auxvars(ghosted_id)%aqueous_eq_conc(isubvar)
+        case(MNRL_EQ_CONC)
+          value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_eq_conc(isubvar)
+        case(SORB_EQ_CONC)
+          value = patch%aux%NWT%auxvars(ghosted_id)%sorb_eq_conc(isubvar)
+      end select
+    
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &
@@ -7962,6 +7999,24 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             enddo
         end select
       endif
+      
+    ! NUCLEAR_WASTE_TRANSPORT:
+    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC)
+      select case(ivar)
+        case(TOTAL_BULK_CONC)
+          call PrintErrMsg(option,'Setting of TOTAL_BULK_CONC at grid cell &
+                           &not yet supported.')
+        case(AQUEOUS_EQ_CONC)
+          call PrintErrMsg(option,'Setting of AQUEOUS_EQ_CONC at grid cell &
+                           &not yet supported.')
+        case(MNRL_EQ_CONC)
+          call PrintErrMsg(option,'Setting of MNRL_EQ_CONC at grid cell &
+                           &not yet supported.')
+        case(SORB_EQ_CONC)
+          call PrintErrMsg(option,'Setting of SORB_EQ_CONC at grid cell &
+                           &not yet supported.')
+      end select
+      
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
          PRIMARY_ACTIVITY_COEF,SECONDARY_ACTIVITY_COEF,IMMOBILE_SPECIES, &
          GAS_CONCENTRATION,REACTION_AUXILIARY,MINERAL_SURFACE_AREA)

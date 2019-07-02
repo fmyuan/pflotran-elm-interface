@@ -422,8 +422,8 @@ nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  material_aux.o nw_transport_aux.o option.o output_aux.o \
                  pflotran_constants.o realization_subsurface.o \
                  transport_constraint.o
-nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
-                     pflotran_constants.o string.o utility.o
+nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o output_aux.o \
+                     pflotran_constants.o string.o utility.o variables.o
 nw_transport_constraint.o : global_aux.o input_aux.o logging.o \
                             nw_transport_aux.o option.o pflotran_constants.o \
                             string.o utility.o
@@ -559,7 +559,7 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
 pm_nwt.o : communicator_base.o condition.o convergence.o data_mediator.o \
            field.o global.o grid.o input_aux.o integral_flux.o material.o \
            material_aux.o nw_transport.o nw_transport_aux.o option.o \
-           output_aux.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
+           output_ekg.o patch.o pflotran_constants.o pm_base.o \
            realization_subsurface.o string.o utility.o variables.o
 pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
                 general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \

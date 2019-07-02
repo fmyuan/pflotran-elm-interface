@@ -70,8 +70,12 @@ module NW_Transport_Aux_module
   end type nwt_params_type
   
   type, public :: nwt_print_type
-    PetscBool :: molality
-    PetscBool :: thingB
+    PetscBool :: aqueous_eq_conc
+    PetscBool :: mnrl_eq_conc
+    PetscBool :: sorb_eq_conc
+    PetscBool :: total_bulk_conc
+    PetscBool :: all_species
+    PetscBool :: all_concs
   end type nwt_print_type
   
   type, public :: species_type
@@ -108,7 +112,7 @@ module NW_Transport_Aux_module
     PetscBool, pointer :: species_print(:)
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
     type(nwt_params_type), pointer :: params
-    type(nwt_print_type), pointer :: print 
+    type(nwt_print_type), pointer :: print_what 
     PetscBool :: nw_trans_on
   end type nw_trans_realization_type
 
@@ -123,6 +127,7 @@ module NW_Transport_Aux_module
             NWTRealizCreate, &
             NWTRead, &
             NWTReadPass2, &
+            NWTSetPlotVariables, &
             NWTAuxVarInit, &
             NWTAuxVarCopy, &
             NWTAuxVarCopyInitialGuess, &
@@ -257,10 +262,14 @@ function NWTRealizCreate()
   nwtr%params%temperature_dependent_diffusion = PETSC_FALSE
   nwtr%params%truncated_concentration = UNINITIALIZED_DOUBLE
   
-  nullify(nwtr%print)
-  allocate(nwtr%print)
-  nwtr%print%molality = PETSC_FALSE
-  nwtr%print%thingB = PETSC_FALSE
+  nullify(nwtr%print_what)
+  allocate(nwtr%print_what)
+  nwtr%print_what%aqueous_eq_conc = PETSC_FALSE
+  nwtr%print_what%mnrl_eq_conc = PETSC_FALSE
+  nwtr%print_what%sorb_eq_conc = PETSC_FALSE
+  nwtr%print_what%total_bulk_conc = PETSC_FALSE
+  nwtr%print_what%all_species = PETSC_FALSE
+  nwtr%print_what%all_concs = PETSC_FALSE
   
   NWTRealizCreate => nwtr
 
@@ -408,6 +417,8 @@ subroutine NWTRead(nw_trans,input,option)
         call InputReadDouble(input,option, &
                              nw_trans%params%truncated_concentration)
         call InputErrorMsg(input,option,'TRUNCATE_CONCENTRATION',error_string)
+      case('OUTPUT')
+        call NWTReadOutput(nw_trans,input,option)
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
@@ -423,6 +434,69 @@ subroutine NWTRead(nw_trans,input,option)
    deallocate(temp_species_parents)
   
 end subroutine NWTRead
+
+! ************************************************************************** !
+
+subroutine NWTReadOutput(nw_trans,input,option)
+  ! 
+  ! Reads species and concentration types to be printed in output
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 06/26/2019
+  ! 
+
+  use Input_Aux_module
+  use String_module  
+  use Option_module
+  
+  implicit none
+  
+  type(nw_trans_realization_type) :: nw_trans
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: word
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    error_string = 'SUBSURFACE_NUCLEAR_WASTE_TRANSPORT,OUTPUT'
+    call InputReadWord(input,option,word,PETSC_TRUE)  
+    call InputErrorMsg(input,option,'keyword',error_string)
+                     
+    call StringToUpper(word)
+    select case(word)
+      case('ALL_SPECIES')
+        nw_trans%print_what%all_species = PETSC_TRUE
+      case('ALL_CONCENTRATIONS')
+        nw_trans%print_what%all_concs = PETSC_TRUE
+      case('TOTAL_BULK_CONCENTRATION')
+        nw_trans%print_what%total_bulk_conc= PETSC_TRUE
+      case('AQUEOUS_CONCENTRATION')
+        nw_trans%print_what%aqueous_eq_conc= PETSC_TRUE
+      case('MINERAL_CONCENTRATION')
+        nw_trans%print_what%mnrl_eq_conc= PETSC_TRUE
+      case('SORBED_CONCENTRATION')
+        nw_trans%print_what%sorb_eq_conc= PETSC_TRUE
+      case default
+        call InputKeywordUnrecognized(word,error_string,option)
+    end select
+    
+  enddo
+  
+  if (nw_trans%print_what%all_concs) then
+    nw_trans%print_what%total_bulk_conc= PETSC_TRUE
+    nw_trans%print_what%aqueous_eq_conc= PETSC_TRUE
+    nw_trans%print_what%mnrl_eq_conc= PETSC_TRUE
+    nw_trans%print_what%sorb_eq_conc= PETSC_TRUE
+  endif
+
+end subroutine NWTReadOutput
 
 ! ************************************************************************** !
 
@@ -474,13 +548,95 @@ subroutine NWTReadPass2(nw_trans,input,option)
           if (InputCheckExit(input,option)) exit
         enddo
       case('LOG_FORMULATION')
-      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+      case('TRUNCATE_CONCENTRATION')
+      case('OUTPUT')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+        enddo
+      !case default
+      !  call InputKeywordUnrecognized(keyword,error_string,option)
     end select
     
   enddo
   
 end subroutine NWTReadPass2
+
+! ************************************************************************** !
+
+subroutine NWTSetPlotVariables(list,nw_trans,option,time_unit)
+  ! 
+  ! Adds variables to be printed for plotting.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 03/28/2019
+  !
+  
+  use Output_Aux_module
+  use Variables_module
+  use Option_module
+    
+  implicit none
+  
+  type(output_variable_list_type), pointer :: list
+  type(nw_trans_realization_type), pointer :: nw_trans
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH) :: time_unit
+  
+  character(len=MAXWORDLENGTH) :: name,  units
+  PetscInt :: i
+  
+  ! jenn:todo Right now, this assumes ALL_SPECIES are printed by default.
+  do i=1,nw_trans%params%nspecies
+    nw_trans%species_print(i) = PETSC_TRUE
+  enddo
+  
+  if (nw_trans%print_what%total_bulk_conc) then
+    do i=1,nw_trans%params%nspecies
+      if (nw_trans%species_print(i)) then
+        name = 'Total Bulk Conc. ' // trim(nw_trans%species_names(i))
+        units = 'mol/m^3-bulk'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     TOTAL_BULK_CONC,i)
+      endif
+    enddo
+  endif 
+    
+  if (nw_trans%print_what%aqueous_eq_conc) then
+    do i=1,nw_trans%params%nspecies
+      if (nw_trans%species_print(i)) then
+        name = 'Aq. Conc. ' // trim(nw_trans%species_names(i))
+        units = 'mol/m^3-liq'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     AQUEOUS_EQ_CONC,i)
+      endif
+    enddo
+  endif 
+  
+  if (nw_trans%print_what%mnrl_eq_conc) then
+    do i=1,nw_trans%params%nspecies
+      if (nw_trans%species_print(i)) then
+        name = 'Mnrl. Conc. ' // trim(nw_trans%species_names(i))
+        units = 'mol/m^3-mnrl'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     MNRL_EQ_CONC,i)
+      endif
+    enddo
+  endif 
+  
+  if (nw_trans%print_what%sorb_eq_conc) then
+    do i=1,nw_trans%params%nspecies
+      if (nw_trans%species_print(i)) then
+        name = 'Sorb. Conc. ' // trim(nw_trans%species_names(i))
+        units = 'mol/m^3-sorb'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     SORB_EQ_CONC,i)
+      endif
+    enddo
+  endif
+  
+end subroutine NWTSetPlotVariables
 
 ! ************************************************************************** !
 
@@ -826,7 +982,7 @@ subroutine NWTransDestroy(nw_trans,option)
   call DeallocateArray(nw_trans%species_print)
   
   nullify(nw_trans%params)
-  nullify(nw_trans%print)
+  nullify(nw_trans%print_what)
   
   ! radioactive decay reactions
   rad_decay_rxn => nw_trans%rad_decay_rxn_list

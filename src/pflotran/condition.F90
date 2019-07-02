@@ -3876,7 +3876,6 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             call PrintErrMsg(option)
         end select
       case('CONSTRAINT_LIST')
-      ! jenn:todo Make duplicate of this for NWT.
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONSTRAINT')

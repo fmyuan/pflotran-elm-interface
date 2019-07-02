@@ -212,7 +212,6 @@ subroutine NWTSetup(realization)
     iphase = cur_fluid_property%phase_id
     ! setting of phase diffusion coefficients must come before individual
     ! species below
-    ! jenn:todo Problem: nw_trans%diffusion_coefficient is zero! Is that right?
     if (iphase <= nphase) then
       nw_trans%diffusion_coefficient(:,iphase) = &
         cur_fluid_property%diffusion_coefficient
@@ -227,16 +226,13 @@ subroutine NWTSetup(realization)
   
   ! setup output
   list => realization%output_option%output_snap_variable_list
-  ! jenn:todo Calling these routine requires "use PM_NWT" which causes a
-  ! circular dependency. Need to figure out how to set up plotting stuff
-  ! outside of the PM, or have the PM do it independently in it's Setup().
-  !call PMNWTSetPlotVariables(list,nw_trans,option, &
-  !                           realization%output_option%tunit)
+  call NWTSetPlotVariables(list,nw_trans,option, &
+                           realization%output_option%tunit)
   if (.not.associated(realization%output_option%output_snap_variable_list, &
                       realization%output_option%output_obs_variable_list)) then
     list => realization%output_option%output_obs_variable_list
-  !  call PMNWTSetPlotVariables(list,nw_trans,option, &
-  !                             realization%output_option%tunit)
+    call NWTSetPlotVariables(list,nw_trans,option, &
+                             realization%output_option%tunit)
   endif
   
 end subroutine NWTSetup
@@ -547,6 +543,14 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%tran_accum, fixed_accum_p, ierr);CHKERRQ(ierr)
   
+  ! Zero out the residual pointer
+  r_p = 0.d0
+  
+  ! Update the auxiliary variables
+  call NWTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
+  
+  WRITE(*,*)  'fixed_accum_p = ', fixed_accum_p(:)
+  
 #if 1
   !== Accumulation Terms ======================================
   if (.not.option%steady_state) then
@@ -554,7 +558,9 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id) <= 0) cycle
-            
+
+      WRITE(*,*)  '    auxvars_c = ', nwt_auxvars(ghosted_id)%total_bulk_conc(:) 
+       
       call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &
@@ -569,6 +575,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     enddo
   endif
 #endif
+
+  WRITE(*,*)  '     ResAccum = ', Res(:)
   
 #if 1
   !== Source/Sink Terms =======================================
@@ -592,7 +600,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)
+      r_p(istart:iend) = r_p(istart:iend) + Res(1:nspecies)
       
       if (associated(realization%patch%ss_tran_fluxes)) then
         realization%patch%ss_tran_fluxes(:,sum_connection) = - Res(:)
@@ -622,12 +630,14 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     offset = (local_id-1)*nspecies
     istart = offset + 1
     iend = offset + nspecies
-    r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)
+    ! using the original causes horrible results, so that can't be it
+    !r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)  ! original
+    r_p(istart:iend) = r_p(istart:iend) + Res(1:nspecies)  
     
   enddo
 #endif
 
-#if 0
+#if 1
   !== Fluxes ==================================================
   if (option%compute_mass_balance_new) then
     ! jenn:todo Create NWTZeroMassBalanceDelta(realization)
@@ -1238,6 +1248,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
     J = A
   endif
     
+  ! Zero out the Jacobian matrix
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
   
 #if 1
@@ -1306,7 +1317,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   enddo
 #endif
   
-#if 0
+#if 1
   !== Fluxes ==================================================
     
   ! Interior Flux Terms ---------------------------------------
@@ -1536,14 +1547,15 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
       ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
       ! On the outside of the domain, we have a specified conc, which is not a
       ! fn(total_bulk_conc), thus the derivative is zero.
-      if (u > 0.d0) then ! source of fluid flux
-        ! represents inside of the domain
-        coef_in = 0.d0
-      else               ! sink of fluid flux
-        ! represents inside of the domain
-        coef_in = u
-      endif
-      coef_in = u  ! added this line to force u.
+      coef_in = u
+      ! old code, I don't think its right:
+      !if (u > 0.d0) then ! source of fluid flux
+      !  ! represents inside of the domain
+      !  coef_in = 0.d0
+      !else               ! sink of fluid flux
+      !  ! represents inside of the domain
+      !  coef_in = u
+      !endif
   end select
   
   ! units of coef = [m^3-bulk/sec]
@@ -1622,13 +1634,13 @@ subroutine NWTJacobianRx(material_auxvar,nw_trans,Jac)
     
     ! fill in the diagonal of the Jacobian first
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = -1.d0 * (-1.d0*vol*decay_rate)
-    ! Note: I multiply by -1 because rx's are subtracted in the residual.
+    Jac(ispecies,ispecies) = -1.d0*(-1.d0*vol*decay_rate) ! original
+    !Jac(ispecies,ispecies) = (-1.d0*vol*decay_rate)
     
     ! fill in the off-diagonal associated with ingrowth from a parent
     if (has_parent) then
-      Jac(ispecies,parent_id) = -1.d0 * (vol*parent_decay_rate)
-      ! Note: I multiply by -1 because rx's are subtracted in the residual.
+      Jac(ispecies,parent_id) = -1.d0*(vol*parent_decay_rate) ! original
+      !Jac(ispecies,parent_id) = (vol*parent_decay_rate)
     endif
     
   enddo
