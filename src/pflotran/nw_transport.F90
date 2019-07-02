@@ -1634,13 +1634,11 @@ subroutine NWTJacobianRx(material_auxvar,nw_trans,Jac)
     
     ! fill in the diagonal of the Jacobian first
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = -1.d0*(-1.d0*vol*decay_rate) ! original
-    !Jac(ispecies,ispecies) = (-1.d0*vol*decay_rate)
+    Jac(ispecies,ispecies) = -1.d0*(-1.d0*vol*decay_rate)
     
     ! fill in the off-diagonal associated with ingrowth from a parent
     if (has_parent) then
-      Jac(ispecies,parent_id) = -1.d0*(vol*parent_decay_rate) ! original
-      !Jac(ispecies,parent_id) = (vol*parent_decay_rate)
+      Jac(ispecies,parent_id) = -1.d0*(vol*parent_decay_rate)
     endif
     
   enddo
