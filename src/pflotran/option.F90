@@ -137,7 +137,7 @@ module Option_module
     PetscReal :: tran_dt
     PetscReal :: dt
     PetscBool :: match_waypoint
-    PetscReal :: refactor_dt
+!    PetscReal :: refactor_dt
 
     PetscReal :: gravity(3)
 
@@ -570,7 +570,7 @@ subroutine OptionInitRealization(option)
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
-  option%refactor_dt = 0.d0
+!  option%refactor_dt = 0.d0
   option%match_waypoint = PETSC_FALSE
 
   option%io_handshake_buffer_size = 0

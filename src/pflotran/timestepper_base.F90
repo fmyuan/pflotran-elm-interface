@@ -543,7 +543,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
     stop_flag = TS_STOP_END_SIMULATION ! stop after end of time step
   endif
   
-  option%refactor_dt = dt
+ ! option%refactor_dt = dt
   this%dt = dt
   this%dt_max = dt_max
   this%target_time = target_time
