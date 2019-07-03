@@ -545,6 +545,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   
   ! Zero out the residual pointer
   r_p = 0.d0
+  WRITE(*,*)  '       r_p(1) = ', r_p(:)
   
   ! Update the auxiliary variables
   call NWTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
@@ -559,7 +560,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id) <= 0) cycle
 
-      WRITE(*,*)  '    auxvars_c = ', nwt_auxvars(ghosted_id)%total_bulk_conc(:) 
+      WRITE(*,*)  '  auxvars_aqc = ', nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) 
        
       call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -569,7 +570,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) + &
+      r_p(istart:iend) = r_p(istart:iend) - &
         (Res(1:nspecies) - fixed_accum_p(istart:iend))/option%tran_dt
       
     enddo
@@ -577,6 +578,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 #endif
 
   WRITE(*,*)  '     ResAccum = ', Res(:)
+  WRITE(*,*)  '       r_p(2) = ', r_p(:)
   
 #if 1
   !== Source/Sink Terms =======================================
@@ -596,6 +598,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
                              source_sink,realization%patch%ss_flow_vol_fluxes, &
                              sum_connection,nw_trans,Res)
+      WRITE(*,*)  '  SrcSinkName = ', source_sink%name                       
+      WRITE(*,*)  '   ResSrcSink = ', Res(:)
       
       offset = (local_id-1)*nspecies
       istart = offset + 1
@@ -616,6 +620,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   enddo
 #endif
 
+  WRITE(*,*)  '       r_p(3) = ', r_p(:)
+
 #if 1
   !== Decay and Ingrowth ======================================
   do local_id = 1, grid%nlmax
@@ -630,14 +636,16 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     offset = (local_id-1)*nspecies
     istart = offset + 1
     iend = offset + nspecies
-    ! using the original causes horrible results, so that can't be it
     !r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)  ! original
     r_p(istart:iend) = r_p(istart:iend) + Res(1:nspecies)  
     
   enddo
 #endif
 
-#if 1
+  WRITE(*,*)  '        ResRx = ', Res(:)
+  WRITE(*,*)  '       r_p(4) = ', r_p(:)
+
+#if 0
   !== Fluxes ==================================================
   if (option%compute_mass_balance_new) then
     ! jenn:todo Create NWTZeroMassBalanceDelta(realization)
@@ -970,6 +978,12 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
                      (coef_out*source_sink%tran_condition% &
                                cur_nwt_constraint_coupler%nwt_auxvar% &
                                aqueous_eq_conc(:))
+  WRITE(*,*)  '      coef_in = ', coef_in
+  WRITE(*,*)  '   in aq_conc = ', nwt_auxvar%aqueous_eq_conc(:)
+  WRITE(*,*)  '     coef_out = ', coef_out
+  WRITE(*,*)  '  out aq_conc = ', source_sink%tran_condition% &
+                                  cur_nwt_constraint_coupler%nwt_auxvar% &
+                                  aqueous_eq_conc(:)
                                
   ! -- Precipitated-Component -----------------------------------
   ! There is no contribution from precipitated components.
@@ -1289,6 +1303,8 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                               global_auxvars(ghosted_id),source_sink, &
                               realization%patch%ss_flow_vol_fluxes, &
                               sum_connection,nw_trans,Jac) 
+                              
+      WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
                                 
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
@@ -1317,7 +1333,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   enddo
 #endif
   
-#if 1
+#if 0
   !== Fluxes ==================================================
     
   ! Interior Flux Terms ---------------------------------------
@@ -1547,15 +1563,13 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
       ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.
       ! On the outside of the domain, we have a specified conc, which is not a
       ! fn(total_bulk_conc), thus the derivative is zero.
-      coef_in = u
-      ! old code, I don't think its right:
-      !if (u > 0.d0) then ! source of fluid flux
-      !  ! represents inside of the domain
-      !  coef_in = 0.d0
-      !else               ! sink of fluid flux
-      !  ! represents inside of the domain
-      !  coef_in = u
-      !endif
+      if (u > 0.d0) then ! source of fluid flux
+        ! represents inside of the domain
+        coef_in = 0.d0
+      else               ! sink of fluid flux
+        ! represents inside of the domain
+        coef_in = u
+      endif
   end select
   
   ! units of coef = [m^3-bulk/sec]
@@ -1634,11 +1648,11 @@ subroutine NWTJacobianRx(material_auxvar,nw_trans,Jac)
     
     ! fill in the diagonal of the Jacobian first
     ! units of Jac = [m^3-bulk/sec]
-    Jac(ispecies,ispecies) = -1.d0*(-1.d0*vol*decay_rate)
+    Jac(ispecies,ispecies) = 1.d0*(-1.d0*vol*decay_rate)
     
     ! fill in the off-diagonal associated with ingrowth from a parent
     if (has_parent) then
-      Jac(ispecies,parent_id) = -1.d0*(vol*parent_decay_rate)
+      Jac(ispecies,parent_id) = 1.d0*(vol*parent_decay_rate)
     endif
     
   enddo
