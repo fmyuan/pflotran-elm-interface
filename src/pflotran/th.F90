@@ -1789,7 +1789,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
+    if (ice_model /= DALL_AMICO) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
@@ -2346,7 +2346,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
+    if (ice_model /= DALL_AMICO) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -2663,7 +2663,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        if (ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dT_dn = dgravity_dden_dn*auxvar_dn%dden_dT
@@ -2756,7 +2756,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        if (ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
           dphi_dT_dn = dgravity_dden_dn*auxvar_dn%dden_dT
@@ -3395,7 +3395,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
-        if (option%ice_model /= DALL_AMICO) then
+        if (ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -3461,7 +3461,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
              (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
              * dist_gravity
         
-        if (option%ice_model /= DALL_AMICO) then
+        if (ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
@@ -5826,7 +5826,7 @@ subroutine THSetPlotVariables(realization,list)
 
   if (use_th_freezing) then
   
-    if (realization%option%ice_model /= DALL_AMICO) then
+    if (ice_model /= DALL_AMICO) then
       name = 'Gas Saturation'
       units = ''
       call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
@@ -6071,7 +6071,7 @@ function THInitGuessCheck(xx, option)
 
   ipass = 1
 
-  if (option%ice_model /= DALL_AMICO) then
+  if (ice_model /= DALL_AMICO) then
     THInitGuessCheck = ipass
     return
   endif
@@ -6985,7 +6985,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
               * FMWH2O * dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*FMWH2O*dist_gravity
 
-    if (option%ice_model /= DALL_AMICO) then
+    if (ice_model /= DALL_AMICO) then
       dphi = global_auxvar_up%pres(1) - global_auxvar_max%pres(1) + gravity
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*th_auxvar_max%dden_dp
     else

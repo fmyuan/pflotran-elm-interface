@@ -238,15 +238,15 @@ subroutine PMTHRead(this,input)
         call StringToUpper(word)
         select case (trim(word))
           case ('PAINTER_EXPLICIT')
-            option%ice_model = PAINTER_EXPLICIT
+            ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
-            option%ice_model = PAINTER_KARRA_IMPLICIT
+            ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
-            option%ice_model = PAINTER_KARRA_EXPLICIT
+            ice_model = PAINTER_KARRA_EXPLICIT
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+            ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')
-            option%ice_model = DALL_AMICO
+            ice_model = DALL_AMICO
           case default
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
