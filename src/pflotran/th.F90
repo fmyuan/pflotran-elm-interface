@@ -161,7 +161,11 @@ subroutine THSetupPatch(realization)
 
   if (option%use_th_freezing) then
     allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
-                                  size(patch%saturation_function_array)))
+              size(patch%saturation_function_array)))
+  else
+    allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+              size(patch%characteristic_curves_array)))
+    
   endif
  
 
@@ -4814,7 +4818,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(saturation_function_type), pointer :: sf_dn, sf_up
+  type(saturation_function_type), pointer :: sf_dn
+  type(saturation_function_type), pointer :: sf_up
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -4899,8 +4904,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
 
-         sf_up => patch%saturation_function_array(icap_up)%ptr
          sf_dn => patch%saturation_function_array(icap_dn)%ptr
+         sf_up => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
@@ -5045,8 +5050,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(Saturation_Function_type), pointer :: sf_dn
-  class(Characteristic_Curves_type), pointer :: cc_dn
+  type(saturation_function_type), pointer :: sf_dn
+  class(characteristic_curves_type), pointer :: cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
