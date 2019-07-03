@@ -118,7 +118,7 @@ module Option_module
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
 
-    PetscReal :: uniform_velocity(3)
+!    PetscReal :: uniform_velocity(3)
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -508,7 +508,7 @@ subroutine OptionInitRealization(option)
   option%air_id = 0
   option%energy_id = 0
 
-  option%uniform_velocity = 0.d0
+!  option%uniform_velocity = 0.d0
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
