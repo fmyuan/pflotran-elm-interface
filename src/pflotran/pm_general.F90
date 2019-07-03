@@ -281,7 +281,7 @@ subroutine PMGeneralRead(this,input)
       case('PHASE_CHANGE_EPSILON')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        option%phase_chng_epsilon = tempreal
+        general_phase_chng_epsilon = tempreal
       
       case('RESTRICT_STATE_CHANGE')
         option%restrict_state_chng = PETSC_TRUE
