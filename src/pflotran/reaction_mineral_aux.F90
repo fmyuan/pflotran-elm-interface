@@ -423,6 +423,7 @@ function GetMineralFromName(name,mineral)
 
   GetMineralFromName => mineral%mineral_list
   do
+    if (.not.associated(GetMineralFromName)) exit
     if (StringCompare(name,GetMineralFromName%name,MAXWORDLENGTH)) return
     GetMineralFromName => GetMineralFromName%next
   enddo
