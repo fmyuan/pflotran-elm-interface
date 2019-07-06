@@ -4818,8 +4818,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(saturation_function_type), pointer :: up_sf
   type(saturation_function_type), pointer :: sf_dn
-  type(saturation_function_type), pointer :: sf_up
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -4904,8 +4904,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
 
+         up_sf => patch%saturation_function_array(icap_up)%ptr
          sf_dn => patch%saturation_function_array(icap_dn)%ptr
-         sf_up => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
@@ -4934,7 +4934,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             TH_parameter%sir(1,icap_up), &
 			    TH_parameter%sir(1,icap_dn), &
                             option, &
-                            sf_up,sf_dn,cc_up,cc_dn, &
+                            up_sf,sf_dn,cc_up,cc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
