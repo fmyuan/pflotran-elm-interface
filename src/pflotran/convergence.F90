@@ -153,6 +153,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !
 !              SNES_CONVERGED_ITERATING          =  0} SNESConvergedReason;
 !PETSC_EXTERN const char *const*SNESConvergedReasons;
+  sec_reason = 0
 
   if (option%use_touch_options) then
     string = 'detailed_convergence'

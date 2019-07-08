@@ -1,5 +1,8 @@
 module Region_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Geometry_module
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Region_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: DEFINED_BY_BLOCK = 1
   PetscInt, parameter, public :: DEFINED_BY_COORD = 2
@@ -91,6 +92,7 @@ module Region_module
             RegionDestroyList, &
             RegionReadSideSet, &
             RegionCreateSideset, &
+            RegionCheckCellIndexBounds, &
             RegionInputRecord, &
             RegionDestroy
   
@@ -1190,6 +1192,55 @@ function RegionGetPtrFromList(region_name,region_list)
   enddo
   
 end function RegionGetPtrFromList
+
+! ************************************************************************** !
+
+subroutine RegionCheckCellIndexBounds(region,num_cells,option)
+  ! 
+  ! Checks to ensure that cell ids listed in a region are within the bounds
+  ! of 1 and the maximum cell id.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/27/19
+  ! 
+  use Option_module
+  use String_module
+
+  implicit none
+  
+  type(region_type) :: region
+  PetscInt :: num_cells
+  type(option_type) :: option
+
+  PetscInt :: cell_id_extremes(2)
+  PetscErrorCode :: ierr
+
+  cell_id_extremes(1) = 999999999
+  cell_id_extremes(2) = -cell_id_extremes(1)
+  if (region%num_cells > 0) then
+    cell_id_extremes(1) = minval(region%cell_ids)
+    cell_id_extremes(2) = maxval(region%cell_ids)
+  endif
+
+  ! invert for MPI max below
+  cell_id_extremes(1) = -cell_id_extremes(1)
+  call MPI_Allreduce(MPI_IN_PLACE, cell_id_extremes, TWO_INTEGER_MPI, &
+                     MPI_INTEGER, MPI_MAX, option%mycomm,ierr)
+  ! invert back
+  cell_id_extremes(1) = -cell_id_extremes(1)
+
+  if (cell_id_extremes(1) < 1 .or. cell_id_extremes(2) > num_cells) then
+    option%io_buffer = 'The minimum cell ID (' // &
+      trim(StringWrite(cell_id_extremes(1))) // &
+      ') and/or maximum cell ID (' // &
+      trim(StringWrite(cell_id_extremes(2))) // &
+      ') for REGION "' // trim(region%name) // &
+      '" is outside the GRID cell ID bounds of (1 - ' // &
+      trim(StringWrite(num_cells)) // ').'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RegionCheckCellIndexBounds
 
 ! **************************************************************************** !
 
