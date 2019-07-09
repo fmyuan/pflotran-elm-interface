@@ -4019,6 +4019,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   use Global_Aux_module
   use Material_Aux_class
   use Transport_Constraint_module
+  use Dataset_Ascii_class
 
   use EOS_Water_module
 
@@ -4068,8 +4069,16 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then
-            global_auxvar%pres = &
-              cur_coupler%flow_condition%pressure%dataset%rarray(1)
+            ! only use dataset value if the dataset is of type ascii
+            select type(dataset=>cur_coupler%flow_condition%pressure%dataset)
+              class is(dataset_ascii_type)
+                global_auxvar%pres = dataset%rarray(1)
+              class default
+                ! otherwise, we don't know which pressure to use at this point,
+                ! but we need to re-equilibrate at each cell
+                cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
+                global_auxvar%pres = option%reference_pressure
+            end select
           else
             global_auxvar%pres = option%reference_pressure
           endif
@@ -4078,8 +4087,16 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
         endif
         if (associated(cur_coupler%flow_condition%temperature)) then
           if (associated(cur_coupler%flow_condition%temperature%dataset)) then
-            global_auxvar%temp = &
-              cur_coupler%flow_condition%temperature%dataset%rarray(1)
+            ! only use dataset value if the dataset is of type ascii
+            select type(dataset=>cur_coupler%flow_condition%temperature%dataset)
+              class is(dataset_ascii_type)
+                global_auxvar%temp = dataset%rarray(1)
+              class default
+                ! otherwise, we don't know which temperature to use at this 
+                ! point, but we need to re-equilibrate at each cell
+                cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
+                global_auxvar%temp = option%reference_temperature
+            end select
           else
             global_auxvar%temp = option%reference_temperature
           endif
