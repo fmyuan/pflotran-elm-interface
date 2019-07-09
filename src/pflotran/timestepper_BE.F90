@@ -296,7 +296,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
   character(len=MAXWORDLENGTH) :: tunit
 
- ! character(len=MAXWORDLENGTH) :: flow
   
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
@@ -382,9 +381,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
           call PrintMsg(option)
        endif
 
-       ! flow = REPLACE(trim(process_model%header), ' ', '_', every=.TRUE.)
+       
         
-        process_model%output_option%plot_name = trim(process_model%header)//'_cut_to_failure'   ! 'flow_cut_to_failure'
+        process_model%output_option%plot_name = trim(process_model%name)//'_cut_to_failure'   ! 'flow_cut_to_failure'
         snapshot_plot_flag = PETSC_TRUE
         observation_plot_flag = PETSC_FALSE
         massbal_plot_flag = PETSC_FALSE
