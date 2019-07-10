@@ -2598,8 +2598,9 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
   ! unless the coondtion is a rate or pressure bhp (i.e. a bhp controlled well)
   ! - pressure is required
-  ! - water or oil saturation is required
-  ! - temperature is required
+  ! - unless hydrostatic condition (sat and temp computed in hydrostatic equil):
+  !    - water or oil saturation is required
+  !    - temperature required (temp input checked in hydrostatic equil)
   if (.not.associated(toil_ims%rate)) then
     ! this branch is executed for sub_conditions that are not a rate or well
     ! some sort of dirichlet-based pressure, temperature, etc.
@@ -2614,12 +2615,12 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           &include liquid or oil saturation'
         call PrintErrMsg(option)
       endif
-    end if  
-    if (.not.associated(toil_ims%temperature)) then
-      option%io_buffer = 'TOilIms Phase non-rate condition must &
-        &include temperature'
-      call PrintErrMsg(option)
-    endif
+      if (.not.associated(toil_ims%temperature)) then
+        option%io_buffer = 'TOilIms Phase non-rate condition must &
+          &include temperature'
+        call PrintErrMsg(option)
+      endif
+    end if 
   endif
 
   ! control that enthalpy is used for src/sink only
