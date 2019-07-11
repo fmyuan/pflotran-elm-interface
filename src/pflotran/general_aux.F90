@@ -33,7 +33,7 @@ module General_Aux_module
 
   PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
-  PetscBool, public :: general_using_newtontr = PETSC_TRUE
+  PetscBool, public :: general_using_newtontr = PETSC_FALSE
   PetscBool, public :: general_restrict_state_change = PETSC_FALSE
 
   PetscBool, public :: gen_chk_max_dpl_liq_state_only = PETSC_FALSE

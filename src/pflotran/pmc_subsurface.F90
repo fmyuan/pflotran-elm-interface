@@ -329,19 +329,51 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                         this%pm_ptr, &
 #endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-      if (pm%check_post_convergence) then
-        call SNESLineSearchSetPostCheck(linesearch, &
+                                  
+      select case(option%iflowmode)
+        ! modified due to newton TR implementation
+        case(G_MODE)
+          if (pm%check_post_convergence) then
+            if (general_using_newtontr) then
+              call SNESNewtonTRSetPostCheck(solver%snes, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
-                                        PMCheckUpdatePost, &
-                                        this%pm_ptr%pm, &
+                                            PMCheckUpdatePostTR, &
+                                            this%pm_ptr%pm, &
 #else
-                                        PMCheckUpdatePostPtr, &
-                                        this%pm_ptr, &
+                                            PMCheckUpdatePostTRPtr, &
+                                            this%pm_ptr, &
 #endif
-                                        ierr);CHKERRQ(ierr)
-        !geh: it is possible that the other side has not been set
-        pm%check_post_convergence = PETSC_TRUE
-      endif
+                                            ierr);CHKERRQ(ierr)
+            else
+              call SNESLineSearchSetPostCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                              PMCheckUpdatePost, &
+                                              this%pm_ptr%pm, &
+#else
+                                              PMCheckUpdatePostPtr, &
+                                              this%pm_ptr, &
+#endif 
+                                              ierr);CHKERRQ(ierr)
+            endif
+            pm%check_post_convergence = PETSC_TRUE
+          endif        
+        case default    
+          if (pm%check_post_convergence) then
+            call SNESLineSearchSetPostCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                            PMCheckUpdatePost, &
+                                            this%pm_ptr%pm, &
+#else
+                                            PMCheckUpdatePostPtr, &
+                                            this%pm_ptr, &
+#endif
+                                            ierr);CHKERRQ(ierr)
+            !geh: it is possible that the other side has not been set
+            pm%check_post_convergence = PETSC_TRUE
+          endif
+      end select
+
+
 
       add_pre_check = PETSC_FALSE
       select type(pm)
