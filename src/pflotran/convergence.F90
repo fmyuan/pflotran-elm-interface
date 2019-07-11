@@ -509,8 +509,8 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           string = "SNES_CONVERGED_SNORM_RELATIVE"
         case(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"
-        case(SNES_CONVERGED_TR_DELTA)
-          string = "SNES_CONVERGED_TR_DELTA"
+        case(SNES_DIVERGED_TR_DELTA)
+          string = "SNES_DIVERGED_TR_DELTA"
   !      case(SNES_DIVERGED_FUNCTION_DOMAIN)
   !        string = "SNES_DIVERGED_FUNCTION_DOMAIN"
         case(SNES_DIVERGED_FUNCTION_COUNT)
