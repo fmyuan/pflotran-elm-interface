@@ -36,6 +36,8 @@ module General_Aux_module
   PetscBool, public :: general_using_newtontr = PETSC_TRUE
   PetscBool, public :: general_restrict_state_change = PETSC_FALSE
 
+  PetscBool, public :: gen_chk_max_dpl_liq_state_only = PETSC_FALSE
+
   ! debugging
   PetscInt, public :: general_ni_count
   PetscInt, public :: general_ts_cut_count

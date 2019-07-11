@@ -2291,11 +2291,12 @@ subroutine OutputMassBalance(realization_base)
             .or. option%iflowmode == TOWG_MODE) then
           select type(realization_base)
            class is(realization_subsurface_type)
-             call WriteWellHeaders(fid,icol, &
-                                   realization_base,towg_miscibility_model,wecl)
+             call WriteWellHeaders(fid, icol, &
+                                   realization_base, towg_miscibility_model, &
+                                   option, wecl)
              if (output_option%write_masses) then
-               call WriteWellMassHeaders(fid,icol, &
-                                         realization_base,towg_miscibility_model)
+               call WriteWellMassHeaders(fid, icol, &
+                                         realization_base, towg_miscibility_model)
              endif
           end select
         endif
@@ -3221,7 +3222,8 @@ subroutine OutputEclipseFiles(realization_base)
            class is(realization_subsurface_type)
              call WriteWellHeaders(fid, icol, &
                                    realization_base, &
-                                   towg_miscibility_model, wecl)
+                                   towg_miscibility_model, &
+                                   option, wecl)
           end select
         endif
 
@@ -3261,7 +3263,8 @@ end subroutine OutputEclipseFiles
 ! *************************************************************************** !
 
 subroutine WriteWellHeaders(fid, icol, realization, &
-                            towg_miscibility_model, wecl)
+                            towg_miscibility_model, &
+                            option, wecl)
   !
   ! Used to write out file headers specific to TOIL and TOWG modes
   ! This routine must match the headers written by write_well_values
@@ -3271,6 +3274,7 @@ subroutine WriteWellHeaders(fid, icol, realization, &
 
   use Realization_Subsurface_class
   use Well_Data_class
+  use Option_module
   use Output_Eclipse_module, only:WriteEclipseFilesSpec
 
   implicit none
@@ -3279,12 +3283,17 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   PetscInt, intent(inout) :: icol
   type(realization_subsurface_type) :: realization
   PetscInt, intent(in   ) :: towg_miscibility_model
+  type(option_type), intent(in), pointer :: option
   PetscBool, intent(in) :: wecl
 
   type(well_data_list_type), pointer :: well_data_list
 
-  PetscInt :: iwell, nwell, ni, mi
+  PetscInt :: iwell, nwell, ni, mi, iword, ichar, irfn, lrfn
+
   character(len=MAXSTRINGLENGTH) :: name
+  PetscBool :: is_restart
+  character(len=8) :: restart_filename(9)
+  character(len=1) :: z1
 
   character(len=8), allocatable :: zm(:)
   character(len=8), allocatable :: zn(:)
@@ -3425,7 +3434,20 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   ! Write out Eclipse files if required
 
   if (wecl) then
-    call WriteEclipseFilesSpec(zm, zn, zu, ni)
+    is_restart = PETSC_FALSE
+    restart_filename = ' '
+    lrfn = len(trim(option%restart_filename))
+    if (lrfn > 0) then
+      is_restart = PETSC_TRUE
+      do irfn = 1, lrfn
+        z1=option%restart_filename(irfn:irfn)
+        if (z1 == '-') exit
+        iword = (irfn-1)/8 + 1
+        ichar = irfn - 8*(iword-1)
+        restart_filename(iword)(ichar:ichar) = z1
+      enddo
+    endif
+    call WriteEclipseFilesSpec(zm, zn, zu, ni, is_restart, restart_filename)
     deallocate(zm)
     deallocate(zn)
     deallocate(zu)

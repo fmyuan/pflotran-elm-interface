@@ -18,15 +18,31 @@ module TH_module
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: unit_z(3) = [0.d0,0.d0,1.d0]
 
-  public THResidual,THJacobian, &
-         THUpdateFixedAccumulation,THTimeCut,&
-         THSetup, THNumericalJacobianTest, &
-         THMaxChange, THUpdateSolution, &
-         THGetTecplotHeader, THInitializeTimestep, &
-         THComputeMassBalance, THResidualToMass, &
-         THSecondaryHeat, THSecondaryHeatJacobian, & 
-         THUpdateAuxVars, THDestroy, &
-         THUpdateSurfaceBC, THAccumulation
+  public THResidual, &
+         THJacobian, &
+         THUpdateFixedAccumulation, &
+         THTimeCut, &
+         THSetup, &
+         THNumericalJacobianTest, &
+         THMaxChange, &
+         THUpdateSolution, &
+         THGetTecplotHeader, &
+         THInitializeTimestep, &
+         THComputeMassBalance, &
+         THResidualToMass, &
+         THSecondaryHeat, &
+         THSecondaryHeatJacobian, & 
+         THUpdateAuxVars, &
+         THDestroy, &
+         THUpdateSurfaceBC, &
+         THAccumulation, &
+         THResidualInternalConn, &
+         THResidualBoundaryConn, &
+         THResidualSourceSink, &
+         THJacobianInternalConn, &
+         THJacobianBoundaryConn, &
+         THJacobianSourceSink, &
+         THUpdateLocalVecs
          
   PetscInt, parameter :: jh2o = 1
 
@@ -140,17 +156,22 @@ subroutine THSetupPatch(realization)
 ! option%io_buffer = 'Before TH can be run, the TH_parameter object ' // &
 !                    'must be initialized with the proper variables ' // &
 !                    'THAuxCreate() is called anywhere.'
-! call PrintErrMsg(option)
-  allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+
+! call printErrMsg(option)
+
+  if (option%use_th_freezing) then
+    allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
                                   size(patch%saturation_function_array)))
-  
+  endif
+ 
+
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only 
   !single value in the array <modified pcl 1-13-11>
   allocate(patch%aux%TH%TH_parameter%dencpr( &
              size(patch%material_property_array)))
   allocate(patch%aux%TH%TH_parameter%ckwet(size(patch%material_property_array)))
   allocate(patch%aux%TH%TH_parameter%ckdry(size(patch%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%alpha(size(patch%material_property_array)))
+  allocate(patch%aux%TH%TH_parameter%alpha(size(patch%material_property_array))) 
   if (option%use_th_freezing) then
    allocate(patch%aux%TH%TH_parameter%ckfrozen( &
               size(patch%material_property_array)))
@@ -228,11 +249,13 @@ subroutine THSetupPatch(realization)
     call PrintErrMsg(option)
   endif
 
-  do i = 1, size(patch%saturation_function_array)
-    patch%aux%TH%TH_parameter% &
-      sir(:,patch%saturation_function_array(i)%ptr%id) = &
-      patch%saturation_function_array(i)%ptr%Sr(:)
-  enddo
+  if (option%use_th_freezing) then
+    do i = 1, size(patch%saturation_function_array)
+      patch%aux%TH%TH_parameter% &
+        sir(:,patch%saturation_function_array(i)%ptr%id) = &
+        patch%saturation_function_array(i)%ptr%Sr(:)
+    enddo
+  endif
 
   ! allocate auxvar data structures for all grid cells
   allocate(TH_auxvars(grid%ngmax))
@@ -720,7 +743,7 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
             TH_parameter, ithrm, &
             grid%nG2A(ghosted_id),option)
     endif
@@ -772,7 +795,7 @@ subroutine THUpdateAuxVarsPatch(realization)
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
-              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
               TH_parameter, ithrm, &
               -grid%nG2A(ghosted_id),option)
       endif
@@ -831,7 +854,7 @@ subroutine THUpdateAuxVarsPatch(realization)
                                       global_auxvars_ss(sum_connection), &
                                       material_auxvars(ghosted_id), &
                                       iphase, &
-                                      patch%saturation_function_array( &
+                                      patch%characteristic_curves_array( &
                                         int(icap_loc_p(ghosted_id)))%ptr, &
                                       TH_parameter, ithrm, &
                                       -grid%nG2A(ghosted_id),option)
@@ -1105,7 +1128,7 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
             TH_parameter, ithrm, &
             grid%nG2A(ghosted_id),option)
     endif
@@ -1236,6 +1259,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                              th_parameter, &
                              ithrm, &
                              option,sat_func, &
+                             characteristic_curves, &
                              vol_frac_prim,J)
   ! 
   ! Computes derivatives of the accumulation
@@ -1246,6 +1270,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   ! 
 
   use Option_module
+  use Characteristic_Curves_module
   use Saturation_Function_module
   use Material_Aux_class, only : material_auxvar_type, &
                                  soil_compressibility_index, &
@@ -1261,6 +1286,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: vol,por,rock_dencpr
   type(TH_parameter_type) :: th_parameter
   PetscInt :: ithrm
+  class(characteristic_curves_type) :: characteristic_curves
   type(saturation_function_type) :: sat_func
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
@@ -1279,17 +1305,17 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: compressed_porosity, dcompressed_porosity_dp
   
   PetscReal :: pres, temp
-  PetscReal :: sat, dsat_dp, dsat_dt
-  PetscReal :: den, dden_dp, dden_dt
-  PetscReal :: u, du_dp, du_dt
+  PetscReal :: sat, dsat_dp, dsat_dT
+  PetscReal :: den, dden_dp, dden_dT
+  PetscReal :: u, du_dp, du_dT
 
   ! ice variables
   PetscReal :: sat_g, p_g, den_g, p_sat, mol_g, u_g, C_g
-  PetscReal :: dpsat_dt, ddeng_dt, dmolg_dt, dsatg_dp, dsatg_dt, dug_dt
+  PetscReal :: dpsat_dT, ddeng_dT, dmolg_dT, dsatg_dp, dsatg_dT, dug_dT
   PetscReal :: sat_i, den_i, u_i
-  PetscReal :: dsati_dp, dsati_dt
-  PetscReal :: ddeni_dp, ddeni_dt
-  PetscReal :: dui_dt
+  PetscReal :: dsati_dp, dsati_dT
+  PetscReal :: ddeni_dp, ddeni_dT
+  PetscReal :: dui_dT
   PetscErrorCode :: ierr
 
   
@@ -1301,11 +1327,11 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   sat = global_auxvar%sat(1)
   den = global_auxvar%den(1)
   dden_dp = TH_auxvar%dden_dp
-  dden_dt = TH_auxvar%dden_dt
+  dden_dT = TH_auxvar%dden_dT
   dsat_dp = TH_auxvar%dsat_dp
-  dsat_dt = TH_auxvar%dsat_dt
+  dsat_dT = TH_auxvar%dsat_dT
   u = TH_auxvar%u
-  du_dt = TH_auxvar%du_dt
+  du_dT = TH_auxvar%du_dT
   du_dp = TH_auxvar%du_dp
   
   if (soil_compressibility_index > 0) then
@@ -1324,37 +1350,37 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = (sat*dden_dp + dsat_dp*den)*porXvol + &
     dcompressed_porosity_dp*sat*den*vol
 
-  J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = sat*dden_dt*porXvol
+  J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = sat*dden_dT*porXvol
   J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = (dsat_dp*den*u + &
                                            sat*dden_dp*u + &
                                            sat*den*du_dp)*porXvol + &
                                            (den*sat*u - rock_dencpr*temp)* &
                                            vol*dcompressed_porosity_dp
   J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
-            sat*(dden_dt*u + den*du_dt)*porXvol + (1.d0 - por)*vol*rock_dencpr
+            sat*(dden_dT*u + den*du_dT)*porXvol + (1.d0 - por)*vol*rock_dencpr
 
 
   if (option%use_th_freezing) then
      ! SK, 11/17/11
      sat_g    = TH_auxvar%ice%sat_gas
      sat_i    = TH_auxvar%ice%sat_ice
-     dsati_dt = TH_auxvar%ice%dsat_ice_dt
+     dsati_dT = TH_auxvar%ice%dsat_ice_dT
      dsati_dp = TH_auxvar%ice%dsat_ice_dp
      dsatg_dp = TH_auxvar%ice%dsat_gas_dp
-     dsatg_dt = TH_auxvar%ice%dsat_gas_dt
+     dsatg_dT = TH_auxvar%ice%dsat_gas_dT
 
      u_g      = TH_auxvar%ice%u_gas
      u_i      = TH_auxvar%ice%u_ice
-     dug_dt   = TH_auxvar%ice%du_gas_dt
-     dui_dt   = TH_auxvar%ice%du_ice_dt
+     dug_dT   = TH_auxvar%ice%du_gas_dT
+     dui_dT   = TH_auxvar%ice%du_ice_dT
 
      den_i    = TH_auxvar%ice%den_ice
      den_g    = TH_auxvar%ice%den_gas
      mol_g    = TH_auxvar%ice%mol_gas
-     ddeni_dt = TH_auxvar%ice%dden_ice_dt
+     ddeni_dT = TH_auxvar%ice%dden_ice_dT
      ddeni_dp = TH_auxvar%ice%dden_ice_dp
-     ddeng_dt = TH_auxvar%ice%dden_gas_dt
-     dmolg_dt = TH_auxvar%ice%dmol_gas_dt
+     ddeng_dT = TH_auxvar%ice%dden_gas_dT
+     dmolg_dT = TH_auxvar%ice%dmol_gas_dT
 
      J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) + &
                                           (dsatg_dp*den_g*mol_g + &
@@ -1366,12 +1392,12 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
      J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) = &
        J(TH_PRESSURE_DOF,TH_TEMPERATURE_DOF) + &
-                            (TH_auxvar%dsat_dt*global_auxvar%den(1) + &
-                             dsatg_dt * den_g    * mol_g            + &
-                             sat_g    * ddeng_dt * mol_g            + &
-                             sat_g    * den_g    * dmolg_dt         + &
-                             dsati_dt * den_i                       + &
-                             sat_i    * ddeni_dt                    )*porXvol
+                            (TH_auxvar%dsat_dT*global_auxvar%den(1) + &
+                             dsatg_dT * den_g    * mol_g            + &
+                             sat_g    * ddeng_dT * mol_g            + &
+                             sat_g    * den_g    * dmolg_dT         + &
+                             dsati_dT * den_i                       + &
+                             sat_i    * ddeni_dT                    )*porXvol
 
      J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
        J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) + &
@@ -1383,13 +1409,13 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
      J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
        J(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) + &
-                (TH_auxvar%dsat_dt*global_auxvar%den(1)*TH_auxvar%u + &
-                  dsatg_dt * den_g    * u_g                         + &
-                  sat_g    * ddeng_dt * u_g                         + &
-                  sat_g    * den_g    * dug_dt                      + &
-                  dsati_dt * den_i    * u_i                         + &
-                  sat_i    * ddeni_dt * u_i                         + &
-                  sat_i    * den_i    * dui_dt                      )*porXvol
+                (TH_auxvar%dsat_dT*global_auxvar%den(1)*TH_auxvar%u + &
+                  dsatg_dT * den_g    * u_g                         + &
+                  sat_g    * ddeng_dT * u_g                         + &
+                  sat_g    * den_g    * dug_dT                      + &
+                  dsati_dT * den_i    * u_i                         + &
+                  sat_i    * ddeni_dT * u_i                         + &
+                  sat_i    * den_i    * dui_dT                      )*porXvol
   endif
 
   J = J/option%flow_dt
@@ -1451,7 +1477,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
       else
          call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                               global_auxvar_pert,material_auxvar_pert,&
-                              iphase,sat_func, &
+                              iphase,characteristic_curves, &
                               TH_parameter,ithrm, &
                               -999,option)
       endif
@@ -1554,17 +1580,17 @@ end subroutine THAccumulation
 
 subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                             material_auxvar_up, &
-                            sir_up, &
                             Dk_up, &
                             ithrm_up, &
                             auxvar_dn,global_auxvar_dn, &
                             material_auxvar_dn, &
-                            sir_dn, &
                             Dk_dn, &
                             ithrm_dn, &
                             area, &
                             dist, upweight, &
-                            option,sat_func_up,sat_func_dn, &
+                            sir_up,sir_dn, &
+                            option,sf_up,sf_dn, &
+                            cc_up,cc_dn, &   
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -1580,7 +1606,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   ! 
                              
   use Option_module 
-  use Saturation_Function_module             
+  use Characteristic_Curves_module
+  use Saturation_Function_module
   use Connection_module
   use EOS_Water_module
   use Utility_module
@@ -1602,7 +1629,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscInt :: ithrm_up, ithrm_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
-  type(saturation_function_type) :: sat_func_up, sat_func_dn
+  type(saturation_function_type) :: sf_up, sf_dn 
+  class(characteristic_curves_type) :: cc_up, cc_dn
   type(TH_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -1615,18 +1643,18 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: uh,ukvr,DK,Dq
   PetscReal :: upweight,density_ave,cond,gravity,dphi
   
-  PetscReal :: dden_ave_dp_up, dden_ave_dp_dn, dden_ave_dt_up, dden_ave_dt_dn
+  PetscReal :: dden_ave_dp_up, dden_ave_dp_dn, dden_ave_dT_up, dden_ave_dT_dn
   PetscReal :: dgravity_dden_up, dgravity_dden_dn
-  PetscReal :: dphi_dp_up, dphi_dp_dn, dphi_dt_up, dphi_dt_dn
-  PetscReal :: dukvr_dp_up, dukvr_dp_dn, dukvr_dt_up, dukvr_dt_dn
-  PetscReal :: duh_dp_up, duh_dp_dn, duh_dt_up, duh_dt_dn
-  PetscReal :: dq_dp_up, dq_dp_dn, dq_dt_up, dq_dt_dn
+  PetscReal :: dphi_dp_up, dphi_dp_dn, dphi_dT_up, dphi_dT_dn
+  PetscReal :: dukvr_dp_up, dukvr_dp_dn, dukvr_dT_up, dukvr_dT_dn
+  PetscReal :: duh_dp_up, duh_dp_dn, duh_dT_up, duh_dT_dn
+  PetscReal :: dq_dp_up, dq_dp_dn, dq_dT_up, dq_dT_dn
   
   PetscReal :: Dk_eff_up, Dk_eff_dn
   PetscReal, parameter :: epsilon = 1.d-6
-  PetscReal :: dKe_dt_up, dKe_dp_up
-  PetscReal :: dKe_dt_dn, dKe_dp_dn
-  PetscReal :: dDk_dt_up, dDk_dt_dn
+  PetscReal :: dKe_dT_up, dKe_dp_up
+  PetscReal :: dKe_dT_dn, dKe_dp_dn
+  PetscReal :: dDk_dT_up, dDk_dT_dn
   PetscReal :: dDk_dp_up, dDk_dp_dn
 
   PetscInt :: iphase, ideriv
@@ -1651,22 +1679,23 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscReal :: molg_up, molg_dn
   PetscReal :: satg_up, satg_dn
   PetscReal :: Diffg_up, Diffg_dn
-  PetscReal :: ddeng_dt_up, ddeng_dt_dn
-  PetscReal :: dpsat_dt_up, dpsat_dt_dn
-  PetscReal :: dmolg_dt_up, dmolg_dt_dn
-  PetscReal :: dDiffg_dt_up, dDiffg_dt_dn
+  PetscReal :: ddeng_dT_up, ddeng_dT_dn
+  PetscReal :: dpsat_dT_up, dpsat_dT_dn
+  PetscReal :: dmolg_dT_up, dmolg_dT_dn
+  PetscReal :: dDiffg_dT_up, dDiffg_dT_dn
   PetscReal :: dDiffg_dp_up, dDiffg_dp_dn
   PetscReal :: dsatg_dp_up, dsatg_dp_dn
   PetscReal :: Diffg_ref, p_ref, T_ref
   PetscErrorCode :: ierr
   PetscReal :: Ke_fr_up,Ke_fr_dn   ! frozen soil Kersten numbers
-  PetscReal :: dKe_fr_dt_up, dKe_fr_dt_dn
+  PetscReal :: dKe_fr_dT_up, dKe_fr_dT_dn
   PetscReal :: dKe_fr_dp_up, dKe_fr_dp_dn
   PetscReal :: fv_up, fv_dn
-  PetscReal :: dfv_dt_up, dfv_dt_dn
+  PetscReal :: dfv_dT_up, dfv_dT_dn
   PetscReal :: dfv_dp_up, dfv_dp_dn
   PetscReal :: dmolg_dp_up, dmolg_dp_dn
   PetscReal :: fv_up_pert
+  PetscBool :: is_flowing
   
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
@@ -1689,46 +1718,59 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   Jdn = 0.d0 
   
   dden_ave_dp_up = 0.d0
-  dden_ave_dt_up = 0.d0
+  dden_ave_dT_up = 0.d0
   dden_ave_dp_dn = 0.d0
-  dden_ave_dt_dn = 0.d0
+  dden_ave_dT_dn = 0.d0
   dgravity_dden_up = 0.d0
   dgravity_dden_dn = 0.d0
   dphi_dp_up = 0.d0
   dphi_dp_dn = 0.d0
-  dphi_dt_up = 0.d0
-  dphi_dt_dn = 0.d0
+  dphi_dT_up = 0.d0
+  dphi_dT_dn = 0.d0
   dukvr_dp_up = 0.d0
   dukvr_dp_dn = 0.d0
-  dukvr_dt_up = 0.d0
-  dukvr_dt_dn = 0.d0
+  dukvr_dT_up = 0.d0
+  dukvr_dT_dn = 0.d0
   duh_dp_up = 0.d0
   duh_dp_dn = 0.d0
-  duh_dt_up = 0.d0
-  duh_dt_dn = 0.d0
+  duh_dT_up = 0.d0
+  duh_dT_dn = 0.d0
   dq_dp_up = 0.d0
   dq_dp_dn = 0.d0
-  dq_dt_up = 0.d0
-  dq_dt_dn = 0.d0
-  dDk_dt_up = 0.d0
-  dDk_dt_dn = 0.d0
+  dq_dT_up = 0.d0
+  dq_dT_dn = 0.d0
+  dDk_dT_up = 0.d0
+  dDk_dT_dn = 0.d0
   dDk_dp_up = 0.d0
   dDk_dp_dn = 0.d0
   
   if (option%use_th_freezing) then
-    dfv_dt_up = 0.d0
-    dfv_dt_dn = 0.d0
+    dfv_dT_up = 0.d0
+    dfv_dT_dn = 0.d0
     dfv_dp_up = 0.d0
     dfv_dp_dn = 0.d0
     dmolg_dp_up = 0.d0
     dmolg_dp_dn = 0.d0
-    dmolg_dt_up = 0.d0
-    dmolg_dt_dn = 0.d0
+    dmolg_dT_up = 0.d0
+    dmolg_dT_dn = 0.d0
   endif
 
   ! Flow term
-  if (global_auxvar_up%sat(1) > sir_up .or.  &
-      global_auxvar_dn%sat(1) > sir_dn) then
+  is_flowing = PETSC_FALSE
+  
+  if (option%use_th_freezing) then
+    if (global_auxvar_up%sat(1) > sir_up .or. &
+        global_auxvar_dn%sat(1) > sir_dn) then
+      is_flowing = PETSC_TRUE
+    endif
+  else
+    if (auxvar_up%kvr > eps .or. &  
+        auxvar_dn%kvr > eps) then
+      is_flowing = PETSC_TRUE
+    endif
+  endif  
+
+  if (is_flowing) then  
     if (global_auxvar_up%sat(1) <eps) then
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) <eps) then 
@@ -1738,8 +1780,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)
     dden_ave_dp_up = upweight*auxvar_up%dden_dp
     dden_ave_dp_dn = (1.D0-upweight)*auxvar_dn%dden_dp
-    dden_ave_dt_up = upweight*auxvar_up%dden_dt
-    dden_ave_dt_dn = (1.D0-upweight)*auxvar_dn%dden_dt
+    dden_ave_dT_up = upweight*auxvar_up%dden_dT
+    dden_ave_dT_dn = (1.D0-upweight)*auxvar_dn%dden_dT
 
     gravity = (upweight*global_auxvar_up%den(1)*auxvar_up%avgmw + &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
@@ -1751,36 +1793,36 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
       dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
-      dphi_dt_up = dgravity_dden_up*auxvar_up%dden_dt
-      dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+      dphi_dT_up = dgravity_dden_up*auxvar_up%dden_dT
+      dphi_dT_dn = dgravity_dden_dn*auxvar_dn%dden_dT
     else
       dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
       dphi_dp_up =  auxvar_up%ice%dpres_fh2o_dp + &
                     dgravity_dden_up*auxvar_up%dden_dp
       dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
                     dgravity_dden_dn*auxvar_dn%dden_dp
-      dphi_dt_up =  auxvar_up%ice%dpres_fh2o_dt + &
-                    dgravity_dden_up*auxvar_up%dden_dt
-      dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
-                    dgravity_dden_dn*auxvar_dn%dden_dt
+      dphi_dT_up =  auxvar_up%ice%dpres_fh2o_dT + &
+                    dgravity_dden_up*auxvar_up%dden_dT
+      dphi_dT_dn = -auxvar_dn%ice%dpres_fh2o_dT + &
+                    dgravity_dden_dn*auxvar_dn%dden_dT
     endif
 
     if (dphi>=0.D0) then
       ukvr = auxvar_up%kvr
       dukvr_dp_up = auxvar_up%dkvr_dp
-      dukvr_dt_up = auxvar_up%dkvr_dt
+      dukvr_dT_up = auxvar_up%dkvr_dT
       
       uh = auxvar_up%h
       duh_dp_up = auxvar_up%dh_dp
-      duh_dt_up = auxvar_up%dh_dt
+      duh_dT_up = auxvar_up%dh_dT
     else
       ukvr = auxvar_dn%kvr
       dukvr_dp_dn = auxvar_dn%dkvr_dp
-      dukvr_dt_dn = auxvar_dn%dkvr_dt
+      dukvr_dT_dn = auxvar_dn%dkvr_dT
       
       uh = auxvar_dn%h
       duh_dp_dn = auxvar_dn%dh_dp
-      duh_dt_dn = auxvar_dn%dh_dt
+      duh_dT_dn = auxvar_dn%dh_dT
     endif      
 
     call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
@@ -1788,11 +1830,12 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                          dphi, &
                          option%rel_perm_aveg, &
                          ukvr, dukvr_dp_up, dukvr_dp_dn)
+
     call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
-                         auxvar_up%dkvr_dt, auxvar_dn%dkvr_dt, &
+                         auxvar_up%dkvr_dT, auxvar_dn%dkvr_dT, &
                          dphi, &
                          option%rel_perm_aveg, &
-                         ukvr, dukvr_dt_up, dukvr_dt_dn)
+                         ukvr, dukvr_dT_up, dukvr_dT_dn)
 
     !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
     !                     auxvar_up%dh_dp, auxvar_dn%dh_dp, &
@@ -1800,46 +1843,50 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     !                     option%rel_perm_aveg, &
     !                     uh, duh_dp_up, duh_dp_dn)
     !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
-    !                     auxvar_up%dh_dt, auxvar_dn%dh_dt, &
+    !                     auxvar_up%dh_dT, auxvar_dn%dh_dT, &
     !                     dphi, &
     !                     option%rel_perm_aveg, &
-    !                     uh, duh_dt_up, duh_dp_dn)
+    !                     uh, duh_dT_up, duh_dp_dn)
 
     if (ukvr>floweps) then
       v_darcy= Dq * ukvr * dphi
    
       q = v_darcy * area
+      
+
+      dq_dT_up = Dq*(dukvr_dT_up*dphi+ukvr*dphi_dT_up)*area
+      dq_dT_dn = Dq*(dukvr_dT_dn*dphi+ukvr*dphi_dT_dn)*area
+      
       dq_dp_up = Dq*(dukvr_dp_up*dphi+ukvr*dphi_dp_up)*area
       dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
       
-      dq_dt_up = Dq*(dukvr_dt_up*dphi+ukvr*dphi_dt_up)*area
-      dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
-        
 
+        
       ! If only solving the energy equation, ensure Jup(2,2) & Jdn(2,2)
       ! have no contribution from the mass equation
       if (option%flow%only_energy_eq) then
          v_darcy = 0.d0
          q = 0.d0
-         dq_dt_up = 0.d0
-         dq_dt_dn = 0.d0
+         dq_dT_up = 0.d0
+         dq_dT_dn = 0.d0
       endif
 
       Jup(1,1) = (dq_dp_up*density_ave+q*dden_ave_dp_up)
-      Jup(1,2) = (dq_dt_up*density_ave+q*dden_ave_dt_up)
+      Jup(1,2) = (dq_dT_up*density_ave+q*dden_ave_dT_up)
 
       Jdn(1,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)
-      Jdn(1,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)
+      Jdn(1,2) = (dq_dT_dn*density_ave+q*dden_ave_dT_dn)
+
 
       ! based on flux = q*density_ave*uh
       Jup(option%nflowdof,1) = (dq_dp_up*density_ave+q*dden_ave_dp_up)*uh+ &
                                q*density_ave*duh_dp_up
-      Jup(option%nflowdof,2) = (dq_dt_up*density_ave+q*dden_ave_dt_up)*uh+ &
-                               q*density_ave*duh_dt_up
+      Jup(option%nflowdof,2) = (dq_dT_up*density_ave+q*dden_ave_dT_up)*uh+ &
+                               q*density_ave*duh_dT_up
       Jdn(option%nflowdof,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)*uh+ &
                                q*density_ave*duh_dp_dn
-      Jdn(option%nflowdof,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)*uh+ &
-                               q*density_ave*duh_dt_dn
+      Jdn(option%nflowdof,2) = (dq_dT_dn*density_ave+q*dden_ave_dT_dn)*uh+ &
+                               q*density_ave*duh_dT_dn
 
     endif
   endif 
@@ -1867,9 +1914,9 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       Ddiffgas_up = por_up*tor_up*satg_up*deng_up*Diffg_up
       Ddiffgas_dn = por_dn*tor_dn*satg_dn*deng_dn*Diffg_dn
       call EOSWaterSaturationPressure(global_auxvar_up%temp, psat_up, &
-                                      dpsat_dt_up, ierr)
+                                      dpsat_dT_up, ierr)
       call EOSWaterSaturationPressure(global_auxvar_dn%temp, psat_dn, &
-                                      dpsat_dt_dn, ierr)
+                                      dpsat_dT_dn, ierr)
 
       ! vapor pressure lowering due to capillary pressure
       fv_up = exp(-auxvar_up%pc/(global_auxvar_up%den(1)* &
@@ -1880,15 +1927,15 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       molg_up = psat_up*fv_up/p_g
       molg_dn = psat_dn*fv_dn/p_g
 
-      dfv_dt_up = fv_up*(auxvar_up%pc/IDEAL_GAS_CONSTANT/ &
+      dfv_dT_up = fv_up*(auxvar_up%pc/IDEAL_GAS_CONSTANT/ &
            (global_auxvar_up%den(1)* &
            (global_auxvar_up%temp + 273.15d0))**2)* &
-           (auxvar_up%dden_dt*(global_auxvar_up%temp + 273.15d0) &
+           (auxvar_up%dden_dT*(global_auxvar_up%temp + 273.15d0) &
            + global_auxvar_up%den(1))
-      dfv_dt_dn = fv_dn*(auxvar_dn%pc/IDEAL_GAS_CONSTANT/ &
+      dfv_dT_dn = fv_dn*(auxvar_dn%pc/IDEAL_GAS_CONSTANT/ &
            (global_auxvar_dn%den(1)* &
            (global_auxvar_dn%temp + 273.15d0))**2)* &
-           (auxvar_dn%dden_dt*(global_auxvar_dn%temp + 273.15d0) &
+           (auxvar_dn%dden_dT*(global_auxvar_dn%temp + 273.15d0) &
            + global_auxvar_dn%den(1))
 
       dfv_dp_up = fv_up*(auxvar_up%pc/IDEAL_GAS_CONSTANT/ &
@@ -1902,19 +1949,19 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
            + 1.d0/IDEAL_GAS_CONSTANT/global_auxvar_dn%den(1)/ &
            (global_auxvar_dn%temp + 273.15d0))
 
-      dmolg_dt_up = (1/p_g)*dpsat_dt_up*fv_up + psat_up/p_g*dfv_dt_up
-      dmolg_dt_dn = (1/p_g)*dpsat_dt_dn*fv_dn + psat_dn/p_g*dfv_dt_dn
+      dmolg_dT_up = (1/p_g)*dpsat_dT_up*fv_up + psat_up/p_g*dfv_dT_up
+      dmolg_dT_dn = (1/p_g)*dpsat_dT_dn*fv_dn + psat_dn/p_g*dfv_dT_dn
 
       dmolg_dp_up = psat_up/p_g*dfv_dp_up
       dmolg_dp_dn = psat_dn/p_g*dfv_dp_dn
 
-      ddeng_dt_up = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + &
+      ddeng_dT_up = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_up%temp + &
            273.15d0)**2)*1.d-3
-      ddeng_dt_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
+      ddeng_dT_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
            273.15d0)**2)*1.d-3
 
-      dDiffg_dt_up = 1.8*Diffg_up/(global_auxvar_up%temp + 273.15d0)
-      dDiffg_dt_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
+      dDiffg_dT_up = 1.8*Diffg_up/(global_auxvar_up%temp + 273.15d0)
+      dDiffg_dT_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
 
       dDiffg_dp_up = 0.d0
       dDiffg_dp_dn = 0.d0
@@ -1938,8 +1985,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
            (dd_up + dd_dn)*area
 
       Jup(1,2) = Jup(1,2) + (upweight*por_up*tor_up*satg_up*(Diffg_up* &
-           ddeng_dt_up + deng_up*dDiffg_dt_up)*(molg_up - molg_dn) &
-           + Ddiffgas_avg*dmolg_dt_up)/(dd_up + dd_dn)*area
+           ddeng_dT_up + deng_up*dDiffg_dT_up)*(molg_up - molg_dn) &
+           + Ddiffgas_avg*dmolg_dT_up)/(dd_up + dd_dn)*area
 
       Jdn(1,1) = Jdn(1,1) + ((1.D0 - upweight)*por_dn*tor_dn*deng_dn* &
            (Diffg_dn*dsatg_dp_dn + satg_dn*dDiffg_dp_dn)* &
@@ -1948,8 +1995,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
           
       Jdn(1,2) = Jdn(1,2) + &
            ((1.D0 - upweight)*por_dn*tor_dn*satg_dn*(Diffg_dn* &
-           ddeng_dt_dn + deng_dn*dDiffg_dp_dn)*(molg_up - molg_dn) &
-           + Ddiffgas_avg*(-dmolg_dt_dn))/(dd_up + dd_dn)*area
+           ddeng_dT_dn + deng_dn*dDiffg_dp_dn)*(molg_up - molg_dn) &
+           + Ddiffgas_avg*(-dmolg_dT_dn))/(dd_up + dd_dn)*area
 #endif
    endif
 
@@ -1959,8 +2006,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dKe_dp_up = auxvar_up%dKe_dp
     dKe_dp_dn = auxvar_dn%dKe_dp
 
-    dKe_dt_up = auxvar_up%dKe_dt
-    dKe_dt_dn = auxvar_dn%dKe_dt
+    dKe_dT_up = auxvar_up%dKe_dT
+    dKe_dT_dn = auxvar_dn%dKe_dT
 
   if (option%use_th_freezing) then
             
@@ -1970,8 +2017,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     Ke_fr_up = auxvar_up%ice%Ke_fr
     Ke_fr_dn = auxvar_dn%ice%Ke_fr
 
-    dKe_fr_dt_up = auxvar_up%ice%dKe_fr_dt
-    dKe_fr_dt_dn = auxvar_dn%ice%dKe_fr_dt
+    dKe_fr_dT_up = auxvar_up%ice%dKe_fr_dT
+    dKe_fr_dT_dn = auxvar_dn%ice%dKe_fr_dT
 
     dKe_fr_dp_up = auxvar_up%ice%dKe_fr_dp
     dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
@@ -1987,11 +2034,11 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   
   if (option%use_th_freezing) then
 
-    dDk_dt_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up*dKe_dt_up + &
-        Dk_ice_up*dKe_fr_dt_up + (- dKe_dt_up - dKe_fr_dt_up)* &
+    dDk_dT_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up*dKe_dT_up + &
+        Dk_ice_up*dKe_fr_dT_up + (- dKe_dT_up - dKe_fr_dT_up)* &
         Dk_dry_up)
-    dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
-        Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
+    dDk_dT_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dT_dn + &
+        Dk_ice_dn*dKe_fr_dT_dn + (- dKe_dT_dn - dKe_fr_dT_dn)* &
         Dk_dry_dn)
 
     dDk_dp_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up*dKe_dp_up + &
@@ -2004,8 +2051,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
   else
   
-    dDk_dt_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up - Dk_dry_up)*dKe_dt_up
-    dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dt_dn
+    dDk_dT_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up - Dk_dry_up)*dKe_dT_up
+    dDk_dT_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dT_dn
 
     dDk_dp_up = Dk**2/Dk_eff_up**2*dd_up*(Dk_up - Dk_dry_up)*dKe_dp_up
     dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dp_dn
@@ -2022,10 +2069,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                            
   Jup(option%nflowdof,2) = Jup(option%nflowdof,2) + Dk*area + &
                            area*(global_auxvar_up%temp - & 
-                           global_auxvar_dn%temp)*dDk_dt_up 
+                           global_auxvar_dn%temp)*dDk_dT_up 
   Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
                            area*(global_auxvar_up%temp - & 
-                           global_auxvar_dn%temp)*dDk_dt_dn 
+                           global_auxvar_dn%temp)*dDk_dT_dn 
 
   ! If only solving the energy equation,
   !  - Set jacobian term corresponding to mass-equation to zero, and
@@ -2067,14 +2114,13 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     call THFlux( &
       auxvar_up,global_auxvar_up, &
       material_auxvar_up, &
-      sir_up, &
       Dk_up, &
       auxvar_dn,global_auxvar_dn, &
       material_auxvar_dn, &
-      sir_dn, &
       Dk_dn, &
       area, &
       dist, upweight, &
+      sir_up, sir_dn, &
       option,v_darcy,Dk_dry_up,Dk_dry_dn, &
       Dk_ice_up,Dk_ice_dn, &
       alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2124,51 +2170,49 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       if (option%use_th_freezing) then
         call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
-             iphase,sat_func_up, &
+             iphase,sf_up, &
              TH_parameter,ithrm_up, &
              -999,option)
         call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn, material_auxvar_pert_up, &
-             iphase,sat_func_dn, &
+             iphase,sf_dn, &
              TH_parameter,ithrm_up, &
              -999,option)
       else
         call THAuxVarComputeNoFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
-             iphase,sat_func_up, &
+             iphase,cc_up, &
              TH_parameter,ithrm_up, &
              -999,option)
         call THAuxVarComputeNoFreezing(x_pert_dn,auxvar_pert_dn, &
              global_auxvar_pert_dn,material_auxvar_pert_dn, &
-             iphase,sat_func_dn, &
+             iphase,cc_dn, &
              TH_parameter,ithrm_dn, &
              -999,option)
       endif
 
       call THFlux(auxvar_pert_up,global_auxvar_pert_up, &
                    material_auxvar_pert_up, &
-                   sir_up, &
                    Dk_up, &
                    auxvar_dn,global_auxvar_dn, &
                    material_auxvar_pert_dn, &
-                   sir_dn, &
                    Dk_dn, &
                    area, &
                    dist, upweight, &
+                   sir_up,sir_dn, &
                    option,v_darcy,Dk_dry_up, &
                    Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                    alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
                    res_pert_up)
       call THFlux(auxvar_up,global_auxvar_up, &
                    material_auxvar_pert_up, &
-                   sir_up,&
                    Dk_up, &
                    auxvar_pert_dn,global_auxvar_pert_dn, &
                    material_auxvar_pert_dn, &
-                   sir_dn, &
                    Dk_dn, &
                    area, &
                    dist, upweight, &
+                   sir_up,sir_dn, &
                    option,v_darcy,Dk_dry_up, &
                    Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                    alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2191,15 +2235,14 @@ end subroutine THFluxDerivative
 ! ************************************************************************** !
 subroutine THFlux(auxvar_up,global_auxvar_up, &
                   material_auxvar_up, &
-                  sir_up, &
                   Dk_up, &
                   auxvar_dn,global_auxvar_dn, &
                   material_auxvar_dn, &
-                  sir_dn, &
                   Dk_dn, &
                   area, &
                   dist, &
                   upweight, &
+                  sir_up,sir_dn, &
                   option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                   alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -2256,6 +2299,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   PetscErrorCode :: ierr
   PetscReal :: Ke_fr_up,Ke_fr_dn   ! frozen soil Kersten numbers
   PetscReal :: fv_up, fv_dn
+  PetscBool :: is_flowing
      
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
@@ -2275,8 +2319,21 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
   v_darcy = 0.D0  
 
   ! Flow term
-  if (global_auxvar_up%sat(1) > sir_up .or. &
-      global_auxvar_dn%sat(1) > sir_dn) then
+  is_flowing = PETSC_FALSE
+  
+  if (option%use_th_freezing) then
+    if (global_auxvar_up%sat(1) > sir_up .or.  &
+        global_auxvar_dn%sat(1) > sir_dn) then
+      is_flowing = PETSC_TRUE
+    endif
+  else
+    if (auxvar_up%kvr > eps .or. &  
+        auxvar_dn%kvr > eps) then
+      is_flowing = PETSC_TRUE
+    endif
+  endif
+ 
+  if (is_flowing) then
     if (global_auxvar_up%sat(1) < eps) then 
       upweight=0.d0
     else if (global_auxvar_dn%sat(1) < eps) then 
@@ -2411,12 +2468,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                               auxvar_up,global_auxvar_up, &
                               auxvar_dn,global_auxvar_dn, &
                               material_auxvar_dn, &
-                              sir_dn, &
                               Dk_dn, &
                               area, &
                               dist, &
+                              sir_dn, &
                               option, &
-                              sat_func_dn,&
+                              sf_dn, &
+                              cc_dn, &
                               Dk_dry_dn, &
                               Dk_ice_dn, &
                               Jdn)
@@ -2429,6 +2487,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   ! 
   use Option_module
   use Saturation_Function_module
+  use Characteristic_Curves_module
   use Connection_module
   use EOS_Water_module
   use Utility_module
@@ -2440,11 +2499,15 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
+
   PetscReal :: sir_dn
+  PetscBool :: is_flowing  
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: por_dn,perm_dn,Dk_dn,tor_dn
   PetscReal :: area
-  type(saturation_function_type) :: sat_func_dn  
+  type(saturation_function_type) :: sf_dn  
+  class(characteristic_curves_type) :: cc_dn
+
   PetscReal :: Dk_dry_dn
   PetscReal :: Dk_ice_dn
   PetscReal :: alpha_dn
@@ -2461,17 +2524,17 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: uh,ukvr,diff,diffdp,DK,Dq
   PetscReal :: upweight,cond,gravity,dphi
 
-  PetscReal :: ddiff_dp_dn, ddiff_dt_dn
-  PetscReal :: dden_ave_dp_dn, dden_ave_dt_dn
+  PetscReal :: ddiff_dp_dn, ddiff_dT_dn
+  PetscReal :: dden_ave_dp_dn, dden_ave_dT_dn
   PetscReal :: dgravity_dden_dn
-  PetscReal :: dphi_dp_dn, dphi_dt_dn
-  PetscReal :: dukvr_dp_dn, dukvr_dt_dn
-  PetscReal :: duh_dp_dn, duh_dt_dn
-  PetscReal :: dq_dp_dn, dq_dt_dn
+  PetscReal :: dphi_dp_dn, dphi_dT_dn
+  PetscReal :: dukvr_dp_dn, dukvr_dT_dn
+  PetscReal :: duh_dp_dn, duh_dT_dn
+  PetscReal :: dq_dp_dn, dq_dT_dn
   PetscReal :: Dk_eff_dn
-  PetscReal :: dDk_dt_dn, dDk_dp_dn
-  PetscReal :: dKe_dt_dn, dKe_dp_dn
-  PetscReal :: dKe_fr_dt_dn, dKe_fr_dp_dn
+  PetscReal :: dDk_dT_dn, dDk_dp_dn
+  PetscReal :: dKe_dT_dn, dKe_dp_dn
+  PetscReal :: dKe_fr_dT_dn, dKe_fr_dp_dn
 
   PetscInt :: iphase, ideriv
   type(TH_auxvar_type) :: auxvar_pert_dn, auxvar_pert_up
@@ -2498,10 +2561,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: molg_up, molg_dn
   PetscReal :: satg_up, satg_dn
   PetscReal :: Diffg_up, Diffg_dn
-  PetscReal :: ddeng_dt_dn
-  PetscReal :: dpsat_dt_dn
-  PetscReal :: dmolg_dt_dn
-  PetscReal :: dDiffg_dt_dn
+  PetscReal :: ddeng_dT_dn
+  PetscReal :: dpsat_dT_dn
+  PetscReal :: dmolg_dT_dn
+  PetscReal :: dDiffg_dT_dn
   PetscReal :: dDiffg_dp_dn
   PetscReal :: dsatg_dp_dn
   PetscReal :: Diffg_ref, p_ref, T_ref
@@ -2526,18 +2589,18 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   Jdn = 0.d0 
   
   dden_ave_dp_dn = 0.d0
-  dden_ave_dt_dn = 0.d0
+  dden_ave_dT_dn = 0.d0
   ddiff_dp_dn = 0.d0
-  ddiff_dt_dn = 0.d0
+  ddiff_dT_dn = 0.d0
   dgravity_dden_dn = 0.d0
   dphi_dp_dn = 0.d0
-  dphi_dt_dn = 0.d0
+  dphi_dT_dn = 0.d0
   dukvr_dp_dn = 0.d0
-  dukvr_dt_dn = 0.d0
+  dukvr_dT_dn = 0.d0
   duh_dp_dn = 0.d0
-  duh_dt_dn = 0.d0
+  duh_dT_dn = 0.d0
   dq_dp_dn = 0.d0
-  dq_dt_dn = 0.d0
+  dq_dT_dn = 0.d0
 
   hw_present = PETSC_FALSE
   if (associated(auxvar_dn%surface)) then
@@ -2564,8 +2627,21 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         Dq = perm_dn / dd_dn
       endif
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. &
-          global_auxvar_dn%sat(1) > sir_dn) then
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+        if (global_auxvar_up%sat(1) > sir_dn .or.  &
+            global_auxvar_dn%sat(1) > sir_dn) then
+          is_flowing = PETSC_TRUE
+        endif
+      else
+        if (auxvar_up%kvr > eps .or. &  
+            auxvar_dn%kvr > eps) then
+          is_flowing = PETSC_TRUE
+        endif
+      endif
+      
+      if (is_flowing) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then
           upweight=0.d0
@@ -2576,10 +2652,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         density_ave = upweight*global_auxvar_up%den(1)+ &
                       (1.D0-upweight)*global_auxvar_dn%den(1)
         dden_ave_dp_dn = (1.D0-upweight)*auxvar_dn%dden_dp
-        dden_ave_dt_dn = (1.D0-upweight)*auxvar_dn%dden_dt
+        dden_ave_dT_dn = (1.D0-upweight)*auxvar_dn%dden_dT
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-          dden_ave_dt_dn = dden_ave_dt_dn + upweight*auxvar_up%dden_dt
+          dden_ave_dT_dn = dden_ave_dT_dn + upweight*auxvar_up%dden_dT
         endif
         
         gravity = (upweight*global_auxvar_up%den(1)*auxvar_up%avgmw + &
@@ -2590,13 +2666,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         if (option%ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+          dphi_dT_dn = dgravity_dden_dn*auxvar_dn%dden_dT
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
           dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
                         dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
-                        dgravity_dden_dn*auxvar_dn%dden_dt
+          dphi_dT_dn = -auxvar_dn%ice%dpres_fh2o_dT + &
+                        dgravity_dden_dn*auxvar_dn%dden_dT
         endif
 
         select case(ibndtype(TH_PRESSURE_DOF))
@@ -2609,41 +2685,56 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
               if (dphi > 0.d0) then
                 dphi = 0.d0
                 dphi_dp_dn = 0.d0
-                dphi_dt_dn = 0.d0
+                dphi_dT_dn = 0.d0
               endif
             endif
         end select
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
                      !( dgravity_dden_up                   ) (dden_dt_up)
-          dphi_dt_dn = dphi_dt_dn + upweight*auxvar_up%avgmw* &
-                                    dist_gravity*auxvar_up%dden_dt
+          dphi_dT_dn = dphi_dT_dn + upweight*auxvar_up%avgmw* &
+                                    dist_gravity*auxvar_up%dden_dT
         endif
+
         
         if (dphi>=0.D0) then
           ukvr = auxvar_up%kvr
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dukvr_dt_dn = auxvar_up%dkvr_dt
+            dukvr_dT_dn = auxvar_up%dkvr_dT
           endif
         else
           ukvr = auxvar_dn%kvr
           dukvr_dp_dn = auxvar_dn%dkvr_dp
-          dukvr_dt_dn = auxvar_dn%dkvr_dt
+          dukvr_dT_dn = auxvar_dn%dkvr_dT
         endif      
 
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
-          dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
+          dq_dT_dn = Dq*(dukvr_dT_dn*dphi+ukvr*dphi_dT_dn)*area
         endif
       endif
 
     case(HET_SURF_SEEPAGE_BC)
       Dq = perm_dn / dd_dn
-      ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. &
-          global_auxvar_dn%sat(1) > sir_dn) then
+       
+      ! Flow term      
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+        if (global_auxvar_up%sat(1) > sir_dn .or.  &
+            global_auxvar_dn%sat(1) > sir_dn) then
+          is_flowing = PETSC_TRUE
+        endif
+      else
+        if (auxvar_up%kvr > eps .or. &  
+            auxvar_dn%kvr > eps) then
+          is_flowing = PETSC_TRUE
+        endif
+      endif
+
+      if (is_flowing) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then
           upweight=0.d0
@@ -2654,10 +2745,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         density_ave = upweight*global_auxvar_up%den(1)+ &
                       (1.D0-upweight)*global_auxvar_dn%den(1)
         dden_ave_dp_dn = (1.D0-upweight)*auxvar_dn%dden_dp
-        dden_ave_dt_dn = (1.D0-upweight)*auxvar_dn%dden_dt
+        dden_ave_dT_dn = (1.D0-upweight)*auxvar_dn%dden_dT
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-          dden_ave_dt_dn = dden_ave_dt_dn + upweight*auxvar_up%dden_dt
+          dden_ave_dT_dn = dden_ave_dT_dn + upweight*auxvar_up%dden_dT
         endif
         
         gravity = (upweight*global_auxvar_up%den(1)*auxvar_up%avgmw + &
@@ -2668,13 +2759,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         if (option%ice_model /= DALL_AMICO) then
           dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+          dphi_dT_dn = dgravity_dden_dn*auxvar_dn%dden_dT
         else
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
           dphi_dp_dn = -auxvar_dn%ice%dpres_fh2o_dp + &
                        dgravity_dden_dn*auxvar_dn%dden_dp
-          dphi_dt_dn = -auxvar_dn%ice%dpres_fh2o_dt + &
-                       dgravity_dden_dn*auxvar_dn%dden_dt
+          dphi_dT_dn = -auxvar_dn%ice%dpres_fh2o_dT + &
+                       dgravity_dden_dn*auxvar_dn%dden_dT
         endif
 
         ! flow in         ! boundary cell is <= pref
@@ -2682,7 +2773,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             global_auxvar_up%pres(1)-option%reference_pressure < eps) then
           dphi = 0.d0
           dphi_dp_dn = 0.d0
-          dphi_dt_dn = 0.d0
+          dphi_dT_dn = 0.d0
         endif
 
 
@@ -2695,25 +2786,25 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           if (global_auxvar_up%temp < 0.d0) then
             dphi = 0.d0
             dphi_dp_dn = 0.d0
-            dphi_dt_dn = 0.d0
+            dphi_dT_dn = 0.d0
           endif
         endif
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-                        !( dgravity_dden_up                   ) (dden_dt_up)
-          dphi_dt_dn = dphi_dt_dn + upweight*auxvar_up%avgmw* &
-                                    dist_gravity*auxvar_up%dden_dt
+                        !( dgravity_dden_up                   ) (dden_dT_up)
+          dphi_dT_dn = dphi_dT_dn + upweight*auxvar_up%avgmw* &
+                                    dist_gravity*auxvar_up%dden_dT
         endif
         
         if (dphi>=0.D0) then
           ukvr = auxvar_up%kvr
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dukvr_dt_dn = auxvar_up%dkvr_dt
+            dukvr_dT_dn = auxvar_up%dkvr_dT
           endif
         else
           ukvr = auxvar_dn%kvr
           dukvr_dp_dn = auxvar_dn%dkvr_dp
-          dukvr_dt_dn = auxvar_dn%dkvr_dt
+          dukvr_dT_dn = auxvar_dn%dkvr_dT
         endif      
 
         !call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
@@ -2722,16 +2813,16 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         !                     option%rel_perm_aveg, &
         !                     ukvr, dum1, dukvr_dp_dn)
         !call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
-        !                     auxvar_up%dkvr_dt, auxvar_dn%dkvr_dt, &
+        !                     auxvar_up%dkvr_dT, auxvar_dn%dkvr_dT, &
         !                     dphi, &
         !                     option%rel_perm_aveg, &
-        !                     ukvr, dum1, dukvr_dt_dn)
+        !                     ukvr, dum1, dukvr_dT_dn)
 
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
-          dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
+          dq_dT_dn = Dq*(dukvr_dT_dn*dphi+ukvr*dphi_dT_dn)*area
 
           if (option%surf_flow_on .and. &
               option%subsurf_surf_coupling /= DECOUPLED) then
@@ -2755,7 +2846,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                 dfctT_dT  = 0.d0
               else if (global_auxvar_dn%temp > T_th) then
                 fctT      = 1.d0
-                dfctT_dt  = 0.d0
+                dfctT_dT  = 0.d0
               else
                 fct      = 1.d0-(global_auxvar_dn%temp/T_th)**2.d0
                 fctT     = 1.d0-fct**2.d0
@@ -2795,7 +2886,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                 !   d(q_min)/dT_dn = 0
                 !   d(P_min)/dT_dn = 0
                 !                     slope*(0 - d(P_min)/dT_dn)
-                dq_dt_dn = auxvar_dn%surface%dlinear_slope_dT* &
+                dq_dT_dn = auxvar_dn%surface%dlinear_slope_dT* &
                            (global_auxvar_dn%pres(1) - &
                             auxvar_dn%surface%range_for_linear_approx(1))
 
@@ -2814,7 +2905,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                                                coeff_for_deriv_cubic_approx, &
                                              global_auxvar_dn%pres(1) - &
                                                option%reference_pressure, &
-                                             dq_dt_dn, dum1)
+                                             dq_dT_dn, dum1)
 
               endif
             endif
@@ -2823,7 +2914,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             v_darcy  = v_darcy*fctT
             q        = v_darcy*area
             dq_dp_dn = dq_dp_dn*fctT
-            dq_dt_dn = dq_dt_dn*fctT + q*dfctT_dT
+            dq_dT_dn = dq_dT_dn*fctT + q*dfctT_dT
 
           endif
         endif
@@ -2835,12 +2926,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         if (v_darcy > 0.d0) then 
           density_ave = global_auxvar_up%den(1)
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dden_ave_dt_dn = auxvar_up%dden_dt
+            dden_ave_dT_dn = auxvar_up%dden_dT
           endif
         else 
           density_ave = global_auxvar_dn%den(1)
           dden_ave_dp_dn = auxvar_dn%dden_dp
-          dden_ave_dt_dn = auxvar_dn%dden_dt
+          dden_ave_dT_dn = auxvar_dn%dden_dT
         endif 
         q = v_darcy * area
       endif
@@ -2856,12 +2947,12 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       duh_dp_dn = auxvar_up%dh_dp
     endif
     if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-      duh_dt_dn = auxvar_up%dh_dt
+      duh_dT_dn = auxvar_up%dh_dT
     endif
   else
     uh = auxvar_dn%h
     duh_dp_dn = auxvar_dn%dh_dp
-    duh_dt_dn = auxvar_dn%dh_dt
+    duh_dT_dn = auxvar_dn%dh_dT
   endif      
 
   !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
@@ -2870,26 +2961,26 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   !                     option%rel_perm_aveg, &
   !                     uh, dum1, duh_dp_dn)
   !call InterfaceApprox(auxvar_up%h, auxvar_dn%h, &
-  !                     auxvar_up%dh_dt, auxvar_dn%dh_dt, &
+  !                     auxvar_up%dh_dT, auxvar_dn%dh_dT, &
   !                     dphi, &
   !                     option%rel_perm_aveg, &
-  !                     uh, dum1, duh_dt_dn)
+  !                     uh, dum1, duh_dT_dn)
 
   Jdn(1,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)
-  Jdn(1,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)
+  Jdn(1,2) = (dq_dT_dn*density_ave+q*dden_ave_dT_dn)
       
   ! If only solving the energy equation, ensure Jdn(2,2) has no
   ! contribution from mass equation
   if (option%flow%only_energy_eq) then
     q = 0.d0
-    dq_dt_dn = 0.d0
+    dq_dT_dn = 0.d0
   endif
 
   ! based on flux = q*density_ave*uh
   Jdn(option%nflowdof,1) =  &
      ((dq_dp_dn*density_ave+q*dden_ave_dp_dn)*uh+q*density_ave*duh_dp_dn)
   Jdn(option%nflowdof,2) =  &
-     ((dq_dt_dn*density_ave+q*dden_ave_dt_dn)*uh+q*density_ave*duh_dt_dn)
+     ((dq_dT_dn*density_ave+q*dden_ave_dT_dn)*uh+q*density_ave*duh_dT_dn)
 
   ! Conduction term
   select case(ibndtype(TH_TEMPERATURE_DOF))
@@ -2900,20 +2991,20 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       if (skip_thermal_conduction) then
         ! skip thermal conducton when the boundary pressure is below the
         ! reference pressure (e.g. river stage is below cell center).
-        dDk_dt_dn = 0.d0
+        dDk_dT_dn = 0.d0
         dDk_dp_dn = 0.d0
         Dk = 0.d0
       else
         if (option%use_th_freezing) then
           Dk_eff_dn    = auxvar_dn%Dk_eff
           dKe_dp_dn    = auxvar_dn%dKe_dp
-          dKe_dt_dn    = auxvar_dn%dKe_dt
-          dKe_fr_dt_dn = auxvar_dn%ice%dKe_fr_dt
+          dKe_dT_dn    = auxvar_dn%dKe_dT
+          dKe_fr_dT_dn = auxvar_dn%ice%dKe_fr_dT
           dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
           Dk           = Dk_eff_dn/dd_dn
 
-          dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
-              Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
+          dDk_dT_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dT_dn + &
+              Dk_ice_dn*dKe_fr_dT_dn + (- dKe_dT_dn - dKe_fr_dT_dn)* &
               Dk_dry_dn)
           dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
               Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
@@ -2923,10 +3014,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   
           Dk_eff_dn = auxvar_dn%Dk_eff
           dKe_dp_dn = auxvar_dn%dKe_dp
-          dKe_dt_dn = auxvar_dn%dKe_dt
+          dKe_dT_dn = auxvar_dn%dKe_dT
           Dk        = Dk_eff_dn/dd_dn
   
-          dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dt_dn
+          dDk_dT_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dT_dn
           dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dp_dn
 
         endif
@@ -2940,7 +3031,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                 area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dp_dn
 
         Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
-                area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dt_dn
+                area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dT_dn
       else
         ! ---------------------------
         ! Surface-subsurface simulation
@@ -2952,7 +3043,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
             Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + &
               Dk*area*(-1.d0) + &
-              area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dt_dn
+              area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dT_dn
           else
             Jdn = 0.d0
           endif
@@ -2965,7 +3056,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
             Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + &
               Dk*area*(-1.d0) + &
-              area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dt_dn
+              area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dT_dn
           endif
         endif
       endif
@@ -2994,13 +3085,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             call EOSWaterSaturationPressure(global_auxvar_up%temp, &
                                             psat_up, ierr)
             call EOSWaterSaturationPressure(global_auxvar_dn%temp, &
-                                            psat_dn, dpsat_dt_dn, ierr)
+                                            psat_dn, dpsat_dT_dn, ierr)
             molg_up = psat_up/p_g
             molg_dn = psat_dn/p_g
-            ddeng_dt_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
+            ddeng_dT_dn = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar_dn%temp + &
                  273.15d0)**2)*1.d-3
-            dmolg_dt_dn = (1/p_g)*dpsat_dt_dn
-            dDiffg_dt_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
+            dmolg_dT_dn = (1/p_g)*dpsat_dT_dn
+            dDiffg_dT_dn = 1.8*Diffg_dn/(global_auxvar_dn%temp + 273.15d0)
             dDiffg_dp_dn = 0.d0
             dsatg_dp_dn = auxvar_dn%ice%dsat_gas_dp
         
@@ -3016,9 +3107,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                  Ddiffgas_dn/satg_dn*dsatg_dp_dn*(molg_up - molg_dn)/dd_dn* &
                  area
             Jdn(1,2) = Jdn(1,2) + por_dn*tor_dn*(1.D0 - upweight)* &
-                 (Ddiffgas_avg/deng_dn*ddeng_dt_dn + Ddiffgas_avg/Diffg_dn* &
-                 dDiffg_dt_dn)*(molg_up - molg_dn)/dd_dn*area + por_dn* &
-                 tor_dn*Ddiffgas_avg*(-dmolg_dt_dn)/dd_dn*area
+                 (Ddiffgas_avg/deng_dn*ddeng_dT_dn + Ddiffgas_avg/Diffg_dn* &
+                 dDiffg_dT_dn)*(molg_up - molg_dn)/dd_dn*area + por_dn* &
+                 tor_dn*Ddiffgas_avg*(-dmolg_dT_dn)/dd_dn*area
          endif
       endif ! if (use_th_freezing)
 
@@ -3065,25 +3156,25 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
        call THAuxVarComputeFreezing(x_dn,auxvar_dn, &
             global_auxvar_dn, &
             material_auxvar_dn, &
-            iphase,sat_func_dn, &
+            iphase,sf_dn, &
             TH_parameter,ithrm_up, &
             -999,option)
        call THAuxVarComputeFreezing(x_up,auxvar_up, &
             global_auxvar_up, &
             material_auxvar_up, &
-            iphase,sat_func_dn, &
+            iphase,sf_dn, &
             TH_parameter,ithrm_up, &
             -999,option)
     else
        call THAuxVarComputeNoFreezing(x_dn,auxvar_dn, &
             global_auxvar_dn, &
             material_auxvar_dn, &
-            iphase,sat_func_dn, &
+            iphase,cc_dn, &
             -999,option)
        call THAuxVarComputeNoFreezing(x_up,auxvar_up, &
             global_auxvar_up, &
             material_auxvar_up, &
-            iphase,sat_func_dn, &
+            iphase,cc_dn, &
             -999,option)
     endif
     
@@ -3091,9 +3182,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   material_auxvar_up, &
                   auxvar_dn,global_auxvar_dn, &
                   material_auxvar_dn, &
-                  sir_dn, &
                   Dk_dn, &
-                  area,dist_gravity,option,v_darcy, &
+                  area,dist_gravity,sir_dn,option,v_darcy, &
                   fluxe_bulk, fluxe_cond, &
                   res)
     if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC .or. &
@@ -3135,23 +3225,23 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
          call THAuxVarComputeFreezing(x_pert_dn,auxvar_pert_dn, &
               global_auxvar_pert_dn, &
               material_auxvar_pert_dn, &
-              iphase,sat_func_dn, &
+              iphase,sf_dn, &
               -999,option)
          call THAuxVarComputeFreezing(x_pert_up,auxvar_pert_up, &
               global_auxvar_pert_up, &
               material_auxvar_pert_up, &
-              iphase,sat_func_dn, &
+              iphase,sf_dn, &
               -999,option)
       else
          call THAuxVarComputeNoFreezing(x_pert_dn,auxvar_pert_dn, &
               global_auxvar_pert_dn, &
               material_auxvar_pert_dn, &
-              iphase,sat_func_dn, &
+              iphase,cc_dn, &
               -999,option)
          call THAuxVarComputeNoFreezing(x_pert_up,auxvar_pert_up, &
               global_auxvar_pert_up, &
               material_auxvar_pert_up, &
-              iphase,sat_func_dn, &
+              iphase,cc_dn, &
               -999,option)
       endif
 
@@ -3159,9 +3249,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                     material_auxvar_pert_up, &
                     auxvar_pert_dn,global_auxvar_pert_dn, &
                     material_auxvar_pert_dn, &
-                    sir_dn, &
                     Dk_dn, &
-                    area,dist_gravity,option,v_darcy, &
+                    area,dist_gravity,sir_dn,option,v_darcy, &
                     fluxe_bulk, fluxe_cond, &
                     res_pert_dn)
       J_pert_dn(:,ideriv) = (res_pert_dn(:)-res(:))/pert_dn
@@ -3179,10 +3268,9 @@ end subroutine THBCFluxDerivative
 subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                     auxvar_dn,global_auxvar_dn, &
                     material_auxvar_dn, &
-                    sir_dn, &
                     Dk_dn, &
                     area, &
-                    dist, &
+                    dist,sir_dn, &
                     option,v_darcy, &
                     fluxe_bulk, fluxe_cond, &
                     Res)
@@ -3206,6 +3294,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
   PetscReal :: sir_dn
+  PetscBool :: is_flowing
+  
   PetscReal :: auxvars(:) ! from aux_real_var array
   PetscReal :: Dk_dn
   PetscReal :: v_darcy, area
@@ -3277,8 +3367,21 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       endif
 
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. &
-          global_auxvar_dn%sat(1) > sir_dn) then
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+        if (global_auxvar_up%sat(1) > sir_dn .or.  &
+            global_auxvar_dn%sat(1) > sir_dn) then
+          is_flowing = PETSC_TRUE
+        endif
+      else
+        if (auxvar_up%kvr > eps .or. &  
+            auxvar_dn%kvr > eps) then
+          is_flowing = PETSC_TRUE
+        endif
+      endif
+
+      if (is_flowing) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
@@ -3330,8 +3433,21 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
     case(HET_SURF_SEEPAGE_BC)
       Dq = perm_dn / dd_dn
       ! Flow term
-      if (global_auxvar_up%sat(1) > sir_dn .or. &
-          global_auxvar_dn%sat(1) > sir_dn) then
+      is_flowing = PETSC_FALSE
+
+      if (option%use_th_freezing) then
+        if (global_auxvar_up%sat(1) > sir_dn .or.  &
+            global_auxvar_dn%sat(1) > sir_dn) then
+          is_flowing = PETSC_TRUE
+        endif
+      else
+        if (auxvar_up%kvr > eps .or. &  
+            auxvar_dn%kvr > eps) then
+          is_flowing = PETSC_TRUE
+        endif
+      endif 
+
+      if (is_flowing) then
         upweight=1.D0
         if (global_auxvar_up%sat(1) < eps) then 
           upweight=0.d0
@@ -3924,15 +4040,15 @@ subroutine THResidualInternalConn(r,realization,ierr)
 
       call THFlux(auxvars(ghosted_id_up),global_auxvars(ghosted_id_up), &
                   material_auxvars(ghosted_id_up), &
-                  TH_parameter%sir(1,icap_up), &
                   D_up, &
                   auxvars(ghosted_id_dn),global_auxvars(ghosted_id_dn), &
                   material_auxvars(ghosted_id_dn), &
-                  TH_parameter%sir(1,icap_dn), &
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
-                  upweight,option,v_darcy,Dk_dry_up, &
+                  upweight,Th_parameter%sir(1,icap_up), &
+                  TH_parameter%sir(1,icap_dn), &
+                  option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
                   alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
                   Res)
@@ -4110,10 +4226,10 @@ subroutine THResidualBoundaryConn(r,realization,ierr)
                     auxvars(ghosted_id), &
                     global_auxvars(ghosted_id), &
                     material_auxvars(ghosted_id), &
-                    TH_parameter%sir(1,icap_dn), &
                     D_dn, &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(-1:3,iconn), &
+                    TH_parameter%sir(1,icap_dn), &
                     option, &
                     v_darcy, &
                     fluxe_bulk, fluxe_cond, &
@@ -4509,6 +4625,7 @@ subroutine THResidualSourceSink(r,realization,ierr)
       endif
       if (associated(patch%ss_flow_fluxes)) then
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
+
       endif
 
 
@@ -4647,6 +4764,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Saturation_Function_module
+  use Characteristic_Curves_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -4695,6 +4814,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(saturation_function_type), pointer :: sf_dn, sf_up
+  class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
@@ -4768,45 +4889,52 @@ subroutine THJacobianInternalConn(A,realization,ierr)
       alpha_up = TH_parameter%alpha(ithrm_up)
       alpha_dn = TH_parameter%alpha(ithrm_dn)
 
+      icap_up = int(icap_loc_p(ghosted_id_up))
+      icap_dn = int(icap_loc_p(ghosted_id_dn))
+
       if (option%use_th_freezing) then
          Dk_ice_up = TH_parameter%ckfrozen(ithrm_up)
          DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
       
          alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+
+         sf_up => patch%saturation_function_array(icap_up)%ptr
+         sf_dn => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
          Dk_ice_dn = Dk_dry_dn
       
          alpha_fr_up = alpha_up
          alpha_fr_dn = alpha_dn
+
+         cc_up => patch%characteristic_curves_array(icap_up)%ptr
+         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr 
       endif
 
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
 
       call THFluxDerivative(auxvars(ghosted_id_up), &
-                             global_auxvars(ghosted_id_up), &
-                             material_auxvars(ghosted_id_up), &
-                             TH_parameter%sir(1,icap_up), &
-                             D_up, &
-                             ithrm_up, &
-                             auxvars(ghosted_id_dn), &
-                             global_auxvars(ghosted_id_dn), &
-                             material_auxvars(ghosted_id_dn), &
-                             TH_parameter%sir(1,icap_dn), &
-                             D_dn, &
-                             ithrm_dn, &
-                             cur_connection_set%area(iconn), &
-                             cur_connection_set%dist(-1:3,iconn), &
-                             upweight,option, &
-                             patch%saturation_function_array(icap_up)%ptr, &
-                             patch%saturation_function_array(icap_dn)%ptr, &
-                             Dk_dry_up,Dk_dry_dn, &
-                             Dk_ice_up,Dk_ice_dn, &
-                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
-                             TH_parameter, &
-                             Jup,Jdn)
+                            global_auxvars(ghosted_id_up), &
+                            material_auxvars(ghosted_id_up), &
+                            D_up, &
+                            ithrm_up, &
+                            auxvars(ghosted_id_dn), &
+                            global_auxvars(ghosted_id_dn), &
+                            material_auxvars(ghosted_id_dn), &                
+                            D_dn, &
+                            ithrm_dn, &
+                            cur_connection_set%area(iconn), &
+                            cur_connection_set%dist(-1:3,iconn), &
+                            upweight, &
+                            TH_parameter%sir(1,icap_up), &
+			    TH_parameter%sir(1,icap_dn), &
+                            option, &
+                            sf_up,sf_dn,cc_up,cc_dn, &
+                            Dk_dry_up,Dk_dry_dn, &
+                            Dk_ice_up,Dk_ice_dn, &
+                            alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
+                            TH_parameter, &
+                            Jup,Jdn)
       
 !  scale by the volume of the cell                      
       
@@ -4866,6 +4994,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Saturation_Function_module
+  use Characteristic_Curves_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -4915,6 +5045,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(Saturation_Function_type), pointer :: sf_dn
+  class(Characteristic_Curves_type), pointer :: cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
@@ -4970,9 +5102,13 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
       if (option%use_th_freezing) then
          DK_ice_dn = TH_parameter%ckfrozen(ithrm_dn)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
+
+         sf_dn => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_dn = Dk_dry_dn
          alpha_fr_dn = alpha_dn
+
+         cc_dn => patch%characteristic_curves_array(icap_dn)%ptr
       endif
 
       call THBCFluxDerivative(boundary_condition%flow_condition%itype, &
@@ -4982,12 +5118,12 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
-                              TH_parameter%sir(1,icap_dn), &
                               D_dn, &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
+			      TH_parameter%sir(1,icap_dn), &
                               option, &
-                              patch%saturation_function_array(icap_dn)%ptr,&
+                              sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
@@ -5038,6 +5174,8 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
+  use Saturation_Function_module
+  use Characteristic_Curves_module
 
   Mat :: A
   type(realization_subsurface_type) :: realization
@@ -5074,6 +5212,11 @@ subroutine THJacobianAccumulation(A,realization,ierr)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
+  type(saturation_function_type), pointer :: sat_func, sf_up, sf_dn
+  class(characteristic_curves_type), pointer :: characteristic_curves, cc_up, cc_dn
+
+ 
+  
   type(sec_heat_type), pointer :: sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
@@ -5118,11 +5261,18 @@ subroutine THJacobianAccumulation(A,realization,ierr)
     endif
 
     ithrm = int(ithrm_loc_p(ghosted_id))
+
+    if (option%use_th_freezing) then
+      sat_func => patch%saturation_function_array(icap)%ptr
+    else
+      characteristic_curves => patch%characteristic_curves_array(icap)%ptr
+    endif
+    
     call THAccumDerivative(auxvars(ghosted_id),global_auxvars(ghosted_id), &
                             material_auxvars(ghosted_id), &
                             TH_parameter%dencpr(ithrm), &
                             TH_parameter, ithrm, option, &
-                            patch%saturation_function_array(icap)%ptr, &
+                            sat_func, characteristic_curves, &
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
@@ -5300,14 +5450,14 @@ subroutine THJacobianSourceSink(A,realization,ierr)
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = & 
           -qsrc1*auxvars_ss(sum_connection)%dh_dp
         ! since tsrc1 is prescribed, there is no derivative
-        ! dresT_dt = -qsrc1*hw_dt 
+        ! dresT_dT = -qsrc1*hw_dT 
         istart = ghosted_id*option%nflowdof
       else
         ! extraction
         Jsrc(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = &
           -qsrc1*auxvars(ghosted_id)%dh_dp
         Jsrc(TH_TEMPERATURE_DOF,TH_TEMPERATURE_DOF) = &
-          -qsrc1*auxvars(ghosted_id)%dh_dt
+          -qsrc1*auxvars(ghosted_id)%dh_dT
         istart = ghosted_id*option%nflowdof
       endif
       
@@ -5710,70 +5860,6 @@ subroutine THSetPlotVariables(realization,list)
 !                              PHASE)
 
 end subroutine THSetPlotVariables
-
-! ************************************************************************** !
-
-subroutine THComputeGradient(grid, global_auxvars, ghosted_id, gradient, &
-                              option) 
-  ! 
-  ! Computes the gradient of temperature (for now) using
-  ! least square fit of values from neighboring cells
-  ! See:I. Bijelonja, I. Demirdzic, S. Muzaferija -- A finite volume method
-  ! for incompressible linear elasticity, CMAME
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 2/20/12
-  ! 
-
-#include "petsc/finclude/petscdmda.h"
-  use petscdmda
-  use Grid_module
-  use Global_Aux_module
-  use Option_module
-  use Utility_module
-
-  implicit none
-
-  type(option_type) :: option
-  type(grid_type), pointer :: grid
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-
-  
-  PetscInt :: ghosted_neighbors_size, ghosted_id
-  PetscInt :: ghosted_neighbors(26)
-  PetscReal :: gradient(3), disp_vec(3,1), disp_mat(3,3)
-  PetscReal :: temp_weighted(3,1)
-  PetscInt :: i
-  
-  PetscInt :: INDX(3)
-  PetscInt :: D
-   
-  call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
-                                         DMDA_STENCIL_STAR, &
-                                         ONE_INTEGER,ONE_INTEGER,ONE_INTEGER, &
-                                         ghosted_neighbors_size, &
-                                         ghosted_neighbors, &
-                                         option)   
-
-  disp_vec = 0.d0
-  disp_mat = 0.d0
-  temp_weighted = 0.d0
-  do i = 1, ghosted_neighbors_size
-    disp_vec(1,1) = grid%x(ghosted_neighbors(i)) - grid%x(ghosted_id)
-    disp_vec(2,1) = grid%y(ghosted_neighbors(i)) - grid%y(ghosted_id)
-    disp_vec(3,1) = grid%z(ghosted_neighbors(i)) - grid%z(ghosted_id)
-    disp_mat = disp_mat + matmul(disp_vec,transpose(disp_vec))
-    temp_weighted = temp_weighted + disp_vec* &
-                    (global_auxvars(ghosted_neighbors(i))%temp - &
-                     global_auxvars(ghosted_id)%temp)
-  enddo
-
-  call ludcmp(disp_mat,THREE_INTEGER,INDX,D)
-  call lubksb(disp_mat,THREE_INTEGER,INDX,temp_weighted)
-  
-  gradient(:) = temp_weighted(:,1)
-  
-end subroutine THComputeGradient
 
 ! ************************************************************************** !
 
@@ -6440,6 +6526,8 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   use EOS_Water_module
   use Material_Aux_class
   use Utility_module
+  use Saturation_Function_module
+  use Characteristic_Curves_module
 
   implicit none
 
@@ -6462,6 +6550,8 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type), pointer :: material_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvar_dn
+  type(saturation_function_type), pointer :: sat_func
+  class(characteristic_curves_type), pointer :: characteristic_curves
 
   PetscInt :: pressure_bc_type
   PetscInt :: ghosted_id
@@ -6561,6 +6651,12 @@ subroutine THComputeCoeffsForSurfFlux(realization)
         ithrm_up = int(ithrm_loc_p(ghosted_id))
         ithrm_dn = int(ithrm_loc_p(ghosted_id))
 
+        if (option%use_th_freezing) then
+          sat_func => patch%saturation_function_array(icap_dn)%ptr
+        else
+          characteristic_curves => patch%characteristic_curves_array(icap_dn)%ptr
+        endif
+
         ! Compute coeff
         call ComputeCoeffsForApprox(global_auxvar_up%pres(1), &
                                     global_auxvar_up%temp, &
@@ -6571,7 +6667,8 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                     material_auxvars(ghosted_id), &
                                     TH_parameter, &
                                     iphase, &
-                                patch%saturation_function_array(icap_dn)%ptr, &
+                                    sat_func, &
+                                    characteristic_curves, &
                                     dist_gravity, &
                                     area, &
                                     Dq, &
@@ -6593,7 +6690,8 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                    material_auxvars(ghosted_id), &
                                    TH_parameter, &
                                    iphase, &
-                                patch%saturation_function_array(icap_dn)%ptr, &
+                                   sat_func, &
+                                   characteristic_curves, &
                                    dist_gravity, &
                                    area, &
                                    Dq, &
@@ -6665,8 +6763,8 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                   P_dn, T_dn, ithrm_dn, &
                                   material_auxvar, &
                                   th_parameter, &
-                                  iphase, &
-                                  saturation_function, &
+                                  iphase, sat_func, &
+                                  characteristic_curves, &
                                   dist_gravity, &
                                   area, &
                                   Dq, &
@@ -6688,6 +6786,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   use Field_module
   use Material_Aux_class
   use Option_module
+  use Characteristic_Curves_module
   use Saturation_Function_module
   use String_module
   use Utility_module
@@ -6701,11 +6800,13 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   class(material_auxvar_type) :: material_auxvar
   type(TH_parameter_type) :: th_parameter
   PetscInt :: iphase
-  type(saturation_function_type) :: saturation_function
+  class(characteristic_curves_type) :: characteristic_curves
+  type(saturation_function_type) :: sat_func
   PetscReal :: dist_gravity
   PetscReal :: area
   PetscReal :: Dq
   PetscReal :: sir_dn
+  PetscBool :: is_flowing
   type(option_type) :: option
   PetscReal, intent(out) :: P_min
   PetscReal, intent(out) :: P_max
@@ -6758,7 +6859,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  global_auxvar_up, &
                                  material_auxvar, &
                                  iphase, &
-                                 saturation_function, &
+                                 sat_func, &
                                  th_parameter, &
                                  ithrm_up, &
                                  -999,option)
@@ -6770,7 +6871,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  global_auxvar_dn, &
                                  material_auxvar, &
                                  iphase, &
-                                 saturation_function, &
+                                 sat_func, &
                                  th_parameter, &
                                  ithrm_up, &
                                  -999,option)
@@ -6783,7 +6884,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    global_auxvar_up, &
                                    material_auxvar, &
                                    iphase, &
-                                   saturation_function, &
+                                   characteristic_curves, &
                                    th_parameter, &
                                    ithrm_up, &
                                    -999,option)
@@ -6795,7 +6896,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    global_auxvar_dn, &
                                    material_auxvar, &
                                    iphase, &
-                                   saturation_function, &
+                                   characteristic_curves, &
                                    th_parameter, &
                                    ithrm_dn, &
                                    -999,option)
@@ -6835,7 +6936,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  global_auxvar_max, &
                                  material_auxvar, &
                                  iphase, &
-                                 saturation_function, &
+                                 sat_func, &
                                  th_parameter, &
                                  ithrm_up, &
                                  -999,option)
@@ -6848,15 +6949,27 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    global_auxvar_max, &
                                    material_auxvar, &
                                    iphase, &
-                                   saturation_function, &
+                                   characteristic_curves, &
                                    th_parameter, &
                                    ithrm_dn, &
                                    -999,option)
   endif
 
-  if (global_auxvar_up%sat(1) > sir_dn .or. &
-      global_auxvar_max%sat(1) > sir_dn) then
+  is_flowing = PETSC_FALSE
+  
+  if (option%use_th_freezing) then
+    if (global_auxvar_up%sat(1) > sir_dn .or. &
+        global_auxvar_max%sat(1) > sir_dn) then
+      is_flowing = PETSC_TRUE
+    endif
+  else  
+    if (th_auxvar_up%kvr > eps .or. &
+        th_auxvar_dn%kvr > eps) then
+      is_flowing = PETSC_TRUE
+    endif
+  endif
 
+  if (is_flowing) then
     upweight=1.D0
     if (global_auxvar_up%sat(1) < eps) then
       upweight=0.d0

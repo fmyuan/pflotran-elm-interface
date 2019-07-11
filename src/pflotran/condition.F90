@@ -3795,8 +3795,8 @@ subroutine TranConditionRead(condition,constraint_list,reaction,nw_trans, &
 
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: constraint_list
-  type(reaction_type) :: reaction
-  type(nw_trans_realization_type) :: nw_trans
+  type(reaction_type), pointer :: reaction
+  type(nw_trans_realization_type), pointer :: nw_trans
   PetscBool :: rt_on
   type(input_type), pointer :: input
   type(option_type) :: option
