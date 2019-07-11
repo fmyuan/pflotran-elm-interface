@@ -1709,7 +1709,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   grid => patch%grid
   global_auxvar => patch%aux%Global%auxvars
   material_parameter => patch%aux%Material%material_parameter
- 
+
+  is_flowing = PETSC_FALSE
   allocate(density(count))
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)
   connection_set_list => grid%internal_connection_set_list
@@ -1728,8 +1729,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
-!        sir_up = material_parameter%soil_residual_saturation(1,icap_up)
-!        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
+
         select case (option%iflowmode)
            case(TH_MODE,TH_TS_MODE)
               th_auxvars => patch%aux%TH%auxvars
@@ -1737,16 +1737,15 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
                   th_auxvars(ghosted_id_dn)%kvr > eps ) then
                 is_flowing = PETSC_TRUE
               endif   
-           case(RICHARDS_MODE)
+           case(RICHARDS_MODE, RICHARDS_TS_MODE)
               rich_auxvars => patch%aux%Richards%auxvars
               if(rich_auxvars(ghosted_id_up)%kvr > eps .or. &
                  rich_auxvars(ghosted_id_dn)%kvr > eps ) then
                 is_flowing = PETSC_TRUE
               endif
-         end select    
-!        if (global_auxvar(ghosted_id_up)%sat(1) > sir_up .or. &
-!            global_auxvar(ghosted_id_dn)%sat(1) > sir_dn) then
-          if (is_flowing) then
+        end select
+           
+        if (is_flowing) then
           if (global_auxvar(ghosted_id_up)%sat(1) <eps) then 
             upweight = 0.d0
           else if (global_auxvar(ghosted_id_dn)%sat(1) <eps) then 
