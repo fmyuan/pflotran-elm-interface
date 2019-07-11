@@ -2533,6 +2533,7 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
   call VecGetBlockSize(vec,block_size,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(vec,vec_p,ierr);CHKERRQ(ierr)
   local_count = 0
+  i = 0
   do i = 1, local_size
      if (PetscIsInfOrNanReal(vec_p(i))) then
 !    if (ieee_is_nan(vec_p(i)) .or. .not.ieee_is_finite(vec_p(i))) then

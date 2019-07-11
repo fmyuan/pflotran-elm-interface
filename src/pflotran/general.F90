@@ -69,7 +69,7 @@ subroutine GeneralSetup(realization)
   type(general_auxvar_type), pointer :: gen_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(fluid_property_type), pointer :: cur_fluid_property
-  
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -1190,7 +1190,8 @@ subroutine GeneralUpdateFixedAccum(realization)
                               option)
       call HydrateAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
-                             material_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id),patch%grid% &
+                             z(ghosted_id),maxval(grid%z),patch%methanogenesis,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
@@ -1296,7 +1297,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscReal :: qsrc(3)
   PetscInt :: ssn
   
-  
+  PetscReal :: newtr_norm
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
@@ -1388,9 +1390,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     if (general_hydrate_flag) then
       call HydrateAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
-                             material_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id),patch%grid% &
+                             z(ghosted_id),0.d0,patch%methanogenesis,&
                              material_parameter%soil_heat_capacity(imat), &
-                             option,Res,Jac_dummy, &
+                             option,Res,Jac_dummy,&
                              general_analytical_derivatives, &
                              local_id == general_debug_cell_id)
     else
@@ -1584,7 +1587,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-
+  
   if (patch%aux%General%inactive_cells_exist) then
     do i=1,patch%aux%General%n_inactive_rows
       r_p(patch%aux%General%inactive_rows_local(i)) = 0.d0
@@ -1650,7 +1653,18 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   endif
 
   update_upwind_direction = PETSC_FALSE
-  
+
+  !if (option%snes_newtontr) then
+  !  call VecNorm(r,NORM_2,newtr_norm,ierr);CHKERRQ(ierr)
+  !  if(isnan(newtr_norm)) then
+  !    call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  !    newtr_norm = sum(r_p**2) 
+  !    newtr_norm = sqrt(newtr_norm)
+  !    r_p(:)=999.d10
+  !    call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
+  !  endif  
+  !endif
+
 end subroutine GeneralResidual
 
 ! ************************************************************************** !
@@ -2044,7 +2058,11 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   ! update after evaluations to ensure zero-based index to match screen output
   general_ni_count = general_ni_count + 1
-  
+
+  if (option%snes_newtontr) then
+    general_newtontr_restrict = PETSC_TRUE 
+  endif
+
 end subroutine GeneralJacobian
 
 ! ************************************************************************** !

@@ -29,7 +29,9 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
 
-  PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
+  PetscBool, public :: general_hydrate_flag = PETSC_FALSE
+
+  PetscBool, public :: general_newtontr_restrict = PETSC_FALSE 
 
   ! debugging
   PetscInt, public :: general_ni_count
@@ -111,7 +113,7 @@ module General_Aux_module
 !    PetscReal, pointer :: dmobility_dp(:)
     type(general_derivative_auxvar_type), pointer :: d
   end type general_auxvar_type
-  
+
   type, public :: general_derivative_auxvar_type
     PetscReal :: pc_satg
     PetscReal :: por_p
@@ -183,7 +185,17 @@ module General_Aux_module
     PetscReal :: newton_inf_scaled_res_tol
     PetscBool :: check_post_converged
   end type general_parameter_type
-  
+
+  type, public :: methanogenesis_type
+    character(len=MAXWORDLENGTH) :: source_name
+    PetscReal :: alpha
+    PetscReal :: k_alpha
+    PetscReal :: lambda
+    PetscReal :: omega
+    PetscReal :: z_smt
+    type(methanogenesis_type), pointer :: next
+  end type methanogenesis_type
+
   type, public :: general_type
     PetscInt :: n_inactive_rows
     PetscInt, pointer :: inactive_rows_local(:), inactive_rows_local_ghosted(:)
@@ -1331,7 +1343,8 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
-  if (general_immiscible .or. global_auxvar%istatechng) return
+  if (general_immiscible .or. global_auxvar%istatechng .or. &
+            general_newtontr_restrict) return
 
   lid = option%liquid_phase
   gid = option%gas_phase

@@ -52,7 +52,7 @@ module Hydrate_module
   PetscReal, parameter :: MOL_RATIO_METH = 0.14285714285d0
   PetscReal, parameter :: MOL_RATIO_H20 = 1.d0 - MOL_RATIO_METH
 
-  PetscReal, parameter :: TQD = 1.0d-2 !Quad point temperature (C)
+  PetscReal, parameter :: TQD = 1.d-2 !0.d0 !1.0d-2 !Quad point temperature (C)
   
   !Ice: 
   PetscReal, parameter :: ICE_DENSITY_KG = 920.d0 !kg/m^3
@@ -61,30 +61,17 @@ module Hydrate_module
 
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
 
-!MAN: methanogenesis not yet implemented
-!  type, public :: methanogenesis_type
-!    character(len=MAXWORDLENGTH) :: source_name
-!    PetscReal :: alpha 
-!    PetscReal :: k_alpha
-!    PetscReal :: lambda
-!    PetscReal :: omega
-!    PetscReal :: z_smt
-!    type(methanogenesis_type), pointer :: next
-!  end type methanogenesis_type
-  
-!  type, public :: methanogenesis_mediator_type
-!    type(methanogenesis_type), pointer :: methanogenesis_list
-!    class(data_mediator_vec_type), pointer :: data_mediator
-!    PetscInt :: total_num_cells
-!  end type methanogenesis_mediator_type
+  PetscReal :: hydrate_perm_base(3) = -1.d0
 
   public :: HydrateSetFlowMode, &
+            HydrateRead, &
             HydrateUpdateState, &
             HydrateAuxVarCompute, &
             HydrateAccumulation, &
             HydrateAuxVarPerturb, &
             HydrateCompositeThermalCond, &
-            HydratePE
+            HydratePE, &
+            Methanogenesis
 
 contains
 
@@ -128,6 +115,76 @@ end subroutine HydrateSetFlowMode
 
 ! ************************************************************************** !
 
+subroutine HydrateRead(input,meth,option)
+  
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+   
+  type(input_type), pointer :: input
+  type(methanogenesis_type), pointer :: meth
+  type(option_type), pointer :: option
+
+  character(len=MAXSTRINGLENGTH) :: error_string 
+  character(len=MAXWORDLENGTH) :: word
+
+  do
+
+    call InputReadPflotranString(input,option)
+    if (input%ierr /= 0) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,word,PETSC_TRUE) 
+    call InputErrorMsg(input,option,'keyword','HYDRATE')
+    call StringToUpper(word)
+
+    select case(trim(word))
+      case('METHANOGENESIS')
+        if (.not. associated(meth)) then
+          allocate(meth)
+        endif
+        do
+          call InputReadPflotranString(input,option)
+          if (input%ierr /= 0) exit
+          if (InputCheckExit(input,option)) exit
+          
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','HYDRATE')
+          call StringToUpper(word)
+          select case(trim(word))
+            case('NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'methanogenesis source name', &
+                                 error_string)
+              call StringToUpper(word)
+              meth%source_name = trim(word)
+            case('ALPHA')
+              call InputReadDouble(input,option,meth%alpha)
+              call InputErrorMsg(input,option,'alpha',error_string) 
+            case('LAMBDA')
+              call InputReadDouble(input,option,meth%lambda)
+              call InputErrorMsg(input,option,'lambda',error_string) 
+            case('V_SED')
+              call InputReadDouble(input,option,meth%omega)
+              call InputErrorMsg(input,option,'v_sed',error_string) 
+            case('SMT_DEPTH')
+              call InputReadDouble(input,option,meth%z_smt)
+              call InputErrorMsg(input,option,'smt_depth',error_string) 
+            case('K_ALPHA')
+              call InputReadDouble(input,option,meth%k_alpha)
+              call InputErrorMsg(input,option,'k_alpha',error_string) 
+          end select
+        enddo
+    end select
+
+  enddo 
+
+end subroutine HydrateRead
+
+! ************************************************************************** !
+
 subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
                               characteristic_curves,natural_id,option)
   ! 
@@ -165,7 +222,8 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
   PetscBool :: istatechng
   PetscErrorCode :: ierr
 
-  if (general_immiscible .or. global_auxvar%istatechng) return
+  if (general_immiscible .or. global_auxvar%istatechng .or. &
+               general_newtontr_restrict) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -930,6 +988,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   character(len=8) :: state_char
   PetscErrorCode :: ierr
   PetscReal :: dTf, h_sat_eff, i_sat_eff, liq_sat_eff, g_sat_eff
+  PetscReal :: solid_sat_eff
   PetscReal :: sigma
 
   lid = option%liquid_phase
@@ -1365,15 +1424,11 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                     gen_auxvar%pres(spid),ierr)
       call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
 
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
       gen_auxvar%pres(spid) = 1.d-6 
       
       gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
       gen_auxvar%pres(gid) = gen_auxvar%pres(apid) + gen_auxvar%pres(vpid)
 
-      liq_sat_eff = gen_auxvar%sat(lid)/(gen_auxvar%sat(lid)+gen_auxvar%sat(gid))
-      
       !IFT calculation
       sigma=1.d0
       if (characteristic_curves%saturation_function%calc_int_tension) then
@@ -1625,6 +1680,13 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     if (option%iflag /= GENERAL_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = gen_auxvar%effective_porosity
     endif
+    solid_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
+    !permeability reduction as a function of hydrate saturation
+    !if (hydrate_perm_base(1) < 0.d0) then
+    !  hydrate_perm_base = material_auxvar%permeability
+    !endif
+    !material_auxvar%permeability = hydrate_perm_base * &
+    !                  (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2 
   endif
   if (associated(gen_auxvar%d)) then
     gen_auxvar%d%por_p = dpor_dp
@@ -1705,6 +1767,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     call EOSWaterViscosity(gen_auxvar%temp,cell_pressure, &
                                gen_auxvar%pres(spid),visl,ierr)
     gen_auxvar%mobility(lid) = krl/visl
+    gen_auxvar%kr(lid) = krl
   endif
 
   if (gen_auxvar%sat(gid) > 0.d0) then
@@ -1718,6 +1781,7 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
     call EOSGasViscosity(gen_auxvar%temp,gen_auxvar%pres(apid), &
                            gen_auxvar%pres(gid),den_air,visg,ierr)
     gen_auxvar%mobility(gid) = krg/visg
+    gen_auxvar%kr(gid) = krg
   endif
 
   call EOSHydrateEnthalpy(gen_auxvar%temp, H_hyd)
@@ -1742,8 +1806,8 @@ end subroutine HydrateAuxVarCompute
 ! ************************************************************************** !
 
 subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,Res,Jac, &
-                               analytical_derivatives,debug_cell)
+                               z,offset,meth,soil_heat_capacity, &
+                               option,Res,Jac,analytical_derivatives,debug_cell)
   !
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual, for the hydrate sub-pm
@@ -1760,6 +1824,8 @@ subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
+  PetscReal :: z, offset
+  type(methanogenesis_type), pointer :: meth
   PetscReal :: soil_heat_capacity
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof)
@@ -1770,8 +1836,9 @@ subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscInt :: icomp, iphase
 
-  PetscReal :: porosity
+  PetscReal :: porosity, volume
   PetscReal :: volume_over_dt
+  PetscReal :: q_meth
 
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -1779,6 +1846,7 @@ subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
 
   volume_over_dt = material_auxvar%volume / option%flow_dt
   porosity = gen_auxvar%effective_porosity
+  volume = material_auxvar%volume
 
   ! accumulation term units = kmol/s
   Res = 0.d0
@@ -1815,6 +1883,13 @@ subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
                     material_auxvar%soil_particle_density * &
                     soil_heat_capacity * gen_auxvar%temp) * volume_over_dt
 
+  q_meth = 0.d0
+  if (associated(meth) .and. offset > 0.d0) then
+    call Methanogenesis(z, offset, meth, q_meth)
+    !kmol/m^3/s to kmol/s
+    q_meth = q_meth*(1.d0 - porosity)*volume
+    Res(air_comp_id) = Res(air_comp_id) + q_meth
+  endif
 end subroutine HydrateAccumulation
 
 ! ************************************************************************** !
@@ -1939,9 +2014,11 @@ subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
       pert(GENERAL_GAS_PRESSURE_DOF) = &
         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
       if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance * &
+                                         x(GENERAL_GAS_SATURATION_DOF)
       else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
+                                         x(GENERAL_GAS_SATURATION_DOF)
       endif
       pert(GENERAL_ENERGY_DOF) = &
         perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
@@ -2469,62 +2546,41 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
 end subroutine HydrateCompositeThermalCond
 
 ! ************************************************************************** !
-!
-!subroutine Methanogenesis(depth, q_meth)
-!  
-!  ! A simple methanogenesis source parameterized as a function of depth
-!  !
-!  ! Author: Michael Nole
-!  ! Date: 03/05/19
-!  !
-!
-!#include "petsc/finclude/petscvec.h"
-!  use petscvec
-!
-!  implicit none
-!
-!  !type(methanogenesis_mediator_type), pointer :: this
-!  !PetscReal :: time
-!  !PetscErrorCode :: ierr
-!
-!  !PetscInt :: i,j
-!  !type(methanogenesis_type), pointer :: cur_methanogenesis
-!  !PetscReal, pointer :: heat_source(:)
-!
-!  PetscReal, intent(in) :: depth
-!  PetscReal, intent(out) :: q_meth
-!
-!  PetscReal, parameter :: alpha = 0.005
-!  PetscReal, parameter :: k_alpha = 2241 ! Maliverno, 2010, corrected
-!  PetscReal, parameter :: lambda = 1.d-13
-!  PetscReal, parameter :: omega = 3.17d-11
-!  PetscReal, parameter :: z_smt = 15.d0
-!
-!
-!  if (depth > z_smt) then
-!    q_meth = k_alpha * lambda * exp(-lambda/omega * (depth - z_smt))
-!  endif
-!
-!  !call VecGetArrayF90(this%data_mediator%vec,methane_source, &
-!  !                    ierr);CHKERRQ(ierr)
-!  !
-!  !cur_methanogenesis => this%methanogenesis_list
-!  !j = 0
-!  !do
-!  !  if (.not. associated(cur_methanogenesis)) exit
-!  !  do i = 1, cur_methanogenesis%region%num_cells
-!  !    j = j + 1
-!  !    methane_source(j) = cur_methanogenesis%source
-!  !  enddo
-!  !  cur_methanogenesis => cur_methanogenesis%next
-!  !enddo
-!  !
-!  !call VecRestoreArrayF90(this%data_mediator%vec,methane_source, &
-!  !                        ierr);CHKERRQ(ierr)
-!
-!
-!end subroutine Methanogenesis
-!
+
+subroutine Methanogenesis(z,offset,meth,q_meth)
+  
+  ! A simple methanogenesis source parameterized as a function of depth
+  ! assuming top of domain is the seafloor
+  ! Author: Michael Nole
+  ! Date: 03/05/19
+  !
+
+  implicit none
+
+  PetscReal :: z, offset
+  type(methanogenesis_type), pointer :: meth
+  PetscReal :: q_meth
+
+  PetscReal :: alpha, k_alpha, lambda, omega, z_smt
+ 
+  alpha = meth%alpha
+  k_alpha = meth%k_alpha
+  lambda = meth%lambda
+  omega = meth%omega
+  z_smt = meth%z_smt 
+  
+  if (offset - z > z_smt) then
+    q_meth = k_alpha * lambda * alpha * exp(-lambda/omega * (offset - &
+                                    z - z_smt))
+  else
+    q_meth = 0.d0
+  endif
+
+  !kg/m^3/s to kmol/s
+  q_meth = q_meth / MW_CH4
+
+end subroutine Methanogenesis
+
 ! ************************************************************************** !
 
 end module Hydrate_module

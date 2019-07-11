@@ -2000,6 +2000,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_Steady_class
   use Timestepper_TS_class
   use Well_Data_class
+  use Hydrate_module
 
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
@@ -3544,6 +3545,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                            'InitSubsurface')
 
 !....................
+      case ('HYDRATE')
+        call HydrateRead(input,patch%methanogenesis,option)
       case default
         call InputKeywordUnrecognized(word,'SubsurfaceReadInput()',option)
     end select

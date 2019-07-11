@@ -328,8 +328,8 @@ hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
          realization_subsurface.o region.o utility.o
 hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
 hydrate.o : characteristic_curves.o data_mediator_vec.o eos_gas.o eos_water.o \
-            general_aux.o global_aux.o material_aux.o option.o \
-            pflotran_constants.o region.o
+            general_aux.o global_aux.o input_aux.o material_aux.o option.o \
+            pflotran_constants.o region.o string.o
 hydrostatic.o : condition.o connection.o coupler.o dataset_ascii.o \
                 dataset_common_hdf5.o dataset_gridded_hdf5.o eos_water.o \
                 general_aux.o grid.o grid_structured.o option.o \

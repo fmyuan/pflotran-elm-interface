@@ -22,7 +22,7 @@ module Patch_module
   use Auxiliary_module
 
   use PFLOTRAN_Constants_module
-  use General_Aux_module, only : TWO_PHASE_STATE,LIQUID_STATE,GENERAL_STATE_INDEX
+  use General_Aux_module
 
   implicit none
 
@@ -93,6 +93,8 @@ module Patch_module
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
     type(surface_field_type), pointer :: surf_field
     type(surface_auxiliary_type) :: surf_aux
+
+    type(methanogenesis_type), pointer :: methanogenesis
 
   end type patch_type
 
@@ -218,6 +220,9 @@ function PatchCreate()
   nullify(patch%surf_material_property_array)
   nullify(patch%surf_field)
   call SurfaceAuxInit(patch%surf_aux)
+
+  nullify(patch%methanogenesis)
+
 
   PatchCreate => patch
 
