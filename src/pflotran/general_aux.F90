@@ -29,7 +29,6 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
   PetscInt, public :: general_sub_newton_iter_num = 0
-  PetscInt, public :: general_nonlinear_fail_num = 0
 
   PetscBool, public :: general_hydrate_flag = PETSC_FALSE  
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE

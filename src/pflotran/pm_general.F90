@@ -1238,6 +1238,8 @@ subroutine PMGeneralCheckUpdatePostTR(this,snes,X0,dX,X1,X1_changed,ierr)
   global_auxvars => patch%aux%Global%auxvars
   
   X1_changed = PETSC_FALSE
+  
+  general_sub_newton_iter_num = general_sub_newton_iter_num + 1
 
   call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
   call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
@@ -1543,11 +1545,16 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call OptionPrint(string,option)
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
+ 
     if (general_using_newtontr .and. general_sub_newton_iter_num > 1) then
         ! if we reach convergence in an inner newton iteration of TR
         ! then we must force an outer iteration to allow state change
         ! in case the solutions are out-of-bounds of the states -hdp
-        option%convergence = CONVERGENCE_FORCE_ITERATION
+        ! e.g.
+        ! 3 2r: 3.91E-05 2x: 4.83E+08 2u: 6.23E-01 ir: 7.48E-06 iu: 4.71E-01 rsn:   0
+        ! 3 2r: 3.91E-05 2x: 4.83E+08 2u: 8.79E-01 ir: 7.48E-06 iu: 6.74E-01 rsn: 999
+
+          option%convergence = CONVERGENCE_FORCE_ITERATION
     endif
     if (general_sub_newton_iter_num > 99) then
       ! cut time step in case PETSC solvers are missing inner iterations

@@ -242,7 +242,7 @@ subroutine GeneralInitializeTimestep(realization)
   endif
   
   general_newton_iteration_number = -1
-  general_nonlinear_fail_num = 0
+  general_sub_newton_iter_num = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
@@ -1289,9 +1289,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt, save :: iplot = 0
   PetscInt :: flow_src_sink_type
-
-  PetscInt :: temp_iter_num
-  PetscInt :: temp_fail_num
   
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
@@ -1325,27 +1322,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
-  
-  temp_iter_num = general_newton_iteration_number
-  call SNESGetIterationNumber(snes,general_newton_iteration_number, &
-                              ierr); CHKERRQ(ierr)
-  if (temp_iter_num < general_newton_iteration_number) then
-    general_sub_newton_iter_num = 1
-  endif
-  temp_fail_num = general_nonlinear_fail_num
-  call SNESGetNonlinearStepFailures(snes,general_nonlinear_fail_num, &
-                                    ierr); CHKERRQ(ierr)
-  if (temp_fail_num == general_nonlinear_fail_num) then
-    general_sub_newton_iter_num = 1
-  else
-    general_sub_newton_iter_num = general_sub_newton_iter_num + 1
-  endif
-  if (temp_iter_num == -1) then
-    general_newton_iteration_number = 0
-  else
-    general_newton_iteration_number = general_newton_iteration_number + 1
-  endif
- 
   
 !  general_newton_iteration_number = general_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
@@ -1772,6 +1748,14 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
+  if (general_newton_iteration_number == -1) then
+    general_newton_iteration_number = 1
+  else
+    call SNESGetIterationNumber(snes,general_newton_iteration_number, &
+                                ierr); CHKERRQ(ierr)
+    general_newton_iteration_number = general_newton_iteration_number + 1
+  endif
+  general_sub_newton_iter_num = 0
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
