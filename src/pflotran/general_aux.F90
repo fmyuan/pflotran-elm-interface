@@ -34,6 +34,8 @@ module General_Aux_module
   PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
   PetscBool, public :: general_using_newtontr = PETSC_FALSE
   PetscBool, public :: general_restrict_state_change = PETSC_FALSE
+  PetscBool, public :: general_state_changed = PETSC_FALSE
+  PetscBool, public :: general_force_convergence = PETSC_FALSE
 
   PetscBool, public :: gen_chk_max_dpl_liq_state_only = PETSC_FALSE
 
@@ -1461,9 +1463,8 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   end select
 
   !Update the primary variables
-
   if (istatechng) then
-
+    general_state_changed = istatechng
     if (option%restrict_state_chng) global_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%istate)
