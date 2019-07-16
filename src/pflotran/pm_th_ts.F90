@@ -167,7 +167,7 @@ subroutine PMTHTSUpdateAuxVarsPatch(realization)
                                   global_auxvars(ghosted_id), &
                                   material_auxvars(ghosted_id), &
                                   TH_parameter,ithrm, &
-                                  patch%saturation_function_array(icap)%ptr, &
+                                  patch%characteristic_curves_array(icap)%ptr, &
                                   option)
   enddo
 

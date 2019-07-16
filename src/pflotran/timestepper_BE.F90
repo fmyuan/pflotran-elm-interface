@@ -328,12 +328,12 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       
     call process_model%PreSolve()
     
-    call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+    call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
     call SNESSolve(solver%snes,PETSC_NULL_VEC, &
                    process_model%solution_vec,ierr);CHKERRQ(ierr)
 
-    call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
     this%cumulative_solver_time = &
       this%cumulative_solver_time + &

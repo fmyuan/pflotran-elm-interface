@@ -583,7 +583,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
   SNESLineSearch :: linesearch  
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: add_pre_check
-  SNES :: snes
   PetscErrorCode :: ierr
 
   option => this%option
@@ -661,14 +660,18 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
                           this%pm_ptr, &
                           ierr);CHKERRQ(ierr)
 
-      call TSGetSNES(solver%ts,snes,ierr); CHKERRQ(ierr)
+      call TSGetSNES(solver%ts,solver%snes,ierr); CHKERRQ(ierr)
+      call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
+      call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
 
-      call SNESSetConvergenceTest(snes, &
+      call SNESSetConvergenceTest(solver%snes, &
                                   PMCheckConvergencePtr, &
                                   this%pm_ptr, &
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
+      call SolverSetSNESOptions(solver,option)
+
   end select
 
 end subroutine PMCSubsurfaceSetupSolvers_TS

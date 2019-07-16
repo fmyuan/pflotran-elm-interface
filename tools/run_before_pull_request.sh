@@ -50,7 +50,7 @@ if [ -e "pflotran" ] ; then
   fi
 else
   MYDIR=`pwd`
-  echo "  Build failed. See $MYDIR/$MAKE_LOG."
+  echo "  Build failed. See $MYDIR/$MAKE_LOG"
 fi
 
 # GNU PFLOTRAN_RXN ------------------------------------------------------------
@@ -70,7 +70,7 @@ if [ -e "pflotran_rxn" ] ; then
 # no need to test at this point
 else
   MYDIR=`pwd`
-  echo "  Build failed. See $MYDIR/$MAKE_LOG."
+  echo "  Build failed. See $MYDIR/$MAKE_LOG"
 fi
 
 # GNU PFLOTRAN_INTERFACE ------------------------------------------------------
@@ -105,7 +105,7 @@ if [ -e "pflotran_interface" ] ; then
   fi
 else
   MYDIR=`pwd`
-  echo "  Build failed. See $MYDIR/$MAKE_LOG."
+  echo "  Build failed. See $MYDIR/$MAKE_LOG"
 fi
 
 fi # GNU_PFLOTRAN_TEST_SUCCESS
@@ -141,7 +141,7 @@ fi # GNU_PFLOTRAN_TEST_SUCCESS
 #  fi
 #else
 #  MYDIR=`pwd`
-#  echo "  Build failed. See $MYDIR/$MAKE_LOG."
+#  echo "  Build failed. See $MYDIR/$MAKE_LOG"
 #fi
 echo "\nEnd of test for pull request....\n"
 

@@ -1109,45 +1109,31 @@ subroutine CondControlAssignTranInitCond(realization)
           if (use_aq_dataset) then
             offset = (ghosted_id-1)*option%ntrandof
             do iaqdataset = 1, num_aq_datasets
-              ! remember that xx_loc_p holds the data set values that were read in
+              ! remember that xx_loc_p holds the data set values that 
+              ! were read in
               temp_int = aq_dataset_to_idof(iaqdataset)
               constraint_coupler%aqueous_species%constraint_conc(temp_int) = &
                 xx_loc_p(offset+temp_int)
             enddo
           endif
           option%iflag = grid%nG2A(grid%nL2G(local_id))
-          if (prev_equilibrated_ghosted_id == 0) then
-            call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
-              global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
-              reaction, &
-              constraint_coupler%constraint_name, &
-              constraint_coupler%aqueous_species, &
-              constraint_coupler%free_ion_guess, &
-              constraint_coupler%minerals, &
-              constraint_coupler%surface_complexes, &
-              constraint_coupler%colloids, &
-              constraint_coupler%immobile_species, &
-              constraint_coupler%num_iterations, &
-              PETSC_FALSE,option)
-          else
+          if (prev_equilibrated_ghosted_id > 0) then
             ! copy molalities from previous equilibrated auxvar as initial guess
             call RTAuxVarCopyInitialGuess(rt_auxvars(ghosted_id), &
               rt_auxvars(prev_equilibrated_ghosted_id),option)
-!            rt_auxvars(ghosted_id)%pri_molal = &
-!              rt_auxvars(prev_equilibrated_ghosted_id)%pri_molal
-            call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
-              global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
-              reaction, &
-              constraint_coupler%constraint_name, &
-              constraint_coupler%aqueous_species, &
-              constraint_coupler%free_ion_guess, &
-              constraint_coupler%minerals, &
-              constraint_coupler%surface_complexes, &
-              constraint_coupler%colloids, &
-              constraint_coupler%immobile_species, &
-              constraint_coupler%num_iterations, &
-              PETSC_TRUE,option)
           endif
+          call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
+            global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
+            reaction, &
+            constraint_coupler%constraint_name, &
+            constraint_coupler%aqueous_species, &
+            constraint_coupler%free_ion_guess, &
+            constraint_coupler%minerals, &
+            constraint_coupler%surface_complexes, &
+            constraint_coupler%colloids, &
+            constraint_coupler%immobile_species, &
+            constraint_coupler%num_iterations, &
+            (prev_equilibrated_ghosted_id > 0),option)
           option%iflag = 0
           ave_num_iterations = ave_num_iterations + &
             constraint_coupler%num_iterations
