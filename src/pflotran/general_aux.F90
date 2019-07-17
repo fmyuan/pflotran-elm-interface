@@ -1691,17 +1691,15 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          min_perturbation
        if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
            1.d3 * perturbation_tolerance) then
-          pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
 !         I think it should be what's below, has to confirm with M. Nole. -hdp
-!         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * (perturbation_tolerance * &
-!                                                 x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
-!                                                 min_mole_fraction_pert)
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * & 
+                   (perturbation_tolerance * x(GENERAL_LIQUID_STATE_X_MOLE_DOF)&
+                    + min_mole_fraction_pert)
        else
-          pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
 !         I think it should be what's below, has to confirm with M. Nole. -hdp         
-!         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
-!                                                  x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
-!                                                  min_mole_fraction_pert
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
+                                     x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
+                                     min_mole_fraction_pert
        endif
        pert(GENERAL_ENERGY_DOF) = -1.d0 * &
          (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
@@ -1741,8 +1739,9 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 #ifdef LEGACY_PERTURBATION
        ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
        ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
+       !pert(GENERAL_GAS_PRESSURE_DOF) = &
+       !  -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
+       
        ! perturb air pressure towards gas pressure unless the perturbed
        ! air pressure exceeds the gas pressure
        if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
@@ -1759,29 +1758,48 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        else
          if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
             1.d3 * perturbation_tolerance) then
-            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
-                                                       perturbation_tolerance
-          else
-            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance
-          endif
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * & 
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
        endif
        pert(GENERAL_ENERGY_DOF) = &
          perturbation_tolerance*x(GENERAL_ENERGY_DOF)
 #else
        ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
        ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-       pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
-         (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+       !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+       !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+
+       !MAN: Try perturbing upward, because lower gas pressure is associated with
+       !     lower gas saturation (i.e. two-phase)
+       pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
+                                x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
+
        ! perturb air pressure towards gas pressure unless the perturbed
        ! air pressure exceeds the gas pressure
        tempreal = perturbation_tolerance* &
                   x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
-       if (x(GENERAL_GAS_PRESSURE_DOF) - &
-           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+         else
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         endif
        else
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+            1.d3 * perturbation_tolerance) then
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
        endif
+       
        pert(GENERAL_ENERGY_DOF) = &
          perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
 #endif
@@ -1868,8 +1886,13 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
          x(GENERAL_ENERGY_DOF) = &
            gen_auxvar(ZERO_INTEGER)%temp
-         pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+         if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+           pert(GENERAL_ENERGY_DOF) = -1.d0 * &
+             (perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation)
+         else 
+           pert(GENERAL_ENERGY_DOF) = &
+             perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+         endif
        else
          ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
          x(GENERAL_ENERGY_DOF) = &
@@ -1885,18 +1908,18 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
            pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
          endif
        endif
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
        if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
 !         I think it should be what's below, has to confirm with M. Nole. -hdp
-         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-!         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance * &
-!                                            x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
+         pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 *(perturbation_tolerance* &
+                      x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation)
+         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
+                                x(GENERAL_GAS_SATURATION_DOF)+min_perturbation)
        else
 !         I think it should be what's below, has to confirm with M. Nole. -hdp
-         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance         
-!         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
-!                                            x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
+         pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
+                      x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
+                        x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
        endif
 #endif
 #endif

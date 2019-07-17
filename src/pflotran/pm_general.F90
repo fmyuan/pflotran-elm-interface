@@ -1554,7 +1554,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
 
-    if (general_using_newtontr .and. general_state_changed) then
+    if (general_state_changed) then
         ! if we reach convergence in an inner newton iteration of TR
         ! then we must force an outer iteration to allow state change
         ! in case the solutions are out-of-bounds of the states -hdp
