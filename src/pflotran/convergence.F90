@@ -153,6 +153,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !
 !              SNES_CONVERGED_ITERATING          =  0} SNESConvergedReason;
 !PETSC_EXTERN const char *const*SNESConvergedReasons;
+  sec_reason = 0
 
   if (option%use_touch_options) then
     string = 'detailed_convergence'
@@ -394,7 +395,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       if (solver%print_linear_iterations) then
         call KSPGetIterationNumber(solver%ksp,i,ierr);CHKERRQ(ierr)
         write(option%io_buffer,'("   Linear Solver Iterations: ",i6)') i
-        call printMsg(option)
+        call PrintMsg(option)
       endif
     endif
   endif    

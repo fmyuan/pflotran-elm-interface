@@ -211,7 +211,7 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
       write(string,*) cur_material_property%internal_id
       option%io_buffer = trim(option%io_buffer) // &
         'and internal id "' // trim(adjustl(string)) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     cur_material_property => cur_material_property%next
   enddo
@@ -241,7 +241,7 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
       write(string,*) i
       option%io_buffer = 'Material ID ' // trim(adjustl(string)) // &
         ' is duplicated in input file.'
-      call printMsg(option)
+      call PrintMsg(option)
       error_flag = PETSC_TRUE
     endif
   enddo
@@ -250,7 +250,7 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material IDs.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! ensure unique material names
@@ -266,7 +266,7 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
             option%io_buffer = 'Material name "' // &
               trim(adjustl(array(i)%ptr%name)) // &
               '" is duplicated in input file.'
-            call printMsg(option)
+            call PrintMsg(option)
             error_flag = PETSC_TRUE
           endif
         endif
@@ -276,7 +276,7 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material names.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SurfaceMaterialPropConvertListToArray

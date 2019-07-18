@@ -502,6 +502,8 @@ subroutine PMGeneralRead(this,input)
         general_harmonic_diff_density = PETSC_FALSE
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
+      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
+        gen_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select
@@ -512,7 +514,7 @@ subroutine PMGeneralRead(this,input)
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
     option%io_buffer = 'Isothermal GENERAL mode may only be run with ' // &
                        'temperature as the two phase energy dof.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine PMGeneralRead
@@ -653,7 +655,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   type(field_type), pointer :: field
   
 #ifdef PM_GENERAL_DEBUG  
-  call printMsg(this%option,'PMGeneral%UpdateTimestep()')
+  call PrintMsg(this%option,'PMGeneral%UpdateTimestep()')
 #endif
   
   fac = 0.5d0
@@ -1487,6 +1489,7 @@ subroutine PMGeneralMaxChange(this)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscReal :: max_change_local(6)
   PetscReal :: max_change_global(6)
@@ -1502,6 +1505,8 @@ subroutine PMGeneralMaxChange(this)
   field => realization%field
   grid => realization%patch%grid
 
+  global_auxvars => realization%patch%aux%global%auxvars
+
   max_change_global = 0.d0
   max_change_local = 0.d0
   
@@ -1516,12 +1521,22 @@ subroutine PMGeneralMaxChange(this)
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
     max_change = 0.d0
+    if (i==1 .and. gen_chk_max_dpl_liq_state_only) then
+      do j = 1,grid%nlmax
+        ghosted_id = grid%nL2G(j)
+        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE) then
+          vec_ptr(j) = 0.d0
+        endif
+      enddo
+    endif
+    
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
         max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
       endif
     enddo
+
     max_change_local(i) = max_change
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &

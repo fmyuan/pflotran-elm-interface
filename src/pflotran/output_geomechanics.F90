@@ -181,7 +181,7 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write tecplot geomech output file: ' // &
         trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
     call OutputTecplotHeader(OUTPUT_UNIT,geomech_realization,icolumn)
   endif
@@ -806,7 +806,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     option%io_buffer = 'Number of values to be written to line in ' // &
       'WriteTecplotDataSetNumPerLine() exceeds 100.  ' // &
       'Must fix format statements.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! maximum number of initial messages  
@@ -827,7 +827,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
       max_local_node_size_saved = max_local_size
       write(option%io_buffer,'("max_local_node_size_saved: ",i9)') &
           max_local_size
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     max_local_size = max_local_node_size_saved
     local_size_mpi = grid%nlmax_node
@@ -1330,7 +1330,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
     option%io_buffer = '--> appending to hdf5 geomech output file: ' // &
                        trim(filename)
   endif
-  call printMsg(option)
+  call PrintMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -1343,7 +1343,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write xmf geomech output file: ' // &
                        trim(xmf_filename)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=xmf_filename,action="write")
     call OutputXMFHeaderGeomech(OUTPUT_UNIT, &
                          option%time/output_option%tconv, &

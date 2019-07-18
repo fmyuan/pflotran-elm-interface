@@ -142,17 +142,17 @@ subroutine TOilImsSetup(realization)
 
   if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil residual saturation.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil thermal conductivity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   
@@ -167,35 +167,35 @@ subroutine TOilImsSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'Non-initialized soil particle density.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
 
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in TOilImsSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   num_bc_connection = &
@@ -546,7 +546,7 @@ subroutine TOilImsUpdateAuxVars(realization)
         else
           option%io_buffer = 'Error setting up boundary condition' // &
                              ' in TOilImsUpdateAuxVars'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       enddo
         
@@ -1602,7 +1602,7 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
 
   if (analytical_derivatives) then
     option%io_buffer = 'TOilImsFluxDipc: analytical derivatives are not yet available.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   energy_id = option%energy_id  
@@ -2095,7 +2095,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
       case default
         option%io_buffer = &
           'Boundary condition type not recognized in GeneralBCFlux phase loop.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     if (dabs(v_darcy(iphase)) > 0.d0) then ! note need derivs even if this is case
@@ -2197,7 +2197,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
     case default
       option%io_buffer = 'Boundary condition type not recognized in ' // &
         'TOilImsBCFlux heat conduction loop.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
 
@@ -2281,7 +2281,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   if (.not.associated(src_sink_condition%rate) ) then
     option%io_buffer = 'TOilImsSrcSink fow condition rate not defined ' // &
     'rate is needed for a valid src/sink term'
-    call printErrMsg(option)  
+    call PrintErrMsg(option)
   end if
 
   !qsrc => src_sink_condition%rate%dataset%rarray(:)
@@ -2303,7 +2303,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
     ) then
     option%io_buffer = "TOilImsSrcSink error: " // &
       "src(wat) and src(oil) with opposite sign"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
 
@@ -3503,7 +3503,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   PetscErrorCode :: ierr
 
   Mat :: J
-  MatType :: mat_type
+  MatType :: mat_type_A, mat_type_B
   PetscReal :: norm
   PetscViewer :: viewer
 
@@ -3563,8 +3563,9 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
-  call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
-  if (mat_type == MATMFFD) then
+  call MatGetType(A,mat_type_A,ierr);CHKERRQ(ierr)
+  call MatGetType(B,mat_type_B,ierr);CHKERRQ(ierr)
+  if (mat_type_A == MATMFFD) then
     J = B
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -3850,16 +3851,23 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 !  call MatView(J,PETSC_VIEWER_STDOUT_WORLD,ierr)
+
+  if (A /= B .and. mat_type_A /= MATMFFD) then
+    ! If the Jacobian and preconditioner matrices are different (and not 
+    ! because we are using a "matrix free" Jacobian), then we need to 
+    ! copy the computed Jacobian into the preconditioner matrix.
+    call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr);
+  endif
 
 !#if 0
 !  imat = 1

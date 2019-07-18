@@ -1,5 +1,7 @@
 # this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 util_obj  = \
 	${common_src}generic.o \
 	${common_src}input_aux.o \
@@ -14,13 +16,16 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
+	${common_src}variables.o
+
+deriv_obj = \
 	${common_src}toil_ims_derivs.o \
 	${common_src}general_derivative.o \
-	${common_src}variables.o \
 	${common_src}derivative_tests.o \
-	${common_src}derivatives_utilities.o \
-	${common_src}grid_grdecl_util.o
+	${common_src}derivatives_utilities.o
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 eos_obj = \
 	${common_src}co2_sw.o \
 	${common_src}co2_span_wagner_spline.o \
@@ -46,6 +51,7 @@ mode_aux_obj = \
 	${common_src}immis_aux.o \
 	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
+        ${common_src}nw_transport_aux.o \
 	${common_src}pm_auxiliary.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
@@ -57,6 +63,7 @@ mode_aux_obj = \
 	${common_src}pm_immis.o \
 	${common_src}pm_mphase.o \
 	${common_src}pm_miscible.o \
+        ${common_src}pm_nwt.o \
 	${common_src}pm_richards.o \
 	${common_src}pm_richards_ts.o \
 	${common_src}pm_rt.o \
@@ -65,6 +72,7 @@ mode_aux_obj = \
 	${common_src}pm_surface_th.o \
 	${common_src}pm_surface.o \
 	${common_src}pm_th.o \
+	${common_src}pm_th_ts.o \
 	${common_src}pm_ufd_decay.o \
 	${common_src}pm_waste_form.o \
 	${common_src}pm_wipp_srcsink.o \
@@ -86,12 +94,15 @@ mode_obj = \
 	${common_src}immis.o \
 	${common_src}miscible.o \
 	${common_src}mphase.o \
+        ${common_src}nw_transport.o \
 	${common_src}reactive_transport.o \
 	${common_src}richards.o \
 	${common_src}richards_common.o \
 	${common_src}th.o \
 	${common_src}inlinesurface.o
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 shared_mode_aux_obj = \
 	${common_src}co2eos.o \
 	${common_src}co2_span_wagner.o \
@@ -104,6 +115,8 @@ shared_mode_aux_obj = \
 	${common_src}material_aux.o \
 	${common_src}reactive_transport_aux.o 
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 chem_obj = \
 	${common_src}transport_constraint.o \
 	${common_src}reaction_database.o \
@@ -141,13 +154,14 @@ grid_obj = \
 	${common_src}discretization.o \
 	${common_src}dm_kludge.o \
 	${common_src}grid.o \
+	${common_src}grid_grdecl.o \
+	${common_src}grid_grdecl_util.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o \
-	${common_src}grid_grdecl.o
+	${common_src}grid_unstructured_polyhedra.o
 
 relations_obj = \
 	${common_src}saturation.o \

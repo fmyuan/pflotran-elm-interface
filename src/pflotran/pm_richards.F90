@@ -47,7 +47,9 @@ module PM_Richards_class
   
   public :: PMRichardsCreate, &
             PMRichardsInit, &
-            PMRichardsDestroy
+            PMRichardsDestroy, &
+            PMRichardsCheckConvergence
+
   
 contains
 
@@ -430,7 +432,7 @@ subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (delP_pert < dabs(delP)) then
         write(option%io_buffer,'("dP_trunc:",1i7,2es15.7)') &
           grid%nG2A(grid%nL2G(local_id)),delP_pert,dabs(delP)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       endif
       delP = sign(min(dabs(delP),delP_pert),delP)
       dX_p(local_id) = delP
@@ -457,24 +459,24 @@ subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (P0 < P_R .and. P1 > P_R) then
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1 
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #if 0
         ghosted_id = grid%nL2G(local_id)
         call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id),ghosted_id)
         write(option%io_buffer,'("Residual:",es15.7)') r_p(local_id)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #endif
       else if (P1 < P_R .and. P0 > P_R) then
         write(option%io_buffer,'("S -> U:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #if 0
         ghosted_id = grid%nL2G(local_id)
         call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
                                   global_auxvars(ghosted_id),ghosted_id)
         write(option%io_buffer,'("Residual:",es15.7)') r_p(local_id)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
 #endif
       endif
       ! transition from unsaturated to saturated

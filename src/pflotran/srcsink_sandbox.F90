@@ -115,7 +115,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     option%io_buffer = 'Reactive transport may not be simulated when a &
       &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
       &capability exists in the source/sink sandbox for solute mass.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   nullify(new_sandbox)
@@ -473,9 +473,9 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O

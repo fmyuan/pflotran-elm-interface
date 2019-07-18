@@ -213,7 +213,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
  !             option%io_buffer = 'Writing of data at coordinates not ' // &
  !               'functioning properly for minerals.  Perhaps due to ' // &
  !               'non-ghosting of vol frac....>? - geh'
- !             call printErrMsg(option)
+ !             call PrintErrMsg(option)
               call WriteObservationHeaderForCoord(fid,realization_base, &
                                                   observation%region, &
                                                  observation%print_velocities, &
@@ -527,7 +527,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
               option%io_buffer = 'Writing of data at coordinates not &
                 &functioning properly for minerals.  Perhaps due to &
                 &non-ghosting of vol frac....>? - geh'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
               call WriteObservationHeaderForCoordSec(fid,realization_base, &
                                                   observation%region, &
                                                   observation% &
@@ -737,7 +737,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   ! add secondary temperature to header
   if (print_secondary_data(1)) then
     select case (option%iflowmode) 
-      case (TH_MODE, MPH_MODE)
+      case (TH_MODE,TH_TS_MODE,MPH_MODE)
         do i = 1, option%nsec_cells
           write(string,'(i2)') i
           string = 'T(' // trim(adjustl(string)) // ')'
@@ -834,7 +834,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
     case(FLASH2_MODE)
     case(MPH_MODE)
     case(IMS_MODE)
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
     case(MIS_MODE)
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       string = ',"Darcy flux ' // trim(coupler_name) // &
@@ -1092,11 +1092,11 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
       case(WF_MODE)
         option%io_buffer = 'WriteObservationDataForBC() needs to be set up &
           & for WIPP Flow, and perhaps the other multiphase flow modes.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case(MIS_MODE)
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
         sum_volumetric_flux = 0.d0
@@ -1565,7 +1565,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   if (option%nsec_cells > 0) then
     if (ivar == PRINT_SEC_TEMP) then
       select case(option%iflowmode)
-        case(MPH_MODE,TH_MODE)
+        case(MPH_MODE,TH_MODE,TH_TS_MODE)
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
               RealizGetVariableValueAtCell(realization_base,ghosted_id, &
@@ -1676,7 +1676,7 @@ subroutine OutputIntegralFlux(realization_base)
   select case(option%iflowmode)
     case(RICHARDS_MODE,RICHARDS_TS_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O
@@ -1703,7 +1703,7 @@ subroutine OutputIntegralFlux(realization_base)
   if (option%myrank == option%io_rank) then
 
 !geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call printMsg(option)    
+!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -1731,7 +1731,7 @@ subroutine OutputIntegralFlux(realization_base)
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE, &
-               TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
+               TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
                IMS_MODE,WF_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -1766,7 +1766,7 @@ subroutine OutputIntegralFlux(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
         select case(option%iflowmode)
-          case(TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE,IMS_MODE)
+          case(TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE,IMS_MODE)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
@@ -2012,7 +2012,7 @@ subroutine OutputMassBalance(realization_base)
   if (option%myrank == option%io_rank) then
 
 !geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
-!geh    call printMsg(option)    
+!geh    call PrintMsg(option)
 
     if (output_option%print_column_ids) then
       icol = 1
@@ -2039,7 +2039,7 @@ subroutine OutputMassBalance(realization_base)
         case(RICHARDS_MODE,RICHARDS_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass','kg','',icol)
           
-        case(TH_MODE)
+        case(TH_MODE,TH_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
         case(G_MODE)
@@ -2157,7 +2157,7 @@ subroutine OutputMassBalance(realization_base)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(TH_MODE)
+          case(TH_MODE,TH_TS_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             
@@ -2249,7 +2249,7 @@ subroutine OutputMassBalance(realization_base)
             if (reaction%primary_species_print(i)) then
 !              option%io_buffer = 'Check OutputObservation to ensure that ' // &
 !                'reactive transport species units are really kmol.'
-!              call printErrMsg(option)
+!              call PrintErrMsg(option)
               string = trim(coupler%name) // ' ' // &
                        trim(reaction%primary_species_names(i))
               call OutputWriteToHeader(fid,string,'mol','',icol)
@@ -2291,11 +2291,12 @@ subroutine OutputMassBalance(realization_base)
             .or. option%iflowmode == TOWG_MODE) then
           select type(realization_base)
            class is(realization_subsurface_type)
-             call WriteWellHeaders(fid,icol, &
-                                   realization_base,towg_miscibility_model,wecl)
+             call WriteWellHeaders(fid, icol, &
+                                   realization_base, towg_miscibility_model, &
+                                   option, wecl)
              if (output_option%write_masses) then
-               call WriteWellMassHeaders(fid,icol, &
-                                         realization_base,towg_miscibility_model)
+               call WriteWellMassHeaders(fid, icol, &
+                                         realization_base, towg_miscibility_model)
              endif
           end select
         endif
@@ -2312,7 +2313,7 @@ subroutine OutputMassBalance(realization_base)
           case(RICHARDS_MODE,RICHARDS_TS_MODE)
             write(fid,'(a)',advance="no") ',"' // &
               'Plane Water Flux [mol/s]"'
-          case(TH_MODE)
+          case(TH_MODE,TH_TS_MODE)
             write(fid,'(a)',advance="no") ',"' // &
               trim(adjustl(word)) // 'm Water Mass [kg]"'
         end select
@@ -2362,7 +2363,7 @@ subroutine OutputMassBalance(realization_base)
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE)
             call RichardsComputeMassBalance(realization_base,sum_kg(1,:))
-          case(TH_MODE)
+          case(TH_MODE,TH_TS_MODE)
             call THComputeMassBalance(realization_base,sum_kg(1,:))
           case(MIS_MODE)
             call MiscibleComputeMassBalance(realization_base,sum_kg(:,1))
@@ -2383,7 +2384,7 @@ subroutine OutputMassBalance(realization_base)
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     int_mpi = option%nflowspec*option%nphase
@@ -2402,7 +2403,7 @@ subroutine OutputMassBalance(realization_base)
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
         case(RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
-             TH_MODE)
+             TH_MODE,TH_TS_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
@@ -2442,7 +2443,7 @@ subroutine OutputMassBalance(realization_base)
       !           to reactive_transport.F90.
       option%io_buffer = 'OutputMassBalance() needs to be refactored to &
         &consider species in the gas phase.'
-!      call printErrMsg(option)
+!      call PrintErrMsg(option)
     endif
     max_tran_size = max(reaction%naqcomp,reaction%mineral%nkinmnrl, &
                         reaction%immobile%nimmobile,reaction%gas%nactive_gas)
@@ -2455,7 +2456,7 @@ subroutine OutputMassBalance(realization_base)
         call RTComputeMassBalance(realization_base,max_tran_size,sum_mol)
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
     int_mpi = max_tran_size*8
     call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
@@ -2608,7 +2609,7 @@ subroutine OutputMassBalance(realization_base)
             write(fid,110,advance="no") -sum_kg_global*output_option%tconv
           endif
 
-        case(TH_MODE)
+        case(TH_MODE,TH_TS_MODE)
           ! print out cumulative H2O flux
           sum_kg = 0.d0
           do iconn = 1, coupler%connection_set%num_connections
@@ -3155,7 +3156,7 @@ subroutine OutputEclipseFiles(realization_base)
 
   if (.not.is_grdecl) then
     option%io_buffer = 'Eclipse file output requires grdecl type input'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   !  Find mass balance
@@ -3172,7 +3173,7 @@ subroutine OutputEclipseFiles(realization_base)
     class default
       option%io_buffer = &
         'Unrecognized realization class in OutputEclipseFiles().'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   int_mpi = option%nflowspec*option%nphase
@@ -3221,7 +3222,8 @@ subroutine OutputEclipseFiles(realization_base)
            class is(realization_subsurface_type)
              call WriteWellHeaders(fid, icol, &
                                    realization_base, &
-                                   towg_miscibility_model, wecl)
+                                   towg_miscibility_model, &
+                                   option, wecl)
           end select
         endif
 
@@ -3261,7 +3263,8 @@ end subroutine OutputEclipseFiles
 ! *************************************************************************** !
 
 subroutine WriteWellHeaders(fid, icol, realization, &
-                            towg_miscibility_model, wecl)
+                            towg_miscibility_model, &
+                            option, wecl)
   !
   ! Used to write out file headers specific to TOIL and TOWG modes
   ! This routine must match the headers written by write_well_values
@@ -3271,6 +3274,7 @@ subroutine WriteWellHeaders(fid, icol, realization, &
 
   use Realization_Subsurface_class
   use Well_Data_class
+  use Option_module
   use Output_Eclipse_module, only:WriteEclipseFilesSpec
 
   implicit none
@@ -3279,12 +3283,17 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   PetscInt, intent(inout) :: icol
   type(realization_subsurface_type) :: realization
   PetscInt, intent(in   ) :: towg_miscibility_model
+  type(option_type), intent(in), pointer :: option
   PetscBool, intent(in) :: wecl
 
   type(well_data_list_type), pointer :: well_data_list
 
-  PetscInt :: iwell, nwell, ni, mi
+  PetscInt :: iwell, nwell, ni, mi, iword, ichar, irfn, lrfn
+
   character(len=MAXSTRINGLENGTH) :: name
+  PetscBool :: is_restart
+  character(len=8) :: restart_filename(9)
+  character(len=1) :: z1
 
   character(len=8), allocatable :: zm(:)
   character(len=8), allocatable :: zn(:)
@@ -3425,7 +3434,20 @@ subroutine WriteWellHeaders(fid, icol, realization, &
   ! Write out Eclipse files if required
 
   if (wecl) then
-    call WriteEclipseFilesSpec(zm, zn, zu, ni)
+    is_restart = PETSC_FALSE
+    restart_filename = ' '
+    lrfn = len(trim(option%restart_filename))
+    if (lrfn > 0) then
+      is_restart = PETSC_TRUE
+      do irfn = 1, lrfn
+        z1=option%restart_filename(irfn:irfn)
+        if (z1 == '-') exit
+        iword = (irfn-1)/8 + 1
+        ichar = irfn - 8*(iword-1)
+        restart_filename(iword)(ichar:ichar) = z1
+      enddo
+    endif
+    call WriteEclipseFilesSpec(zm, zn, zu, ni, is_restart, restart_filename)
     deallocate(zm)
     deallocate(zn)
     deallocate(zu)

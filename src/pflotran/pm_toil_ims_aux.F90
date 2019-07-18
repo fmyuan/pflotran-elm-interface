@@ -294,7 +294,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'Toil ims auxvars: toil_analytical_derivatives is true, &
                           but toil_auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     getDerivs = PETSC_TRUE
 
@@ -582,7 +582,7 @@ subroutine CheckDerivNotNAN(d, option, nm)
     option%io_buffer = ''
     option%io_buffer = 'A derivative is not initialized "' // &
                        trim(nm) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 
@@ -1106,7 +1106,6 @@ subroutine TOilImsAuxFieldVolRefAve(this,grid,material,imat,option)
 end subroutine TOilImsAuxFieldVolRefAve
 
 ! ************************************************************************** !
-
 subroutine TOilImsGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
   !
   ! Author: Paolo Orsini (OGS)
@@ -1131,29 +1130,38 @@ type(option_type) :: option
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id,iphase
   PetscBool :: ispres
+  PetscBool :: istemp
 
   material_auxvars => material%auxvars
 
-  ispres=PETSC_FALSE
-  iphase=0
+  ispres = PETSC_FALSE
+  istemp = PETSC_FALSE
+  iphase = 0
 
-  if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
-  if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
-  if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
+  if (StringCompareIgnoreCase(zsol,'Pressure')) ispres = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Temp'    )) istemp = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Soil')    ) iphase = option%oil_phase
+  if (StringCompareIgnoreCase(zsol,'Swat')    ) iphase = option%liquid_phase
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (imat(ghosted_id) <= 0) cycle
-    if( ispres ) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
-    else if ( iphase>0 ) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    if (ispres) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if (istemp) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%temp
+    else if (iphase > 0) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
     else
-      vsoll(local_id,isol)=0.0
+      vsoll(local_id,isol) = 0.0
     endif
   end do
 
 end subroutine TOilImsGetLocalSol
+
 
 ! ************************************************************************** !
 

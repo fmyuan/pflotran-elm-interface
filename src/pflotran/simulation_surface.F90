@@ -133,7 +133,7 @@ subroutine SurfaceInitializeRun(this)
   PetscInt :: depth
   PetscErrorCode :: ierr
   
-  call printMsg(this%option,'SurfaceInitializeRun: Simulation%InitializeRun()')
+  call PrintMsg(this%option,'SurfaceInitializeRun: Simulation%InitializeRun()')
 
   cur_process_model_coupler => this%process_model_coupler_list
   do
@@ -179,7 +179,7 @@ subroutine SurfaceFinalizeRun(this)
 
   class(timestepper_base_type), pointer :: surf_flow_timestepper
 
-  call printMsg(this%option,'SurfaceFinalizeRun()')
+  call PrintMsg(this%option,'SurfaceFinalizeRun()')
   
   call SimulationBaseFinalizeRun(this)
   
@@ -202,7 +202,7 @@ subroutine SurfaceSimulationStrip(this)
   
   class(simulation_surface_type) :: this
   
-  call printMsg(this%option,'SurfaceSimulationStrip()')
+  call PrintMsg(this%option,'SurfaceSimulationStrip()')
   
   call SimulationBaseStrip(this)
   call RealizSurfStrip(this%surf_realization)
@@ -227,7 +227,7 @@ subroutine SurfaceSimulationDestroy(simulation)
   
   class(simulation_surface_type), pointer :: simulation
   
-  call printMsg(simulation%option,'SurfaceSimulationDestroy()')
+  call PrintMsg(simulation%option,'SurfaceSimulationDestroy()')
   
   if (.not.associated(simulation)) return
   

@@ -85,7 +85,7 @@ subroutine WIPPFloSetup(realization)
   error_found = PETSC_FALSE
   if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   
@@ -99,24 +99,24 @@ subroutine WIPPFloSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
   
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in WIPPFloSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ndof = option%nflowdof
@@ -535,7 +535,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
                     option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                       trim(boundary_condition%flow_condition%name) // &
                       '" needs gas pressure defined.'
-                    call printErrMsg(option)
+                    call PrintErrMsg(option)
                   endif
                 ! for gas saturation dof
                 case(WIPPFLO_GAS_SATURATION_INDEX)
@@ -548,7 +548,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
             case(NEUMANN_BC)
             case default
               option%io_buffer = 'Unknown BC type in WIPPFloUpdateAuxVars().'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
         enddo  
       else
@@ -561,7 +561,7 @@ subroutine WIPPFloUpdateAuxVars(realization)
           else
             option%io_buffer = 'Error setting up boundary condition in &
                                &WIPPFloUpdateAuxVars'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo
       endif
@@ -1691,13 +1691,13 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
   
 

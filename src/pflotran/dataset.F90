@@ -27,6 +27,7 @@ module Dataset_module
             DatasetPrint, &
             DatasetReadDoubleOrDataset, &
             DatasetGetMinRValue, &
+            DatasetUnknownClass, &
             DatasetDestroy
 
 contains
@@ -142,7 +143,7 @@ subroutine DatasetScreenForNonCellIndexed(datasets,option)
       class default
         option%io_buffer = &
           'Unknown dataset type in DatasetScreenForNonCellIndexed.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
     ! if we changed the derived type, we need to replace the old dataset
     ! in the linked list of datasets and destroy the old dataset.
@@ -199,7 +200,7 @@ subroutine DatasetVerify(dataset,default_time_storage,header,option)
       call DatasetBaseVerify(dataset_ptr,dataset_error,option)
     class default
       option%io_buffer = 'DatasetXXXVerify needed for unknown dataset type'
-      call printMsg(option) 
+      call PrintMsg(option)
       dataset_error = PETSC_TRUE
   end select
 
@@ -209,7 +210,7 @@ subroutine DatasetVerify(dataset,default_time_storage,header,option)
       option%io_buffer = trim(option%io_buffer) // '/' // trim(dataset%name) 
     endif
     option%io_buffer = trim(option%io_buffer) // '.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine DatasetVerify
@@ -289,18 +290,18 @@ recursive subroutine DatasetLoad(dataset,option)
       dataset_common_hdf5 => selector
       if (dataset_common_hdf5%is_cell_indexed) then
         option%io_buffer = 'Cell Indexed datasets opened later.'
-        call printMsg(option)
+        call PrintMsg(option)
       else
         option%io_buffer = 'Unrecognized dataset that extends ' // &
           'dataset_common_hdf5 in DatasetLoad.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     class is (dataset_ascii_type)
       ! do nothing.  dataset should already be in memory at this point
     class is (dataset_base_type)
       dataset_base => selector
       option%io_buffer = 'DatasetLoad not yet supported for base dataset class.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
 end subroutine DatasetLoad
@@ -558,6 +559,32 @@ function DatasetGetMinRValue(dataset,option)
   endif
   
 end function DatasetGetMinRValue
+
+! ************************************************************************** !
+
+subroutine DatasetUnknownClass(this,option,string)
+  ! 
+  ! Prints dataset info
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/22/13
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(dataset_base_type) :: this
+  type(option_type) :: option
+  character(len=*) :: string
+
+  option%io_buffer = 'Dataset "' // trim(this%name) // &
+    '" from filename "' // trim(this%filename) // '" of class "' // &
+    trim(DatasetGetClass(this)) // '" is not recognized in "' // &
+    trim(string) // '".'
+  call PrintErrMsg(option)
+            
+end subroutine DatasetUnknownClass
 
 ! ************************************************************************** !
 

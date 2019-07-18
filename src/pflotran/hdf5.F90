@@ -94,7 +94,7 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
     call h5fget_name_f(file_id,string,string_size,hdf5_err)
     option%io_buffer = 'HDF5 dataset "' // trim(dataset_name) // '" not found &
       &in file "' // trim(string) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   ! should be a rank=1 data space
@@ -110,7 +110,7 @@ subroutine HDF5ReadIntegerArraySplit(option,file_id,dataset_name,local_size, &
     write(string,*) local_size, read_block_size
     option%io_buffer = 'Array mismatch in HDF5ReadIntegerArraySplit(): ' // &
       trim(adjustl(string))
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   istart = 0
   iend   = 0
@@ -370,7 +370,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
     call h5fget_name_f(file_id,string,string_size,hdf5_err)
     option%io_buffer = 'HDF5 dataset "' // trim(dataset_name) // '" not found &
       &in file "' // trim(string) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   ! should be a rank=1 data space
@@ -379,7 +379,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
     write(option%io_buffer, &
           '(a," data space dimension (",i2,"D) must be 1D.")') &
           trim(dataset_name), ndims_h5
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5sget_simple_extent_npoints_f(file_space_id,num_data_in_file,hdf5_err)
   if (dataset_size > 0 .and. num_data_in_file /= dataset_size) then
@@ -387,7 +387,7 @@ subroutine HDF5ReadIndices(grid,option,file_id,dataset_name,dataset_size, &
           '(a," data space dimension (",i9,") does not match the dimensions",&
            &" of the domain (",i9,").")') trim(dataset_name), &
            num_data_in_file,dataset_size
-    call printErrMsg(option)   
+    call PrintErrMsg(option)
   else
     dataset_size = int(num_data_in_file)
   endif  
@@ -498,7 +498,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
     call h5fget_name_f(file_id,string,string_size,hdf5_err)
     option%io_buffer = 'HDF5 dataset "' // trim(dataset_name) // '" not found &
       &in file "' // trim(string) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   ! should be a rank=1 data space
@@ -507,7 +507,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
     write(option%io_buffer, &
           '(a," data space dimension (",i2,"D) must be 1D.")') &
           trim(dataset_name), ndims_h5
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5sget_simple_extent_npoints_f(file_space_id,num_data_in_file,hdf5_err)
 
@@ -516,7 +516,7 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
           '(a," data space dimension (",i9,") does not match the dimensions",&
            &" of the domain (",i9,").")') trim(dataset_name), &
            num_data_in_file,grid%nmax
-    call printErrMsg(option)   
+    call PrintErrMsg(option)
   endif
 
   rank_mpi = 1
@@ -637,7 +637,7 @@ subroutine HDF5QueryRegionDefinition(region, filename, option, &
   ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-  call printMsg(option)
+  call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -714,7 +714,7 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   ! initialize fortran hdf5 interface 
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-  call printMsg(option)
+  call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -725,13 +725,13 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   ! Open the Regions group
   string = 'Regions' 
   option%io_buffer = 'Opening group: ' // trim(string)
-  call printMsg(option)  
+  call PrintMsg(option)
   call HDF5GroupOpen(file_id,string,grp_id,option)
 
   ! Open the Regions group
   string = trim(region%name)
   option%io_buffer = 'Opening group: ' // trim(string)
-  call printMsg(option)  
+  call PrintMsg(option)
   call HDF5GroupOpen(grp_id,region%name,grp_id2,option)
 
   ! Read Cell Ids
@@ -742,7 +742,7 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   if (.not.grp_exists) then
     option%io_buffer = 'HDF5 group: "Regions/' // trim(region%name) // &
       '/Cell Ids" not found.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call HDF5ReadIntegerArraySplit(option,grp_id2,string,ZERO_INTEGER, &
@@ -758,20 +758,20 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   call h5lexists_f(grp_id2,string,grp_exists,hdf5_err)
   if (grp_exists) then
     option%io_buffer = 'Reading dataset: ' // trim(string)
-    call printMsg(option)
+    call PrintMsg(option)
     call HDF5ReadIntegerArraySplit(option,grp_id2,string, &
                                    region%num_cells,region%faces)
     region%def_type = DEFINED_BY_CELL_AND_FACE_IDS
   endif
 
   option%io_buffer = 'Closing group: ' // trim(region%name)
-  call printMsg(option)  
+  call PrintMsg(option)
   call h5gclose_f(grp_id2,hdf5_err)
   option%io_buffer = 'Closing group: Regions'
-  call printMsg(option)   
+  call PrintMsg(option)
   call h5gclose_f(grp_id,hdf5_err)
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-  call printMsg(option)   
+  call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
@@ -855,7 +855,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
     call h5fget_name_f(file_id,string2,string_size,hdf5_err)
     option%io_buffer = 'HDF5 dataset "' // trim(string) // '" not found &
       &in file "' // trim(string2) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! Get dataset's dataspace
@@ -866,7 +866,7 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   if (ndims_h5 /= 2) then
     option%io_buffer='Dimension of '//string//' dataset in ' // trim(filename) // &
      ' is /= 2.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   endif
 
   ! Allocate memory
@@ -1016,7 +1016,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
  ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-  call printMsg(option) 
+  call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -1025,12 +1025,12 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call h5pclose_f(prop_id,hdf5_err)
 
   option%io_buffer = 'Setting up grid cell indices'
-  call printMsg(option) 
+  call PrintMsg(option)
 
   ! Open group if necessary
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)   
+    call PrintMsg(option)
     call HDF5GroupOpen(file_id,group_name,grp_id,option)
   else
     grp_id = file_id
@@ -1045,11 +1045,11 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   else
     option%io_buffer = 'Reading dataset: ' // trim(string)
   endif
-  call printMsg(option)   
+  call PrintMsg(option)
   call HDF5ReadIndices(grid,option,grp_id,string,grid%nmax,indices)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
-  call printMsg(option)
+  call PrintMsg(option)
 
 
   call PetscTime(tstart,ierr);CHKERRQ(ierr)
@@ -1064,24 +1064,24 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   else
     option%io_buffer = 'Reading dataset: ' // trim(string)
   endif
-  call printMsg(option)   
+  call PrintMsg(option)
   call HDF5ReadArray(discretization,grid,option,grp_id,string,grid%nmax, &
                      indices,global_vec,HDF_NATIVE_INTEGER)
   
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to read integer array.")') &
     tend-tstart
-  call printMsg(option)  
+  call PrintMsg(option)
 
   call DeallocateArray(indices)
 
   if (file_id /= grp_id) then
     option%io_buffer = 'Closing group: ' // trim(group_name)
-    call printMsg(option)   
+    call PrintMsg(option)
     call h5gclose_f(grp_id,hdf5_err)
   endif
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-  call printMsg(option)   
+  call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 
@@ -1155,7 +1155,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   ! initialize fortran hdf5 interface
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-  call printMsg(option) 
+  call PrintMsg(option)
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
@@ -1164,12 +1164,12 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call h5pclose_f(prop_id,hdf5_err)
 
   option%io_buffer = 'Setting up grid cell indices'
-  call printMsg(option) 
+  call PrintMsg(option)
 
   ! Open group if necessary
   if (len_trim(group_name) > 1) then
     option%io_buffer = 'Opening group: ' // trim(group_name)
-    call printMsg(option)   
+    call PrintMsg(option)
     call HDF5GroupOpen(file_id,group_name,grp_id,option)
   else
     grp_id = file_id
@@ -1184,11 +1184,11 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   else
     option%io_buffer = 'Reading dataset: ' // trim(string)
   endif
-  call printMsg(option)   
+  call PrintMsg(option)
   call HDF5ReadIndices(grid,option,grp_id,string,grid%nmax,indices)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
-  call printMsg(option)
+  call PrintMsg(option)
 
   call PetscTime(tstart,ierr);CHKERRQ(ierr)
   string = ''
@@ -1202,23 +1202,23 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   else
     option%io_buffer = 'Reading dataset: ' // trim(string)
   endif
-  call printMsg(option)   
+  call PrintMsg(option)
   call HDF5ReadArray(discretization,grid,option,file_id,string,grid%nmax, &
                      indices,global_vec,H5T_NATIVE_DOUBLE)
   call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to read real array")') &
     tend-tstart
-  call printMsg(option)  
+  call PrintMsg(option)
 
   call DeallocateArray(indices)
 
   if (file_id /= grp_id) then
     option%io_buffer = 'Closing group: ' // trim(group_name)
-    call printMsg(option)   
+    call PrintMsg(option)
     call h5gclose_f(grp_id,hdf5_err)
   endif
   option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-  call printMsg(option)   
+  call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
 

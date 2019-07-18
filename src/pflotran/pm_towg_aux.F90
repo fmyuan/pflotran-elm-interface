@@ -215,7 +215,7 @@ function TOWGAuxCreate(option)
     option%io_buffer = 'TOWG: gas FMW not initialised. ' // &
                        'Define its value in the the input deck' // &
                        ' or add EOS GAS card to default to FMWAIR'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   towg_fmw_comp(1) = FMWH2O
@@ -230,7 +230,7 @@ function TOWGAuxCreate(option)
       option%io_buffer = 'Solvent FMW not initialised. ' // &
                          'Define its value in the the input deck' // &
                          ' or add EOS SOLVENT card to default to FMWCO2'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     towg_fmw_comp(4) =EOSSlvGetFMW()
   end if
@@ -721,7 +721,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'towg bo auxvars: towg_analytical_derivatives is true, &
                           but auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     auxvar%D_pres = 0.d0
@@ -896,11 +896,11 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%bo%xo < 0.d0) then
     print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
     option%io_buffer = 'xo has gone negative; xo and bubble point are'
-    call printMsg(option)
+    call PrintMsg(option)
     write(option%io_buffer,*) auxvar%bo%xo
-    call printMsg(option)
+    call PrintMsg(option)
     write(option%io_buffer,*) auxvar%bo%bubble_point
-    call printMsg(option)
+    call PrintMsg(option)
   endif
 
 !==============================================================================
@@ -1618,7 +1618,7 @@ if (towg_analytical_derivatives) then
     option%io_buffer = 'towg tl4p auxvars: towg_analytical_derivatives is true, &
                         but auxvar%has_derivs is false, should both be true. &
                         How did this happen?'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   auxvar%D_pres = 0.d0
@@ -2947,7 +2947,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'towg tl auxvars: towg_analytical_derivatives is true, &
                           but auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     auxvar%D_pres = 0.d0
@@ -3429,7 +3429,7 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_denotl).AND.present(D_dengtl)                    )) then
       option%io_buffer = 'vToddLongstaff(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
           
 
@@ -3541,7 +3541,7 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
             present(D_viscotl).AND.present(D_viscgtl)                   )) then
       option%io_buffer = 'vToddLongstaffViscosity(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
@@ -3674,7 +3674,7 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
             present(D_denotl).AND.present(D_dengtl)                                            )) then
       option%io_buffer = 'vToddLongstaffDensity(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
 
 !--Set up complement of omega--------------------------------------------------
@@ -5352,28 +5352,59 @@ subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
   character(len=8)::zsol
   PetscInt::iphase
   PetscBool::ispres
+  PetscBool::ispsat
+  PetscBool::istemp
+
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: local_id, ghosted_id
 
   material_auxvars => material%auxvars
 
-  ispres=PETSC_FALSE
-  iphase=0
+!  Initialise phase pointer and solution flags
 
-  if( StringCompareIgnoreCase(zsol,'Pressure') ) ispres=PETSC_TRUE
-  if( StringCompareIgnoreCase(zsol,'Soil')     ) iphase=option%oil_phase
-  if( StringCompareIgnoreCase(zsol,'Sgas')     ) iphase=option%gas_phase
-  if( StringCompareIgnoreCase(zsol,'Swat')     ) iphase=option%liquid_phase
+  ispres = PETSC_FALSE
+  ispsat = PETSC_FALSE
+  istemp = PETSC_FALSE
+  iphase = 0
+
+!  Set phase pointer and solution flags
+
+  if (StringCompareIgnoreCase(zsol,'Pressure')) ispres = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Psat'    )) then
+    if (     (towg_miscibility_model == TOWG_SOLVENT_TL) &
+        .or. (towg_miscibility_model == TOWG_BLACK_OIL ) ) then
+      ispsat = PETSC_TRUE
+    endif
+  endif
+  if (StringCompareIgnoreCase(zsol,'Temp'    )) istemp = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Soil'    )) iphase = option%oil_phase
+  if (StringCompareIgnoreCase(zsol,'Sgas'    )) iphase = option%gas_phase
+  if (StringCompareIgnoreCase(zsol,'Swat'    )) iphase = option%liquid_phase
+  if (StringCompareIgnoreCase(zsol,'Sslv'    )) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+      iphase = option%solvent_phase
+    endif
+  endif
+
+!  Extract value
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (imat(ghosted_id) <= 0) cycle
-    if( isPres ) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
-    else if ( iphase>0 ) then
-      vsoll(local_id,isol) = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    if (ispres) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if (ispsat) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%bo%bubble_point
+    else if (isTemp) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%temp
+    else if (iphase>0) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
     else
-      vsoll(local_id,isol)=0.0
+      vsoll(local_id,isol) = 0.0
     endif
   end do
 

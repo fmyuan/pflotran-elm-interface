@@ -164,7 +164,7 @@ contains
     else
       model%option%io_buffer = 'The external driver must provide the ' // &
            'pflotran input file prefix.'
-      call printErrMsg(model%option)
+      call PrintErrMsg(model%option)
     end if
 
     call OptionInitPetsc(model%option)
@@ -324,7 +324,7 @@ contains
         case default
           model%option%io_buffer='Keyword ' // trim(word) // &
             ' in input file not recognized'
-          call printErrMsg(model%option)
+          call PrintErrMsg(model%option)
       end select
 
       ! Read mapping file
@@ -340,24 +340,24 @@ contains
     if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &
         (.not. pf2clm_flux_file) ) then
       model%option%io_buffer='One of the mapping files not found'
-      call printErrMsg(model%option)
+      call PrintErrMsg(model%option)
     endif
     
     if(model%option%iflowmode==TH_MODE.and.(.not.clm2pf_gflux_file)) then
       model%option%io_buffer='Running in TH_MODE without a CLM2PF_GFLUX_FILE'
-      call printErrMsg(model%option)
+      call PrintErrMsg(model%option)
     endif
 
     if( (model%option%nsurfflowdof>0)) then
        if ((.not. clm2pf_rflux_file)) then
         model%option%io_buffer='Running in surface flow without a ' // &
           'CLM2PF_RFLUX_FILE'
-        call printErrMsg(model%option)
+        call PrintErrMsg(model%option)
        endif
        if ((.not. pf2clm_surf_file)) then
         model%option%io_buffer='Running in surface flow without a ' // &
           'PF2CLM_SURF_FILE'
-        call printErrMsg(model%option)
+        call PrintErrMsg(model%option)
        endif
     endif
 
@@ -454,7 +454,7 @@ subroutine pflotranModelSetICs(pflotran_model)
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: pflotranModelSetICs only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
     grid            => patch%grid
@@ -468,7 +468,7 @@ subroutine pflotranModelSetICs(pflotran_model)
     if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE) then
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
           'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     endif
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
@@ -498,7 +498,7 @@ subroutine pflotranModelSetICs(pflotran_model)
       case default
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
           'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     end select
 
 end subroutine pflotranModelSetICs
@@ -573,7 +573,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     patch           => realization%patch
@@ -586,7 +586,7 @@ end subroutine pflotranModelSetICs
       case(TH_MODE)
         th_aux_vars   => patch%aux%TH%auxvars
       case default
-        call printErrMsg(pflotran_model%option, &
+        call PrintErrMsg(pflotran_model%option, &
           'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
     end select
 
@@ -773,7 +773,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     patch           => realization%patch
@@ -786,7 +786,7 @@ end subroutine pflotranModelSetICs
       case(TH_MODE)
         th_aux_vars   => patch%aux%TH%auxvars
       case default
-        call printErrMsg(pflotran_model%option, &
+        call PrintErrMsg(pflotran_model%option, &
           'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
     end select
 
@@ -847,7 +847,7 @@ end subroutine pflotranModelSetICs
          class default
             pflotran_model%option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
                  'sat_func_VG_type and sat_func_BC_type'
-            call printErrMsg(pflotran_model%option)
+            call PrintErrMsg(pflotran_model%option)
          end select
       case(TH_MODE)
          saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
@@ -986,7 +986,7 @@ end subroutine pflotranModelSetICs
       case default
         pflotran_model%option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMapping'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     end select
 
   end subroutine pflotranModelInitMapping
@@ -1052,7 +1052,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     option          => pflotran_model%option
     patch           => realization%patch
@@ -1077,7 +1077,7 @@ end subroutine pflotranModelSetICs
         source_mesh_id = PF_SUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     grid_clm_npts_ghost=0
@@ -1134,7 +1134,7 @@ end subroutine pflotranModelSetICs
                                               grid_clm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to pflotranModelInitMapping'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     deallocate(grid_pf_cell_ids_nindex)
@@ -1228,7 +1228,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
@@ -1243,7 +1243,7 @@ end subroutine pflotranModelSetICs
       case default
         option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMappingSurf3D'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     grid_clm_npts_ghost=0
@@ -1307,13 +1307,13 @@ end subroutine pflotranModelSetICs
 
       case default
         option%io_buffer='Unknown source mesh'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       
     end select
 
     if(.not.found) then
       pflotran_model%option%io_buffer = 'clm_gflux_bc not found in boundary conditions'
-      call printErrMsg(pflotran_model%option)
+      call PrintErrMsg(pflotran_model%option)
     endif
     
     !
@@ -1432,7 +1432,7 @@ end subroutine pflotranModelSetICs
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call VecDestroy(surf_ids, ierr)
 
@@ -1554,7 +1554,7 @@ end subroutine pflotranModelSetICs
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call VecDestroy(surf_ids, ierr)
 
@@ -1576,7 +1576,7 @@ end subroutine pflotranModelSetICs
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
           'pflotranModelInitMappingSurf3D'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     deallocate(grid_pf_cell_ids_nindex)
@@ -1672,7 +1672,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
@@ -1691,7 +1691,7 @@ end subroutine pflotranModelSetICs
       case default
         option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMappingSurf2D'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     grid_clm_npts_ghost=0
@@ -1709,7 +1709,7 @@ end subroutine pflotranModelSetICs
       class is (simulation_subsurface_type)
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on surface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
       class is (simulation_surfsubsurface_type)
          surf_realization => simulation%surf_realization
       class is (simulation_surface_type)
@@ -1807,7 +1807,7 @@ end subroutine pflotranModelSetICs
       write(*,*),'count = ',option%myrank,count,map%s2d_nwts
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied. [pflotranModelInitMappingSurf2D]'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call VecDestroy(surf_ids, ierr)
 
@@ -1936,7 +1936,7 @@ end subroutine pflotranModelSetICs
       write(*,*),'count = ',option%myrank,count,map%s2d_nwts
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied. [pflotranModelInitMappingSurf2D]'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     call VecDestroy(surf_ids, ierr)
 
@@ -1958,7 +1958,7 @@ end subroutine pflotranModelSetICs
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
           'pflotranModelInitMappingSurf2D'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     deallocate(grid_pf_local_nindex)
@@ -2034,7 +2034,7 @@ end subroutine pflotranModelSetICs
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
     use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
+    use Option_module
 
     implicit none
 
@@ -2064,7 +2064,7 @@ end subroutine pflotranModelSetICs
          nullify(surf_realization)
          model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
               "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
+         call PrintErrMsg(model%option)
     end select
 
   end subroutine pflotranModelInsertWaypoint
@@ -2083,7 +2083,7 @@ end subroutine pflotranModelSetICs
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
     use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
+    use Option_module
 
     implicit none
 
@@ -2112,7 +2112,7 @@ end subroutine pflotranModelSetICs
          nullify(surf_realization)
          model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
               "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
+         call PrintErrMsg(model%option)
     end select
 
   end subroutine pflotranModelDeleteWaypoint
@@ -2138,7 +2138,7 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    call printWrnMsg(model%option)
+    call PrintWrnMsg(model%option)
 
     if (.not. StringNull(restart_stamp)) then
        model%option%restart_flag = PETSC_TRUE
@@ -2203,7 +2203,7 @@ end subroutine pflotranModelSetICs
       class default
          pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
             " in pflotranModelUpdateSourceSink."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     global_aux_vars  => subsurf_realization%patch%aux%Global%auxvars
@@ -2217,7 +2217,7 @@ end subroutine pflotranModelSetICs
         press_dof = TH_PRESSURE_DOF
       case default
         pflotran_model%option%io_buffer = 'Unsupported Flow mode'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Update the 'clm_et_ss' source/sink term
@@ -2234,7 +2234,7 @@ end subroutine pflotranModelSetICs
 
         found = PETSC_TRUE
         if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) then
-          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+          call PrintErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
                            'HET_MASS_RATE_SS')
         endif
 
@@ -2255,7 +2255,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
 
     if(.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_et_ss not found in ' // &
+      call PrintErrMsg(pflotran_model%option,'clm_et_ss not found in ' // &
                        'source-sink list of subsurface model.')
 
   end subroutine pflotranModelUpdateSourceSink
@@ -2339,7 +2339,7 @@ end subroutine pflotranModelSetICs
       class default
          pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
             " in pflotranModelUpdateSurfSource."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Find value of pressure-dof depending on flow mode
@@ -2350,7 +2350,7 @@ end subroutine pflotranModelSetICs
         press_dof = TH_PRESSURE_DOF
       case default
         pflotran_model%option%io_buffer = 'Unsupported Flow mode'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Update the 'clm_et_ss' source/sink term
@@ -2367,7 +2367,7 @@ end subroutine pflotranModelSetICs
 
         found = PETSC_TRUE
         if (source_sink%flow_condition%rate%itype /= HET_VOL_RATE_SS) then
-          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+          call PrintErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
                            'HET_VOL_RATE_SS')
         endif
 
@@ -2381,7 +2381,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
 
     if(.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
+      call PrintErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
                        'source-sink list of surface model.')
 
   end subroutine pflotranModelUpdateSurfSource
@@ -2435,7 +2435,7 @@ end subroutine pflotranModelSetICs
       class default
          pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
             " in pflotranModelUpdateSourceSink."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Update the 'clm_et_ss' source/sink term
@@ -2452,7 +2452,7 @@ end subroutine pflotranModelSetICs
 
         if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
             /= NEUMANN_BC) then
-          call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
+          call PrintErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
                            'NEUMANN_BC')
         endif
         found = PETSC_TRUE
@@ -2468,7 +2468,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
 
     if(.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
+      call PrintErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
                        'source-sink list of subsurface model.')
 
   end subroutine pflotranModelUpdateSubsurfTCond
@@ -2521,7 +2521,7 @@ end subroutine pflotranModelSetICs
       class default
          pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
             " in pflotranModelUpdateSurfSource."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Find value of pressure-dof depending on flow mode
@@ -2531,7 +2531,7 @@ end subroutine pflotranModelSetICs
         temp_dof = TH_TEMPERATURE_DOF
       case default
         pflotran_model%option%io_buffer = 'Unsupported Flow mode'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Update the 'clm_et_ss' source/sink term
@@ -2548,7 +2548,7 @@ end subroutine pflotranModelSetICs
 
         found = PETSC_TRUE
         if (source_sink%flow_condition%energy_rate%itype /= HET_ENERGY_RATE_SS) then
-          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+          call PrintErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
                            'HET_ENERGY_RATE_SS')
         endif
 
@@ -2563,7 +2563,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
 
     if (.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_energy_srf_ss not found in ' // &
+      call PrintErrMsg(pflotran_model%option,'clm_energy_srf_ss not found in ' // &
                        'source-sink list of surface model.')
 
     ! 2) Map temperature of rain water
@@ -2585,7 +2585,7 @@ end subroutine pflotranModelSetICs
 
         found = PETSC_TRUE
         if (source_sink%flow_condition%temperature%itype /= HET_DIRICHLET_BC) then
-          call printErrMsg(pflotran_model%option,'clm_rain_srf_ss is not of ' // &
+          call PrintErrMsg(pflotran_model%option,'clm_rain_srf_ss is not of ' // &
                            'HET_DIRICHLET')
         endif
 
@@ -2599,7 +2599,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
 
     if (.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
+      call PrintErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
                        'source-sink list of surface model.')
 
 
@@ -2652,7 +2652,7 @@ end subroutine pflotranModelSetICs
          nullify(surf_realization)
          pflotran_model%option%io_buffer = "pflotranModelSurfaceSource only " // &
               "works on combinations of simulation_surfsubsurface_type."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Source/sink terms -------------------------------------
@@ -2669,7 +2669,7 @@ end subroutine pflotranModelSetICs
 
         found = PETSC_TRUE
         if (source_sink%flow_condition%rate%itype /= HET_VOL_RATE_SS) then
-          call printErrMsg(pflotran_model%option,'rain_from_clm_ss is not of ' // &
+          call PrintErrMsg(pflotran_model%option,'rain_from_clm_ss is not of ' // &
                            'HET_VOL_RATE_SS')
         endif
 
@@ -2683,7 +2683,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
 
     if(.not.found) &
-      call printErrMsg(pflotran_model%option,'rain_from_clm_ss not found in ' // &
+      call PrintErrMsg(pflotran_model%option,'rain_from_clm_ss not found in ' // &
                        'source-sink list of surface-flow model.')
 
   end subroutine pflotranModelSurfaceSource
@@ -2722,7 +2722,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     select case(pflotran_model%option%iflowmode)
@@ -2737,7 +2737,7 @@ end subroutine pflotranModelSetICs
       case default
         pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
           'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
+        call PrintErrMsg(pflotran_model%option)
     end select
 
   end subroutine pflotranModelGetUpdatedData
@@ -2788,7 +2788,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
     grid            => patch%grid
@@ -2869,7 +2869,7 @@ end subroutine pflotranModelSetICs
          nullify(surf_realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on " // &
             "simulation_surfsubsurface_type simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     patch           => surf_realization%patch
     grid            => patch%grid
@@ -2936,7 +2936,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
     grid            => patch%grid
@@ -3011,7 +3011,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
     grid            => patch%grid
@@ -3095,7 +3095,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
 
     ! Determine the BC coupler name to search from list of BCs depending on
@@ -3120,7 +3120,7 @@ end subroutine pflotranModelSetICs
     enddo
 
     if(.not.found)  &
-      call printErrMsg(pflotran_model%option, &
+      call PrintErrMsg(pflotran_model%option, &
             'Missing from the input deck a BC named clm_gflux_bc')
 
   end function pflotranModelNSurfCells3DDomain
@@ -3184,7 +3184,7 @@ end subroutine pflotranModelSetICs
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         call PrintErrMsg(pflotran_model%option)
     end select
     discretization => realization%discretization
     patch => realization%patch
@@ -3213,7 +3213,7 @@ end subroutine pflotranModelSetICs
         else if (cell_type == WEDGE_TYPE) then
           iface = 5
         else
-          call printErrMsg(pflotran_model%option, &
+          call PrintErrMsg(pflotran_model%option, &
             'Only hex and wedge cell_type supported in CLM-PFLOTRAN')
         endif
 

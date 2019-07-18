@@ -299,7 +299,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 !pcl  if (x(3) < 0.d0) then
 !pcl    option%io_buffer = 'CO2 mole fraction below zero.  It is likely ' // &
 !pcl      'that CO2 aqueous concentrations in transport are inconsistent with flow.'
-!pcl    call printErrMsgByRank(option)
+!pcl    call PrintErrMsgByRank(option)
 !pcl  endif
       auxvar%xmol(1) = 1.D0 - auxvar%xmol(2)
       auxvar%pc(:) = 0.D0
@@ -378,7 +378,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
           hg = hg*FMWCO2*option%scale
           !      print *, 'translator', p2,t,dg,hg,visg
        else
-         call printErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
+         call PrintErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
       endif
     else      
       call ideal_gaseos_noderiv(p2,t,dg,hg,eng)

@@ -97,6 +97,8 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(richards_auxvar_type), pointer :: rich_auxvars(:) 
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ghosted_id
   PetscReal, pointer :: xx_loc_p(:),xxdot_loc_p(:)
   PetscErrorCode :: ierr
@@ -106,6 +108,8 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
   patch => realization%patch
   grid => patch%grid
   rich_auxvars => patch%aux%Richards%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
 
   ! 1. Update auxvars based on new values of pressure
   call RichardsUpdateAuxVars(realization)
@@ -121,6 +125,8 @@ subroutine PMRichardsTSUpdateAuxVarsPatch(realization)
     if (patch%imat(ghosted_id) <= 0) cycle 
     rich_auxvars(ghosted_id)%dpres_dtime = xxdot_loc_p(ghosted_id)
     call RichardsAuxVarCompute2ndOrderDeriv(rich_auxvars(ghosted_id), &
+                                       global_auxvars(ghosted_id), &
+                                       material_auxvars(ghosted_id), &
                                        patch%characteristic_curves_array( &
                                          patch%sat_func_id(ghosted_id))%ptr, &
                                        option)
@@ -371,6 +377,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
       dpor_dP = dcompressed_porosity_dp
     else
       por = material_auxvars(ghosted_id)%porosity
+      dpor_dP = 0.d0
     endif
 
     ! F = d(rho*phi*s)/dP * dP_dtime * Vol
@@ -436,11 +443,6 @@ subroutine PMRichardsTSInitializeTimestep(this)
   class(pm_richards_ts_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
-
-  if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," RICHARDS TS FLOW ",60("="))')
-  endif
-
   call PMSubsurfaceFlowInitializeTimestepB(this)
 
 end subroutine PMRichardsTSInitializeTimestep
@@ -472,27 +474,8 @@ subroutine PMRichardsTSCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
 
   character(len=MAXSTRINGLENGTH) :: string
 
-  call SNESConvergedDefault(snes,it,xnorm,unorm,fnorm,reason, &
-                            0,ierr);CHKERRQ(ierr)
 
-  if (this%option%print_screen_flag) then
-    select case(int(reason))
-      case(2)
-        string = 'atol'
-      case(3)
-        string = 'rtol'
-      case(4)
-        string = 'stol'
-      case default
-        write(string,'(i3)') reason
-    end select
-
-    write(*,'(i3," 2r:",es9.2, &
-            & " 2x:",es9.2, &
-            & " 2u:",es9.2, &
-            & " rsn: ",a)') &
-            it, fnorm, xnorm, unorm, trim(string)
-  endif
+  call PMRichardsCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
 end subroutine PMRichardsTSCheckConvergence
 

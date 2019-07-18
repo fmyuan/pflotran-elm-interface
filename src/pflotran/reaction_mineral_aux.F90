@@ -423,6 +423,7 @@ function GetMineralFromName(name,mineral)
 
   GetMineralFromName => mineral%mineral_list
   do
+    if (.not.associated(GetMineralFromName)) exit
     if (StringCompare(name,GetMineralFromName%name,MAXWORDLENGTH)) return
     GetMineralFromName => GetMineralFromName%next
   enddo
@@ -566,7 +567,7 @@ function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
   if (throw_error .and. GetMineralIDFromName2 <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
       '" not found among minerals in GetMineralIDFromName().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end function GetMineralIDFromName2
@@ -600,7 +601,7 @@ function GetKineticMineralIDFromName(name,mineral,option)
   if (GetKineticMineralIDFromName <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
       '" not found among kinetic minerals in GetKineticMineralIDFromName().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end function GetKineticMineralIDFromName

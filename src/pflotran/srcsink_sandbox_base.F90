@@ -83,7 +83,7 @@ subroutine SSSandboxBaseSetup(this,grid,option)
   else
     option%io_buffer = 'Source/sink in SSSandbox not associate with the &
       &domain through either a CELL_ID or COORDINATE.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
 
   ! check to ensure that only one grid cell is mapped
@@ -96,10 +96,10 @@ subroutine SSSandboxBaseSetup(this,grid,option)
                      MPI_SUM,option%mycomm,ierr)
   if (iflag > 1) then
     option%io_buffer = 'More than one grid cell mapped in SSSandboxBaseSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if (iflag == 0) then
     option%io_buffer = 'No grid cells mapped in SSSandboxBaseSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine SSSandboxBaseSetup 
@@ -147,7 +147,7 @@ subroutine SSSandboxBaseSelectCase(this,input,option,keyword,found)
       option%io_buffer = 'The REGION card has been deprecated in &
         &Source/Sink Sandbox.  Please switch to using a COORDINATE and &
         &defining one Src/Sink block for each coordinate.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     case('COORDINATE')
       call GeometryReadCoordinate(input,option,this%coordinate,error_string)
     case('CELL_ID')

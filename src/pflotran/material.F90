@@ -547,7 +547,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 'Please use the new DATASET object in the input file and ' // &
                 'reference that dataset through "DATASET name" within ' // &
                 'the PERMEABILITY card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             case('DATASET')
               material_property%permeability_dataset => DatasetBaseCreate()
               call InputReadNChars(input,option, &
@@ -624,7 +624,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           'mineral volume fraction or porosity must be performed on a ' // &
           'per mineral basis under the MINERAL_KINETICS card.  See ' // &
           'reaction_aux.F90.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       case('SECONDARY_CONTINUUM')
         do
           call InputReadPflotranString(input,option)
@@ -744,7 +744,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
     if (associated(material_property%tortuosity_dataset)) then
       option%io_buffer = 'A TORTUOSITY dataset may not be assigned in &
         &combination with TORTUOSITY_FUNCTION_OF_POROSITY.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (.not.associated(material_property%porosity_dataset)) then
       material_property%tortuosity = material_property%porosity** &
@@ -765,17 +765,18 @@ subroutine MaterialPropertyRead(material_property,input,option)
       trim(material_property%permeability_dataset%name) // 'X'
   endif
 
-  if (option%iflowmode == TH_MODE) then
+  if (option%iflowmode == TH_MODE .or. &
+      option%iflowmode == TH_TS_MODE) then
      if (option%use_th_freezing .eqv. PETSC_TRUE) then
         if (.not. therm_k_frz) then
            option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
-             &in inputdeck for MODE TH(C) ICE'
-           call printErrMsg(option)
+             &in inputdeck for MODE TH ICE'
+           call PrintErrMsg(option)
         endif
         if (.not. therm_k_exp_frz) then
            option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
-             &in inputdeck for MODE TH(C) ICE'
-           call printErrMsg(option)
+             &in inputdeck for MODE TH ICE'
+           call PrintErrMsg(option)
         endif
      endif
   endif
@@ -789,7 +790,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &instead of a SOIL_COMPRESSIBILITY in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a BRAGFLO or WIPP &
             &SOIL_COMPRESSIBILITY function is defined.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         word = 'BULK_COMPRESSIBILITY'
       case('POROSITY_EXPONENTIAL')
@@ -798,7 +799,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a POROSITY_EXPONENTIAL &
             &not POROSITY_COMPRESSIBILITY function is defined.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         word = 'POROSITY_COMPRESSIBILITY'
       case('LEIJNSE','DEFAULT')
@@ -807,7 +808,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &instead of a BULK_COMPRESSIBILITY in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a LEIJNSE or DEFAULT &
             &SOIL_COMPRESSIBILITY function is defined.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         word = 'SOIL_COMPRESSIBILITY'
       case default
@@ -819,7 +820,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         &inputdeck for MATERIAL_PROPERTY "' // &
         trim(material_property%name) // &
         '", but a ' // trim(word) // ' is not defined.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (Uninitialized(material_property%soil_reference_pressure) .and. &
         .not.associated(material_property% &
@@ -829,7 +830,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         &inputdeck for MATERIAL_PROPERTY "' // &
         trim(material_property%name) // &
         '", but a SOIL_REFERENCE_PRESSURE is not defined.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if ((Initialized(material_property%soil_reference_pressure) .or. &
          associated(material_property%soil_reference_pressure_dataset)) .and. &
@@ -837,7 +838,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       option%io_buffer = 'SOIL_REFERENCE_PRESSURE may not be defined by the &
         &initial pressure and a specified pressure in material "' // &
         trim(material_property%name) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -849,7 +850,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       trim(adjustl(word)) // '). If you would like to inactivate a &
       &material, please do so by adding INACTIVE to the STRATA to which &
       &the MATERIAL_PROPERTY is coupled.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine MaterialPropertyRead
@@ -964,7 +965,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
       write(string,*) cur_material_property%internal_id
       option%io_buffer = trim(option%io_buffer) // &
         'and internal id "' // trim(adjustl(string)) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     cur_material_property => cur_material_property%next
   enddo
@@ -995,7 +996,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
       write(string,*) i
       option%io_buffer = 'Material ID ' // trim(adjustl(string)) // &
         ' is duplicated in input file.'
-      call printMsg(option)
+      call PrintMsg(option)
       error_flag = PETSC_TRUE
     endif
   enddo
@@ -1004,7 +1005,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material IDs.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! ensure unique material names
@@ -1020,7 +1021,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
             option%io_buffer = 'Material name "' // &
               trim(adjustl(array(i)%ptr%name)) // &
               '" is duplicated in input file.'
-            call printMsg(option)
+            call PrintMsg(option)
             error_flag = PETSC_TRUE
           endif
         endif
@@ -1030,7 +1031,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material names.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine MaterialPropConvertListToArray
@@ -1375,7 +1376,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
             trim(material_property_ptrs(i)%ptr% &
                    soil_compressibility_function) // &
             '" not recognized.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       num_soil_compress_func = num_soil_compress_func + 1
     endif  
@@ -1385,7 +1386,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
                              MaterialCompressSoilPtrTmp)) then
       option%io_buffer = 'All MATERIAL_PROPERTIES must specify the ' // &
         'same soil compressibility function.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (Initialized(material_property_ptrs(i)%ptr%soil_compressibility) .or. &
         associated(material_property_ptrs(i)%ptr%compressibility_dataset)) then
@@ -1428,25 +1429,25 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_soil_compress_func /= num_material_properties) then
     option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION must be defined for all &
       &materials.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (soil_compressibility_index > 0 .and. &
       num_soil_compress /= num_material_properties) then
     option%io_buffer = 'SOIL_COMPRESSIBILITY must be defined for all &
       &materials.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (soil_reference_pressure_index > 0 .and. &
       num_soil_ref_press /= num_material_properties) then
     option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined for all &
       &materials.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (soil_compressibility_index > 0 .and. &
       soil_reference_pressure_index == 0) then
     option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined to model &
       &soil compressibility.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine MaterialInitAuxIndices

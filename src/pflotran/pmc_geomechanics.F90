@@ -111,7 +111,7 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   PetscErrorCode :: ierr
 
 #ifdef DEBUG
-  call printMsg(this%option,'PMCGeomechanicsSetupSolvers')
+  call PrintMsg(this%option,'PMCGeomechanicsSetupSolvers')
 #endif
 
   option => this%option
@@ -123,11 +123,11 @@ subroutine PMCGeomechanicsSetupSolvers(this)
       solver => ts%solver
   end select 
 
-  call printMsg(option,"  Beginning setup of GEOMECH SNES ")
+  call PrintMsg(option,"  Beginning setup of GEOMECH SNES ")
 
   if (solver%J_mat_type == MATAIJ) then
     option%io_buffer = 'AIJ matrix not supported for geomechanics.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call SolverCreateSNES(solver,option%mycomm)
@@ -135,9 +135,21 @@ subroutine PMCGeomechanicsSetupSolvers(this)
                             ierr);CHKERRQ(ierr)
   call SolverCheckCommandLine(solver)
 
-  if (solver%Jpre_mat_type == '') then
-    solver%Jpre_mat_type = solver%J_mat_type
+  if (Uninitialized(solver%Jpre_mat_type) .and. &
+      Uninitialized(solver%J_mat_type)) then
+    ! Matrix types not specified, so set to default.
+    solver%Jpre_mat_type = MATBAIJ
+    solver%J_mat_type = solver%Jpre_mat_type
+  else if (Uninitialized(solver%Jpre_mat_type)) then
+    if (solver%J_mat_type == MATMFFD) then
+      solver%Jpre_mat_type = MATBAIJ
+    else
+      solver%Jpre_mat_type = solver%J_mat_type
+    endif
+  else if (Uninitialized(solver%J_mat_type)) then
+    solver%J_mat_type = solver%Jpre_mat_type
   endif
+
   call GeomechDiscretizationCreateJacobian(geomech_realization% &
                                            geomech_discretization,NGEODOF, &
                                            solver%Jpre_mat_type, &
@@ -161,9 +173,9 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   endif
 
   option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
-  call printMsg(option)
+  call PrintMsg(option)
   option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
-  call printMsg(option)
+  call PrintMsg(option)
 
   call SNESSetConvergenceTest(solver%snes, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
@@ -198,7 +210,7 @@ subroutine PMCGeomechanicsSetupSolvers(this)
 
   call SolverSetSNESOptions(solver,option)
 
-  call printMsg(option,"  Finished setting up GEOMECH SNES ")
+  call PrintMsg(option,"  Finished setting up GEOMECH SNES ")
 
 
 end subroutine PMCGeomechanicsSetupSolvers
@@ -234,7 +246,7 @@ recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   if (stop_flag == TS_STOP_FAILURE) return
 
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
-  call printVerboseMsg(this%option)
+  call PrintVerboseMsg(this%option)
   
   ! Get data of other process-model
   call this%GetAuxData()
@@ -610,7 +622,7 @@ recursive subroutine PMCGeomechanicsDestroy(this)
   class(pmc_geomechanics_type) :: this
   
 #ifdef DEBUG
-  call printMsg(this%option,'PMCGeomechanics%Destroy()')
+  call PrintMsg(this%option,'PMCGeomechanics%Destroy()')
 #endif
 
   if (associated(this%child)) then

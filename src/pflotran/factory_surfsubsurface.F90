@@ -372,7 +372,7 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
   if (.not.associated(pm)) then
     option%io_buffer = 'A flow MODE (card) must be included in the ' // &
       'SURFACE_SUBSURFACE block in ' // trim(error_string) // '.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine SurfSubsurfaceReadFlowPM
@@ -471,7 +471,7 @@ subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
   if (found.eqv.PETSC_FALSE) then
     option%io_buffer = 'When running with -DSURFACE_FLOW need to specify ' // &
       ' in the inputfile explicitly region: top '
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call MatCreateAIJ(option%mycomm, &
@@ -803,7 +803,7 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
     enddo
     if (max_value<3) then
       option%io_buffer = 'Atleast three vertices need to form a face'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
 

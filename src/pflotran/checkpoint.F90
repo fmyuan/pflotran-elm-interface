@@ -190,7 +190,7 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   call PetscViewerFileSetName(viewer,filename,ierr);CHKERRQ(ierr)
   
   option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
-  call printMsg(option)
+  call PrintMsg(option)
 
 end subroutine CheckpointOpenFileForWriteBinary
 
@@ -310,7 +310,7 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
     option%io_buffer = 'Incorrect checkpoint file format (' // &
       trim(adjustl(word)) // ' vs ' // &
       trim(adjustl(word2)) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   temp_int = size(transfer(test_header,dummy_char))
@@ -320,7 +320,7 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
     option%io_buffer = 'Inconsistent PetscBagSize (' // &
       trim(adjustl(word)) // ' vs ' // &
       trim(adjustl(word2)) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
@@ -380,7 +380,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that indicates what phases are present, as well as the 'var' vector 
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
@@ -478,7 +478,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
@@ -581,7 +581,7 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
 
   option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
-  call printMsg(option)
+  call PrintMsg(option)
 
 end subroutine CheckpointOpenFileForWriteHDF5
 
@@ -622,7 +622,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   if (hdf5_err < 0) then
     option%io_buffer = 'HDF5 restart file "' // trim(filename) // &
                        '" not found.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5pclose_f(prop_id, hdf5_err)
 
@@ -1047,7 +1047,7 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
     option%io_buffer = 'Incorrect checkpoint file format (' // &
       trim(adjustl(word)) // ' vs ' // &
       trim(adjustl(word2)) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   deallocate(start)
@@ -1124,7 +1124,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
@@ -1267,7 +1267,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
            FLASH2_MODE,TOIL_IMS_MODE)
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
@@ -1538,7 +1538,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
   if (final_time < 1.d-40) then
     option%io_buffer = 'No final time specified in waypoint list. &
       &Send your input deck to pflotran-dev.'
-    call printMsg(option)
+    call PrintMsg(option)
   endif
   
   ! add waypoints for periodic checkpoint

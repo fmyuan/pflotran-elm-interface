@@ -333,7 +333,7 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
         hg = hg * FMWCO2 *option%scale
           !      print *, 'translator', p2, t, dg,hg,visg
       else
-        call printErrMsg(option,'pflow Flash2 ERROR: Need specify CO2 EOS')
+        call PrintErrMsg(option,'pflow Flash2 ERROR: Need specify CO2 EOS')
       endif
     else      
       call ideal_gaseos_noderiv(p2, t,dg,hg,eng)

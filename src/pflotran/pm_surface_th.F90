@@ -363,7 +363,7 @@ subroutine PMSurfaceTHDestroy(this)
   endif
 
 #ifdef PM_SURFACE_FLOW_DEBUG
-  call printMsg(this%option,'PMSurfaceTHDestroy()')
+  call PrintMsg(this%option,'PMSurfaceTHDestroy()')
 #endif
 
   call SurfaceTHDestroy(this%surf_realization)

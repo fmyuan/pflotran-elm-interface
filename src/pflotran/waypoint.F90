@@ -176,7 +176,7 @@ subroutine WaypointListMerge(waypoint_list1,waypoint_list2,option)
       .not.associated(waypoint_list2)) then
     option%io_buffer = 'Two null waypoints lists.  Send input deck to &
       &pflotran-dev.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if (.not.associated(waypoint_list1)) then
     waypoint_list1 => waypoint_list2
     return
@@ -373,7 +373,7 @@ subroutine WaypointListFillIn(waypoint_list,option)
 
   if (dt_max <= 1.d-40) then
     option%io_buffer = 'All values of dt_max in input file uninitialized'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! assign that value to the first waypoint, if waypoint%dt_max not already > 1.d-40
@@ -471,7 +471,7 @@ subroutine WaypointListRemoveExtraWaypnts(waypoint_list,option)
     write(option%io_buffer,'("Waypoint at time:", 1pe12.4, &
   &       " is beyond the end of simulation")') &
           prev_waypoint%time
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
     call WaypointDestroy(prev_waypoint)   
     waypoint_list%num_waypoints = waypoint_list%num_waypoints - 1
   enddo

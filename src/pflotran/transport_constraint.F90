@@ -5,6 +5,11 @@ module Transport_Constraint_module
 
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
+#if 0
+!geh: breaks pflotran_rxn build
+! have to comment line to prevent addition to dependencies
+!  use NW_Transport_Aux_module
+#endif
   use Global_Aux_module
   
   use Reaction_Surface_Complexation_Aux_module  
@@ -29,6 +34,10 @@ module Transport_Constraint_module
   PetscInt, parameter, public :: CONSTRAINT_TOTAL_SORB = 9
   PetscInt, parameter, public :: CONSTRAINT_SUPERCRIT_CO2 = 10
   PetscInt, parameter, public :: CONSTRAINT_TOTAL_AQ_PLUS_SORB = 11
+  PetscInt, parameter, public :: CONSTRAINT_AQ_EQUILIBRIUM = 12
+  PetscInt, parameter, public :: CONSTRAINT_PPT_EQUILIBRIUM = 13
+  PetscInt, parameter, public :: CONSTRAINT_SB_EQUILIBRIUM = 14
+  PetscInt, parameter, public :: CONSTRAINT_T_EQUILIBRIUM = 15
 
   type, public :: tran_constraint_type
     PetscInt :: id
@@ -39,6 +48,10 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
+#if 0
+!geh: breaks pflotran_rxn build
+    type(nwt_species_constraint_type), pointer :: nwt_species
+#endif
     PetscBool :: equilibrate_at_each_cell
     type(tran_constraint_type), pointer :: next    
   end type tran_constraint_type
@@ -66,6 +79,11 @@ module Transport_Constraint_module
     type(srfcplx_constraint_type), pointer :: surface_complexes
     type(colloid_constraint_type), pointer :: colloids
     type(immobile_constraint_type), pointer :: immobile_species
+#if 0
+!geh: breaks pflotran_rxn build
+    type(nwt_species_constraint_type), pointer :: nwt_species
+    type(nw_transport_auxvar_type), pointer :: nwt_auxvar
+#endif
     type(global_auxvar_type), pointer :: global_auxvar
     type(reactive_transport_auxvar_type), pointer :: rt_auxvar
     type(tran_constraint_coupler_type), pointer :: next   
@@ -76,7 +94,11 @@ module Transport_Constraint_module
             TranConstraintDestroyList, &
             TranConstraintGetPtrFromList, &
             TranConstraintCreate, &
-            TranConstraintRead, &
+            TranConstraintReadRT, &
+#if 0
+!geh: breaks pflotran_rxn build
+            TranConstraintReadNWT, &
+#endif
             TranConstraintMapToCoupler, &
             TranConstraintDestroy, &
             TranConstraintCouplerCreate, &
@@ -113,6 +135,10 @@ function TranConstraintCreate(option)
   nullify(constraint%surface_complexes)
   nullify(constraint%colloids)
   nullify(constraint%immobile_species)
+#if 0
+!geh: breaks pflotran_rxn build
+  nullify(constraint%nwt_species)
+#endif
   nullify(constraint%next)
   constraint%id = 0
   constraint%name = ''
@@ -149,6 +175,11 @@ function TranConstraintCouplerCreate(option)
   nullify(coupler%surface_complexes)
   nullify(coupler%colloids)
   nullify(coupler%immobile_species)
+#if 0
+!geh: breaks pflotran_rxn build
+  nullify(coupler%nwt_species)
+  nullify(coupler%nwt_auxvar)
+#endif
   
   coupler%num_iterations = 0
   coupler%equilibrate_at_each_cell = PETSC_FALSE
@@ -166,7 +197,7 @@ end function TranConstraintCouplerCreate
 
 ! ************************************************************************** !
 
-subroutine TranConstraintRead(constraint,reaction,input,option)
+subroutine TranConstraintReadRT(constraint,reaction,input,option)
   ! 
   ! Reads a transport constraint from the input file
   ! 
@@ -242,7 +273,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                                'exceeds number of primary chemical ' // &
                                'components in constraint: ' // &
                                 trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,aq_species_constraint%names(icomp), &
@@ -250,7 +281,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'aqueous species name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(aq_species_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           
           call InputReadDouble(input,option, &
                                aq_species_constraint%constraint_conc(icomp))
@@ -275,14 +306,14 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                   option%io_buffer = 'TOTAL_AQ_PLUS_SORB constraint may not &
                     &be used unless equilibrium sorption is employed within &
                     &the CHEMISTRY block.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_AQ_PLUS_SORB
               case('S')
                 option%io_buffer = '"S" constraint type no longer ' // &
                   'supported as of March 4, 2013.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               case('P','PH')
                 aq_species_constraint%constraint_type(icomp) = CONSTRAINT_PH
               case('L','LOG')
@@ -338,13 +369,13 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
                    'number of primary species in aqueous constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         if (icomp > reaction%naqcomp) then
           option%io_buffer = &
                    'Number of concentration constraints is greater than ' // &
                    'number of primary species in aqueous constraint.'
-          call printWrnMsg(option)        
+          call PrintWrnMsg(option)
         endif
         
         if (associated(constraint%aqueous_species)) &
@@ -370,7 +401,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                                'exceeds number of primary chemical ' // &
                                'components in constraint: ' // &
                                 trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option, &
@@ -379,7 +410,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'free ion guess name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(free_ion_guess_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           
           call InputReadDouble(input,option,free_ion_guess_constraint%conc(icomp))
           call InputErrorMsg(input,option,'free ion guess',block_string)
@@ -389,13 +420,13 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           option%io_buffer = &
                    'Number of free ion guess constraints is less than ' // &
                    'number of primary species in aqueous constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         if (icomp > reaction%naqcomp) then
           option%io_buffer = &
                    'Number of free ion guess constraints is greater than ' // &
                    'number of primary species in aqueous constraint.'
-          call printWrnMsg(option)        
+          call PrintWrnMsg(option)
         endif
         
         if (associated(constraint%free_ion_guess)) &
@@ -422,7 +453,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                      'Number of mineral constraints exceeds number of ' // &
                      'kinetic minerals in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,mineral_constraint%names(imnrl), &
@@ -430,7 +461,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'mineral name',block_string)
           option%io_buffer = 'Constraint Minerals: ' // &
                              trim(mineral_constraint%names(imnrl))
-          call printMsg(option)
+          call PrintMsg(option)
 
           ! volume fraction
           string = trim(input%buf)
@@ -483,7 +514,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                    '(listed under MINERAL_KINETICS card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present (just ' // &
                    'assign a zero volume fraction if not present).'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%minerals)) then
@@ -511,7 +542,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                      'Number of surface complex constraints exceeds ' // &
                      'number of kinetic surface complexes in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,srfcplx_constraint%names(isrfcplx), &
@@ -519,7 +550,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'surface complex name',block_string)
           option%io_buffer = 'Constraint Surface Complex: ' // &
                              trim(srfcplx_constraint%names(isrfcplx))
-          call printMsg(option)
+          call PrintMsg(option)
           call InputReadDouble(input,option, &
                                srfcplx_constraint%constraint_conc(isrfcplx))
           call InputErrorMsg(input,option,'concentration',block_string)
@@ -530,7 +561,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                    'Number of surface complex constraints is less than ' // &
                    'number of kinetic surface complexes in surface ' // &
                    'complex constraint.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%surface_complexes)) then
@@ -557,7 +588,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                      'Number of colloid constraints exceeds number of ' // &
                      'colloids in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option,colloid_constraint%names(icomp), &
@@ -565,7 +596,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'colloid name',block_string)
           option%io_buffer = 'Constraint Colloids: ' // &
                              trim(colloid_constraint%names(icomp))
-          call printMsg(option)
+          call PrintMsg(option)
           call InputReadDouble(input,option, &
                                colloid_constraint%constraint_conc_mob(icomp))
           call InputErrorMsg(input,option,'mobile concentration',block_string)
@@ -583,7 +614,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                    '(listed under the COLLOIDS card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present (just ' // &
                    'assign a small value (e.g. 1.d-40) if not present).'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%colloids)) then
@@ -613,7 +644,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                      'Number of immobile constraints exceeds number of ' // &
                      'immobile species in constraint: ' // &
                       trim(constraint%name)
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           call InputReadWord(input,option, &
@@ -621,7 +652,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputErrorMsg(input,option,'immobile name',block_string)
           option%io_buffer = 'Constraint Immobile: ' // &
                              trim(immobile_constraint%names(iimmobile))
-          call printMsg(option)
+          call PrintMsg(option)
 
           ! concentration
           string = trim(input%buf)
@@ -663,7 +694,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                    'concentration for all immobile species ' // &
                    '(listed under IMMOBILE card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif
         
         if (associated(constraint%immobile_species)) then
@@ -681,7 +712,154 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
   
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 
-end subroutine TranConstraintRead
+end subroutine TranConstraintReadRT
+
+! ************************************************************************** !
+
+#if 0
+!geh: breaks pflotran_rxn build
+subroutine TranConstraintReadNWT(constraint,nw_trans,input,option)
+  ! 
+  ! Reads a transport constraint from the input file
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 05/29/2019
+  ! 
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  use Option_module
+! have to comment line to prevent addition to dependencies
+!  use NW_Transport_Aux_module
+  use Input_Aux_module
+  use String_module
+  use Logging_module
+
+  implicit none
+  
+  type(tran_constraint_type) :: constraint
+  type(nw_trans_realization_type) :: nw_trans
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: block_string
+  PetscInt :: icomp
+  type(nwt_species_constraint_type), pointer :: nwt_species_constraint
+  PetscErrorCode :: ierr
+
+  call PetscLogEventBegin(logging%event_tran_constraint_read, &
+                          ierr);CHKERRQ(ierr)
+
+  ! read the constraint
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    call InputReadStringErrorMsg(input,option,'CONSTRAINT')
+        
+    if (InputCheckExit(input,option)) exit  
+
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
+      
+    select case(trim(word))
+
+      case('CONC','CONCENTRATIONS')
+
+        nwt_species_constraint => &
+          NWTSpeciesConstraintCreate(nw_trans,option)
+
+        block_string = 'CONSTRAINT, CONCENTRATIONS'
+        icomp = 0
+        do
+          call InputReadPflotranString(input,option)
+          call InputReadStringErrorMsg(input,option,block_string)
+          
+          if (InputCheckExit(input,option)) exit  
+          
+          icomp = icomp + 1        
+          
+          if (icomp > nw_trans%params%nspecies) then
+            option%io_buffer = 'Number of concentration constraints exceeds &
+                               &the number of species given in the &
+                               &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT block. &
+                               &Error in constraint: ' // trim(constraint%name)
+            call PrintErrMsg(option)
+          endif
+          
+          call InputReadWord(input,option,nwt_species_constraint%names(icomp), &
+                          PETSC_TRUE)
+          call InputErrorMsg(input,option,'species name',block_string)
+          option%io_buffer = 'Constraint Species: ' // &
+                             trim(nwt_species_constraint%names(icomp))
+          call PrintMsg(option)
+          
+          call InputReadDouble(input,option, &
+                               nwt_species_constraint%constraint_conc(icomp))
+          call InputErrorMsg(input,option,'concentration',block_string)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputDefaultMsg(input,option,trim(block_string) // &
+                               'constraint type')
+          if (len_trim(word) > 0) then
+            call StringToUpper(word)
+            select case(word)
+              case('AQ','AQUEOUS')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_AQ_EQUILIBRIUM
+              case('PPT','PRECIPITATED')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_PPT_EQUILIBRIUM
+              case('SB','SORBED')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_SB_EQUILIBRIUM
+              case('T','TOTAL')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_T_EQUILIBRIUM
+              case default
+                option%io_buffer = 'Error in constraint: ' // &
+                  trim(constraint%name) // '. The constraint type given for &
+                  &species ' // trim(nwt_species_constraint%names(icomp)) // &
+                  ' is not recognized: ' // trim(word) // '. &
+                  &Options include: T, AQ, PPT, or SB only.'
+                call PrintErrMsg(option)
+            end select
+          else
+            option%io_buffer = 'Error in constraint: ' // &
+              trim(constraint%name) // '. A constraint type was not specified &
+              &for species ' // trim(nwt_species_constraint%names(icomp)) // '.'
+            call PrintErrMsg(option)
+          endif
+        enddo  
+        
+        if (icomp < nw_trans%params%nspecies) then
+          option%io_buffer = &
+                   'Number of concentration constraints is less than ' // &
+                   'number of species in species constraint.'
+          call PrintErrMsg(option)
+        endif
+        if (icomp > nw_trans%params%nspecies) then
+          option%io_buffer = &
+                   'Number of concentration constraints is greater than ' // &
+                   'number of species in species constraint.'
+          call PrintWrnMsg(option)
+        endif
+        
+        if (associated(constraint%nwt_species)) &
+          call NWTSpeciesConstraintDestroy(constraint%nwt_species)
+        constraint%nwt_species => nwt_species_constraint 
+               
+        
+      case default
+        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
+    end select 
+  
+  enddo  
+  
+  call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
+
+end subroutine TranConstraintReadNWT
+#endif
 
 ! ************************************************************************** !
 
@@ -788,6 +966,10 @@ subroutine TranConstraintMapToCoupler(constraint_coupler,constraint)
   constraint_coupler%surface_complexes => constraint%surface_complexes
   constraint_coupler%colloids => constraint%colloids
   constraint_coupler%immobile_species => constraint%immobile_species
+#if 0
+!geh: breaks pflotran_rxn build
+  constraint_coupler%nwt_species => constraint%nwt_species
+#endif
   constraint_coupler%equilibrate_at_each_cell = &
     constraint%equilibrate_at_each_cell
 

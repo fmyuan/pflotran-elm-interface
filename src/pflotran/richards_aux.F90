@@ -64,6 +64,8 @@ module Richards_Aux_module
 #endif
   end type richards_type
 
+  PetscReal, parameter :: perturbation_tolerance = 1.d-6
+
   public :: RichardsAuxCreate, RichardsAuxDestroy, &
             RichardsAuxVarCompute, RichardsAuxVarInit, &
             RichardsAuxVarCopy, &
@@ -282,7 +284,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         class default
           option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
             'sat_func_VG_type and sat_func_BC_type'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
@@ -296,7 +298,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
           rpf%m = auxvar%bc_lambda
         class default
           option%io_buffer = 'Unsupported LIQUID-REL-PERM-FUNCTION'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
 #endif
@@ -332,7 +334,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                          dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensity')
     endif
     ! may need to compute dpsat_dt to pass to VISW
@@ -345,7 +347,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,natural_id, &
+      call PrintMsgByCell(option,natural_id, &
                           'Error in RichardsAuxVarCompute->EOSWaterDensityExt')
     endif
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
@@ -368,12 +370,15 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 end subroutine RichardsAuxVarCompute
 
 ! ************************************************************************** !
-subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,option)
+subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
+                                              material_auxvar, &
+                                              characteristic_curves, &
+                                              option)
 
   ! Computes 2nd order derivatives auxiliary variables for each grid cell
   ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/02/18
+  ! Author: Gautam Bisht, Satish Karra
+  ! Date: 07/02/18, 06/26/19
   ! 
 
 #include "petsc/finclude/petscsys.h"
@@ -390,45 +395,46 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(auxvar,characteristic_curves,optio
 
   type(option_type) :: option
   class(characteristic_curves_type) :: characteristic_curves
-  type(richards_auxvar_type) :: auxvar
-
-  PetscReal, parameter :: dp = 1.d-4
-  PetscReal :: d2s_dp2
-  PetscReal :: d2den_dp2
-  PetscReal :: pw1,pw2
-  PetscReal :: dw_dp_1,dw_dp_2
-  PetscReal :: dw_kg,dw_mol,dw_dt
-  PetscBool :: saturated
+  type(richards_auxvar_type) :: rich_auxvar, rich_auxvar_pert
+  type(global_auxvar_type) :: global_auxvar, global_auxvar_pert
+  class(material_auxvar_type) :: material_auxvar
+  type(material_auxvar_type) :: material_auxvar_pert
+  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
+  PetscInt :: ideriv
   PetscErrorCode :: ierr
 
-  auxvar%d2sat_dp2 = 0.d0
-  d2s_dp2 = 0.d0
-  d2den_dp2 = 0.d0
+  rich_auxvar%d2sat_dp2 = 0.d0
+  rich_auxvar%d2den_dp2 = 0.d0
 
-  pw1 = option%reference_pressure
-  saturated = PETSC_FALSE
+  call GlobalAuxVarInit(global_auxvar_pert,option)  
+  call MaterialAuxVarInit(material_auxvar_pert,option)  
+  call RichardsAuxVarCopy(rich_auxvar,rich_auxvar_pert,option)
+  call GlobalAuxVarCopy(global_auxvar,global_auxvar_pert,option)
+  call MaterialAuxVarCopy(material_auxvar,material_auxvar_pert,option)
+  x(1) = global_auxvar%pres(1)
+  
+  ideriv = 1
+  pert = max(dabs(x(ideriv)*perturbation_tolerance),0.1d0)
+  x_pert = x
+  if (x_pert(ideriv) < option%reference_pressure) pert = -1.d0*pert
+  x_pert(ideriv) = x_pert(ideriv) + pert
 
-  if (auxvar%pc > 0.d0) then
+  call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
+                       material_auxvar_pert, &
+                       characteristic_curves, &
+                       -999, &
+                       option)   
+
+  rich_auxvar%d2den_dp2 = (rich_auxvar_pert%dden_dp - rich_auxvar%dden_dp)/pert
+  if (rich_auxvar%pc > 0.d0) then
     call characteristic_curves%saturation_function% &
-                               D2SatDP2(auxvar%pc, &
-                                          d2s_dp2,option)
-    saturated = PETSC_FALSE
-    if (auxvar%dsat_dp < 1.d-40) saturated = PETSC_TRUE
-  else
-    saturated = PETSC_TRUE
+                               D2SatDP2(rich_auxvar%pc, &
+                                          rich_auxvar%d2sat_dp2,option)
   endif
 
-  if (saturated) then
-    pw2 = pw1 + dp
-    call EOSWaterDensity(option%reference_temperature,pw1,dw_kg,dw_mol, &
-                         dw_dp_1,dw_dt,ierr)
-    call EOSWaterDensity(option%reference_temperature,pw2,dw_kg,dw_mol, &
-                         dw_dp_2,dw_dt,ierr)
-    d2den_dp2 = (dw_dp_2 - dw_dp_2)/dp
-  endif
-
-  auxvar%d2sat_dp2 = d2s_dp2
-  auxvar%d2den_dp2 = d2den_dp2
+    
+  call GlobalAuxVarStrip(global_auxvar_pert)  
+  call MaterialAuxVarStrip(material_auxvar_pert)  
 
 end subroutine RichardsAuxVarCompute2ndOrderDeriv
 

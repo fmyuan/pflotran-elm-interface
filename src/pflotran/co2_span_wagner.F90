@@ -419,7 +419,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
 
   if (len_trim(option%co2_database_filename) < 2) then
     option%io_buffer = 'CO2 database filename not included in input deck.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (myrank == 0) then
@@ -1674,18 +1674,18 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
 
   if ( press_min >= press_max ) then
     option%io_buffer = "CO2_SPAN_WAGNER_DB: P_min >= P_max"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( press_max > 800.0d0 ) then
     option%io_buffer = "CO2_SPAN_WAGNER_DB: P_max > 800 MPa, " // &
                         "out of valid pressure range"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( press_min < 0.0d0 ) then
     option%io_buffer = "CO2_SPAN_WAGNER_DB: P_min < 0 - negative pressure"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   n_tab_press = int( (press_max - press_min ) / press_delta ) + 1
@@ -1711,19 +1711,19 @@ subroutine co2_span_wagner_db_write(temparray,filename,option)
 
   if ( temp_min >= temp_max ) then
     option%io_buffer = "CO2_SPAN_WAGNER_DB: T_min >= T_max"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( temp_max > 1100.0d0 ) then
     option%io_buffer = "CO2_SPAN_WAGNER_DB: T_max > 1100 K, " // &
                         "out of valid temperature range"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if ( temp_min < 216.0d0 ) then
     option%io_buffer = "CO2_SPAN_WAGNER_DB: T_min < 216 K, " // &
                         "out of valid temperature range"
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   n_tab_temp = int( dabs(temp_max - temp_min ) / temp_delta ) + 1
