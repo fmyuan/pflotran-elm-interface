@@ -230,8 +230,6 @@ module Option_module
     !man: impose restrictions on when a grid block can change state 
     PetscBool :: restrict_state_chng
 
-    PetscBool :: snes_newtontr
-
   end type option_type
 
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -608,8 +606,6 @@ subroutine OptionInitRealization(option)
   option%phase_chng_epsilon = 1.d-6 !1.d-6
   
   option%restrict_state_chng = PETSC_FALSE
-
-  option%snes_newtontr = PETSC_FALSE
 
 end subroutine OptionInitRealization
 

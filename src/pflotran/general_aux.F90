@@ -31,8 +31,6 @@ module General_Aux_module
 
   PetscBool, public :: general_hydrate_flag = PETSC_FALSE
 
-  PetscBool, public :: general_newtontr_restrict = PETSC_FALSE 
-
   ! debugging
   PetscInt, public :: general_ni_count
   PetscInt, public :: general_ts_cut_count
@@ -1343,8 +1341,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
-  if (general_immiscible .or. global_auxvar%istatechng .or. &
-            general_newtontr_restrict) return
+  if (general_immiscible .or. global_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase

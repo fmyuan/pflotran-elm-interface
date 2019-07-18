@@ -61,7 +61,8 @@ module Hydrate_module
 
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
 
-  PetscReal :: hydrate_perm_base(3) = -1.d0
+  PetscReal :: hydrate_perm_base(3) = -999.9d0
+  PetscInt :: hydrate_perm_scaling_function = 0
 
   public :: HydrateSetFlowMode, &
             HydrateRead, &
@@ -129,6 +130,7 @@ subroutine HydrateRead(input,meth,option)
 
   character(len=MAXSTRINGLENGTH) :: error_string 
   character(len=MAXWORDLENGTH) :: word
+  PetscInt :: temp_int
 
   do
 
@@ -177,6 +179,15 @@ subroutine HydrateRead(input,meth,option)
               call InputErrorMsg(input,option,'k_alpha',error_string) 
           end select
         enddo
+      case('PERM_SCALING_FUNCTION')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('DAI_AND_SEOL')
+            temp_int = 1
+            hydrate_perm_scaling_function = temp_int
+        end select
     end select
 
   enddo 
@@ -222,8 +233,7 @@ subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
   PetscBool :: istatechng
   PetscErrorCode :: ierr
 
-  if (general_immiscible .or. global_auxvar%istatechng .or. &
-               general_newtontr_restrict) return
+  if (general_immiscible .or. global_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1681,12 +1691,17 @@ subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       material_auxvar%porosity = gen_auxvar%effective_porosity
     endif
     solid_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
-    !permeability reduction as a function of hydrate saturation
-    !if (hydrate_perm_base(1) < 0.d0) then
-    !  hydrate_perm_base = material_auxvar%permeability
-    !endif
-    !material_auxvar%permeability = hydrate_perm_base * &
-    !                  (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2 
+    
+    select case (hydrate_perm_scaling_function)
+      case(1) ! Dai and Seol, 2014
+        if (hydrate_perm_base(1) < -999.d0) then
+          hydrate_perm_base = material_auxvar%permeability
+        endif
+        material_auxvar%permeability = hydrate_perm_base * &
+                    (1.d0-solid_sat_eff)**3/(1.d0+2.d0*solid_sat_eff)**2
+      case default
+    end select
+
   endif
   if (associated(gen_auxvar%d)) then
     gen_auxvar%d%por_p = dpor_dp

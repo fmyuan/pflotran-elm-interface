@@ -530,7 +530,6 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   PetscBool :: input_prefix_option_found
   PetscBool :: output_dir_found
   PetscBool :: output_file_prefix_found
-  PetscBool :: snes_option_found
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscInt :: i
   PetscErrorCode :: ierr
@@ -592,13 +591,6 @@ subroutine PFLOTRANInitCommandLineSettings(option)
       call printErrMsg(option)
     endif
     option%id = i
-  endif
-
-  string = '-snes_type'
-  call InputGetCommandLineString(string,option%input_prefix, &
-                                 snes_option_found,option)
-  if (snes_option_found) then
-    option%snes_newtontr = PETSC_TRUE
   endif
  
 end subroutine PFLOTRANInitCommandLineSettings

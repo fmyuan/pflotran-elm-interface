@@ -1297,8 +1297,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscReal :: qsrc(3)
   PetscInt :: ssn
   
-  PetscReal :: newtr_norm
-
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
 
@@ -1653,17 +1651,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   endif
 
   update_upwind_direction = PETSC_FALSE
-
-  !if (option%snes_newtontr) then
-  !  call VecNorm(r,NORM_2,newtr_norm,ierr);CHKERRQ(ierr)
-  !  if(isnan(newtr_norm)) then
-  !    call VecGetArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  !    newtr_norm = sum(r_p**2) 
-  !    newtr_norm = sqrt(newtr_norm)
-  !    r_p(:)=999.d10
-  !    call VecRestoreArrayF90(r,r_p,ierr);CHKERRQ(ierr)
-  !  endif  
-  !endif
 
 end subroutine GeneralResidual
 
@@ -2058,10 +2045,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   ! update after evaluations to ensure zero-based index to match screen output
   general_ni_count = general_ni_count + 1
-
-  if (option%snes_newtontr) then
-    general_newtontr_restrict = PETSC_TRUE 
-  endif
 
 end subroutine GeneralJacobian
 
