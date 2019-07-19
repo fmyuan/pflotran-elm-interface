@@ -14,10 +14,16 @@ module NWT_Constraint_module
   private
   
   ! concentration subcondition types
+  ! constraint on aqueous concentration:
   PetscInt, parameter, public :: CONSTRAINT_AQ_EQUILIBRIUM = 1
+  ! constraint on mineral (precipitated) concentration:
   PetscInt, parameter, public :: CONSTRAINT_PPT_EQUILIBRIUM = 2
+  ! constraint on sorbed concentration:
   PetscInt, parameter, public :: CONSTRAINT_SB_EQUILIBRIUM = 3
+  ! constraint on total bulk concentration:
   PetscInt, parameter, public :: CONSTRAINT_T_EQUILIBRIUM = 4
+  ! constraint on mineral volume fraction:
+  PetscInt, parameter, public :: CONSTRAINT_MNRL_VOL_FRAC_EQ = 5
 
   type, public :: nwt_constraint_type
     PetscInt :: id
@@ -259,12 +265,15 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
               case('T','TOTAL')
                 nwt_species_constraint%constraint_type(icomp) = &
                                                     CONSTRAINT_T_EQUILIBRIUM
+              case('VF','PRECIPITATED_VOLUME_FRACTION')
+                nwt_species_constraint%constraint_type(icomp) = &
+                                                    CONSTRAINT_MNRL_VOL_FRAC_EQ
               case default
                 option%io_buffer = 'Error in constraint: ' // &
                   trim(constraint%name) // '. The constraint type given for &
                   &species ' // trim(nwt_species_constraint%names(icomp)) // &
                   ' is not recognized: ' // trim(word) // '. &
-                  &Options include: T, AQ, PPT, or SB only.'
+                  &Options include: VF, T, AQ, PPT, or SB only.'
                 call PrintErrMsg(option)
             end select
           else

@@ -419,9 +419,9 @@ mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
 multisimulation.o : input_aux.o option.o pflotran_constants.o
 nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  field.o fluid.o global_aux.o grid.o logging.o material.o \
-                 material_aux.o nw_transport_aux.o option.o output_aux.o \
-                 pflotran_constants.o realization_subsurface.o \
-                 transport_constraint.o
+                 material_aux.o nw_transport_aux.o nw_transport_equilibrium.o \
+                 option.o output_aux.o pflotran_constants.o \
+                 realization_subsurface.o transport_constraint.o
 nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o output_aux.o \
                      pflotran_constants.o string.o utility.o variables.o
 nw_transport_constraint.o : global_aux.o input_aux.o logging.o \
@@ -974,8 +974,9 @@ th.o : characteristic_curves.o condition.o connection.o coupler.o debug.o \
        pflotran_constants.o realization_subsurface.o region.o \
        saturation_function.o secondary_continuum.o secondary_continuum_aux.o \
        string.o th_aux.o utility.o variables.o
-th_aux.o : characteristic_curves.o eos_water.o global_aux.o material_aux.o \
-           option.o pflotran_constants.o saturation_function.o
+th_aux.o : characteristic_curves.o characteristic_curves_common.o eos_water.o \
+           global_aux.o material_aux.o option.o pflotran_constants.o \
+           saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \

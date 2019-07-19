@@ -405,6 +405,7 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
 
   use Option_module
   use Material_Aux_class
+  use NWT_Equilibrium_module
   
   implicit none
   
@@ -414,15 +415,53 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   type(nw_trans_realization_type) :: nw_trans
   type(option_type) :: option
   
-  ! aqueous concentration (equilibrium)
-  nwt_auxvar%aqueous_eq_conc(:) = nwt_auxvar%total_bulk_conc(:) / &
-                     (global_auxvar%sat(LIQUID_PHASE)*material_auxvar%porosity)
-                     
-  ! sorbed concentration (equilibrium)
-  nwt_auxvar%sorb_eq_conc(:) = 1.d-40  ! placeholder
+  type(species_type), pointer :: cur_species
+  PetscReal :: solubility(nw_trans%params%nspecies)  ! [mol/m^3-liq]
+  PetscReal :: ppt_mass(nw_trans%params%nspecies)    ! [mol/m^3-bulk]
+  PetscReal :: sorb_mass(nw_trans%params%nspecies)   ! [mol/m^3-bulk]
+  PetscReal :: mnrl_molar_density(nw_trans%params%nspecies)  ! [mol/m^3-mnrl]
+  PetscReal :: ele_kd(nw_trans%params%nspecies)      ! [m^3-water/m^3-bulk]
+  PetscBool :: dry_out
+  PetscInt :: ispecies
+  PetscReal :: sat, por
+
+  sat = global_auxvar%sat(LIQUID_PHASE)
+  por = material_auxvar%porosity
   
-  ! precipitated concentration (equilibrium)
-  nwt_auxvar%mnrl_eq_conc(:) = 1.d-40  ! placeholder
+  if (sat > 0.d0) then
+    dry_out = PETSC_FALSE
+  else
+    dry_out = PETSC_TRUE
+  endif
+  
+  cur_species => nw_trans%species_list
+  do 
+    if (.not.associated(cur_species)) exit
+    solubility(cur_species%id) = cur_species%solubility_limit
+    mnrl_molar_density(cur_species%id) = cur_species%mnrl_molar_density
+    ele_kd(cur_species%id) = cur_species%ele_kd
+    cur_species => cur_species%next
+  enddo
+  
+  !-------aqueous concentration (equilibrium)
+  nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))* &
+                                  (1.d0/(1.d0+(ele_kd(:)/(sat*por))))
+  ! check aqueous concentration against solubility limit and update
+  do ispecies = 1,nw_trans%params%nspecies
+    call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
+                             global_auxvar,dry_out,ele_kd(ispecies), &
+                             nwt_auxvar%total_bulk_conc(ispecies), &
+                             nwt_auxvar%aqueous_eq_conc(ispecies), &
+                             ppt_mass(ispecies),sorb_mass(ispecies))
+  enddo
+                     
+  !-------sorbed concentration (equilibrium)
+  nwt_auxvar%sorb_eq_conc(:) = sorb_mass(:)
+  
+  !-------precipitated concentration (equilibrium)
+  nwt_auxvar%mnrl_eq_conc(:) = ppt_mass(:)
+  nwt_auxvar%mnrl_vol_frac(:) = nwt_auxvar%mnrl_eq_conc(:)/ &
+                              (material_auxvar%porosity*mnrl_molar_density(:))
 
 end subroutine NWTAuxVarCompute
 
@@ -545,12 +584,12 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   
   ! Zero out the residual pointer
   r_p = 0.d0
-  WRITE(*,*)  '       r_p(1) = ', r_p(:)
+  !WRITE(*,*)  '       r_p(1) = ', r_p(:)
   
   ! Update the auxiliary variables
   call NWTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
   
-  WRITE(*,*)  'fixed_accum_p = ', fixed_accum_p(:)
+  !WRITE(*,*)  'fixed_accum_p = ', fixed_accum_p(:)
   
 #if 1
   !== Accumulation Terms ======================================
@@ -560,7 +599,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id) <= 0) cycle
 
-      WRITE(*,*)  '  auxvars_aqc = ', nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) 
+      !WRITE(*,*)  '  auxvars_aqc = ', nwt_auxvars(ghosted_id)%aqueous_eq_conc(:) 
        
       call NWTResidualAccum(nwt_auxvars(ghosted_id), &
                             global_auxvars(ghosted_id), &
@@ -577,8 +616,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   endif
 #endif
 
-  WRITE(*,*)  '     ResAccum = ', Res(:)
-  WRITE(*,*)  '       r_p(2) = ', r_p(:)
+  !WRITE(*,*)  '     ResAccum = ', Res(:)
+  !WRITE(*,*)  '       r_p(2) = ', r_p(:)
   
 #if 1
   !== Source/Sink Terms =======================================
@@ -598,8 +637,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       call NWTResidualSrcSink(nwt_auxvars(ghosted_id), &
                              source_sink,realization%patch%ss_flow_vol_fluxes, &
                              sum_connection,nw_trans,Res)
-      WRITE(*,*)  '  SrcSinkName = ', source_sink%name                       
-      WRITE(*,*)  '   ResSrcSink = ', Res(:)
+      !WRITE(*,*)  '  SrcSinkName = ', source_sink%name                       
+      !WRITE(*,*)  '   ResSrcSink = ', Res(:)
       
       offset = (local_id-1)*nspecies
       istart = offset + 1
@@ -620,7 +659,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   enddo
 #endif
 
-  WRITE(*,*)  '       r_p(3) = ', r_p(:)
+  !WRITE(*,*)  '       r_p(3) = ', r_p(:)
 
 #if 1
   !== Decay and Ingrowth ======================================
@@ -642,10 +681,10 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   enddo
 #endif
 
-  WRITE(*,*)  '        ResRx = ', Res(:)
-  WRITE(*,*)  '       r_p(4) = ', r_p(:)
+  !WRITE(*,*)  '        ResRx = ', Res(:)
+  !WRITE(*,*)  '       r_p(4) = ', r_p(:)
 
-#if 0
+#if 1
   !== Fluxes ==================================================
   if (option%compute_mass_balance_new) then
     ! jenn:todo Create NWTZeroMassBalanceDelta(realization)
@@ -706,6 +745,8 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     cur_connection_set => cur_connection_set%next
   enddo
   
+  !WRITE(*,*)  '       r_p(5) = ', r_p(:)
+  
   ! Boundary Flux Terms ---------------------------------------
   boundary_condition => realization%patch%boundary_condition_list%first
   sum_connection = 0    
@@ -755,6 +796,9 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 #endif
+
+
+  !WRITE(*,*)  '       r_p(6) = ', r_p(:)
   
   ! multiply residual by (-1.0) because Newton's Method is (J)(dC) = (-R)
   r_p = -1.0d0*r_p
@@ -881,7 +925,7 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: Res(nw_trans%params%nspecies)
   
   PetscInt :: istart, iend
-  PetscReal :: pv
+  PetscReal :: por, sat, volume
   
   Res = 0.d0
   
@@ -889,28 +933,29 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   ! Dividing by dt will occur later in NWTResidual.
   
   ! porosity in [m^3-void/m^3-bulk]
+  ! saturation in [m^3-liq/m^3-void]
   ! volume in [m^3-bulk]
-  ! pv in [m^3-void]
-  pv = material_auxvar%porosity*material_auxvar%volume
+  por = material_auxvar%porosity
+  sat = global_auxvar%sat(LIQUID_PHASE)
+  volume = material_auxvar%volume
       
   istart = 1
   iend = nw_trans%params%nspecies
   
   ! -- Aqueous-Component ----------------------------------------
-  ! saturation in [m^3-liq/m^3-void]
+  
   ! aqueous conc in [mol-species/m^3-liq]
-  Res(istart:iend) = pv*global_auxvar%sat(LIQUID_PHASE)* &
-                     nwt_auxvar%aqueous_eq_conc(:)
+  Res(istart:iend) = volume*por*sat*nwt_auxvar%aqueous_eq_conc(:)
                      
   ! -- Precipitated-Component -----------------------------------
-  ! mineral volume fraction in [m^3-mnrl/m^3-void]
-  ! precipitated conc in [mol-species/m^3-mnrl]
+  ! precipitated conc in [mol-species/m^3-bulk]
   Res(istart:iend) = Res(istart:iend) + &
-                     pv*nwt_auxvar%mnrl_vol_frac(:)* &
-                     nwt_auxvar%mnrl_eq_conc(:)
+                     volume*nwt_auxvar%mnrl_eq_conc(:)
                   
   ! -- Sorbed-Component -----------------------------------------
-  ! jenn:todo Add sorbed component into NWTResidualAccum().
+  ! sorbed conc in [mol-species/m^3-bulk]
+  Res(istart:iend) = Res(istart:iend) + &
+                     volume*nwt_auxvar%sorb_eq_conc(:)
 
 end subroutine NWTResidualAccum
 
@@ -978,12 +1023,12 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
                      (coef_out*source_sink%tran_condition% &
                                cur_nwt_constraint_coupler%nwt_auxvar% &
                                aqueous_eq_conc(:))
-  WRITE(*,*)  '      coef_in = ', coef_in
-  WRITE(*,*)  '   in aq_conc = ', nwt_auxvar%aqueous_eq_conc(:)
-  WRITE(*,*)  '     coef_out = ', coef_out
-  WRITE(*,*)  '  out aq_conc = ', source_sink%tran_condition% &
-                                  cur_nwt_constraint_coupler%nwt_auxvar% &
-                                  aqueous_eq_conc(:)
+  !WRITE(*,*)  '      coef_in = ', coef_in
+  !WRITE(*,*)  '   in aq_conc = ', nwt_auxvar%aqueous_eq_conc(:)
+  !WRITE(*,*)  '     coef_out = ', coef_out
+  !WRITE(*,*)  '  out aq_conc = ', source_sink%tran_condition% &
+  !                                cur_nwt_constraint_coupler%nwt_auxvar% &
+  !                                aqueous_eq_conc(:)
                                
   ! -- Precipitated-Component -----------------------------------
   ! There is no contribution from precipitated components.
@@ -1304,7 +1349,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                               realization%patch%ss_flow_vol_fluxes, &
                               sum_connection,nw_trans,Jac) 
                               
-      WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
+      !WRITE(*,*)  '   JacSrcSink = ', Jac(:,:)
                                 
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jac, &
@@ -1333,7 +1378,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   enddo
 #endif
   
-#if 0
+#if 1
   !== Fluxes ==================================================
     
   ! Interior Flux Terms ---------------------------------------
@@ -1841,8 +1886,8 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
 
     ! equilibrium sorption (sum_mol_sb) [mol]
     sum_mol_sb(1:ncomp) = sum_mol_sb(1:ncomp) + &
-            nwt_auxvars(ghosted_id)%sorb_eq_conc(:) * &    ! [mol/m^3-sorb]
-            volume                                         ! [m^3-sorb]
+            nwt_auxvars(ghosted_id)%sorb_eq_conc(:) * &    ! [mol/m^3-bulk]
+            volume                                         ! [m^3-bulk]
     ! jenn:tod Is this the correct calc for sum_mol_sb? Is volume right?
 
     ! mineral volume fractions (sum_mol_mnrl) [mol]

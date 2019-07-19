@@ -169,6 +169,7 @@ module Variables_module
   PetscInt, parameter, public :: MNRL_EQ_CONC            = 1002
   PetscInt, parameter, public :: SORB_EQ_CONC            = 1003
   PetscInt, parameter, public :: TOTAL_BULK_CONC         = 1004
+  PetscInt, parameter, public :: MNRL_VOLUME_FRACTION    = 1005
   
   
 

@@ -24,9 +24,9 @@ module NW_Transport_Aux_module
     ! dissolved 
     PetscReal, pointer :: aqueous_eq_conc(:)   ! mol-species/m^3-liq
     ! sorbed 
-    PetscReal, pointer :: sorb_eq_conc(:)      ! mol-species/m^3-sorb
+    PetscReal, pointer :: sorb_eq_conc(:)      ! mol-species/m^3-bulk
     ! precipitated 
-    PetscReal, pointer :: mnrl_eq_conc(:)      ! mol-species/m^3-mnrl 
+    PetscReal, pointer :: mnrl_eq_conc(:)      ! mol-species/m^3-bulk 
     PetscReal, pointer :: mnrl_vol_frac(:)     ! m^3-mnrl/m^3-void 
     ! auxiliary array to store miscellaneous data 
     PetscReal, pointer :: auxiliary_data(:)
@@ -72,6 +72,7 @@ module NW_Transport_Aux_module
   type, public :: nwt_print_type
     PetscBool :: aqueous_eq_conc
     PetscBool :: mnrl_eq_conc
+    PetscBool :: mnrl_vol_frac
     PetscBool :: sorb_eq_conc
     PetscBool :: total_bulk_conc
     PetscBool :: all_species
@@ -82,6 +83,9 @@ module NW_Transport_Aux_module
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: id
     PetscReal :: molar_weight
+    PetscReal :: mnrl_molar_density  ! [mol/m^3-mnrl]
+    PetscReal :: solubility_limit    ! [mol/m^3-liq]
+    PetscReal :: ele_kd              ! [m^3-water/m^3-bulk
     PetscBool :: radioactive
     PetscBool :: print_me
     type(species_type), pointer :: next
@@ -266,6 +270,7 @@ function NWTRealizCreate()
   allocate(nwtr%print_what)
   nwtr%print_what%aqueous_eq_conc = PETSC_FALSE
   nwtr%print_what%mnrl_eq_conc = PETSC_FALSE
+  nwtr%print_what%mnrl_vol_frac = PETSC_FALSE
   nwtr%print_what%sorb_eq_conc = PETSC_FALSE
   nwtr%print_what%total_bulk_conc = PETSC_FALSE
   nwtr%print_what%all_species = PETSC_FALSE
@@ -310,6 +315,7 @@ subroutine NWTRead(nw_trans,input,option)
   temp_species_names = ''
   temp_species_parents = ''
   nullify(prev_rad_rxn)
+  nullify(prev_species)
   k = 0
   
   input%ierr = 0
@@ -325,47 +331,86 @@ subroutine NWTRead(nw_trans,input,option)
     
     select case(trim(keyword))
       case('SPECIES')
-        nullify(prev_species)
         error_string = trim(error_string_base) // ',SPECIES'
+        
+        nw_trans%params%nspecies = nw_trans%params%nspecies + 1
+        option%ntrandof = nw_trans%params%nspecies
+        k = k + 1
+        if (k > 50) then
+          option%io_buffer = 'More than 50 species are provided using ' &
+                             // trim(error_string) // ' blocks.'
+          call PrintErrMsgToDev(option, 'if reducing to less than 50 is not &
+                                &an option.')
+        endif
+        new_species => NWTSpeciesCreate()
+        
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
           
-          nw_trans%params%nspecies = nw_trans%params%nspecies + 1
-          option%ntrandof = nw_trans%params%nspecies
-          k = k + 1
-          if (k > 50) then
-            option%io_buffer = 'More than 50 species are provided in the ' &
-                               // trim(error_string) // ', SPECIES block.'
-            call PrintErrMsgToDev(option, 'if reducing to less than 50 is not &
-                                  &an option.')
-          endif
-          new_species => NWTSpeciesCreate()
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'species name',error_string)
-          call StringToUpper(word)
-          temp_species_names(k) = trim(word)
-          new_species%name = trim(word)
-          if (.not.associated(nw_trans%species_list)) then
-            nw_trans%species_list => new_species
-            new_species%id = 1
-          endif
-          if (associated(prev_species)) then
-            prev_species%next => new_species
-            new_species%id = prev_species%id + 1
-          endif
-          prev_species => new_species
-          nullify(new_species)
+          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+          
+          select case(trim(keyword))
+            case('NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'species name',error_string)
+              call StringToUpper(word)
+              temp_species_names(k) = trim(word)
+              new_species%name = trim(word)
+            case('SOLUBILITY')
+              call InputReadDouble(input,option,new_species%solubility_limit)
+              call InputErrorMsg(input,option,'species solubility',error_string)
+            case('PRECIP_MOLAR_DENSITY')
+              call InputReadDouble(input,option,new_species%mnrl_molar_density)
+              call InputErrorMsg(input,option,'species mineral molar density', &
+                                 error_string)
+            case('ELEMENTAL_KD')
+              call InputReadDouble(input,option,new_species%ele_kd)
+              call InputErrorMsg(input,option,'species elemental Kd', &
+                                 error_string)
+            case default
+              call InputKeywordUnrecognized(keyword,error_string,option)
+          end select
         enddo
-        if (k == 0) then
-          option%io_buffer = 'ERROR: At least one species &
-                              &must be provided in the ' // &
-                              trim(error_string) // ' block.'
+        
+        if (new_species%name == '') then
+          option%io_buffer = 'NAME not provided in ' // trim(error_string) // &
+                             ' block.'
           call PrintErrMsg(option)
         endif
-        allocate(nw_trans%species_names(k))
-        nw_trans%species_names(1:k) = temp_species_names(1:k)
+        if (Uninitialized(new_species%solubility_limit)) then
+          option%io_buffer = 'SOLUBILITY not provided in ' // &
+                             trim(error_string) // ' block for SPECIES ' // &
+                             trim(new_species%name) // '.'
+          call PrintErrMsg(option)
+        endif
+        if (Uninitialized(new_species%mnrl_molar_density)) then
+          option%io_buffer = 'PRECIP_MOLAR_DENSITY not provided in ' // &
+                             trim(error_string) // ' block for SPECIES ' // &
+                             trim(new_species%name) // '.'
+          call PrintErrMsg(option)
+        endif
+        if (Uninitialized(new_species%ele_kd)) then
+          option%io_buffer = 'ELEMENTAL_KD not provided in ' // &
+                             trim(error_string) // ' block for SPECIES ' // &
+                             trim(new_species%name) // '.'
+          call PrintErrMsg(option)
+        endif
+
+        if (.not.associated(nw_trans%species_list)) then
+          nw_trans%species_list => new_species
+          new_species%id = 1
+        endif
+        if (associated(prev_species)) then
+          prev_species%next => new_species
+          new_species%id = prev_species%id + 1
+        endif
+        prev_species => new_species
+        nullify(new_species)
+        
       case('RADIOACTIVE_DECAY')
         nullify(prev_rad_rxn)
         error_string = trim(error_string_base) // ',RADIOACTIVE_DECAY'
@@ -392,7 +437,7 @@ subroutine NWTRead(nw_trans,input,option)
             new_rad_rxn%daughter_name = trim(word)
             j = 0
             ! record which species was the parent
-            do
+            do while (j < 50)
               j = j + 1
               if (trim(temp_species_names(j)) == &
                   trim(new_rad_rxn%daughter_name)) then
@@ -414,16 +459,25 @@ subroutine NWTRead(nw_trans,input,option)
       case('LOG_FORMULATION')
         nw_trans%use_log_formulation = PETSC_TRUE
       case('TRUNCATE_CONCENTRATION')
+        error_string = trim(error_string_base) // ',TRUNCATE_CONCENTRATION'
         call InputReadDouble(input,option, &
                              nw_trans%params%truncated_concentration)
-        call InputErrorMsg(input,option,'TRUNCATE_CONCENTRATION',error_string)
+        call InputErrorMsg(input,option,'concentration value',error_string)
       case('OUTPUT')
         call NWTReadOutput(nw_trans,input,option)
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(keyword,error_string_base,option)
     end select
             
   enddo
+  
+  if (k == 0) then
+     option%io_buffer = 'ERROR: At least one species must be provided &
+                        &in a ' // trim(error_string_base) // ',SPECIES block.'
+     call PrintErrMsg(option)
+  endif
+  allocate(nw_trans%species_names(k))
+  nw_trans%species_names(1:k) = temp_species_names(1:k)
   
   ! assign species_id, parent_id to the rad_rxn objects
   ! check that all radioactive species were listed in the SPECIES block
@@ -483,6 +537,8 @@ subroutine NWTReadOutput(nw_trans,input,option)
         nw_trans%print_what%mnrl_eq_conc= PETSC_TRUE
       case('SORBED_CONCENTRATION')
         nw_trans%print_what%sorb_eq_conc= PETSC_TRUE
+      case('MINERAL_VOLUME_FRACTION')
+        nw_trans%print_what%mnrl_vol_frac= PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,error_string,option)
     end select
@@ -618,7 +674,7 @@ subroutine NWTSetPlotVariables(list,nw_trans,option,time_unit)
     do i=1,nw_trans%params%nspecies
       if (nw_trans%species_print(i)) then
         name = 'Mnrl. Conc. ' // trim(nw_trans%species_names(i))
-        units = 'mol/m^3-mnrl'
+        units = 'mol/m^3-bulk'
         call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
                                      MNRL_EQ_CONC,i)
       endif
@@ -629,9 +685,20 @@ subroutine NWTSetPlotVariables(list,nw_trans,option,time_unit)
     do i=1,nw_trans%params%nspecies
       if (nw_trans%species_print(i)) then
         name = 'Sorb. Conc. ' // trim(nw_trans%species_names(i))
-        units = 'mol/m^3-sorb'
+        units = 'mol/m^3-bulk'
         call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
                                      SORB_EQ_CONC,i)
+      endif
+    enddo
+  endif
+  
+  if (nw_trans%print_what%mnrl_vol_frac) then
+    do i=1,nw_trans%params%nspecies
+      if (nw_trans%species_print(i)) then
+        name = 'Mnrl. Vol. Frac. ' // trim(nw_trans%species_names(i))
+        units = 'm^3-mnrl/m^3-void'
+        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
+                                     MNRL_VOLUME_FRACTION,i)
       endif
     enddo
   endif
@@ -657,7 +724,10 @@ function NWTSpeciesCreate()
   allocate(species) 
   species%id = 0 
   species%name = ''
-  species%molar_weight = 0.d0
+  species%molar_weight = UNINITIALIZED_DOUBLE
+  species%mnrl_molar_density = UNINITIALIZED_DOUBLE
+  species%solubility_limit = UNINITIALIZED_DOUBLE 
+  species%ele_kd = UNINITIALIZED_DOUBLE 
   species%radioactive = PETSC_FALSE
   species%print_me = PETSC_FALSE
   nullify(species%next)
@@ -752,14 +822,13 @@ subroutine NWTVerifySpecies(species_list,rad_decay_rxn_list,species_names, &
       species => species%next
     enddo
     if (.not.parent_found) then
-      option%io_buffer = 'ERROR: Radioactive species ' // trim(rad_rxn%name) &
-                         // ' must also be included in the SPECIES block.'
+      option%io_buffer = 'Radioactive species ' // trim(rad_rxn%name) &
+                         // ' must also be included using a SPECIES block.'
       call PrintErrMsg(option)
     endif
     if (.not.daughter_found) then
-      option%io_buffer = 'ERROR: Radioactive species ' // &
-                         trim(rad_rxn%daughter_name) &
-                         // ' must also be included in the SPECIES block.'
+      option%io_buffer = 'Radioactive species ' // trim(rad_rxn%daughter_name) &
+                         // ' must also be included using a SPECIES block.'
       call PrintErrMsg(option)
     endif
     

@@ -678,7 +678,7 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
   
-  WRITE(*,*)  '         dC_p = ', dC_p(:)
+  !WRITE(*,*)  '         dC_p = ', dC_p(:)
 
   if (nw_trans%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
@@ -696,7 +696,7 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     
-    WRITE(*,*)  '          C_p = ', C_p(:)
+    !WRITE(*,*)  '          C_p = ', C_p(:)
     
     if (Initialized(nw_trans%params%truncated_concentration)) then
       dC_p = min(dC_p,C_p-nw_trans%params%truncated_concentration)

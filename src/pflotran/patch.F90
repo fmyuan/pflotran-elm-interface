@@ -5526,7 +5526,8 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
       endif
 
     ! NUCLEAR_WASTE_TRANSPORT:
-    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC)
+    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
+         MNRL_VOLUME_FRACTION)
       select case(ivar)
         case(TOTAL_BULK_CONC)
           do local_id=1,grid%nlmax
@@ -5547,6 +5548,11 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%sorb_eq_conc(isubvar)
+          enddo
+        case(MNRL_VOLUME_FRACTION)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%NWT%auxvars(grid%nL2G(local_id))%mnrl_vol_frac(isubvar)
           enddo
       end select
     
@@ -6865,7 +6871,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
       endif
 
     ! NUCLEAR_WASTE_TRANSPORT:
-    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC)
+    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
+         MNRL_VOLUME_FRACTION)
       select case(ivar)
         case(TOTAL_BULK_CONC)
           value = patch%aux%NWT%auxvars(ghosted_id)%total_bulk_conc(isubvar)
@@ -6875,6 +6882,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_eq_conc(isubvar)
         case(SORB_EQ_CONC)
           value = patch%aux%NWT%auxvars(ghosted_id)%sorb_eq_conc(isubvar)
+        case(MNRL_VOLUME_FRACTION)
+          value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_vol_frac(isubvar)
       end select
     
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
@@ -8001,7 +8010,8 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       endif
       
     ! NUCLEAR_WASTE_TRANSPORT:
-    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC)
+    case(TOTAL_BULK_CONC,AQUEOUS_EQ_CONC,MNRL_EQ_CONC,SORB_EQ_CONC, &
+         MNRL_VOLUME_FRACTION)
       select case(ivar)
         case(TOTAL_BULK_CONC)
           call PrintErrMsg(option,'Setting of TOTAL_BULK_CONC at grid cell &
@@ -8015,6 +8025,9 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         case(SORB_EQ_CONC)
           call PrintErrMsg(option,'Setting of SORB_EQ_CONC at grid cell &
                            &not yet supported.')
+        case(MNRL_VOLUME_FRACTION)
+          call PrintErrMsg(option,'Setting of MNRL_VOLUME_FRACTION at grid &
+                           &cell not yet supported.')
       end select
       
     case(PRIMARY_MOLALITY,TOTAL_MOLARITY,MINERAL_VOLUME_FRACTION, &
