@@ -29,8 +29,6 @@ module General_Aux_module
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
 
-  PetscBool, public :: general_hydrate_flag = PETSC_FALSE
-
   PetscBool, public :: gen_chk_max_dpl_liq_state_only = PETSC_FALSE
 
   ! debugging
@@ -93,7 +91,6 @@ module General_Aux_module
   
   type, public :: general_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
-    PetscInt :: hstate_store(2) 
     PetscReal, pointer :: pres(:)   ! (iphase)
     PetscReal, pointer :: sat(:)    ! (iphase)
     PetscReal, pointer :: den(:)    ! (iphase) kmol/m^3 phase
@@ -185,16 +182,6 @@ module General_Aux_module
     PetscReal :: newton_inf_scaled_res_tol
     PetscBool :: check_post_converged
   end type general_parameter_type
-
-  type, public :: methanogenesis_type
-    character(len=MAXWORDLENGTH) :: source_name
-    PetscReal :: alpha
-    PetscReal :: k_alpha
-    PetscReal :: lambda
-    PetscReal :: omega
-    PetscReal :: z_smt
-    type(methanogenesis_type), pointer :: next
-  end type methanogenesis_type
 
   type, public :: general_type
     PetscInt :: n_inactive_rows
@@ -311,7 +298,6 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   type(option_type) :: option
 
   auxvar%istate_store = NULL_STATE
-  auxvar%hstate_store = NULL_STATE
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
@@ -423,7 +409,6 @@ subroutine GeneralAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%istate_store = auxvar%istate_store
-  auxvar2%hstate_store = auxvar%hstate_store
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
