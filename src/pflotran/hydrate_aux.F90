@@ -21,6 +21,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_temp_dep_gas_air_diff = PETSC_TRUE
   PetscBool, public :: hydrate_harmonic_diff_density = PETSC_TRUE
   PetscInt, public :: hydrate_newton_iteration_number = 0
+  PetscBool, public :: hydrate_allow_state_change = PETSC_TRUE
 
   PetscBool, public :: hyd_chk_max_dpl_liq_state_only = PETSC_FALSE
 
@@ -84,8 +85,6 @@ module Hydrate_Aux_module
   ! these variables, which are global to hydrate, can be modified
   PetscInt, public :: dof_to_primary_variable(3,15)
   PetscInt, public :: hydrate_2ph_energy_dof = HYDRATE_TEMPERATURE_INDEX
-  PetscBool, public :: hydrate_isothermal = PETSC_FALSE
-  PetscBool, public :: hydrate_no_air = PETSC_FALSE
 
   PetscInt, parameter, public :: HYD_MULTI_STATE = -2 
   PetscInt, parameter, public :: HYD_ANY_STATE = -1 
@@ -93,7 +92,7 @@ module Hydrate_Aux_module
   PetscInt, parameter, public :: L_STATE = 1
   PetscInt, parameter, public :: G_STATE = 2
   PetscInt, parameter, public :: H_STATE = 3 !5 (4 and 5 conflict with 
-  PetscInt, parameter, public :: ICE_STATE = 4 !4 ANY_STATE and MULTI_STATE)
+  PetscInt, parameter, public :: I_STATE = 4 !4 ANY_STATE and MULTI_STATE)
   PetscInt, parameter, public :: GA_STATE = 5
   PetscInt, parameter, public :: HG_STATE = 6
   PetscInt, parameter, public :: HA_STATE = 7
@@ -745,7 +744,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%xmol(wid,gid) = hyd_auxvar%pres(vpid) / hyd_auxvar%pres(gid)
       hyd_auxvar%xmol(acid,gid) = 1.d0 - hyd_auxvar%xmol(wid,gid)
 
-    case(ICE_STATE)
+    case(I_STATE)
 !     ********* Ice State (I) ********************************
 !     Primary variables: Pg, Xmi, T
 !
@@ -1475,8 +1474,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscReal :: PE_hyd, K_H, Tf_ice, dTf, h_sat_eff, i_sat_eff
   PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, hid, iid, acid, wid
+  PetscInt :: old_state,new_state
   PetscBool :: istatechng
   PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: state_change_string, append
 
   if (hydrate_immiscible .or. global_auxvar%istatechng) return
 
@@ -1531,6 +1532,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   Tf_ice = TQD + dTf
   !Update State
 
+  old_state = global_auxvar%istate
+
   select case(global_auxvar%istate)
     case(L_STATE)
       if (hyd_auxvar%temp > Tf_ice) then
@@ -1567,6 +1570,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       else
         istatechng = PETSC_TRUE
         global_auxvar%istate = AI_STATE
+
       endif
 
     case(G_STATE)
@@ -1577,10 +1581,12 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             istatechng = PETSC_TRUE
             global_auxvar%istate = GA_STATE
             gas_epsilon = option%phase_chng_epsilon
+
           elseif (hyd_auxvar%temp == Tf_ice) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = GAI_STATE
             gas_epsilon = option%phase_chng_epsilon
+
           else
             istatechng = PETSC_TRUE
             global_auxvar%istate = GI_STATE
@@ -1590,6 +1596,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
           gas_epsilon = option%phase_chng_epsilon
+
         endif
       else
         istatechng = PETSC_FALSE
@@ -1601,9 +1608,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%temp > Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGA_STATE
+
         elseif (hyd_auxvar%temp == Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = QUAD_STATE
+
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGI_STATE
@@ -1612,7 +1621,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_FALSE
       endif
 
-    case(ICE_STATE)
+    case(I_STATE)
       if (hyd_auxvar%temp > Tf_ice) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = QUAD_STATE
@@ -1735,7 +1744,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = G_STATE
         else
           istatechng = PETSC_TRUE
-          global_auxvar%istate = ICE_STATE
+          global_auxvar%istate = I_STATE
         endif
       elseif (hyd_auxvar%temp < Tf_ice) then
         istatechng = PETSC_TRUE
@@ -1769,7 +1778,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = L_STATE
         else
           istatechng = PETSC_TRUE
-          global_auxvar%istate = ICE_STATE
+          global_auxvar%istate = I_STATE
         endif
       endif
 
@@ -1831,13 +1840,14 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = H_STATE
         elseif (hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_TRUE
-          global_auxvar%istate = ICE_STATE
+          global_auxvar%istate = I_STATE
         endif
       else
         istatechng = PETSC_TRUE
         global_auxvar%istate = QUAD_STATE
       endif
     case(HGI_STATE)
+
       if (hyd_auxvar%temp < Tf_ice) then
         if (hyd_auxvar%sat(iid) > 0.d0 .and. hyd_auxvar%sat(hid) > 0.d0 &
             .and. hyd_auxvar%sat(gid) > 0.d0) then
@@ -1856,7 +1866,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = GI_STATE
         elseif (hyd_auxvar%sat(iid) > 0.d0) then
           istatechng = PETSC_TRUE
-          global_auxvar%istate = ICE_STATE
+          global_auxvar%istate = I_STATE
         elseif (hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
@@ -1895,7 +1905,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = L_STATE
         else
           istatechng = PETSC_TRUE
-          global_auxvar%istate = ICE_STATE
+          global_auxvar%istate = I_STATE
         endif
       else
         istatechng = PETSC_TRUE
@@ -1958,13 +1968,96 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         global_auxvar%istate = G_STATE
       else
         istatechng = PETSC_TRUE
-        global_auxvar%istate = ICE_STATE
+        global_auxvar%istate = I_STATE
       endif
   end select
+
+  new_state = global_auxvar%istate
 
   !Update primary variables
 
   if (istatechng) then
+  
+    select case (old_state)
+      case(L_STATE)
+        state_change_string = 'Liquid --> '
+      case(G_STATE)
+        state_change_string = 'Gas --> '
+      case(H_STATE)
+        state_change_string = 'Hydrate --> '
+      case(I_STATE)
+        state_change_string = 'Ice --> '
+      case(GA_STATE)
+        state_change_string = 'Gas-Aqueous --> '
+      case(HG_STATE)
+        state_change_string = 'Hydrate-Gas --> '
+      case(HA_STATE)
+        state_change_string = 'Hydrate-Aqueous --> '
+      case(HI_STATE)
+        state_change_string = 'Hydrate-Ice --> '
+      case(GI_STATE)
+        state_change_string = 'Gas-Ice --> '
+      case(AI_STATE)
+        state_change_string = 'Aqueous-Ice --> '
+      case(HGA_STATE)
+        state_change_string = 'Hydrate-Gas-Aqueous --> '
+      case(HAI_STATE)
+        state_change_string = 'Hydrate-Aqueous-Ice --> '
+      case(HGI_STATE)
+        state_change_string = 'Hydrate-Gas-Ice --> '
+      case(GAI_STATE)
+        state_change_string = 'Gas-Aqueous-Ice --> '
+      case(QUAD_STATE)
+        state_change_string = '4-Phase --> '
+
+    end select
+
+    select case (new_state)
+      case(L_STATE)
+        state_change_string = trim(state_change_string) // ' Liquid'
+      case(G_STATE)
+        state_change_string = trim(state_change_string) // ' Gas'
+      case(H_STATE)
+        state_change_string = trim(state_change_string) // ' Hydrate'
+      case(I_STATE)
+        state_change_string = trim(state_change_string) // ' Ice'
+      case(GA_STATE)
+        state_change_string = trim(state_change_string) // ' Gas-Aqueous'
+      case(HG_STATE)
+        state_change_string = trim(state_change_string) // ' Hydrate-Gas'
+      case(HA_STATE)
+        state_change_string = trim(state_change_string) // ' Hydrate-Aqueous'
+      case(HI_STATE)
+        state_change_string = trim(state_change_string) // ' Hydrate-Ice'
+      case(GI_STATE)
+        state_change_string = trim(state_change_string) // ' Gas-Ice'
+      case(AI_STATE)
+        state_change_string = trim(state_change_string) // ' Aqueous-Ice'
+      case(HGA_STATE)
+        state_change_string = trim(state_change_string) // &
+                              ' Hydrate-Gas-Aqueous'
+      case(HAI_STATE)
+        state_change_string = trim(state_change_string) // &
+                              ' Hydrate-Aqueous-Ice'
+      case(HGI_STATE)
+        state_change_string = trim(state_change_string) // ' Hydrate-Gas-Ice'
+      case(GAI_STATE)
+        state_change_string = trim(state_change_string) // ' Gas-Aqueous-Ice'
+      case(QUAD_STATE)
+        state_change_string = trim(state_change_string) // ' 4-Phase'
+    end select
+
+    if (option%iflag == HYDRATE_UPDATE_FOR_ACCUM) then
+      write(append,'('' at Cell '',i8)') natural_id
+    else if (option%iflag == HYDRATE_UPDATE_FOR_DERIVATIVE) then
+      write(append, &
+            '(''(due to perturbation) '',i8)') natural_id
+    else
+      write(append, &
+             '('' at Boundary Face '', i8)') natural_id
+    endif
+
+    state_change_string = trim(state_change_string) // trim(append)
 
     if (option%restrict_state_chng) global_auxvar%istatechng = PETSC_TRUE
 
@@ -1994,7 +2087,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         x(HYDRATE_GAS_SATURATION_DOF) = MOL_RATIO_METH
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
-      case(ICE_STATE)
+      case(I_STATE)
 !     ********* Ice State (I) ********************************
 !     Primary variables: Pg, Xmi, T
 !
@@ -2101,6 +2194,11 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
     call HydrateAuxVarCompute(x,hyd_auxvar, global_auxvar,material_auxvar, &
           characteristic_curves,natural_id,option)
 
+    state_change_string = 'State Transition: ' // trim(state_change_string)
+    if (hydrate_print_state_transition) then
+      call PrintMsgByRank(option,state_change_string)
+    endif
+
   endif
 
 end subroutine HydrateAuxVarUpdateState
@@ -2205,7 +2303,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       pert(HYDRATE_ENERGY_DOF) = &
          perturbation_tolerance*x(HYDRATE_ENERGY_DOF) + min_perturbation
 
-    case(ICE_STATE)
+    case(I_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
       x(HYDRATE_GAS_SATURATION_DOF) = 0.d0
@@ -2469,7 +2567,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
     case(H_STATE)
       hyd_auxvar(HYDRATE_GAS_PRESSURE_DOF)%pert = &
         hyd_auxvar(HYDRATE_GAS_PRESSURE_DOF)%pert / HYDRATE_PRESSURE_SCALE
-    case(ICE_STATE)
+    case(I_STATE)
       hyd_auxvar(HYDRATE_GAS_PRESSURE_DOF)%pert = &
         hyd_auxvar(HYDRATE_GAS_PRESSURE_DOF)%pert / HYDRATE_PRESSURE_SCALE
     case(GA_STATE)

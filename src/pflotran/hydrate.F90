@@ -769,11 +769,6 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   PetscReal :: xxbc(realization%option%nflowdof), & 
                xxss(realization%option%nflowdof)
   PetscReal :: cell_pressure,qsrc_vol(2),scale
-!#define DEBUG_AUXVARS
-#ifdef DEBUG_AUXVARS
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt, save :: icall = 0
-#endif
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -791,11 +786,6 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
     
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
-#ifdef DEBUG_AUXVARS
-  icall = icall + 1
-  write(word,*) icall
-  word = 'hydaux' // trim(adjustl(word))
-#endif
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
      
@@ -824,12 +814,6 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
                                       patch%sat_func_id(ghosted_id))%ptr, &
                                     natural_id, option)
     endif
-#ifdef DEBUG_AUXVARS
-!geh: for debugging
-    call HydrateOutputAuxVars(hyd_auxvars(0,ghosted_id), &
-                              global_auxvars(ghosted_id),natural_id,word, &
-                              PETSC_TRUE,option)
-#endif
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -1230,11 +1214,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   use Upwind_Direction_module
   use Hydrate_Common_module
 
-!#define DEBUG_WITH_TECPLOT
-#ifdef DEBUG_WITH_TECPLOT
-  use Output_Tecplot_module
-#endif
-
   implicit none
 
   SNES :: snes
@@ -1324,19 +1303,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   
                                              ! do update state
-  call HydrateUpdateAuxVars(realization,PETSC_TRUE)
-
-! for debugging a single grid cell
-!  i = 6
-!  call HydrateOutputAuxVars(hyd_auxvars(0,i),global_auxvars(i),i,'hydaux', &
-!                            PETSC_TRUE,option)
-#ifdef DEBUG_WITH_TECPLOT
-! for debugging entire solution over a single SNES solve
-  write(word,*) iplot
-  iplot = iplot + 1
-  realization%output_option%plot_name = 'hydrate-ni-' // trim(adjustl(word))
-  call OutputTecplotPoint(realization)
-#endif
+  call HydrateUpdateAuxVars(realization,hydrate_allow_state_change)
 
   ! override flags since they will soon be out of date
   patch%aux%Hydrate%auxvars_up_to_date = PETSC_FALSE 
@@ -1591,23 +1558,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     call VecRestoreArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
   endif
   
-  if (hydrate_isothermal) then
-    call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-    ! zero energy residual
-    do local_id = 1, grid%nlmax
-      r_p((local_id-1)*option%nflowdof+HYDRATE_ENERGY_EQUATION_INDEX) =  0.d0
-    enddo
-    call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  endif
-  if (hydrate_no_air) then
-    call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-    ! zero energy residual
-    do local_id = 1, grid%nlmax
-      r_p((local_id-1)*option%nflowdof+HYDRATE_GAS_EQUATION_INDEX) =  0.d0
-    enddo
-    call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  endif  
-
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Gresidual','', &
                             hydrate_ts_count,hydrate_ts_cut_count, &
@@ -1739,10 +1689,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     enddo
   endif
   
-#ifdef DEBUG_HYDRATE_LOCAL
-  call HydrateOutputAuxVars(hyd_auxvars,global_auxvars,option)
-#endif 
-
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
@@ -1952,32 +1898,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                           patch%aux%Hydrate%inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
-  endif
-
-  if (hydrate_isothermal) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%Hydrate%row_zeroing_array
-    ! zero energy residual
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
-                        HYDRATE_ENERGY_EQUATION_INDEX - 1 ! zero-based
-    enddo
-    call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
-                          PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
-  endif
-
-  if (hydrate_no_air) then
-    qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%Hydrate%row_zeroing_array
-    ! zero gas component mass balance residual
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      zeros(local_id) = (ghosted_id-1)*option%nflowdof+ &
-                        HYDRATE_GAS_EQUATION_INDEX - 1 ! zero-based
-    enddo
-    call MatZeroRowsLocal(A,grid%nlmax,zeros,qsrc,PETSC_NULL_VEC, &
-                          PETSC_NULL_VEC,ierr);CHKERRQ(ierr)
   endif
   
   if (realization%debug%matview_Jacobian) then
@@ -2372,14 +2292,6 @@ subroutine HydrateSSSandbox(residual,Jacobian,compute_derivative, &
                             hydrate_auxvars(idof,ghosted_id)%pert
         enddo
       enddo
-      if (hydrate_isothermal) then
-        Jac(HYDRATE_ENERGY_EQUATION_INDEX,:) = 0.d0
-        Jac(:,HYDRATE_ENERGY_EQUATION_INDEX) = 0.d0
-      endif         
-      if (hydrate_no_air) then
-        Jac(HYDRATE_GAS_EQUATION_INDEX,:) = 0.d0
-        Jac(:,HYDRATE_GAS_EQUATION_INDEX) = 0.d0
-      endif          
       call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1, &
                                     ghosted_id-1,Jac,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)

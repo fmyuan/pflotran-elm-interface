@@ -24,7 +24,6 @@ module Hydrate_Common_module
 #define AIR_SRCSINK
 #define ENERGY_SRCSINK
   
-!#define DEBUG_FLUXES  
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.d-8
@@ -3894,16 +3893,6 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
     enddo ! idof
   endif
 
-  if (hydrate_isothermal) then
-    J(HYDRATE_ENERGY_EQUATION_INDEX,:) = 0.d0
-    J(:,HYDRATE_ENERGY_EQUATION_INDEX) = 0.d0
-  endif
-  
-  if (hydrate_no_air) then
-    J(HYDRATE_GAS_EQUATION_INDEX,:) = 0.d0
-    J(:,HYDRATE_GAS_EQUATION_INDEX) = 0.d0
-  endif
-  
 end subroutine HydrateAccumDerivative
 
 ! ************************************************************************** !
@@ -4021,20 +4010,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
     enddo ! idof
   endif
 
-  if (hydrate_isothermal) then
-    Jup(HYDRATE_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jup(:,HYDRATE_ENERGY_EQUATION_INDEX) = 0.d0
-    Jdn(HYDRATE_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jdn(:,HYDRATE_ENERGY_EQUATION_INDEX) = 0.d0
-  endif
-  
-  if (hydrate_no_air) then
-    Jup(HYDRATE_GAS_EQUATION_INDEX,:) = 0.d0
-    Jup(:,HYDRATE_GAS_EQUATION_INDEX) = 0.d0
-    Jdn(HYDRATE_GAS_EQUATION_INDEX,:) = 0.d0
-    Jdn(:,HYDRATE_GAS_EQUATION_INDEX) = 0.d0
-  endif  
-
 end subroutine HydrateFluxDerivative
 
 ! ************************************************************************** !
@@ -4124,16 +4099,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
     enddo ! idof
   endif
 
-  if (hydrate_isothermal) then
-    Jdn(HYDRATE_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jdn(:,HYDRATE_ENERGY_EQUATION_INDEX) = 0.d0
-  endif
-  
-  if (hydrate_no_air) then
-    Jdn(HYDRATE_GAS_EQUATION_INDEX,:) = 0.d0
-    Jdn(:,HYDRATE_GAS_EQUATION_INDEX) = 0.d0
-  endif  
-  
 end subroutine HydrateBCFluxDerivative
 
 ! ************************************************************************** !
@@ -4189,16 +4154,6 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
       enddo !irow
     enddo ! idof
   endif
-  
-  if (hydrate_isothermal) then
-    Jac(HYDRATE_ENERGY_EQUATION_INDEX,:) = 0.d0
-    Jac(:,HYDRATE_ENERGY_EQUATION_INDEX) = 0.d0
-  endif
-  
-  if (hydrate_no_air) then
-    Jac(HYDRATE_GAS_EQUATION_INDEX,:) = 0.d0
-    Jac(:,HYDRATE_GAS_EQUATION_INDEX) = 0.d0
-  endif  
   
 end subroutine HydrateSrcSinkDerivative
 

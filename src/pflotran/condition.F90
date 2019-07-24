@@ -58,8 +58,6 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: liquid_pressure
     type(flow_sub_condition_type), pointer :: gas_pressure
     type(flow_sub_condition_type), pointer :: gas_saturation
-    type(flow_sub_condition_type), pointer :: hydrate_saturation
-    type(flow_sub_condition_type), pointer :: ice_saturation
     type(flow_sub_condition_type), pointer :: mole_fraction
     type(flow_sub_condition_type), pointer :: relative_humidity
     type(flow_sub_condition_type), pointer :: temperature
@@ -306,8 +304,6 @@ function FlowGeneralConditionCreate(option)
   nullify(general_condition%liquid_pressure)
   nullify(general_condition%gas_pressure)
   nullify(general_condition%gas_saturation)
-  nullify(general_condition%hydrate_saturation)
-  nullify(general_condition%ice_saturation)
   nullify(general_condition%relative_humidity)
   nullify(general_condition%mole_fraction)
   nullify(general_condition%temperature)

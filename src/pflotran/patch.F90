@@ -1639,53 +1639,6 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     do iconn = 1, num_connections
       select case(coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn))
       ! ---------------------------------------------------------------------- !
-        case(HA_STATE)
-          ! gas pressure; 1st dof ------------------------ !
-          select case(general%gas_pressure%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                     patch%grid,general%gas_pressure%dataset,iconn,gas_pressure)
-              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
-              dof1 = PETSC_TRUE
-              coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(general%gas_pressure%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'GENERAL_MODE_HYD HA-state gas pressure ',string)
-              call PrintErrMsg(option)
-          end select
-          ! hydrate saturation; 2nd dof ---------------------- !
-          select case(general%hydrate_saturation%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                        patch%grid,general%hydrate_saturation%dataset,iconn, &
-                        hyd_sat)
-              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = hyd_sat
-              dof2 = PETSC_TRUE
-              coupler%flow_bc_type(GENERAL_GAS_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(general%hydrate_saturation%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'GENERAL_MODE_HYD HA-state hydrate saturation ',string)
-              call PrintErrMsg(option)
-          end select
-          ! temperature; 3rd dof ------------------------- !  
-          select case(general%temperature%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                       patch%grid,general%temperature%dataset,iconn,temperature)
-              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
-              dof3 = PETSC_TRUE
-              coupler%flow_bc_type(GENERAL_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(general%temperature%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'GENERAL_MODE_HYD HA-state temperature ',string)
-              call PrintErrMsg(option)
-          end select
         case(TWO_PHASE_STATE)
           ! gas pressure; 1st dof ------------------------ !
           select case(general%gas_pressure%itype)

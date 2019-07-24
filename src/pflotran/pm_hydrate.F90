@@ -144,10 +144,6 @@ function PMHydrateCreate()
              sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol], &
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
-#ifdef PM_HYDRATE_DEBUG  
-  print *, 'PMHydrateCreate()'
-#endif  
-
   allocate(this)
   allocate(this%max_change_ivar(6))
   this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
@@ -275,7 +271,8 @@ subroutine PMHydrateRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-      !man: hydrate
+      case('NO_STATE_TRANSITION_PRINTING')    
+        hydrate_print_state_transition = PETSC_FALSE
       case('HYDRATE_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -471,8 +468,6 @@ subroutine PMHydrateRead(this,input)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call HydrateAuxSetEnergyDOF(word,option)
-      case('NO_AIR')
-        hydrate_no_air = PETSC_TRUE
       case('MAXIMUM_PRESSURE_CHANGE')
         call InputReadDouble(input,option,hydrate_max_pressure_change)
         call InputErrorMsg(input,option,'maximum pressure change', &
@@ -662,10 +657,6 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: governor_value
   character(MAXSTRINGLENGTH) :: string
   type(field_type), pointer :: field
-  
-#ifdef PM_HYDRATE_DEBUG  
-  call PrintMsg(this%option,'PMHydrate%UpdateTimestep()')
-#endif
   
   fac = 0.5d0
   if (num_newton_iterations >= iacceleration) then
@@ -869,6 +860,8 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
 
   call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
+
+  hydrate_allow_state_change = PETSC_FALSE
 
   ! MAN: END OLD
   if (this%check_post_convergence) then
@@ -1110,7 +1103,9 @@ subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   field => this%realization%field
   patch => this%realization%patch
   global_auxvars => patch%aux%Global%auxvars
-  
+ 
+  hydrate_allow_state_change = PETSC_TRUE
+ 
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
 
