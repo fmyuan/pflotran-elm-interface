@@ -342,9 +342,15 @@ subroutine CondControlAssignFlowInitCond(realization)
                 case(GAS_STATE)
                   xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
                     general%gas_pressure%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-                    general%gas_pressure%dataset%rarray(1) * &
-                    general%mole_fraction%dataset%rarray(1)
+                  if (general_gas_air_mass_dof == &
+                      GENERAL_AIR_PRESSURE_INDEX) then
+                    xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+                      general%gas_pressure%dataset%rarray(1) * &
+                      general%mole_fraction%dataset%rarray(1)
+                  else
+                    xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+                      general%mole_fraction%dataset%rarray(1)
+                  endif
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                     general%temperature%dataset%rarray(1)
               end select
