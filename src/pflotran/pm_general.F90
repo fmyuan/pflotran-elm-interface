@@ -31,6 +31,7 @@ module PM_General_class
     PetscReal :: hyd_rel_update_inf_tol(3,15)
     PetscReal :: damping_factor
     PetscInt :: general_newton_max_iter
+
   contains
     procedure, public :: ReadSimulationBlock => PMGeneralRead
     procedure, public :: InitializeRun => PMGeneralInitializeRun
@@ -174,6 +175,7 @@ function PMGeneralCreate()
   this%max_change_isubvar = [0,0,0,2,0,0]
   this%damping_factor = -1.d0
   this%general_newton_max_iter = 8
+
   
   call PMSubsurfaceFlowCreate(this)
   this%name = 'General Multiphase Flow'
@@ -510,6 +512,12 @@ subroutine PMGeneralRead(this,input)
         general_immiscible = PETSC_TRUE
       case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
         gen_chk_max_dpl_liq_state_only = PETSC_TRUE
+     case('NON_DARCY_FLOW')
+        general_non_darcy_flow = PETSC_TRUE
+     case('NON_DARCY_FLOW_B')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+         non_darcy_B = tempreal
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select

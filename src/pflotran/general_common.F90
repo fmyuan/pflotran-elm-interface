@@ -467,7 +467,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: delta_X_whatever
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
-  PetscReal :: mobility, q
+  PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux, wat_mole_flux, air_mole_flux
   PetscReal :: stpd_up, stpd_dn
   PetscReal :: sat_up, sat_dn, den_up, den_dn
@@ -511,6 +511,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
+
+  !Non darcy
+  PetscReal :: K, I, grad
   
   ! DELETE
   
@@ -608,17 +611,31 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
       uH = gen_auxvar_up%H(iphase)
+      kr= gen_auxvar_up%kr(iphase)
     else
       dn_scale = 1.d0
       mobility = gen_auxvar_dn%mobility(iphase)
       xmol(:) = gen_auxvar_dn%xmol(:,iphase)
       uH = gen_auxvar_dn%H(iphase)
+      kr=gen_auxvar_dn%kr(iphase)
     endif      
 
     if (mobility > floweps ) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+
+      !Taken from (Liu, 2014)
+      if (general_non_darcy_flow) then
+         grad=ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+         I=4.d-12*(perm_ave_over_dist(iphase)*kr)**(non_darcy_B)
+         K=perm_ave_over_dist(iphase)*mobility*density_kg_ave*EARTH_GRAVITY
+         v_darcy(iphase)=K*(grad-I*(1.0-exp(-grad/I)))
+         if (delta_pressure<0) then
+             v_darcy(iphase)=-1.0*v_darcy(iphase)
+         endif
+      endif
+
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -632,7 +649,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       !                             density_ave[kmol phase/m^3 phase]        
       tot_mole_flux = q*density_ave
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave
+           mobility * area * density_ave
+
+      if (general_non_darcy_flow) then
+!!         tot_mole_flux_ddel_pressure=area*density_ave*K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn))*(1.0+exp(-grad/I))
+         tot_mole_flux_ddel_pressure=area*density_ave*(K/(density_kg_ave*EARTH_GRAVITY*(dist(1)))*(1.0-(1.0/I)*exp(-grad/I)))
+      endif
+      
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
@@ -1057,17 +1080,31 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       mobility = gen_auxvar_up%mobility(iphase)
       xmol(:) = gen_auxvar_up%xmol(:,iphase)
       uH = gen_auxvar_up%H(iphase)
+      kr=gen_auxvar_up%kr(iphase)
     else
       dn_scale = 1.d0
       mobility = gen_auxvar_dn%mobility(iphase)
       xmol(:) = gen_auxvar_dn%xmol(:,iphase)
       uH = gen_auxvar_dn%H(iphase)
+      kr=gen_auxvar_dn%kr(iphase)
     endif      
 
     if (mobility > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
       v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
+
+      !Taken from (Liu, 2014)
+      if (general_non_darcy_flow) then
+         grad=ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+         I=4.d-12*(perm_ave_over_dist(iphase)*kr)**(non_darcy_B)
+         K=perm_ave_over_dist(iphase)*mobility*density_kg_ave*EARTH_GRAVITY
+         v_darcy(iphase)=K*(grad-I*(1.0-exp(-grad/I)))
+         if (delta_pressure<0) then
+             v_darcy(iphase)=-1.0*v_darcy(iphase)
+         endif
+      endif
+      
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -1081,7 +1118,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
       !                             density_ave[kmol phase/m^3 phase]        
       tot_mole_flux = q*density_ave
       tot_mole_flux_ddel_pressure = perm_ave_over_dist(iphase) * &
-                                       mobility * area * density_ave      
+           mobility * area * density_ave
+
+      if (general_non_darcy_flow) then
+!!         tot_mole_flux_ddel_pressure=area*density_ave*K/(density_kg_ave*EARTH_GRAVITY*(dist_up+dist_dn))*(1.0+exp(-grad/I))
+         tot_mole_flux_ddel_pressure=area*density_ave*(K/(density_kg_ave*EARTH_GRAVITY*(dist(1)))*(1.0-(1.0/I)*exp(-grad/I)))
+      endif
       ! comp_mole_flux[kmol comp/sec] = tot_mole_flux[kmol phase/sec] * 
       !                                 xmol[kmol comp/kmol phase]
       wat_mole_flux = tot_mole_flux * xmol(wat_comp_id)
@@ -2495,7 +2537,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: dist_gravity
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: gravity_term
-  PetscReal :: mobility, q 
+  PetscReal :: mobility, q, kr
   PetscReal :: tot_mole_flux
   PetscReal :: sat_dn, perm_dn, den_dn
   PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
@@ -2552,6 +2594,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jl(3,3)
   PetscReal :: Jg(3,3)
   PetscReal :: Jc(3,3)
+
+  !Non darcy
+  PetscReal :: K, I, grad
   
   PetscInt :: idof
   
@@ -2669,16 +2714,37 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
+          kr=gen_auxvar_up%kr(iphase)
         else
           dn_scale = 1.d0        
           mobility = gen_auxvar_dn%mobility(iphase)
           xmol(:) = gen_auxvar_dn%xmol(:,iphase)
           uH = gen_auxvar_dn%H(iphase)
+          kr=gen_auxvar_dn%kr(iphase)
         endif      
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+
+!        print *, 'old darcy', v_darcy(iphase)
+
+        !Taken from (Liu, 2014)
+        if (general_non_darcy_flow) then
+          grad=ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+!!          print *, "grad= ", grad 
+          I=4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+!!          print *, "I= ", I
+          K=perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+!!          print *, "K= ", K
+          v_darcy(iphase)=K*(grad-I*(1.0-exp(-(grad)/I)))
+!          v_darcy(iphase)=K*grad
+          if (delta_pressure<0) then
+             v_darcy(iphase)=-1.0*v_darcy(iphase)
+          endif
+!!          print *, 'new darcy', v_darcy(iphase)
+        endif
+      
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -2689,6 +2755,11 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+        if (general_non_darcy_flow) then
+!!           dv_darcy_ddelta_pressure=K/(density_kg_ave*EARTH_GRAVITY*dist(0))*(1.0+exp(-grad/I))
+           dv_darcy_ddelta_pressure=(K/(density_kg_ave*EARTH_GRAVITY*(dist(1)))*(1.0-(1.0/I)*exp(-grad/I)))
+           dv_darcy_dmobility=kr*density_kg_ave*EARTH_GRAVITY*(grad-I*(1.0-exp(-grad/I)))
+        endif
       endif
     case(NEUMANN_BC)
       xmol_bool = 0.d0
@@ -3010,16 +3081,30 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           mobility = gen_auxvar_up%mobility(iphase)
           xmol(:) = gen_auxvar_up%xmol(:,iphase)
           uH = gen_auxvar_up%H(iphase)
+          kr=gen_auxvar_up%kr(iphase)
         else
           dn_scale = 1.d0        
           mobility = gen_auxvar_dn%mobility(iphase)
           xmol(:) = gen_auxvar_dn%xmol(:,iphase)
           uH = gen_auxvar_dn%H(iphase)
+          kr=gen_auxvar_dn%kr(iphase)
         endif  
         ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
         !                    dP[Pa]]
         dv_darcy_ddelta_pressure = perm_ave_over_dist * mobility
         v_darcy(iphase) = dv_darcy_ddelta_pressure * delta_pressure
+
+        !Taken from (Liu, 2014)
+        if (general_non_darcy_flow) then
+         grad=ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+         I=4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
+         K=perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
+         v_darcy(iphase)=K*(grad-I*(1.0-exp(-grad/I)))
+         if (delta_pressure<0) then
+             v_darcy(iphase)=-1.0*v_darcy(iphase)
+         endif
+        endif
+      
         ! only need average density if velocity > 0.
         density_ave = GeneralAverageDensity(iphase, &
                                             global_auxvar_up%istate, &
@@ -3030,6 +3115,11 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                             ddensity_ave_dden_dn)    
         ddensity_ave_dden_up = 0.d0 ! always
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
+        if (general_non_darcy_flow) then
+!!           dv_darcy_ddelta_pressure=K/(density_kg_ave*EARTH_GRAVITY*dist(0))*(1.0+exp(-grad/I))
+           dv_darcy_ddelta_pressure=(K/(density_kg_ave*EARTH_GRAVITY*(dist(1)))*(1.0-(1.0/I)*exp(-grad/I)))
+           dv_darcy_dmobility=kr*density_kg_ave*EARTH_GRAVITY*(grad-I*(1.0-exp(-grad/I)))
+        endif
       endif
     case(NEUMANN_BC)
       xmol_bool = 0.d0
