@@ -2145,13 +2145,6 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
   if ( associated(toil_ims%pressure) ) then
     ! pressure is either hydrostatic or dirichlet
     if (toil_ims%pressure%itype == HYDROSTATIC_BC) then
-      if (toil_ims%temperature%itype /= DIRICHLET_BC) then
-            option%io_buffer = &
-              'Hydrostatic pressure bc for flow condition "' // &
-              trim(flow_condition%name) // &
-              '" requires a temperature bc of type dirichlet'
-            call PrintErrMsg(option)
-      endif
       dof2 = PETSC_TRUE
       call HydrostaticMPUpdateCoupler(coupler,option,patch%grid, &
                    patch%characteristic_curves_array,patch%sat_func_id, &
