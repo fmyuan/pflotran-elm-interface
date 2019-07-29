@@ -271,6 +271,8 @@ subroutine PMHydrateRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
+      case('CENTRAL_DIFFERENCE_JACOBIAN')
+        hydrate_central_diff_jacobian = PETSC_TRUE
       case('NO_STATE_TRANSITION_PRINTING')    
         hydrate_print_state_transition = PETSC_FALSE
       case('HYDRATE_UPDATE_INF_TOL')

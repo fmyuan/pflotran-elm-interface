@@ -115,8 +115,8 @@ subroutine HydrateSetup(realization)
   ! 
   ! Creates arrays for auxiliary variables
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -226,9 +226,9 @@ subroutine HydrateSetup(realization)
   else
     ndof = option%nflowdof
   endif
-  allocate(hyd_auxvars(0:ndof,grid%ngmax))
+  allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    do idof = 0, ndof
+    do idof = 0, 2 * ndof
       call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id), &
                          (hydrate_analytical_derivatives .and. idof==0), &
                           option)
@@ -307,8 +307,8 @@ subroutine HydrateInitializeTimestep(realization)
   ! 
   ! Update data in module prior to time step
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -337,8 +337,8 @@ subroutine HydrateUpdateSolution(realization)
   ! Updates data in module after a successful time
   ! step
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -389,8 +389,8 @@ subroutine HydrateTimeCut(realization)
   ! 
   ! Resets arrays for time step cut
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
   use Realization_Subsurface_class
   use Option_module
@@ -435,8 +435,8 @@ subroutine HydrateNumericalJacobianTest(xx,realization,B)
   ! 
   ! Computes the a test numerical jacobian
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/03/15
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -557,8 +557,8 @@ subroutine HydrateComputeMassBalance(realization,mass_balance)
   ! 
   ! Initializes mass balance
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
  
   use Realization_Subsurface_class
@@ -625,8 +625,8 @@ subroutine HydrateZeroMassBalanceDelta(realization)
   ! 
   ! Zeros mass balance delta array
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
  
   use Realization_Subsurface_class
@@ -666,8 +666,8 @@ subroutine HydrateUpdateMassBalance(realization)
   ! 
   ! Updates mass balance
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
  
   use Realization_Subsurface_class
@@ -718,8 +718,8 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   ! 
   ! Updates the auxiliary variables associated with the Hydrate problem
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -1107,8 +1107,8 @@ subroutine HydrateUpdateFixedAccum(realization)
   ! Updates the fixed portion of the
   ! accumulation term
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/10/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -1196,8 +1196,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   ! 
   ! Computes the residual equation
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -1585,8 +1585,8 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   ! 
   ! Computes the Jacobian
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -1942,8 +1942,8 @@ function HydrateGetTecplotHeader(realization,icolumn)
   ! Returns Hydrate Lite contribution to
   ! Tecplot file header
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
   
   use Realization_Subsurface_class
@@ -2068,8 +2068,8 @@ subroutine HydrateSetPlotVariables(realization,list)
   ! 
   ! Adds variables to be printed to list
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 02/15/13
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
   
   use Realization_Subsurface_class
@@ -2181,8 +2181,8 @@ function HydrateAverageDensity(iphase,istate_up,istate_dn, &
   ! 
   ! Averages density, using opposite cell density if phase non-existent
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/07/14
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   implicit none
@@ -2231,8 +2231,8 @@ subroutine HydrateSSSandbox(residual,Jacobian,compute_derivative, &
   ! 
   ! Evaluates source/sink term storing residual and/or Jacobian
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 04/11/14
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 #include "petsc/finclude/petscmat.h"
   use petscmat
@@ -2363,8 +2363,8 @@ subroutine HydrateMapBCAuxVarsToGlobal(realization)
   ! 
   ! Maps variables in hydrate auxvar to global equivalent.
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class
@@ -2417,10 +2417,10 @@ end subroutine HydrateMapBCAuxVarsToGlobal
 
 subroutine HydrateDestroy(realization)
   ! 
-  ! Deallocates variables associated with Richard
+  ! Deallocates variables associated with Hydrate
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Realization_Subsurface_class

@@ -151,8 +151,8 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   ! 
   ! Computes the internal flux terms for the residual
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
   use Option_module
   use Material_Aux_class
@@ -2159,8 +2159,8 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! 
   ! Computes the boundary flux terms for the residual
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
   use Option_module                              
   use Material_Aux_class
@@ -3546,8 +3546,8 @@ subroutine HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
   ! 
   ! Computes the source/sink terms for the residual
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Option_module
@@ -3850,8 +3850,8 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Option_module
@@ -3868,29 +3868,52 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof) 
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscReal :: jac(option%nflowdof,option%nflowdof)
   PetscReal :: jac_pert(option%nflowdof,option%nflowdof)
   PetscInt :: idof, irow
-  
-  call HydrateAccumulation(hyd_auxvar(ZERO_INTEGER),global_auxvar, &
+ 
+  if (.not. hydrate_central_diff_jacobian) then
+    call HydrateAccumulation(hyd_auxvar(ZERO_INTEGER),global_auxvar, &
                            material_auxvar,z,offset,meth,soil_heat_capacity, &
                            option,res,jac,hydrate_analytical_derivatives, &
                            PETSC_FALSE)
-                           
+  endif
+
   if (hydrate_analytical_derivatives) then
     J = jac
   else
-    do idof = 1, option%nflowdof
-      call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
+    if (hydrate_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
                                material_auxvar,z,offset,meth, &
                                soil_heat_capacity,option, &
-                               res_pert,jac_pert,PETSC_FALSE,PETSC_FALSE)
+                               res_pert_plus,jac_pert,PETSC_FALSE,PETSC_FALSE)
       
-      do irow = 1, option%nflowdof
-        J(irow,idof) = (res_pert(irow)-res(irow))/hyd_auxvar(idof)%pert
-      enddo !irow
-    enddo ! idof
+        call HydrateAccumulation(hyd_auxvar(idof+option%nflowdof), &
+                               global_auxvar,material_auxvar,z,offset,meth, &
+                               soil_heat_capacity,option, &
+                               res_pert_minus,jac_pert,PETSC_FALSE,PETSC_FALSE)
+      
+        do irow = 1, option%nflowdof
+          J(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0 * &
+                        hyd_auxvar(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
+                               material_auxvar,z,offset,meth, &
+                               soil_heat_capacity,option, &
+                               res_pert_plus,jac_pert,PETSC_FALSE,PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          J(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
+                        hyd_auxvar(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
   endif
 
 end subroutine HydrateAccumDerivative
@@ -3910,8 +3933,8 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
   use Option_module
   use Material_Aux_class
@@ -3936,7 +3959,8 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: Jdummy(option%nflowdof,option%nflowdof)
 
   PetscReal :: v_darcy(option%nphase)
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
 
   Jup = 0.d0
@@ -3944,7 +3968,9 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   
 !geh:print *, 'HydrateFluxDerivative'
   option%iflag = -2
-  call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+
+  if (.not. hydrate_central_diff_jacobian) then
+    call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                    material_auxvar_up, &
                    thermal_conductivity_up, &
                    hyd_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
@@ -3958,14 +3984,15 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                    ! avoid double counting upwind direction flip
                    PETSC_FALSE, & ! count upwind direction flip
                    PETSC_FALSE)
- 
+  endif
   if (hydrate_analytical_derivatives) then
     Jup = Janal_up
     Jdn = Janal_dn
   else
     ! upgradient derivatives
-    do idof = 1, option%nflowdof
-      call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
+    if(hydrate_central_diff_jacobian) then
+       do idof = 1, option%nflowdof
+         call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
                        hyd_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
@@ -3973,22 +4000,58 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
                        hydrate_parameter, &
-                       option,v_darcy,res_pert,Jdummy,Jdummy, &
+                       option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
                        PETSC_FALSE, & ! update the upwind direction
                        count_upwind_direction_flip, &
                        PETSC_FALSE)
-      
-      do irow = 1, option%nflowdof
-        Jup(irow,idof) = (res_pert(irow)-res(irow))/hyd_auxvar_up(idof)%pert
-        
+     
+         call HydrateFlux(hyd_auxvar_up(idof+option%nflowdof), &
+                       global_auxvar_up,material_auxvar_up, &
+                       thermal_conductivity_up, &
+                       hyd_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,upwind_direction_, &
+                       hydrate_parameter, &
+                       option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE) 
+         do irow = 1, option%nflowdof
+           Jup(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ 2.d0 * &
+                            hyd_auxvar_up(idof)%pert
+         enddo !irow
+       enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call HydrateFlux(hyd_auxvar_up(idof),global_auxvar_up, &
+                       material_auxvar_up, &
+                       thermal_conductivity_up, &
+                       hyd_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,upwind_direction_, &
+                       hydrate_parameter, &
+                       option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          Jup(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
+                            hyd_auxvar_up(idof)%pert
   !geh:print *, 'up: ', irow, idof, Jup(irow,idof), hyd_auxvar_up(idof)%pert
-      enddo !irow
-    enddo ! idof
+        enddo !irow
+      enddo ! idof
+    endif
 
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+    if (hydrate_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                        material_auxvar_up, &
                        thermal_conductivity_up, &
                        hyd_auxvar_dn(idof),global_auxvar_dn, &
@@ -3996,20 +4059,56 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
                        hydrate_parameter, &
-                       option,v_darcy,res_pert,Jdummy,Jdummy, &
+                       option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
                        PETSC_FALSE, & ! update the upwind direction
                        count_upwind_direction_flip, &
                        PETSC_FALSE)
+     
+        call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                       material_auxvar_up, &
+                       thermal_conductivity_up, &
+                       hyd_auxvar_dn(idof+option%nflowdof),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,upwind_direction_, &
+                       hydrate_parameter, &
+                       option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE) 
       
-      
-      do irow = 1, option%nflowdof
-        Jdn(irow,idof) = (res_pert(irow)-res(irow))/hyd_auxvar_dn(idof)%pert
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0*  &
+                            hyd_auxvar_dn(idof)%pert)
   !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), hyd_auxvar_dn(idof)%pert
-      enddo !irow
-    enddo ! idof
-  endif
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call HydrateFlux(hyd_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
+                       material_auxvar_up, &
+                       thermal_conductivity_up, &
+                       hyd_auxvar_dn(idof),global_auxvar_dn, &
+                       material_auxvar_dn, &
+                       thermal_conductivity_dn, &
+                       area,dist,upwind_direction_, &
+                       hydrate_parameter, &
+                       option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
+                       PETSC_FALSE, & ! analytical derivatives
+                       PETSC_FALSE, & ! update the upwind direction
+                       count_upwind_direction_flip, &
+                       PETSC_FALSE)
 
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
+                            hyd_auxvar_dn(idof)%pert
+  !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), hyd_auxvar_dn(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
+  endif
 end subroutine HydrateFluxDerivative
 
 ! ************************************************************************** !
@@ -4027,8 +4126,8 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   ! Computes the derivatives of the boundary flux terms
   ! for the Jacobian
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Option_module 
@@ -4052,7 +4151,8 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
   PetscReal :: v_darcy(option%nphase)
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
 
@@ -4060,7 +4160,9 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
 !geh:print *, 'HydrateBCFluxDerivative'
 
   option%iflag = -2
-  call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
+
+  if (.not. hydrate_central_diff_jacobian) then
+    call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                      hyd_auxvar_up,global_auxvar_up, &
                      hyd_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                      material_auxvar_dn, &
@@ -4073,30 +4175,67 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      ! avoid double counting upwind direction flip
                      PETSC_FALSE, & ! count upwind direction flip
                      PETSC_FALSE)
+  endif
 
   if (hydrate_analytical_derivatives) then
     Jdn = Jdum
   else
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
+    if (hydrate_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          hyd_auxvar_up,global_auxvar_up, &
                          hyd_auxvar_dn(idof),global_auxvar_dn, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
                          area,dist,upwind_direction_, &
                          hydrate_parameter, &
-                         option,v_darcy,res_pert,Jdum, &
+                         option,v_darcy,res_pert_plus,Jdum, &
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
+
+        call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                         hyd_auxvar_up,global_auxvar_up, &
+                         hyd_auxvar_dn(idof+option%nflowdof),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         thermal_conductivity_dn, &
+                         area,dist,upwind_direction_, &
+                         hydrate_parameter, &
+                         option,v_darcy,res_pert_minus,Jdum, &
                          PETSC_FALSE, & ! analytical derivatives
                          PETSC_FALSE, & ! update the upwind direction
                          count_upwind_direction_flip, &
                          PETSC_FALSE)
     
       
-      do irow = 1, option%nflowdof
-        Jdn(irow,idof) = (res_pert(irow)-res(irow))/hyd_auxvar_dn(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0 * &
+                            hyd_auxvar_dn(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
+                         hyd_auxvar_up,global_auxvar_up, &
+                         hyd_auxvar_dn(idof),global_auxvar_dn, &
+                         material_auxvar_dn, &
+                         thermal_conductivity_dn, &
+                         area,dist,upwind_direction_, &
+                         hydrate_parameter, &
+                         option,v_darcy,res_pert_plus,Jdum, &
+                         PETSC_FALSE, & ! analytical derivatives
+                         PETSC_FALSE, & ! update the upwind direction
+                         count_upwind_direction_flip, &
+                         PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          Jdn(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
+                            hyd_auxvar_dn(idof)%pert
+        enddo !irow
+      enddo ! idof
+    endif
   endif
 
 end subroutine HydrateBCFluxDerivative
@@ -4108,8 +4247,8 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   ! 
   ! Computes the source/sink terms for the residual
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/09/11
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   use Option_module
@@ -4126,7 +4265,8 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   
   PetscReal :: qsrc(3)
   PetscInt :: flow_src_sink_type
-  PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: res(option%nflowdof), res_pert_plus(option%nflowdof)
+  PetscReal :: res_pert_minus(option%nflowdof)
   PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
   PetscReal :: Jdum(option%nflowdof,option%nflowdof)
@@ -4135,24 +4275,45 @@ subroutine HydrateSrcSinkDerivative(option,source_sink,hyd_auxvar_ss, &
   flow_src_sink_type = source_sink%flow_condition%hydrate%rate%itype
 
   option%iflag = -3
-  call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
+  
+  if (.not. hydrate_central_diff_jacobian) then
+    call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                       hyd_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
                       scale,res,Jdum,hydrate_analytical_derivatives, &
                       PETSC_FALSE)
-                      
+  endif
+
   if (hydrate_analytical_derivatives) then
     Jac = Jdum
   else                      
     ! downgradient derivatives
-    do idof = 1, option%nflowdof
-      call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
+    if (hydrate_central_diff_jacobian) then
+      do idof = 1, option%nflowdof
+        call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
                           hyd_auxvars(idof),global_auxvar,dummy_real, &
-                          scale,res_pert,Jdum,PETSC_FALSE,PETSC_FALSE)  
+                          scale,res_pert_plus,Jdum,PETSC_FALSE,PETSC_FALSE)
+        call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
+                          hyd_auxvars(idof+option%nflowdof),global_auxvar, &
+                          dummy_real,scale,res_pert_minus,Jdum,PETSC_FALSE, &
+                          PETSC_FALSE)
       
-      do irow = 1, option%nflowdof
-        Jac(irow,idof) = (res_pert(irow)-res(irow))/hyd_auxvars(idof)%pert
-      enddo !irow
-    enddo ! idof
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ (2.d0 * &
+                          hyd_auxvars(idof)%pert)
+        enddo !irow
+      enddo ! idof
+    else
+      do idof = 1, option%nflowdof
+        call HydrateSrcSink(option,qsrc,flow_src_sink_type,hyd_auxvar_ss, &
+                          hyd_auxvars(idof),global_auxvar,dummy_real, &
+                          scale,res_pert_plus,Jdum,PETSC_FALSE,PETSC_FALSE)
+
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert_plus(irow)-res(irow))/ &
+                          hyd_auxvars(idof)%pert
+        enddo !irow
+      enddo ! idof 
+    endif
   endif
   
 end subroutine HydrateSrcSinkDerivative
@@ -4164,8 +4325,8 @@ function HydrateAverageDensity(iphase,istate_up,istate_dn, &
   ! 
   ! Averages density, using opposite cell density if phase non-existent
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/07/14
+  ! Author: Michael Nole
+  ! Date: 07/23/19
   ! 
 
   implicit none
