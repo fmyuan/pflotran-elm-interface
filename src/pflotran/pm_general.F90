@@ -453,6 +453,12 @@ subroutine PMGeneralRead(this,input)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call GeneralAuxSetEnergyDOF(word,option)
+      case('GAS_PHASE_AIR_MASS_DOF')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
+        call GeneralAuxSetAirMassDOF(word,option)
+        this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
+        this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
       case('ISOTHERMAL')
         general_isothermal = PETSC_TRUE
       case('NO_AIR')
@@ -502,6 +508,8 @@ subroutine PMGeneralRead(this,input)
         general_harmonic_diff_density = PETSC_FALSE
       case('IMMISCIBLE')
         general_immiscible = PETSC_TRUE
+      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
+        gen_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select
@@ -1024,8 +1032,10 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
           air_pressure_index = offset + GENERAL_GAS_STATE_AIR_PRESSURE_DOF
           dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
                                      GENERAL_PRESSURE_SCALE
-          dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                     GENERAL_PRESSURE_SCALE
+          if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+            dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
+                                      GENERAL_PRESSURE_SCALE
+          endif
       end select
       scale = min(scale,temp_scale)
     enddo
@@ -1487,6 +1497,7 @@ subroutine PMGeneralMaxChange(this)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscReal :: max_change_local(6)
   PetscReal :: max_change_global(6)
@@ -1502,6 +1513,8 @@ subroutine PMGeneralMaxChange(this)
   field => realization%field
   grid => realization%patch%grid
 
+  global_auxvars => realization%patch%aux%global%auxvars
+
   max_change_global = 0.d0
   max_change_local = 0.d0
   
@@ -1516,12 +1529,22 @@ subroutine PMGeneralMaxChange(this)
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
     max_change = 0.d0
+    if (i==1 .and. gen_chk_max_dpl_liq_state_only) then
+      do j = 1,grid%nlmax
+        ghosted_id = grid%nL2G(j)
+        if (global_auxvars(ghosted_id)%istate /= LIQUID_STATE) then
+          vec_ptr(j) = 0.d0
+        endif
+      enddo
+    endif
+    
     do j = 1, grid%nlmax
       ! have to weed out cells that changed state
       if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
         max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
       endif
     enddo
+
     max_change_local(i) = max_change
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &

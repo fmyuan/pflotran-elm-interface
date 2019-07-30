@@ -1501,6 +1501,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
     coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 3
     coupler%flow_aux_mapping(GENERAL_GAS_FLUX_INDEX) = 3
+    coupler%flow_aux_mapping(GENERAL_GAS_WATER_MOL_FRAC_INDEX) = 3
   endif
 
   select case(flow_condition%iphase)
@@ -1852,10 +1853,17 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                     &state with GAS_PRESSURE and GAS_SATURATION should be used.'
                   call PrintErrMsg(option)
                 endif
-                coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
-                dof3 = PETSC_TRUE
-                coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = air_pressure
+                  dof3 = PETSC_TRUE
+                  coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
+                                                                     DIRICHLET_BC
+                else
+                  coupler%flow_aux_real_var(THREE_INTEGER,iconn) = 1.d0 - xmol
+                  dof3 = PETSC_TRUE
+                  coupler%flow_bc_type(GENERAL_LIQUID_EQUATION_INDEX) = &
                                                                     DIRICHLET_BC
+                endif
               case default
                 string = GetSubConditionName(general%mole_fraction%itype)
                 option%io_buffer = &
@@ -4019,6 +4027,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   use Global_Aux_module
   use Material_Aux_class
   use Transport_Constraint_module
+  use Dataset_Ascii_class
 
   use EOS_Water_module
 
@@ -4068,8 +4077,16 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then
-            global_auxvar%pres = &
-              cur_coupler%flow_condition%pressure%dataset%rarray(1)
+            ! only use dataset value if the dataset is of type ascii
+            select type(dataset=>cur_coupler%flow_condition%pressure%dataset)
+              class is(dataset_ascii_type)
+                global_auxvar%pres = dataset%rarray(1)
+              class default
+                ! otherwise, we don't know which pressure to use at this point,
+                ! but we need to re-equilibrate at each cell
+                cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
+                global_auxvar%pres = option%reference_pressure
+            end select
           else
             global_auxvar%pres = option%reference_pressure
           endif
@@ -4078,8 +4095,16 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
         endif
         if (associated(cur_coupler%flow_condition%temperature)) then
           if (associated(cur_coupler%flow_condition%temperature%dataset)) then
-            global_auxvar%temp = &
-              cur_coupler%flow_condition%temperature%dataset%rarray(1)
+            ! only use dataset value if the dataset is of type ascii
+            select type(dataset=>cur_coupler%flow_condition%temperature%dataset)
+              class is(dataset_ascii_type)
+                global_auxvar%temp = dataset%rarray(1)
+              class default
+                ! otherwise, we don't know which temperature to use at this 
+                ! point, but we need to re-equilibrate at each cell
+                cur_constraint_coupler%equilibrate_at_each_cell = PETSC_TRUE
+                global_auxvar%temp = option%reference_temperature
+            end select
           else
             global_auxvar%temp = option%reference_temperature
           endif
