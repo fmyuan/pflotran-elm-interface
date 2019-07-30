@@ -675,7 +675,6 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
     offset = (local_id-1)*nspecies
     istart = offset + 1
     iend = offset + nspecies
-    !r_p(istart:iend) = r_p(istart:iend) - Res(1:nspecies)  ! original
     r_p(istart:iend) = r_p(istart:iend) + Res(1:nspecies)  
     
   enddo
@@ -930,7 +929,8 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   Res = 0.d0
   
   ! All residual entries for accumulation should be in [mol-species].
-  ! Dividing by dt will occur later in NWTResidual.
+  ! Dividing by dt will occur later in NWTResidual, so that the units match
+  ! the rest of the residual units of [mol/sec].
   
   ! porosity in [m^3-void/m^3-bulk]
   ! saturation in [m^3-liq/m^3-void]
@@ -1066,7 +1066,7 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,nw_trans,Res)
   iphase = LIQUID_PHASE
   Res = 0.d0
   
-  ! All residual entries for decay/ingrowth should be in [mol-species].
+  ! All residual entries for decay/ingrowth should be in [mol-species/sec].
   
   ! volume in [m^3-bulk]
   vol = material_auxvar%volume
@@ -1086,6 +1086,7 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,nw_trans,Res)
       ! Add in species decay
       Res(species%id) = -(rad_rxn%rate_constant * &
                           nwt_auxvar%total_bulk_conc(species%id))
+      ! units are [mol-species/m^3-bulk/sec] right now
       
       ! Add in contribution from parent (if exists)
       if (rad_rxn%parent_id > 0.d0) then
@@ -1099,11 +1100,15 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,nw_trans,Res)
         enddo
         Res(species%id) = Res(species%id) + (rad_rxn%rate_constant * &
                           nwt_auxvar%total_bulk_conc(parent_id))
+        ! units are [mol-species/m^3-bulk/sec] right now
       endif
     endif
     
     species => species%next
   enddo
+  
+  Res = Res*vol
+  ! units are now [mol-species/sec]
                     
 end subroutine NWTResidualRx
 
@@ -1115,7 +1120,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                            area,dist,velocity,nw_trans,option,Res_up,Res_dn)
   ! 
   ! Computes the flux terms in the residual function.
-  ! All residual entries should be in [mol/sec].
+  ! All residual entries should be in [mol-species/sec].
   ! 
   ! Author: Jenn Frederick
   ! Date: 05/09/2019
