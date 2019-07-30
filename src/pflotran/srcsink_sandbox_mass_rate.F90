@@ -147,7 +147,7 @@ subroutine MassRateSetup(this,grid,option)
   select case(option%iflowmode)
     case(RICHARDS_MODE)
       this%rate(1) = this%rate(1) / FMWH2O
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       this%rate(:) = this%rate(:) / general_fmw(:)
     case(WF_MODE)
       this%rate(:) = this%rate(:) / wipp_flow_fmw(:)
