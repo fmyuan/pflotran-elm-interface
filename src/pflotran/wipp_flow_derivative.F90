@@ -250,11 +250,8 @@ subroutine WIPPFloDerivativeSetup(wippflo_parameter, &
   endif
   if (.not.associated(material_parameter)) then
     allocate(material_parameter)
- !   allocate(material_parameter%soil_residual_saturation(2,1))
     allocate(material_parameter%soil_heat_capacity(1))
     allocate(material_parameter%soil_thermal_conductivity(2,1))
- !   material_parameter%soil_residual_saturation(1,1) = rpf_liq%Sr
- !   material_parameter%soil_residual_saturation(2,1) = rpf_gas%Srg
     material_parameter%soil_heat_capacity(1) = 850.d0
     material_parameter%soil_thermal_conductivity(1,1) = 0.5d0
     material_parameter%soil_thermal_conductivity(2,1) = 2.d0
@@ -836,9 +833,6 @@ subroutine WIPPFloDerivativeDestroy(wippflo_parameter, &
   endif
   call CharacteristicCurvesDestroy(characteristic_curves)
   if (associated(material_parameter)) then
-!    if (associated(material_parameter%soil_residual_saturation)) &
-!      deallocate(material_parameter%soil_residual_saturation)
-!    nullify(material_parameter%soil_residual_saturation)
     if (associated(material_parameter%soil_heat_capacity)) &
       deallocate(material_parameter%soil_heat_capacity)
     nullify(material_parameter%soil_heat_capacity)

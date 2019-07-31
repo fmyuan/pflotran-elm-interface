@@ -1172,16 +1172,6 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
   
   num_mat_prop = size(material_property_array)
   num_characteristic_curves = size(characteristic_curves_array)
-  
-!  allocate(material_parameter%soil_residual_saturation(option%nphase, &
-!                                                   num_characteristic_curves))
-!  material_parameter%soil_residual_saturation = UNINITIALIZED_DOUBLE
-!  do i = 1, num_characteristic_curves
-!    if (associated(characteristic_curves_array(i)%ptr)) then
-!      material_parameter%soil_residual_saturation(:,i) = &
-!        CharCurvesGetGetResidualSats(characteristic_curves_array(i)%ptr,option)
-!    endif
-!  enddo
 
   if (option%iflowmode /= RICHARDS_MODE .and. &
       option%iflowmode /= RICHARDS_TS_MODE) then
