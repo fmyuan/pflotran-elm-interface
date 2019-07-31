@@ -380,6 +380,12 @@ function StringStartsWith(string,string2)
 
   length = min(len_trim(string),len_trim(string2))
   
+  ! if either is a blank line, false
+  if (length == 0) then
+    StringStartsWith = PETSC_FALSE
+    return
+  endif
+
   do i = 1, length
     if (string(i:i) /= string2(i:i)) then
       StringStartsWith = PETSC_FALSE

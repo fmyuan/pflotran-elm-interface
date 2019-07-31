@@ -767,6 +767,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
+  use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Immis_class
   use PM_Miscible_class
@@ -778,7 +779,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_TOWG_Aux_module
   use PM_Richards_TS_class
   use PM_TH_TS_class
-  use Hydrate_module
   use General_Aux_module
 
   implicit none
@@ -822,27 +822,25 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowdof = 2
       option%nflowspec = 2
     class is (pm_general_type)
-      if (general_hydrate_flag) then
-        call HydrateSetFlowMode(option)
-      else
-        option%iflowmode = G_MODE
-        option%nphase = 2
-        option%liquid_phase = 1  ! liquid_pressure
-        option%gas_phase = 2     ! gas_pressure
+      option%iflowmode = G_MODE
+      option%nphase = 2
+      option%liquid_phase = 1  ! liquid_pressure
+      option%gas_phase = 2     ! gas_pressure
 
-        option%air_pressure_id = 3
-        option%capillary_pressure_id = 4
-        option%vapor_pressure_id = 5
-        option%saturation_pressure_id = 6
+      option%air_pressure_id = 3
+      option%capillary_pressure_id = 4
+      option%vapor_pressure_id = 5
+      option%saturation_pressure_id = 6
 
-        option%water_id = 1
-        option%air_id = 2
-        option%energy_id = 3
+      option%water_id = 1
+      option%air_id = 2
+      option%energy_id = 3
 
-        option%nflowdof = 3
-        option%nflowspec = 2
-        option%use_isothermal = PETSC_FALSE
-      endif
+      option%nflowdof = 3
+      option%nflowspec = 2
+      option%use_isothermal = PETSC_FALSE
+    class is (pm_hydrate_type)
+      call PMHydrateSetFlowMode(option)
     class is (pm_toil_ims_type)
       option%iflowmode = TOIL_IMS_MODE
       option%nphase = 2
@@ -1009,6 +1007,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
+  use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Immis_class
   use PM_Miscible_class
@@ -1046,8 +1045,9 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('GENERAL','TOIL_IMS','TOWG_IMMISCIBLE','TODD_LONGSTAFF', &
-               'TOWG_MISCIBLE','BLACK_OIL','SOLVENT_TL','WIPP_FLOW')
+          case('GENERAL','HYDRATE','TOIL_IMS','TOWG_IMMISCIBLE', &
+               'TODD_LONGSTAFF','TOWG_MISCIBLE','BLACK_OIL', &
+               'SOLVENT_TL','WIPP_FLOW')
           ! In OptionFlowInitRealization(), numerical_derivatives is set to
           ! PETSC_FALSE, but the default for GENERAL needs to be PETSC_TRUE.
           ! This is will eventually affect all flow modes with numerical
@@ -1058,6 +1058,8 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         select case(word)
           case('GENERAL')
             pm => PMGeneralCreate()
+          case('HYDRATE')
+            pm => PMHydrateCreate()
           case('WIPP_FLOW')
             pm => PMWIPPFloCreate()
           case('BRAGFLO')
@@ -1520,6 +1522,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Subsurface_Flow_class
   !TODO(geh): are these needed
   use PM_General_class
+  use PM_Hydrate_class
   use PM_WIPP_Flow_class
   use PM_Richards_class
   use PM_TH_class
@@ -2162,6 +2165,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_Steady_class
   use Timestepper_TS_class
   use Well_Data_class
+  use Hydrate_module
 
   use TH_Aux_module
 
@@ -2452,6 +2456,8 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
             call FlowConditionGeneralRead(flow_condition,input,option)
+          case(H_MODE)
+            call FlowConditionHydrateRead(flow_condition,input,option)
           case(TOIL_IMS_MODE)
             call FlowConditionTOilImsRead(flow_condition,input,option)
           case(TOWG_MODE)
@@ -2858,6 +2864,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == TOIL_IMS_MODE .or. &
             option%iflowmode == TOWG_MODE .or. &
             option%iflowmode == G_MODE .or. &
+            option%iflowmode == H_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
              .not. use_th_freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
@@ -2887,6 +2894,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == TOWG_MODE .or. &
                   option%iflowmode == G_MODE .or. &
+                  option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
                     .not. use_th_freezing) .or. &
@@ -3745,6 +3753,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                            'InitSubsurface')
 
 !....................
+      case ('HYDRATE')
+        call HydrateRead(input,patch%methanogenesis,option)
       case default
         call InputKeywordUnrecognized(word,'SubsurfaceReadInput()',option)
     end select

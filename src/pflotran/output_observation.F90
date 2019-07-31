@@ -1092,7 +1092,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+      case(MPH_MODE,TH_MODE,TH_TS_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE)
       case(WF_MODE)
         option%io_buffer = 'WriteObservationDataForBC() needs to be set up &
           & for WIPP Flow, and perhaps the other multiphase flow modes.'
@@ -1681,7 +1681,7 @@ subroutine OutputIntegralFlux(realization_base)
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWGLYC
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = general_fmw(2)
     case(WF_MODE)
@@ -1731,7 +1731,7 @@ subroutine OutputIntegralFlux(realization_base)
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
           case(RICHARDS_MODE,RICHARDS_TS_MODE, &
-               TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
+               TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,H_MODE,MPH_MODE,FLASH2_MODE, &
                IMS_MODE,WF_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
@@ -1746,7 +1746,7 @@ subroutine OutputIntegralFlux(realization_base)
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(integral_flux%name) // ' Glycol'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(G_MODE)
+          case(G_MODE,H_MODE)
             string = trim(integral_flux%name) // ' Air'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -1766,7 +1766,8 @@ subroutine OutputIntegralFlux(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
         select case(option%iflowmode)
-          case(TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE,IMS_MODE)
+          case(TH_MODE,TH_TS_MODE,MIS_MODE,G_MODE,H_MODE,MPH_MODE,FLASH2_MODE, &
+               IMS_MODE)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
@@ -1926,6 +1927,7 @@ subroutine OutputMassBalance(realization_base)
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
   use General_module, only : GeneralComputeMassBalance
+  use Hydrate_module, only : HydrateComputeMassBalance
   use WIPP_Flow_module, only : WIPPFloComputeMassBalance
   use TOilIms_module, only : TOilImsComputeMassBalance
   use TOWG_module, only : TOWGComputeMassBalance
@@ -2042,7 +2044,7 @@ subroutine OutputMassBalance(realization_base)
         case(TH_MODE,TH_TS_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-        case(G_MODE)
+        case(G_MODE,H_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
@@ -2175,7 +2177,7 @@ subroutine OutputMassBalance(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Glycol Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
-          case(G_MODE)
+          case(G_MODE,H_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Air Mass'
@@ -2375,6 +2377,8 @@ subroutine OutputMassBalance(realization_base)
             call ImmisComputeMassBalance(realization_base,sum_kg(:,1))
           case(G_MODE)
             call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
+          case(H_MODE)
+            call HydrateComputeMassBalance(realization_base,sum_kg(:,:))
           case(WF_MODE)
             call WIPPFloComputeMassBalance(realization_base,sum_kg(:,1))
           case(TOIL_IMS_MODE)
@@ -2402,7 +2406,7 @@ subroutine OutputMassBalance(realization_base)
 
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
-        case(RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
+        case(RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE,G_MODE,H_MODE, &
              TH_MODE,TH_TS_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
@@ -2781,7 +2785,7 @@ subroutine OutputMassBalance(realization_base)
               write(fid,110,advance="no") -sum_kg_global(icomp,1)*output_option%tconv
             endif
           enddo
-        case(G_MODE)
+        case(G_MODE,H_MODE)
           ! print out cumulative H2O flux
           sum_kg = 0.d0
           do iconn = 1, coupler%connection_set%num_connections

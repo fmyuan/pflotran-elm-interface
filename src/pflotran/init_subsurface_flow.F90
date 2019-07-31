@@ -37,6 +37,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Richards_module
   use TH_module
   use General_module
+  use Hydrate_module
   use WIPP_Flow_module
   use TOilIms_module
   use TOWG_module
@@ -58,7 +59,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,TOIL_IMS_MODE,TOWG_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,TOIL_IMS_MODE, &
+           TOWG_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
@@ -84,6 +86,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call WIPPFloSetup(realization)
       case(G_MODE)
         call GeneralSetup(realization)
+      case(H_MODE)
+        call HydrateSetup(realization)
       case(TOIL_IMS_MODE)
         call TOilImsSetup(realization)
       case(TOWG_MODE)
@@ -121,9 +125,11 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call Flash2UpdateAuxVars(realization)
       case(G_MODE)
         !geh: cannot update state during initialization as the guess will be
-        !     assigned as the initial conditin if the state changes. therefore,
+        !     assigned as the initial condition if the state changes. therefore,
         !     pass in PETSC_FALSE
         call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+      case(H_MODE)
+        call HydrateUpdateAuxVars(realization,PETSC_FALSE)
       case(WF_MODE)
         call WIPPFloUpdateAuxVars(realization)
       case(TOIL_IMS_MODE)
