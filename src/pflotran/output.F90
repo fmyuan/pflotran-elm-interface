@@ -2141,6 +2141,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Grid_module
   use Input_Aux_module
   use General_Aux_module
+  use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
 
   class(realization_base_type) :: realization_base
@@ -2182,6 +2183,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
+      auxvar_names(2) = 'temperature'
+    case(H_MODE)
+      allocate(iauxvars(2),auxvar_names(2))
+      iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
       allocate(iauxvars(2),auxvar_names(2))

@@ -74,9 +74,6 @@ STANDARD_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
 	ufd/ufd.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg \
@@ -86,6 +83,9 @@ STANDARD_CFG = \
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
+	toil_ims/toil_ims.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
 	towg/bo/towg_bo.cfg \
 	CPR_preconditioner/CPR_preconditioner.cfg
 endif
