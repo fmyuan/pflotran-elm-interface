@@ -751,8 +751,11 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   sum_connection = 0    
   do
     if (.not.associated(boundary_condition)) exit
-    sum_connection = sum_connection + 1
     
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+    
+      sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -791,7 +794,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       !  realization%patch%boundary_tran_fluxes(1:nw_trans%params%nspecies,sum_connection) = &
       !      Res(1:nw_trans%params%nspecies)
       endif
-  
+    enddo
     boundary_condition => boundary_condition%next
   enddo
 #endif
