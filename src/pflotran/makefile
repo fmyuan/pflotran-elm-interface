@@ -52,7 +52,6 @@ PETSC_MAKE_STOP_ON_ERROR=
 # the petsc configured in $PETSC_DIR/$PETSC_ARCH
 
 MYFLAGS = -I.
-MYFLAGS += -w
 
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
