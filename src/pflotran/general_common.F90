@@ -627,7 +627,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
       !Taken from (Liu, 2014)
       if (general_non_darcy_flow) then
-        grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+        grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(0)))
         I = 4.d-12*(perm_ave_over_dist(iphase)*kr)**(non_darcy_B)
         K = perm_ave_over_dist(iphase)*mobility*density_kg_ave*EARTH_GRAVITY
         v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
@@ -653,7 +653,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
       if (general_non_darcy_flow) then
          tot_mole_flux_ddel_pressure = area*density_ave* &
-           (K/(density_kg_ave*EARTH_GRAVITY*(dist(1)))* &
+           (K/(density_kg_ave*EARTH_GRAVITY*(dist(0)))* &
            (1.d0-(1.d0/I)*exp(-grad/I))) 
       endif
       
@@ -1097,10 +1097,11 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
 
       !Taken from (Liu, 2014)
       if (general_non_darcy_flow) then
-        grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+        grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist_dn+dist_up))
         I = 4.d-12*(perm_ave_over_dist(iphase)*kr)**(non_darcy_B)
         K = perm_ave_over_dist(iphase)*mobility*density_kg_ave*EARTH_GRAVITY
         v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
+
         if (delta_pressure<0) then
           v_darcy(iphase) = -1.d0*v_darcy(iphase)
         endif
@@ -2733,7 +2734,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
         !Taken from (Liu, 2014)
         if (general_non_darcy_flow) then
-          grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+          grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(0)))
           I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
           K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
           v_darcy(iphase) = K*(grad-I*(1.d0-exp(-(grad)/I)))
@@ -2754,7 +2755,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
         if (general_non_darcy_flow) then
           dv_darcy_ddelta_pressure = (K/(density_kg_ave* &
-            EARTH_GRAVITY*(dist(1)))*(1.d0-(1.d0/I)* &
+            EARTH_GRAVITY*(dist(0)))*(1.d0-(1.d0/I)* &
             exp(-grad/I))) 
           dv_darcy_dmobility = kr*density_kg_ave* &
             EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
@@ -3095,7 +3096,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
         !Taken from (Liu, 2014)
         if (general_non_darcy_flow) then
-          grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(1)))
+          grad = ABS((delta_pressure/(density_kg_ave*EARTH_GRAVITY))/(dist(0)))
           I = 4.d-12*(perm_ave_over_dist*kr)**(non_darcy_B)
           K = perm_ave_over_dist*mobility*density_kg_ave*EARTH_GRAVITY
           v_darcy(iphase) = K*(grad-I*(1.d0-exp(-grad/I)))
@@ -3116,7 +3117,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         dv_darcy_dmobility = perm_ave_over_dist * delta_pressure
         if (general_non_darcy_flow) then
           dv_darcy_ddelta_pressure = (K/(density_kg_ave* &
-            EARTH_GRAVITY*(dist(1)))*(1.d0-(1.d0/I)* &
+            EARTH_GRAVITY*(dist(0)))*(1.d0-(1.d0/I)* &
             exp(-grad/I))) 
           dv_darcy_dmobility = kr*density_kg_ave* &
             EARTH_GRAVITY*(grad-I*(1.d0-exp(-grad/I)))
