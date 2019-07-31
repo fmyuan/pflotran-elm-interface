@@ -1442,9 +1442,10 @@ function InputCheckExit(input,option)
   PetscBool :: InputCheckExit
 
   ! We must remove leading blanks and tabs. --RTM
+  input%buf = adjustl(input%buf)
   tab = achar(9)
   i=1
-  do while(input%buf(i:i) == ' ' .or. input%buf(i:i) == tab) 
+  do while(input%buf(i:i) == tab .and. i < MAXSTRINGLENGTH)
     i=i+1
   enddo
 

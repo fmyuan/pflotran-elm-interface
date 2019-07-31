@@ -1087,6 +1087,13 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%General%n_inactive_rows, &
                       realization%patch%aux%General%inactive_cells_exist, &
                       option)
+      case(H_MODE)
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%Hydrate%inactive_rows_local, &
+                    realization%patch%aux%Hydrate%inactive_rows_local_ghosted, &
+                      realization%patch%aux%Hydrate%n_inactive_rows, &
+                      realization%patch%aux%Hydrate%inactive_cells_exist, &
+                      option)
       case(WF_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%WIPPFlo%inactive_rows_local, &
