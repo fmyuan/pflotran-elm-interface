@@ -13,6 +13,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_immiscible = PETSC_FALSE
   PetscBool, public :: hydrate_central_diff_jacobian = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
+  PetscReal, public :: hydrate_phase_chng_epsilon = 1.d-6
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: hydrate_max_pressure_change = 5.d4
   PetscInt, public :: hydrate_max_it_before_damping = UNINITIALIZED_INTEGER
@@ -1548,7 +1549,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           else
             istatechng = PETSC_TRUE
             global_auxvar%istate = GA_STATE
-            liq_epsilon = general_phase_chng_epsilon
+            liq_epsilon = hydrate_phase_chng_epsilon
           endif
         else
           istatechng = PETSC_FALSE
@@ -1560,14 +1561,14 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         !if (hyd_auxvar%pres(apid) < PE_hyd) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = GAI_STATE
-          liq_epsilon = general_phase_chng_epsilon
+          liq_epsilon = hydrate_phase_chng_epsilon
         elseif (hyd_auxvar%pres(gid) > PE_hyd) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HAI_STATE
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = QUAD_STATE
-          liq_epsilon = general_phase_chng_epsilon
+          liq_epsilon = hydrate_phase_chng_epsilon
         endif
       else
         istatechng = PETSC_TRUE
@@ -1582,22 +1583,22 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           if (hyd_auxvar%temp > Tf_ice) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = GA_STATE
-            gas_epsilon = general_phase_chng_epsilon
+            gas_epsilon = hydrate_phase_chng_epsilon
 
           elseif (hyd_auxvar%temp == Tf_ice) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = GAI_STATE
-            gas_epsilon = general_phase_chng_epsilon
+            gas_epsilon = hydrate_phase_chng_epsilon
 
           else
             istatechng = PETSC_TRUE
             global_auxvar%istate = GI_STATE
-            gas_epsilon = general_phase_chng_epsilon
+            gas_epsilon = hydrate_phase_chng_epsilon
           endif
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
-          gas_epsilon = general_phase_chng_epsilon
+          gas_epsilon = hydrate_phase_chng_epsilon
 
         endif
       else
@@ -1640,26 +1641,26 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           elseif (hyd_auxvar%sat(gid) <= 0.d0) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = L_STATE
-            two_phase_epsilon = general_phase_chng_epsilon
+            two_phase_epsilon = hydrate_phase_chng_epsilon
           elseif (hyd_auxvar%sat(gid) >= 1.d0) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = G_STATE
-            two_phase_epsilon = general_phase_chng_epsilon
+            two_phase_epsilon = hydrate_phase_chng_epsilon
           endif
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = GAI_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         endif
       else
         if (hyd_auxvar%temp > Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGA_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = QUAD_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         endif
       endif
 
@@ -1671,25 +1672,25 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         elseif (hyd_auxvar%sat(hid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = H_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         elseif (hyd_auxvar%sat(gid) > 0.d0) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = G_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         endif
       else
         if (hyd_auxvar%temp > Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGA_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         elseif (hyd_auxvar%temp == Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = QUAD_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGI_STATE
-          two_phase_epsilon = general_phase_chng_epsilon
+          two_phase_epsilon = hydrate_phase_chng_epsilon
         endif
       endif
 
@@ -1708,7 +1709,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       elseif (hyd_auxvar%temp > Tf_ice) then
         istatechng = PETSC_TRUE
         global_auxvar%istate = HGA_STATE
-        ha_epsilon = general_phase_chng_epsilon
+        ha_epsilon = hydrate_phase_chng_epsilon
       elseif (hyd_auxvar%pres(apid) > PE_hyd) then
        istatechng = PETSC_TRUE
        global_auxvar%istate = HAI_STATE
