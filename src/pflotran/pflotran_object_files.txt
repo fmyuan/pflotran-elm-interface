@@ -44,6 +44,7 @@ mode_aux_obj = \
 	${common_src}auxvars_towg.o \
 	${common_src}flash2_aux.o \
 	${common_src}general_aux.o \
+	${common_src}hydrate_aux.o \
 	${common_src}wipp_flow_aux.o \
 	${common_src}pm_base_aux.o \
 	${common_src}pm_toil_ims_aux.o \
@@ -56,6 +57,7 @@ mode_aux_obj = \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_general.o \
+	${common_src}pm_hydrate.o \
 	${common_src}pm_wipp_flow.o \
 	${common_src}pm_toil_ims.o \
 	${common_src}pm_towg.o \
@@ -85,9 +87,10 @@ mode_obj = \
 	${common_src}flash2.o \
 	${common_src}general.o \
 	${common_src}general_common.o \
-        ${common_src}wipp_flow.o \
+	${common_src}wipp_flow.o \
 	${common_src}hydrate.o \
-        ${common_src}wipp_flow_common.o \
+	${common_src}hydrate_common.o \
+	${common_src}wipp_flow_common.o \
 	${common_src}toil_ims.o \
 	${common_src}towg.o \
 	${common_src}global.o \
