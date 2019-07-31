@@ -1633,8 +1633,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscInt :: ithrm_up, ithrm_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
-  type(saturation_function_type) :: sf_up, sf_dn 
-  class(characteristic_curves_type) :: cc_up, cc_dn
+  type(saturation_function_type), pointer :: sf_up, sf_dn 
+  class(characteristic_curves_type), pointer :: cc_up, cc_dn
   type(TH_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -4818,7 +4818,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(saturation_function_type), pointer :: up_sf
+  type(saturation_function_type), pointer :: sf_up
   type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
@@ -4904,7 +4904,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
          alpha_fr_up = TH_parameter%alpha_fr(ithrm_up)
          alpha_fr_dn = TH_parameter%alpha_fr(ithrm_dn)
 
-         up_sf => patch%saturation_function_array(icap_up)%ptr
+         sf_up => patch%saturation_function_array(icap_up)%ptr
          sf_dn => patch%saturation_function_array(icap_dn)%ptr
       else
          Dk_ice_up = Dk_dry_up
@@ -4934,7 +4934,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             TH_parameter%sir(1,icap_up), &
                             TH_parameter%sir(1,icap_dn), &
                             option, &
-                            up_sf,sf_dn,cc_up,cc_dn, &
+                            sf_up,sf_dn,cc_up,cc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
                             Dk_ice_up,Dk_ice_dn, &
                             alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -5125,7 +5125,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               material_auxvars(ghosted_id), &
                               D_dn, &
                               cur_connection_set%area(iconn), &
-                              cur_connection_set%dist(-1:3,iconn), &                                          TH_parameter%sir(1,icap_dn), &
+                              cur_connection_set%dist(-1:3,iconn), &
+                              TH_parameter%sir(1,icap_dn), &
                               option, &
                               sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
