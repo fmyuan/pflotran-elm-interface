@@ -444,8 +444,12 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   enddo
   
   !-------aqueous concentration (equilibrium)
-  nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))* &
-                                  (1.d0/(1.d0+(ele_kd(:)/(sat*por))))
+  if (.not.dry_out) then
+    nwt_auxvar%aqueous_eq_conc(:) = (nwt_auxvar%total_bulk_conc(:)/(sat*por))* &
+                                    (1.d0/(1.d0+(ele_kd(:)/(sat*por))))
+  else
+    nwt_auxvar%aqueous_eq_conc(:) = 1.0d-20
+  endif
   ! check aqueous concentration against solubility limit and update
   do ispecies = 1,nw_trans%params%nspecies
     call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &

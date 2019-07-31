@@ -70,7 +70,6 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
   do ispecies = 1,nw_trans%params%nspecies
   
     c_type = nwt_species_constraint%constraint_type(ispecies)
-    ! jenn:todo Each of these needs to be modified still:
     select case(c_type)
     !---------------------------------------
       case(CONSTRAINT_T_EQUILIBRIUM)
@@ -116,13 +115,18 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
                                       nwt_auxvar%mnrl_eq_conc(ispecies)/ &
                                       (por*mnrl_molar_density(ispecies))
         if (dry_out) then
-          nwt_auxvar%aqueous_eq_conc(ispecies) = 0.d0
-          nwt_auxvar%sorb_eq_conc(ispecies) = 0.d0
+          nwt_auxvar%aqueous_eq_conc(ispecies) = 1.0d-20
+          nwt_auxvar%sorb_eq_conc(ispecies) = 1.0d-20
         else
           nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
                                               ele_kd(ispecies)
         endif
+        !
+        !nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)
+        !nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
+        !                                    ele_kd(ispecies)
+        !
         nwt_auxvar%total_bulk_conc(ispecies) = &
                             (nwt_auxvar%aqueous_eq_conc(ispecies)*sat*por) + &
                             nwt_auxvar%mnrl_eq_conc(ispecies) + &
@@ -135,13 +139,18 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
                           nwt_auxvar%mnrl_vol_frac(ispecies)* &
                           material_auxvar%porosity*mnrl_molar_density(ispecies)
         if (dry_out) then
-          nwt_auxvar%aqueous_eq_conc(ispecies) = 0.d0
-          nwt_auxvar%sorb_eq_conc(ispecies) = 0.d0
+          nwt_auxvar%aqueous_eq_conc(ispecies) = 1.0d-20
+          nwt_auxvar%sorb_eq_conc(ispecies) = 1.0d-20
         else
           nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)  
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
                                               ele_kd(ispecies)
         endif
+        !
+        !nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)  
+        !nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
+        !                                    ele_kd(ispecies)
+        !
         nwt_auxvar%total_bulk_conc(ispecies) = &
                             (nwt_auxvar%aqueous_eq_conc(ispecies)*sat*por) + &
                             nwt_auxvar%mnrl_eq_conc(ispecies) + &
@@ -213,12 +222,12 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
                       material_auxvar%porosity
     else
       sorb_mass_conc = aqueous_eq_conc*ele_kd
-      ppt_mass_conc = 0.d0
+      ppt_mass_conc = 1.0d-20
     endif
   else
     ppt_mass_conc = total_bulk_conc
-    sorb_mass_conc = 0.d0
-    aqueous_eq_conc = 0.d0
+    sorb_mass_conc = 1.0d-20
+    aqueous_eq_conc = 1.0d-20
   endif
 
 end subroutine NWTEqDissPrecipSorb
