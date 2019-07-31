@@ -4050,7 +4050,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
-                  upweight,Th_parameter%sir(1,icap_up), &
+                  upweight,TH_parameter%sir(1,icap_up), &
                   TH_parameter%sir(1,icap_dn), &
                   option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
@@ -4932,7 +4932,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             cur_connection_set%dist(-1:3,iconn), &
                             upweight, &
                             TH_parameter%sir(1,icap_up), &
-			    TH_parameter%sir(1,icap_dn), &
+                            TH_parameter%sir(1,icap_dn), &
                             option, &
                             up_sf,sf_dn,cc_up,cc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
@@ -5125,8 +5125,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               material_auxvars(ghosted_id), &
                               D_dn, &
                               cur_connection_set%area(iconn), &
-                              cur_connection_set%dist(-1:3,iconn), &
-			      TH_parameter%sir(1,icap_dn), &
+                              cur_connection_set%dist(-1:3,iconn), &                                          TH_parameter%sir(1,icap_dn), &
                               option, &
                               sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &
