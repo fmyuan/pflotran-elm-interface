@@ -163,11 +163,7 @@ subroutine HydrateSetup(realization)
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
+  
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
     call PrintMsg(option)
