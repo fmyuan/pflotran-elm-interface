@@ -102,11 +102,9 @@ module TOWG_module
 
     subroutine TOWGFluxDummy(auxvar_up,global_auxvar_up, &
                              material_auxvar_up, &
-                             sir_up, &
                              thermal_conductivity_up, &
                              auxvar_dn,global_auxvar_dn, &
                              material_auxvar_dn, &
-                             sir_dn, &
                              thermal_conductivity_dn, &
                              area, dist, towg_parameter, &
                              option,v_darcy,Res, &
@@ -122,7 +120,6 @@ module TOWG_module
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
       class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
       type(option_type) :: option
-      PetscReal :: sir_up(:), sir_dn(:)
       PetscReal :: v_darcy(option%nphase)
       PetscReal :: area
       PetscReal :: dist(-1:3)
@@ -139,7 +136,6 @@ module TOWG_module
                                auxvar_up,global_auxvar_up, &
                                auxvar_dn,global_auxvar_dn, &
                                material_auxvar_dn, &
-                               sir_dn, &
                                thermal_conductivity_dn, &
                                area,dist,towg_parameter, &
                                option,v_darcy,Res,debug_connection,&
@@ -154,7 +150,6 @@ module TOWG_module
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
       class(material_auxvar_type) :: material_auxvar_dn
       type(option_type) :: option
-      PetscReal :: sir_dn(:)
       PetscReal :: bc_auxvars(:)
       PetscReal :: v_darcy(option%nphase), area
       type(towg_parameter_type) :: towg_parameter
@@ -371,11 +366,6 @@ subroutine TOWGSetup(realization)
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
 
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'Non-initialized soil residual saturation.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
     call PrintMsg(option)
@@ -2012,11 +2002,9 @@ end subroutine TOWGImsTLBOAccumulation
 
 subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
                          material_auxvar_up, &
-                         sir_up, &
                          thermal_conductivity_up, &
                          auxvar_dn,global_auxvar_dn, &
                          material_auxvar_dn, &
-                         sir_dn, &
                          thermal_conductivity_dn, &
                          area, dist, towg_parameter, &
                          option,v_darcy,Res, &
@@ -2041,7 +2029,6 @@ subroutine TOWGImsTLBOFlux(auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -2620,7 +2607,6 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                            auxvar_up,global_auxvar_up, &
                            auxvar_dn,global_auxvar_dn, &
                            material_auxvar_dn, &
-                           sir_dn, &
                            thermal_conductivity_dn, &
                            area,dist,towg_parameter, &
                            option,v_darcy,Res,debug_connection,&
@@ -2643,7 +2629,6 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn(:)
   PetscReal :: bc_auxvars(:) ! from aux_real_var array
   PetscReal :: v_darcy(option%nphase), area
   type(towg_parameter_type) :: towg_parameter
@@ -2814,8 +2799,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
         ! reusing sir_dn for bounary auxvar
 #define BAD_MOVE1 ! this works
 #ifndef BAD_MOVE1       
-        if (auxvar_up%sat(iphase) > sir_dn(iphase) .or. &
-            auxvar_dn%sat(iphase) > sir_dn(iphase)) then
+        if (auxvar_up%mobility(iphase) > eps .or. &
+            auxvar_dn%mobility(iphase) > eps) then
 #endif
           boundary_pressure = auxvar_up%pres(iphase)
 
@@ -4353,11 +4338,9 @@ end subroutine TOWGAccumDerivative
 
 subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
                               material_auxvar_up, &
-                              sir_up, &
                               thermal_conductivity_up, &
                               auxvar_dn,global_auxvar_dn, &
                               material_auxvar_dn, &
-                              sir_dn, &
                               thermal_conductivity_dn, &
                               area, dist, &
                               towg_parameter, &
@@ -4379,7 +4362,6 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
@@ -4411,10 +4393,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     !print *, 'TOWGFluxDerivative'
     option%iflag = -2
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4422,10 +4404,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     ! upgradient derivatives
     do idof = 1, option%nflowdof
       call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
-                    material_auxvar_up,sir_up, &
+                    material_auxvar_up, &
                     thermal_conductivity_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4437,10 +4419,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
     ! downgradient derivatives
     do idof = 1, option%nflowdof
       call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                    material_auxvar_up,sir_up, &
+                    material_auxvar_up, &
                     thermal_conductivity_up, &
                     auxvar_dn(idof),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4473,10 +4455,10 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
 
   if (towg_analytical_derivatives) then
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
@@ -4532,29 +4514,29 @@ subroutine TOWGFluxDerivative(auxvar_up,global_auxvar_up, &
       endif
 
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jalyt_up,Jalyt_dn,PETSC_TRUE)
 
     call TOWGFlux(auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                  material_auxvar_up,sir_up, &
+                  material_auxvar_up, &
                   thermal_conductivity_up, &
                   auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                  material_auxvar_dn,sir_dn, &
+                  material_auxvar_dn, &
                   thermal_conductivity_dn, &
                   area,dist,towg_parameter, &
                   option,v_darcy,res,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
 
       idof = 4
       call TOWGFlux(auxvar_up(idof),global_auxvar_up, &
-                    material_auxvar_up,sir_up, &
+                    material_auxvar_up, &
                     thermal_conductivity_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res_pert,PETSC_FALSE,Jdum_up,Jdum_dn,PETSC_FALSE)
@@ -4573,7 +4555,7 @@ end subroutine TOWGFluxDerivative
 subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                                 auxvar_up, global_auxvar_up, &
                                 auxvar_dn,global_auxvar_dn, &
-                                material_auxvar_dn,sir_dn, &
+                                material_auxvar_dn, &
                                 thermal_conductivity_dn, &
                                 area,dist,towg_parameter, &
                                 option,Jdn)
@@ -4596,7 +4578,6 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn(:)
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(towg_parameter_type) :: towg_parameter
@@ -4623,7 +4604,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     auxvar_up,global_auxvar_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res,PETSC_FALSE,jdum,PETSC_FALSE)
@@ -4633,7 +4614,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                       auxvar_up,global_auxvar_up, &
                       auxvar_dn(idof),global_auxvar_dn, &
-                      material_auxvar_dn,sir_dn, &
+                      material_auxvar_dn, &
                       thermal_conductivity_dn, &
                       area,dist,towg_parameter, &
                       option,v_darcy,res_pert,PETSC_FALSE,jdum,PETSC_FALSE)
@@ -4663,7 +4644,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                     auxvar_up,global_auxvar_up, &
                     auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                    material_auxvar_dn,sir_dn, &
+                    material_auxvar_dn, &
                     thermal_conductivity_dn, &
                     area,dist,towg_parameter, &
                     option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
@@ -4693,7 +4674,7 @@ subroutine TOWGBCFluxDerivative(ibndtype,bc_auxvar_mapping,bc_auxvars, &
       call TOWGBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
                       auxvar_up,global_auxvar_up, &
                       auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                      material_auxvar_dn,sir_dn, &
+                      material_auxvar_dn, &
                       thermal_conductivity_dn, &
                       area,dist,towg_parameter, &
                       option,v_darcy,res,PETSC_FALSE,jalyt_dn,PETSC_TRUE)
@@ -5007,12 +4988,10 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
       call TOWGFlux(towg%auxvars(ZERO_INTEGER,ghosted_id_up), &
                     global_auxvars(ghosted_id_up), &
                     material_auxvars(ghosted_id_up), & 
-                    material_parameter%soil_residual_saturation(:,icap_up), &
                     material_parameter%soil_thermal_conductivity(:,imat_up), &
                     towg%auxvars(ZERO_INTEGER,ghosted_id_dn), &
                     global_auxvars(ghosted_id_dn), &
                     material_auxvars(ghosted_id_dn), &
-                    material_parameter%soil_residual_saturation(:,icap_dn), &
                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(:,iconn), &
@@ -5074,7 +5053,6 @@ subroutine TOWGResidual(snes,xx,r,realization,ierr)
                     towg%auxvars(ZERO_INTEGER,ghosted_id), &
                     global_auxvars(ghosted_id), &
                     material_auxvars(ghosted_id), &
-                    material_parameter%soil_residual_saturation(:,icap_dn), &
                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
                     cur_connection_set%area(iconn), &
                     cur_connection_set%dist(:,iconn), &
@@ -5432,12 +5410,10 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
       call TOWGFluxDerivative(towg%auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_residual_saturation(:,icap_up), &
                      material_parameter%soil_thermal_conductivity(:,imat_up), &
                      towg%auxvars(:,ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_residual_saturation(:,icap_dn), &
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
@@ -5503,7 +5479,6 @@ subroutine TOWGJacobian(snes,xx,A,B,realization,ierr)
                       towg%auxvars(:,ghosted_id), &
                       global_auxvars(ghosted_id), &
                       material_auxvars(ghosted_id), &
-                      material_parameter%soil_residual_saturation(:,icap_dn), &
                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &

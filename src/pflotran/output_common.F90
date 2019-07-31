@@ -1665,6 +1665,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Connection_module
   use Global_Aux_module
   use Richards_Aux_module
+  use TH_Aux_module
   use Material_Aux_class
 
   implicit none
@@ -1679,7 +1680,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
   type(material_parameter_type), pointer :: material_parameter
-
+  type(TH_auxvar_type), pointer :: th_auxvars(:)
+  type(richards_auxvar_type), pointer :: rich_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscReal, pointer :: flowrates(:,:)
@@ -1698,6 +1700,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   PetscReal :: sir_up, sir_dn
   PetscReal, parameter :: eps = 1.D-8
   PetscReal :: upweight
+  PetscBool :: is_flowing
 
   
   patch => realization_base%patch
@@ -1706,7 +1709,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   grid => patch%grid
   global_auxvar => patch%aux%Global%auxvars
   material_parameter => patch%aux%Material%material_parameter
- 
+
+  is_flowing = PETSC_FALSE
   allocate(density(count))
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)
   connection_set_list => grid%internal_connection_set_list
@@ -1725,11 +1729,23 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
-        sir_up = material_parameter%soil_residual_saturation(1,icap_up)
-        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
 
-        if (global_auxvar(ghosted_id_up)%sat(1) > sir_up .or. &
-            global_auxvar(ghosted_id_dn)%sat(1) > sir_dn) then
+        select case (option%iflowmode)
+           case(TH_MODE,TH_TS_MODE)
+              th_auxvars => patch%aux%TH%auxvars
+              if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
+                  th_auxvars(ghosted_id_dn)%kvr > eps ) then
+                is_flowing = PETSC_TRUE
+              endif   
+           case(RICHARDS_MODE, RICHARDS_TS_MODE)
+              rich_auxvars => patch%aux%Richards%auxvars
+              if(rich_auxvars(ghosted_id_up)%kvr > eps .or. &
+                 rich_auxvars(ghosted_id_dn)%kvr > eps ) then
+                is_flowing = PETSC_TRUE
+              endif
+        end select
+           
+        if (is_flowing) then
           if (global_auxvar(ghosted_id_up)%sat(1) <eps) then 
             upweight = 0.d0
           else if (global_auxvar(ghosted_id_dn)%sat(1) <eps) then 
