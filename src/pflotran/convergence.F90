@@ -510,8 +510,13 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           string = "SNES_CONVERGED_SNORM_RELATIVE"
         case(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"
+#if PETSC_VERSION_GE(3,11,99)
+        case(SNES_DIVERGED_TR_DELTA)
+          string = "SNES_DIVERGED_TR_DELTA"
+#else
         case(SNES_CONVERGED_TR_DELTA)
           string = "SNES_CONVERGED_TR_DELTA"
+#endif
   !      case(SNES_DIVERGED_FUNCTION_DOMAIN)
   !        string = "SNES_DIVERGED_FUNCTION_DOMAIN"
         case(SNES_DIVERGED_FUNCTION_COUNT)
