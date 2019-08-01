@@ -309,13 +309,14 @@ subroutine HydrateInitializeTimestep(realization)
 
   use Realization_Subsurface_class
   use Upwind_Direction_module
+
   
   implicit none
   
   type(realization_subsurface_type) :: realization
   
-  if (realization%option%restrict_state_chng) then
-    realization%patch%aux%global%auxvars%istatechng = PETSC_FALSE
+  if (hydrate_restrict_state_chng) then
+    realization%patch%aux%Hydrate%auxvars(:,:)%istatechng = PETSC_FALSE
   endif
   
   hydrate_newton_iteration_number = 0

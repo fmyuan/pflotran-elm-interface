@@ -12,6 +12,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: hydrate_immiscible = PETSC_FALSE
   PetscBool, public :: hydrate_central_diff_jacobian = PETSC_FALSE
+  PetscBool, public :: hydrate_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: hydrate_max_pressure_change = 5.d4
@@ -147,6 +148,7 @@ module Hydrate_Aux_module
     PetscReal, pointer :: mobility(:) ! relative perm / kinematic viscosity
     PetscReal :: effective_porosity ! factors in compressibility
     PetscReal :: pert
+    PetscBool :: istatechng
     type(hydrate_derivative_auxvar_type), pointer :: d
   end type hydrate_auxvar_type
 
@@ -386,6 +388,7 @@ subroutine HydrateAuxVarInit(auxvar,allocate_derivative,option)
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
+  auxvar%istatechng = PETSC_FALSE
   
   allocate(auxvar%pres(option%nphase+FOUR_INTEGER))
   auxvar%pres = 0.d0
@@ -552,6 +555,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
   use Option_module
   use Global_Aux_module
+  use General_Aux_module
   use EOS_Water_module
   use EOS_Gas_module
   use Characteristic_Curves_module
@@ -564,6 +568,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: x(option%nflowdof)
   type(hydrate_auxvar_type) :: hyd_auxvar
   type(global_auxvar_type) :: global_auxvar
+  type(general_auxvar_type) :: general_auxvar
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
 
@@ -958,7 +963,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
 
       hyd_auxvar%xmol(acid,lid) = max(0.d0,hyd_auxvar%xmol(acid,lid))
 
-      if (global_auxvar%istatechng) then
+      if (hyd_auxvar%istatechng) then
         hyd_auxvar%sat(lid) = max(0.d0,min(1.d0,hyd_auxvar%sat(lid)))
       endif
 
@@ -1455,6 +1460,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
   use Option_module
   use Global_Aux_module
+  use General_Aux_module
   use EOS_Water_module
   use Characteristic_Curves_module
   use Material_Aux_class
@@ -1466,6 +1472,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   class(characteristic_curves_type) :: characteristic_curves
   type(hydrate_auxvar_type) :: hyd_auxvar
   type(global_auxvar_type) :: global_auxvar
+  type(general_auxvar_type) :: general_auxvar
   class(material_auxvar_type) :: material_auxvar
 
   PetscReal, parameter :: epsilon = 0.d0
@@ -1480,7 +1487,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string, append
 
-  if (hydrate_immiscible .or. global_auxvar%istatechng) return
+  if (hydrate_immiscible .or. hyd_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -2060,7 +2067,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
     state_change_string = trim(state_change_string) // trim(append)
 
-    if (option%restrict_state_chng) global_auxvar%istatechng = PETSC_TRUE
+    if (hydrate_restrict_state_chng) hyd_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%istate)
 
