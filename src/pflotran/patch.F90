@@ -26,7 +26,7 @@ module Patch_module
 
   use General_Aux_module
   use Hydrate_Aux_module
-  use Th_Aux_module
+  use TH_Aux_module
   
   implicit none
 
