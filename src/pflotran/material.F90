@@ -193,7 +193,7 @@ function MaterialPropertyCreate()
 !  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
-  material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE          ! 0.d0
+  material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE
   material_property%alpha_fr = 0.95d0
 
   material_property%thermal_expansitivity = 0.d0  
@@ -766,22 +766,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
     material_property%permeability_dataset%name = &
       trim(material_property%permeability_dataset%name) // 'X'
   endif
-
-!  if (option%iflowmode == TH_MODE .or. &
-!      option%iflowmode == TH_TS_MODE) then
-!     if (use_th_freezing) then
-!        if (.not. therm_k_frz) then
-!           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
-!             &in inputdeck for MODE TH ICE'
-!           call PrintErrMsg(option)
-!        endif
-!        if (.not. therm_k_exp_frz) then
-!           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
-!             &in inputdeck for MODE TH ICE'
-!           call PrintErrMsg(option)
-!        endif
-!     endif
-!  endif
 
   if (len_trim(material_property%soil_compressibility_function) > 0) then
     word = material_property%soil_compressibility_function
