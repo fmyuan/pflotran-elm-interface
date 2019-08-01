@@ -1590,8 +1590,15 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   PetscInt :: istart, iend, ispecies
   PetscReal :: qsrc, u, vol
   PetscReal :: coef_in
+  PetscBool :: dry_out
   
   Jac = 0.d0
+  
+  if (global_auxvar%sat(LIQUID_PHASE) > 0.d0) then
+    dry_out = PETSC_FALSE
+  else
+    dry_out = PETSC_TRUE
+  endif
   
   if (associated(ss_flow_vol_fluxes)) then
     ! qsrc = [m^3-liq/sec] 
@@ -1605,7 +1612,12 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   ! units of porosity = [m^3-void/m^3-bulk]
   ! units of saturation = [m^3-liq/m^3-void]
   ! units of u = [m^3-bulk/sec]
-  u = qsrc / (material_auxvar%porosity * global_auxvar%sat(LIQUID_PHASE))
+  if (.not.dry_out) then
+    u = qsrc / (material_auxvar%porosity * global_auxvar%sat(LIQUID_PHASE))
+  else
+    u = 0.d0
+  endif
+  
   
   vol = material_auxvar%volume
   
@@ -1747,10 +1759,12 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   
   PetscInt :: unit_n_up, unit_n_dn
   PetscInt :: nspecies, ispecies
+  PetscBool :: dry_out_up, dry_out_dn
   PetscReal :: q, u
-  PetscReal :: harmonic_porosity, harmonic_saturation
+  PetscReal :: harmonic_ps
   PetscReal :: sat_up, sat_dn
   PetscReal :: por_up, por_dn
+  PetscReal :: ps_up, ps_dn
   PetscReal :: dist_up, dist_dn
   PetscReal, pointer :: diffusivity_up(:)
   PetscReal, pointer :: diffusivity_dn(:)
@@ -1774,6 +1788,8 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   sat_dn = global_auxvar_dn%sat(LIQUID_PHASE)
   por_up = material_auxvar_up%porosity
   por_dn = material_auxvar_dn%porosity
+  ps_up = por_up*sat_up
+  ps_dn = por_dn*sat_dn
   
   diffusion_coefficient => nw_trans%diffusion_coefficient
   molecular_diffusion_up(:) = diffusion_coefficient(:,LIQUID_PHASE)
@@ -1798,20 +1814,58 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! calls it, UpdateTransportCoefs(), because you need to do something 
   ! with the cell centered velocities. Also, the boundary cells may need
   ! their own calculation for dispersion (There is a TDispersionBC).
-                
-  ! units of q = [m-liq/s]
-  ! units of u = [m-bulk/s]
-  q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
-  ! weighted harmonic average
-  harmonic_porosity = (por_up*por_dn)/(por_up*dist_up + por_dn*dist_dn)* &
-                      (dist_up+dist_dn)
-  harmonic_saturation = (sat_up*sat_dn)/(sat_up*dist_up + sat_dn*dist_dn)* &
-                        (dist_up+dist_dn)
-  u = q / (harmonic_porosity*harmonic_saturation)
+   
+  if (sat_up > 0.d0) then
+    dry_out_up = PETSC_FALSE
+  else
+    dry_out_up = PETSC_TRUE
+  endif
+ if (sat_dn > 0.d0) then
+    dry_out_dn = PETSC_FALSE
+  else
+    dry_out_dn = PETSC_TRUE
+  endif
   
   ! units of unit_n = [-] unitless
   unit_n_up = -1 
   unit_n_dn = +1
+                
+  ! units of q = [m-liq/s]
+  ! units of u = [m-bulk/s]
+  q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
+  
+  if (q == 0.d0) then
+    u = 0.d0
+  else
+    if (dry_out_up .and. dry_out_dn) then
+      ! this situation means both cells at the connection face are dry
+      ! this situation will probably never get entered, because q should be 
+      ! zero, and it would have got caught above
+      u = 0.d0
+    elseif ((.not.dry_out_up) .and. (.not.dry_out_dn)) then
+      ! this situation is the typical one, where both cells have some liquid
+      harmonic_ps = (ps_up*ps_dn)/(ps_up*dist_up + ps_dn*dist_dn)* &
+                    (dist_up+dist_dn)   ! weighted harmonic average
+      u = q/harmonic_ps
+    else
+      ! one of the cells on either side of the face is dried out
+      ! calculate u with upwinding, not harmonic average
+      if (q > 0.d0) then ! q flows from _up to _dn
+        if (dry_out_up) then
+          u = 0.d0
+        else
+          u = q/(por_up*sat_up)
+        endif
+      else               ! q flows from _dn to _up
+        if (dry_out_dn) then
+          u = 0.d0
+        else
+          u = q/(por_dn*sat_dn)
+        endif
+      endif
+    endif
+  endif
+  
   
   do ispecies=1,nspecies
     Jac_up(ispecies,ispecies) = (unit_n_up*area) * &
