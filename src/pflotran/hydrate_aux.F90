@@ -1446,8 +1446,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
   ! 
   ! Decides on state changes and adds epsilons to new primary variables 
-  ! accordingly. Primary variables for each phase state modeled 
-  ! roughly after Sun, 2005
+  ! accordingly.
   ! 
   ! Author: Michael Nole
   ! Date: 01/28/18
@@ -1571,7 +1570,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       else
         istatechng = PETSC_TRUE
         global_auxvar%istate = AI_STATE
-
       endif
 
     case(G_STATE)
@@ -1582,12 +1580,10 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
             istatechng = PETSC_TRUE
             global_auxvar%istate = GA_STATE
             gas_epsilon = option%phase_chng_epsilon
-
           elseif (hyd_auxvar%temp == Tf_ice) then
             istatechng = PETSC_TRUE
             global_auxvar%istate = GAI_STATE
             gas_epsilon = option%phase_chng_epsilon
-
           else
             istatechng = PETSC_TRUE
             global_auxvar%istate = GI_STATE
@@ -1597,7 +1593,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           istatechng = PETSC_TRUE
           global_auxvar%istate = HG_STATE
           gas_epsilon = option%phase_chng_epsilon
-
         endif
       else
         istatechng = PETSC_FALSE
@@ -1609,11 +1604,9 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         if (hyd_auxvar%temp > Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGA_STATE
-
         elseif (hyd_auxvar%temp == Tf_ice) then
           istatechng = PETSC_TRUE
           global_auxvar%istate = QUAD_STATE
-
         else
           istatechng = PETSC_TRUE
           global_auxvar%istate = HGI_STATE
@@ -1630,7 +1623,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_FALSE
       endif
 
-    case(GA_STATE)
+   case(GA_STATE)
       !if (hyd_auxvar%pres(apid) < PE_hyd) then
       if (hyd_auxvar%pres(gid) < PE_hyd) then
         if (hyd_auxvar%temp > Tf_ice) then
@@ -1715,7 +1708,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
        istatechng = PETSC_TRUE
        global_auxvar%istate = QUAD_STATE
       endif
-
     case(HI_STATE)
       if (hyd_auxvar%pres(apid) > PE_hyd) then
       !if (hyd_auxvar%pres(gid) > PE_hyd) then
@@ -1734,7 +1726,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = QUAD_STATE
         endif
       endif
-
     case(GI_STATE)
       if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(apid) < PE_hyd) then
       !if (hyd_auxvar%temp < Tf_ice .and. hyd_auxvar%pres(gid) < PE_hyd) then
@@ -1757,7 +1748,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = QUAD_STATE
       endif
-
     case(AI_STATE)
       !if (hyd_auxvar%pres(apid) >= hyd_auxvar% &
       !       pres(lid)*(1.d0-window_epsilon)) then 
@@ -1782,7 +1772,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
           global_auxvar%istate = I_STATE
         endif
       endif
-
     case(HGA_STATE)
       if (hyd_auxvar%temp > Tf_ice) then
         if (hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0 &
@@ -1814,7 +1803,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = QUAD_STATE
       endif
-
     case(HAI_STATE)
       !if (hyd_auxvar%pres(apid) > PE_hyd) then
       if (hyd_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
@@ -1848,7 +1836,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         global_auxvar%istate = QUAD_STATE
       endif
     case(HGI_STATE)
-
       if (hyd_auxvar%temp < Tf_ice) then
         if (hyd_auxvar%sat(iid) > 0.d0 .and. hyd_auxvar%sat(hid) > 0.d0 &
             .and. hyd_auxvar%sat(gid) > 0.d0) then
@@ -1912,7 +1899,6 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         istatechng = PETSC_TRUE
         global_auxvar%istate = QUAD_STATE
       endif
-
     case(QUAD_STATE)
       if (hyd_auxvar%sat(lid) > 0.d0 .and. hyd_auxvar%sat(gid) > 0.d0 &
           .and. hyd_auxvar%sat(hid) > 0.d0 .and. hyd_auxvar%sat(iid) &
@@ -1972,6 +1958,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
         global_auxvar%istate = I_STATE
       endif
   end select
+
 
   new_state = global_auxvar%istate
 
@@ -2264,31 +2251,30 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
 
       pert(HYDRATE_LIQUID_PRESSURE_DOF) = &
         perturbation_tolerance*x(HYDRATE_LIQUID_PRESSURE_DOF) + &
-        min_pres_pert
+        min_perturbation
       if (x(HYDRATE_L_STATE_X_MOLE_DOF) > &
-          1.d5 * min_xmol_pert) then
-        pert(HYDRATE_L_STATE_X_MOLE_DOF) = (-1.d0 * perturbation_tolerance * &
-                 x(HYDRATE_L_STATE_X_MOLE_DOF) + min_xmol_pert)
+          1.d3 * perturbation_tolerance) then
+        pert(HYDRATE_L_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_L_STATE_X_MOLE_DOF) = perturbation_tolerance * &
-                 x(HYDRATE_L_STATE_X_MOLE_DOF) + min_xmol_pert
+        pert(HYDRATE_L_STATE_X_MOLE_DOF) = perturbation_tolerance
       endif
       pert(HYDRATE_ENERGY_DOF) = -1.d0 * &
-        (perturbation_tolerance*x(HYDRATE_ENERGY_DOF) + min_temp_pert)
-
+        (perturbation_tolerance*x(HYDRATE_ENERGY_DOF) + min_perturbation)
     case(G_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
       x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
       x(HYDRATE_ENERGY_DOF) = hyd_auxvar(ZERO_INTEGER)%temp
-      
-      pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * & 
-          x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
-      
-      tempreal = perturbation_tolerance* &
-                 x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) + min_pres_pert
+      ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+      ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
 
+      pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * &
+        (perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF) + min_perturbation)
+      ! perturb air pressure towards gas pressure unless the perturbed
+      ! air pressure exceeds the gas pressure
+      tempreal = perturbation_tolerance* &
+                 x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) + min_perturbation
       if (x(HYDRATE_GAS_PRESSURE_DOF) - &
           x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) > tempreal) then
         pert(HYDRATE_G_STATE_AIR_PRESSURE_DOF) = tempreal
@@ -2296,7 +2282,7 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
         pert(HYDRATE_G_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
       endif
       pert(HYDRATE_ENERGY_DOF) = &
-        perturbation_tolerance*x(HYDRATE_ENERGY_DOF) + min_pres_pert
+        perturbation_tolerance*x(HYDRATE_ENERGY_DOF) + min_perturbation
 
     case(H_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2304,11 +2290,11 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_GAS_SATURATION_DOF) = MOL_RATIO_METH
       x(HYDRATE_ENERGY_DOF) = hyd_auxvar(ZERO_INTEGER)%temp
 
-      pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                 x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
-      pert(HYDRATE_GAS_SATURATION_DOF) = 0.d0
-      pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-                 x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+      pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * &
+         (perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF) + min_perturbation)
+      pert(HYDRATE_GAS_SATURATION_DOF) = x(HYDRATE_GAS_SATURATION_DOF)
+      pert(HYDRATE_ENERGY_DOF) = &
+         perturbation_tolerance*x(HYDRATE_ENERGY_DOF) + min_perturbation
 
     case(I_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2316,11 +2302,11 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_GAS_SATURATION_DOF) = 0.d0
       x(HYDRATE_ENERGY_DOF) = hyd_auxvar(ZERO_INTEGER)%temp
 
-      pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                      x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+        perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)
       pert(HYDRATE_GAS_SATURATION_DOF) = 0.d0
-      pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-                  x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+      pert(HYDRATE_ENERGY_DOF) = &
+          perturbation_tolerance*x(HYDRATE_ENERGY_DOF)
 
     case(GA_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2330,21 +2316,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
         hyd_auxvar(ZERO_INTEGER)%temp
 
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+        perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert)
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
+      pert(HYDRATE_ENERGY_DOF) = &
+        perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
 
     case(HG_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2354,21 +2334,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
            hyd_auxvar(ZERO_INTEGER)%temp
 
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert)
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
+      pert(HYDRATE_ENERGY_DOF) = &
+           perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
 
     case(HA_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2378,22 +2352,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%temp
 
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+        perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert)
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
-
+      pert(HYDRATE_ENERGY_DOF) = &
+         perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
 
     case(HI_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2403,22 +2370,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%temp
 
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert)
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-        pert(HYDRATE_ENERGY_DOF) = (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
-
+      pert(HYDRATE_ENERGY_DOF) = &
+           perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
 
     case(GI_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2428,22 +2388,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%temp
 
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF)+min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert)
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-                          x(HYDRATE_GAS_PRESSURE_DOF)+min_pres_pert
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-                                  x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_temp_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
-
+      pert(HYDRATE_ENERGY_DOF) = &
+           perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
 
     case(AI_STATE)
       x(HYDRATE_LIQUID_PRESSURE_DOF) = &
@@ -2457,19 +2410,15 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
          min_perturbation
 
       if (x(HYDRATE_L_STATE_X_MOLE_DOF) > &
-           1.d5 * min_xmol_pert) then
-        pert(HYDRATE_L_STATE_X_MOLE_DOF) = -1.d0 * (perturbation_tolerance * &
-            x(HYDRATE_L_STATE_X_MOLE_DOF) + min_xmol_pert)
+           1.d3 * perturbation_tolerance) then
+        pert(HYDRATE_L_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_L_STATE_X_MOLE_DOF) = perturbation_tolerance * &
-            x(HYDRATE_L_STATE_X_MOLE_DOF) + min_xmol_pert
+        pert(HYDRATE_L_STATE_X_MOLE_DOF) = perturbation_tolerance
       endif
       if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * & 
-                 x(HYDRATE_ENERGY_DOF) + min_sat_pert)
+        pert(HYDRATE_ENERGY_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * & 
-                 x(HYDRATE_ENERGY_DOF) + min_sat_pert
+        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance
       endif
 
     case(HGA_STATE)
@@ -2480,36 +2429,19 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%temp
 
-      if (x(HYDRATE_GAS_PRESSURE_DOF) > 5.d-1) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-            x(HYDRATE_GAS_PRESSURE_DOF) + min_sat_pert)
-        if (x(HYDRATE_GAS_SATURATION_DOF) > 5.d-1) then
-          pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-            x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-          pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * & 
-            x(HYDRATE_ENERGY_DOF) + min_temp_pert
-        else
-          pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-            x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-          pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-            x(HYDRATE_ENERGY_DOF) + min_temp_pert)
-        endif
+      pert(HYDRATE_ENERGY_DOF) = &
+           perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
+      if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-            x(HYDRATE_GAS_PRESSURE_DOF) + min_sat_pert
-        if (x(HYDRATE_GAS_SATURATION_DOF) > 5.d-1) then
-          pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-            x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-          pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-            x(HYDRATE_ENERGY_DOF) + min_temp_pert
-        else
-          pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-            x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-          pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-            x(HYDRATE_ENERGY_DOF) + min_temp_pert)
-        endif
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
-    
+      if (x(HYDRATE_GAS_PRESSURE_DOF) > 0.5d0) then
+        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance
+      endif
+
     case(HAI_STATE)
 
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2519,75 +2451,40 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%sat(iid)
 
-      pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-           x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
+      pert(HYDRATE_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF) + &
+         min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-        if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
-          pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-          pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
-        else
-          pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-          pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
-        endif
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-        if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
-          pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-          pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert
-        else
-          pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-          pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_PRESSURE_DOF) + min_pres_pert)
-        endif
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
+        pert(HYDRATE_ENERGY_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance
       endif
 
     case(HGI_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
-        hyd_auxvar(ZERO_INTEGER)%sat(iid)
+        hyd_auxvar(ZERO_INTEGER)%sat(hid)
       x(HYDRATE_GAS_SATURATION_DOF) = &
-         hyd_auxvar(ZERO_INTEGER)%sat(hid)
+         hyd_auxvar(ZERO_INTEGER)%sat(iid)
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%temp
 
       if (x(HYDRATE_GAS_PRESSURE_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_PRESSURE_DOF) + min_sat_pert)
-        if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-          pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-          pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-             x(HYDRATE_ENERGY_DOF) + min_temp_pert
-        else
-          pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-          pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_ENERGY_DOF) + min_temp_pert)
-        endif
+        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_PRESSURE_DOF) + min_sat_pert
-        if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-          pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
-          pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-             x(HYDRATE_ENERGY_DOF) + min_temp_pert
-        else
-          pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-             x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
-          pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-             x(HYDRATE_ENERGY_DOF) + min_temp_pert)
-        endif
+        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance
       endif
+      if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+      else
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
+      endif
+      pert(HYDRATE_ENERGY_DOF) = &
+           perturbation_tolerance*x(HYDRATE_ENERGY_DOF)+min_perturbation
 
     case(GAI_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
@@ -2599,70 +2496,67 @@ subroutine HydrateAuxVarPerturb(hyd_auxvar,global_auxvar, &
 
       pert(HYDRATE_GAS_PRESSURE_DOF) = &
          perturbation_tolerance*x(HYDRATE_GAS_PRESSURE_DOF) + &
-         min_pres_pert
+         min_perturbation
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-           x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-           x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
       if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_sat_pert)
+        pert(HYDRATE_ENERGY_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_sat_pert
+        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance
       endif
 
     case(QUAD_STATE)
       x(HYDRATE_GAS_PRESSURE_DOF) = &
-        hyd_auxvar(ZERO_INTEGER)%sat(lid)
+        hyd_auxvar(ZERO_INTEGER)%sat(gid)
       x(HYDRATE_GAS_SATURATION_DOF) = &
-         hyd_auxvar(ZERO_INTEGER)%sat(gid)
+         hyd_auxvar(ZERO_INTEGER)%sat(lid)
       x(HYDRATE_ENERGY_DOF) = &
          hyd_auxvar(ZERO_INTEGER)%sat(iid)
 
       if (x(HYDRATE_GAS_PRESSURE_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_GAS_PRESSURE_DOF) + min_sat_pert)
+        pert(HYDRATE_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance * &
-          x(HYDRATE_GAS_PRESSURE_DOF) + min_sat_pert
+        pert(HYDRATE_GAS_PRESSURE_DOF) = perturbation_tolerance
       endif
       if (x(HYDRATE_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert)
+        pert(HYDRATE_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance * &
-          x(HYDRATE_GAS_SATURATION_DOF) + min_sat_pert
+        pert(HYDRATE_GAS_SATURATION_DOF) = perturbation_tolerance
       endif
       if (x(HYDRATE_ENERGY_DOF) > 0.5d0) then
-        pert(HYDRATE_ENERGY_DOF) = -1.d0 * (perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_sat_pert)
+        pert(HYDRATE_ENERGY_DOF) = -1.d0 * perturbation_tolerance
       else
-        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance * &
-          x(HYDRATE_ENERGY_DOF) + min_sat_pert
+        pert(HYDRATE_ENERGY_DOF) = perturbation_tolerance
       endif
 
   end select
-  ! HYDRATE_UPDATE_FOR_DERIVATIVE indicates call from perturbation
+  ! HYDRATE_UPDATE_FOR_DERIVATIVE indicates call from perturbation  
+
   option%iflag = HYDRATE_UPDATE_FOR_DERIVATIVE
+ 
   do idof = 1, option%nflowdof
-    hyd_auxvar(idof)%pert = pert(idof)
-    hyd_auxvar(idof+option%nflowdof)%pert = pert(idof)
-    x_pert_plus = x
-    x_pert_minus = x
-    x_pert_plus(idof) = x(idof) + pert(idof)
-    x_pert_minus(idof) = x(idof) - pert(idof)
-    call HydrateAuxVarCompute(x_pert_plus,hyd_auxvar(idof),global_auxvar, &
-                              material_auxvar, &
-                              characteristic_curves,natural_id,option)
-    if (hydrate_central_diff_jacobian) then
+   
+    if (hydrate_central_diff_jacobian) then 
+      pert(idof) = max(1.d-7 * x(idof),1.d-7)
+
+      x_pert_minus = x
+      x_pert_minus(idof) = x(idof) - pert(idof)
       call HydrateAuxVarCompute(x_pert_minus, &
              hyd_auxvar(idof+option%nflowdof),global_auxvar,material_auxvar, &
              characteristic_curves,natural_id,option)
+
     endif
+
+    hyd_auxvar(idof)%pert = pert(idof)
+    hyd_auxvar(idof+option%nflowdof)%pert = pert(idof)
+    x_pert_plus = x
+    x_pert_plus(idof) = x(idof) + pert(idof)
+    call HydrateAuxVarCompute(x_pert_plus,hyd_auxvar(idof),global_auxvar, &
+                              material_auxvar, &
+                              characteristic_curves,natural_id,option)
   enddo
 
   select case(global_auxvar%istate)
