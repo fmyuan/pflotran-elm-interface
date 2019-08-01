@@ -161,7 +161,11 @@ subroutine THSetupPatch(realization)
 
   if (use_th_freezing) then
     allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
-                                  size(patch%saturation_function_array)))
+              size(patch%saturation_function_array)))
+  else
+    allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+              size(patch%characteristic_curves_array)))
+    
   endif
  
 
@@ -1629,8 +1633,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscInt :: ithrm_up, ithrm_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
-  type(saturation_function_type) :: sf_up, sf_dn 
-  class(characteristic_curves_type) :: cc_up, cc_dn
+  type(saturation_function_type), pointer :: sf_up, sf_dn 
+  class(characteristic_curves_type), pointer :: cc_up, cc_dn
   type(TH_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -4046,7 +4050,7 @@ subroutine THResidualInternalConn(r,realization,ierr)
                   D_dn, &
                   cur_connection_set%area(iconn), &
                   cur_connection_set%dist(:,iconn), &
-                  upweight,Th_parameter%sir(1,icap_up), &
+                  upweight,TH_parameter%sir(1,icap_up), &
                   TH_parameter%sir(1,icap_dn), &
                   option,v_darcy,Dk_dry_up, &
                   Dk_dry_dn,Dk_ice_up,Dk_ice_dn, &
@@ -4814,7 +4818,8 @@ subroutine THJacobianInternalConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(saturation_function_type), pointer :: sf_dn, sf_up
+  type(saturation_function_type), pointer :: sf_up
+  type(saturation_function_type), pointer :: sf_dn
   class(characteristic_curves_type), pointer :: cc_up, cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -4927,7 +4932,7 @@ subroutine THJacobianInternalConn(A,realization,ierr)
                             cur_connection_set%dist(-1:3,iconn), &
                             upweight, &
                             TH_parameter%sir(1,icap_up), &
-			    TH_parameter%sir(1,icap_dn), &
+                            TH_parameter%sir(1,icap_dn), &
                             option, &
                             sf_up,sf_dn,cc_up,cc_dn, &
                             Dk_dry_up,Dk_dry_dn, &
@@ -5045,8 +5050,8 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars_bc(:), auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(Saturation_Function_type), pointer :: sf_dn
-  class(Characteristic_Curves_type), pointer :: cc_dn
+  type(saturation_function_type), pointer :: sf_dn
+  class(characteristic_curves_type), pointer :: cc_dn
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: ithrm
@@ -5121,7 +5126,7 @@ subroutine THJacobianBoundaryConn(A,realization,ierr)
                               D_dn, &
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
-			      TH_parameter%sir(1,icap_dn), &
+                              TH_parameter%sir(1,icap_dn), &
                               option, &
                               sf_dn,cc_dn, &
                               Dk_dry_dn,Dk_ice_dn, &

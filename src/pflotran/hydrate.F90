@@ -163,11 +163,7 @@ subroutine HydrateSetup(realization)
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
+  
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
     call PrintMsg(option)
@@ -314,13 +310,14 @@ subroutine HydrateInitializeTimestep(realization)
 
   use Realization_Subsurface_class
   use Upwind_Direction_module
+
   
   implicit none
   
   type(realization_subsurface_type) :: realization
   
-  if (realization%option%restrict_state_chng) then
-    realization%patch%aux%global%auxvars%istatechng = PETSC_FALSE
+  if (hydrate_restrict_state_chng) then
+    realization%patch%aux%Hydrate%auxvars(:,:)%istatechng = PETSC_FALSE
   endif
   
   hydrate_newton_iteration_number = 0

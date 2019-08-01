@@ -13,6 +13,7 @@ module General_Aux_module
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
   PetscReal, public :: general_phase_chng_epsilon = 1.d-6
+  PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: general_max_pressure_change = 5.d4
@@ -94,6 +95,7 @@ module General_Aux_module
   
   type, public :: general_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
+    PetscBool :: istatechng
     PetscReal, pointer :: pres(:)   ! (iphase)
     PetscReal, pointer :: sat(:)    ! (iphase)
     PetscReal, pointer :: den(:)    ! (iphase) kmol/m^3 phase
@@ -302,6 +304,7 @@ subroutine GeneralAuxVarInit(auxvar,allocate_derivative,option)
   type(option_type) :: option
 
   auxvar%istate_store = NULL_STATE
+  auxvar%istatechng = PETSC_FALSE
   auxvar%temp = 0.d0
   auxvar%effective_porosity = 0.d0
   auxvar%pert = 0.d0
@@ -791,7 +794,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
       gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
       
-      if (global_auxvar%istatechng) then
+      if (gen_auxvar%istatechng) then
         gen_auxvar%sat(gid) = max(0.d0,gen_auxvar%sat(gid))
         gen_auxvar%sat(gid) = min(1.d0,gen_auxvar%sat(gid))
       endif
@@ -1368,7 +1371,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
-  if (general_immiscible .or. global_auxvar%istatechng) return
+  if (general_immiscible .or. gen_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
@@ -1498,7 +1501,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
 
   if (istatechng) then
 
-    if (option%restrict_state_chng) global_auxvar%istatechng = PETSC_TRUE
+    if (general_restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%istate)
       case(LIQUID_STATE)
