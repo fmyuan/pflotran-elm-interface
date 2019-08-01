@@ -11,7 +11,7 @@ module TH_Aux_module
   PetscInt, public :: TH_ni_count
   PetscInt, public :: TH_ts_cut_count
   PetscInt, public :: TH_ts_count
-  PetscBool, public :: use_th_freezing
+  PetscBool, public :: th_use_freezing
   PetscInt, public :: ice_model
 
   type, public :: TH_auxvar_type
@@ -239,7 +239,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dT    = uninit_value
- if (use_th_freezing) then
+ if (th_use_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
@@ -974,7 +974,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance
     x_pert = x
-    if (use_th_freezing) then
+    if (th_use_freezing) then
        if (ideriv == 1) then
           if (x_pert(ideriv) < option%reference_pressure) then
              pert = - pert
@@ -994,7 +994,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
        x_pert(ideriv) = x_pert(ideriv) + pert
     endif
 
-    if (use_th_freezing) then
+    if (th_use_freezing) then
       option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
       call PrintErrMsg(option)
     else

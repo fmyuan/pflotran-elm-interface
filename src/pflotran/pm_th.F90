@@ -227,7 +227,7 @@ subroutine PMTHRead(this,input)
         this%rel_update_inf_tol(2) = tempreal
 
       case('FREEZING')
-        use_th_freezing = PETSC_TRUE
+        th_use_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing

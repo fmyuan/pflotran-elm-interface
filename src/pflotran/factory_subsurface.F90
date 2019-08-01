@@ -2866,7 +2866,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%iflowmode == G_MODE .or. &
             option%iflowmode == H_MODE .or. &
             (option%iflowmode == TH_MODE .and. &
-             .not. use_th_freezing) .or. &
+             .not. th_use_freezing) .or. &
             option%iflowmode == TH_TS_MODE .or. &
             option%iflowmode == WF_MODE) then
           option%io_buffer = &
@@ -2897,7 +2897,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%iflowmode == H_MODE .or. &
                   option%iflowmode == TH_TS_MODE .or. &
                   (option%iflowmode == TH_MODE .and. &
-                    .not. use_th_freezing) .or. &
+                    .not. th_use_freezing) .or. &
                   option%iflowmode == WF_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow &
             &modes other than RICHARDS, RICHARDS_TS, TOIL_IMS, WIPP_FLOW, TH, or GENERAL. &
