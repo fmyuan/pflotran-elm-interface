@@ -316,7 +316,7 @@ subroutine HydrateInitializeTimestep(realization)
   type(realization_subsurface_type) :: realization
   
   if (hydrate_restrict_state_chng) then
-    realization%patch%aux%Hydrate%auxvars%istatechng = PETSC_FALSE
+    realization%patch%aux%Hydrate%auxvars(:,:)%istatechng = PETSC_FALSE
   endif
   
   hydrate_newton_iteration_number = 0
