@@ -12,6 +12,7 @@ module General_Aux_module
   PetscBool, public :: general_print_state_transition = PETSC_TRUE
   PetscBool, public :: general_analytical_derivatives = PETSC_FALSE
   PetscBool, public :: general_immiscible = PETSC_FALSE
+  PetscReal, public :: general_phase_chng_epsilon = 1.d-6
   PetscBool, public :: general_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
@@ -1404,7 +1405,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           window_epsilon)) then
 
           global_auxvar%istate = TWO_PHASE_STATE
-          liq_epsilon = option%phase_chng_epsilon
+          liq_epsilon = general_phase_chng_epsilon
           istatechng = PETSC_TRUE
 
         if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
@@ -1425,7 +1426,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
          (1.d0+window_epsilon)) then
 
         global_auxvar%istate = TWO_PHASE_STATE
-        gas_epsilon = option%phase_chng_epsilon
+        gas_epsilon = general_phase_chng_epsilon
         gas_flag = PETSC_TRUE
         istatechng = PETSC_TRUE
 
@@ -1452,7 +1453,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
       if (Sg_new < 0.d0) then
 
         global_auxvar%istate = LIQUID_STATE
-        two_phase_epsilon = option%phase_chng_epsilon
+        two_phase_epsilon = general_phase_chng_epsilon
         istatechng = PETSC_TRUE
 
 #ifdef DEBUG_GENERAL_INFO
@@ -1474,7 +1475,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
       elseif (Sg_new > 1.d0 ) then
 
         global_auxvar%istate = GAS_STATE
-        two_phase_epsilon = option%phase_chng_epsilon
+        two_phase_epsilon = general_phase_chng_epsilon
         istatechng = PETSC_TRUE
 
 #ifdef DEBUG_GENERAL_INFO
