@@ -256,6 +256,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   use Field_module
   use Logging_module
   use Global_Aux_module
+  use NWT_Constraint_module
   
   implicit none
 
@@ -271,7 +272,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
-  PetscInt :: istart, iend, istart_loc, iend_loc
+  PetscInt :: istart, iend
   PetscReal, pointer :: xx_loc_p(:)
   PetscInt, parameter :: iphase = 1
   PetscInt :: offset
@@ -280,6 +281,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
+  type(nwt_constraint_coupler_type), pointer :: nwt_constraint_coupler
   PetscInt, save :: icall
   
   data icall/0/
@@ -330,56 +332,75 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
     do 
       if (.not.associated(boundary_condition)) exit
       cur_connection_set => boundary_condition%connection_set
-
+      nwt_constraint_coupler => boundary_condition%tran_condition% &
+                                  cur_nwt_constraint_coupler
       do iconn = 1, cur_connection_set%num_connections
-        sum_connection = sum_connection + 1
-        local_id = cur_connection_set%id_dn(iconn)
-        ghosted_id = grid%nL2G(local_id)
+        sum_connection = sum_connection + 1 
         
-        if (realization%patch%imat(ghosted_id) <= 0) cycle
+        nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
+                          nwt_constraint_coupler%nwt_auxvar%total_bulk_conc(:)
+        nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(:) = &
+                          nwt_constraint_coupler%nwt_auxvar%aqueous_eq_conc(:)
+        nwt_auxvars_bc(sum_connection)%sorb_eq_conc(:) = &
+                             nwt_constraint_coupler%nwt_auxvar%sorb_eq_conc(:)
+        nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(:) = &
+                             nwt_constraint_coupler%nwt_auxvar%mnrl_eq_conc(:)
+        nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(:) = &
+                            nwt_constraint_coupler%nwt_auxvar%mnrl_vol_frac(:)
 
-        offset = (ghosted_id-1)*nw_trans%params%nspecies
-        istart_loc =  1
-        iend_loc = nw_trans%params%nspecies
-        istart = offset + istart_loc
-        iend = offset + iend_loc
+      !do iconn = 1, cur_connection_set%num_connections
+      !  sum_connection = sum_connection + 1
+      !  local_id = cur_connection_set%id_dn(iconn)
+      !  ghosted_id = grid%nL2G(local_id)
+      !  
+      !  if (realization%patch%imat(ghosted_id) <= 0) cycle
+
+      !  offset = (ghosted_id-1)*nw_trans%params%nspecies
+      !  istart = offset + 1
+      !  iend = offset + nw_trans%params%nspecies        
+      !  
+        !call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
+        !                      global_auxvars(ghosted_id), &
+        !                      material_auxvars(ghosted_id), &
+        !                      nw_trans,option)
         
-        select case(boundary_condition%tran_condition%itype)
-          case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
-            ! don't need to do anything as the constraint below provides all
-            ! the concentrations, etc.
-              
-            ! jenn:todo Is this kludge still needed?
-            !geh: terrible kludge, but should work for now.
-            !geh: the problem is that ...%pri_molal() on first call is 
-            !      zero and PETSC_TRUE is passed into 
-            !      ReactionEquilibrateConstraint() below for 
-            !      use_prev_soln_as_guess.  If the previous solution is 
-            !      zero, the code will crash.
-            if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
-              nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-                                                          xx_loc_p(istart:iend)
-            endif
-          case(DIRICHLET_ZERO_GRADIENT_BC)
-            if (realization%patch%boundary_velocities(iphase,sum_connection) &
-                >= 0.d0) then
-                  ! don't need to do anything as the constraint below 
-                  ! provides all the concentrations, etc.
-              if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
-                nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-                                                          xx_loc_p(istart:iend)
-              endif
-            else
-              ! same as zero_gradient below
-              nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-                                                          xx_loc_p(istart:iend)
-            endif
-          case(ZERO_GRADIENT_BC)
-            nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-                                                          xx_loc_p(istart:iend)               
-        end select
+        !select case(boundary_condition%tran_condition%itype)
+        !  case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
+        !    ! don't need to do anything as the constraint below provides all
+        !    ! the concentrations, etc.
+        !      
+        !    ! jenn:todo Is this kludge still needed?
+        !    !geh: terrible kludge, but should work for now.
+        !    !geh: the problem is that ...%pri_molal() on first call is 
+        !    !      zero and PETSC_TRUE is passed into 
+        !    !      ReactionEquilibrateConstraint() below for 
+        !    !      use_prev_soln_as_guess.  If the previous solution is 
+        !    !      zero, the code will crash.
+        !    if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
+        !      nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+        !                                                  xx_loc_p(istart:iend)
+        !    endif
+        !  case(DIRICHLET_ZERO_GRADIENT_BC)
+        !    if (realization%patch%boundary_velocities(iphase,sum_connection) &
+        !        >= 0.d0) then
+        !          ! don't need to do anything as the constraint below 
+        !          ! provides all the concentrations, etc.
+        !      if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
+        !        nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+        !                                                  xx_loc_p(istart:iend)
+        !      endif
+        !    else
+        !      ! same as zero_gradient below
+        !      nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+        !                                                  xx_loc_p(istart:iend)
+        !    endif
+        !  case(ZERO_GRADIENT_BC)
+        !    nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
+        !                                                  xx_loc_p(istart:iend)               
+        !end select
           
       enddo ! iconn
+      
       boundary_condition => boundary_condition%next
     enddo
 
@@ -1200,8 +1221,8 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   
   ! Diffusive fluxes:
   diffusive_flux(:) = harmonic_D_over_dist(:) * &
-                      (nwt_auxvar_up%aqueous_eq_conc(:) &
-                       - nwt_auxvar_dn%aqueous_eq_conc(:)) 
+                      (nwt_auxvar_dn%aqueous_eq_conc(:) &
+                       - nwt_auxvar_up%aqueous_eq_conc(:))
                        
   ! Note: For dispersion, do a git pull - Glenn updated transport.F90 
   ! When adding dispersion, look at TDispersion() and the routine that

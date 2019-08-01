@@ -307,8 +307,7 @@ subroutine PMNWTInitializeRun(this)
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
   
-  ! update boundary conditions (don't know if this is necessary)
-  ! jenn:todo Is updating BCs necessary in PMNWTInitializeRun()?
+  ! update the boundary conditions
   call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
   
   call PMNWTUpdateSolution(this)
