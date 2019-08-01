@@ -72,7 +72,6 @@ module Material_Aux_class
   end type fracture_auxvar_type
  
   type, public :: material_parameter_type
-    PetscReal, pointer :: soil_residual_saturation(:,:)
     PetscReal, pointer :: soil_heat_capacity(:) ! MJ/kg rock-K
     PetscReal, pointer :: soil_thermal_conductivity(:,:) ! W/m-K
   end type material_parameter_type  
@@ -148,7 +147,6 @@ function MaterialAuxCreate()
   allocate(aux)
   nullify(aux%auxvars)
   allocate(aux%material_parameter)
-  nullify(aux%material_parameter%soil_residual_saturation)
   nullify(aux%material_parameter%soil_heat_capacity)
   nullify(aux%material_parameter%soil_thermal_conductivity)
   aux%num_aux = 0
@@ -815,7 +813,6 @@ subroutine MaterialAuxDestroy(aux)
   nullify(aux%auxvars)
     
   if (associated(aux%material_parameter)) then
-    call DeallocateArray(aux%material_parameter%soil_residual_saturation)
     call DeallocateArray(aux%material_parameter%soil_heat_capacity)
     call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
   endif
