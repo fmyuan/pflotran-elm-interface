@@ -12,7 +12,7 @@ module TH_Aux_module
   PetscInt, public :: TH_ts_cut_count
   PetscInt, public :: TH_ts_count
   PetscBool, public :: th_use_freezing
-  PetscInt, public :: ice_model
+  PetscInt, public :: th_ice_model
 
   type, public :: TH_auxvar_type
     PetscReal :: avgmw
@@ -720,7 +720,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     endif
 #endif
 
-  select case (ice_model)
+  select case (th_ice_model)
     case (PAINTER_EXPLICIT)
       ! Model from Painter, Comp. Geosci. (2011)
       call SatFuncComputeIcePExplicit(global_auxvar%pres(1), & 
@@ -882,7 +882,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                          (auxvar%ice%sat_ice + epsilon)**(alpha_fr - 1.d0)* &
                          auxvar%ice%dsat_ice_dp
 
-  if (ice_model == DALL_AMICO) then
+  if (th_ice_model == DALL_AMICO) then
     auxvar%ice%den_ice = dw_mol
     auxvar%ice%dden_ice_dT = auxvar%dden_dT
     auxvar%ice%dden_ice_dp = auxvar%dden_dp
