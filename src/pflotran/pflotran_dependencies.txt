@@ -180,9 +180,10 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        realization_base.o realization_subsurface.o region.o \
                        regression.o saturation_function.o \
                        simulation_subsurface.o solver.o srcsink_sandbox.o \
-                       strata.o string.o timestepper_BE.o timestepper_TS.o \
-                       timestepper_steady.o transport_constraint.o units.o \
-                       utility.o waypoint.o well_data.o wipp.o
+                       strata.o string.o th_aux.o timestepper_BE.o \
+                       timestepper_TS.o timestepper_steady.o \
+                       transport_constraint.o units.o utility.o waypoint.o \
+                       well_data.o wipp.o
 factory_surface.o : checkpoint.o checkpoint_surface.o condition.o \
                     condition_control.o coupler.o dataset.o dataset_base.o \
                     dataset_common_hdf5.o debug.o discretization.o grid.o \
@@ -333,11 +334,10 @@ hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
 hydrate.o : connection.o coupler.o debug.o discretization.o eos_water.o \
             field.o fluid.o global_aux.o grid.o hydrate_aux.o hydrate_common.o \
             input_aux.o material.o material_aux.o option.o output_aux.o \
-            output_tecplot.o patch.o pflotran_constants.o \
-            realization_subsurface.o saturation_function.o srcsink_sandbox.o \
-            srcsink_sandbox_base.o srcsink_sandbox_wipp_gas.o \
-            srcsink_sandbox_wipp_well.o string.o upwind_direction.o \
-            variables.o
+            patch.o pflotran_constants.o realization_subsurface.o \
+            saturation_function.o srcsink_sandbox.o srcsink_sandbox_base.o \
+            srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o string.o \
+            upwind_direction.o variables.o
 hydrate_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
                 material_aux.o option.o pflotran_constants.o string.o \
                 utility.o
@@ -451,7 +451,7 @@ output_common.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                   hdf5_aux.o logging.o material_aux.o option.o output_aux.o \
                   patch.o pflotran_constants.o realization_base.o \
-                  richards_aux.o variables.o
+                  richards_aux.o th_aux.o variables.o
 output_eclipse.o : grid_grdecl_util.o option.o pflotran_constants.o string.o \
                    well_type.o
 output_ekg.o : option.o output_aux.o pflotran_constants.o

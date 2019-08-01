@@ -11,6 +11,8 @@ module TH_Aux_module
   PetscInt, public :: TH_ni_count
   PetscInt, public :: TH_ts_cut_count
   PetscInt, public :: TH_ts_count
+  PetscBool, public :: th_use_freezing
+  PetscInt, public :: th_ice_model
 
   type, public :: TH_auxvar_type
     PetscReal :: avgmw
@@ -237,7 +239,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dT    = uninit_value
- if (option%use_th_freezing) then
+ if (th_use_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
     auxvar%ice%dKe_fr_dp = uninit_value
@@ -718,7 +720,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     endif
 #endif
 
-  select case (option%ice_model)
+  select case (th_ice_model)
     case (PAINTER_EXPLICIT)
       ! Model from Painter, Comp. Geosci. (2011)
       call SatFuncComputeIcePExplicit(global_auxvar%pres(1), & 
@@ -880,7 +882,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                          (auxvar%ice%sat_ice + epsilon)**(alpha_fr - 1.d0)* &
                          auxvar%ice%dsat_ice_dp
 
-  if (option%ice_model == DALL_AMICO) then
+  if (th_ice_model == DALL_AMICO) then
     auxvar%ice%den_ice = dw_mol
     auxvar%ice%dden_ice_dT = auxvar%dden_dT
     auxvar%ice%dden_ice_dp = auxvar%dden_dp
@@ -972,7 +974,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance
     x_pert = x
-    if (option%use_th_freezing) then
+    if (th_use_freezing) then
        if (ideriv == 1) then
           if (x_pert(ideriv) < option%reference_pressure) then
              pert = - pert
@@ -992,7 +994,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
        x_pert(ideriv) = x_pert(ideriv) + pert
     endif
 
-    if (option%use_th_freezing) then
+    if (th_use_freezing) then
       option%io_buffer = 'ERROR: TH_TS MODE not implemented with freezing'
       call PrintErrMsg(option)
     else

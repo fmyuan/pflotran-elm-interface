@@ -67,7 +67,6 @@ module Option_module
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
-    PetscBool :: use_th_freezing
 
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
@@ -118,7 +117,6 @@ module Option_module
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
 
-    PetscReal :: uniform_velocity(3)
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -130,14 +128,11 @@ module Option_module
 
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure
 
-    PetscInt :: ice_model         ! specify water/ice/vapor phase partitioning model
-
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.
     PetscReal :: tran_dt
     PetscReal :: dt
     PetscBool :: match_waypoint
-    PetscReal :: refactor_dt
 
     PetscReal :: gravity(3)
 
@@ -226,8 +221,6 @@ module Option_module
     PetscReal :: inline_surface_Mannings_coeff
     character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
     
-    !man: change the initial saturation upon phase change
-    PetscReal :: phase_chng_epsilon
 
   end type option_type
 
@@ -440,7 +433,6 @@ subroutine OptionInitRealization(option)
   option%use_matrix_free = PETSC_FALSE
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
-  option%ice_model = PAINTER_EXPLICIT
   option%set_secondary_init_conc = PETSC_FALSE
 
   option%update_flow_perm = PETSC_FALSE
@@ -452,7 +444,6 @@ subroutine OptionInitRealization(option)
   option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
-  option%use_th_freezing = PETSC_FALSE
 
   option%linerept = PETSC_FALSE
   option%linpernl = 0
@@ -505,7 +496,6 @@ subroutine OptionInitRealization(option)
   option%air_id = 0
   option%energy_id = 0
 
-  option%uniform_velocity = 0.d0
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
@@ -567,7 +557,6 @@ subroutine OptionInitRealization(option)
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
-  option%refactor_dt = 0.d0
   option%match_waypoint = PETSC_FALSE
 
   option%io_handshake_buffer_size = 0
@@ -606,7 +595,6 @@ subroutine OptionInitRealization(option)
   option%inline_surface_Mannings_coeff = 0.02d0
   option%inline_surface_region_name    = ""
   
-  option%phase_chng_epsilon = 1.d-6 !1.d-6
 
 end subroutine OptionInitRealization
 

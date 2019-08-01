@@ -293,6 +293,7 @@ subroutine HydrateSetup(realization)
   hydrate_ts_cut_count = 0
   hydrate_ni_count = 0
 
+
   call PatchSetupUpwindDirection(patch,option)
 
 end subroutine HydrateSetup
