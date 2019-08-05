@@ -3012,11 +3012,11 @@ subroutine OutputMassBalance(realization_base)
         select type(realization_base)
          class is(realization_subsurface_type)
           call WriteWellValues(fid,realization_base, &
-                               output_option%tconv, towg_miscibility_model, &
+                               towg_miscibility_model, &
                                option, wecl, sum_kg_global)
           if (output_option%write_masses) then
             call WriteWellMassValues(fid,realization_base, &
-                                     output_option%tconv,towg_miscibility_model)
+                                     towg_miscibility_model)
           endif
         end select
       endif
@@ -3236,7 +3236,6 @@ subroutine OutputEclipseFiles(realization_base)
         select type(realization_base)
          class is(realization_subsurface_type)
            call WriteWellValues(fid, realization_base, &
-                                output_option%tconv, &
                                 towg_miscibility_model, &
                                 option, wecl, sum_kg_global)
         end select
@@ -3552,7 +3551,7 @@ end subroutine WriteWellMassHeaders
 
 ! *************************************************************************** !
 
-subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
+subroutine WriteWellValues(fid, realization, towg_miscibility_model, &
                            option, wecl, sum_kg_global)
   !
   ! Used to write out mas file values specific to TOIL and TOWG modes
@@ -3602,6 +3601,8 @@ subroutine WriteWellValues(fid, realization, tconv, towg_miscibility_model, &
 
   PetscReal, pointer :: vd(:)
   PetscInt           :: nd, md, iphase
+
+  tconv = 3600.0*24.0
 
   nd = 0
 
@@ -3871,7 +3872,7 @@ end subroutine WriteWellValues
 
 ! *************************************************************************** !
 
-subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
+subroutine WriteWellMassValues(fid, realization, towg_miscibility_model)
   !
   ! Used to write out mass rates to the mas file values
   ! Specific to TOIL and TOWG modes
@@ -3904,6 +3905,8 @@ subroutine WriteWellMassValues(fid, realization, tconv, towg_miscibility_model)
                fgmpr, fgmpt, fgmir, fgmit, &
                fwmpr, fwmpt, fwmir, fwmit, &
                fsmpr, fsmpt, fsmir, fsmit
+
+  tconv = 3600.0*24.0
 
   !  Find well list and loop over wells
 
@@ -4181,20 +4184,22 @@ subroutine WriteLineRept(realization, option)
   PetscReal :: time, tconv, dt
   type(well_data_list_type), pointer :: well_data_list
 
+  PetscInt :: icountp
+
   PetscReal :: fopt, fopr, &
                fgpr, fgir, &
                fwpr, fwir, &
                flpr, fgor, fwct, fpav
-  character(len=8) :: sopt, sopr, swpr, sgpr, swir, sgir
+  character(len=8) :: stime, sdt, sopt, sopr, swpr, sgpr, swir, sgir, sgor, spav
 
-100 format('Step  time    tstep  fopt     fopr     fwpr     ', &
-           'fgpr     fwir     fgir     fwct    fgor     fpav    NL LI Ch')
-101 format('      days    days   ksm3     sm3/d    ksm3/d   ', &
-           'ksm3/d   ksm3/d   ksm3/d          ksm3/sm3 Bar')
-102 format('----- ------- ------ -------- -------- -------- ', &
-           '-------- -------- -------- ------- -------- ------- -- -- --')
-103 format(I5, 1X, F7.1, 1X, F6.2, 1X, A8, 1X, A8, 1X, A8, 1X, A8, &
-           1X, A8, 1X, A8, 1X, F7.5, 1X, F8.3, 1X, F7.2, &
+100 format('Step   time     tstep    fopt     fopr     fwpr     ', &
+           'fgpr     fwir     fgir     fwct    fgor     fpav     NL LI Ch')
+101 format('       days     days     ksm3     sm3/d    ksm3/d   ', &
+           'ksm3/d   ksm3/d   ksm3/d           ksm3/sm3 Bar')
+102 format('------ -------- -------- -------- -------- -------- ', &
+           '-------- -------- -------- ------- -------- -------- -- -- --')
+103 format(I6, 1X, A8, 1X, A8, 1X, A8, 1X, A8, 1X, A8, 1X, A8, &
+           1X, A8, 1X, A8, 1X, F7.5, 1X, A8, 1X, A8, &
            1X, I2, 1X, I2, 1X, I2)
 
   well_data_list => realization%well_data
@@ -4242,19 +4247,47 @@ subroutine WriteLineRept(realization, option)
       write(*, 102)
     endif
 
+!   Increment linecount
+
+    icountp = linerept_count + 1
+
+!  Format the time field (prefer F8.1 if possible)
+
+    if      (time<999999.0) then
+      write(stime,'(F8.1)') time    ! Write as XXXXXX.X days
+    else if (time<99999999.0 ) then
+      write(stime,'(I8)') int(time) ! Write as XXXXXXXX days
+    else
+      call PrintTidy8(time,stime)   ! Write as general real days
+    endif
+
+!  Format the steplength (prefer F8.3 if possible)
+
+    if      (dt<9999.0) then
+      write(sdt,'(F8.3)') dt    ! Write as XXXX.XXX days
+    else
+      call PrintTidy8(dt,sdt)   ! Write as general real days
+    endif
+
+!  Format other real values
+
     call PrintTidy8(fopt, sopt)
     call PrintTidy8(fopr, sopr)
     call PrintTidy8(fwpr, swpr)
     call PrintTidy8(fgpr, sgpr)
     call PrintTidy8(fwir, swir)
     call PrintTidy8(fgir, sgir)
+    call PrintTidy8(fgor, sgor)
+    call PrintTidy8(fpav, spav)
 
-    write(*, 103) linerept_count+1, time, dt, &
+! Print line report
+
+    write(*, 103) icountp, stime, sdt, &
                   sopt, sopr, swpr, sgpr, &
-                  swir, sgir, fwct, fgor, fpav, &
+                  swir, sgir, fwct, sgor, spav, &
                   option%nnl, option%linpernl, option%nchperst
 
-    linerept_count = linerept_count + 1
+    linerept_count = icountp
 
   endif
 
