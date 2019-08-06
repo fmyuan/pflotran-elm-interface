@@ -39,11 +39,6 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM
  - It's working with **ELM v1.1 above**. May not be working with CLM.
  
 
-***(3) default-light*** 
-
- - **Light-weight version** of PFLOTRAN-elm-interface (Currently updated on Jan-14-2019).  The purpose is to slim the full package of PFLOTRAN-dev for ONLY **THREE (3) MODES:** Richards-MODE, TH-MODE, and CHEMISTRY (i.e. BGC).
-
-
 ### How do I get set up? ###
 
 **(1)** *git clone the repository*
@@ -51,7 +46,7 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM
 git clone https://github.com/fmyuan/pflotran-elm-interface.git
 ```
 
-**(2)[OPTIONAL]** *git checkout your specific branch, e.g. 'default-release-v3.7'*
+**(2)[OPTIONAL]** *git checkout your specific branch, e.g. 'default-release-v3.7'. The default is 'pflotran-elm-interface'*
 ```
 cd pflotran-interface
 git checkout default-release-v3.7
@@ -66,7 +61,7 @@ cd ./src/pflotran
 
 - build it by issuing command:
 ```
-make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE pflotran
+make PETSC_DIR=$PETSC_DIR pflotran
 (where $PETSC_DIR is your PETSC_DIR directory)
 ```
 
@@ -89,9 +84,9 @@ make link_common_src
 to unlink PFLOTRAN source code files, and only leave PFLOTRAN-ELM interface codes)
 ```
 
-***SECONDLY***, build the library
+***SECONDLY***, build the library (vertically-only mode ON)
 ```
-make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE smoothing2=TRUE libpflotran.a
+make PETSC_DIR=$PETSC_DIR column_mode=TRUE libpflotran.a
 
 (OR, make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE smoothing2=TRUE debugbuild=TRUE libpflotran.a
 for a library with '-g -O0')
@@ -100,93 +95,57 @@ for a library with '-g -O0')
 
 ***FINALLY***, build CLM (ELM) with this library.
 
-*I.* **Macro (CLM)** or **Macro.make (ELM)** modified, BY any means, for coupling build -
-```
-ifeq ($(MODEL), clm) 
-  ifeq ($(CLM_PFLOTRAN_COLMODE), TRUE) 
-    ifeq ($(CLM_PFLOTRAN_COUPLED), TRUE) 
-       CPPDEFS +=  -DCOLUMN_MODE 
-    endif
-  endif
-
-  ifeq ($(CLM_PFLOTRAN_COUPLED), TRUE) 
-     FFLAGS +=  -I$(CLM_PFLOTRAN_SOURCE_DIR)
-     CPPDEFS +=  -DCLM_PFLOTRAN 
-  endif
-endif
-
-......
-
-ifeq ($(MODEL), driver) 
-  ifeq ($(CLM_PFLOTRAN_COUPLED), TRUE) 
-     LDFLAGS +=  -L$(CLM_PFLOTRAN_SOURCE_DIR) -lpflotran $(PETSC_LIB)
-  endif
-endif
+*I.* **Macro (CLM)** or **Macro.make (ELM)** or **Macro.cmake (ELM master since@2019-07)** modified, BY any means, to include $PFLTRAN_INC and to link $PFLOTRAN_LIB -
 
 ```
+(Macro/Macro.make)
 
-*NOTE*: Modified Macro.make above requires ***4*** alias, setted as following.
 
-*II.* **Makefile**
-```
-# Set PETSc info if it is being used
-ifeq ($(strip $(USE_PETSC)), TRUE)
-  ifdef PETSC_PATH
-    ifndef INC_PETSC
-      INC_PETSC:=$(PETSC_PATH)/include
-    endif
-    ifndef LIB_PETSC
-      LIB_PETSC:=$(PETSC_PATH)/lib
-    endif
-  else
-    $(error PETSC_PATH must be defined when USE_PETSC is TRUE)
+  ifeq ($(MODEL),clm)
+    FFLAGS := $(FFLAGS)  $(PFLOTRAN_INC)
   endif
-
-  # Get the "PETSC_LIB" list an env var (UPDATED: 2017-May-19)
-  # include $(PETSC_PATH)/conf/variables
-  # (1) petsc-git-version: 1a9d3c3c50abf60098813fdf7291fe3540415115
-  # (2) in this petsc package, "PETSC_LIB" contains "-L$LIB_PETSC"
-  include $(PETSC_PATH)/lib/petsc/conf/variables
   
-endif
+  ......
+  
+  ifeq ($(MODEL),driver)
+    ......
+    LDFLAGS := $(LDFLAGS)  $(PFLOTRAN_LIB)
+  endif
 
 ```
+**(ELM master since@2019-07)**
+```
+  if("${MODEL}" STREQUAL "clm")
+    set(FFLAGS "${FFLAGS}  $(PFLOTRAN_INC)")
+  endif()
 
-*III.* **config_compilers.xml** editing for all or specific compilers. *NOTE*: if this added, No need to modify 'Macro' or 'Macro.make' under case directory. 
+  ......
+  
+  if("${MODEL}" STREQUAL "driver")
+    ......
+    set(LDFLAGS "${LDFLAGS}  $(PFLOTRAN_LIB)")
+  endif()
 
 ```
-<!-- hacking of mach/compiler generated 'Macros.make' for coupling with pflotran -->
-<!-- ideally it should go with CLM configuration -->
-<compiler>
-  <ADD_FFLAGS MODEL="clm" CLM_PFLOTRAN_COUPLED="TRUE"> -I$(CLM_PFLOTRAN_SOURCE_DIR)</ADD_FFLAGS>
-  <ADD_CPPDEFS MODEL="clm" CLM_PFLOTRAN_COUPLED="TRUE"> -DCLM_PFLOTRAN </ADD_CPPDEFS>
-  <ADD_CPPDEFS MODEL="clm" CLM_PFLOTRAN_COUPLED="TRUE" CLM_PFLOTRAN_COLMODE="TRUE"> -DCOLUMN_MODE </ADD_CPPDEFS>
-  <ADD_LDFLAGS MODEL="driver" CLM_PFLOTRAN_COUPLED="TRUE"> -L$(CLM_PFLOTRAN_SOURCE_DIR) -lpflotran $(PETSC_LIB)</ADD_LDFLAGS>
-</compiler>
-<!-- end of hacking 'Macros.make' for coupling with pflotran -->
-
-```
-
-
-*IV.* **config_machines.xml** editing for each supported machine. *NOTE*: after './case.setup', edit 'env_mach_specific.xml' to turn on options.
+*II.* **config_compilers.xml** editing for each supported machine. *NOTE*: after './case.setup', edit **'env_mach_specific.xml'** to modify PETSC_PATH (or PETSC_DIR), CLM_PFLOTRAN_SOURCE_DIR, as **user-defined**.
 
 ```
       <!-- for CLM-PFLOTRAN coupling, the PETSC_PATH must be defined specifically upon machines -->
       <environment_variables>
         <env name="PETSC_PATH" compiler="gnu" mpilib="openmpi">/software/user_tools/current/cades-ccsi/petsc4pf/openmpi-1.10-gcc-5.3</env>      
-        <!-- hack for PFLOTRAN coupling (this is a temporary solution, and user must manually edit env_mach_specific.xml after case.setup)-->
-        <env name="CLM_PFLOTRAN_COUPLED">FALSE</env>
-        <env name="CLM_PFLOTRAN_COLMODE">FALSE</env>
+        <!-- hack for PFLOTRAN coupling (this is a temporary solution, and user must manually edit env_mach_specific.xml after case.setup, IF needed)-->
         <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface/src/clm-pflotran</env>
+        <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_DIR}/include</env>
+        <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_DIR}/lib -lpetsc -lmetis -lparmetis</env>
       </environment_variables>       
 
 ```
 
 
 
-*V.* Specifically, for **ELM** build with PFLOTRAN, as external module.
-(TODO)
-The plan is to copy all source codes ONLY into:
+*III.* Specifically, for **ELM** build with PFLOTRAN, as external module.
+(e.g. https://github.com/fmyuan/E3SM.git, branch 'elm-pflotran-II')
+In this way, ELM source codes will have copied all PFLOTRAN source codes ONLY into:
 ```
       $SRCROOT/components/clm/src/external_models/pflotran-interface/src
 ```
@@ -202,4 +161,4 @@ If setting software environments (specifically PETSc library), the whole ELM bui
 
 
 
-***UPDATED: 2019-04-05***
+***UPDATED: 2019-08-06***
