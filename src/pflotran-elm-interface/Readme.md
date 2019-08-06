@@ -14,7 +14,7 @@ The model coupling aims to provide a full alternative solution for CLM-CN's surf
 git clone https://github.com/fmyuan/pflotran-elm-interface.git
 ```
 
-*NOTE: when git clone, checkout branch 'default-release-v3.9'*
+*NOTE: when git clone, checkout branch 'default-release-v3.9' or above*
 
 
 **(2)** *if coupling CLM with PFLOTRAN, need to build a library named as **libpflotran.a**.*
