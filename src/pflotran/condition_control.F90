@@ -55,7 +55,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   use WIPP_Flow_Aux_module, wf_dof_to_primary_variable => dof_to_primary_variable
   use PM_TOilIms_Aux_module 
   use PM_TOWG_Aux_module
-  use Hydrate_module
+  use Hydrate_Aux_module, hyd_dof_to_primary_variable => dof_to_primary_variable
 
   implicit none
   
@@ -76,6 +76,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
+  type(flow_hydrate_condition_type), pointer :: hydrate
   type(flow_toil_ims_condition_type), pointer :: toil_ims
   type(flow_towg_condition_type), pointer :: towg
   class(dataset_base_type), pointer :: dataset
@@ -294,7 +295,6 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
-              case (HA_STATE) !MAN: testing HA_STATE (7)
             end select
             if (.not. &
                 (general%temperature%itype == DIRICHLET_BC .or. &
@@ -342,16 +342,15 @@ subroutine CondControlAssignFlowInitCond(realization)
                 case(GAS_STATE)
                   xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
                     general%gas_pressure%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-                    general%gas_pressure%dataset%rarray(1) * &
-                    general%mole_fraction%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_ENERGY_DOF) = &
-                    general%temperature%dataset%rarray(1)
-                case(HA_STATE) !MAN testing HA_STATE (7)
-                  xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
-                    general%gas_pressure%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_GAS_SATURATION_DOF) = &
-                    general%hydrate_saturation%dataset%rarray(1)
+                  if (general_gas_air_mass_dof == &
+                      GENERAL_AIR_PRESSURE_INDEX) then
+                    xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+                      general%gas_pressure%dataset%rarray(1) * &
+                      general%mole_fraction%dataset%rarray(1)
+                  else
+                    xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
+                      general%mole_fraction%dataset%rarray(1)
+                  endif
                   xx_p(ibegin+GENERAL_ENERGY_DOF) = &
                     general%temperature%dataset%rarray(1)
               end select
@@ -373,30 +372,13 @@ subroutine CondControlAssignFlowInitCond(realization)
               offset = (local_id-1)*option%nflowdof
               istate = initial_condition%flow_aux_int_var(1,iconn)
               do idof = 1, option%nflowdof
-                if (general_hydrate_flag .and. istate > 3) then
-                  xx_p(offset+idof) = &
-                    initial_condition%flow_aux_real_var( &
-                      initial_condition%flow_aux_mapping( &
-                        gen_dof_to_primary_variable(idof,TWO_PHASE_STATE)), &
-                        iconn)
-
-                else
-                  xx_p(offset+idof) = &
-                    initial_condition%flow_aux_real_var( &
-                      initial_condition%flow_aux_mapping( &
-                        gen_dof_to_primary_variable(idof,istate)),iconn)
-                endif
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      gen_dof_to_primary_variable(idof,istate)),iconn)
               enddo
-              if (general_hydrate_flag .and. istate > 3) then
-                iphase_loc_p(ghosted_id) = TWO_PHASE_STATE
-                cur_patch%aux%Global%auxvars(ghosted_id)% &
-                        istate = TWO_PHASE_STATE
-                cur_patch%aux%Global%auxvars(ghosted_id)% &
-                        hstate = istate
-              else
-                iphase_loc_p(ghosted_id) = istate
-                cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
-              endif
+              iphase_loc_p(ghosted_id) = istate
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
             enddo
           endif
           initial_condition => initial_condition%next
@@ -405,6 +387,162 @@ subroutine CondControlAssignFlowInitCond(realization)
         call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
                                 ierr);CHKERRQ(ierr)
+      case(H_MODE)
+        
+        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
+        xx_p = UNINITIALIZED_DOUBLE
+
+        initial_condition => cur_patch%initial_condition_list%first
+        do
+
+          if (.not.associated(initial_condition)) exit
+
+          if (.not.associated(initial_condition%flow_aux_real_var)) then
+            if (.not.associated(initial_condition%flow_condition)) then
+              option%io_buffer = 'Flow condition is NULL in initial condition'
+              call PrintErrMsg(option)
+            endif
+
+            hydrate => initial_condition%flow_condition%hydrate
+
+            string = 'in flow condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" within initial condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" must be of type Dirichlet or Hydrostatic'
+            ! error checking.  the data must match the state
+            ! MAN: this needs to be expanded.
+            select case(initial_condition%flow_condition%iphase)
+              case(GA_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%gas_saturation%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_saturation%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(L_STATE)
+                if (.not. &
+                    (hydrate%liquid_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%liquid_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Liquid pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Mole fraction ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case(G_STATE)
+                if (.not. &
+                    (hydrate%gas_pressure%itype == DIRICHLET_BC .or. &
+                      hydrate%gas_pressure%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas pressure ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+                if (.not. &
+                    (hydrate%mole_fraction%itype == DIRICHLET_BC .or. &
+                      hydrate%mole_fraction%itype == HYDROSTATIC_BC)) then
+                  option%io_buffer = 'Gas saturation ' // trim(string)
+                  call PrintErrMsg(option)
+                endif
+              case (HA_STATE) !MAN: testing HA_STATE (7)
+            end select
+            if (.not. &
+                (hydrate%temperature%itype == DIRICHLET_BC .or. &
+                  hydrate%temperature%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Temperature ' // trim(string)
+              call PrintErrMsg(option)
+            endif
+
+
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              iend = local_id*option%nflowdof
+              ibegin = iend-option%nflowdof+1
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              ! decrement ibegin to give a local offset of 0
+              ibegin = ibegin - 1
+              select case(initial_condition%flow_condition%iphase)
+                case(GA_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%gas_saturation%dataset%rarray(1)
+                  temperature = hydrate%temperature%dataset%rarray(1)
+                  if (hydrate_2ph_energy_dof == HYDRATE_TEMPERATURE_INDEX) then
+                    xx_p(ibegin+HYDRATE_ENERGY_DOF) = temperature
+                  endif
+                case(L_STATE)
+                  xx_p(ibegin+HYDRATE_LIQUID_PRESSURE_DOF) = &
+                    hydrate%liquid_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_L_STATE_X_MOLE_DOF) = &
+                    hydrate%mole_fraction%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(G_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_G_STATE_AIR_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1) * &
+                    hydrate%mole_fraction%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(HA_STATE) !MAN testing HA_STATE (7)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%hydrate_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+              end select
+              iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+                initial_condition%flow_condition%iphase
+            enddo
+          else
+            do iconn=1,initial_condition%connection_set%num_connections
+              local_id = initial_condition%connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              offset = (local_id-1)*option%nflowdof
+              istate = initial_condition%flow_aux_int_var(1,iconn)
+              do idof = 1, option%nflowdof
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      hyd_dof_to_primary_variable(idof,istate)),iconn)
+              enddo
+              iphase_loc_p(ghosted_id) = istate
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+            enddo
+          endif
+          initial_condition => initial_condition%next
+        enddo
+
+        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
+                                ierr);CHKERRQ(ierr)
+
 
       case(TOIL_IMS_MODE)
 
@@ -799,7 +937,7 @@ subroutine CondControlAssignFlowInitCond(realization)
             ! TODO(geh): phase out field%iphas_loc
             iphase_loc_p(ghosted_id) = &
               initial_condition%flow_condition%iphase
-            if (option%iflowmode == G_MODE) then
+            if (option%iflowmode == G_MODE .or. option%iflowmode == H_MODE) then
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
                 int(iphase_loc_p(ghosted_id))
             endif
@@ -816,7 +954,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 !--Share the state index in general and OWG modes------------------------------
 
   if( option%iflowmode == G_MODE   .or. &
-      option%iflowmode == TOWG_MODE ) then 
+      option%iflowmode == TOWG_MODE) then 
     call GlobalUpdateState(realization)
   endif  
   
@@ -1666,7 +1804,7 @@ subroutine CondControlScaleSourceSink(realization)
         ghosted_id = grid%nL2G(local_id)
 
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE)
               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
@@ -1722,7 +1860,7 @@ subroutine CondControlScaleSourceSink(realization)
       do iconn = 1, cur_connection_set%num_connections      
         local_id = cur_connection_set%id_dn(iconn)
         select case(option%iflowmode)
-          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE)
+          case(RICHARDS_MODE,RICHARDS_TS_MODE,G_MODE,WF_MODE,H_MODE)
             cur_source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
               vec_ptr(local_id)
           case(TH_MODE,TH_TS_MODE)

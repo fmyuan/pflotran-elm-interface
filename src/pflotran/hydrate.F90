@@ -1,2530 +1,2435 @@
 module Hydrate_module
 
-!
-! Author: Michael Nole
-! Date: 01/02/19
-!
-! MODULE DESCRIPTION:
-! ***************************************************************************
-! This module extends general mode to account for gas hydrate
-! formation and dissociation
-! ***************************************************************************
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-  use PFLOTRAN_Constants_module
-  use Data_Mediator_Vec_class
-  use Region_module
-
-  use General_Aux_module
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+  use Hydrate_Aux_module
+  use Hydrate_Common_module
   use Global_Aux_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
-
-  private
-
-  PetscInt, parameter, public :: H_STATE = 17 !5 (4 and 5 conflict with 
-  PetscInt, parameter, public :: ICE_STATE = 16 !4 ANY_STATE and MULTI_STATE)
-  PetscInt, parameter, public :: GA_STATE = 3
-  PetscInt, parameter, public :: HG_STATE = 6
-  PetscInt, parameter, public :: HA_STATE = 7
-  PetscInt, parameter, public :: HI_STATE = 8
-  PetscInt, parameter, public :: GI_STATE = 9
-  PetscInt, parameter, public :: AI_STATE = 10
-  PetscInt, parameter, public :: HGA_STATE = 11
-  PetscInt, parameter, public :: HAI_STATE = 12
-  PetscInt, parameter, public :: HGI_STATE = 13
-  PetscInt, parameter, public :: GAI_STATE = 14
-  PetscInt, parameter, public :: QUAD_STATE = 15
   
-  PetscInt, parameter :: lid = 1
-  PetscInt, parameter :: gid = 2
-  PetscInt, parameter :: hid = 3
-  PetscInt, parameter :: iid = 4
+  private 
 
-  !Structure 1 methane hydrate:
-  PetscReal, parameter :: Nhyd = 6.d0
-  PetscReal, parameter :: HYDRATE_DENSITY_KG = 920.d0 !kg/m^3
-  PetscReal, parameter :: HYDRATE_DENSITY = 52.15551276d0 !mol/L
-  PetscReal, parameter :: MW_CH4 = 16.04d0
-  PetscReal, parameter :: MW_H20 = 18.01d0 
-
-  PetscReal, parameter :: MOL_RATIO_METH = 0.14285714285d0
-  PetscReal, parameter :: MOL_RATIO_H20 = 1.d0 - MOL_RATIO_METH
-
-  PetscReal, parameter :: TQD = 1.0d-2 !Quad point temperature (C)
-  
-  !Ice: 
-  PetscReal, parameter :: ICE_DENSITY_KG = 920.d0 !kg/m^3
-  PetscReal, parameter :: ICE_DENSITY = 50.86d0 !mol/L
-
-
-  PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
-
-!MAN: methanogenesis not yet implemented
-!  type, public :: methanogenesis_type
-!    character(len=MAXWORDLENGTH) :: source_name
-!    PetscReal :: alpha 
-!    PetscReal :: k_alpha
-!    PetscReal :: lambda
-!    PetscReal :: omega
-!    PetscReal :: z_smt
-!    type(methanogenesis_type), pointer :: next
-!  end type methanogenesis_type
-  
-!  type, public :: methanogenesis_mediator_type
-!    type(methanogenesis_type), pointer :: methanogenesis_list
-!    class(data_mediator_vec_type), pointer :: data_mediator
-!    PetscInt :: total_num_cells
-!  end type methanogenesis_mediator_type
-
-  public :: HydrateSetFlowMode, &
-            HydrateUpdateState, &
-            HydrateAuxVarCompute, &
-            HydrateAccumulation, &
-            HydrateAuxVarPerturb, &
-            HydrateCompositeThermalCond, &
-            HydratePE
+  public :: HydrateRead, &
+            HydrateSetup, &
+            HydrateInitializeTimestep, &
+            HydrateUpdateSolution, &
+            HydrateTimeCut,&
+            HydrateUpdateAuxVars, &
+            HydrateUpdateFixedAccum, &
+            HydrateComputeMassBalance, &
+            HydrateResidual, &
+            HydrateJacobian, &
+            HydrateGetTecplotHeader, &
+            HydrateSetPlotVariables, &
+            HydrateMapBCAuxVarsToGlobal, &
+            HydrateDestroy
 
 contains
 
 ! ************************************************************************** !
 
-subroutine HydrateSetFlowMode(option)
-!
-! Sets the flow mode for equilibrium hydrate formation and dissociation
-!
-! Author: Michael Nole
-! Date: 01/02/19
-!
+subroutine HydrateRead(input,meth,option)
 
+  use Input_Aux_module
   use Option_module
+  use String_module
 
   implicit none
 
-  type(option_type) :: option
+  type(input_type), pointer :: input
+  type(methanogenesis_type), pointer :: meth
+  type(option_type), pointer :: option
 
-  option%iflowmode = G_MODE
-  option%nphase = 4
-  option%liquid_phase = 1  ! liquid_pressure
-  option%gas_phase = 2     ! gas_pressure
-  option%hydrate_phase = 3
-  option%ice_phase = 4
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: temp_int
 
-  option%air_pressure_id = 3
-  option%capillary_pressure_id = 4
-  option%vapor_pressure_id = 5
-  option%saturation_pressure_id = 6
+  do
 
-  option%water_id = 1
-  option%air_id = 2
-  option%energy_id = 3
+    call InputReadPflotranString(input,option)
+    if (input%ierr /= 0) exit
+    if (InputCheckExit(input,option)) exit
 
-  option%nflowdof = 3
-  option%nflowspec = 2
-  option%use_isothermal = PETSC_FALSE
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword','HYDRATE')
+    call StringToUpper(word)
 
-end subroutine HydrateSetFlowMode
-
-! ************************************************************************** !
-
-subroutine HydrateUpdateState(x,gen_auxvar,global_auxvar, material_auxvar, &
-                              characteristic_curves,natural_id,option)
-  ! 
-  ! Decides on state changes and adds epsilons to new primary variables 
-  ! accordingly. Primary variables for each phase state modeled 
-  ! roughly after Sun, 2005
-  ! 
-  ! Author: Michael Nole
-  ! Date: 01/28/18
-  !
-
-  use Option_module
-  use Global_Aux_module
-  use EOS_Water_module
-  use Characteristic_Curves_module
-  use Material_Aux_class
-  use General_Aux_module
-
-  implicit none
-
-  type(option_type) :: option
-  PetscInt :: natural_id
-  class(characteristic_curves_type) :: characteristic_curves
-  type(general_auxvar_type) :: gen_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-
-  PetscReal, parameter :: epsilon = 0.d0
-  PetscReal :: liq_epsilon, gas_epsilon, hyd_epsilon, two_phase_epsilon
-  PetscReal :: ga_epsilon, ha_epsilon
-  PetscReal :: x(option%nflowdof)
-  PetscReal :: PE_hyd, K_H, Tf_ice, dTf, h_sat_eff, i_sat_eff
-  PetscInt :: apid, cpid, vpid, spid
-  PetscInt :: gid, lid, hid, iid, acid, wid
-  PetscBool :: istatechng
-  PetscErrorCode :: ierr
-
-  if (general_immiscible .or. global_auxvar%istatechng) return
-
-  lid = option%liquid_phase
-  gid = option%gas_phase
-  hid = 3
-  iid = 4
-
-  apid = option%air_pressure_id
-  cpid = option%capillary_pressure_id
-  vpid = option%vapor_pressure_id
-  spid = option%saturation_pressure_id
-
-  acid = option%air_id
-
-  gen_auxvar%istate_store(PREV_IT) = global_auxvar%istate
-  istatechng = PETSC_FALSE
-
-  gas_epsilon = 0.d0
-  liq_epsilon = 0.d0
-  hyd_epsilon = 0.d0
-  two_phase_epsilon = 0.d0
-
-  !man: right now comparing hydrate equilib pressure to gas
-  !pressure (assuming low water solubility in methane). 
-  !Ideally would compare to partial pressure of methane.
-
-  if (global_auxvar%hstate == ZERO_INTEGER .and. gen_auxvar%sat(gid) &
-       < 0.d0) then
-    global_auxvar%hstate = HA_STATE
-    gen_auxvar%sat(hid) = -1.d0 * gen_auxvar%sat(gid)
-    gen_auxvar%sat(gid) = 0.d0
-  endif
-
-  if (global_auxvar%hstate == ZERO_INTEGER) global_auxvar% &
-                              hstate = global_auxvar%istate 
-  gen_auxvar%hstate_store(PREV_IT) = global_auxvar%hstate
-  
-  if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
-    h_sat_eff = gen_auxvar%sat(hid)+gen_auxvar%sat(iid)
-    i_sat_eff = 2.d0 * gen_auxvar%sat(iid)
-  else
-    h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
-    i_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
-  endif
-
-  call HydratePE(gen_auxvar%temp,h_sat_eff, PE_hyd, &
-          characteristic_curves, option)
-
-  call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,option)
-
-  Tf_ice = TQD + dTf
-  !Update State
-  
-  select case(global_auxvar%hstate)
-    case(LIQUID_STATE)
-      if (gen_auxvar%temp > Tf_ice) then
-        if (gen_auxvar%pres(apid) >= gen_auxvar% &
-             pres(lid)*(1.d0-window_epsilon)) then
-          !if (gen_auxvar%pres(apid) >= PE_hyd) then
-          if (gen_auxvar%pres(gid) >= PE_hyd) then
-            istatechng = PETSC_TRUE
-            global_auxvar%hstate = HA_STATE
-            global_auxvar%istate = TWO_PHASE_STATE
-          else
-            istatechng = PETSC_TRUE
-            global_auxvar%hstate = GA_STATE
-            global_auxvar%istate = TWO_PHASE_STATE
-            liq_epsilon = option%phase_chng_epsilon
-          endif
-        else
-          istatechng = PETSC_FALSE
+    select case(trim(word))
+      case('METHANOGENESIS')
+        if (.not. associated(meth)) then
+          allocate(meth)
         endif
-      elseif (gen_auxvar%pres(apid) >= gen_auxvar%pres(lid)* &
-              (1.d0-window_epsilon)) then
-        if (gen_auxvar%pres(gid) < PE_hyd) then
-      !elseif (gen_auxvar%pres(apid) >= gen_auxvar%pres(lid)) then
-        !if (gen_auxvar%pres(apid) < PE_hyd) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          liq_epsilon = option%phase_chng_epsilon
-        elseif (gen_auxvar%pres(gid) > PE_hyd) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HAI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        else 
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = QUAD_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          liq_epsilon = option%phase_chng_epsilon
-        endif
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = AI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif
+        do
+          call InputReadPflotranString(input,option)
+          if (input%ierr /= 0) exit
+          if (InputCheckExit(input,option)) exit
 
-    case(GAS_STATE)
-      if (gen_auxvar%pres(vpid) >= gen_auxvar%pres(spid)* &
-         (1.d0-window_epsilon)) then
-        if (gen_auxvar%pres(apid) < PE_hyd) then
-          if (gen_auxvar%temp > Tf_ice) then
-            istatechng = PETSC_TRUE
-            global_auxvar%hstate = GA_STATE
-            global_auxvar%istate = TWO_PHASE_STATE
-            gas_epsilon = option%phase_chng_epsilon
-          elseif (gen_auxvar%temp == Tf_ice) then
-            istatechng = PETSC_TRUE             
-            global_auxvar%hstate = GAI_STATE
-            global_auxvar%istate =  TWO_PHASE_STATE
-            gas_epsilon = option%phase_chng_epsilon           
-          else
-            istatechng = PETSC_TRUE
-            global_auxvar%hstate = GI_STATE
-            global_auxvar%istate = TWO_PHASE_STATE
-            gas_epsilon = option%phase_chng_epsilon
-          endif
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HG_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          gas_epsilon = option%phase_chng_epsilon
-        endif
-      else
-        istatechng = PETSC_FALSE
-      endif
-
-    case(H_STATE)
-      if (gen_auxvar%pres(apid) < PE_hyd) then
-      !if (gen_auxvar%pres(gid) < PE_hyd) then
-        if (gen_auxvar%temp > Tf_ice) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HGA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%temp == Tf_ice) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = QUAD_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HGI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-          istatechng = PETSC_FALSE
-      endif
-
-    case(ICE_STATE)
-      if (gen_auxvar%temp > Tf_ice) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = QUAD_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      else
-        istatechng = PETSC_FALSE
-      endif 
-
-    case(GA_STATE)
-      !if (gen_auxvar%pres(apid) < PE_hyd) then
-      if (gen_auxvar%pres(gid) < PE_hyd) then
-        if (gen_auxvar%temp > Tf_ice) then
-          if (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) > 0.d0) then
-            istatechng = PETSC_FALSE
-          elseif (gen_auxvar%sat(gid) <= 0.d0) then
-            istatechng = PETSC_TRUE
-            global_auxvar%hstate = LIQUID_STATE
-            global_auxvar%istate = LIQUID_STATE
-            two_phase_epsilon = option%phase_chng_epsilon
-          elseif (gen_auxvar%sat(gid) >= 1.d0) then
-            istatechng = PETSC_TRUE
-            global_auxvar%hstate = GAS_STATE
-            global_auxvar%istate = GAS_STATE
-            two_phase_epsilon = option%phase_chng_epsilon
-          endif
-        else 
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        endif
-      else
-        if (gen_auxvar%temp > Tf_ice) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HGA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = QUAD_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        endif
-      endif
-
-    case(HG_STATE)
-      !if (gen_auxvar%pres(apid) > PE_hyd) then
-      if (gen_auxvar%pres(gid) > PE_hyd) then
-        if (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(hid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = H_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        elseif (gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAS_STATE
-          global_auxvar%istate = GAS_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        endif
-      else
-        if (gen_auxvar%temp > Tf_ice) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HGA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        elseif (gen_auxvar%temp == Tf_ice) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = QUAD_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HGI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-          two_phase_epsilon = option%phase_chng_epsilon
-        endif
-      endif
-
-    case(HA_STATE)
-      !if (gen_auxvar%pres(gid) > PE_hyd .and. gen_auxvar%temp > Tf_ice) then
-      if (gen_auxvar%pres(apid) > PE_hyd .and. gen_auxvar%temp > Tf_ice) then
-        if (gen_auxvar%sat(hid) >0.d0 .and. gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(hid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = H_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = LIQUID_STATE
-          global_auxvar%istate = LIQUID_STATE
-        endif
-      elseif (gen_auxvar%temp > Tf_ice) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HGA_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-        ha_epsilon = option%phase_chng_epsilon
-      elseif (gen_auxvar%pres(apid) > PE_hyd) then
-       istatechng = PETSC_TRUE
-       global_auxvar%hstate = HAI_STATE
-       global_auxvar%istate = TWO_PHASE_STATE
-      else
-       istatechng = PETSC_TRUE
-       global_auxvar%hstate = QUAD_STATE
-       global_auxvar%istate = TWO_PHASE_STATE
-      endif
-
-    case(HI_STATE)
-      if (gen_auxvar%pres(apid) > PE_hyd) then
-      !if (gen_auxvar%pres(gid) > PE_hyd) then
-        if (gen_auxvar%temp < Tf_ice) then
-          istatechng = PETSC_FALSE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HAI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-        if (gen_auxvar%temp < Tf_ice) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HGI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = QUAD_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      endif
-
-    case(GI_STATE)
-      if (gen_auxvar%temp < Tf_ice .and. gen_auxvar%pres(apid) < PE_hyd) then 
-      !if (gen_auxvar%temp < Tf_ice .and. gen_auxvar%pres(gid) < PE_hyd) then
-        if (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAS_STATE
-          global_auxvar%istate = GAS_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = ICE_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      elseif (gen_auxvar%temp < Tf_ice) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HGI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%pres(apid) < PE_hyd) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = GAI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = QUAD_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif
-
-    case(AI_STATE)
-      !if (gen_auxvar%pres(apid) >= gen_auxvar% &
-      !       pres(lid)*(1.d0-window_epsilon)) then 
-      !  if (gen_auxvar%pres(apid) < PE_hyd) then
-      if (gen_auxvar%pres(apid) > PE_hyd*(1.d0-window_epsilon)) then
-        if (gen_auxvar%pres(lid) < PE_hyd*(1.d0+window_epsilon)) then
-      !  if (gen_auxvar%pres(lid) >  PE_hyd*(1.d0-window_epsilon)) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HAI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-        if (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = LIQUID_STATE
-          global_auxvar%istate = LIQUID_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = ICE_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      endif
-    
-    case(HGA_STATE)
-      if (gen_auxvar%temp > Tf_ice) then
-        if (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(gid) > 0.d0 &
-            .and. gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(lid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(gid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HG_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = LIQUID_STATE
-          global_auxvar%istate = LIQUID_STATE
-        elseif (gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAS_STATE
-          global_auxvar%istate = GAS_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = H_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = QUAD_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif
-
-    case(HAI_STATE)
-      !if (gen_auxvar%pres(apid) > PE_hyd) then
-      if (gen_auxvar%pres(gid) > PE_hyd*(1.d0-window_epsilon)) then
-        if (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(hid) > 0.d0 &
-            .and. gen_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(iid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = AI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(hid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(iid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = LIQUID_STATE
-          global_auxvar%istate = LIQUID_STATE
-        elseif (gen_auxvar%sat(hid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = H_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = ICE_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = QUAD_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif 
-    case(HGI_STATE)
-      if (gen_auxvar%temp < Tf_ice) then
-        if (gen_auxvar%sat(iid) > 0.d0 .and. gen_auxvar%sat(hid) > 0.d0 &
-            .and. gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(hid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HG_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(iid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = HI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(iid) > &
-                0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = ICE_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAS_STATE
-          global_auxvar%istate = GAS_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = H_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = QUAD_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif
-      
-    case(GAI_STATE)
-      if (gen_auxvar%pres(apid) < PE_hyd) then
-      !if (gen_auxvar%pres(gid) < PE_hyd) then
-        if (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) > 0.d0 &
-            .and. gen_auxvar%sat(iid) > 0.d0) then
-          istatechng = PETSC_FALSE
-        elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) &
-                > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GA_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(iid) &
-                > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(iid) &
-                > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = AI_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        elseif (gen_auxvar%sat(gid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = GAS_STATE
-          global_auxvar%istate = GAS_STATE
-        elseif (gen_auxvar%sat(lid) > 0.d0) then
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = LIQUID_STATE
-          global_auxvar%istate = LIQUID_STATE
-        else
-          istatechng = PETSC_TRUE
-          global_auxvar%hstate = ICE_STATE
-          global_auxvar%istate = TWO_PHASE_STATE
-        endif
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = QUAD_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif
-      
-    case(QUAD_STATE)
-      if (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(gid) > 0.d0 &
-          .and. gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(iid) &
-          > 0.d0) then
-        istatechng = PETSC_FALSE
-      elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(gid) &
-               > 0.d0 .and. gen_auxvar%sat(lid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HGA_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(lid) &
-              > 0.d0 .and. gen_auxvar%sat(iid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HAI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) &
-              > 0.d0 .and. gen_auxvar%sat(iid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = GAI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(gid) &
-              > 0.d0 .and. gen_auxvar%sat(iid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HGI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(lid) > 0.d0 .and. gen_auxvar%sat(iid) &
-              > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = AI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(lid) &
-              > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = GA_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(lid) &
-              > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HA_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(iid) &
-              > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(gid) > 0.d0 .and. gen_auxvar%sat(iid) &
-              > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = GI_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(hid) > 0.d0 .and. gen_auxvar%sat(hid) &
-              > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = HG_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(lid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = LIQUID_STATE
-        global_auxvar%istate = LIQUID_STATE
-      elseif (gen_auxvar%sat(hid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = H_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      elseif (gen_auxvar%sat(gid) > 0.d0) then
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = GAS_STATE
-        global_auxvar%istate = GAS_STATE
-      else
-        istatechng = PETSC_TRUE
-        global_auxvar%hstate = ICE_STATE
-        global_auxvar%istate = TWO_PHASE_STATE
-      endif
-  end select
-
-
-  !Update primary variables
-
-  if (istatechng) then
-
-    if (option%restrict_state_chng) global_auxvar%istatechng = PETSC_TRUE
-
-    select case(global_auxvar%hstate)
-
-      case(LIQUID_STATE)
-!     ********* Aqueous State (A) ********************************
-!     Primary variables: Pa, Xma, T
-!
-        x(GENERAL_LIQUID_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = gen_auxvar%xmol(acid,lid)
-        x(GENERAL_ENERGY_DOF) = x(GENERAL_ENERGY_DOF)
-
-      case(GAS_STATE)
-!     ********* Gas State (G) ********************************
-!     Primary variables: Pg, Pa, T
-!
-        x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = gen_auxvar%pres(apid)
-        x(GENERAL_ENERGY_DOF) = x(GENERAL_ENERGY_DOF)
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-      
-      case(H_STATE)
-!     ********* Hydrate State (H) ********************************
-!     Primary variables: Pg, Xmh, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = MOL_RATIO_METH
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-      
-      case(ICE_STATE)
-!     ********* Ice State (I) ********************************
-!     Primary variables: Pg, Xmi, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = 0.d0
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-
-      case(GA_STATE)
-!     ********* Gas & Aqueous State (GA) ********************************
-!     Primary variables: Pg, Sg, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(gid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-      
-      case(HG_STATE)
-!     ********* Hydrate & Gas State (HG) ********************************
-!     Primary variables: Pg, Sg, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(gid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-
-      case(HA_STATE)
-!     ********* Hydrate & Aqueous State (HA) ********************************
-!     Primary variables: Pg, Sh, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(hid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-      
-      case(HI_STATE)
-!     ********* Hydrate & Ice State (HI) ********************************
-!     Primary variables: Pg, Sh, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(hid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-        
-      case(GI_STATE)
-!     ********* Gas & Ice State (GI) ********************************
-!     Primary variables: Pg, Si, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(iid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-      
-      case(AI_STATE)
-!     ********* Aqueous & Ice State (AI) ********************************
-!     Primary variables: Pg, Xma, Sl
-!
-        x(GENERAL_LIQUID_PRESSURE_DOF) = gen_auxvar%pres(lid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%xmol(acid,lid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%sat(lid)
-        
-      case(HGA_STATE)
-!     ********* Hydrate, Gas, & Aqueous State (HGA) **************************
-!     Primary variables: Sl, Sh, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%sat(lid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(hid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-      
-      case(HAI_STATE)
-!     ********* Hydrate, Aqueous, & Ice State (HAI) **************************
-!     Primary variables: Pg, Sl, Si
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(lid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%sat(iid)
-      
-      case(HGI_STATE)
-!     ********* Hydrate, Gas, & Ice State (HGI) ******************************
-!     Primary variables: Sh, Si, T
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%sat(hid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(iid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%temp
-      
-      case(GAI_STATE)
-!     ********* Gas, Aqueous, & Ice State (GAI) ******************************
-!     Primary variables: Pg, Sl, Si
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(lid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%sat(iid)
-      
-      case(QUAD_STATE)
-!     ********* Quadruple Point (HGAI) ********************************
-!     Primary variables: Sg, Sl, Si
-!
-        x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%sat(gid)
-        x(GENERAL_GAS_SATURATION_DOF) = gen_auxvar%sat(lid)
-        x(GENERAL_ENERGY_DOF) = gen_auxvar%sat(iid)
-      
-      case default
-        write(option%io_buffer,*) global_auxvar%hstate
-        option%io_buffer = 'State (' // trim(adjustl(option%io_buffer)) // &
-          ') not recognized in HydrateUpdateState.'
-        call PrintErrMsgByRank(option)
-
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','HYDRATE')
+          call StringToUpper(word)
+          select case(trim(word))
+            case('NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'methanogenesis source name', &
+                                 error_string)
+              call StringToUpper(word)
+              meth%source_name = trim(word)
+            case('ALPHA')
+              call InputReadDouble(input,option,meth%alpha)
+              call InputErrorMsg(input,option,'alpha',error_string)
+            case('LAMBDA')
+              call InputReadDouble(input,option,meth%lambda)
+              call InputErrorMsg(input,option,'lambda',error_string)
+            case('V_SED')
+              call InputReadDouble(input,option,meth%omega)
+              call InputErrorMsg(input,option,'v_sed',error_string)
+            case('SMT_DEPTH')
+              call InputReadDouble(input,option,meth%z_smt)
+              call InputErrorMsg(input,option,'smt_depth',error_string)
+            case('K_ALPHA')
+              call InputReadDouble(input,option,meth%k_alpha)
+              call InputErrorMsg(input,option,'k_alpha',error_string)
+          end select
+        enddo
+      case('PERM_SCALING_FUNCTION')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('DAI_AND_SEOL')
+            temp_int = 1
+            HYDRATE_PERM_SCALING_FUNCTION = temp_int
+        end select
     end select
 
-    call HydrateAuxVarCompute(x,gen_auxvar, global_auxvar,material_auxvar, &
-          characteristic_curves,natural_id,option)
+  enddo
 
-  endif
-
-end subroutine HydrateUpdateState
+end subroutine HydrateRead
 
 ! ************************************************************************** !
 
-subroutine HydrateAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
-                                characteristic_curves,natural_id,option)
-  !
-  ! Computes auxiliary variables for each grid cell, with gas hydrate physics
+subroutine HydrateSetup(realization)
+  ! 
+  ! Creates arrays for auxiliary variables
+  ! 
   ! Author: Michael Nole
-  ! Date: 04/04/19
-  !
+  ! Date: 07/23/19
+  ! 
 
+  use Realization_Subsurface_class
+  use Patch_module
   use Option_module
-  use Global_Aux_module
-  use EOS_Water_module
-  use EOS_Gas_module
-  use Characteristic_Curves_module
+  use Coupler_module
+  use Connection_module
+  use Grid_module
+  use Fluid_module
   use Material_Aux_class
+  use Output_Aux_module
+ 
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(patch_type),pointer :: patch
+  type(grid_type), pointer :: grid
+  type(output_variable_list_type), pointer :: list
+  type(coupler_type), pointer :: boundary_condition
+  type(material_parameter_type), pointer :: material_parameter
+
+  PetscInt :: ghosted_id, iconn, sum_connection, local_id
+  PetscInt :: i, idof, count, ndof
+  PetscBool :: error_found
+  PetscInt :: flag(10)
+                                                ! extra index for derivatives
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(fluid_property_type), pointer :: cur_fluid_property
+
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  
+  patch%aux%Hydrate => HydrateAuxCreate(option)
+
+  hydrate_analytical_derivatives = .not.option%flow%numerical_derivatives
+
+  ! ensure that material properties specific to this module are properly
+  ! initialized
+  material_parameter => patch%aux%Material%material_parameter
+  error_found = PETSC_FALSE
+  
+  if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
+    option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
+    call PrintMsg(option)
+    error_found = PETSC_TRUE
+  endif
+  if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
+    option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
+    call PrintMsg(option)
+    error_found = PETSC_TRUE
+  endif
+  
+  material_auxvars => patch%aux%Material%auxvars
+  flag = 0
+  !TODO(geh): change to looping over ghosted ids once the legacy code is 
+  !           history and the communicator can be passed down.
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
+      flag(1) = 1
+      option%io_buffer = 'ERROR: Non-initialized cell volume.'
+      call PrintMsg(option)
+    endif
+    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+      flag(2) = 1
+      option%io_buffer = 'ERROR: Non-initialized porosity.'
+      call PrintMsg(option)
+    endif
+    if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
+      flag(3) = 1
+      option%io_buffer = 'ERROR: Non-initialized tortuosity.'
+      call PrintMsg(option)
+    endif
+    if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
+        flag(4) == 0) then
+      flag(4) = 1
+      option%io_buffer = 'ERROR: Non-initialized soil particle density.'
+      call PrintMsg(option)
+    endif
+    if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
+        flag(5) == 0) then
+      option%io_buffer = 'ERROR: Non-initialized permeability.'
+      call PrintMsg(option)
+      flag(5) = 1
+    endif
+  enddo
+  
+  if (error_found .or. maxval(flag) > 0) then
+    option%io_buffer = 'Material property errors found in HydrateSetup.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! allocate auxvar data structures for all grid cells  
+  if (hydrate_analytical_derivatives) then
+    ndof = 0
+  else
+    ndof = option%nflowdof
+  endif
+  allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
+  do ghosted_id = 1, grid%ngmax
+    do idof = 0, 2 * ndof
+      call HydrateAuxVarInit(hyd_auxvars(idof,ghosted_id), &
+                         (hydrate_analytical_derivatives .and. idof==0), &
+                          option)
+    enddo
+  enddo
+  patch%aux%Hydrate%auxvars => hyd_auxvars
+  patch%aux%Hydrate%num_aux = grid%ngmax
+
+  ! count the number of boundary connections and allocate
+  ! auxvar data structures for them 
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
+  if (sum_connection > 0) then
+    allocate(hyd_auxvars_bc(sum_connection))
+    do iconn = 1, sum_connection
+      call HydrateAuxVarInit(hyd_auxvars_bc(iconn),PETSC_FALSE,option)
+    enddo
+    patch%aux%Hydrate%auxvars_bc => hyd_auxvars_bc
+  endif
+  patch%aux%Hydrate%num_aux_bc = sum_connection
+
+  ! count the number of source/sink connections and allocate
+  ! auxvar data structures for them  
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
+  if (sum_connection > 0) then
+    allocate(hyd_auxvars_ss(sum_connection))
+    do iconn = 1, sum_connection
+      call HydrateAuxVarInit(hyd_auxvars_ss(iconn),PETSC_FALSE,option)
+    enddo
+    patch%aux%Hydrate%auxvars_ss => hyd_auxvars_ss
+  endif
+  patch%aux%Hydrate%num_aux_ss = sum_connection
+
+  ! create array for zeroing Jacobian entries if isothermal and/or no air
+  allocate(patch%aux%Hydrate%row_zeroing_array(grid%nlmax))
+  patch%aux%Hydrate%row_zeroing_array = 0
+  
+  ! initialize parameters
+  cur_fluid_property => realization%fluid_properties
+  do 
+    if (.not.associated(cur_fluid_property)) exit
+    patch%aux%Hydrate%hydrate_parameter% &
+      diffusion_coefficient(cur_fluid_property%phase_id) = &
+        cur_fluid_property%diffusion_coefficient
+    cur_fluid_property => cur_fluid_property%next
+  enddo  
+  ! check whether diffusion coefficients are initialized.
+  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
+      diffusion_coefficient(LIQUID_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Liquid phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
+      diffusion_coefficient(GAS_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Gas phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+
+  list => realization%output_option%output_snap_variable_list
+  call HydrateSetPlotVariables(realization,list)
+  list => realization%output_option%output_obs_variable_list
+  call HydrateSetPlotVariables(realization,list)
+  
+  hydrate_ts_count = 0
+  hydrate_ts_cut_count = 0
+  hydrate_ni_count = 0
+
+
+  call PatchSetupUpwindDirection(patch,option)
+
+end subroutine HydrateSetup
+
+! ************************************************************************** !
+
+subroutine HydrateInitializeTimestep(realization)
+  ! 
+  ! Update data in module prior to time step
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Upwind_Direction_module
+
+  
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  
+  if (hydrate_restrict_state_chng) then
+    realization%patch%aux%Hydrate%auxvars(:,:)%istatechng = PETSC_FALSE
+  endif
+  
+  hydrate_newton_iteration_number = 0
+  update_upwind_direction = PETSC_TRUE
+  call HydrateUpdateFixedAccum(realization)
+  
+  hydrate_ni_count = 0
+
+end subroutine HydrateInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine HydrateUpdateSolution(realization)
+  ! 
+  ! Updates data in module after a successful time
+  ! step
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Field_module
+  use Patch_module
+  use Discretization_module
+  use Option_module
+  use Grid_module
+  
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  PetscInt :: local_id, ghosted_id
+  PetscErrorCode :: ierr
+  
+  option => realization%option
+  field => realization%field
+  patch => realization%patch
+  grid => patch%grid
+  hyd_auxvars => patch%aux%Hydrate%auxvars  
+  global_auxvars => patch%aux%Global%auxvars
+  
+  if (realization%option%compute_mass_balance_new) then
+    call HydrateUpdateMassBalance(realization)
+  endif
+  
+  ! update stored state
+  do ghosted_id = 1, grid%ngmax
+    hyd_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
+      global_auxvars(ghosted_id)%istate
+  enddo
+  hydrate_ts_count = hydrate_ts_count + 1
+  hydrate_ts_cut_count = 0
+  hydrate_ni_count = 0
+ 
+end subroutine HydrateUpdateSolution
+
+! ************************************************************************** !
+
+subroutine HydrateTimeCut(realization)
+  ! 
+  ! Resets arrays for time step cut
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Patch_module
+  use Discretization_module
+  use Grid_module
+ 
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  
+  PetscInt :: local_id, ghosted_id
+  PetscErrorCode :: ierr
+
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  global_auxvars => patch%aux%Global%auxvars
+  hyd_auxvars => patch%aux%Hydrate%auxvars
+
+  ! restore stored state
+  do ghosted_id = 1, grid%ngmax
+    global_auxvars(ghosted_id)%istate = &
+      hyd_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS)
+  enddo
+  
+  hydrate_ts_cut_count = hydrate_ts_cut_count + 1
+
+  call HydrateInitializeTimestep(realization)  
+
+end subroutine HydrateTimeCut
+
+! ************************************************************************** !
+
+subroutine HydrateNumericalJacobianTest(xx,realization,B)
+  ! 
+  ! Computes the a test numerical jacobian
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+  use Grid_module
+  use Field_module
 
   implicit none
 
-  type(option_type) :: option
-  class(characteristic_curves_type) :: characteristic_curves
-  PetscReal :: x(option%nflowdof)
-  type(general_auxvar_type) :: gen_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  PetscInt :: natural_id
+  Vec :: xx
+  type(realization_subsurface_type) :: realization
+  Mat :: B
 
-  PetscInt :: gid, lid, acid, wid, eid, hid, iid
-  PetscReal :: cell_pressure, water_vapor_pressure
-  PetscReal :: den_water_vapor, den_kg_water_vapor
-  PetscReal :: u_water_vapor, h_water_vapor
-  PetscReal :: den_air, h_air, u_air
-  PetscReal :: xmol_air_in_gas, xmol_water_in_gas
-  PetscReal :: krl, visl
-  PetscReal :: dkrl_dsatl, dkrl_dsatg
-  PetscReal :: dkrg_dsatl, dkrg_dsatg
-  PetscReal :: krg, visg
-  PetscReal :: K_H_tilde
-  PetscInt :: apid, cpid, vpid, spid
-  PetscReal :: xmass_air_in_gas
-  PetscReal :: Ugas_J_kg, Hgas_J_kg
-  PetscReal :: Uair_J_kg, Hair_J_kg
-  PetscReal :: Uvapor_J_kg, Hvapor_J_kg
-  PetscReal :: Hg_mixture_fractioned
-  PetscReal :: H_hyd, U_ice, PE_hyd
-  PetscReal :: aux(1)
-  PetscReal :: hw, hw_dp, hw_dT
-  PetscReal :: dpor_dp
-  PetscReal :: dpc_dsatl
-  PetscReal :: dden_ice_dT, dden_ice_dP
-  character(len=8) :: state_char
+  Vec :: xx_pert
+  Vec :: res
+  Vec :: res_pert
+  Mat :: A
+  PetscViewer :: viewer
   PetscErrorCode :: ierr
-  PetscReal :: dTf, h_sat_eff, i_sat_eff, liq_sat_eff, g_sat_eff
-  PetscReal :: sigma
 
-  lid = option%liquid_phase
-  gid = option%gas_phase
-  hid = option%hydrate_phase
-  iid = option%ice_phase
-  
-  apid = option%air_pressure_id
-  cpid = option%capillary_pressure_id
-  vpid = option%vapor_pressure_id
-  spid = option%saturation_pressure_id
+  PetscReal, pointer :: vec_p(:), vec2_p(:)
 
-  acid = option%air_id
-  wid = option%water_id
-  eid = option%energy_id
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  PetscReal :: derivative, perturbation
+  PetscReal :: perturbation_tolerance = 1.d-6
+  PetscInt, save :: icall = 0
+  character(len=MAXWORDLENGTH) :: word, word2
 
+  PetscInt :: idof, idof2, icell
 
-  !geh: do not initialize gen_auxvar%temp as the previous value is used as the
-  !     initial guess for two phase.
-  gen_auxvar%H = 0.d0
-  gen_auxvar%U = 0.d0
-  gen_auxvar%pres = 0.d0
-  gen_auxvar%sat = 0.d0
-  gen_auxvar%den = 0.d0
-  gen_auxvar%den_kg = 0.d0
-  gen_auxvar%xmol = 0.d0
-  gen_auxvar%effective_porosity = 0.d0
-  gen_auxvar%mobility = 0.d0
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
 
+  icall = icall + 1
+  call VecDuplicate(xx,xx_pert,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,res,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,res_pert,ierr);CHKERRQ(ierr)
+
+  call MatCreate(option%mycomm,A,ierr);CHKERRQ(ierr)
+  call MatSetType(A,MATAIJ,ierr);CHKERRQ(ierr)
+  call MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%nflowdof, &
+                   grid%nlmax*option%nflowdof, &
+                   ierr);CHKERRQ(ierr)
+  call MatSeqAIJSetPreallocation(A,27,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
+  call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE, &
+                    ierr);CHKERRQ(ierr)
+
+  call VecZeroEntries(res,ierr);CHKERRQ(ierr)
+  call HydrateResidual(PETSC_NULL_SNES,xx,res,realization,ierr)
 #if 0
-  if (option%iflag >= GENERAL_UPDATE_FOR_ACCUM) then
-    if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-      write(*,'(a,i3,3es17.8,a3)') 'before: ', &
-        natural_id, x(1:3), trim(state_char)
-    else
-    endif
-  endif
+  word  = 'num_0.dat'
+  call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
+  call VecView(res,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+  call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+  do icell = 1,grid%nlmax
+    if (patch%imat(grid%nL2G(icell)) <= 0) cycle
+    do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof 
+      call VecCopy(xx,xx_pert,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
+      perturbation = vec_p(idof)*perturbation_tolerance
+      vec_p(idof) = vec_p(idof)+perturbation
+      call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
+      call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
+      call HydrateResidual(PETSC_NULL_SNES,xx_pert,res_pert,realization,ierr)
+#if 0
+      write(word,*) idof
+      word  = 'num_' // trim(adjustl(word)) // '.dat'
+      call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
+      call VecView(res_pert,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+      call VecGetArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
+      do idof2 = 1, grid%nlmax*option%nflowdof
+        derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
+        if (dabs(derivative) > 1.d-30) then
+          call MatSetValue(A,idof2-1,idof-1,derivative,INSERT_VALUES, &
+                           ierr);CHKERRQ(ierr)
+        endif
+      enddo
+      call VecRestoreArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
+    enddo
+  enddo
+  call VecRestoreArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+
+  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+#if 1
+  write(word,*) icall
+  word = 'numerical_jacobian-' // trim(adjustl(word)) // '.out'
+  call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
+  call MatView(A,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
 
-  if (global_auxvar%hstate == ZERO_INTEGER) global_auxvar% &
-                              hstate = global_auxvar%istate
-  
-  gen_auxvar%xmol(wid,hid) = MOL_RATIO_H20
-  gen_auxvar%xmol(acid,hid) = MOL_RATIO_METH
-  gen_auxvar%den(hid) = HYDRATE_DENSITY
-  gen_auxvar%den_kg(hid) = HYDRATE_DENSITY_KG
-
-  select case(global_auxvar%hstate)
-    case(LIQUID_STATE)
-!     ********* Aqueous State (A) ********************************
-!     Primary variables: Pa, Xma, T
-!
-      gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
-      gen_auxvar%xmol(acid,lid) = x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-
-      gen_auxvar%xmol(acid,lid) = max(0.d0,gen_auxvar%xmol(acid,lid))
-
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = 0.d0
-      gen_auxvar%xmol(acid,gid) = 0.d0
-      gen_auxvar%sat(lid) = 1.d0
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(hid) = 0.d0
-      gen_auxvar%sat(iid) = 0.d0
-
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                        gen_auxvar%pres(spid),ierr)
-      call HydratePE(gen_auxvar%temp, 0.d0, PE_hyd, characteristic_curves, &
-                     option)
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-      call HydrateDavieBuffettCorrection(gen_auxvar%temp,gen_auxvar% &
-                                           pres(lid),K_H_tilde)
-      gen_auxvar%pres(spid) = 1.d-6 
-      
-      gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
-      gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
-
-      if (gen_auxvar%pres(gid) <= 0.d0) then
-        write(option%io_buffer,'(''Negative gas pressure at cell '', &
-          & i8,'' in HydrateAuxVarCompute(LIQUID_STATE).  Attempting bailout.'')') &
-          natural_id
-        call PrintMsgByRank(option)
-        gen_auxvar%pres(vpid) = 0.5d0*gen_auxvar%pres(spid)
-        gen_auxvar%pres(gid) = gen_auxvar%pres(vpid) + gen_auxvar%pres(apid)
-      else
-        gen_auxvar%pres(vpid) = gen_auxvar%pres(lid) - gen_auxvar%pres(apid)
-      endif
-      gen_auxvar%pres(cpid) = 0.d0
-    case (GAS_STATE)
-!     ********* Gas State (G) ********************************
-!     Primary variables: Pg, Pa, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-
-      gen_auxvar%pres(apid) = x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 1.d0
-      gen_auxvar%sat(hid) = 0.d0
-      gen_auxvar%sat(iid) = 0.d0
-
-      gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / &
-                                   gen_auxvar%pres(gid)
-      gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                    gen_auxvar%pres(spid),ierr)
-
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
-      gen_auxvar%pres(spid) = 1.d-6 
-      
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 0.d0
-
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option)
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
-                             gen_auxvar%pres(cpid)
-    case (H_STATE)
-!     ********* Hydrate State (H) ********************************
-!     Primary variables: Pg, Xmh, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      x(GENERAL_GAS_SATURATION_DOF) = MOL_RATIO_METH
-      gen_auxvar%xmol(acid,hid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(hid) = 1.d0
-      gen_auxvar%sat(iid) = 0.d0
-
-      call HydratePE(gen_auxvar%temp,gen_auxvar%sat(hid),PE_hyd, &
-              characteristic_curves, option)
-      gen_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-      
-      gen_auxvar%pres(cpid) = 0.d0
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = gen_auxvar%pres(vpid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(acid,gid) = 1.d0 - gen_auxvar%xmol(wid,gid)
-      
-    case(ICE_STATE)
-!     ********* Ice State (I) ********************************
-!     Primary variables: Pg, Xmi, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      x(GENERAL_GAS_SATURATION_DOF) = 0.d0
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(hid) = 0.d0
-      gen_auxvar%sat(iid) = 1.d0
-      
-      gen_auxvar%pres(cpid) = 0.d0
-      gen_auxvar%pres(apid) = 0.d0
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-
-      gen_auxvar%xmol(acid,lid) = 0.d0
-      gen_auxvar%xmol(wid,lid) = 1.d0
-      gen_auxvar%xmol(wid,gid) = 1.d0
-      gen_auxvar%xmol(acid,gid) = 0.d0
-      
-    case(GA_STATE)
-!     ********* Gas & Aqueous State (GA) ********************************
-!     Primary variables: Pg, Sg, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-     
-      gen_auxvar%sat(gid) = max(0.d0,min(1.d0,gen_auxvar%sat(gid))) 
-      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(gid)
-      gen_auxvar%sat(hid) = 0.d0
-      gen_auxvar%sat(iid) = 0.d0
-
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                          gen_auxvar%pres(spid),ierr)
-      gen_auxvar%pres(spid) = 1.d-6 
-
-      if (general_immiscible) then
-        gen_auxvar%pres(spid) = GENERAL_IMMISCIBLE_VALUE
-      endif
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-      gen_auxvar%pres(apid) = gen_auxvar%pres(gid) - gen_auxvar%pres(vpid)
-
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), gen_auxvar%pres(cpid), &
-                               dpc_dsatl,option)
-
-      !IFT calculation
-      sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(gen_auxvar%temp,sigma)
-      endif
-      gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      if (general_immiscible) then
-        gen_auxvar%xmol(acid,lid) = GENERAL_IMMISCIBLE_VALUE
-      endif
-
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-    
-    case(HG_STATE)
-!     ********* Hydrate & Gas State (HG) ********************************
-!     Primary variables: Pg, Sg, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(gid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(hid) = 1.d0 - gen_auxvar%sat(gid)
-      gen_auxvar%sat(iid) = 0.d0
-     
-      if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
-        call HydratePE(gen_auxvar%temp, gen_auxvar%sat(hid)+ &
-                gen_auxvar%sat(gid), PE_hyd, characteristic_curves, option)
-      else
-        call HydratePE(gen_auxvar%temp, 2.d0 * gen_auxvar%sat(hid), &
-                PE_hyd, characteristic_curves, option)
-      endif
-
-      gen_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
- 
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-      
-      gen_auxvar%pres(cpid) = 0.d0
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = gen_auxvar%pres(vpid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(acid,gid) = 1.d0 - gen_auxvar%xmol(wid,gid)
-      
-      
-      
-    case(HA_STATE)
-!     ********* Hydrate & Aqueous State (HA) ********************************
-!     Primary variables: Pg, Sh, T
-!
-
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(hid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-
-      gen_auxvar%sat(hid) = max(0.d0,min(1.d0,gen_auxvar%sat(hid)))
-
-      gen_auxvar%sat(lid) = 1.d0 - gen_auxvar%sat(hid)
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(iid) = 0.d0
-      
-      call HydratePE(gen_auxvar%temp,gen_auxvar%sat(hid), PE_hyd, &
-              characteristic_curves, option)
-      gen_auxvar%pres(apid) = PE_hyd
-      
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-      call HydrateDavieBuffettCorrection(gen_auxvar%temp,gen_auxvar% &
-                                           pres(gid),K_H_tilde)
-      
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                          gen_auxvar%pres(spid),ierr)
-
-
-      gen_auxvar%pres(cpid) = 0.d0
-      ! Setting air pressure equal to gas pressure makes forming hydrate
-      ! easier
-      gen_auxvar%pres(apid) = gen_auxvar%pres(gid)
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid)
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = 0.d0
-      gen_auxvar%xmol(acid,gid) = 0.d0
-
-
-    case(HI_STATE)
-!     ********* Hydrate & Ice State (HI) ********************************
-!     Primary variables: Pg, Sh, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(hid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(iid) = 1.d0 - gen_auxvar%sat(hid)
-      
-      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
-        call HydratePE(gen_auxvar%temp, gen_auxvar%sat(hid)+ &
-                gen_auxvar%sat(iid), PE_hyd, characteristic_curves, option)
-      else
-        call HydratePE(gen_auxvar%temp, 2.d0 * gen_auxvar%sat(hid), PE_hyd, &
-                characteristic_curves, option)
-      endif
-
-      gen_auxvar%pres(apid) = PE_hyd
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-      
-      gen_auxvar%pres(cpid) = 0.d0
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = gen_auxvar%pres(vpid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(acid,gid) = 1.d0 - gen_auxvar%xmol(wid,gid)
-      
-
-    case(GI_STATE)
-!     ********* Gas & Ice State (GI) ********************************
-!     Primary variables: Pg, Si, T
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(iid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(iid)
-      gen_auxvar%sat(hid) = 0.d0
-      
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                          gen_auxvar%pres(spid),ierr)
-                              
-      gen_auxvar%pres(spid) = 1.d-6                         
-                              
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-      gen_auxvar%pres(apid) = gen_auxvar%pres(gid) - gen_auxvar%pres(vpid)
-      
-      gen_auxvar%pres(cpid) = 0.d0
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = 0.d0
-      gen_auxvar%xmol(wid,lid) = 1.d0
-      gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-
-    case(AI_STATE)
-!     ********* Aqueous & Ice State (AI) ********************************
-!     Primary variables: Pl, Xma, Sl
-!
-      gen_auxvar%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
-      gen_auxvar%xmol(acid,lid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%sat(lid) = x(GENERAL_ENERGY_DOF)
-     
-      gen_auxvar%xmol(acid,lid) = max(0.d0,gen_auxvar%xmol(acid,lid))
-
-      if (global_auxvar%istatechng) then
-        gen_auxvar%sat(lid) = max(0.d0,min(1.d0,gen_auxvar%sat(lid)))
-      endif
-
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(hid) = 0.d0
-      gen_auxvar%sat(iid) = 1.d0 - gen_auxvar%sat(lid)
-      
-      call GibbsThomsonFreezing(gen_auxvar%sat(lid),6017.1d0,ICE_DENSITY,&
-                                TQD, dTf,characteristic_curves,option)      
-      gen_auxvar%temp = TQD+dTf
-      
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                          gen_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
-      gen_auxvar%pres(spid) = 1.d-6 
-      gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
-      gen_auxvar%pres(cpid) = 0.d0
-      gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
-      gen_auxvar%pres(vpid) = 0.d0 !gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(acid,gid) = 0.d0
-      gen_auxvar%xmol(wid,gid) = 0.d0
-      
-
-    case(HGA_STATE)
-!     ********* Hydrate, Gas, & Aqueous State (HGA) **************************
-!     Primary variables: Sl, Sh, T
-!
-      gen_auxvar%sat(lid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(hid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = max(0.d0,min(1.d0,gen_auxvar%sat(lid)))
-      gen_auxvar%sat(hid) = max(0.d0,min(1.d0,gen_auxvar%sat(hid)))
-
-      gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(lid) - gen_auxvar%sat(hid)
-      gen_auxvar%sat(iid) = 0.d0
-      
-      !if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
-      !  h_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(gid) 
-      !  g_sat_eff = 2.d0 * gen_auxvar%sat(gid)
-      !else
-      !  g_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(gid) 
-      !  h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
-      !endif
-      
-      h_sat_eff = gen_auxvar%sat(hid)
-      liq_sat_eff = gen_auxvar%sat(lid)/(gen_auxvar%sat(lid)+ &
-                    gen_auxvar%sat(gid))
-      call HydratePE(gen_auxvar%temp, h_sat_eff, PE_hyd, &
-                      characteristic_curves, option)
-      call characteristic_curves%saturation_function%CapillaryPressure( &
-                liq_sat_eff, gen_auxvar%pres(cpid), &
-                dpc_dsatl,option)
-      
-      gen_auxvar%pres(apid) = PE_hyd
-
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                    gen_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-
-      gen_auxvar%pres(spid) = 1.d-6 
-      
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-      gen_auxvar%pres(gid) = gen_auxvar%pres(apid) + gen_auxvar%pres(vpid)
-
-      liq_sat_eff = gen_auxvar%sat(lid)/(gen_auxvar%sat(lid)+gen_auxvar%sat(gid))
-      
-      !IFT calculation
-      sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(gen_auxvar%temp,sigma)
-      endif
-      gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-
-
-    case(HAI_STATE)
-!     ********* Hydrate, Aqueous, & Ice State (HAI) **************************
-!     Primary variables: Pg, Sl, Si
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(lid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%sat(iid) = x(GENERAL_ENERGY_DOF)
-
-      gen_auxvar%sat(gid) = 0.d0
-      gen_auxvar%sat(hid) = 1.d0 - gen_auxvar%sat(lid) - gen_auxvar%sat(iid)
-
-      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
-        h_sat_eff = gen_auxvar%sat(hid)+gen_auxvar%sat(iid)
-        i_sat_eff = 2.d0 * gen_auxvar%sat(iid)
-      else
-        h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
-        i_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
-      endif
-
-      call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,option)
-
-      gen_auxvar%temp = TQD+dTf
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-      call HydratePE(gen_auxvar%temp,h_sat_eff, PE_hyd, &
-          characteristic_curves, option)
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                          gen_auxvar%pres(spid),ierr)
-
-      gen_auxvar%pres(cpid) = 0.d0
-
-      gen_auxvar%pres(spid) = 1.d-6 
-
-      gen_auxvar%pres(apid) = PE_hyd !gen_auxvar%pres(gid)
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-      gen_auxvar%pres(vpid) = 0.d0 !gen_auxvar%pres(gid) - gen_auxvar%pres(apid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = 0.d0
-      gen_auxvar%xmol(acid,gid) = 0.d0
-
-    case(HGI_STATE)
-!     ********* Hydrate, Gas, & Ice State (HGI) ******************************
-!     Primary variables: Sh, Si, T
-!
-      gen_auxvar%sat(hid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(iid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%temp = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(lid) = 0.d0
-      gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(hid) - gen_auxvar%sat(iid)
-     
-      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
-        if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
-          call HydratePE(gen_auxvar%temp, 1.d0, PE_hyd, &
-                  characteristic_curves, option)
-        else
-          call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(iid) + &
-                  2.d0 * (gen_auxvar%sat(hid)-gen_auxvar%sat(iid)), PE_hyd, &
-                  characteristic_curves, option)
-        endif
-      elseif (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
-        call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(gid) + &
-          2.d0 * (gen_auxvar%sat(hid) - gen_auxvar%sat(gid)), PE_hyd, &
-          characteristic_curves, option)
-      else
-        call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(hid), PE_hyd, &
-              characteristic_curves, option)
-      endif  
-      
-      gen_auxvar%pres(apid) = PE_hyd
-      
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                    gen_auxvar%pres(spid),ierr)
-      
-      gen_auxvar%pres(spid) = 1.d-6
-      
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-      gen_auxvar%pres(gid) = gen_auxvar%pres(apid) + gen_auxvar%pres(vpid)
-      
-      gen_auxvar%xmol(acid,lid) = 0.d0
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(wid,gid) = gen_auxvar%pres(vpid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(acid,gid) = 1.d0 - gen_auxvar%xmol(wid,gid)
-    
-    case(GAI_STATE)
-!     ********* Gas, Aqueous, & Ice State (GAI) ******************************
-!     Primary variables: Pg, Sl, Si
-!
-      gen_auxvar%pres(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(lid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%sat(iid) = x(GENERAL_ENERGY_DOF)
-      
-      gen_auxvar%sat(gid) = 1.d0 - gen_auxvar%sat(lid) - gen_auxvar%sat(iid)
-      gen_auxvar%sat(hid) = 0.d0
-
-      call GibbsThomsonFreezing(1.d0-gen_auxvar%sat(iid),6017.1d0, &
-              ICE_DENSITY,TQD,dTf,characteristic_curves,option)
-
-      gen_auxvar%temp = TQD+dTf
-
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                    gen_auxvar%pres(spid),ierr)
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-      
-      gen_auxvar%pres(spid) = 1.d-6 
-      
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-      gen_auxvar%pres(apid) = gen_auxvar%pres(gid) - gen_auxvar%pres(vpid)
-
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option)
-
-      !IFT calculation
-      sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(gen_auxvar%temp,sigma)
-      endif
-      gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-      
-    case(QUAD_STATE)
-!     ********* Quadruple Point (HGAI) ********************************
-!     Primary variables: Sg, Sl, Si
-!
-      gen_auxvar%sat(gid) = x(GENERAL_GAS_PRESSURE_DOF)
-      gen_auxvar%sat(lid) = x(GENERAL_GAS_SATURATION_DOF)
-      gen_auxvar%sat(iid) = x(GENERAL_ENERGY_DOF)
-     
-      if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
-        h_sat_eff = gen_auxvar%sat(hid)+gen_auxvar%sat(iid)
-        i_sat_eff = 2.d0 * gen_auxvar%sat(iid)
-      else
-        h_sat_eff = 2.d0 * gen_auxvar%sat(hid)
-        i_sat_eff = gen_auxvar%sat(hid) + gen_auxvar%sat(iid)
-      endif
-
-      call GibbsThomsonFreezing(1.d0-i_sat_eff,6017.1d0,ICE_DENSITY,TQD,dTf, &
-                            characteristic_curves,option)
-
-      !if (gen_auxvar%sat(hid) > gen_auxvar%sat(iid)) then
-      !  if (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
-      !    call HydratePE(gen_auxvar%temp, 1.d0 - gen_auxvar%sat(lid), &
-      !            PE_hyd, characteristic_curves, option)
-      !  else
-      !    call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(iid) + &
-      !            2.d0 * (gen_auxvar%sat(hid) - gen_auxvar%sat(iid)), PE_hyd, &
-      !            characteristic_curves, option)
-      !    call GibbsThomsonFreezing(3.d0 * gen_auxvar%sat(iid), 6017.1d0, &
-      !            ICE_DENSITY, TQD, dTf, characteristic_curves, option)
-      !  endif
-      !elseif (gen_auxvar%sat(hid) > gen_auxvar%sat(gid)) then
-      !  call HydratePE(gen_auxvar%temp, 3.d0 * gen_auxvar%sat(gid) + &
-      !          2.d0 * (gen_auxvar%sat(hid) - gen_auxvar%sat(gid)), &
-      !          PE_hyd, characteristic_curves, option)
-      !  call GibbsThomsonFreezing(1.d0-gen_auxvar%sat(lid), 6017.1d0, &
-      !          ICE_DENSITY, TQD, dTf, characteristic_curves, option)
-      !else
-      !  call HydratePE(gen_auxvar%temp, 3.d0 *gen_auxvar%sat(hid), &
-      !          PE_hyd, characteristic_curves, option)
-      !  if (gen_auxvar%sat(iid) < gen_auxvar%sat(gid)) then
-      !    call GibbsThomsonFreezing(3.d0 * gen_auxvar%sat(hid) + &
-      !            2.d0 * (gen_auxvar%sat(iid) - gen_auxvar%sat(hid)), &
-      !            6017.1d0, ICE_DENSITY, TQD, dTf, characteristic_curves, &
-      !            option)
-      !  endif
-      !endif
-
-      gen_auxvar%temp = TQD + dTf
-
-      call HydratePE(gen_auxvar%temp,h_sat_eff, PE_hyd, &
-          characteristic_curves, option)
-      gen_auxvar%pres(apid) = PE_hyd
-      
-      call EOSWaterSaturationPressure(gen_auxvar%temp, &
-                                    gen_auxvar%pres(spid),ierr)
-      
-      call HenrysConstantMethane(gen_auxvar%temp,K_H_tilde)
-  
-      gen_auxvar%pres(spid) = 1.d-6 
-      
-      gen_auxvar%pres(vpid) = gen_auxvar%pres(spid)
-      gen_auxvar%pres(gid) = gen_auxvar%pres(apid) + gen_auxvar%pres(vpid)
-
-      call characteristic_curves%saturation_function% &
-             CapillaryPressure(gen_auxvar%sat(lid), &
-                               gen_auxvar%pres(cpid),dpc_dsatl,option)
-
-      !IFT calculation
-      sigma=1.d0
-      if (characteristic_curves%saturation_function%calc_int_tension) then
-       call characteristic_curves%saturation_function% &
-           CalcInterfacialTension(gen_auxvar%temp,sigma)
-      endif
-      gen_auxvar%pres(cpid) = gen_auxvar%pres(cpid)*sigma
-
-      gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - gen_auxvar%pres(cpid)
-
-      gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
-      gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
-      gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / gen_auxvar%pres(gid)
-      gen_auxvar%xmol(wid,gid) = 1.d0 - gen_auxvar%xmol(acid,gid)
-      
-      
-    case default
-      write(option%io_buffer,*) global_auxvar%hstate
-      option%io_buffer = 'State (' // trim(adjustl(option%io_buffer)) // &
-        ') not recognized in HydrateAuxVarCompute.'
-      call PrintErrMsgByRank(option)
-
-  end select
-
-  cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
-                      gen_auxvar%pres(spid))
-
-  ! calculate effective porosity as a function of pressure
-  if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
-    dpor_dp = 0.d0
-    gen_auxvar%effective_porosity = material_auxvar%porosity_base
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                gen_auxvar%effective_porosity,dpor_dp)
-    endif
-    if (option%iflag /= GENERAL_UPDATE_FOR_DERIVATIVE) then
-      material_auxvar%porosity = gen_auxvar%effective_porosity
-    endif
-  endif
-  if (associated(gen_auxvar%d)) then
-    gen_auxvar%d%por_p = dpor_dp
-  endif
-  !MAN: Need to add permeability change as function of hydrate saturation.
-
-  ! ALWAYS UPDATE THERMODYNAMIC PROPERTIES
-
-  ! Liquid phase thermodynamic properties
-  ! must use cell_pressure as the pressure, not %pres(lid)
-  if (.not.option%flow%density_depends_on_salinity) then
-    if (associated(gen_auxvar%d)) then
-      call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                           gen_auxvar%den_kg(lid),gen_auxvar%den(lid), &
-                           gen_auxvar%d%denl_pl,gen_auxvar%d%denl_T,ierr)
-    else
-      call EOSWaterDensity(gen_auxvar%temp,cell_pressure, &
-                           gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-    endif
-  else
-    aux(1) = global_auxvar%m_nacl(1)
-    call EOSWaterDensityExt(gen_auxvar%temp,cell_pressure,aux, &
-                              gen_auxvar%den_kg(lid),gen_auxvar%den(lid),ierr)
-  endif
-
-  call EOSWaterEnthalpy(gen_auxvar%temp,cell_pressure,hw,ierr)
-
-  gen_auxvar%H(lid) = hw * 1.d-6 ! J/kmol -> MJ/kmol
-  ! MJ/kmol comp
-  gen_auxvar%U(lid) = gen_auxvar%H(lid) - &
-                        ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
-                        (cell_pressure / gen_auxvar%den(lid) * &
-                        1.d-6)
-  if (global_auxvar%hstate .ne. LIQUID_STATE) then 
-    if (global_auxvar%hstate == GAS_STATE) then
-      water_vapor_pressure = gen_auxvar%pres(vpid)
-    else
-      water_vapor_pressure = gen_auxvar%pres(spid)
-    endif
-    call EOSGasDensityEnergy(gen_auxvar%temp,gen_auxvar%pres(apid),den_air, &
-                               h_air,u_air,ierr)
-    h_air = h_air * 1.d-6 ! J/kmol -> MJ/kmol
-    u_air = u_air * 1.d-6 ! J/kmol -> MJ/kmol
-
-    call EOSWaterSteamDensityEnthalpy(gen_auxvar%temp,water_vapor_pressure, &
-                                        den_kg_water_vapor,den_water_vapor, &
-                                        h_water_vapor,ierr)
-    u_water_vapor = h_water_vapor - &
-                    ! Pa / kmol/m^3 = J/kmol
-                    water_vapor_pressure / den_water_vapor
-    h_water_vapor = h_water_vapor * 1.d-6 ! J/kmol -> MJ/kmol
-    u_water_vapor = u_water_vapor * 1.d-6 ! J/kmol -> MJ/kmol
-    gen_auxvar%den(gid) = den_water_vapor + den_air
-    gen_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*fmw_comp(gid)
-
-    xmol_air_in_gas = gen_auxvar%xmol(acid,gid)
-    xmol_water_in_gas = gen_auxvar%xmol(wid,gid)
-
-    ! MJ/kmol
-    gen_auxvar%U(gid) = xmol_water_in_gas * u_water_vapor + &
-                        xmol_air_in_gas * u_air
-    Hg_mixture_fractioned = xmol_water_in_gas*h_water_vapor + &
-                            xmol_air_in_gas*h_air
-    gen_auxvar%H(gid) = gen_auxvar%U(gid) + &
-                        ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
-                        gen_auxvar%pres(gid)/gen_auxvar%den(gid) * 1.d-6
-
-  endif
-
-  if (gen_auxvar%sat(lid) > 0.d0) then
-    if (gen_auxvar%sat(lid) >= 1.d0) then
-      krl = 1.d0
-    else
-      call characteristic_curves%liq_rel_perm_function% &
-           RelativePermeability(gen_auxvar%sat(lid),krl,dkrl_dsatl,option)
-      krl = max(0.d0,krl)
-    endif
-    call EOSWaterViscosity(gen_auxvar%temp,cell_pressure, &
-                               gen_auxvar%pres(spid),visl,ierr)
-    gen_auxvar%mobility(lid) = krl/visl
-  endif
-
-  if (gen_auxvar%sat(gid) > 0.d0) then
-    if (gen_auxvar%sat(gid) >=1.d0) then
-      krg = 1.d0
-    else
-      call characteristic_curves%gas_rel_perm_function% &
-           RelativePermeability(1.d0-gen_auxvar%sat(gid),krg,dkrg_dsatl,option)
-      krg = max(0.d0,krg)
-    endif
-    call EOSGasViscosity(gen_auxvar%temp,gen_auxvar%pres(apid), &
-                           gen_auxvar%pres(gid),den_air,visg,ierr)
-    gen_auxvar%mobility(gid) = krg/visg
-  endif
-
-  call EOSHydrateEnthalpy(gen_auxvar%temp, H_hyd)
-  gen_auxvar%U(hid) = H_hyd !- cell_pressure/gen_auxvar%den(hid)*1.d-6
-  gen_auxvar%H(hid) = H_hyd
-  gen_auxvar%mobility(hid) = 0.d0
-  
-  call EOSIceEnergy(gen_auxvar%temp, U_ice)
-  gen_auxvar%xmol(wid,iid) = 1.d0
-  gen_auxvar%xmol(gid,iid) = 0.d0
-  !call EOSWaterDensityIcePainter(gen_auxvar%temp,gen_auxvar%pres(lid), &
-  !                  PETSC_FALSE, gen_auxvar%den(iid), &
-  !                  dden_ice_dT, dden_ice_dP, ierr)
-  gen_auxvar%den(iid) = ICE_DENSITY
-  gen_auxvar%den_kg(iid) = ICE_DENSITY_KG
-  gen_auxvar%U(iid) = U_ice
-  gen_auxvar%H(iid) = U_ice
-  gen_auxvar%mobility(iid) = 0.d0
-
-end subroutine HydrateAuxVarCompute
+!geh: uncomment to overwrite numerical Jacobian
+!  call MatCopy(A,B,DIFFERENT_NONZERO_PATTERN,ierr)
+  call MatDestroy(A,ierr);CHKERRQ(ierr)
+
+  call VecDestroy(xx_pert,ierr);CHKERRQ(ierr)
+  call VecDestroy(res,ierr);CHKERRQ(ierr)
+  call VecDestroy(res_pert,ierr);CHKERRQ(ierr)
+
+end subroutine HydrateNumericalJacobianTest
 
 ! ************************************************************************** !
 
-subroutine HydrateAccumulation(gen_auxvar,global_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,Res,Jac, &
-                               analytical_derivatives,debug_cell)
-  !
-  ! Computes the non-fixed portion of the accumulation
-  ! term for the residual, for the hydrate sub-pm
-  !
+subroutine HydrateComputeMassBalance(realization,mass_balance)
+  ! 
+  ! Initializes mass balance
+  ! 
   ! Author: Michael Nole
-  ! Date: 03/01/19
-  !
-
+  ! Date: 07/23/19
+  ! 
+ 
+  use Realization_Subsurface_class
   use Option_module
+  use Patch_module
+  use Field_module
+  use Grid_module
   use Material_Aux_class
-
+ 
   implicit none
+  
+  type(realization_subsurface_type) :: realization
+  PetscReal :: mass_balance(realization%option%nflowspec, &
+                            realization%option%nphase)
 
-  type(general_auxvar_type) :: gen_auxvar
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  PetscReal :: soil_heat_capacity
-  type(option_type) :: option
-  PetscReal :: Res(option%nflowdof)
-  PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  PetscBool :: analytical_derivatives
-  PetscBool :: debug_cell
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(hydrate_auxvar_type), pointer :: hydrate_auxvars(:,:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscInt :: wat_comp_id, air_comp_id, energy_id
-  PetscInt :: icomp, iphase
+  PetscErrorCode :: ierr
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscInt :: iphase, icomp
+  PetscReal :: vol_phase
 
-  PetscReal :: porosity
-  PetscReal :: volume_over_dt
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  field => realization%field
 
-  wat_comp_id = option%water_id
-  air_comp_id = option%air_id
-  energy_id = option%energy_id
+  hydrate_auxvars => patch%aux%Hydrate%auxvars
+  material_auxvars => patch%aux%Material%auxvars
 
-  volume_over_dt = material_auxvar%volume / option%flow_dt
-  porosity = gen_auxvar%effective_porosity
+  mass_balance = 0.d0
 
-  ! accumulation term units = kmol/s
-  Res = 0.d0
-  do iphase = 1, option%nphase
-    ! Res[kmol comp/m^3 void] = sat[m^3 phase/m^3 void] *
-    !                           den[kmol phase/m^3 phase] *
-    !                           xmol[kmol comp/kmol phase]
-    do icomp = 1, option%nflowspec
-      Res(icomp) = Res(icomp) + gen_auxvar%sat(iphase) * &
-                                gen_auxvar%den(iphase) * &
-                                gen_auxvar%xmol(icomp,iphase)
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    !geh - Ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle
+    do iphase = 1, option%nphase
+      ! volume_phase = saturation*porosity*volume
+      vol_phase = &
+        hydrate_auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)* &
+        hydrate_auxvars(ZERO_INTEGER,ghosted_id)%effective_porosity* &
+        material_auxvars(ghosted_id)%volume
+      ! mass = volume_phase*density
+      do icomp = 1, option%nflowspec
+        mass_balance(icomp,iphase) = mass_balance(icomp,iphase) + &
+          hydrate_auxvars(ZERO_INTEGER,ghosted_id)%den(iphase)* &
+          hydrate_auxvars(ZERO_INTEGER,ghosted_id)%xmol(icomp,iphase) * &
+          fmw_comp(icomp)*vol_phase
+      enddo
     enddo
   enddo
 
-  ! scale by porosity * volume / dt
-  ! Res[kmol/sec] = Res[kmol/m^3 void] * por[m^3 void/m^3 bulk] *
-  !                 vol[m^3 bulk] / dt[sec]
-  Res(1:option%nflowspec) = Res(1:option%nflowspec) * &
-                            porosity * volume_over_dt
-
-  do iphase = 1, option%nphase
-    ! Res[MJ/m^3 void] = sat[m^3 phase/m^3 void] *
-    !                    den[kmol phase/m^3 phase] * U[MJ/kmol phase]
-    Res(energy_id) = Res(energy_id) + gen_auxvar%sat(iphase) * &
-                                      gen_auxvar%den(iphase) * &
-                                      gen_auxvar%U(iphase)
-  enddo
-  ! Res[MJ/sec] = (Res[MJ/m^3 void] * por[m^3 void/m^3 bulk] +
-  !                (1-por)[m^3 rock/m^3 bulk] *
-  !                  dencpr[kg rock/m^3 rock * MJ/kg rock-K] * T[C]) &
-  !               vol[m^3 bulk] / dt[sec]
-  Res(energy_id) = (Res(energy_id) * porosity + &
-                    (1.d0 - porosity) * &
-                    material_auxvar%soil_particle_density * &
-                    soil_heat_capacity * gen_auxvar%temp) * volume_over_dt
-
-end subroutine HydrateAccumulation
+end subroutine HydrateComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine HydrateAuxVarPerturb(gen_auxvar,global_auxvar, &
-                                material_auxvar, &
-                                characteristic_curves,natural_id, &
-                                option)
-  !
-  ! Calculates auxiliary variables for perturbed system
-  !
+subroutine HydrateZeroMassBalanceDelta(realization)
+  ! 
+  ! Zeros mass balance delta array
+  ! 
   ! Author: Michael Nole
-  ! Date: 01/30/19
-  !
-  
-  use Option_module
-  use Characteristic_Curves_module
-  use Global_Aux_module
-  use Material_Aux_class
-
-  implicit none
-
-  type(option_type) :: option
-  PetscInt :: natural_id
-  type(general_auxvar_type) :: gen_auxvar(0:)
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  class(characteristic_curves_type) :: characteristic_curves
-
-  PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), &
-               pert(option%nflowdof), x_pert_save(option%nflowdof)
-
-  PetscReal :: tempreal
-  PetscInt :: lid, gid, hid
-  PetscReal, parameter :: perturbation_tolerance = 1.d-8
-!  PetscReal, parameter :: perturbation_tolerance = 1.d-11
-  PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
-  PetscReal, parameter :: min_perturbation = 1.d-10
-  PetscInt :: idof
-
-  lid = 1
-  gid = 2
-  hid = 3
-
-  select case(global_auxvar%hstate)
-    case(LIQUID_STATE)
-      x(GENERAL_LIQUID_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
-      x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
-      x(GENERAL_ENERGY_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%temp
-      
-      pert(GENERAL_LIQUID_PRESSURE_DOF) = &
-        perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF) + &
-        min_perturbation
-      if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
-          1.d3 * perturbation_tolerance) then
-        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = -1.d0 * &
-        (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
-
-    case(GAS_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
-      x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
-      ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
-      ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-    
-      pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
-        (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
-      ! perturb air pressure towards gas pressure unless the perturbed
-      ! air pressure exceeds the gas pressure
-      tempreal = perturbation_tolerance* &
-                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
-      if (x(GENERAL_GAS_PRESSURE_DOF) - &
-          x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
-        pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
-      else
-        pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-        perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
-
-    case(H_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = MOL_RATIO_METH
-      x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
-
-      pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
-         (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
-      pert(GENERAL_GAS_SATURATION_DOF) = x(GENERAL_GAS_SATURATION_DOF) 
-      pert(GENERAL_ENERGY_DOF) = &
-         perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
-
-    case(ICE_STATE)        
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = 0.d0
-      x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
-
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-        perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
-      pert(GENERAL_GAS_SATURATION_DOF) = 0.d0
-      pert(GENERAL_ENERGY_DOF) = &
-          perturbation_tolerance*x(GENERAL_ENERGY_DOF)
-       
-    case(GA_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-       gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-      x(GENERAL_ENERGY_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%temp
-       
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-        perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-        perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-
-    case(HG_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
-      x(GENERAL_ENERGY_DOF) = &
-           gen_auxvar(ZERO_INTEGER)%temp
-     
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-
-    case(HA_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(hid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%temp
-
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-        perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-         perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-
-    case(HI_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(hid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%temp 
-
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-
-    case(GI_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(iid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%temp
-
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-
-    case(AI_STATE)
-      x(GENERAL_LIQUID_PRESSURE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%pres(option%liquid_phase)
-      x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(lid)
-      pert(GENERAL_LIQUID_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF) + &
-         min_perturbation
+  ! Date: 07/23/19
+  ! 
  
-      if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
-           1.d3 * perturbation_tolerance) then
-        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_ENERGY_DOF) > 0.5d0) then
-        pert(GENERAL_ENERGY_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_ENERGY_DOF) = perturbation_tolerance
-      endif
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Grid_module
+ 
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
 
-    case(HGA_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%sat(lid)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(hid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%temp
-    
-      pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_GAS_PRESSURE_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance
-      endif
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
 
-    case(HAI_STATE)
-      
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(gid)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(lid)   
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(iid)
-      
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + &
-         min_perturbation 
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_ENERGY_DOF) > 0.5d0) then
-        pert(GENERAL_ENERGY_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_ENERGY_DOF) = perturbation_tolerance
-      endif
+  PetscInt :: iconn
 
-    case(HGI_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%sat(hid)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(iid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%temp
+  option => realization%option
+  patch => realization%patch
 
-      if (x(GENERAL_GAS_PRESSURE_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
 
-    case(GAI_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%pres(gid)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(lid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(iid)
-
-      pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + &
-         min_perturbation
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_ENERGY_DOF) > 0.5d0) then
-        pert(GENERAL_ENERGY_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_ENERGY_DOF) = perturbation_tolerance
-      endif
-
-    case(QUAD_STATE)
-      x(GENERAL_GAS_PRESSURE_DOF) = &
-        gen_auxvar(ZERO_INTEGER)%sat(gid)
-      x(GENERAL_GAS_SATURATION_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(lid)
-      x(GENERAL_ENERGY_DOF) = &
-         gen_auxvar(ZERO_INTEGER)%sat(iid)
-
-      if (x(GENERAL_GAS_PRESSURE_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
-        pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
-      endif
-      if (x(GENERAL_ENERGY_DOF) > 0.5d0) then
-        pert(GENERAL_ENERGY_DOF) = -1.d0 * perturbation_tolerance
-      else
-        pert(GENERAL_ENERGY_DOF) = perturbation_tolerance
-      endif
-
-  end select
-
-  ! GENERAL_UPDATE_FOR_DERIVATIVE indicates call from perturbation
-  option%iflag = GENERAL_UPDATE_FOR_DERIVATIVE
-  do idof = 1, option%nflowdof
-    gen_auxvar(idof)%pert = pert(idof)
-    x_pert = x
-    x_pert(idof) = x(idof) + pert(idof)
-    x_pert_save = x_pert
-    call HydrateAuxVarCompute(x_pert,gen_auxvar(idof),global_auxvar, &
-                              material_auxvar, &
-                              characteristic_curves,natural_id,option)
+  do iconn = 1, patch%aux%Hydrate%num_aux_bc
+    global_auxvars_bc(iconn)%mass_balance_delta = 0.d0
+  enddo
+  do iconn = 1, patch%aux%Hydrate%num_aux_ss
+    global_auxvars_ss(iconn)%mass_balance_delta = 0.d0
   enddo
 
-  select case(global_auxvar%hstate)
-    case(LIQUID_STATE)
-      gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(GAS_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-      gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert / &
-        GENERAL_PRESSURE_SCALE
-    case(H_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(ICE_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(GA_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-      if (general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
-        gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert = &
-          gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert / &
-          GENERAL_PRESSURE_SCALE
-      endif
-    case(HG_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(HA_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(HI_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(GI_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(AI_STATE)
-      gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(HGA_STATE)
-
-    case(HAI_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(HGI_STATE)
-
-    case(GAI_STATE)
-      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
-        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / GENERAL_PRESSURE_SCALE
-    case(QUAD_STATE)
-  end select
-
-
-end subroutine HydrateAuxVarPerturb
+end subroutine HydrateZeroMassBalanceDelta
 
 ! ************************************************************************** !
 
-subroutine HydratePE(T,sat, PE, characteristic_curves, option)
-
-  !This subroutine calculates the 3-phase equilibrium pressure of methane
-  !hydrate in pure water, from polynomial fit (Moridis, 2003)
-  !
-  !Author: Michael Nole
-  !Date: 01/22/19
-  !
-
-  use Characteristic_Curves_module
-  use Option_module
-
-  implicit none
-
-  PetscReal, intent(in) :: T
-  PetscReal, intent(in) :: sat
-  PetscReal, intent(out) :: PE
-
-  class(characteristic_curves_type) :: characteristic_curves
-  type(option_type) :: option
-
-  PetscReal :: T_temp, dTf
-
-  call GibbsThomsonFreezing(1.d0-sat, 54734.d0, HYDRATE_DENSITY, T, dTf, &
-          characteristic_curves, option)
-
-  !MAN: no phase boundary shift
-  !dTf = 0.d0
-  
-  T_temp = T + 273.15d0 + dTf
-
-  if (T < TQD) then
-    !Moridis, 2003
-    PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
-          - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * T_temp**3 &
-          - 1.03669656828834d-7 * T_temp**4 + 1.09882180475307d-10 * T_temp**5)
-    !Kamath, 1984
-    !PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
-  else
-    !Moridis, 2003
-    PE = exp(-1.9413850446456d5 + 3.31018213397926d3 * T_temp &
-          - 22.5540264493806* T_temp**2 + 0.0767559117787059 * T_temp**3 &
-          - 1.30465829788791d-4 * T_temp**4 + 8.86065316687571d-8 * T_temp**5)
-    !Kamath, 1984
-    !PE = exp(3.898d1-8.533d3/T_temp)*1.d-3
-  endif
-
-  PE = PE * 1.d6
-
-end subroutine HydratePE
-
-! ************************************************************************** !
-
-subroutine HenrysConstantMethane(T,K_H)
-
-  !Calculates the Henry's constant of methane as a function of temperature
-  !(Carroll and Mather, 1997)
-  !
-  !Author: Michael Nole
-  !Date: 01/22/19
-  !
-  implicit none
-
-  PetscReal, intent(in) :: T
-  PetscReal, intent(out) :: K_H
-
-  PetscReal :: T_temp
-  PetscReal, parameter :: R = 8.314 !J/mol-K
-
-  T_temp = T + 273.15d0
-
-  !Carroll & Mather  Units: Pa/mol frac
-  K_H = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
-            (T_temp**3)) *1.d3
-  
-  !Cramer, 1982
-  !K_H = 1.d5*(24582.4d0 + 6.71091d2*T + 6.87067d0*T **2 - &
-  !            1.773079d-1*T**3 + 1.09652d-03*T**4 - &
-  !            3.19599d-6*T**5 + 4.46172d-9*T**6 - &
-  !            2.40294d-12*T**7)
-
-end subroutine HenrysConstantMethane
-
-! ************************************************************************** !
-subroutine HydrateDavieBuffettCorrection(T,P,K_H)
-
-  implicit none
-  
-  PetscReal, intent(in) :: T, P
-  PetscReal :: K_H
-
-  PetscReal, parameter :: C3_0 = 156.36d0 !mM
-  PetscReal, parameter :: T_0 = 292.d0 !K
-  PetscReal, parameter :: P_0 = 20.d0 !MPa
-  PetscReal, parameter :: dC3_dT = 6.34d0 !mM
-  PetscReal, parameter :: dC3_dP = 1.11d0 !mM
-  PetscReal, parameter :: alpha = 14.4d0 !C
-  PetscReal :: logP
-
-  PetscReal :: T3
-
-  ! Inverting the Moridis equation
-  if (T > TQD) then
-    !Lower-order
-    T3 = 9.0622d0 * log(P*1.d-6) + 264.66d0 
-    
-    !Higher-order
-    !logP = log(P*1.d-6)
-    !T3 = -0.11d0*logP**6 + 0.1733d0*logP**5 - 0.9679d0*logP**4 + 2.3492d0*logP**3 &
-    !     - 2.7715d0*logP**2 + 11.389d0*logP + 263.5d0
-  else
-    T3 = T + 273.15d0
-  endif
-
-  K_H = K_H / exp((T+273.15d0-T3)/alpha)
-  
-end subroutine HydrateDavieBuffettCorrection 
-! ************************************************************************** !
-subroutine EOSHydrateEnthalpy(T,H)
-
-  !Enthalpy of gas hydrate as f(Temperature) (Handa, 1998)
-  !
-  !Author: Michael Nole
-  !Date: 01/22/19
-  !
-  implicit none
-
-  PetscReal, intent(in):: T
-  PetscReal, intent(out) :: H
-
-  PetscReal, parameter :: Hh0 = -54734.d0 ! J/mol
-  PetscReal :: Cph, T_temp
-
-  T_temp = T + 273.15d0
-  
-  ! Integral of Cph * dT ; Cph from Handa, 1998
-
-  ! Units: J/mol
-  !H = Hh0 + 6.6d0 * (T_temp-273.15d0) + 7.269d-1 * (T_temp**2 - 273.15d0**2) - 1.21333d-3 * &
-  !      (T_temp**3 - 273.15d0**3)  + 1.578d-6 * (T_temp**4 - 273.15d0**4)
-  ! Units: MJ/kmol
-  !H = H / 1.d3
-
-  !H = H / (Nhyd+1.d0) 
-
-  !Constant Cp
-  Cph = 1620.d0*(MW_H20*Nhyd + MW_CH4)/1.d3
-  H = Cph * (T-TQD) + Hh0 / (Nhyd + 1.d0)
-  H = H / 1.d3
-
-end subroutine EOSHydrateEnthalpy
-
-! ************************************************************************** !
-
-subroutine EOSIceEnergy(T,U)
-  
-  !Internal energy of ice as f(Temperature) (Fukusako and Yamamoto, 1993)
-  !
-  !Author: Michael Nole
-  !Date: 04/04/19
-  !
-
-  implicit none
-
-  PetscReal, intent(in) :: T
-  PetscReal, intent(out) :: U
-  PetscReal, parameter :: Lw = -6017.1d0 !Latent heat of fusion,  J/mol
-  PetscReal :: T_temp
-
-  T_temp = T + 273.15d0
-
-  if (T_temp >= 90.d0) then
-    U = Lw + 185.d0 * (T_temp-273.15d0) + 3.445 * (T_temp**2 - 273.15d0**2) 
-  else
-    U = Lw + 4.475 * (T_temp**2 - 273.15d0**2)
-  endif
-
-  ! J/mol to MJ/kmol
-  U = U / 1.d3
-       
-end subroutine EOSIceEnergy
-
-! ************************************************************************** !
-
-subroutine GibbsThomsonFreezing(sat,Hf,rho,Tb,dTf,characteristic_curves,option)
-
-  !This subroutine ties the capillary pressure function to a Gibbs-Thomson
-  !subcooling required to precipitate a solid in pores.
-  !
-  !Author: Michael Nole
-  !Date: 04/04/19
-  !
-
-  use Characteristic_Curves_module
-  use Option_module
-
-  implicit none
-
-  PetscReal, intent(in) :: sat
-  PetscReal, intent(in) :: Hf
-  PetscReal, intent(in) :: rho
-  PetscReal, intent(in) :: Tb
-  type(option_type) :: option
-  class(characteristic_curves_type) :: characteristic_curves
-  PetscReal, intent(out) :: dTf
-
-  PetscReal :: Pc,dpc_dsatl
-  
-  call characteristic_curves%saturation_function% &
-             CapillaryPressure(sat,Pc,dpc_dsatl,option)
-
-  dTf = -(Tb+273.15)*Pc/(Hf * rho * 1000.d0)
-  
-  !MAN debugging
-  !dTf = 0.d0
-end subroutine GibbsThomsonFreezing
-
-! ************************************************************************** !
-
-subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
-
-  implicit none
-
-  PetscReal :: phi, kdry, kwet
-  PetscReal, pointer :: sat(:)
-  
-  PetscReal :: keff
-  PetscReal :: k_h20,k_ch4,k_hyd,k_ice
-  PetscInt :: lid, gid, hid, iid
-
-  lid = 1
-  gid = 2
-  hid = 3
-  iid = 4
+subroutine HydrateUpdateMassBalance(realization)
+  ! 
+  ! Updates mass balance
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
  
-  k_h20 = 0.49d0 !W/m-K
-  k_ch4 = 30.d-3 !W/m-K
-  k_hyd = 0.49d0 !W/m-K
-  k_ice = 2.d0   !W/m-K
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Grid_module
+ 
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
 
-  keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
-          + sat(gid)*k_ch4)
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+  
+  PetscInt :: iconn
+  PetscInt :: icomp
 
-end subroutine HydrateCompositeThermalCond
+  option => realization%option
+  patch => realization%patch
+
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
+
+  do iconn = 1, patch%aux%Hydrate%num_aux_bc
+    do icomp = 1, option%nflowspec
+      global_auxvars_bc(iconn)%mass_balance(icomp,:) = &
+        global_auxvars_bc(iconn)%mass_balance(icomp,:) + &
+        global_auxvars_bc(iconn)%mass_balance_delta(icomp,:)* &
+        fmw_comp(icomp)*option%flow_dt
+    enddo
+  enddo
+  do iconn = 1, patch%aux%Hydrate%num_aux_ss
+    do icomp = 1, option%nflowspec
+      global_auxvars_ss(iconn)%mass_balance(icomp,:) = &
+        global_auxvars_ss(iconn)%mass_balance(icomp,:) + &
+        global_auxvars_ss(iconn)%mass_balance_delta(icomp,:)* &
+        fmw_comp(icomp)*option%flow_dt
+    enddo
+  enddo
+
+end subroutine HydrateUpdateMassBalance
 
 ! ************************************************************************** !
-!
-!subroutine Methanogenesis(depth, q_meth)
-!  
-!  ! A simple methanogenesis source parameterized as a function of depth
-!  !
-!  ! Author: Michael Nole
-!  ! Date: 03/05/19
-!  !
-!
-!#include "petsc/finclude/petscvec.h"
-!  use petscvec
-!
-!  implicit none
-!
-!  !type(methanogenesis_mediator_type), pointer :: this
-!  !PetscReal :: time
-!  !PetscErrorCode :: ierr
-!
-!  !PetscInt :: i,j
-!  !type(methanogenesis_type), pointer :: cur_methanogenesis
-!  !PetscReal, pointer :: heat_source(:)
-!
-!  PetscReal, intent(in) :: depth
-!  PetscReal, intent(out) :: q_meth
-!
-!  PetscReal, parameter :: alpha = 0.005
-!  PetscReal, parameter :: k_alpha = 2241 ! Maliverno, 2010, corrected
-!  PetscReal, parameter :: lambda = 1.d-13
-!  PetscReal, parameter :: omega = 3.17d-11
-!  PetscReal, parameter :: z_smt = 15.d0
-!
-!
-!  if (depth > z_smt) then
-!    q_meth = k_alpha * lambda * exp(-lambda/omega * (depth - z_smt))
-!  endif
-!
-!  !call VecGetArrayF90(this%data_mediator%vec,methane_source, &
-!  !                    ierr);CHKERRQ(ierr)
-!  !
-!  !cur_methanogenesis => this%methanogenesis_list
-!  !j = 0
-!  !do
-!  !  if (.not. associated(cur_methanogenesis)) exit
-!  !  do i = 1, cur_methanogenesis%region%num_cells
-!  !    j = j + 1
-!  !    methane_source(j) = cur_methanogenesis%source
-!  !  enddo
-!  !  cur_methanogenesis => cur_methanogenesis%next
-!  !enddo
-!  !
-!  !call VecRestoreArrayF90(this%data_mediator%vec,methane_source, &
-!  !                        ierr);CHKERRQ(ierr)
-!
-!
-!end subroutine Methanogenesis
-!
+
+subroutine HydrateUpdateAuxVars(realization,update_state)
+  ! 
+  ! Updates the auxiliary variables associated with the Hydrate problem
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Material_module
+  use Material_Aux_class
+  use EOS_Water_module
+  use Saturation_Function_module
+  use Hydrate_Aux_module
+  
+  implicit none
+
+  type(realization_subsurface_type) :: realization
+  PetscBool :: update_state
+  
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  type(coupler_type), pointer :: boundary_condition, source_sink
+  type(connection_set_type), pointer :: cur_connection_set
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:), hyd_auxvars_bc(:), &
+                                        hyd_auxvars_ss(:)
+  type(hydrate_auxvar_type) :: hyd_auxvar, hyd_auxvar_ss
+  type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
+  type(global_auxvar_type), pointer :: global_auxvars(:), &
+                                       global_auxvars_bc(:), global_auxvars_ss(:)
+  
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
+  PetscInt :: ghosted_start, ghosted_end, ssn, i
+  PetscInt :: iphasebc, iphase
+  PetscInt :: offset
+  PetscInt :: istate
+  PetscInt :: wat_comp_id, air_comp_id
+  PetscReal :: gas_pressure, capillary_pressure, liquid_saturation
+  PetscReal :: saturation_pressure, temperature
+  PetscReal :: qsrc(3)
+  PetscInt :: real_index, variable, flow_src_sink_type
+  PetscReal, pointer :: xx_loc_p(:)
+  PetscReal :: xxbc(realization%option%nflowdof), & 
+               xxss(realization%option%nflowdof)
+  PetscReal :: cell_pressure,qsrc_vol(2),scale
+  PetscErrorCode :: ierr
+  
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  field => realization%field
+
+  hyd_auxvars => patch%aux%Hydrate%auxvars
+  hyd_auxvars_bc => patch%aux%Hydrate%auxvars_bc
+  hyd_auxvars_ss => patch%aux%Hydrate%auxvars_ss
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
+    
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+
+  do ghosted_id = 1, grid%ngmax
+    if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
+     
+    !geh - Ignore inactive cells with inactive materials
+    if (patch%imat(ghosted_id) <= 0) cycle
+    ghosted_end = ghosted_id*option%nflowdof
+    ghosted_start = ghosted_end - option%nflowdof + 1
+    ! HYDRATE_UPDATE_FOR_ACCUM indicates call from non-perturbation
+    option%iflag = HYDRATE_UPDATE_FOR_ACCUM
+    natural_id = grid%nG2A(ghosted_id)
+    if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
+    call HydrateAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
+                       hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                       global_auxvars(ghosted_id), &
+                       material_auxvars(ghosted_id), &
+                       patch%characteristic_curves_array( &
+                         patch%sat_func_id(ghosted_id))%ptr, &
+                       natural_id, &
+                       option)
+    if (update_state) then
+      call HydrateAuxVarUpdateState(xx_loc_p(ghosted_start:ghosted_end), &
+                                    hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                                    global_auxvars(ghosted_id), &
+                                    material_auxvars(ghosted_id), &
+                                    patch%characteristic_curves_array( &
+                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                    natural_id, option)
+    endif
+  enddo
+
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      !geh: negate to indicate boundary connection, not actual cell
+      natural_id = -grid%nG2A(ghosted_id) 
+      offset = (ghosted_id-1)*option%nflowdof
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      xxbc(:) = xx_loc_p(offset+1:offset+option%nflowdof)
+      istate = boundary_condition%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn)
+      if (istate == HYD_ANY_STATE) then
+        istate = global_auxvars(ghosted_id)%istate
+        select case(istate)
+          case(L_STATE,G_STATE)
+            do idof = 1, option%nflowdof
+              select case(boundary_condition%flow_bc_type(idof))
+                case(DIRICHLET_BC,HYDROSTATIC_BC)
+                  real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                  xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+              end select   
+            enddo
+          case(HA_STATE) !MAN: Testing HA_STATE
+            do idof = 1, option%nflowdof
+              select case(boundary_condition%flow_bc_type(idof))
+                case(DIRICHLET_BC,HYDROSTATIC_BC)
+                  real_index = boundary_condition%flow_aux_mapping( &
+                          dof_to_primary_variable(idof,GA_STATE))
+                  xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+              end select
+            enddo
+          case(GA_STATE)
+            do idof = 1, option%nflowdof
+              select case(boundary_condition%flow_bc_type(idof))
+                case(HYDROSTATIC_BC)
+                  real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+                  xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                case(DIRICHLET_BC)
+                  variable = dof_to_primary_variable(idof,istate)
+                  select case(variable)
+                    ! for gas pressure dof
+                    case(HYDRATE_GAS_PRESSURE_INDEX)
+                      real_index = boundary_condition%flow_aux_mapping(variable)
+                      if (real_index /= 0) then
+                        xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                      else
+                        option%io_buffer = 'Mixed FLOW_CONDITION "' // &
+                          trim(boundary_condition%flow_condition%name) // &
+                          '" needs gas pressure defined.'
+                        call PrintErrMsg(option)
+                      endif
+                    ! for air pressure dof
+                    case(HYDRATE_AIR_PRESSURE_INDEX)
+                      real_index = boundary_condition%flow_aux_mapping(variable)
+                      if (real_index == 0) then ! air pressure not found
+                        ! if air pressure is not available, let's try temperature 
+                        real_index = boundary_condition%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX)
+                        if (real_index /= 0) then
+                          temperature = boundary_condition%flow_aux_real_var(real_index,iconn)
+                          call EOSWaterSaturationPressure(temperature,saturation_pressure,ierr)
+                          ! now verify whether gas pressure is provided through BC
+                          if (boundary_condition%flow_bc_type(ONE_INTEGER) == NEUMANN_BC) then
+                            gas_pressure = xxbc(ONE_INTEGER)
+                          else
+                            real_index = boundary_condition%flow_aux_mapping(HYDRATE_GAS_PRESSURE_INDEX)
+                            if (real_index /= 0) then
+                              gas_pressure = boundary_condition%flow_aux_real_var(real_index,iconn)
+                            else
+                              option%io_buffer = 'Mixed FLOW_CONDITION "' // &
+                                trim(boundary_condition%flow_condition%name) // &
+                                '" needs gas pressure defined to calculate air ' // &
+                                'pressure from temperature.'
+                              call PrintErrMsg(option)
+                            endif
+                          endif
+                          xxbc(idof) = gas_pressure - saturation_pressure
+                        else
+                          option%io_buffer = 'Cannot find boundary constraint for air pressure.'
+                          call PrintErrMsg(option)
+                        endif
+                      else
+                        xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                      endif
+                    ! for gas saturation dof
+                    case(HYDRATE_GAS_SATURATION_INDEX)
+                      real_index = boundary_condition%flow_aux_mapping(variable)
+                      if (real_index /= 0) then
+                        xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                      else
+!geh: should be able to use the saturation within the cell
+!                        option%io_buffer = 'Mixed FLOW_CONDITION "' // &
+!                          trim(boundary_condition%flow_condition%name) // &
+!                          '" needs saturation defined.'
+!                        call PrintErrMsg(option)
+                      endif
+                    case(HYDRATE_TEMPERATURE_INDEX)
+                      real_index = boundary_condition%flow_aux_mapping(variable)
+                      if (real_index /= 0) then
+                        xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+                      else
+                        option%io_buffer = 'Mixed FLOW_CONDITION "' // &
+                          trim(boundary_condition%flow_condition%name) // &
+                          '" needs temperature defined.'
+                        call PrintErrMsg(option)
+                      endif
+                  end select
+                case(NEUMANN_BC)
+                case default
+                  option%io_buffer = 'Unknown BC type in HydrateUpdateAuxVars().'
+                  call PrintErrMsg(option)
+              end select
+            enddo  
+        end select
+      else
+        ! we do this for all BCs; Neumann bcs will be set later
+        do idof = 1, option%nflowdof
+          if (istate > 3) then
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,GA_STATE))
+          else
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,istate))
+          endif
+          if (real_index > 0) then
+            xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
+          else
+            option%io_buffer = 'Error setting up boundary condition in HydrateUpdateAuxVars'
+            call PrintErrMsg(option)
+          endif
+        enddo
+      endif
+          
+      ! set this based on data given
+      !MAN fix this
+      global_auxvars_bc(sum_connection)%istate = istate
+      ! HYDRATE_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
+      option%iflag = HYDRATE_UPDATE_FOR_BOUNDARY
+
+      call HydrateAuxVarCompute(xxbc,hyd_auxvars_bc(sum_connection), &
+                                global_auxvars_bc(sum_connection), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                natural_id, &
+                                option)
+      ! update state and update aux var; this could result in two update to
+      ! the aux var as update state updates if the state changes
+      call HydrateAuxVarUpdateState(xxbc,hyd_auxvars_bc(sum_connection), &
+                                    global_auxvars_bc(sum_connection), &
+                                    material_auxvars(ghosted_id), &
+                                    patch%characteristic_curves_array( &
+                                      patch%sat_func_id(ghosted_id))%ptr, &
+                                    natural_id,option)
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+  
+  wat_comp_id = option%water_id
+  air_comp_id = option%air_id
+  source_sink => patch%source_sink_list%first
+  ssn = 0
+  do
+  
+    if (.not.associated(source_sink)) exit
+    do i = 1,source_sink%region%num_cells
+      
+      ssn = ssn+1
+      qsrc = source_sink%flow_condition%hydrate%rate%dataset%rarray(:)
+      hyd_auxvar = hyd_auxvars(ZERO_INTEGER,source_sink%region%cell_ids(i))
+      global_auxvar = global_auxvars(source_sink%region%cell_ids(i))
+      hyd_auxvar_ss = hyd_auxvars_ss(ssn)
+      global_auxvar_ss = global_auxvars_ss(ssn)
+    
+      if (associated(hyd_auxvar%d)) then
+        allocate(hyd_auxvar_ss%d)
+      endif
+    
+      flow_src_sink_type = source_sink%flow_condition%hydrate%rate%itype
+    
+      if (associated(source_sink%flow_condition%hydrate%temperature)) then
+        hyd_auxvar_ss%temp = source_sink%flow_condition%hydrate% &
+                           temperature%dataset%rarray(1)
+      else
+        hyd_auxvar_ss%temp = hyd_auxvar%temp
+      endif
+    
+      ! Check if liquid pressure is set
+      if (associated(source_sink%flow_condition%hydrate%liquid_pressure)) then
+        hyd_auxvar_ss%pres(wat_comp_id) = source_sink%flow_condition% &
+                                    hydrate%liquid_pressure%dataset%rarray(1)
+      else
+        hyd_auxvar_ss%pres(wat_comp_id) = hyd_auxvar%pres(option%liquid_phase)
+      endif
+    
+      ! Check if gas pressure is set
+      if (associated(source_sink%flow_condition%hydrate%gas_pressure)) then
+        hyd_auxvar_ss%pres(air_comp_id) = source_sink%flow_condition% &
+                               hydrate%gas_pressure%dataset%rarray(1)
+      else
+        hyd_auxvar_ss%pres(air_comp_id) = hyd_auxvar%pres(option%gas_phase)
+      endif
+    
+      select case(flow_src_sink_type)
+      case(MASS_RATE_SS)
+        qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+                              hyd_auxvar%den(air_comp_id))
+        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+                              hyd_auxvar%den(wat_comp_id))
+      case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
+        qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+                              hyd_auxvar%den(air_comp_id))*scale 
+        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+                              hyd_auxvar%den(wat_comp_id))*scale 
+      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+      ! qsrc1 = m^3/sec             ! den = kmol/m^3
+        qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
+        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
+      end select
+    
+      xxss(1) = maxval(hyd_auxvar_ss%pres(option% &
+                     liquid_phase:option%gas_phase))
+      if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
+          dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
+        xxss(2) = 0.d0
+      else
+        xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
+                + qsrc_vol(air_comp_id))
+      endif
+      xxss(3) = hyd_auxvar_ss%temp
+    
+      cell_pressure = maxval(hyd_auxvar%pres(option% &
+                           liquid_phase:option%gas_phase))    
+    
+      if (cell_pressure>xxss(1) .or. qsrc(wat_comp_id)<0 .or. &
+         qsrc(air_comp_id)<0.d0) then
+        xxss(1) = cell_pressure
+        xxss(2) = hyd_auxvar%sat(air_comp_id)
+        xxss(3) = hyd_auxvar%temp
+      endif
+    
+      if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
+          dabs(qsrc(air_comp_id)) > 0.d0) then
+        global_auxvar_ss%istate = GA_STATE
+      elseif (dabs(qsrc(wat_comp_id)) > 0.d0) then
+        global_auxvar_ss%istate = L_STATE
+      elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
+        global_auxvar_ss%istate = G_STATE
+      else
+        global_auxvar_ss%istate = GA_STATE
+      endif
+    
+      if (global_auxvar_ss%istate /= global_auxvar%istate) then
+        global_auxvar_ss%istate = GA_STATE
+      endif
+    
+      allocate(global_auxvar_ss%m_nacl(1))
+      global_auxvar_ss%m_nacl(1) = 0.d0
+      option%iflag = HYDRATE_UPDATE_FOR_SS
+    
+      ! Compute state variables 
+      call HydrateAuxVarCompute(xxss,hyd_auxvar_ss, &
+                                global_auxvar_ss, &
+                                material_auxvars(source_sink% &
+                                region%cell_ids(1)), &
+                                patch%characteristic_curves_array( &
+                                patch%sat_func_id(source_sink%region% &
+                                cell_ids(1)))%ptr, &
+                                source_sink%region%cell_ids(1), &
+                                option)
+      hyd_auxvars_ss(ssn) = hyd_auxvar_ss
+    enddo
+    source_sink => source_sink%next
+  enddo
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
+
+  patch%aux%Hydrate%auxvars_up_to_date = PETSC_TRUE
+
+end subroutine HydrateUpdateAuxVars
+
 ! ************************************************************************** !
+
+subroutine HydrateUpdateFixedAccum(realization)
+  ! 
+  ! Updates the fixed portion of the
+  ! accumulation term
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Patch_module
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Material_Aux_class
+  use Hydrate_Aux_module
+  use Hydrate_Common_module
+
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_parameter_type), pointer :: material_parameter
+
+  PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
+  PetscInt :: imat
+  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal :: Jac_dummy(realization%option%nflowdof, &
+                         realization%option%nflowdof)
+                          
+  PetscErrorCode :: ierr
+  
+  option => realization%option
+  field => realization%field
+  patch => realization%patch
+  grid => patch%grid
+
+  hyd_auxvars => patch%aux%Hydrate%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  material_auxvars => patch%aux%Material%auxvars
+  material_parameter => patch%aux%Material%material_parameter
+    
+  call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    !geh - Ignore inactive cells with inactive materials
+    imat = patch%imat(ghosted_id)
+    if (imat <= 0) cycle
+    natural_id = grid%nG2A(ghosted_id)
+    local_end = local_id*option%nflowdof
+    local_start = local_end - option%nflowdof + 1
+    ! HYDRATE_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
+    option%iflag = HYDRATE_UPDATE_FOR_FIXED_ACCUM
+
+     call HydrateAuxVarCompute(xx_p(local_start:local_end), &
+                              hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              material_auxvars(ghosted_id), &
+                              patch%characteristic_curves_array( &
+                                patch%sat_func_id(ghosted_id))%ptr, &
+                              natural_id, &
+                              option)
+    call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                             global_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id),patch%grid% &
+                             z(ghosted_id),maxval(grid%z),patch%methanogenesis,&
+                             material_parameter%soil_heat_capacity(imat), &
+                             option,accum_p(local_start:local_end), &
+                             Jac_dummy,PETSC_FALSE, &
+                             local_id == hydrate_debug_cell_id)
+  enddo
+  
+  
+  call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  
+end subroutine HydrateUpdateFixedAccum
+
+! ************************************************************************** !
+
+subroutine HydrateResidual(snes,xx,r,realization,ierr)
+  ! 
+  ! Computes the residual equation
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Field_module
+  use Patch_module
+  use Discretization_module
+  use Option_module
+
+  use Connection_module
+  use Grid_module
+  use Coupler_module  
+  use Debug_module
+  use Material_Aux_class
+  use Upwind_Direction_module
+  use Hydrate_Common_module
+
+  implicit none
+
+  SNES :: snes
+  Vec :: xx
+  Vec :: r
+  type(realization_subsurface_type) :: realization
+  PetscViewer :: viewer
+  PetscErrorCode :: ierr
+  
+  Mat, parameter :: null_mat = tMat(0)
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
+  type(material_parameter_type), pointer :: material_parameter
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:), hyd_auxvars_bc(:), &
+                                        hyd_auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+
+  PetscInt :: iconn
+  PetscInt :: iphase
+  PetscReal :: scale
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
+  PetscInt :: sum_connection
+  PetscInt :: local_start, local_end
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
+  PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt, save :: iplot = 0
+  PetscInt :: flow_src_sink_type
+
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: accum_p(:), accum_p2(:)
+  PetscReal, pointer :: vec_p(:)
+  
+  PetscReal :: qsrc(3)
+  PetscInt :: ssn
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word
+
+  PetscInt :: icap_up, icap_dn
+  PetscReal :: Res(realization%option%nflowdof)
+  PetscReal :: Jac_dummy(realization%option%nflowdof, &
+                         realization%option%nflowdof)
+  PetscReal :: v_darcy(realization%option%nphase)
+  
+
+  discretization => realization%discretization
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+  field => realization%field
+  material_parameter => patch%aux%Material%material_parameter
+  hyd_auxvars => patch%aux%Hydrate%auxvars
+  hyd_auxvars_bc => patch%aux%Hydrate%auxvars_bc
+  hyd_auxvars_ss => patch%aux%Hydrate%auxvars_ss
+  hydrate_parameter => patch%aux%Hydrate%hydrate_parameter
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
+  material_auxvars => patch%aux%Material%auxvars
+  
+  
+  hydrate_newton_iteration_number = hydrate_newton_iteration_number + 1
+  ! bragflo uses the following logic, update when
+  !   it == 1, before entering iteration loop
+  !   it > 1 and mod(it-1,frequency) == 0
+  ! the first is set in HydrateInitializeTimestep, the second is set here
+  if (hydrate_newton_iteration_number > 1 .and. &
+      mod(hydrate_newton_iteration_number-1, &
+          upwind_dir_update_freq) == 0) then
+    update_upwind_direction = PETSC_TRUE
+  endif
+
+  ! Communication -----------------------------------------
+  ! These 3 must be called before HydrateUpdateAuxVars()
+  call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
+  
+                                             ! do update state
+  call HydrateUpdateAuxVars(realization,hydrate_allow_state_change)
+
+  ! override flags since they will soon be out of date
+  patch%aux%Hydrate%auxvars_up_to_date = PETSC_FALSE 
+
+  ! always assume variables have been swapped; therefore, must copy back
+  call VecLockPop(xx,ierr); CHKERRQ(ierr)
+  call DiscretizationLocalToGlobal(discretization,field%flow_xx_loc,xx, &
+                                   NFLOWDOF)
+  call VecLockPush(xx,ierr); CHKERRQ(ierr)
+
+  if (option%compute_mass_balance_new) then
+    call HydrateZeroMassBalanceDelta(realization)
+  endif
+
+  option%iflag = 1
+  ! now assign access pointer to local variables
+  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+
+  ! Accumulation terms ------------------------------------
+  ! accumulation at t(k) (doesn't change during Newton iteration)
+  call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  r_p = -accum_p
+  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+
+  ! accumulation at t(k+1)
+  call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
+  do local_id = 1, grid%nlmax  ! For each local node do...
+    ghosted_id = grid%nL2G(local_id)
+    !geh - Ignore inactive cells with inactive materials
+    imat = patch%imat(ghosted_id)
+    if (imat <= 0) cycle
+    local_end = local_id * option%nflowdof
+    local_start = local_end - option%nflowdof + 1
+    call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                             global_auxvars(ghosted_id), &
+                             material_auxvars(ghosted_id),patch%grid% &
+                             z(ghosted_id),0.d0,patch%methanogenesis,&
+                             material_parameter%soil_heat_capacity(imat), &
+                             option,Res,Jac_dummy,&
+                             hydrate_analytical_derivatives, &
+                             local_id == hydrate_debug_cell_id)
+    r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
+    accum_p2(local_start:local_end) = Res(:)
+  enddo
+  call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
+
+  ! Interior Flux Terms -----------------------------------
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0  
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+
+      imat_up = patch%imat(ghosted_id_up) 
+      imat_dn = patch%imat(ghosted_id_dn) 
+      if (imat_up <= 0 .or. imat_dn <= 0) cycle
+
+      icap_up = patch%sat_func_id(ghosted_id_up)
+      icap_dn = patch%sat_func_id(ghosted_id_dn)
+
+      call HydrateFlux(hyd_auxvars(ZERO_INTEGER,ghosted_id_up), &
+                       global_auxvars(ghosted_id_up), &
+                       material_auxvars(ghosted_id_up), &
+                       material_parameter%soil_thermal_conductivity(:,imat_up), &
+                       hyd_auxvars(ZERO_INTEGER,ghosted_id_dn), &
+                       global_auxvars(ghosted_id_dn), &
+                       material_auxvars(ghosted_id_dn), &
+                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                       cur_connection_set%area(iconn), &
+                       cur_connection_set%dist(:,iconn), &
+                       patch%flow_upwind_direction(:,iconn), &
+                       hydrate_parameter,option,v_darcy,Res, &
+                       Jac_dummy,Jac_dummy, &
+                       hydrate_analytical_derivatives, &
+                       update_upwind_direction, &
+                       count_upwind_direction_flip, &
+                       (local_id_up == hydrate_debug_cell_id .or. &
+                        local_id_dn == hydrate_debug_cell_id))
+
+      patch%internal_velocities(:,sum_connection) = v_darcy
+      if (associated(patch%internal_flow_fluxes)) then
+        patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+      endif
+      
+      if (local_id_up > 0) then
+        local_end = local_id_up * option%nflowdof
+        local_start = local_end - option%nflowdof + 1
+        r_p(local_start:local_end) = r_p(local_start:local_end) + Res(:)
+      endif
+         
+      if (local_id_dn > 0) then
+        local_end = local_id_dn * option%nflowdof
+        local_start = local_end - option%nflowdof + 1
+        r_p(local_start:local_end) = r_p(local_start:local_end) - Res(:)
+      endif
+    enddo
+
+    cur_connection_set => cur_connection_set%next
+  enddo    
+
+  ! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    
+    cur_connection_set => boundary_condition%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      imat_dn = patch%imat(ghosted_id)
+      if (imat_dn <= 0) cycle
+
+      if (ghosted_id<=0) then
+        print *, "Wrong boundary node index... STOP!!!"
+        stop
+      endif
+
+      icap_dn = patch%sat_func_id(ghosted_id)
+
+      call HydrateBCFlux(boundary_condition%flow_bc_type, &
+                     boundary_condition%flow_aux_mapping, &
+                     boundary_condition%flow_aux_real_var(:,iconn), &
+                     hyd_auxvars_bc(sum_connection), &
+                     global_auxvars_bc(sum_connection), &
+                     hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                     global_auxvars(ghosted_id), &
+                     material_auxvars(ghosted_id), &
+                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     cur_connection_set%area(iconn), &
+                     cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction_bc(:,iconn), &
+                     hydrate_parameter,option, &
+                     v_darcy,Res,Jac_dummy, &
+                     hydrate_analytical_derivatives, &
+                     update_upwind_direction, &
+                     count_upwind_direction_flip, &
+                     local_id == hydrate_debug_cell_id)
+      patch%boundary_velocities(:,sum_connection) = v_darcy
+      if (associated(patch%boundary_flow_fluxes)) then
+        patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
+      endif
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary
+        global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
+          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - &
+          Res(1:2)
+      endif
+
+      local_end = local_id * option%nflowdof
+      local_start = local_end - option%nflowdof + 1
+      r_p(local_start:local_end)= r_p(local_start:local_end) - Res(:)
+
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  ! Source/sink terms -------------------------------------
+  source_sink => patch%source_sink_list%first 
+  sum_connection = 0
+  ssn=0
+  do 
+    if (.not.associated(source_sink)) exit
+    ssn=ssn+1
+    cur_connection_set => source_sink%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections      
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      local_end = local_id * option%nflowdof
+      local_start = local_end - option%nflowdof + 1
+
+      if (associated(source_sink%flow_aux_real_var)) then
+        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+      else
+        scale = 1.d0
+      endif
+
+      qsrc=source_sink%flow_condition%hydrate%rate%dataset%rarray(:)
+      flow_src_sink_type=source_sink%flow_condition%hydrate%rate%itype
+      
+      call HydrateSrcSink(option,qsrc,flow_src_sink_type, &
+                          hyd_auxvars_ss(ssn), &
+                          hyd_auxvars(ZERO_INTEGER,ghosted_id), &
+                          global_auxvars(ghosted_id), &
+                          ss_flow_vol_flux, &
+                          scale,Res,Jac_dummy, &
+                          hydrate_analytical_derivatives, &
+                          local_id == hydrate_debug_cell_id)
+
+      r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
+
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
+      endif      
+      if (associated(patch%ss_flow_fluxes)) then
+        patch%ss_flow_fluxes(:,sum_connection) = Res(:)
+      endif      
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary
+        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
+          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
+          Res(1:2)
+      endif
+
+    enddo
+    source_sink => source_sink%next
+  enddo
+  
+  if (patch%aux%Hydrate%inactive_cells_exist) then
+    do i=1,patch%aux%Hydrate%n_inactive_rows
+      r_p(patch%aux%Hydrate%inactive_rows_local(i)) = 0.d0
+    enddo
+  endif
+  
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  
+  call HydrateSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
+                        hyd_auxvars,option)
+
+  ! Mass Transfer
+  if (field%flow_mass_transfer /= PETSC_NULL_VEC) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    !call VecGetArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    !call VecRestoreArrayF90(field%flow_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
+  endif                      
+                        
+  if (Initialized(hydrate_debug_cell_id)) then
+    call VecGetArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
+    do local_id = hydrate_debug_cell_id-1, hydrate_debug_cell_id+1
+      write(*,'(''  residual   : '',i2,10es12.4)') local_id, &
+        r_p((local_id-1)*option%nflowdof+1:(local_id-1)*option%nflowdof+2), &
+        r_p(local_id*option%nflowdof)*1.d6
+    enddo
+    call VecRestoreArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
+  endif
+  
+  if (realization%debug%vecview_residual) then
+    call DebugWriteFilename(realization%debug,string,'Gresidual','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(r,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+  if (realization%debug%vecview_solution) then
+    call DebugWriteFilename(realization%debug,string,'Gxx','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+
+  update_upwind_direction = PETSC_FALSE
+
+end subroutine HydrateResidual
+
+! ************************************************************************** !
+
+subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
+  ! 
+  ! Computes the Jacobian
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Connection_module
+  use Coupler_module
+  use Field_module
+  use Debug_module
+  use Material_Aux_class
+  use Upwind_Direction_module
+  use Hydrate_Aux_module
+
+  implicit none
+
+  SNES :: snes
+  Vec :: xx
+  Mat :: A, B
+  type(realization_subsurface_type) :: realization
+  PetscErrorCode :: ierr
+
+  Mat :: J
+  MatType :: mat_type
+  PetscReal :: norm
+  PetscViewer :: viewer
+
+  PetscInt :: icap_up,icap_dn
+  PetscReal :: qsrc, scale
+  PetscInt :: imat, imat_up, imat_dn
+  PetscInt :: local_id, ghosted_id, natural_id
+  PetscInt :: irow
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  Vec, parameter :: null_vec = tVec(0)
+  
+  PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
+               Jdn(realization%option%nflowdof,realization%option%nflowdof)
+  
+  type(coupler_type), pointer :: boundary_condition, source_sink
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn
+  PetscInt :: sum_connection 
+  PetscInt :: ssn
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity 
+  PetscInt, pointer :: zeros(:)
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option 
+  type(field_type), pointer :: field 
+  type(material_parameter_type), pointer :: material_parameter
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars(:,:), &
+                                        hyd_auxvars_bc(:), &
+                                        hyd_auxvars_ss(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word
+  
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+  material_parameter => patch%aux%Material%material_parameter
+  hyd_auxvars => patch%aux%Hydrate%auxvars
+  hyd_auxvars_bc => patch%aux%Hydrate%auxvars_bc
+  hyd_auxvars_ss => patch%aux%Hydrate%auxvars_ss
+  hydrate_parameter => patch%aux%Hydrate%hydrate_parameter
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
+
+
+  call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
+  if (mat_type == MATMFFD) then
+    J = B
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  else
+    J = A
+  endif
+
+  call MatZeroEntries(J,ierr);CHKERRQ(ierr)
+
+  if (.not.hydrate_analytical_derivatives) then
+    ! Perturb aux vars
+    do ghosted_id = 1, grid%ngmax  ! For each local node do...
+      if (patch%imat(ghosted_id) <= 0) cycle
+      natural_id = grid%nG2A(ghosted_id)
+      call HydrateAuxVarPerturb(hyd_auxvars(:,ghosted_id), &
+                                global_auxvars(ghosted_id), &
+                                material_auxvars(ghosted_id), &
+                                patch%characteristic_curves_array( &
+                                  patch%sat_func_id(ghosted_id))%ptr, &
+                                natural_id,option)
+    enddo
+  endif
+  
+  ! Accumulation terms ------------------------------------
+  do local_id = 1, grid%nlmax  ! For each local node do...
+    ghosted_id = grid%nL2G(local_id)
+    !geh - Ignore inactive cells with inactive materials
+    imat = patch%imat(ghosted_id)
+    if (imat <= 0) cycle
+    call HydrateAccumDerivative(hyd_auxvars(:,ghosted_id), &
+                              global_auxvars(ghosted_id), &
+                              material_auxvars(ghosted_id), &
+                              grid%z(ghosted_id),maxval(grid%z), &
+                              patch%methanogenesis, &
+                              material_parameter%soil_heat_capacity(imat), &
+                              option,Jup) 
+    call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                  ADD_VALUES,ierr);CHKERRQ(ierr)
+  enddo
+
+  if (realization%debug%matview_Jacobian_detailed) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_accum','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+
+
+  ! Interior Flux Terms -----------------------------------  
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      imat_up = patch%imat(ghosted_id_up)
+      imat_dn = patch%imat(ghosted_id_dn)
+      if (imat_up <= 0 .or. imat_dn <= 0) cycle
+
+      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+   
+      icap_up = patch%sat_func_id(ghosted_id_up)
+      icap_dn = patch%sat_func_id(ghosted_id_dn)
+                              
+      call HydrateFluxDerivative(hyd_auxvars(:,ghosted_id_up), &
+                     global_auxvars(ghosted_id_up), &
+                     material_auxvars(ghosted_id_up), &
+                     material_parameter%soil_thermal_conductivity(:,imat_up), &
+                     hyd_auxvars(:,ghosted_id_dn), &
+                     global_auxvars(ghosted_id_dn), &
+                     material_auxvars(ghosted_id_dn), &
+                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     cur_connection_set%area(iconn), &
+                     cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction(:,iconn), &
+                     hydrate_parameter,option,&
+                     Jup,Jdn)
+      if (local_id_up > 0) then
+        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+                                      Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+                                      Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+      endif
+      if (local_id_dn > 0) then
+        Jup = -Jup
+        Jdn = -Jdn
+        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+                                      Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
+        call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+                                      Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
+      endif
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  if (realization%debug%matview_Jacobian_detailed) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_flux','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+
+  ! Boundary Flux Terms -----------------------------------
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    
+    cur_connection_set => boundary_condition%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      imat_dn = patch%imat(ghosted_id)
+      if (imat_dn <= 0) cycle
+
+      if (ghosted_id<=0) then
+        print *, "Wrong boundary node index... STOP!!!"
+        stop
+      endif
+
+      icap_dn = patch%sat_func_id(ghosted_id)
+
+      call HydrateBCFluxDerivative(boundary_condition%flow_bc_type, &
+                      boundary_condition%flow_aux_mapping, &
+                      boundary_condition%flow_aux_real_var(:,iconn), &
+                      hyd_auxvars_bc(sum_connection), &
+                      global_auxvars_bc(sum_connection), &
+                      hyd_auxvars(:,ghosted_id), &
+                      global_auxvars(ghosted_id), &
+                      material_auxvars(ghosted_id), &
+                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                      cur_connection_set%area(iconn), &
+                      cur_connection_set%dist(:,iconn), &
+                      patch%flow_upwind_direction_bc(:,iconn), &
+                      hydrate_parameter,option, &
+                      Jdn)
+
+      Jdn = -Jdn
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  if (realization%debug%matview_Jacobian_detailed) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_bcflux','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+
+  ! Source/sinks
+  source_sink => patch%source_sink_list%first 
+  ssn=0
+  do 
+    if (.not.associated(source_sink)) exit
+    
+    cur_connection_set => source_sink%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      ssn = ssn+1
+      
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      if (associated(source_sink%flow_aux_real_var)) then
+        scale = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+      else
+        scale = 1.d0
+      endif
+      
+      Jup = 0.d0
+      call HydrateSrcSinkDerivative(option,source_sink,hyd_auxvars_ss(ssn), &
+                        hyd_auxvars(:,ghosted_id), &
+                        global_auxvars(ghosted_id), &
+                        scale,Jup)
+
+      call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+                                    ADD_VALUES,ierr);CHKERRQ(ierr)
+
+    enddo
+    source_sink => source_sink%next
+  enddo
+  
+  call HydrateSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
+                        hyd_auxvars,option)
+
+  if (realization%debug%matview_Jacobian_detailed) then
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call DebugWriteFilename(realization%debug,string,'Gjacobian_srcsink','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(A,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+  
+  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+  ! zero out isothermal and inactive cells
+  if (patch%aux%Hydrate%inactive_cells_exist) then
+    qsrc = 1.d0 ! solely a temporary variable in this conditional
+    call MatZeroRowsLocal(A,patch%aux%Hydrate%n_inactive_rows, &
+                          patch%aux%Hydrate%inactive_rows_local_ghosted, &
+                          qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+  endif
+  
+  if (realization%debug%matview_Jacobian) then
+    call DebugWriteFilename(realization%debug,string,'Gjacobian','', &
+                            hydrate_ts_count,hydrate_ts_cut_count, &
+                            hydrate_ni_count)
+    call DebugCreateViewer(realization%debug,string,option,viewer)
+    call MatView(J,viewer,ierr);CHKERRQ(ierr)
+    call DebugViewerDestroy(realization%debug,viewer)
+  endif
+  if (realization%debug%norm_Jacobian) then
+    option => realization%option
+    call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
+    write(option%io_buffer,'("1 norm: ",es11.4)') norm
+    call PrintMsg(option)
+    call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
+    write(option%io_buffer,'("2 norm: ",es11.4)') norm
+    call PrintMsg(option)
+    call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
+    write(option%io_buffer,'("inf norm: ",es11.4)') norm
+    call PrintMsg(option)
+  endif
+
+!  call MatView(J,PETSC_VIEWER_STDOUT_WORLD,ierr)
+
+#if 0
+  imat = 1
+  if (imat == 1) then
+    call HydrateNumericalJacobianTest(xx,realization,J) 
+  endif
+#endif
+
+  ! update after evaluations to ensure zero-based index to match screen output
+  hydrate_ni_count = hydrate_ni_count + 1
+
+end subroutine HydrateJacobian
+
+! ************************************************************************** !
+
+function HydrateGetTecplotHeader(realization,icolumn)
+  ! 
+  ! Returns Hydrate Lite contribution to
+  ! Tecplot file header
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+  
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+    
+  implicit none
+  
+  character(len=MAXSTRINGLENGTH) :: HydrateGetTecplotHeader
+  type(realization_subsurface_type) :: realization
+  PetscInt :: icolumn
+  
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field  
+  PetscInt :: i
+
+  option => realization%option
+  field => realization%field
+  
+  string = ''
+  
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-T [C]"'')') icolumn
+  else
+    write(string2,'('',"T [C]"'')')
+  endif
+  string = trim(string) // trim(string2)
+  
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-P [Pa]"'')') icolumn
+  else
+    write(string2,'('',"P [Pa]"'')')
+  endif
+  string = trim(string) // trim(string2)
+  
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-State"'')') icolumn
+  else
+    write(string2,'('',"State"'')')
+  endif
+  string = trim(string) // trim(string2)
+  
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-Sat(l)"'')') icolumn
+  else
+    write(string2,'('',"Sat(l)"'')')
+  endif
+  string = trim(string) // trim(string2)
+
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-Sat(g)"'')') icolumn
+  else
+    write(string2,'('',"Sat(g)"'')')
+  endif
+  string = trim(string) // trim(string2)
+    
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-Rho(l)"'')') icolumn
+  else
+    write(string2,'('',"Rho(l)"'')')
+  endif
+  string = trim(string) // trim(string2)
+
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-Rho(g)"'')') icolumn
+  else
+    write(string2,'('',"Rho(g)"'')')
+  endif
+  string = trim(string) // trim(string2)
+    
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-U(l)"'')') icolumn
+  else
+    write(string2,'('',"U(l)"'')')
+  endif
+  string = trim(string) // trim(string2)
+
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-U(g)"'')') icolumn
+  else
+    write(string2,'('',"U(g)"'')')
+  endif
+  string = trim(string) // trim(string2)
+  
+  do i=1,option%nflowspec
+    if (icolumn > -1) then
+      icolumn = icolumn + 1
+      write(string2,'('',"'',i2,''-Xl('',i2,'')"'')') icolumn, i
+    else
+      write(string2,'('',"Xl('',i2,'')"'')') i
+    endif
+    string = trim(string) // trim(string2)
+  enddo
+
+  do i=1,option%nflowspec
+    if (icolumn > -1) then
+      icolumn = icolumn + 1
+      write(string2,'('',"'',i2,''-Xg('',i2,'')"'')') icolumn, i
+    else
+      write(string2,'('',"Xg('',i2,'')"'')') i
+    endif
+    string = trim(string) // trim(string2)
+  enddo
+ 
+  HydrateGetTecplotHeader = string
+
+end function HydrateGetTecplotHeader
+
+! ************************************************************************** !
+
+subroutine HydrateSetPlotVariables(realization,list)
+  ! 
+  ! Adds variables to be printed to list
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+  
+  use Realization_Subsurface_class
+  use Output_Aux_module
+  use Variables_module
+    
+  implicit none
+  
+  type(realization_subsurface_type) :: realization
+  type(output_variable_list_type), pointer :: list
+
+  character(len=MAXWORDLENGTH) :: name, units
+  type(output_variable_type), pointer :: output_variable
+
+  if (associated(list%first)) then
+    return
+  endif
+  
+  if (list%flow_vars) then
+  
+    name = 'Liquid Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                LIQUID_PRESSURE)
+
+    name = 'Gas Pressure'
+    units = 'Pa'
+    call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+                                GAS_PRESSURE)
+
+    name = 'Liquid Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                LIQUID_SATURATION)
+    
+    name = 'Gas Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+                                GAS_SATURATION)
+    
+    name = 'Liquid Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_DENSITY)
+    
+    name = 'Gas Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_DENSITY)
+    
+    name = 'X_g^l'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOLE_FRACTION, &
+                                realization%option%air_id)
+    
+    name = 'X_l^l'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_MOLE_FRACTION, &
+                                realization%option%water_id)
+    
+    name = 'X_g^g'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_MOLE_FRACTION, &
+                                realization%option%air_id)
+    
+    name = 'X_l^g'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_MOLE_FRACTION, &
+                                realization%option%water_id)
+  
+  endif
+  
+  if (list%energy_vars) then
+  
+    name = 'Temperature'
+    units = 'C'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                TEMPERATURE)
+    
+    name = 'Liquid Energy'
+    units = 'MJ/kmol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                LIQUID_ENERGY)
+    
+    name = 'Gas Energy'
+    units = 'MJ/kmol'
+    call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+                                GAS_ENERGY)
+    
+    name = 'Thermodynamic State'
+    units = ''
+    output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE,units,STATE)
+    output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+    output_variable%iformat = 1 ! integer
+    call OutputVariableAddToList(list,output_variable)   
+  
+  endif
+  
+end subroutine HydrateSetPlotVariables
+
+! ************************************************************************** !
+
+function HydrateAverageDensity(iphase,istate_up,istate_dn, &
+                               density_up,density_dn,dden_up,dden_dn)
+  ! 
+  ! Averages density, using opposite cell density if phase non-existent
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  implicit none
+
+  PetscInt :: iphase
+  PetscInt :: istate_up, istate_dn
+  PetscReal :: density_up(:), density_dn(:)
+  PetscReal :: dden_up, dden_dn
+
+  PetscReal :: HydrateAverageDensity
+
+  dden_up = 0.d0
+  dden_dn = 0.d0
+  if (iphase == LIQUID_PHASE) then
+    if (istate_up == G_STATE) then
+      HydrateAverageDensity = density_dn(iphase)
+      dden_dn = 1.d0
+    else if (istate_dn == G_STATE) then
+      HydrateAverageDensity = density_up(iphase)
+      dden_up = 1.d0
+    else
+      HydrateAverageDensity = 0.5d0*(density_up(iphase)+density_dn(iphase))
+      dden_up = 0.5d0
+      dden_dn = 0.5d0
+    endif
+  else if (iphase == GAS_PHASE) then
+    if (istate_up == L_STATE) then
+      HydrateAverageDensity = density_dn(iphase)
+      dden_dn = 1.d0      
+    else if (istate_dn == L_STATE) then
+      HydrateAverageDensity = density_up(iphase)
+      dden_up = 1.d0      
+    else
+      HydrateAverageDensity = 0.5d0*(density_up(iphase)+density_dn(iphase))
+      dden_up = 0.5d0
+      dden_dn = 0.5d0      
+    endif
+  endif
+
+end function HydrateAverageDensity
+
+! ************************************************************************** !
+
+subroutine HydrateSSSandbox(residual,Jacobian,compute_derivative, &
+                            grid,material_auxvars,hydrate_auxvars,option)
+  ! 
+  ! Evaluates source/sink term storing residual and/or Jacobian
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+  use Option_module
+  use Grid_module
+  use Material_Aux_class, only: material_auxvar_type
+  use SrcSink_Sandbox_module
+  use SrcSink_Sandbox_Base_class
+  
+  implicit none
+
+  PetscBool :: compute_derivative
+  Vec :: residual
+  Mat :: Jacobian
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(hydrate_auxvar_type), pointer :: hydrate_auxvars(:,:)
+  
+  type(grid_type) :: grid
+  type(option_type) :: option
+  
+  PetscReal, pointer :: r_p(:)
+  PetscReal :: res(option%nflowdof)
+  PetscReal :: Jac(option%nflowdof,option%nflowdof)
+  class(srcsink_sandbox_base_type), pointer :: cur_srcsink
+  PetscInt :: local_id, ghosted_id, istart, iend, irow, idof
+  PetscReal :: res_pert(option%nflowdof)
+  PetscReal :: aux_real(10)
+  PetscErrorCode :: ierr
+  
+  if (.not.compute_derivative) then
+    call VecGetArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
+  endif
+  
+  cur_srcsink => ss_sandbox_list
+  do
+    if (.not.associated(cur_srcsink)) exit
+    aux_real = 0.d0
+    local_id = cur_srcsink%local_cell_id
+    ghosted_id = grid%nL2G(local_id)
+    res = 0.d0
+    Jac = 0.d0
+    call HydrateSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
+                      hydrate_auxvars(ZERO_INTEGER,ghosted_id),option)
+    call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
+                              material_auxvars(ghosted_id), &
+                              aux_real,option)
+    if (compute_derivative) then
+      do idof = 1, option%nflowdof
+        res_pert = 0.d0
+        call HydrateSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
+                                    hydrate_auxvars(idof,ghosted_id),option)
+        call cur_srcsink%Evaluate(res_pert,Jac,PETSC_FALSE, &
+                                  material_auxvars(ghosted_id), &
+                                  aux_real,option)
+        do irow = 1, option%nflowdof
+          Jac(irow,idof) = (res_pert(irow)-res(irow)) / &
+                            hydrate_auxvars(idof,ghosted_id)%pert
+        enddo
+      enddo
+      call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1, &
+                                    ghosted_id-1,Jac,ADD_VALUES, &
+                                    ierr);CHKERRQ(ierr)
+    else
+      iend = local_id*option%nflowdof
+      istart = iend - option%nflowdof + 1
+      r_p(istart:iend) = r_p(istart:iend) - res
+    endif
+    cur_srcsink => cur_srcsink%next
+  enddo
+  
+  if (.not.compute_derivative) then
+    call VecRestoreArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
+  endif
+
+end subroutine HydrateSSSandbox
+
+! ************************************************************************** !
+
+subroutine HydrateSSSandboxLoadAuxReal(srcsink,aux_real,hyd_auxvar,option)
+
+  use Option_module
+  use SrcSink_Sandbox_Base_class
+  use SrcSink_Sandbox_WIPP_Gas_class
+  use SrcSink_Sandbox_WIPP_Well_class
+
+  implicit none
+
+  class(srcsink_sandbox_base_type) :: srcsink
+  PetscReal :: aux_real(:)
+  type(hydrate_auxvar_type) hyd_auxvar
+  type(option_type) :: option
+  
+  aux_real = 0.d0
+  select type(srcsink)
+    class is(srcsink_sandbox_wipp_gas_type)
+      aux_real(WIPP_GAS_WATER_SATURATION_INDEX) = &
+        hyd_auxvar%sat(option%liquid_phase)
+      aux_real(WIPP_GAS_TEMPERATURE_INDEX) = &
+        hyd_auxvar%temp
+    class is(srcsink_sandbox_wipp_well_type)
+      aux_real(WIPP_WELL_LIQUID_MOBILITY) = &
+        hyd_auxvar%mobility(option%liquid_phase)
+      aux_real(WIPP_WELL_GAS_MOBILITY) = &
+        hyd_auxvar%mobility(option%gas_phase)
+      aux_real(WIPP_WELL_LIQUID_PRESSURE) = &
+        hyd_auxvar%pres(option%liquid_phase)
+      aux_real(WIPP_WELL_GAS_PRESSURE) = &
+        hyd_auxvar%pres(option%gas_phase)
+      aux_real(WIPP_WELL_LIQUID_ENTHALPY) = &
+        hyd_auxvar%H(option%liquid_phase)
+      aux_real(WIPP_WELL_GAS_ENTHALPY) = &
+        hyd_auxvar%H(option%gas_phase)
+      aux_real(WIPP_WELL_XMOL_AIR_IN_LIQUID) = &
+        hyd_auxvar%xmol(option%air_id,option%liquid_phase)
+      aux_real(WIPP_WELL_XMOL_WATER_IN_GAS) = &
+        hyd_auxvar%xmol(option%water_id,option%gas_phase)
+      aux_real(WIPP_WELL_LIQUID_DENSITY) = &
+        hyd_auxvar%den(option%liquid_phase)
+      aux_real(WIPP_WELL_GAS_DENSITY) = &
+        hyd_auxvar%den(option%gas_phase)
+  end select
+  
+end subroutine HydrateSSSandboxLoadAuxReal
+
+! ************************************************************************** !
+
+subroutine HydrateMapBCAuxVarsToGlobal(realization)
+  ! 
+  ! Maps variables in hydrate auxvar to global equivalent.
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+  use Option_module
+  use Patch_module
+  use Coupler_module
+  use Connection_module
+
+  implicit none
+
+  type(realization_subsurface_type) :: realization
+  
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_type), pointer :: cur_connection_set
+  type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)  
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
+
+  PetscInt :: sum_connection, iconn
+  
+  option => realization%option
+  patch => realization%patch
+
+  if (option%ntrandof == 0) return ! no need to update
+  
+  hyd_auxvars_bc => patch%aux%Hydrate%auxvars_bc
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  
+  boundary_condition => patch%boundary_condition_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      global_auxvars_bc(sum_connection)%sat = &
+        hyd_auxvars_bc(sum_connection)%sat
+      global_auxvars_bc(sum_connection)%den_kg = &
+        hyd_auxvars_bc(sum_connection)%den_kg
+      global_auxvars_bc(sum_connection)%temp = &
+        hyd_auxvars_bc(sum_connection)%temp
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+  
+end subroutine HydrateMapBCAuxVarsToGlobal
+
+! ************************************************************************** !
+
+subroutine HydrateDestroy(realization)
+  ! 
+  ! Deallocates variables associated with Hydrate
+  ! 
+  ! Author: Michael Nole
+  ! Date: 07/23/19
+  ! 
+
+  use Realization_Subsurface_class
+
+  implicit none
+
+  type(realization_subsurface_type) :: realization
+  
+  ! place anything that needs to be freed here.
+  ! auxvars are deallocated in auxiliary.F90.
+
+end subroutine HydrateDestroy
 
 end module Hydrate_module
