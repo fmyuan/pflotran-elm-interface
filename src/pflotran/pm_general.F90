@@ -1156,7 +1156,6 @@ subroutine PMGeneralCheckUpdatePostTR(this,snes,X0,dX,X1,X1_changed,ierr)
     natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
-    if (general_hydrate_flag) istate = global_auxvars(ghosted_id)%hstate
     
     do idof = 1, option%nflowdof
       
@@ -1172,38 +1171,25 @@ subroutine PMGeneralCheckUpdatePostTR(this,snes,X0,dX,X1,X1_changed,ierr)
         dX_X0 = dabs(dX_abs/1.d-40)
       endif
       
-      if (general_hydrate_flag) then
-        if (dX_abs > this%hyd_abs_update_inf_tol(idof,istate)) then
-          converged_absolute = PETSC_FALSE
-        endif
-        if (dX_X0 > this%hyd_rel_update_inf_tol(idof,istate)) then
-          converged_relative = PETSC_FALSE
-        endif
-      else
-        if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-          converged_absolute = PETSC_FALSE
-        endif
-        if (converged_abs_update_real(idof,istate) < dX_abs) then
-          converged_abs_update_real(idof,istate) = dX_abs
-          converged_abs_update_cell(idof,istate) = natural_id
-        endif
-        if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-          converged_relative = PETSC_FALSE
-        endif
-        if (converged_rel_update_real(idof,istate) < dX_X0) then
-          converged_rel_update_real(idof,istate) = dX_X0
-          converged_rel_update_cell(idof,istate) = natural_id
-        endif
+      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
+        converged_absolute = PETSC_FALSE
       endif
+      if (converged_abs_update_real(idof,istate) < dX_abs) then
+        converged_abs_update_real(idof,istate) = dX_abs
+        converged_abs_update_cell(idof,istate) = natural_id
+      endif
+      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+        converged_relative = PETSC_FALSE
+      endif
+      if (converged_rel_update_real(idof,istate) < dX_X0) then
+        converged_rel_update_real(idof,istate) = dX_X0
+        converged_rel_update_cell(idof,istate) = natural_id
+      endif
+
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
-        if (general_hydrate_flag) then
-          converged_abs_update_flag(idof,1) = PETSC_FALSE
-          converged_rel_update_flag(idof,1) = PETSC_FALSE
-        else
-          converged_abs_update_flag(idof,istate) = PETSC_FALSE
-          converged_rel_update_flag(idof,istate) = PETSC_FALSE
-        endif
+        converged_abs_update_flag(idof,istate) = PETSC_FALSE
+        converged_rel_update_flag(idof,istate) = PETSC_FALSE
       endif
     enddo
   enddo
