@@ -614,7 +614,7 @@ subroutine GlobalWeightAuxVars(realization,weight)
   enddo
   
   select case(option%iflowmode) 
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &

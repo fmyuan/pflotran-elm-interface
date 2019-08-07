@@ -134,7 +134,7 @@ for root in source_file_roots:
       except KeyError:
         # need to skip hdf5
         if not module.startswith(module_skip_list):
-          print('Module "%s" not found in dictionary.\n' % module)
+          print('ERROR: Module "%s" not found in dictionary.\n' % module)
           print(root, module)
           sys.exit()
 #      print(key)

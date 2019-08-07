@@ -152,6 +152,8 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'flash2'
     case(G_MODE)
       write(id,'(a)') 'general'
+    case(H_MODE)
+      write(id,'(a)') 'hydrate'
     case(WF_MODE)
       write(id,'(a)') 'wipp flow'
     case(MIS_MODE)
