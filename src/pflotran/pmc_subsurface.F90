@@ -337,6 +337,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         case(G_MODE)
           if (pm%check_post_convergence) then
             if (general_using_newtontr) then
+#if PETSC_VERSION_GE(3,11,99)
               call SNESNewtonTRSetPostCheck(solver%snes, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
                                             PMCheckUpdatePostTR, &
@@ -346,6 +347,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                             this%pm_ptr, &
 #endif
                                             ierr);CHKERRQ(ierr)
+#else
+              option%io_buffer = 'Update your version of PETSC to use NewtonTR'
+              call PrintErrMsg(option)
+#endif
             else
               call SNESLineSearchSetPostCheck(linesearch, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
