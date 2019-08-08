@@ -73,7 +73,7 @@
       133:   1.3232307413121E-01
         1:   0.0000000000000E+00
        47:   0.0000000000000E+00
-       93:   2.8977666783074E-03
+       93:   2.8977666783073E-03
       139:   9.3018102089847E-04
       185:   2.3267429962029E-02
 -- GENERIC: Liquid Density --
@@ -220,10 +220,10 @@
       139:         1
       185:         1
 -- SOLUTION: Flow --
-   Time (seconds):   1.3529198169708E+00
+   Time (seconds):   1.0485675334930E+00
    Time Steps:           88
    Newton Iterations:          227
    Solver Iterations:          227
    Time Step Cuts:            0
    Solution 2-Norm:   6.9316311700698E+07
-   Residual 2-Norm:   5.2619621882947E-11
+   Residual 2-Norm:   5.2619621895411E-11
