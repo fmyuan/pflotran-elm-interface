@@ -1436,12 +1436,12 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         ! if we reach convergence in an inner newton iteration of TR
         ! then we must force an outer iteration to allow state change
         ! in case the solutions are out-of-bounds of the states -hdp
-        general_force_convergence = PETSC_TRUE
+        general_force_iteration = PETSC_TRUE
     endif
 
     if (general_using_newtontr .and. &
         general_sub_newton_iter_num > 1 .and. &
-        general_force_convergence .and. &
+        general_force_iteration .and. &
         option%convergence == CONVERGENCE_CONVERGED) then
         ! This is a complicated case but necessary.
         ! right now PFLOTRAN declares convergence with a negative rho in tr.c
@@ -1449,9 +1449,9 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         option%convergence = CONVERGENCE_CUT_TIMESTEP
     endif
  
-    call MPI_Allreduce(MPI_IN_PLACE,general_force_convergence,ONE_INTEGER, &
+    call MPI_Allreduce(MPI_IN_PLACE,general_force_iteration,ONE_INTEGER, &
                        MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
-    option%force_newton_iteration = general_force_convergence
+    option%force_newton_iteration = general_force_iteration
     if (general_sub_newton_iter_num > 20) then
       ! cut time step in case PETSC solvers are missing inner iterations
       option%convergence = CONVERGENCE_CUT_TIMESTEP

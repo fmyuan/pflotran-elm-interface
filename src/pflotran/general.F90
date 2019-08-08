@@ -237,7 +237,7 @@ subroutine GeneralInitializeTimestep(realization)
     realization%patch%aux%General%auxvars(:,:)%istatechng = PETSC_FALSE
   endif
   
-  general_newton_iteration_number = -1
+  general_newton_iteration_number = -999
   general_sub_newton_iter_num = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
@@ -1217,7 +1217,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
   
-!  general_newton_iteration_number = general_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop
   !   it > 1 and mod(it-1,frequency) == 0
@@ -1234,12 +1233,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   
   ! do update state
   general_high_temp_ts_cut = PETSC_FALSE
-  general_restrict_state_change = PETSC_FALSE
+  general_allow_state_change = PETSC_TRUE
   general_state_changed = PETSC_FALSE
   if (general_sub_newton_iter_num > 1 .and. general_using_newtontr) then
     ! when newtonTR is active and has inner iterations to re-evaluate the residual,
     ! primary variables must not change. -hdp
-    general_restrict_state_change = PETSC_TRUE
+    general_allow_state_change = PETSC_FALSE
   endif
   call GeneralUpdateAuxVars(realization,PETSC_TRUE)
 
@@ -1640,7 +1639,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     general_newton_iteration_number = general_newton_iteration_number + 1
   endif
   general_sub_newton_iter_num = 0
-  general_force_convergence = PETSC_FALSE
+  general_force_iteration = PETSC_FALSE
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
