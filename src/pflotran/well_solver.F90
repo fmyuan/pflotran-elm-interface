@@ -1060,11 +1060,15 @@ end subroutine getRwAndJw
 
 ! *************************************************************************** !
 
-
 subroutine initialiseBisection( pwl         , pwu         , &
                                 pw_rw_pos   , pw_rw_neg   , &
                                 found_rw_pos, found_rw_neg, &
                                 bracketed   , increasing )
+  !
+  ! Initialise the bisection sub-system
+  !
+  ! Author: Dave Ponting
+  ! Date  : 06/15/19
 
   implicit none
 
@@ -1082,6 +1086,8 @@ subroutine initialiseBisection( pwl         , pwu         , &
   increasing   = ws_isinjector
 
 end subroutine initialiseBisection
+
+! *************************************************************************** !
 
 subroutine updateBisectionLimits( pw          , rw          , &
                                   pwl         , pwu         , &
