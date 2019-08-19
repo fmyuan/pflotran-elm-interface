@@ -354,7 +354,7 @@ k_r &\eq \left(s_e \right)^{(2+3\lambda)/\lambda}\nonumber\\
 
 %\normalsize
 \begin{itemize}
-\item $\bk$: harmonic
+\item $\bk$: inverse distance-weighted harmonic
 \item $k_r$: upwind
 \item $\mu$: upwind
 \item $\rho$: arithmetic
@@ -1022,9 +1022,10 @@ SIMULATION
     PERIODIC TIMESTEP 50   \bluecomment{! write it every 50 timesteps}
     PERIODIC TIME 2 yr     \bluecomment{! write it every 2 years}
   /
-  RESTART restart.chk \redcomment{0.d0}  \bluecomment{! restart simulation using}
-END                         \bluecomment{! file \redcomment{restart.chk}}
-                            \bluecomment{! and reset time to 0.}
+  RESTART restart.chk \redcomment{RESET_TO_TIME_ZERO}  
+END                        \bluecomment{! restart simulation using}
+                           \bluecomment{! file \redcomment{restart.chk}}
+                           \bluecomment{! and reset time to 0.}
 
 \end{semiverbatim}
 

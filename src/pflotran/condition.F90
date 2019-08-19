@@ -1510,8 +1510,6 @@ subroutine FlowConditionRead(condition,input,option)
 
   ! check whether
   if (default_iphase == 0) then
-    option%io_buffer = '"iphase" not set in condition; set to 1'
-    call PrintWrnMsg(option)
     condition%iphase = 1
   else
     condition%iphase = default_iphase
