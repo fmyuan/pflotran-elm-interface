@@ -1,6 +1,6 @@
 #!/bin/sh
 
-git clone https://bitbucket.org/petsc/petsc.git
+git clone https://gitlab.com/petsc/petsc.git
 
 if [ $PETSC_MASTER -eq 1 ]; then
   PETSC_GIT_HASH='master'
