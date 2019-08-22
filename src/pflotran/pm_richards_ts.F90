@@ -370,10 +370,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
 
     ibeg = (ghosted_id-1)*option%nflowdof + 1
 
-    material_auxvars(ghosted_id)%porosity = &
-      material_auxvars(ghosted_id)%porosity_base
-    material_auxvars(ghosted_id)%dporosity_dp = 0.d0
-    call MaterialCompressSoil(material_auxvars(ghosted_id), &
+    call MaterialAuxVarcompute(material_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id)%pres(1))
     por = material_auxvars(ghosted_id)%porosity
     dpor_dP = material_auxvars(ghosted_id)%dporosity_dp

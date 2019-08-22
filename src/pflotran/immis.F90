@@ -1595,7 +1595,7 @@ subroutine ImmisBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
        fluxe = fluxe + auxvars(2)*area*option%scale
        ! from W to MW, Added by Satish Karra 10/19/11
     case(ZERO_GRADIENT_BC)
-       ! No change in fluxe	
+       ! No change in fluxe
     end select
 ! end if
 

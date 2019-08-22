@@ -14,7 +14,7 @@ contains
 
 subroutine bl3dfac(n, k, E, D, F, pivot)
 
-!	This version of bl3dfac dated March 15, 2000.
+!       This version of bl3dfac dated March 15, 2000.
 
 ! Modified from bl3dfac.f, bl3dsol.f - Fortran codes of
 ! P. Keast, http://www.mscs.dal.ca/ keast/research/pubs.html, 
@@ -22,34 +22,34 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 
 !************************************************************************
 
-!	bl3dfac performs an LU factorization of the block tridiagonal
-!	matrix given by:
+!       bl3dfac performs an LU factorization of the block tridiagonal
+!       matrix given by:
 
-!	D(1) E(1)  O   O    O ............  O
-!	F(1) D(2) E(2) O    O ............  O
-!	 O   F(2) D(3) E(3) O ............  O
-!	 ....................................
+!       D(1) E(1)  O   O    O ............  O
+!       F(1) D(2) E(2) O    O ............  O
+!        O   F(2) D(3) E(3) O ............  O
+!        ....................................
 !
 !        O    O   ........F(n-1) D(n-1) E(n-1)
 !        O    O   .............. F(n-1)   D(n)
 
-!	where each block, E(j), D(j), F(j) is k by k.
+!       where each block, E(j), D(j), F(j) is k by k.
 !
-!	Pivoting is done only within the diagonal blocks.
+!       Pivoting is done only within the diagonal blocks.
 
-!	The L matrix is NOT unit lower triangular, but the U matrix
-!	is unit UPPER triangular, with the identity matrix on the
-!	diagonal. 
+!       The L matrix is NOT unit lower triangular, but the U matrix
+!       is unit UPPER triangular, with the identity matrix on the
+!       diagonal. 
 
 !************************************************************************
 
-!	Uses: Lapack routines dgetrf and dgetrs for Gauss LU factorization
-!	and solution, and the BLAS routine dgemm for matrix-matrix 
+!       Uses: Lapack routines dgetrf and dgetrs for Gauss LU factorization
+!       and solution, and the BLAS routine dgemm for matrix-matrix 
 !       multiplication.
 
 !************************************************************************
 
-!	Input variables:
+!       Input variables:
 
   PetscInt :: n, k
   PetscInt :: pivot(k,n)
@@ -70,7 +70,7 @@ subroutine bl3dfac(n, k, E, D, F, pivot)
 ! D(k,k,n)    The diagonal blocks of L in the LU factorization.
 !                   The diagonal blocks of U are unit upper triangular.
 ! pivot(k,n)  Integer pivot vector used in factoring the diagonal blocks.
-! 	    pivot(1:k,p) records the pivoting done in diagonal block p.
+! pivot(1:k,p) records the pivoting done in diagonal block p.
 
 ! Local variables:
 

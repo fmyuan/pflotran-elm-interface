@@ -107,7 +107,6 @@ module Material_Aux_class
   
   interface MaterialCompressSoil
     procedure MaterialCompressSoilPtr
-    procedure MaterialCompressSoil1
   end interface
   
   public :: MaterialCompressSoilDummy, &
@@ -129,6 +128,8 @@ module Material_Aux_class
             MaterialAuxDestroy, &
             MaterialAuxVarFractureStrip, &
             MaterialAuxSetPermTensorModel
+
+  public :: MaterialAuxVarCompute
   
 contains
 
@@ -560,12 +561,13 @@ end subroutine MaterialAuxVarSetValue
 
 ! ************************************************************************** !
 
-subroutine MaterialCompressSoil1(auxvar,pressure)
+subroutine MaterialAuxVarCompute(auxvar,pressure)
   ! 
-  ! Calls MaterialCompressSoilPtr with just the material auxvar.
+  ! Updates secondary material properties that are a function of state 
+  ! variables
   ! 
   ! Author: Glenn Hammond
-  ! Date: 01/10/19
+  ! Date: 08/21/19
   ! 
 
   implicit none
@@ -573,12 +575,14 @@ subroutine MaterialCompressSoil1(auxvar,pressure)
   class(material_auxvar_type), intent(inout) :: auxvar
   PetscReal, intent(in) :: pressure
   
+  auxvar%porosity = auxvar%porosity_base
+  auxvar%dporosity_dp = 0.d0
   if (soil_compressibility_index > 0) then
     call MaterialCompressSoil(auxvar,pressure,auxvar%porosity, &
                               auxvar%dporosity_dp)
   endif
   
-end subroutine MaterialCompressSoil1
+end subroutine MaterialAuxVarCompute
 
 ! ************************************************************************** !
 

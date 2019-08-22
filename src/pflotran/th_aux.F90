@@ -449,9 +449,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   global_auxvar%temp = x(2)
  
   if (update_porosity) then
-    material_auxvar%porosity = material_auxvar%porosity_base
-    material_auxvar%dporosity_dp = 0.d0
-    call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1))
+    call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
   endif
 
 ! auxvar%pc = option%reference_pressure - auxvar%pres
@@ -699,9 +697,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   endif
 
   if (update_porosity) then
-    material_auxvar%porosity = material_auxvar%porosity_base
-    material_auxvar%dporosity_dp = 0.d0
-    call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1))
+    call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
   endif
  
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
@@ -980,7 +976,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   TH_auxvar%d2sat_dT2 = 0.d0 
   TH_auxvar%d2den_dT2 = 0.d0 
   TH_auxvar%d2u_dT2 = 0.d0 
-	
+
 
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance

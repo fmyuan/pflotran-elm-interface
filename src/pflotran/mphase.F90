@@ -1005,7 +1005,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
         case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphase = int(iphase_loc_p(ghosted_id))                               
       end select
-	  
+  
       call MphaseAuxVarCompute_NINC(xxbc,auxvars_bc(sum_connection)%auxvar_elem(0), &
           global_auxvars_bc(sum_connection),iphase, &
           patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
@@ -2032,8 +2032,8 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
         fluxe = fluxe + cond
       case(NEUMANN_BC)
         fluxe = fluxe + auxvars(MPH_TEMPERATURE_DOF)*area*option%scale
-	  ! auxvars(MPH_TEMPERATURE_DOF) stores heat flux, 1.d-6 is to convert
-	  ! from W to MW, Added by Satish Karra, LANL 10/05/11
+        ! auxvars(MPH_TEMPERATURE_DOF) stores heat flux, 1.d-6 is to convert
+        ! from W to MW, Added by Satish Karra, LANL 10/05/11
       case(ZERO_GRADIENT_BC)
       ! No change in fluxe
     end select
@@ -2815,7 +2815,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
                             ss_flow_vol_flux, &
                             enthalpy_flag,option)
 
-      ! included by SK, 08/23/11 to print mass fluxes at source/sink						
+      ! included by SK, 08/23/11 to print mass fluxes at source/sink
       if (option%compute_mass_balance_new) then
         global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
           global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
