@@ -106,7 +106,8 @@ subroutine GeneralSetup(realization)
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
       call PrintMsg(option)

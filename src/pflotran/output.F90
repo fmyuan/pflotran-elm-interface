@@ -1057,13 +1057,11 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         name = 'Mineral Porosity'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     MINERAL_POROSITY)
+                                     BASE_POROSITY)
       case ('EFFECTIVE_POROSITY')
-        units = ''
-        name = 'Effective Porosity'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     EFFECTIVE_POROSITY)
+        option%io_buffer = 'EFFECTIVE_POROSITY no longer supported for &
+          &OUTPUT.  Please use POROSITY; it should be the same value.'
+        call PrintErrMsg(option)
       case ('TORTUOSITY')
         units = ''
         name = 'Tortuosity'

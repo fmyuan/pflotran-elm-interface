@@ -313,7 +313,7 @@ recursive subroutine PMRTInitializeRun(this)
   use Reactive_Transport_module, only : RTUpdateAuxVars, &
                                         RTClearActivityCoefficients
   use Variables_module, only : POROSITY
-  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_Aux_class, only : POROSITY_BASE 
   use Material_module, only : MaterialGetAuxVarVecLoc
 
   implicit none
@@ -332,7 +332,7 @@ recursive subroutine PMRTInitializeRun(this)
     call RealizationCalcMineralPorosity(this%realization)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_MINERAL)
+                                 POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity0)
     call VecCopy(this%realization%field%porosity0, &
@@ -524,7 +524,7 @@ subroutine PMRTFinalizeTimestep(this)
   use Reactive_Transport_module, only : RTMaxChange
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_Aux_class, only : POROSITY_BASE 
   use Global_module
 
   implicit none
@@ -539,7 +539,7 @@ subroutine PMRTFinalizeTimestep(this)
     call RealizationUpdatePropertiesTS(this%realization)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_MINERAL)
+                                 POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
   endif

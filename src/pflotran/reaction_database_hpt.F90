@@ -1381,7 +1381,7 @@ subroutine BasisInit_hpt(reaction,option)
       allocate(cur_mineral%dbaserxn%spec_ids(cur_mineral%dbaserxn%nspec))
       cur_mineral%dbaserxn%spec_ids = 0
     endif
-	
+
     call BasisAlignSpeciesInRxn(ncomp_h2o,new_basis_names, &
                                 cur_mineral%dbaserxn%nspec, &
                                 cur_mineral%dbaserxn%spec_name, &

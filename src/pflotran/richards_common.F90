@@ -61,10 +61,8 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
      
   PetscInt :: ispec 
   PetscReal :: vol_over_dt
-  PetscReal :: por
   PetscReal :: tempreal
   PetscReal :: derivative
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
 
   PetscInt :: iphase, ideriv
   type(richards_auxvar_type) :: rich_auxvar_pert
@@ -74,22 +72,14 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   PetscReal :: x(1), x_pert(1), pert, res(1), res_pert(1), J_pert(1,1)
 
   vol_over_dt = material_auxvar%volume/option%flow_dt
-  por = material_auxvar%porosity
   
-  derivative = 0.d0
-  if (soil_compressibility_index > 0) then
-    tempreal = global_auxvar%sat(1)*global_auxvar%den(1)
-    call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
-                                 compressed_porosity,dcompressed_porosity_dp)
-    por = compressed_porosity
-    derivative = derivative + dcompressed_porosity_dp * tempreal
-  endif
-
   ! accumulation term units = dkmol/dp
-  derivative = derivative + (global_auxvar%sat(1)*rich_auxvar%dden_dp + &
-                             rich_auxvar%dsat_dp*global_auxvar%den(1)) * por
-
-  J(1,1) = derivative * vol_over_dt
+  J(1,1) = (material_auxvar%dporosity_dp*global_auxvar%sat(1)* &
+            global_auxvar%den(1) + &
+            (global_auxvar%sat(1)*rich_auxvar%dden_dp + &
+             rich_auxvar%dsat_dp*global_auxvar%den(1)) * &
+            material_auxvar%porosity) * &
+            vol_over_dt
 
   if (option%flow%numerical_derivatives) then
     call GlobalAuxVarInit(global_auxvar_pert,option)  
@@ -110,7 +100,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
                                material_auxvar_pert, &
                                characteristic_curves, &
                                -999, &
-                               option)
+                               PETSC_TRUE,option)
     call RichardsAccumulation(rich_auxvar_pert,global_auxvar_pert, &
                               material_auxvar_pert, &
                               option,res_pert)
@@ -148,22 +138,13 @@ subroutine RichardsAccumulation(rich_auxvar,global_auxvar, &
   type(option_type) :: option
   PetscReal :: Res(1:option%nflowdof)
   
-  PetscReal :: por, por1, vol_over_dt
-  PetscReal :: compressed_porosity, dcompressed_porosity_dp
+  PetscReal :: vol_over_dt
        
   vol_over_dt = material_auxvar%volume/option%flow_dt
-  por = material_auxvar%porosity
-  
-  if (soil_compressibility_index > 0) then
-    call MaterialCompressSoil(material_auxvar,global_auxvar%pres(1), &
-                              compressed_porosity,dcompressed_porosity_dp)
-    material_auxvar%porosity = compressed_porosity
-    por = compressed_porosity
-  endif
-    
+
   ! accumulation term units = kmol/s
-  Res(1) = global_auxvar%sat(1) * global_auxvar%den(1) * por * &
-           vol_over_dt
+  Res(1) = global_auxvar%sat(1) * global_auxvar%den(1) * &
+           material_auxvar%porosity * vol_over_dt
   
 end subroutine RichardsAccumulation
 
@@ -329,13 +310,13 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
                                material_auxvar_pert_up, &
                                characteristic_curves_up, &
                                -999, &
-                               option)
+                               PETSC_TRUE,option)
     call RichardsAuxVarCompute(x_pert_dn(1),rich_auxvar_pert_dn, &
                                global_auxvar_pert_dn, &
                                material_auxvar_pert_dn, &
                                characteristic_curves_dn, &
                                -999, &
-                               option)
+                               PETSC_TRUE,option)
     call RichardsFlux(rich_auxvar_pert_up,global_auxvar_pert_up, &
                       material_auxvar_pert_up, &
                       rich_auxvar_dn,global_auxvar_dn, &
@@ -726,13 +707,13 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                                material_auxvar_pert_dn, &
                                characteristic_curves_dn, &
                                -999, &
-                               option)
+                               PETSC_TRUE,option)
     call RichardsAuxVarCompute(x_pert_up(1),rich_auxvar_pert_up, &
                                global_auxvar_pert_up, &
                                material_auxvar_pert_up, &
                                characteristic_curves_dn, &
                                -999, &
-                               option)
+                               PETSC_TRUE,option)
     call RichardsBCFlux(ibndtype,auxvars, &
                         rich_auxvar_pert_up,global_auxvar_pert_up, &
                         rich_auxvar_pert_dn,global_auxvar_pert_dn, &

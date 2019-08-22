@@ -166,7 +166,8 @@ subroutine RichardsSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
       call PrintMsg(option)
@@ -775,7 +776,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                patch%characteristic_curves_array( &
                                  patch%sat_func_id(ghosted_id))%ptr, &
                                grid%nG2A(ghosted_id), &
-                               option)   
+                               PETSC_TRUE,option)   
   enddo
 
   if (option%inline_surface_flow) then
@@ -826,7 +827,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                  patch%characteristic_curves_array( &
                                    patch%sat_func_id(ghosted_id))%ptr, &
                                  -grid%nG2A(ghosted_id), &
-                                 option)
+                                 PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1094,7 +1095,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
                    patch%characteristic_curves_array( &
                          patch%sat_func_id(ghosted_id))%ptr, &
                    grid%nG2A(ghosted_id), &
-                   option)
+                   PETSC_TRUE,option)
     call RichardsAccumulation(rich_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
@@ -3248,7 +3249,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            material_auxvars(ghosted_id), &
                            patch%characteristic_curves_array(icap_dn)%ptr, &
                            -grid%nG2A(ghosted_id), &
-                           option)
+                           PETSC_FALSE,option)
 
 
         if (rich_auxvar_up%kvr > eps .or. &

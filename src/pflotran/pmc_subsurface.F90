@@ -1290,8 +1290,11 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
           
           do local_id = 1, subsurf_grid%nlmax
             ghosted_id = subsurf_grid%nL2G(local_id)
-            sim_por0_p(local_id) = material_auxvars(ghosted_id)%porosity ! Set here.  
-            sim_perm0_p(local_id) = material_auxvars(ghosted_id)%permeability(perm_xx_index) ! assuming isotropic perm
+            sim_por0_p(local_id) = &
+              material_auxvars(ghosted_id)%porosity ! Set here.  
+            ! assuming isotropic perm
+            sim_perm0_p(local_id) = &
+              material_auxvars(ghosted_id)%permeability(perm_xx_index) 
           enddo
           call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p,  &
                                   ierr);CHKERRQ(ierr)
