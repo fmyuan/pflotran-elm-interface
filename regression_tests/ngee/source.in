@@ -22,7 +22,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 1 1 38
   DXYZ
@@ -97,7 +97,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 3.5d0

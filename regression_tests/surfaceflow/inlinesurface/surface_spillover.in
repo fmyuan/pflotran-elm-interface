@@ -44,7 +44,7 @@ SUBSURFACE
   ! Domain and region information -----------------------------------
 
   GRID
-    TYPE unstructured_explicit ./mesh1.uge 
+    TYPE UNSTRUCTURED_explicit ./mesh1.uge 
   END
 
   REGION all  
@@ -67,7 +67,7 @@ SUBSURFACE
   FLOW_CONDITION initial
     UNITS Pa
     TYPE
-      PRESSURE hydrostatic
+      PRESSURE HYDROSTATIC
     END
     DATUM 0.0d0 0.0d0 0.05d0
     PRESSURE 101325.d0

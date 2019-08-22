@@ -32,7 +32,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 1 1 24
   BOUNDS
@@ -133,17 +133,13 @@ CHARACTERISTIC_CURVES ch1
 
 #=========================== EOSs =============================================
 
-! if all commented, initialised IFC67 for density, enthaplty and viscosity  
-!EOS WATER
-!  DENSITY CONSTANT 997.16d0
-!  ENTHALPY CONSTANT 1.8890d0
-!  VISCOSITY CONSTANT 8.904156d-4
-!   VISCOSITY CONSTANT 0.3d-3
-!END
+! if den, enth and visc models not specified default to IFC67
+EOS WATER
+  SURFACE_DENSITY 1000.0 kg/m^3 !not used in this dataset as no wells
+END
 
 EOS OIL
-  !DENSITY CONSTANT 300.00d0 !kg/m3
-  !DENSITY CONSTANT 734.29d0 !kg/m3
+  SURFACE_DENSITY 734.29d0 kg/m^3 !not used in this dataset as no wells
   ! den = den0 + C(p-p1) - E(t-t1)
   DENSITY LINEAR
     REFERENCE_VALUE 734.29d0        !den0 [kg/m3]  
@@ -166,25 +162,15 @@ COORDINATES
 
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_water
-  !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE hydrostatic
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
   /
-  !GRADIENT
-  !  PRESSURE 0.d0 0.d0 -7845.44d0
-  !  SATURATION 0.d0 0.d0 0.0d0
-  !  TEMPERATURE 0.d0 0.d0 0.0d0
-  !/
-  PRESSURE 9.81D6  !about 1000m below sea level
-  OIL_SATURATION 1.0d-6 
+  PRESSURE 9.81D6 Pa !about 1000m below sea level
   TEMPERATURE 50.d0 C  !up to here it refers to primary vars
   DATUM 0.d0 0.d0 0.d0
-  !define OWC and WATER_PRESSURE_GRAD as new optional sub_condition 
-  OWC 0.0d0 0.d0 64.0d0 ! oil water contact
-  !OWC 0.0d0 0.d0 150.0d0 ! oil water contact
-  !WATER_PRESSURE_GRAD 0.d0 0.d0 0.d0! might be neded when owc is defined 
+  OWC_Z 64.0d0 m
+  PCOW_OWC 15226.46933 Pa
 /
 
 

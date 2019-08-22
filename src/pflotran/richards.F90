@@ -44,6 +44,7 @@ module Richards_module
          RichardsUpdateSurfacePress, &
          RichardsResidualInternalConn, &
          RichardsResidualBoundaryConn, &
+         RichardsResidualSourceSink, &
          RichardsJacobianInternalConn, &
          RichardsJacobianBoundaryConn, &
          RichardsJacobianSourceSink
@@ -153,11 +154,6 @@ subroutine RichardsSetupPatch(realization)
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call printMsg(option)
-    error_found = PETSC_TRUE
-  endif
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
   !TODO(geh): change to looping over ghosted ids once the legacy code is 
@@ -168,25 +164,25 @@ subroutine RichardsSetupPatch(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
 
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in RichardsSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! allocate auxvar data structures for all grid cells  
@@ -254,7 +250,7 @@ subroutine RichardsSetupPatch(realization)
         else if( associated(grid%unstructured_grid%polyhedra_grid) ) then
           option%io_buffer = 'richards.F90:RichardsSetupPatch() --> &
              &unsupported grid type, could not compute top cell half heights.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else !implicit unstructured 
           minz  = 0.0d0
           maxz  = 0.0d0
@@ -277,7 +273,7 @@ subroutine RichardsSetupPatch(realization)
       else
         option%io_buffer = 'richards.F90:RichardsSetupPatch() --> &
           &unsupported grid type, could not compute top cell half heights.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
 
       ! set Manning's coefficient
@@ -309,7 +305,7 @@ subroutine RichardsSetupPatch(realization)
             option%io_buffer = 'richards.F90:RichardsSetupPatch() --> &
               &surface boundary condition, assigned to a region which is &
               &not the boundary of the inline surface region.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo
         sum_connection = sum_connection + coupler%connection_set%num_connections
@@ -614,7 +610,7 @@ subroutine RichardsUpdatePermPatch(realization)
   if (.not.associated(patch%imat)) then
     option%io_buffer = 'Materials IDs not present in run.  Material ' // &
       ' properties cannot be updated without material ids'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
@@ -1499,11 +1495,9 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
       call RichardsFlux(rich_auxvars(ghosted_id_up), &
                       global_auxvars(ghosted_id_up), &
                       material_auxvars(ghosted_id_up), &
-                      material_parameter%soil_residual_saturation(1,icap_up), &
                       rich_auxvars(ghosted_id_dn), &
                       global_auxvars(ghosted_id_dn), &
                       material_auxvars(ghosted_id_dn), &
-                      material_parameter%soil_residual_saturation(1,icap_dn), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       option,v_darcy,Res)
@@ -1671,7 +1665,6 @@ subroutine RichardsResidualBoundaryConn(r,realization,ierr)
                        rich_auxvars(ghosted_id), &
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
-                       material_parameter%soil_residual_saturation(1,icap_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        option, &
@@ -1985,7 +1978,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   PetscInt :: local_id, ghosted_id, region_id
   PetscInt :: istart
 
-  PetscReal, pointer :: r_p(:), accum_p(:)
+  PetscReal, pointer :: r_p(:), accum_p(:), accum2_p(:)
   PetscReal :: Res(realization%option%nflowdof)
 
   PetscErrorCode :: ierr
@@ -2007,6 +2000,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
@@ -2022,6 +2016,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
            option,Res)
       istart = (local_id-1)*option%nflowdof + 1
       r_p(istart) = r_p(istart) + Res(1)
+      accum2_p(istart) = Res(1)
     enddo
 
     if (option%inline_surface_flow) then
@@ -2034,6 +2029,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
              material_auxvars(ghosted_id),option,Res)
         istart = (local_id-1)*option%nflowdof + 1
         r_p(istart) = r_p(istart) + Res(1)
+        accum2_p(istart) = accum2_p(istart) + Res(1)
       enddo
     endif
 
@@ -2041,6 +2037,7 @@ subroutine RichardsResidualAccumulation(r,realization,ierr)
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum2, accum2_p, ierr);CHKERRQ(ierr)
 
 end subroutine RichardsResidualAccumulation
 
@@ -2070,7 +2067,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   PetscErrorCode :: ierr
   
   Mat :: J
-  MatType :: mat_type
+  MatType :: mat_type_A, mat_type_B
   PetscViewer :: viewer
   type(grid_type),  pointer :: grid
   type(option_type), pointer :: option
@@ -2081,8 +2078,9 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
 
   option => realization%option
 
-  call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
-  if (mat_type == MATMFFD) then
+  call MatGetType(A,mat_type_A,ierr);CHKERRQ(ierr)
+  call MatGetType(B,mat_type_B,ierr);CHKERRQ(ierr)
+  if (mat_type_A == MATMFFD) then
     J = B
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2097,6 +2095,13 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   call RichardsJacobianAccumulation(J,realization,ierr)
   call RichardsJacobianSourceSink(J,realization,ierr)
 
+  if (A /= B .and. mat_type_A /= MATMFFD) then
+    ! If the Jacobian and preconditioner matrices are different (and not 
+    ! because we are using a "matrix free" Jacobian), then we need to 
+    ! copy the computed Jacobian into the preconditioner matrix.
+    call MatConvert(J,mat_type_B,MAT_REUSE_MATRIX,B,ierr);CHKERRQ(ierr);
+  endif
+
   if (realization%debug%matview_Jacobian) then
     call DebugWriteFilename(realization%debug,string,'Rjacobian','', &
                             richards_ts_count,richards_ts_cut_count, &
@@ -2109,13 +2114,13 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 #if 0
@@ -2133,7 +2138,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
 #endif
 
   call PetscLogEventEnd(logging%event_r_jacobian,ierr);CHKERRQ(ierr)
-!  call printErrMsg(option)
+!  call PrintErrMsg(option)
 
   richards_ni_count = richards_ni_count + 1
   
@@ -2250,11 +2255,9 @@ subroutine RichardsJacobianInternalConn(A,realization,ierr)
       call RichardsFluxDerivative(rich_auxvars(ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_residual_saturation(1,icap_up), &
                      rich_auxvars(ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_residual_saturation(1,icap_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(-1:3,iconn),&
                      option,&
@@ -2474,7 +2477,6 @@ subroutine RichardsJacobianBoundaryConn(A,realization,ierr)
                      rich_auxvars(ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     material_parameter%soil_residual_saturation(1,icap_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      option, &
@@ -3037,7 +3039,7 @@ subroutine RichardsUpdateSurfacePress(realization)
 
       if (boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
          HET_SURF_SEEPAGE_BC) then
-        call printErrMsg(option,'from_surface_bc is not of type ' // &
+        call PrintErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
 
@@ -3129,7 +3131,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   PetscReal :: upweight,gravity,dphi
   PetscReal :: ukvr,Dq
   PetscReal :: P_allowable
-  PetscReal :: sir_dn
   PetscReal :: v_darcy_allowable,v_darcy
   PetscReal :: q
   PetscReal :: q_allowable
@@ -3179,7 +3180,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            itype(RICHARDS_PRESSURE_DOF)
 
       if (pressure_bc_type /= HET_SURF_SEEPAGE_BC) then
-        call printErrMsg(option,'from_surface_bc is not of type ' // &
+        call PrintErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
 
@@ -3250,12 +3251,11 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            -grid%nG2A(ghosted_id), &
                            PETSC_FALSE,option)
 
-        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
 
-        if (global_auxvar_up%sat(1) > sir_dn .or. &
-            global_auxvar_max%sat(1) > sir_dn) then
+        if (rich_auxvar_up%kvr > eps .or. &
+            rich_auxvar_dn%kvr > eps) then
 
-          upweight=1.D0
+           upweight=1.D0
           if (global_auxvar_up%sat(1) < eps) then
             upweight=0.d0
           else if (global_auxvar_max%sat(1) < eps) then

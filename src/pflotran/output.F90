@@ -112,13 +112,13 @@ subroutine OutputFileRead(input,realization,output_option, &
   character(len=MAXWORDLENGTH) :: units, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   PetscReal :: temp_real,temp_real2
-  PetscReal :: units_conversion
-  PetscInt :: k
+  PetscReal :: units_conversion,deltat
+  PetscInt :: k,deltas
   PetscBool :: added
   PetscBool :: vel_cent, vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate, energy_flowrate
-  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate
+  PetscBool :: aveg_mass_flowrate, aveg_energy_flowrate,is_sum,is_rst
 
   option => realization%option
   patch => realization%patch
@@ -140,6 +140,8 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
+    case('ECLIPSE_FILE')
+      output_option%write_ecl = PETSC_TRUE
   end select
 
   do
@@ -174,18 +176,29 @@ subroutine OutputFileRead(input,realization,output_option, &
           case('MASS_BALANCE_FILE')
             output_option%print_initial_massbal = PETSC_FALSE
         end select
-        
+
+      case('WRITE_MASS_RATES')
+        select case(trim(block_name))
+          case('MASS_BALANCE_FILE')
+            output_option%write_masses = PETSC_TRUE
+        end select
+
+      case('FORMATTED')
+        select case(trim(block_name))
+          case('ECLIPSE_FILE')
+            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
+        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
           case('OBSERVATION_FILE')
             option%io_buffer = 'TOTAL_MASS_REGIONS cannot be specified for &
                                &OUTPUT,OBSERVATION_FILE block.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           case('SNAPSHOT_FILE')
             option%io_buffer = 'TOTAL_MASS_REGIONS cannot be specified for &
                                &OUTPUT,SNAPSHOT_FILE block.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
             string = 'OUTPUT,' // trim(block_name) // ',TOTAL_MASS_REGIONS'
             output_option%mass_balance_region_flag = PETSC_TRUE
@@ -355,6 +368,46 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
         end select
 
+      case('PERIOD_SUM','PERIOD_RST')
+        is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
+        is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
+        string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'periodic time increment type',string)
+        call StringToUpper(word)
+        select case(trim(word))
+          case('TIME')
+            deltat = -1.0
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIME'
+            call InputReadDouble(input,option,temp_real)
+            call InputErrorMsg(input,option,'time increment',string)
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'time increment units',string)
+            internal_units = 'sec'
+            units_conversion = UnitsConvertToInternal(word, &
+                 internal_units,option)
+            deltat = temp_real*units_conversion
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltat = deltat
+              output_option%eclipse_options%write_ecl_sum_deltas = -1
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltat = deltat
+              output_option%eclipse_options%write_ecl_rst_deltas = -1
+            endif
+          case('TIMESTEP')
+            deltas = -1
+            string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
+              call InputReadInt(input,option,deltas)
+            if( is_sum ) then
+              output_option%eclipse_options%write_ecl_sum_deltas = deltas
+              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
+            endif
+            if( is_rst ) then
+              output_option%eclipse_options%write_ecl_rst_deltas = deltas
+              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
+            endif
+        end select
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
@@ -380,12 +433,12 @@ subroutine OutputFileRead(input,realization,output_option, &
             option%io_buffer = 'FORMAT cannot be specified within &
                  &the OUTPUT,OBSERVATION_FILE block. Observation output is &
                  &written in TECPLOT format only.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           case('MASS_BALANCE_FILE')
             option%io_buffer = 'FORMAT cannot be specified within &
                  &the OUTPUT,MASS_BALANCE_FILE block. Mass balance output is &
                  &written in TECPLOT format only.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',string) 
@@ -471,12 +524,6 @@ subroutine OutputFileRead(input,realization,output_option, &
 
 !......................
       case('VARIABLES')
-        select case (option%iflowmode)
-          case(FLASH2_MODE,MPH_MODE)
-            option%io_buffer = 'A variable list cannot be specified for &
-                  &the CO2 flow modes. Variables are determined internally.'
-            call printErrMsg(option)
-        end select
         select case(trim(block_name))
           case('SNAPSHOT_FILE')           
             call OutputVariableRead(input,option, &
@@ -488,7 +535,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             option%io_buffer = 'A variable list cannot be specified within &
                  &the MASS_BALANCE_FILE block. Mass balance variables are &
                  &determined internally.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
         
 !.............................
@@ -558,17 +605,17 @@ subroutine OutputFileRead(input,realization,output_option, &
     if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
       option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without &
                          &PERIODIC TIME being set.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if(.not.output_option%print_hdf5) then
       option%io_buffer = 'Keyword: AVERAGE_VARIABLES only defined for &
                          &FORMAT HDF5'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
-  if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate &
-       .or.aveg_energy_flowrate) then
+  if (mass_flowrate .or. energy_flowrate .or. aveg_mass_flowrate .or. &
+      aveg_energy_flowrate .or. fluxes) then
     if (output_option%print_hdf5) then
       output_option%print_hdf5_mass_flowrate = mass_flowrate
       output_option%print_hdf5_energy_flowrate = energy_flowrate
@@ -579,11 +626,11 @@ subroutine OutputFileRead(input,realization,output_option, &
           option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/&
                              &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE &
                              &defined without PERIODIC TIME being set.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif
-      option%flow%store_fluxes = PETSC_TRUE
     endif
+    option%flow%store_fluxes = PETSC_TRUE
     if (associated(grid%unstructured_grid%explicit_grid)) then
       option%flow%store_fluxes = PETSC_TRUE
       output_option%print_explicit_flowrate = mass_flowrate
@@ -889,6 +936,13 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_SATURATION,units, &
                                      ICE_SATURATION)
 
+      case ('HYDRATE_SATURATION')
+        name = 'Hydrate Saturation'
+        units = ''
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_SATURATION,units, &
+                                     HYDRATE_SATURATION)
+
       case ('LIQUID_MOLE_FRACTIONS')
         name = 'X_g^l'
         units = ''
@@ -1051,17 +1105,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      GAS_PERMEABILITY_Z)
       case ('LIQUID_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Liquid Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     LIQUID_REL_PERM)
+                                     LIQUID_RELATIVE_PERMEABILITY)
       case ('GAS_RELATIVE_PERMEABILITY')
-        units = '-'
+        units = ''
         name = 'Gas Relative Permeability'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     GAS_REL_PERM)
+                                     GAS_RELATIVE_PERMEABILITY)
       case ('SOIL_COMPRESSIBILITY')
         units = ''
         name = 'Compressibility'
@@ -1095,7 +1149,6 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         name = 'Volume'
         output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
                                                 units,VOLUME)
-        !output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('MATERIAL_ID')
@@ -1125,6 +1178,17 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable_list%flow_vars = PETSC_FALSE
       case('NO_ENERGY_VARIABLES')
         output_variable_list%energy_vars = PETSC_FALSE
+      case ('SALINITY')
+        if (.not.option%flow%density_depends_on_salinity) then
+          option%io_buffer = 'SALINITY output only supported when the &
+            &SALINITY auxiliary process model is used.'
+          call PrintErrMsg(option)
+        endif
+        units = ''
+        name = 'Salinity (mass fraction)'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SALINITY)
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
@@ -1146,7 +1210,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg, printErrMsg
+  use Option_module
   
   implicit none
   
@@ -1191,7 +1255,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
           case (IMPLICIT_UNSTRUCTURED_GRID)
             call OutputHDF5UGridXDMF(realization_base,INSTANTANEOUS_VARS)
           case (POLYHEDRA_UNSTRUCTURED_GRID)
-            call printErrMsg(option,'Add code for HDF5 output for &
+            call PrintErrMsg(option,'Add code for HDF5 output for &
                                     &Polyhedra mesh')
         end select
       else
@@ -1201,7 +1265,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
-      call printMsg(option)
+      call PrintMsg(option)
     endif
    
     if (realization_base%output_option%print_tecplot) then
@@ -1217,7 +1281,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to Tecplot file(s)")') &
             tend-tstart
-      call printMsg(option)        
+      call PrintMsg(option)
     endif
     
     if (realization_base%output_option%print_explicit_flowrate) then
@@ -1228,7 +1292,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to Rates file.")') &
             tend-tstart
-      call printMsg(option)        
+      call PrintMsg(option)
     endif
 
     if (realization_base%output_option%print_vtk) then
@@ -1240,7 +1304,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to VTK file(s)")') &
             tend-tstart
-      call printMsg(option) 
+      call PrintMsg(option)
     endif
       
     if (realization_base%output_option%print_mad) then
@@ -1252,7 +1316,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write to MAD HDF5 &
                              &file(s)")') tend-tstart
-      call printMsg(option) 
+      call PrintMsg(option)
     endif
     
     ! Print secondary continuum variables vs sec. continuum dist.
@@ -1268,7 +1332,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
         write(option%io_buffer,'(f10.2," Seconds to write to secondary' // &
               ' continuum Tecplot file(s)")') &
               tend-tstart
-        call printMsg(option) 
+        call PrintMsg(option)
       endif
     endif
       
@@ -1289,12 +1353,19 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
     call OutputMassBalance(realization_base)
   endif
 
+  !  Output Eclipse files for this step if required
+  if( realization_base%output_option%write_ecl ) then
+    call OutputEclipseFiles(realization_base)
+  endif
+
+  ! Output single-line report for this step if required
+  if (option%linerept) then
+    option%print_to_screen = PETSC_FALSE
+    call OutputLineRept(realization_base,option)
+  endif
+
   ! Output temporally average variables 
   call OutputAvegVars(realization_base)
-
-#ifdef WELL_CLASS
-  call OutputWell(realization_base)
-#endif
 
   if (snapshot_plot_flag) then
     realization_base%output_option%plot_number = &
@@ -2068,6 +2139,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Grid_module
   use Input_Aux_module
   use General_Aux_module
+  use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
 
   class(realization_base_type) :: realization_base
@@ -2096,11 +2168,11 @@ subroutine OutputPrintCouplers(realization_base,istep)
   if (len_trim(flow_debug%coupler_string) == 0) then
     option%io_buffer = &
       'Coupler debugging requested, but no string of coupler names was included.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
@@ -2109,6 +2181,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
+      auxvar_names(2) = 'temperature'
+    case(H_MODE)
+      allocate(iauxvars(2),auxvar_names(2))
+      iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
       allocate(iauxvars(2),auxvar_names(2))
@@ -2119,7 +2197,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
   coupler_string = flow_debug%coupler_string
@@ -2232,7 +2310,7 @@ subroutine OutputAvegVars(realization_base)
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg
+  use Option_module
   use Output_Aux_module
   use Output_Common_module, only : OutputGetVariableArray  
   use Field_module
@@ -2329,7 +2407,7 @@ subroutine OutputAvegVars(realization_base)
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+      call PrintMsg(option)
     endif
 
     ! Reset the vectors to zero
@@ -2341,55 +2419,7 @@ subroutine OutputAvegVars(realization_base)
 
   endif
 
-
 end subroutine OutputAvegVars
-
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine OutputWell(realization_base)
-  ! 
-  ! Prints out the well variables
-  ! 
-  ! Author: Paolo Orsini - OpenGoSim
-  ! Date: 10/7/15
-  ! 
-  use Realization_Base_class, only : realization_base_type
-  use Option_module
-  use Coupler_module
-  use Patch_module
-  use Well_module
-
-  implicit none
-
-  class(realization_base_type) :: realization_base  
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch  
-  type(output_option_type), pointer :: output_option
-  type(coupler_type), pointer :: source_sink
-  !class(well_auxvar_base_type), pointer :: well_auxvar 
-
-  PetscInt :: iconn
-  PetscInt :: local_id, ghosted_id
-
-  patch => realization_base%patch
-  !grid => patch%grid
-  option => realization_base%option
-  output_option => realization_base%output_option
-
-  source_sink => patch%source_sink_list%first
-  do
-    if (.not.associated(source_sink)) exit
-    if( associated(source_sink%well) ) then
-      if (source_sink%connection_set%num_connections > 0 ) then
-        !call WellOutput(source_sink%well,output_option,source_sink%name,option)
-        call WellOutput(source_sink%well,output_option,option)
-      end if 
-    end if
-    source_sink => source_sink%next
-  enddo
-
-end subroutine OutputWell
-#endif
 
 ! ************************************************************************** !
 
@@ -2471,7 +2501,7 @@ subroutine OutputListEnsureVariablesExist(output_variable_list,option)
   if (error_count > 0) then
     option%io_buffer = 'Simulation was stopped due to undefined output &
                        &variables.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine OutputListEnsureVariablesExist
@@ -2537,7 +2567,7 @@ subroutine OutputFindNaNOrInfInVec(vec,grid,option)
     write(word,*) iabs(idof)
     option%io_buffer = trim(option%io_buffer) // ' ' // &
       trim(adjustl(word)) //  '.'
-    call printMsgByRank(option)
+    call PrintMsgByRank(option)
   enddo
 
 end subroutine OutputFindNaNOrInfInVec

@@ -1,0 +1,208 @@
+﻿#  PO (OpenGoSim): 25-Jan-2019
+#  3P Todd-Longstaff - for hydrostatic cases
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW Flow
+      MODE TODD_LONGSTAFF
+      OPTIONS
+       ISOTHERMAL
+       TL_OMEGA 1.0
+       ANALYTICAL_JACOBIAN
+      /
+    / ! end of subsurface_flow
+  / ! end of process models
+  !/
+END  !! end simulation block
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS 
+    2
+    5
+    7
+    10
+  /
+END
+
+#=========================== discretization ===================================
+
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 -2500.0
+  NXYZ 1 1 10
+  DXYZ
+    10.0
+    10.0
+    10.0
+  END
+END
+
+#=========================== solver options ===================================
+NEWTON_SOLVER FLOW
+  ATOL 1D-8
+  RTOL 1D-8
+  STOL 1D-30
+  DTOL 1D15
+  ITOL 1D-7
+  MAXIT 8
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 2000 d
+  INITIAL_TIMESTEP_SIZE 1.0d-1 d
+  MINIMUM_TIMESTEP_SIZE 1.0D-10 d
+  MAXIMUM_TIMESTEP_SIZE 50.0 d
+END
+
+#=========================== output options ===================================
+skip
+OUTPUT
+  FORMAT HDF5
+  TIMES d 0.0 0.1 0.9 1.0 5.0 20.0 27.0 100.0 200 500 1000
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  END
+  OBSERVATION_FILE
+    PERIODIC TIMESTEP 1
+    VARIABLES
+      LIQUID_SATURATION
+      LIQUID_DENSITY
+      LIQUID_MOBILITY
+      LIQUID_VISCOSITY
+      OIL_PRESSURE
+      OIL_SATURATION
+      OIL_DENSITY
+      OIL_MOBILITY
+      OIL_VISCOSITY
+      TEMPERATURE
+      POROSITY
+      PERMEABILITY_X
+    /
+  END
+END
+noskip
+#=========================== material properties ==============================
+
+MATERIAL_PROPERTY formation
+  ID 1
+  POROSITY 0.1d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2.350d3
+  SPECIFIC_HEAT 1.0d3
+  THERMAL_CONDUCTIVITY_DRY 1.541d0
+  THERMAL_CONDUCTIVITY_WET 1.541d0
+  SOIL_COMPRESSIBILITY_FUNCTION QUADRATIC
+  SOIL_COMPRESSIBILITY 1.0d-10 ! 1/Pa
+  SOIL_REFERENCE_PRESSURE 1.0D5
+  CHARACTERISTIC_CURVES ch1
+  PERMEABILITY
+    PERM_X 0.9869D-12 !1000 mD
+    PERM_Y 0.9869D-12 !1000 mD
+    PERM_Z 0.9869D-12 !1000 mD
+  /
+/
+
+#=========================== datasets ==============================
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES ch1
+  KRW_TABLE swfn_table
+  KRH_TABLE sof2_table
+  !cc tables
+  TABLE swfn_table
+    PRESSURE_UNITS Pa
+    EXTERNAL_FILE swfn_table_hi.dat
+  END
+  TABLE sof2_table
+    EXTERNAL_FILE sof2_table_hi.dat
+  END
+/
+
+#=========================== EOSs =============================================
+
+EOS WATER
+  SURFACE_DENSITY 1000.00d0 kg/m^3 !not used as no wells
+  DENSITY CONSTANT 1000.00d0
+  VISCOSITY CONSTANT 1.0d-3 ! 1 cp
+END
+
+EOS OIL
+  SURFACE_DENSITY 995.98d0 kg/m^3 !not used as no wells
+  !heavy oil
+  FORMULA_WEIGHT 508.0d0
+  DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]
+    REFERENCE_VALUE 995.98d0            !den0 [kg/m3]  
+    PRES_REF_VALUE 1.013d5              !p1 [Pa]
+    !TEMP_REF_VALUE 21.d0               !t1 [°C]
+    TEMP_REF_VALUE 15.6d0               !t1 [°C]
+    COMPRESS_COEFF 5.63d-10            !C [1/Pa]
+    THERMAL_EXPANSION_COEFF 8.480d-4   !E [1/°C]
+  END
+  ENTHALPY QUADRATIC_TEMP ! h = c1*(t-t1) + 0.5*c2*(t-t2)
+    TEMP_REF_VALUES 15.6d0  15.6d0     !t1, t2 [°C]
+    TEMP_COEFFICIENTS 2.224D3 0.0d0  !c1, c2 [J/kg/°C]
+  END
+  !VISCOSITY CONSTANT 0.110d0
+  ! vis = vis0 + a1(p-p1) + a2(p-p2)^2 + b1(t-t1) + b2(t-t2)^2 
+  VISCOSITY QUADRATIC 
+    REFERENCE_VALUE 0.267627d0    !vis0  [Pa.s]
+    PRES_REF_VALUES 1.d5 0.0      !p1, p2 [Pa]
+    TEMP_REF_VALUES 80.0  0.0    !t1, t2 [°C]
+    PRES_COEFFICIENTS 0.0d0 0.0d0        !a1,a2 [kg/m3/Pa], a2 [..]
+    TEMP_COEFFICIENTS -1.83989d-3 0.0d0  !b1,b2 [kg/m3/°C], b2 [..]
+  END
+END
+
+EOS GAS
+  SURFACE_DENSITY 1.0d0 kg/m^3 !not used as no wells
+  FORMULA_WEIGHT 16.04d0
+  DENSITY   DEFAULT
+  VISCOSITY CONSTANT 2.0d-5 ! 0.02 cp
+END
+#=========================== regions ==========================================
+REGION all
+COORDINATES
+-1.d20 -1.d20 -1.d20
+ 1.d20  1.d20  1.d20
+/
+/
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION equilibration
+  TYPE
+    PRESSURE HYDROSTATIC
+  /
+  PRESSURE 330 Bar
+  DATUM_Z -2480.0 m
+  OWC_Z -2450.0 m
+  PCOW_OWC 0.5 Bar
+  TEMPERATURE_TABLE
+   Z_UNITS m
+   TEMPERATURE_UNITS C !cannot be otherwise
+   RTEMPVZ
+     -2400.0 128.0
+     -2430.0 129.0
+     -2450.0 129.5
+     -2470.0 130.0
+     -2500.0 131.0
+    /
+  END
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION initial
+FLOW_CONDITION equilibration
+REGION all
+/
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL formation
+END
+
+END_SUBSURFACE

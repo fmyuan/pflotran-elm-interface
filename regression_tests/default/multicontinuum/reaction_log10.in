@@ -52,7 +52,7 @@ CHEMISTRY
 
 #===================== Discretization =========================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 100 1 1
   BOUNDS
@@ -175,21 +175,21 @@ OBSERVATION
 
 #==== transport conditions=====================================================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION west
-  TYPE dirichlet
+  TYPE DIRICHLET
   CONSTRAINT_LIST
     0.d0 west
   /
 /
 
 TRANSPORT_CONDITION east
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 east
   /

@@ -103,6 +103,7 @@ module Input_Aux_module
   interface InputFindStringInFile
     module procedure InputFindStringInFile1
     module procedure InputFindStringInFile2
+    module procedure InputFindStringInFile3
   end interface
 
   interface InputKeywordUnrecognized
@@ -194,7 +195,7 @@ function InputCreate1(fid,path,filename,option)
   if (fid == MAX_IN_UNIT) then
     option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be &
       &increased to accommodate a larger number of embedded files.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   full_path = trim(input%path) // trim(input%filename)
@@ -203,7 +204,7 @@ function InputCreate1(fid,path,filename,option)
   if (istatus /= 0) then
     if (len_trim(full_path) == 0) full_path = '<blank>'
     option%io_buffer = 'File: "' // trim(full_path) // '" not found.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   InputCreate1 => input
@@ -301,7 +302,7 @@ subroutine InputDefaultMsg2(input,option)
   if (InputError(input)) then
     option%io_buffer =  '"' // trim(input%err_buf) // &
                         '" set to default value.'
-    call printMsg(option)
+    call PrintMsg(option)
     input%ierr = 0
   endif
 
@@ -349,7 +350,7 @@ subroutine InputErrorMsg2(input,option)
   if (InputError(input)) then
     option%io_buffer = 'While reading "' // trim(input%err_buf) // &
                        '" under keyword: ' // trim(input%err_buf2) // '.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine InputErrorMsg2
@@ -395,7 +396,7 @@ subroutine InputReadStringErrorMsg2(input, option)
   if (InputError(input)) then
     option%io_buffer = 'While reading in string in "' // &
                        trim(input%err_buf) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine InputReadStringErrorMsg2
@@ -419,7 +420,7 @@ subroutine InputFindStringErrorMsg(input, option, string)
   if (InputError(input)) then
     option%io_buffer = 'Card (' // trim(string) // ') not &
                        &found in file.'
-    call printErrMsg(option)    
+    call PrintErrMsg(option)
   endif
 
 end subroutine InputFindStringErrorMsg
@@ -750,7 +751,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   word = ''
   
   do
-    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
     if (InputError(input)) then
@@ -781,12 +782,12 @@ subroutine InputReadPflotranStringSlave(input, option)
       endif
       skip_count = 1
       do 
-        read(input%fid,'(a512)',iostat=input%ierr) tempstring
+        read(input%fid,'(a)',iostat=input%ierr) tempstring
         if (InputError(input)) then
           option%io_buffer = 'End of file reached in ' // &
               'InputReadPflotranStringSlave.  SKIP encountered ' // &
               'without a matching NOSKIP.'
-          call printErrMsg(option)              
+          call PrintErrMsg(option)
         endif
         call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
         call StringToUpper(word)
@@ -1301,6 +1302,7 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   ! Rewinds file and finds the first occurrence of
   ! 'string'.  Note that the line must start with 'string'
   ! in order to match and that line is NOT returned
+  ! This version of the overload can cope with a section that is not present
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/07/07
@@ -1314,16 +1316,47 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: print_warning
+  PetscBool :: found
+
+  found = PETSC_FALSE
   
+  call InputFindStringInFile3(input, option, string, print_warning,found)
+  
+end subroutine InputFindStringInFile2
+
+! ************************************************************************** !
+
+subroutine InputFindStringInFile3(input, option, string, print_warning,found)
+  !
+  ! Rewinds file and finds the first occurrence of
+  ! 'string'.  Note that the line must start with 'string'
+  ! in order to match and that line is NOT returned
+  ! This routine differs from InputFindStringInFile2 only in that the
+  ! result of the search is returned in the 'found' argument
+  !
+  ! Author: Glenn Hammond
+  ! Date: 03/07/07
+  !
+
+  use String_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: print_warning
+  PetscBool :: found
+
   character(len=MAXWORDLENGTH) :: word
-  PetscBool :: found = PETSC_FALSE
   PetscInt :: length1, length2
 
   input%ierr = 0
+  found = PETSC_FALSE
 
   length1 = len_trim(string)
 
-  do 
+  do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     call InputReadWord(input,option,word,PETSC_TRUE)
@@ -1334,14 +1367,14 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
       exit
     endif
   enddo
-  
-  ! if not found, rewind once and try again.  this approach avoids excessive 
-  ! reading if successive searches for strings are in descending order in 
+
+  ! if not found, rewind once and try again.  this approach avoids excessive
+  ! reading if successive searches for strings are in descending order in
   ! the file.
   if (InputError(input)) then
     input%ierr = 0
     call InputRewind(input)
-    do 
+    do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
       call InputReadWord(input,option,word,PETSC_TRUE)
@@ -1352,15 +1385,15 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
         exit
       endif
     enddo
-  endif    
-  
+  endif
+
   if (.not.found .and. print_warning) then
     option%io_buffer = 'Card (' // trim(string) // ') not found in input file.'
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
     input%ierr = 1
   endif
-  
-end subroutine InputFindStringInFile2
+
+end subroutine InputFindStringInFile3
 
 ! ************************************************************************** !
 
@@ -1409,9 +1442,10 @@ function InputCheckExit(input,option)
   PetscBool :: InputCheckExit
 
   ! We must remove leading blanks and tabs. --RTM
+  input%buf = adjustl(input%buf)
   tab = achar(9)
   i=1
-  do while(input%buf(i:i) == ' ' .or. input%buf(i:i) == tab) 
+  do while(input%buf(i:i) == tab .and. i < MAXSTRINGLENGTH)
     i=i+1
   enddo
 
@@ -1519,7 +1553,7 @@ subroutine InputGetCommandLineInt(string,int_value,found,option)
       if (InputError(ierr)) then
         option%io_buffer = 'Integer argument for command line argument "' // &
                            trim(adjustl(string)) // '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       exit
     endif
@@ -1570,7 +1604,7 @@ subroutine InputGetCommandLineReal(string,double_value,found,option)
       if (InputError(ierr)) then
         option%io_buffer = 'Real argument for command line argument "' // &
                            trim(adjustl(string)) // '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       exit
     endif
@@ -1622,7 +1656,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
                              trim(adjustl(string_value)) // & 
                              ') for command line argument "' // &
                              trim(adjustl(string)) // '" not recognized.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       else
         ierr = 1
@@ -1630,7 +1664,7 @@ subroutine InputGetCommandLineString(string,string_value,found,option)
       if (InputError(ierr)) then
         option%io_buffer = 'String argument for command line argument "' // &
                            trim(adjustl(string)) // '" not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       exit
     endif
@@ -1695,7 +1729,7 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
         case default
           option%io_buffer = 'Truth argument for command line argument "' // &
                              trim(adjustl(string)) // '" not recognized.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
   enddo
@@ -1844,7 +1878,7 @@ function InputGetLineCount(input,option)
   line_count = 0
   do
 #if 1
-    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
     if (InputError(input)) then
@@ -1898,7 +1932,7 @@ subroutine InputReadToBuffer(input, buffer, option)
   line_count = 0
   do
 #if 1
-    read(input%fid,'(a512)',iostat=input%ierr) input%buf
+    read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
     if (InputError(input)) then
@@ -1973,7 +2007,7 @@ subroutine InputReadASCIIDbase(filename,option)
     if (len_trim(string) > MAXWORDLENGTH) then
       option%io_buffer = 'ASCII DBASE object names must be shorter than &
         &32 characters: ' // trim(string)
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     word = trim(string)
     if (StringStartsWithAlpha(word)) then
@@ -2009,7 +2043,7 @@ subroutine InputReadASCIIDbase(filename,option)
         trim(filename) // &
         '" is too small (' // trim(adjustl(word)) // &
         ') for number of realizations.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     value_index = option%id
   endif
@@ -2070,7 +2104,7 @@ subroutine InputReadASCIIDbase(filename,option)
         write(word,*) num_values_in_dataset
         option%io_buffer = trim(option%io_buffer) // &
           trim(adjustl(word)) // ').'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call StringToUpper(object_name)
       string = words(value_index)
@@ -2384,7 +2418,7 @@ subroutine InputKeywordUnrecognized2(keyword,string,string2,option)
     option%io_buffer = trim(option%io_buffer) // ' ' // &
                      trim(string2) // '.'
   endif
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine InputKeywordUnrecognized2
 
@@ -2408,9 +2442,10 @@ subroutine InputCheckMandatoryUnits(input,option)
     option%io_buffer = 'Missing units'
     if (len_trim(input%err_buf) > 1) then
       option%io_buffer = trim(option%io_buffer) // ' in ' // &
-                         trim(input%err_buf) // '.'
+                         trim(input%err_buf) // ',' // &
+                         trim(input%err_buf2) // '.'
     endif
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine InputCheckMandatoryUnits
@@ -2445,7 +2480,7 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
     if (len_trim(internal_units) < 1) then
       option%io_buffer = 'No internal units provided in &
                          &InputReadAndConvertUnits()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     internal_units_word = trim(internal_units)
     double_value = double_value * &
@@ -2489,7 +2524,7 @@ function UnitReadAndConversionFactor(input,internal_units, &
     if (len_trim(internal_units) < 1) then
       option%io_buffer = 'No internal units provided in &
                          & UnitReadAndConversionFactor()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     internal_units_word = trim(internal_units)
     UnitReadAndConversionFactor =  &

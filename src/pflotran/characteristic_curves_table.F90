@@ -133,11 +133,14 @@ subroutine CharCurvesTableRead(this,input,option)
   PetscReal :: krw,krg,krow,krog
   PetscInt :: s_idx
   PetscBool :: press_unit_found
+  PetscBool :: table_found
   PetscReal, parameter :: kr_eps = 1.0d-20
+  PetscBool, allocatable :: AxisIsSMInc(:)
 
   input%ierr = 0
-  error_string = 'CHARACTERISTIC_CURVES_TABLE,'
+  error_string = 'CHARACTERISTIC_CURVES_TABLE,' // trim(this%name)
   press_unit_found = PETSC_FALSE
+  table_found = PETSC_FALSE
   do
   
     call InputReadPflotranString(input,option)
@@ -157,45 +160,54 @@ subroutine CharCurvesTableRead(this,input,option)
       case('SWFN')
         this%itype = CCT_SWFN
         call this%SetSWFNTable(option)
-        error_string = trim(error_string) // 'SWFN'
-        call this%lookup_table%VarDataRead(input,this%num_fields, &
+        error_string = trim(error_string) // ', SWFN'
+        call this%lookup_table%VarDataRead(input,this%num_fields,TWO_INTEGER, &
                                                         error_string,option)
+        table_found = PETSC_TRUE
       case('SGFN')
         this%itype = CCT_SGFN
         call this%SetSGFNTable(option)
-        error_string = trim(error_string) // 'SGFN'
-        call this%lookup_table%VarDataRead(input,this%num_fields, &
+        error_string = trim(error_string) // ', SGFN'
+        call this%lookup_table%VarDataRead(input,this%num_fields,TWO_INTEGER, &
                                                         error_string,option)
+        table_found = PETSC_TRUE
       case('SOF2')
         this%itype = CCT_SOF2
         call this%SetSOF2Table(option)
-        error_string = trim(error_string) // 'SOF2'
-        call this%lookup_table%VarDataRead(input,this%num_fields, &
+        error_string = trim(error_string) // ', SOF2'
+        call this%lookup_table%VarDataRead(input,this%num_fields,TWO_INTEGER, &
                                                         error_string,option)
+        table_found = PETSC_TRUE
       case('SOF3')
         this%itype = CCT_SOF3
         call this%SetSOF3Table(option)
-        error_string = trim(error_string) // 'SOF3'
-        call this%lookup_table%VarDataRead(input,this%num_fields, &
+        error_string = trim(error_string) // ', SOF3'
+        call this%lookup_table%VarDataRead(input,this%num_fields,TWO_INTEGER, &
                                                         error_string,option)
+        table_found = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(keyword,error_string,option)  
    end select        
  end do
 
+ if ( .not. table_found ) then
+   option%io_buffer = trim(error_string) // ', data block not found.'
+   call PrintErrMsg(option)
+ end if
+
  select case (this%itype)
    case(CCT_SWFN)
      if ( .not.press_unit_found ) then
        option%io_buffer = trim(error_string) //  &
-                                ', SWFN table pressure unit not defined '
-       call printErrMsg(option)
+                                ', SWFN table pressure unit not defined.'
+       call PrintErrMsg(option)
      end if
      this%lookup_table%var_array(CCT_PCXW)%ptr%user_units = trim(press_unit)
    case(CCT_SGFN)
      if ( .not.press_unit_found ) then
        option%io_buffer = trim(error_string) //  &
-                          ', SGFN table pressure unit not defined '
-       call printErrMsg(option)
+                          ', SGFN table pressure unit not defined.'
+       call PrintErrMsg(option)
      end if
      this%lookup_table%var_array(CCT_PCOG)%ptr%user_units = trim(press_unit)
  end select 
@@ -211,6 +223,18 @@ subroutine CharCurvesTableRead(this,input,option)
                                           this%lookup_table%var_data(1,:))) )
  this%lookup_table%axis1%values = this%lookup_table%var_data(1,:)
  this%lookup_table%dims(1) = size(this%lookup_table%axis1%values(:))
+ 
+ !check saturation is monotonically growing
+ allocate(AxisIsSMInc(this%lookup_table%dim))
+ call this%lookup_table%AxesAreSMInc(AxisIsSMInc)
+
+ if ( .not. AxisIsSMInc(ONE_INTEGER) ) then
+   option%io_buffer = trim(error_string) //  &
+                                   ', saturation not monotonically increasing.'
+   call PrintErrMsg(option)
+ end if
+
+ deallocate(AxisIsSMInc)
  
  !load table end points
  select case (this%itype)
@@ -607,7 +631,7 @@ function CharCurveTableGetPtrFromList(cc_table_name,list,error_string,option)
     error_string = trim(error_string) // "table name =" // &
                     trim(cc_table_name) // " not found"
     option%io_buffer = error_string
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
     
 end function CharCurveTableGetPtrFromList
@@ -658,11 +682,11 @@ subroutine SearchCCTVarInCCTableList(list,var_iname,cc_table_name, &
   else if (num_occurrences > 1) then
     option%io_buffer = trim(error_string) // &
             ' data found in multiple tables - please select one of the tables'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if ( num_occurrences < 1) then
     option%io_buffer = trim(error_string) // &
                                'data not found within the tables'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
     
 end subroutine SearchCCTVarInCCTableList
@@ -692,7 +716,7 @@ subroutine CheckCCTVariableExists(this,var_iname,error_string,option)
   if (.not.this%lookup_table%LookupTableVarIsPresent(var_iname)) then
     error_string_lc = 'data not found in table = ' // trim(this%name)
     option%io_buffer = error_string_lc
-    call printErrMsg(option)      
+    call PrintErrMsg(option)
   end if
 
 end subroutine CheckCCTVariableExists
@@ -801,6 +825,7 @@ recursive subroutine CharCurvesTableDestroy(cc_table)
   call LookupTableDestroy(cc_table%pc_inv_lookup_table)
   call LookupTableDestroy(cc_table%lookup_table)
 
+  nullify(cc_table%next)
   deallocate(cc_table)
   nullify(cc_table)
   

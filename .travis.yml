@@ -24,7 +24,10 @@ branches:
 
 matrix:
   include:
-    - env: CMAKE_BUILD=0 PETSC_MASTER=0
+    - env: CMAKE_BUILD=0 PETSC_MASTER=0 MINIMAL_BUILD=1
+      os: linux
+
+    - env: CMAKE_BUILD=0 PETSC_MASTER=0 MINIMAL_BUILD=0
       os: linux
 
 #    - env: CMAKE_BUILD=0 PETSC_MASTER=1
@@ -45,8 +48,13 @@ script:
 #  - echo FC=${FC}
   - ./.travis/install-petsc.sh
   - ./.travis/pflotran-build.sh
+  - ./.travis/pflotran-rxn-build.sh
   - ./.travis/pflotran-test.sh
   - cat regression_tests/*.testlog
   - ./.travis/pflotran-interface-build.sh
   - ./.travis/pflotran-interface-test.sh
   - cat src/clm-pflotran/*.testlog
+
+after_success:
+ - bash <(curl -s https://codecov.io/bash)
+

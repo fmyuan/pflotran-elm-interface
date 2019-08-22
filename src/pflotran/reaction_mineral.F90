@@ -206,7 +206,7 @@ subroutine MineralReadKinetics(mineral,input,option)
 !             read flag for irreversible reaction
               option%io_buffer = 'IRREVERSIBLE mineral precipitation/' // &
                 'dissolution no longer supported.  The code is commented out.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
               tstrxn%irreversible = 1
               call InputErrorMsg(input,option,'irreversible',error_string)
             case('ARMOR_MINERAL')
@@ -349,7 +349,7 @@ subroutine MineralReadKinetics(mineral,input,option)
               option%io_buffer = 'Both outer and inner prefactor rate ' // &
                 'constants uninitialized for kinetic mineral ' // &
                 cur_mineral%name // '.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             endif
           endif
           if (Uninitialized(cur_prefactor%activation_energy)) then
@@ -379,7 +379,7 @@ subroutine MineralReadKinetics(mineral,input,option)
     if (.not.found) then
       option%io_buffer = 'Mineral "' // trim(name) // '" specified under ' // &
         'CHEMISTRY,MINERAL_KINETICS not found in list of available minerals.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
  
@@ -391,7 +391,7 @@ subroutine MineralReadKinetics(mineral,input,option)
         cur_mineral%itype == MINERAL_KINETIC) then
       option%io_buffer = 'No rate provided in input file for mineral: ' // &
                trim(cur_mineral%name) // '.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (associated(cur_mineral%tstrxn)) then
       imnrl = imnrl + 1
@@ -537,7 +537,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
                 'Mineral ' // trim(constraint%names(imnrl)) // &
                 'from CONSTRAINT ' // trim(constraint_name) // &
                 ' not found among kinetic minerals.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       constraint_vol_frac(jmnrl) = &
         constraint%constraint_vol_frac(imnrl)
@@ -582,7 +582,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
           trim(mineral_rxn%name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       if (mineral_rxn%molar_volume < 1.d-16 .or. &
           Equal(mineral_rxn%molar_volume,500.d0)) then
@@ -590,7 +590,7 @@ subroutine MineralProcessConstraint(mineral,constraint_name,constraint,option)
           trim(mineral_rxn%name) // '" prevents specifying mineral specific &
           &surface area per mass mineral in constraint "' // &
           trim(constraint_name) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       ! m^2/m^3 = m^2/kg * 1.d-3 kg/g * g/mol / m^3/mol
       tempreal = tempreal * 1.d-3 * mineral_rxn%molar_weight / &
@@ -749,11 +749,7 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
       lnQK = lnQK + mineral%kinmnrlstoich(i,imnrl)*ln_act(icomp)
     enddo
     
-    if (lnQK <= 6.90776d0) then
-      QK = exp(lnQK)
-    else
-      QK = 1.d3
-    endif
+    QK = exp(lnQK)
     
     if (associated(mineral%kinmnrl_Temkin_const)) then
       if (associated(mineral%kinmnrl_min_scale_factor)) then

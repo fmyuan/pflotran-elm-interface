@@ -433,7 +433,7 @@ module PM_WIPP_SrcSink_class
   contains
     procedure, public :: PMWSSSetRealization
     procedure, public :: Setup => PMWSSSetup
-    procedure, public :: Read => PMWSSRead
+    procedure, public :: ReadPMBlock => PMWSSRead
     procedure, public :: InitializeRun => PMWSSInitializeRun
     procedure, public :: InitializeTimestep => PMWSSInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWSSFinalizeTimestep
@@ -821,7 +821,7 @@ subroutine PMWSSAssociateRegion(this,region_list)
       if (.not.associated(cur_waste_panel%region)) then
         option%io_buffer = 'WASTE_PANEL REGION ' // &
                            trim(cur_waste_panel%region_name) // ' not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       allocate(cur_waste_panel%calculate_chemistry(cur_waste_panel%region% &
                                                      num_cells))
@@ -882,7 +882,7 @@ subroutine PMWSSAssociateInventory(this)
     if (.not.associated(cur_waste_panel%inventory%preinventory)) then
       option%io_buffer = 'WASTE_PANEL INVENTORY ' // &
                          trim(cur_waste_panel%inventory_name) // ' not found.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (cur_waste_panel%scale_by_volume .and. &
         Uninitialized(cur_waste_panel%inventory%preinventory%vrepos)) then
@@ -890,7 +890,7 @@ subroutine PMWSSAssociateInventory(this)
                         // ' indicated SCALE_BY VOLUME = YES, but keyword &
                         &VREPOS was not given in INVENTORY ' // &
                         trim(cur_waste_panel%inventory%preinventory%name) // '.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     cur_waste_panel => cur_waste_panel%next
   enddo
@@ -1052,7 +1052,7 @@ subroutine PMWSSRead(this,input)
   bh_materials = ''
   input%ierr = 0
   option%io_buffer = 'pflotran card:: WIPP_SOURCE_SINK'
-  call printMsg(option)
+  call PrintMsg(option)
   
   do
     call InputReadPflotranString(input,option)
@@ -1201,21 +1201,21 @@ subroutine PMWSSRead(this,input)
           option%io_buffer = 'ERROR: REGION must be specified in the ' // &
                  trim(error_string) // ' block. WASTE_PANEL name "' // &
                  trim(new_waste_panel%name) // '".'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (new_waste_panel%inventory_name == '') then
           option%io_buffer = 'ERROR: INVENTORY must be specified in the ' // &
                  trim(error_string) // ' block. WASTE_PANEL name "' // &
                  trim(new_waste_panel%name) // '".'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (num_errors > 0) then
           write(option%io_buffer,*) num_errors
           option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                              &WIPP_SOURCE_SINK,WASTE_PANEL block. See above.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         added = PETSC_FALSE
         if (.not.associated(this%waste_panel_list)) then
@@ -1497,7 +1497,7 @@ subroutine PMWSSRead(this,input)
                         &area must be specified using the SOLIDS,DRMCONC &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- IRON -----!
@@ -1506,7 +1506,7 @@ subroutine PMWSSRead(this,input)
                         &waste must be specified using the SOLIDS,IRONCHW &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%ironrhw)) then
@@ -1514,7 +1514,7 @@ subroutine PMWSSRead(this,input)
                         &waste must be specified using the SOLIDS,IRONRHW &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%irncchw)) then
@@ -1522,7 +1522,7 @@ subroutine PMWSSRead(this,input)
                         &waste must be specified using the SOLIDS,IRNCCHW &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%irncrhw)) then
@@ -1530,7 +1530,7 @@ subroutine PMWSSRead(this,input)
                         &waste must be specified using the SOLIDS,IRNCRHW &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- MGO -----!
@@ -1539,7 +1539,7 @@ subroutine PMWSSRead(this,input)
                         &specified using the SOLIDS,MGO_EF keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- CELLULOSICS -----!
@@ -1548,7 +1548,7 @@ subroutine PMWSSRead(this,input)
                         &must be specified using the SOLIDS,CELLCHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%cellrhw)) then
@@ -1556,7 +1556,7 @@ subroutine PMWSSRead(this,input)
                         &must be specified using the SOLIDS,CELLRHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%celcchw)) then
@@ -1565,7 +1565,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,CELCCHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%celcrhw)) then
@@ -1574,7 +1574,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,CELCRHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%celechw)) then
@@ -1583,7 +1583,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,CELECHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%celerhw)) then
@@ -1592,7 +1592,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,CELERHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- RUBBER -----!
@@ -1601,7 +1601,7 @@ subroutine PMWSSRead(this,input)
                         &specified using the SOLIDS,RUBBCHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%rubbrhw)) then
@@ -1609,7 +1609,7 @@ subroutine PMWSSRead(this,input)
                         &specified using the SOLIDS,RUBBRHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%rubcchw)) then
@@ -1618,7 +1618,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,RUBCCHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%rubcrhw)) then
@@ -1627,7 +1627,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,RUBCRHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%rubechw)) then
@@ -1636,7 +1636,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,RUBECHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%ruberhw)) then
@@ -1645,7 +1645,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,RUBERHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- PLASTICS -----!
@@ -1654,7 +1654,7 @@ subroutine PMWSSRead(this,input)
                         &be specified using the SOLIDS,PLASCHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plasrhw)) then
@@ -1662,7 +1662,7 @@ subroutine PMWSSRead(this,input)
                         &be specified using the SOLIDS,PLASRHW keyword &
                         &in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plscchw)) then
@@ -1671,7 +1671,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,PLSCCHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plscrhw)) then
@@ -1680,7 +1680,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,PLSCRHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plsechw)) then
@@ -1689,7 +1689,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,PLSECHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plserhw)) then
@@ -1698,7 +1698,7 @@ subroutine PMWSSRead(this,input)
                         &SOLIDS,PLSERHW keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%plasfac)) then
@@ -1706,7 +1706,7 @@ subroutine PMWSSRead(this,input)
                         &carbon must be specified using the SOLIDS,PLASFAC &
                         &keyword in the WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- AQUEOUS -----!
@@ -1715,7 +1715,7 @@ subroutine PMWSSRead(this,input)
                         &be specified using the AQUEOUS,NITRATE keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_inventory%sulfate)) then
@@ -1723,7 +1723,7 @@ subroutine PMWSSRead(this,input)
                         &be specified using the AQUEOUS,SULFATE keyword in the &
                         &WIPP_SOURCE_SINK,INVENTORY ' // &
                         trim(new_inventory%name) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
       !----- END COUNT -----!
@@ -1731,7 +1731,7 @@ subroutine PMWSSRead(this,input)
           write(option%io_buffer,*) num_errors
           option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                              &WIPP_SOURCE_SINK,INVENTORY block. See above.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         added = PETSC_FALSE
         if (.not.associated(this%pre_inventory_list)) then
@@ -1774,96 +1774,96 @@ subroutine PMWSSRead(this,input)
   if (.not.associated(this%waste_panel_list)) then
     option%io_buffer = 'ERROR: At least one WASTE_PANEL must be specified &
                        &in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (.not.associated(this%pre_inventory_list)) then
     option%io_buffer = 'ERROR: At least one INVENTORY must be specified in &
                        &the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%alpharxn)) then
     option%io_buffer = 'ERROR: ALPHARXN must be specified in the &
                        &WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%smin)) then
     option%io_buffer = 'ERROR: SOCMIN must be specified in the &
                        &WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%satwick)) then
     option%io_buffer = 'ERROR: SAT_WICK (wicking saturation parameter) must be &
                        &specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%gratmici)) then
     option%io_buffer = 'ERROR: GRATMICI (inundated biodegradation rate for &
                        &cellulose) must be specified in the WIPP_SOURCE_SINK &
                        &block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%brucitei)) then
     option%io_buffer = 'ERROR: BRUCITE[C/S] (MgO inundated hydration rate in &
                        &Castile or Salado brine) must be specified in the &
                        &WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%corrmco2)) then
     option%io_buffer = 'ERROR: CORRMCO2 (inundated steel corrosion rate) must &
                        &be specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%gratmich)) then
     option%io_buffer = 'ERROR: GRATMICH (humid biodegradation rate for &
                        &cellulose) must be specified in the WIPP_SOURCE_SINK &
                        &block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%bruciteh)) then
     option%io_buffer = 'ERROR: BRUCITEH (MgO humid hydration rate) must be &
                        &specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%humcorr)) then
     option%io_buffer = 'ERROR: HUMCORR (humid steel corrosion rate) must be &
                        &specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%hymagcon_rate)) then
     option%io_buffer = 'ERROR: HYMAGCON (hydromagnesite to magnesite &
                        &conversion rate) must be specified in the &
                        &WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%drum_surface_area)) then
     option%io_buffer = 'ERROR: ASDRUM (metal drum surface area) &
                        &must be specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%biogenfc)) then
     option%io_buffer = 'ERROR: BIOGENFC (microbial gas generation probability) &
                        &must be specified in the WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(this%probdeg)) then
     option%io_buffer = 'ERROR: PROBDEG (biodegradation and/or plastics &
                        &inclusion flag) must be specified in the &
                        &WIPP_SOURCE_SINK block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   do rxn_num = 1,8
@@ -1877,7 +1877,7 @@ subroutine PMWSSRead(this,input)
                            trim(adjustl(word2)) // '. This may mean you did &
                            &not provide enough values for the matrix. The &
                            &matrix should be sized 8x10.'
-      call printMsg(option)
+      call PrintMsg(option)
       num_errors = num_errors + 1
       endif
     enddo
@@ -1891,7 +1891,7 @@ subroutine PMWSSRead(this,input)
                        &PROCESS_MODELS block. The WIPP_SOURCE_SINK process &
                        &model is now embedded in WIPP_FLOW, and should no &
                        &longer be included in the PROCESS_MODELS block.]]'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call PMWSSAssociateInventory(this)
@@ -1962,7 +1962,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
       this%plasidx = 1
     case default
       this%option%io_buffer = 'WIPP_SOURCE_SINK,PROBDEG values: 0,1,2 only.'
-      call printErrMsg(this%option)
+      call PrintErrMsg(this%option)
   end select
   
   preinventory => waste_panel%inventory%preinventory
@@ -2442,7 +2442,7 @@ subroutine PMWSSInitializeRun(this)
         this%option%io_buffer = 'Borehole material "' // &
           trim(this%bh_material_names(p)) // &
           '" not found among material properties.'
-        call printErrMsg(this%option)
+        call PrintErrMsg(this%option)
       endif
       this%bh_material_ids(p) = material_property%internal_id
       print *, this%bh_material_names(p), this%bh_material_ids(p)
@@ -2520,7 +2520,7 @@ subroutine PMWSSInitializeTimestep(this)
           this%option%io_buffer = 'Chemistry zeroed at cell ' // &
             trim(adjustl(this%option%io_buffer)) // &
             ' due to borehole material.'
-          call printMsg(this%option)
+          call PrintMsg(this%option)
           cur_waste_panel%calculate_chemistry(k) = PETSC_FALSE
           cur_waste_panel%inventory%Fe_s%current_conc_mol(k) = 0.d0
           cur_waste_panel%inventory%Fe_s%current_conc_kg(k) = 0.d0

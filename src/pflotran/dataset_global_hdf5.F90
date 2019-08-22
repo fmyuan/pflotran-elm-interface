@@ -122,14 +122,14 @@ subroutine DatasetGlobalHDF5Load(this,option)
   if (.not.associated(this%dm_wrapper)) then
     option%io_buffer = 'dm_wrapper not associated in Global Dataset: ' // &
       trim(this%name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if (DatasetCommonHDF5Load(this,option)) then
     if (.not.associated(this%rarray)) then
       if (this%local_size == 0) then
         option%io_buffer = 'Local size of Global Dataset has not been set.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       allocate(this%rarray(this%local_size))
       this%rarray = 0.d0
@@ -203,7 +203,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
                                  ierr);CHKERRQ(ierr)
   else
     option%io_buffer = 'ugdm not yet supported in DatasetGlobalHDF5ReadData()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call VecZeroEntries(natural_vec,ierr);CHKERRQ(ierr)
@@ -212,7 +212,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   ! open the file
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(this%filename)
-  call printMsg(option)
+  call PrintMsg(option)
   
   ! set read file access property
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -228,7 +228,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
     string = trim(string) // trim(adjustl(word))
   endif
   option%io_buffer = 'Opening data set: ' // trim(string)
-  call printMsg(option)  
+  call PrintMsg(option)
   call h5dopen_f(file_id,string,data_set_id,hdf5_err)
   call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   
@@ -245,7 +245,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
       option%io_buffer = 'Dataset "' // trim(this%hdf5_dataset_name) // &
         '" in file "' // trim (this%filename) // &
         '" must be a 2D dataset (time,cell) if PFLOTRAN is run in parallel.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     file_rank2_size = 1
   endif
@@ -259,7 +259,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
           '(a," buffer dimension (",i9,") is not a multiple of local domain",&
            &" dimension (",i9,").")') trim(this%hdf5_dataset_name), &
            size(this%rbuffer,1), this%local_size
-    call printErrMsg(option)   
+    call PrintErrMsg(option)
   endif
 
   if (mod(file_rank1_size,this%global_size) /= 0) then
@@ -267,7 +267,7 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
           '(a," data space dimension (",i9,") is not a multiple of domain",&
            &" dimension (",i9,").")') trim(this%hdf5_dataset_name), &
            file_rank1_size, this%global_size
-    call printErrMsg(option)   
+    call PrintErrMsg(option)
   endif
 
   istart = 0
@@ -338,10 +338,10 @@ subroutine DatasetGlobalHDF5ReadData(this,option,data_type)
   call h5sclose_f(file_space_id,hdf5_err)
   string = trim(this%hdf5_dataset_name) // '/Data'
   option%io_buffer = 'Closing data set: ' // trim(string)
-  call printMsg(option)  
+  call PrintMsg(option)
   call h5dclose_f(data_set_id,hdf5_err)
   option%io_buffer = 'Closing hdf5 file: ' // trim(this%filename)
-  call printMsg(option)  
+  call PrintMsg(option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err) 
   

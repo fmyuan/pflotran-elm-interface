@@ -31,7 +31,7 @@ END
 
 ! PV~25*100*100*100*0.04~1E6 rm3
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -1000.d0
   NXYZ 10 1 1
   DXYZ
@@ -43,8 +43,8 @@ END
 
 #=========================set up standard conditions ==========================
 #  these are used for the computation of the gas surface volumes
-REFERENCE_PRESSURE 1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE 1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -155,6 +155,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 1000.00d0 kg/m^3
   DENSITY CONSTANT 1000.00d0
   VISCOSITY CONSTANT 1.0d-3 ! 1 cp
 END
@@ -266,7 +267,7 @@ noskip
 FLOW_CONDITION gas_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0.0000000 0.000000 1000 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -276,16 +277,15 @@ FLOW_CONDITION gas_injector_cond
 
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
-    BUBBLE_POINT dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
+    BUBBLE_POINT DIRICHLET
   /
-  OIL_PRESSURE 20.0D6 ! 200bars
+  OIL_PRESSURE 20.0D6 Pa ! 200bars
   OIL_SATURATION 1.0d0
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
-  BUBBLE_POINT 10.0D6 ! 100bars
-  DATUM 0.d0 0.d0 -1000.0d0
+  BUBBLE_POINT 10.0D6 Pa ! 100bars
 /
 
 #=========================== condition couplers ==============================

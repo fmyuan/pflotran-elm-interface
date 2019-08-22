@@ -167,7 +167,7 @@ subroutine MicrobialRead(microbial,input,option)
           option%io_buffer = 'A SPECIES_NAME, TYPE, and INHIBITION_CON' // &
             'STANT must be defined for INHIBITION in MICROBIAL_REACTION ' // &
             'with REACTION "' // trim(microbial_rxn%reaction) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! append to list
         if (.not.associated(microbial_rxn%inhibition)) then
@@ -245,7 +245,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   ! Date: 10/31/12
   ! 
 
-  use Option_module, only : option_type, printErrMsg
+  use Option_module, only : option_type
   use Reactive_Transport_Aux_module, only : reactive_transport_auxvar_type
   use Global_Aux_module, only : global_auxvar_type
   use Material_Aux_class, only : material_auxvar_type

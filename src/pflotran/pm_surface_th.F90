@@ -17,7 +17,7 @@ module PM_Surface_TH_class
 
   type, public, extends(pm_surface_type) :: pm_surface_th_type
   contains
-    procedure, public :: Read => PMSurfaceTHRead
+    procedure, public :: ReadSimulationBlock => PMSurfaceTHRead
     procedure, public :: UpdateTimestep => PMSurfaceTHUpdateTimestep
     procedure, public :: PreSolve => PMSurfaceTHPreSolve
     procedure, public :: PostSolve => PMSurfaceTHPostSolve
@@ -363,7 +363,7 @@ subroutine PMSurfaceTHDestroy(this)
   endif
 
 #ifdef PM_SURFACE_FLOW_DEBUG
-  call printMsg(this%option,'PMSurfaceTHDestroy()')
+  call PrintMsg(this%option,'PMSurfaceTHDestroy()')
 #endif
 
   call SurfaceTHDestroy(this%surf_realization)

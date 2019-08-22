@@ -33,7 +33,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 30 1 1 
   BOUNDS
@@ -147,19 +147,15 @@ CHARACTERISTIC_CURVES ch1
   !TEST
 /
 #=========================== EOSs =============================================
-! if all commented, initialised IFC67 for density, enthaplty and viscosity  
+
 EOS WATER
-  !if ref_den and wat_compress not specified default values are used
-  !DENSITY QUADRATIC  !e300 quadratic model
-  !  !REFERENCE_DENSITY 999.014d0 !kg/m3
-  !  !REFERENCE_PRESSURE 1.0d5    !Pa
-  !  !WATER_COMPRESSIBILITY 3.94769306686405d-10 !1/Pa
-  !END
+  SURFACE_DENSITY 1000.0 kg/m^3 !not used in this dataset as no wells
   DENSITY TRANGENSTEIN !E300 thermal default model 
   VISCOSITY GRABOWSKI
 END
 
 EOS OIL
+  SURFACE_DENSITY 995.98d0 kg/m^3 !not used in this dataset as no wells
   !heavy oil
   FORMULA_WEIGHT 508.0d0
   DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]
@@ -211,11 +207,11 @@ END
 FLOW_CONDITION initial_press
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  PRESSURE 17.0D6 !170bars 
+  PRESSURE 17.0D6 Pa !170bars 
   OIL_SATURATION 0.85d0 !With this accounts for connate water 
   TEMPERATURE 80.0d0 C  !up to here it refers to primary vars
 /
@@ -223,11 +219,11 @@ FLOW_CONDITION initial_press
 FLOW_CONDITION inject_press
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  PRESSURE 30.0D6 !300bars 
+  PRESSURE 30.0D6 Pa !300bars 
   OIL_SATURATION 0.15d0 !model a water injector
   TEMPERATURE 200.0d0 C  !up to here it refers to primary vars
 /
@@ -235,11 +231,11 @@ FLOW_CONDITION inject_press
 FLOW_CONDITION prod_press
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  PRESSURE 10.0D6 !100bars 
+  PRESSURE 10.0D6 Pa !100bars 
   OIL_SATURATION 0.65d0 !model a well with water and oil  both mobile
   TEMPERATURE 80.0d0 C  !up to here it refers to primary vars
 /

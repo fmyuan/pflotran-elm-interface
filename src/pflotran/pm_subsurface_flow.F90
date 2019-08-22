@@ -22,6 +22,7 @@ module PM_Subsurface_Flow_class
     PetscBool :: store_porosity_for_transport
     PetscBool :: check_post_convergence
     PetscBool :: revert_parameters_on_restart
+    PetscBool :: replace_init_params_on_restart
     ! these govern the size of subsequent time steps
     PetscReal :: max_pressure_change
     PetscReal :: max_temperature_change
@@ -38,6 +39,8 @@ module PM_Subsurface_Flow_class
     PetscReal :: saturation_change_limit
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
+    PetscInt :: logging_verbosity
+
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
@@ -58,10 +61,6 @@ module PM_Subsurface_Flow_class
     procedure, public :: CheckpointHDF5 => PMSubsurfaceFlowCheckpointHDF5
     procedure, public :: RestartHDF5 => PMSubsurfaceFlowRestartHDF5
     procedure, public :: InputRecord => PMSubsurfaceFlowInputRecord
-#ifdef WELL_CLASS
-    procedure  :: AllWellsInit
-    procedure :: AllWellsUpdate
-#endif
     procedure, public :: InitialiseAllWells
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
@@ -72,6 +71,7 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowInitializeTimestepB, &
             PMSubsurfaceFlowFinalizeTimestep, &
             PMSubsurfaceFlowPreSolve, &
+            PMSubsurfaceFlowCheckConvergence, &
             PMSubsurfaceFlowInitializeRun, &
             PMSubsurfaceFlowUpdateSolution, &
             PMSubsurfaceFlowUpdatePropertiesNI, &
@@ -103,6 +103,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%store_porosity_for_transport = PETSC_FALSE
   this%check_post_convergence = PETSC_FALSE
   this%revert_parameters_on_restart = PETSC_FALSE
+  this%replace_init_params_on_restart = PETSC_FALSE
   
   ! defaults
   this%max_pressure_change = 0.d0
@@ -118,7 +119,8 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%saturation_change_limit = UNINITIALIZED_DOUBLE
   this%pressure_change_limit = UNINITIALIZED_DOUBLE
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
-  
+  this%logging_verbosity = 0
+
   call PMBaseInit(this)
 
 end subroutine PMSubsurfaceFlowCreate
@@ -158,6 +160,11 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('MAX_PRESSURE_CHANGE')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputDefaultMsg(input,option,'dpmxe')
+      if (option%flow%resdef) then
+        option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, &
+          &overwritting the RESERVOIR_DEFAULTS default'
+        call PrintMsg(option)
+      endif
 
     case('MAX_TEMPERATURE_CHANGE')
       call InputReadDouble(input,option,this%temperature_change_governor)
@@ -200,13 +207,36 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
+      if (option%flow%resdef) then
+        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
+          &overwritting the RESERVOIR_DEFAULTS default'
+        call PrintMsg(option)
+      endif
 
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
 
+    case('RESERVOIR_DEFAULTS')
+      option%flow%resdef = PETSC_TRUE
+      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
+        &process model options'
+      call PrintMsg(option)
+
+      option%flow%numerical_derivatives = PETSC_FALSE
+      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has &
+        &been automatically selected (RESERVOIR_DEFAULTS)'
+      call PrintMsg(option)
+
+      this%pressure_change_governor=5.5d6
+      call InputDefaultMsg(input,option,'dpmxe')
+      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
+        &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
+      call PrintMsg(option)
+
     case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  Please &
-        &use ANALYTICAL_JACOBIAN instead.'
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
+        &Please use ANALYTICAL_JACOBIAN instead.'
+      call PrintErrMsg(option)
 
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
@@ -225,6 +255,13 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('UPWIND_DIR_UPDATE_FREQUENCY')
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
+      
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+    case('LOGGING_VERBOSITY')
+      call InputReadInt(input,option,this%logging_verbosity)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('DEBUG_TOL')
       call InputReadDouble(input,option,flow_aux_debug_tol)
@@ -238,6 +275,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('REVERT_PARAMETERS_ON_RESTART')
       this%revert_parameters_on_restart = PETSC_TRUE
+
+    case('REPLACE_INIT_PARAMS_ON_RESTART')
+      this%replace_init_params_on_restart = PETSC_TRUE
 
     case default
       found = PETSC_FALSE
@@ -298,7 +338,8 @@ subroutine PMSubsurfaceFlowSetup(this)
         class is(sat_func_WIPP_type)
           if (.not.sf%ignore_permeability .and. &
               .not.(this%option%iflowmode == WF_MODE .or. &
-                    this%option%iflowmode == G_MODE)) then
+                    this%option%iflowmode == G_MODE .or. &
+                    this%option%iflowmode == H_MODE)) then
             this%option%io_buffer = 'A WIPP capillary pressure - saturation &
               &function (' // trim(cur_cc%name) // ') is being used without &
               &the IGNORE_PERMEABILITY feature in a flow mode &
@@ -306,7 +347,7 @@ subroutine PMSubsurfaceFlowSetup(this)
               &Please chose a different mode, such as General Mode or &
               &WIPP Flow Mode, or use &
               &the IGNORE_PERMEABILITY feature, and provide ALPHA.'
-            call printErrMsg(this%option)
+            call PrintErrMsg(this%option)
           endif
       end select
       endif
@@ -344,6 +385,7 @@ end subroutine PMSubsurfaceFlowSetRealization
 recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   ! 
   ! Initializes the time stepping
+  ! Extended in pm_general only with theseo operations occuring last
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14 
@@ -364,7 +406,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
-  ! overridden in pm_general only
   if (associated(this%realization%reaction)) then
     if (this%realization%reaction%update_porosity) then
       call RealizationCalcMineralPorosity(this%realization)
@@ -379,13 +420,6 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     endif
   endif
   
-  ! restart
-  if (this%revert_parameters_on_restart) then
-    call RealizationRevertFlowParameters(this%realization)
-!geh: for testing only.  In general, we only revert parameter, not flow.
-!    call CondControlAssignFlowInitCond(this%realization)
-!    call this%UpdateAuxVars()
-  endif
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
   if (associated(this%realization%reaction)) then
@@ -397,6 +431,7 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
       update_initial_porosity = PETSC_FALSE
     endif
   endif
+
   if (update_initial_porosity) then
     call this%comm1%GlobalToLocal(this%realization%field%porosity0, &
                                   this%realization%field%work_loc)
@@ -404,24 +439,19 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
     call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
                                  POROSITY,POROSITY_INITIAL)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_BASE)
-    call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                 this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_CURRENT)
-!    call MaterialSetAuxVarScalar(this%realization%patch%aux%Material, &
-!                                 UNINITIALIZED_DOUBLE, &
-!                                 POROSITY,POROSITY_CURRENT)
-
-  endif  
+    if (.not.this%realization%option%restart_flag .or. &
+        this%revert_parameters_on_restart) then
+      ! POROSITY_BASE should not be updated to porosity0 if we are 
+      ! restarting unless the revert_parameters on restart flag is true.
+      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                   this%realization%field%work_loc, &
+                                   POROSITY,POROSITY_BASE)
+    endif
+  endif
 
   call this%PreSolve()
   call this%UpdateAuxVars()
   call this%UpdateSolution() 
-#ifdef WELL_CLASS
-  call this%AllWellsInit() !does nothing if no well exist
-#endif    
 
 ! Initialise the well data held in well_data
 
@@ -517,7 +547,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
         class is(dataset_gridded_hdf5_type)
           option%io_buffer = 'Gridded dataset "' // trim(dataset%name) // &
             ' not yet suppored in RealizSetSoilReferencePressure().'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         class is(dataset_common_hdf5_type)
           dataset_name = dataset%hdf5_dataset_name
           group_name = ''
@@ -529,7 +559,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
         class default
           option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
             &wrong type for RealizSetSoilReferencePressure()'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       call DiscretizationGlobalToLocal(realization%discretization, &
                                        realization%field%work, &
@@ -558,7 +588,7 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
     option%io_buffer = 'Restarted simulations (restarted with time > 0) &
       &that set reference pressure based on the initial pressure will be &
       &incorrect as the initial pressure is not stored in a checkpoint file.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (dataset_vec /= PETSC_NULL_VEC) then
@@ -568,46 +598,6 @@ subroutine PMSubsurfaceFlowSetSoilRefPres(realization)
 end subroutine PMSubsurfaceFlowSetSoilRefPres
 
 ! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsInit(this)
-  !
-  ! Initialise all wells - does nothing if no well exist
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 05/25/16
-
-  !use Well_Base_class
-  use Coupler_module
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-
-  type(coupler_type), pointer :: source_sink
-
-  PetscMPIInt :: cur_w_myrank
-  character(len=MAXSTRINGLENGTH) :: wfile_name
-  PetscInt :: ierr 
-
-  source_sink => this%realization%patch%source_sink_list%first
-
-  do
-    if (.not.associated(source_sink)) exit
-    if (associated(source_sink%well) ) then
-      !exlude empty wells - not included in well comms
-      if (source_sink%connection_set%num_connections > 0) then
-
-        call source_sink%well%InitRun(this%realization%patch%grid, &
-                                this%realization%patch%aux%Material%auxvars, &
-                                this%realization%output_option, &
-                                this%realization%option)
-
-      end if
-    end if
-    source_sink => source_sink%next 
-  end do 
-
-end subroutine AllWellsInit
-#endif
 
 subroutine InitialiseAllWells(this)
  !
@@ -621,32 +611,33 @@ subroutine InitialiseAllWells(this)
   use Well_Solver_module
   use Grid_module
   use Material_Aux_class
+  use Grid_Grdecl_module, only : UGrdEclWellCmplCleanup, GetIsGrdecl
 
   implicit none
 
   class(pm_subsurface_flow_type) :: this
   class(well_data_type), pointer :: well_data
-  type(well_data_list_type),pointer :: well_data_list
+  type(well_data_list_type), pointer :: well_data_list
   type(grid_type), pointer :: grid
   type(material_auxvar_type), pointer :: type_material_auxvars(:)
   class(material_auxvar_type), pointer :: class_material_auxvars(:)
   type(option_type), pointer :: option
 
   PetscInt  :: num_well
-  PetscBool :: cast_ok
+  PetscBool :: cast_ok,is_grdecl
 
-! Loop over wells
+  ! Loop over wells
 
   well_data_list => this%realization%well_data
   num_well=getnwell(well_data_list)
-  if( num_well > 0 ) then
+  if (num_well > 0) then
 
     well_data => well_data_list%first
     option => this%realization%option
 
     grid => this%realization%patch%grid
 
-!  Specialise polymorphic class pointer to type pointer
+  !  Specialise polymorphic class pointer to type pointer
 
     cast_ok = PETSC_FALSE
     type_material_auxvars => null()
@@ -657,16 +648,17 @@ subroutine InitialiseAllWells(this)
       class default
     end select
 
-!  Checks
+  !  Checks
 
-    if (grid%itype /= STRUCTURED_GRID) then
+    is_grdecl = GetIsGrdecl()
+    if (grid%itype /= STRUCTURED_GRID .and. (.not. is_grdecl)) then
       option%io_buffer='WELL_DATA well specification can only be used with structured grids'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
-    if( .not. cast_ok ) then
+    if (.not.cast_ok) then
       option%io_buffer='WELL_DATA call cannot cast CLASS to TYPE'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
 
       do
@@ -680,6 +672,11 @@ subroutine InitialiseAllWells(this)
     endif
 
   endif ! If num_well>0
+
+  ! All the well data from grdecl should be safely in well_data,
+  ! so cleanup grdecl
+
+  call UGrdEclWellCmplCleanup()
 
 end subroutine InitialiseAllWells
 
@@ -791,53 +788,8 @@ PetscErrorCode :: ierr
 
   endif
 
-#ifdef WELL_CLASS
-  call this%AllWellsUpdate()
-#endif
-
 end subroutine PMSubsurfaceFlowInitializeTimestepB
 
-! ************************************************************************** !
-#ifdef WELL_CLASS
-subroutine AllWellsUpdate(this)
-  !
-  ! Update all wells at the beginning of each time step
-  !  - is permeability changes updates well factor 
-  !  - update hydrostatic corrections
-  !  - 
-  ! 
-  ! Author: Paolo Orsini
-  ! Date: 06/06/16
-
-  use Coupler_module
-  implicit none
-
-  class(pm_subsurface_flow_type) :: this
-
-  type(coupler_type), pointer :: source_sink
-
-  PetscInt :: beg_cpl_conns, end_cpl_conns
-
-  source_sink => this%realization%patch%source_sink_list%first
-
-  beg_cpl_conns = 1
-  do
-    if (.not.associated(source_sink)) exit
-    if (associated(source_sink%well) ) then
-      !exlude empty wells - not included in well comms
-      if (source_sink%connection_set%num_connections > 0) then
-
-        call source_sink%well%InitTimeStep(this%realization%patch%grid, &
-                                this%realization%patch%aux%Material%auxvars, &
-                                this%realization%option)
-
-      end if
-    end if
-    source_sink => source_sink%next 
-  end do 
-
-end subroutine AllWellsUpdate
-#endif
 ! ************************************************************************** !
 
 subroutine PMSubsurfaceFlowPreSolve(this)
@@ -872,7 +824,7 @@ subroutine PMSubsurfaceFlowPostSolve(this)
   class(pm_subsurface_flow_type) :: this
   
   this%option%io_buffer = 'PMSubsurfaceFlowPostSolve() must be extended.'
-  call printErrMsg(this%option)  
+  call PrintErrMsg(this%option)
   
 end subroutine PMSubsurfaceFlowPostSolve
 
@@ -1090,7 +1042,7 @@ subroutine PMSubsurfaceFlowUpdateAuxVars(this)
   class(pm_subsurface_flow_type) :: this
 
   this%option%io_buffer = 'PMSubsurfaceFlowUpdateAuxVars() must be extended.'
-  call printErrMsg(this%option)
+  call PrintErrMsg(this%option)
 
 end subroutine PMSubsurfaceFlowUpdateAuxVars   
 
@@ -1133,6 +1085,7 @@ subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
   PetscViewer :: viewer
   
   call RestartFlowProcessModelBinary(viewer,this%realization)
+  call PMSubsurfaceFlowRestartUpdate(this)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
   
@@ -1177,11 +1130,38 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
   integer(HID_T) :: pm_grp_id
 
   call RestartFlowProcessModelHDF5(pm_grp_id, this%realization)
+  call PMSubsurfaceFlowRestartUpdate(this)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
 
 
 end subroutine PMSubsurfaceFlowRestartHDF5
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowRestartUpdate(this)
+  ! 
+  ! Performs revert, replace, etc, after restart has been loaded
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 05/31/19
+
+  class(pm_subsurface_flow_type) :: this
+
+  ! geh - up to this point, parameters from the input file(s) are stored in
+  ! Vecs (porosity0, perm0_XX, etc.) while values from potential restart will
+  ! be stored in the material auxvar.
+  ! If we are truly restarting: material_auxvar -> Vecs
+  ! If we are reverting:        Vecs -> material_auxvar
+  if (this%revert_parameters_on_restart) then
+    call RealizationRevertFlowParameters(this%realization)
+  else if (this%replace_init_params_on_restart) then
+    !geh: this causes the Vecs (porosity0, perm0_XX, etc.) to be updated
+    !     with the checkpointed values.
+    call RealizStoreRestartFlowParams(this%realization)
+  endif
+
+end subroutine PMSubsurfaceFlowRestartUpdate
 
 ! ************************************************************************** !
 

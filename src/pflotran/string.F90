@@ -41,7 +41,8 @@ module String_module
             StringWriteF, &
             StringWriteToUnit, &
             StringWriteToUnits, &
-            String1Or2
+            String1Or2, &
+            StringGetMaximumLength
 
   interface StringWrite
     module procedure StringWriteI
@@ -379,6 +380,12 @@ function StringStartsWith(string,string2)
 
   length = min(len_trim(string),len_trim(string2))
   
+  ! if either is a blank line, false
+  if (length == 0) then
+    StringStartsWith = PETSC_FALSE
+    return
+  endif
+
   do i = 1, length
     if (string(i:i) /= string2(i:i)) then
       StringStartsWith = PETSC_FALSE
@@ -1034,6 +1041,32 @@ function String1Or2(bool,string1,string2)
   endif
 
 end function String1Or2
+
+! ************************************************************************** !
+
+function StringGetMaximumLength(strings)
+  ! 
+  ! Writes a string to multipel file units (one of which could be the screen)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/06/18
+  ! 
+
+  implicit none
+ 
+  character(len=*) :: strings(:)
+
+  PetscInt :: StringGetMaximumLength
+
+  PetscInt :: i
+
+  StringGetMaximumLength = 0 
+
+  do i = 1, size(strings)
+    StringGetMaximumLength = max(len_trim(strings(i)),StringGetMaximumLength)
+  enddo
+
+end function StringGetMaximumLength
 
 ! ************************************************************************** !
 

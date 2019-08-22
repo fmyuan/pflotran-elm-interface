@@ -78,10 +78,11 @@ subroutine GeneralDerivativeDriver(option)
                               characteristic_curves, &
                               material_parameter,option)  
   option%flow_dt = 1.d0
+  itype = 0
 !  itype = ACCUMULATION
 !  itype = INTERIOR_FLUX
 !  itype = BOUNDARY_FLUX
-  itype = SRCSINK
+!  itype = SRCSINK
   
 !  istate = LIQUID_STATE
 !  istate = GAS_STATE
@@ -200,6 +201,9 @@ subroutine GeneralDerivativeDriver(option)
                                     general_auxvar_ss, &
                                     general_auxvar,global_auxvar, &
                                     material_auxvar,srcsink_scale,option)
+    case default
+      option%io_buffer = 'The user must specify a process to be tested.'
+      call PrintWrnMsg(option)
   end select
   
   ! Destroy objects
@@ -260,11 +264,8 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   endif
   if (.not.associated(material_parameter)) then
     allocate(material_parameter)
-    allocate(material_parameter%soil_residual_saturation(2,1))
     allocate(material_parameter%soil_heat_capacity(1))
     allocate(material_parameter%soil_thermal_conductivity(2,1))
-    material_parameter%soil_residual_saturation(1,1) = rpf_liq%Sr
-    material_parameter%soil_residual_saturation(2,1) = rpf_gas%Srg
     material_parameter%soil_heat_capacity(1) = 850.d0
     material_parameter%soil_thermal_conductivity(1,1) = 0.5d0
     material_parameter%soil_thermal_conductivity(2,1) = 2.d0
@@ -862,9 +863,6 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
   endif
   call CharacteristicCurvesDestroy(characteristic_curves)
   if (associated(material_parameter)) then
-    if (associated(material_parameter%soil_residual_saturation)) &
-      deallocate(material_parameter%soil_residual_saturation)
-    nullify(material_parameter%soil_residual_saturation)
     if (associated(material_parameter%soil_heat_capacity)) &
       deallocate(material_parameter%soil_heat_capacity)
     nullify(material_parameter%soil_heat_capacity)

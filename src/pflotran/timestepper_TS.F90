@@ -212,8 +212,10 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   Vec :: residual_vec
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscInt :: ts_reason
-  PetscInt :: num_newton_iter_before, num_newton_iter_after
-  PetscInt :: num_linear_iter_before, num_linear_iter_after
+  PetscInt :: num_linear_iterations
+  PetscInt :: num_newton_iterations
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
   solver => this%solver
@@ -226,32 +228,31 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTime(solver%ts,0.d0,ierr);CHKERRQ(ierr)
-#if (PETSC_VERSION_MINOR >= 8)
   call TSSetMaxTime(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
-#endif
   call TSSetTimeStep(solver%ts,option%flow_dt,ierr);CHKERRQ(ierr)
 
-#if (PETSC_VERSION_MINOR >= 8)
   call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
-#endif
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
-
-  call TSGetSNESIterations(solver%ts,num_newton_iter_before,ierr)
-  call TSGetKSPIterations(solver%ts,num_linear_iter_before,ierr)
-
+ 
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+
+  this%cumulative_solver_time = &
+    this%cumulative_solver_time + &
+    (log_end_time - log_start_time)
 
   call TSGetConvergedReason(solver%ts,ts_reason,ierr);CHKERRQ(ierr)
   call TSGetTime(solver%ts,time,ierr);CHKERRQ(ierr)
   call TSGetTimeStep(solver%ts,dtime,ierr);CHKERRQ(ierr)
-  call TSGetSNESIterations(solver%ts,num_newton_iter_after,ierr)
-  call TSGetKSPIterations(solver%ts,num_linear_iter_after,ierr)
+  call TSGetSNESIterations(solver%ts,num_newton_iterations,ierr)
+  call TSGetKSPIterations(solver%ts,num_linear_iterations,ierr)
 
-  this%num_newton_iterations = num_newton_iter_after - num_newton_iter_before
+  this%num_newton_iterations = num_newton_iterations 
   this%cumulative_newton_iterations = this%cumulative_newton_iterations + this%num_newton_iterations
 
-  this%num_linear_iterations = num_linear_iter_after - num_linear_iter_before
+  this%num_linear_iterations = num_linear_iterations
   this%cumulative_linear_iterations = this%cumulative_linear_iterations + this%num_linear_iterations
 
   if (ts_reason<0) then
@@ -289,6 +290,19 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
              this%num_linear_iterations,' / ',this%num_newton_iterations
     write(*,'("  --> TS SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm
 
+  endif
+
+  if (option%print_file_flag) then
+    write(option%fid_out, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+         & " [",a,"]", " ts_conv_reason: ",i4,/,"  newton = ",i3, &
+         & " [",i8,"]", " linear = ",i5," [",i10,"]")') &
+      this%steps, &
+      this%target_time/process_model%output_option%tconv, &
+      dtime/process_model%output_option%tconv, &
+      trim(process_model%output_option%tunit), &
+      ts_reason, &
+      this%num_newton_iterations, this%cumulative_newton_iterations, &
+      this%num_linear_iterations, this%cumulative_linear_iterations
   endif
 
   call process_model%FinalizeTimestep()
@@ -638,7 +652,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
   character(len=MAXSTRINGLENGTH) :: string
   
 #ifdef DEBUG
-  call printMsg(option,'TimestepperBEFinalizeRun()')
+  call PrintMsg(option,'TimestepperBEFinalizeRun()')
 #endif
   
   if (OptionPrintToScreen(option)) then

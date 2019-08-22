@@ -20,7 +20,7 @@ module PM_TOWG_Aux_module
 
   PetscInt, public :: towg_debug_cell_id = UNINITIALIZED_INTEGER
   PetscReal, parameter, public :: towg_pressure_scale = 1.d0
-
+  
   PetscReal, public :: val_tl_omega = 0.0d0
   PetscReal, public :: fmis_sl      = 0.0d0
   PetscReal, public :: fmis_su      = 1.0d0
@@ -94,6 +94,11 @@ module PM_TOWG_Aux_module
   PetscInt, parameter, public :: TOWG_UPDATE_FOR_ACCUM = 1
   PetscInt, parameter, public :: TOWG_UPDATE_FOR_BOUNDARY = 2
 
+  !alternative density computation for tl4p, sometimes problematic?
+  PetscBool, public :: TL4P_altDensity = PETSC_FALSE
+  !switches for some minor changes
+  PetscBool, public :: TL4P_slv_sat_truncate,TL4P_safemobs
+
   ! it might be required for thermal diffusion terms and tough conv criteria
   type, public :: towg_parameter_type
      !  PetscReal, pointer :: diffusion_coefficient(:) ! (iphase)
@@ -110,6 +115,9 @@ module PM_TOWG_Aux_module
   contains
     !add bound-procedure
     procedure, public :: Init => InitTOWGAuxVars
+    procedure, public :: FieldVolRefAve => TOWGAuxFieldVolRefAve
+    procedure, public :: GetLocalSol    => TOWGGetLocalSol
+    procedure, public :: IsSolventModel
     !procedure, public :: Perturb => PerturbTOilIms
   end type pm_towg_aux_type
 
@@ -207,7 +215,7 @@ function TOWGAuxCreate(option)
     option%io_buffer = 'TOWG: gas FMW not initialised. ' // &
                        'Define its value in the the input deck' // &
                        ' or add EOS GAS card to default to FMWAIR'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   towg_fmw_comp(1) = FMWH2O
@@ -222,7 +230,7 @@ function TOWGAuxCreate(option)
       option%io_buffer = 'Solvent FMW not initialised. ' // &
                          'Define its value in the the input deck' // &
                          ' or add EOS SOLVENT card to default to FMWCO2'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     towg_fmw_comp(4) =EOSSlvGetFMW()
   end if
@@ -305,7 +313,9 @@ subroutine InitTOWGAuxVars(this,grid,num_bc_connection, &
   PetscInt :: ghosted_id, iconn, local_id
   PetscInt :: idof
 
-  if (option%flow%numerical_derivatives .OR. option%flow%numerical_derivatives_compare) then
+  if (option%flow%numerical_derivatives         .or. &
+      option%flow%numerical_derivatives_compare .or. &
+      option%flow%num_as_alyt_derivs)             then
     allocate(this%auxvars(0:option%nflowdof,grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       do idof = 0, option%nflowdof
@@ -473,7 +483,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Liquid phase thermodynamic properties
   ! using cell_pressure (which is the max press)? or %pres(wid)?
   call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                       auxvar%den_kg(wid),auxvar%den(wid),ierr, &
+                       auxvar%table_idx)
   call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
 
@@ -531,7 +542,8 @@ subroutine TOWGImsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
   ! use cell_pressure; cell_pressure - psat calculated internally
-  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+  call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr, &
+                                                           auxvar%table_idx)
 
   auxvar%mobility(wid) = krw/visw
 
@@ -616,7 +628,11 @@ subroutine getBlackOilComposition(bubble_point,temperature,table_idxs,xo,xg,&
     ! (see above: xg = 1 - xo)
     dxo_dt = -drs_molar_dt/(1.0d0+rs_molar)/(1.0d0+rs_molar)
     dxg_dt = -dxo_dt
+    if (dabs(dxo_dpb) < 1.d-10) then
+      print *, "dxo dpb is ", dxo_dpb
+    endif
   endif
+
 
 end subroutine getBlackOilComposition
 
@@ -705,7 +721,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'towg bo auxvars: towg_analytical_derivatives is true, &
                           but auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     auxvar%D_pres = 0.d0
@@ -777,6 +793,13 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     auxvar%sat(gid)        = 0.0
   endif
   auxvar%temp = x(towg_energy_dof)
+
+!  Apply physical limits of 1 Pa to pressure and bubble point
+
+  auxvar%pres(oid)=max(auxvar%pres(oid),1.0)
+  if( .not.isSat ) then
+    auxvar%bo%bubble_point=max(auxvar%bo%bubble_point,1.0)
+  endif
 
 !==============================================================================
 ! Check if this state still valid and flip if not (but not on diff call)
@@ -877,15 +900,17 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                 auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
   endif
 
+#if 0
   if (auxvar%bo%xo < 0.d0) then
     print *, "xo negative ", auxvar%bo%xo, " pb is ", auxvar%bo%bubble_point
     option%io_buffer = 'xo has gone negative; xo and bubble point are'
-    call printMsg(option)
+    call PrintMsg(option)
     write(option%io_buffer,*) auxvar%bo%xo
-    call printMsg(option)
+    call PrintMsg(option)
     write(option%io_buffer,*) auxvar%bo%bubble_point
-    call printMsg(option)
+    call PrintMsg(option)
   endif
+#endif
 
 !==============================================================================
 !  Get the capillary pressures
@@ -1013,7 +1038,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
                       auxvar%den_kg(wid),auxvar%den(wid), &
                       auxvar%D_den(wid,dof_op), &
-                      auxvar%D_den(wid,dof_temp), ierr)
+                      auxvar%D_den(wid,dof_temp),ierr,auxvar%table_idx)
 
         ! pressure deriv is a a cell pressure derivative:
         auxvar%D_den(wid,dof_osat) = D_cell_pres(dof_osat)*auxvar%D_den(wid,dof_op)
@@ -1043,7 +1068,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
                                 auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
   else
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                      auxvar%den_kg(wid),auxvar%den(wid),ierr,auxvar%table_idx)
     call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -1269,7 +1294,7 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
     call EOSWaterViscosity(auxvar%temp, cell_pressure, &
                            wat_sat_pres, dps_dt, visw, &
-                           dvw_dt,  dvw_dp, ierr)
+                           dvw_dt,  dvw_dp, ierr, auxvar%table_idx)
 
         ! pressure deriv (dvw_dp) is a a cell pressure derivative:
         D_visc = 0.d0
@@ -1282,7 +1307,8 @@ subroutine TOWGBlackOilAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
 
   ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr, &
+                                                             auxvar%table_idx)
   endif
 
   auxvar%mobility(wid) = krw/visw
@@ -1489,6 +1515,10 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Author: Dave Ponting
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
+! Modified: Daniel Stone
+! Date  : Feb 2019
+! Reason : Adding analytical derivatives code
+!------------------------------------------------------------------------------
 
   use Option_module
   use Global_Aux_module
@@ -1498,6 +1528,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use EOS_Slv_module
   use Characteristic_Curves_module
   use Material_Aux_class
+  use Derivatives_utilities_module
 
   implicit none
 
@@ -1523,7 +1554,6 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: krs ,viss,visstl
   PetscReal :: dummy,po,pb
   PetscReal :: dkrw_sato,dkrw_satg,dkrw_satw
-  PetscReal :: dkro_sato,dkro_satg
   PetscReal :: dkrg_sato,dkrg_satg
   PetscReal :: dkrv_sato,dkrv_satv,krvi
   PetscErrorCode :: ierr
@@ -1536,11 +1566,89 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: swa
   PetscReal :: socrs,svcrs,krvm
 
+  PetscInt :: dof_op,dof_osat,dof_gsat,dof_temp,dof_ssat,ndof,cploc
+
   PetscReal, parameter :: eps_oil=1.0d-5
   PetscReal, parameter :: eps_gas=1.0d-8
   PetscReal, parameter :: epss   =1.0d-4
   PetscReal, parameter :: epsp   =1.0d3
   PetscReal, parameter :: epseps =1.0d-10
+  
+!----------------- intermediate derivatives and related variables: ------------------------------------------------
+  PetscBool :: getDerivs,mobSanityCheck                                                  ! utility flags
+  PetscReal :: d_xo_dpb,d_xg_dpb                                                         ! xo and xg wrt bubble point
+  PetscReal :: d_pcw_d_swa,d_pco_d_sva                                                   ! cap pres derivs, returned args
+  PetscReal :: dx_dcell_pres,dx_dpres,dx_dt                                              ! used as return args for several routines
+  PetscReal :: dh_dt,dh_dpres,du_dt,du_dpres                                             ! used as return args for several routines
+  PetscReal :: ddeno_dpb,dcr_dt,dcr_dpb                                                  ! intermediates for oil den lookup and correction
+  PetscReal :: dcrusp_dpo,dcrusp_dpb,dcrusp_dt,cor,one_p_crusp                           ! as above
+  PetscReal :: dcor_dpo,dcor_dpb,dcor_dt,worker                                          ! as above
+  PetscReal :: dps_dt                                                                    ! return arg from routine, water sat pres deriv
+  PetscReal :: dkro_sato,dkrog_uoil                                                      ! kro and krog deriv routine return args
+  PetscReal :: num                                                                       ! intermediate used for sevral krxx derivs
+  PetscReal :: dvo_dt,dvo_dpb,dcvisc_dt,dcvisc_dpb                                       ! intermediates for oil visc lookup and correction
+  PetscReal :: one_p_cvusp,dvo_dp,dviso_dpb                                              ! as above
+  PetscReal :: dcvusp_dpo,dcvusp_dpb,dcvusp_dt                                           ! as above
+  PetscReal :: denos,dengs,denogs,denos_pre,denog                                        ! for debugging, variables internal to tl visc/den
+  ! arrays of derivatives, D_xx(i) is derivative of variable xx w.r.t. to variable index i
+  ! (e.g. D_fm(dof_ssat) = deriv of fm w.r.t. solvent sat):
+  PetscReal,dimension(1:option%nflowdof) :: D_fm,D_cell_pres                             ! fm and cell pressure 
+  PetscReal,dimension(1:option%nflowdof) :: D_worker                                     ! utility used in a few places
+  PetscReal,dimension(1:option%nflowdof) :: D_visc,D_kr                                  ! intermeds, for water mob derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_uoil,D_uvap                                ! derivs of uoil and uvap
+  PetscReal,dimension(1:option%nflowdof) :: D_sv,D_sw,D_sh                               ! composite saturation derivatives
+  PetscReal,dimension(1:option%nflowdof) :: D_num,D_den                                  ! intermediates used in several places
+  PetscReal,dimension(1:option%nflowdof) :: D_krom,D_krvm,D_krgm,D_krsm                  ! various kr intermediates
+  PetscReal,dimension(1:option%nflowdof) :: D_kroi,D_krh,D_krog,D_krow                   ! as above
+  PetscReal,dimension(1:option%nflowdof) :: D_krgi,D_krsi                                ! as above
+  PetscReal,dimension(1:option%nflowdof) :: D_viso,D_visg,D_viss                         ! viscosity derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_kro,D_krg,D_krs                            ! tl relperm derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_so,D_sg,D_ss                               ! for input to routine
+  PetscReal,dimension(1:option%nflowdof) :: D_deno,D_deng,D_dens                         ! as above
+  PetscReal,dimension(1:option%nflowdof) :: D_visotl,D_visgtl,D_visstl                   ! tl visc derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_denotl,D_dengtl,D_denstl                   ! tl den derivs
+  PetscReal,dimension(1:option%nflowdof) :: D_denos,D_dengs,D_denogs,D_denos_pre,D_denog ! for debugging
+
+  PetscInt :: idex,jdex
+!-----------------/intermediate derivatives and related variables: -------------------------------------------------
+
+  ! used for indexing into derivative arrays:
+  dof_op = TOWG_OIL_PRESSURE_DOF
+  dof_osat = TOWG_OIL_SATURATION_DOF
+  dof_gsat = TOWG_GAS_SATURATION_3PH_DOF
+  dof_temp = towg_energy_dof
+  dof_ssat = TOWG_SOLV_SATURATION_DOF
+  ndof = option%nflowdof
+  mobSanityCheck = TL4P_safemobs
+
+if (towg_analytical_derivatives) then
+  if (.NOT. auxvar%has_derivs) then
+    ! how did this happen?
+    option%io_buffer = 'towg tl4p auxvars: towg_analytical_derivatives is true, &
+                        but auxvar%has_derivs is false, should both be true. &
+                        How did this happen?'
+    call PrintErrMsg(option)
+  endif
+
+  auxvar%D_pres = 0.d0
+  auxvar%D_sat = 0.d0
+  auxvar%D_pc = 0.d0
+  auxvar%D_den = 0.d0
+  auxvar%D_den_kg = 0.d0
+  auxvar%D_mobility = 0.d0
+  auxvar%D_por = 0.d0
+
+  auxvar%D_H = 0.d0
+  auxvar%D_U = 0.d0
+
+  ! also zero out all black oil derivatives
+  auxvar%bo%D_xo = 0.d0
+  auxvar%bo%D_xg = 0.d0
+
+  getDerivs = PETSC_TRUE
+else
+  getDerivs = PETSC_FALSE
+endif
 
 !==============================================================================
 !  Initialise
@@ -1629,11 +1737,15 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
     if( isSat ) then
       if( (auxvar%sat(gid)<(-epseps)) .and. (auxvar%sat(oid)>eps_oil) ) then
+        ! warning: be aware that it can indeed happen that negative gas saturation will be accepted
+        ! if oil sat is <= eps_oil.
 ! Gas saturation has gone negative and significant oil in cell
         global_auxvar%istate          =TOWG_LIQ_OIL_STATE
         auxvar%sat(gid)               =0.0d0
         auxvar%bo%bubble_point        =auxvar%pres(oid)-epsp
         x(TOWG_BUBBLE_POINT_3PH_DOF)  =auxvar%pres(oid)-epsp
+        ! make sure this bool is still correct:
+        isSat = PETSC_FALSE 
       endif
     else
       if(      (auxvar%bo%bubble_point > auxvar%pres(oid)) &
@@ -1649,6 +1761,8 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         x(TOWG_GAS_SATURATION_3PH_DOF)=auxvar%sat(gid)
 ! Make sure the extra gas does not push the water saturation negative
         sumhydsat=auxvar%sat(oid)+auxvar%sat(sid)+auxvar%sat(gid)
+        ! make sure this bool is still correct:
+        isSat = PETSC_TRUE
         if( sumhydsat>1.0  ) then
           rat=1.0/sumhydsat
           auxvar%sat(oid)=auxvar%sat(oid)*rat
@@ -1667,6 +1781,20 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !==============================================================================
 
   auxvar%sat(wid) = 1.d0 - auxvar%sat(oid) - auxvar%sat(gid) - auxvar%sat(sid)
+
+  ! trivial saturation derivatives:
+  if (getDerivs) then
+    auxvar%D_sat(oid,dof_osat) =  1.d0 ! diff oil sat by oil sat
+    auxvar%D_sat(sid,dof_ssat) =  1.d0 ! diff solvent sat by solvent sat
+
+    auxvar%D_sat(wid,dof_osat) = -1.d0 ! diff liquid sat by oil sat
+    auxvar%D_sat(wid,dof_ssat) = -1.d0 ! diff liquid sat by solvent sat
+
+    if (isSat) then
+      auxvar%D_sat(gid,dof_gsat) = 1.d0 ! diff gas sat by gas sat
+      auxvar%D_sat(wid,dof_gsat) = -1.d0 ! diff liquid sat by gas sat
+    endif
+  endif
 
 !==============================================================================
 ! Extract solution into local scalars
@@ -1689,14 +1817,41 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Look up the Rs value
 !==============================================================================
 
-  call getBlackOilComposition(pb,t,auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+  if (getDerivs) then
+    call getBlackOilComposition(pb,t, &
+                                auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg, &
+                                d_xo_dpb,d_xg_dpb,&
+                                auxvar%bo%D_xo(dof_temp),auxvar%bo%D_xg(dof_temp))
+    if (isSat) then
+      ! bubble point is cell pressure
+      auxvar%bo%D_xo(dof_op) = d_xo_dpb
+      auxvar%bo%D_xg(dof_op) = d_xg_dpb
+    else
+      ! bubble point is a solution variable
+      auxvar%bo%D_xo(dof_gsat) = d_xo_dpb
+      auxvar%bo%D_xg(dof_gsat) = d_xg_dpb
+    endif
+  else
+    call getBlackOilComposition(pb,t, &
+                                auxvar%table_idx,auxvar%bo%xo,auxvar%bo%xg )
+  endif
 
 !==============================================================================
 !  Get the miscible-immiscible mixing fractions (functions of fs=Ss/(Sg+Ss))
 !==============================================================================
+  if (getDerivs) D_fm = 0.d0
 
-  call TL4PMiscibilityFraction(sg,ss,fm)
+  call TL4PMiscibilityFraction(sg,ss,fm,D_fm(dof_gsat),D_fm(dof_ssat))
   fi=1.0-fm
+
+  if (getDerivs) then
+    if (.NOT. isSat) D_fm(dof_gsat)= 0.d0
+    ! store variables if debugging mode wants to:
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%fm = fm
+      auxvar%tlT%D_fm = D_fm
+    endif
+  endif
 
 !==============================================================================
 !  Get the capillary pressures using three phase mode as functions of so,sv,sw
@@ -1712,19 +1867,54 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !    sva=(1.0d0-eps_oil)*sv/sh
 !  endif
   swa = 1 - soa - sva
-
 !--Pcow------------------------------------------------------------------------
 
   call characteristic_curves%oil_wat_sat_func% &
-            CapillaryPressure(swa,auxvar%pc(wid),dummy,option,auxvar%table_idx)
+            CapillaryPressure(swa,auxvar%pc(wid),d_pcw_d_swa,option,auxvar%table_idx)
 
 !--Pcog------------------------------------------------------------------------
 
   call characteristic_curves%oil_gas_sat_func% &
-            CapillaryPressure(sva,auxvar%pc(oid),dummy,option,auxvar%table_idx)
+            CapillaryPressure(sva,auxvar%pc(oid),d_pco_d_sva,option,auxvar%table_idx)
+
+  if (getDerivs) then
+    ! recall these composite saturations
+    ! swa = 1 - soa - sva
+    ! sva = sv = sg + ss
+    ! soa = so
+    ! therefore
+    ! swa = 1 - so - sg - ss
+    ! derivs all -1
+    !
+    ! sva = sv = ss + sg
+    ! d sva / dso = 0
+    ! d sva / dsg = 1
+    ! d sva / dss = 1
+
+    ! deriv of pc between oil and water, w.r.t. oil sat:
+    auxvar%D_pc(wid,dof_osat) =  -d_pcw_d_swa
+    ! deriv of pc between oil and water, w.r.t. slv sat:
+    auxvar%D_pc(wid,dof_ssat) =  -d_pcw_d_swa
+    ! deriv of pc between oil and water, w.r.t. gas sat:
+    if (isSat) then
+      auxvar%D_pc(wid,dof_gsat) = -d_pcw_d_swa
+    endif
+
+    ! handle cap pres between vapour and oil:
+    ! deriv of pc between vapour and oil w.r.t. slv sat:
+    auxvar%D_pc(oid,dof_ssat) = d_pco_d_sva
+
+    if (isSat) then
+      ! deriv of pc between vapour and oil w.r.t. gas sat:
+      auxvar%D_pc(oid,dof_gsat) = d_pco_d_sva
+    endif
+
+    !  Scale Pcog for degree of miscibility (derivs)
+    ! note fi = 1 - fm so D_fi = -D_fm:
+    auxvar%D_pc(oid,:) = ProdRule(fi,-D_fm,auxvar%pc(oid),auxvar%D_pc(oid,:),ndof)
+  endif
 
 !  Scale Pcog for degree of miscibility
-
   auxvar%pc(oid)=fi*auxvar%pc(oid)
 
 !==============================================================================
@@ -1736,7 +1926,40 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   auxvar%pres(sid) = auxvar%pres(gid)
 
+  if (getDerivs) then
+    ! first trivial presure derivatives:
+    ! oil by oil:
+    auxvar%D_pres(oid,dof_op) = 1.d0
+
+    ! water pressure: 
+    auxvar%D_pres(wid,:) = -auxvar%D_pc(wid,:) + auxvar%D_pres(oid,:)
+
+    ! gas pressure:
+    auxvar%D_pres(gid,:) = auxvar%D_pc(oid,:) + auxvar%D_pres(oid,:)
+
+    ! solvent pressure: 
+    auxvar%D_pres(sid,:) = auxvar%D_pres(gid,:)
+  endif
+
   cell_pressure = max(auxvar%pres(wid),auxvar%pres(oid),auxvar%pres(gid))
+
+  if (getDerivs) then
+    ! find dex corresponding to cell pres:
+    cploc = wid
+    if (auxvar%pres(oid) > auxvar%pres(cploc)) then
+      cploc = oid
+    endif
+    if (auxvar%pres(gid) > auxvar%pres(cploc)) then
+      cploc = gid
+    endif
+    D_cell_pres = auxvar%D_pres(cploc,:)
+  endif
+
+  ! store variables if debugging mode wants to:
+  if (auxvar%has_TL_test_object) then
+    auxvar%tlT%cellpres= cell_pressure
+    auxvar%tlT%D_cellpres= D_cell_pres
+  endif
 
 !==============================================================================
 !  Get rock properties
@@ -1749,7 +1972,10 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
     if (soil_compressibility_index > 0) then
       call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                auxvar%effective_porosity,dummy)
+                                auxvar%effective_porosity,dx_dcell_pres)
+      if (getDerivs) then
+        auxvar%D_por = dx_dcell_pres * D_cell_pres
+      endif
     endif
     if (option%iflag /= TOWG_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = auxvar%effective_porosity
@@ -1764,38 +1990,135 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Water phase thermodynamic properties
 !------------------------------------------------------------------------------
 
-  call EOSWaterDensity(t,cell_pressure, &
-                       auxvar%den_kg(wid),auxvar%den(wid),ierr)
-  call EOSWaterEnthalpy(t,cell_pressure,auxvar%H(wid),ierr)
-  auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
+  if (getDerivs) then
+    call EOSWaterDensity(t,cell_pressure, &
+                         auxvar%den_kg(wid),auxvar%den(wid), &
+                         dx_dcell_pres, &
+                         dx_dt,ierr,auxvar%table_idx)
 
+    auxvar%D_den(wid,:) =  dx_dcell_pres * D_cell_pres
+    auxvar%D_den(wid,dof_temp) = auxvar%D_den(wid,dof_temp) + dx_dt
+
+    ! kg density should be stored too for completeness:
+    auxvar%D_den_kg(wid,:) = auxvar%D_den(wid,:) * FMWH2O
+
+    call EOSWaterEnthalpy(auxvar%temp, &
+                          cell_pressure, &
+                          auxvar%H(wid), &
+                          dx_dcell_pres, &
+                          dx_dt, &
+                          ierr)
+
+
+    auxvar%D_H(wid,:) =  dx_dcell_pres * D_cell_pres
+    auxvar%D_H(wid,dof_temp) = auxvar%D_H(wid,dof_temp) + dx_dt
+
+    ! scaling:
+    auxvar%D_H(wid,:) = auxvar%D_H(wid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+
+    ! derivatives corresponding to computation of U(wid) below:
+    auxvar%D_U(wid,:) = auxvar%D_H(wid,:)                                          &
+                      - 1.d-6                                                      &
+                      * DivRule(cell_pressure,D_cell_pres,                         &
+                                auxvar%den(wid),auxvar%D_den(wid,:),option%nflowdof )
+  else
+    call EOSWaterDensity(auxvar%temp,cell_pressure, &
+                     auxvar%den_kg(wid),auxvar%den(wid),ierr,auxvar%table_idx)
+    call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
+  endif
+
+  auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
   ! MJ/kmol comp                  ! Pa / kmol/m^3 * 1.e-6 = MJ/kmol
   auxvar%U(wid) = auxvar%H(wid) - (cell_pressure / auxvar%den(wid) * 1.d-6)
+
+
+
+!------------------------------------------------------------------------------
+! /end of Water phase thermodynamic properties
+!------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
 ! Gas phase thermodynamic properties. Can be ideal gas default or PVTG table
 !------------------------------------------------------------------------------
 
-  call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid), &
-                           auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  if (getDerivs) then
+    call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid),dx_dt,dx_dpres, &
+                                     auxvar%H(gid),dh_dt,dh_dpres,auxvar%U(gid),&
+                                     du_dt,&
+                                     du_dpres,ierr,auxvar%table_idx)
+
+    ! pressure derivatives - den, h and u are functions of gas pressure and temp here
+    auxvar%D_den(gid,:) = auxvar%D_pres(gid,:) * dx_dpres
+    auxvar%D_den(gid,dof_temp) = auxvar%D_den(gid,dof_temp) + dx_dt
+
+    auxvar%D_u(gid,:) = auxvar%D_pres(gid,:) * du_dpres
+    auxvar%D_u(gid,dof_temp) = auxvar%D_u(gid,dof_temp) + du_dt
+
+    auxvar%D_h(gid,:) = auxvar%D_pres(gid,:) * dh_dpres
+    auxvar%D_h(gid,dof_temp) = auxvar%D_h(gid,dof_temp) + dh_dt
+
+
+    auxvar%D_den_kg(gid,:) = auxvar%D_den(gid,:) * EOSGasGetFMW()
+    ! scaling:
+    auxvar%D_H(gid,:) = auxvar%D_H(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(gid,:) = auxvar%D_U(gid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+
+  else
+    call EOSGasDensityEnergy(t,auxvar%pres(gid),auxvar%den(gid), &
+                             auxvar%H(gid),auxvar%U(gid),ierr,auxvar%table_idx)
+  endif
 
   auxvar%den_kg(gid) = auxvar%den(gid) * EOSGasGetFMW()
 
   auxvar%H(gid) = auxvar%H(gid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(gid) = auxvar%U(gid) * 1.d-6 ! J/kmol -> MJ/kmol
 
+
+!------------------------------------------------------------------------------
+! /end of Gas phase thermodynamic properties. 
+!------------------------------------------------------------------------------
+
 !------------------------------------------------------------------------------
 ! Solvent phase thermodynamic properties. Can be ideal gas default or PVTS table
 !------------------------------------------------------------------------------
 
-  call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
-                           auxvar%den(sid),auxvar%H(sid),auxvar%U(sid),ierr,&
-                           auxvar%table_idx)
+  if (getDerivs) then
+
+    call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
+                             auxvar%den(sid),dx_dt,dx_dpres,auxvar%H(sid),dh_dt,dh_dpres&
+                             ,auxvar%U(sid),du_dt,du_dpres,ierr,&
+                             auxvar%table_idx)
+
+    ! pressure derivatives - den, h and u are functions of gas pressure and temp here
+    auxvar%D_den(sid,:) = auxvar%D_pres(sid,:) * dx_dpres
+    auxvar%D_den(sid,dof_temp) = auxvar%D_den(sid,dof_temp) + dx_dt
+
+    auxvar%D_u(sid,:) = auxvar%D_pres(sid,:) * du_dpres
+    auxvar%D_u(sid,dof_temp) = auxvar%D_u(sid,dof_temp) + du_dt
+
+    auxvar%D_h(sid,:) = auxvar%D_pres(sid,:) * dh_dpres
+    auxvar%D_h(sid,dof_temp) = auxvar%D_h(sid,dof_temp) + dh_dt
+
+    auxvar%D_den_kg(sid,:) = auxvar%D_den(sid,:) * EOSSlvGetFMW()
+    ! scaling:
+    auxvar%D_H(sid,:) = auxvar%D_H(sid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(sid,:) = auxvar%D_U(sid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  else
+    call EOSSlvDensityEnergy(t,auxvar%pres(sid), &
+                             auxvar%den(sid),auxvar%H(sid),auxvar%U(sid),ierr,&
+                             auxvar%table_idx)
+
+  endif
 
   auxvar%den_kg(sid) = auxvar%den(sid) * EOSSlvGetFMW()
 
   auxvar%H(sid) = auxvar%H(sid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(sid) = auxvar%U(sid) * 1.d-6 ! J/kmol -> MJ/kmol
+
+
+!------------------------------------------------------------------------------
+! /end of Solvent phase thermodynamic properties.
+!------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
 ! Oil phase thermodynamic properties from PVCO
@@ -1803,18 +2126,74 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! because it is an optional argument (needed only if table lookup)
 !------------------------------------------------------------------------------
 
-  call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
-! Density and compressibility look-up at bubble point
-  call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
-  call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+  if (getDerivs) then
+   call EOSOilDensityEnergy(auxvar%temp,po,deno, &
+                            auxvar%D_den(oid,dof_temp),auxvar%D_den(oid,dof_op), &
+                            ho,auxvar%D_H(oid,dof_temp),auxvar%D_H(oid,dof_op), &
+                            uo,auxvar%D_U(oid,dof_temp),auxvar%D_U(oid,dof_op), &
+                            ierr,auxvar%table_idx)
+
+   ! Density and compressibility look-up at bubble point
+   call EOSOilDensity(auxvar%temp,pb,deno,auxvar%D_den(oid,dof_temp),ddeno_dpb,ierr,auxvar%table_idx)
+   call EOSOilCompressibility(auxvar%temp,pb,cr,dcr_dt,dcr_dpb,ierr,auxvar%table_idx)
+
+   if (isSat) then
+     ! pb is pressure:
+     auxvar%D_den(oid,dof_op) = ddeno_dpb
+   else
+     ! pb is a solution variable:
+     auxvar%D_den(oid,dof_gsat) = ddeno_dpb
+   endif
+
+ else
+   call EOSOilDensityEnergy  (auxvar%temp,po,deno,ho,uo,ierr,auxvar%table_idx)
+   ! Density and compressibility look-up at bubble point
+   call EOSOilDensity        (auxvar%temp,pb,deno      ,ierr,auxvar%table_idx)
+   call EOSOilCompressibility(auxvar%temp,pb,cr        ,ierr,auxvar%table_idx)
+ endif
 
 !  Correct for undersaturation: correction not yet available for energy
-
+! --------- Correct for undersaturation ---------------------------------------
   crusp=cr*(po-pb)
+
+
+  if (getDerivs) then
+    ! differentiate the correction for undersaturation (see below)
+    ! NOTE: might have to adjust this when corrections are introduced for energy
+    if (isSat) then
+      ! leave density derivs w.r.t. pres, temp, and bubble point as set above since the correction
+      ! is zero.
+    else
+      dcrusp_dpo =  cr !  +  dcr_dpo*(po-pb) but we know dcr_dpo is zero
+      dcrusp_dpb = dcr_dpb*(po-pb) - cr
+      dcrusp_dt =  dcr_dt*(po-pb)
+
+      cor = 1 + crusp + 0.5*crusp*crusp
+      ! dcor/dx = dcrusp/dx + crusp*dcrusp/dx  = (1 + crusp)*dcrusp/dx
+      ! so
+      one_p_crusp = 1.d0 + crusp
+      dcor_dpo = one_p_crusp*dcrusp_dpo
+      dcor_dpb = one_p_crusp*dcrusp_dpb
+      dcor_dt = one_p_crusp*dcrusp_dt
+
+      auxvar%D_den(oid,dof_op) = deno*dcor_dpo ! +  ddeno_dpo*cor but we know ddeno_dpo is zero
+      auxvar%D_den(oid,dof_gsat) = auxvar%D_den(oid,dof_gsat)*cor + deno*dcor_dpb
+      auxvar%D_den(oid,dof_temp) = auxvar%D_den(oid,dof_temp)*cor + deno*dcor_dt
+    endif
+
+  endif
+
+  !crusp=cr*(po-pb) ! moved above
   deno=deno*(1.0+crusp*(1.0+0.5*crusp))
   auxvar%den(oid)=deno
   auxvar%H  (oid)=ho
   auxvar%U  (oid)=uo
+! --------- /Correct for undersaturation --------------------------------------
+
+
+!------------------------------------------------------------------------------
+! /end of Oil phase thermodynamic properties from PVCO
+!------------------------------------------------------------------------------
 
 !------------------------------------------------------------------------------
 ! Correct oil phase molar density and enthalpy for oil composition
@@ -1824,15 +2203,40 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 ! Note xo=1/(1+Rsmolar) so cannot be zero for finite looked up Rsmolar
 !------------------------------------------------------------------------------
 
+!--------------oil molar density correction------------------------------------
+  if (getDerivs) then
+    auxvar%D_den(oid,:) = DivRule(auxvar%den(oid),auxvar%D_den(oid,:), &
+                                  auxvar%bo%xo,auxvar%bo%D_xo,option%nflowdof)
+  endif
   auxvar%den(oid)=auxvar%den(oid)/auxvar%bo%xo
+
+!--------------/oil molar density correction-----------------------------------
+
 
 ! Get oil mass density as (mixture oil molar density).(mixture oil molecular weight)
 
+!--------------oil mass density ------------------------------------------------
+  if (getDerivs) then
+    worker = auxvar%bo%xo*EOSOilGetFMW()     &
+           + auxvar%bo%xg*EOSGasGetFMW()
+    D_worker = auxvar%bo%D_xo*EOSOilGetFMW() &
+             + auxvar%bo%D_xg*EOSGasGetFMW()
+    auxvar%D_den_kg(oid,:) = ProdRule(auxvar%den(oid),auxvar%D_den(oid,:), &
+                                      worker,D_worker,option%nflowdof)
+  endif
   auxvar%den_kg(oid) = auxvar%den(oid) * ( auxvar%bo%xo*EOSOilGetFMW() &
                                           +auxvar%bo%xg*EOSGasGetFMW() )
+!--------------/oil mass density -----------------------------------------------
 
+!--------------H and U scaling -------------------------------------------------
+  if (getDerivs) then
+    auxvar%D_H(oid,:) = auxvar%D_H(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+    auxvar%D_U(oid,:) = auxvar%D_U(oid,:) * 1.d-6 ! J/kmol -> MJ/kmol
+  endif
   auxvar%H(oid) = auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   auxvar%U(oid) = auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
+!--------------/H and U scaling ------------------------------------------------
+
 
 !------------------------------------------------------------------------------
 ! Get oil enthalpy/oil mole in oil phase.
@@ -1841,8 +2245,23 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 !                                               +xg*(gas enthalpy/gas mole)
 !------------------------------------------------------------------------------
 
+!--------------H and U correction ---------------------------------------------
+  if (getDerivs) then
+    auxvar%D_H(oid,:)   = ProdRule(auxvar%bo%xo,auxvar%bo%D_xo,        &
+                                 auxvar%H(oid),auxvar%D_H(oid,:),ndof) &
+                        +  ProdRule(auxvar%bo%xg,auxvar%bo%D_xg,       &
+                                 auxvar%H(gid),auxvar%D_H(gid,:),ndof) 
+
+    auxvar%D_U(oid,:)   = ProdRule(auxvar%bo%xo,auxvar%bo%D_xo,        &
+                                 auxvar%U(oid),auxvar%D_U(oid,:),ndof) &
+                        +  ProdRule(auxvar%bo%xg,auxvar%bo%D_xg,       &
+                                 auxvar%U(gid),auxvar%D_U(gid,:),ndof) 
+    
+
+  endif
   auxvar%H(oid) = auxvar%bo%xo*auxvar%H(oid)+auxvar%bo%xg*auxvar%H(gid)
   auxvar%U(oid) = auxvar%bo%xo*auxvar%U(oid)+auxvar%bo%xg*auxvar%U(gid)
+!--------------/H and U correction --------------------------------------------
 
 !===============================================================================
 ! Fluid mobility calculation
@@ -1855,12 +2274,35 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%wat_rel_perm_func_owg% &
                 RelativePermeability(sw,krw,dkrw_satw,option,auxvar%table_idx)
 
-  call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+  if (getDerivs) then
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,dps_dt,ierr)
 
-! use cell_pressure; cell_pressure - psat calculated internally
-  call EOSWaterViscosity(t,cell_pressure,wat_sat_pres,visw,ierr)
+    call EOSWaterViscosity(auxvar%temp, cell_pressure, &
+                           wat_sat_pres, dps_dt, visw, &
+                           dx_dt,  dx_dcell_pres, ierr, auxvar%table_idx)
+
+    ! pressure deriv (dvw_dp) is a a cell pressure derivative:
+    D_visc = 0.d0
+    D_visc = dx_dcell_pres * D_cell_pres
+    D_visc(dof_temp) = D_visc(dof_temp) + dx_dt
+
+  else
+    call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
+
+    ! use cell_pressure; cell_pressure - psat calculated internally
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr, &
+                                                             auxvar%table_idx)
+  endif
 
   auxvar%mobility(wid) = krw/visw
+  if (getDerivs) then
+    D_kr = 0.d0
+    D_kr(dof_osat) = -dkrw_satw
+    if (isSat) D_kr(dof_gsat) = -dkrw_satw
+    D_kr(dof_ssat) = -dkrw_satw
+
+    auxvar%D_mobility(wid,:) = DivRule(krw,D_kr,visw,D_visc,ndof)
+  endif
 
 !-------------------------------------------------------------------------------
 !  Hydrocarbon mobilities
@@ -1871,7 +2313,26 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   call characteristic_curves%GetOWGCriticalAndConnateSats(swcr,sgcr,dummy, &
                       sowcr,sogcr,swco,option)
 
-  call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap)
+  call TL4PScaleCriticals(sgcr,sogcr,fm,so,sv,uoil,uvap, &
+                          getDerivs,ndof,dof_osat,dof_gsat,dof_ssat,&
+                          D_fm,D_uoil,D_uvap)
+
+  if (.not. isSat) then
+    D_uoil(dof_gsat) = 0.d0
+    D_uvap(dof_gsat) = 0.d0
+  endif
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%uoil = uoil
+      auxvar%tlT%uvap = uvap
+
+      auxvar%tlT%D_uoil = D_uoil
+      auxvar%tlT%D_uvap = D_uvap
+    endif
+  endif
+
 
 !-------------------------------------------------------------------------------
 ! Oil mobility (rel. perm / viscosity)
@@ -1887,16 +2348,63 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 ! Get Krog(Uo) directly from the krow member function of kro
   call characteristic_curves%oil_rel_perm_func_owg% &
-              RelPermOG(uoil,krog,dkro_sato,option,auxvar%table_idx)
+              RelPermOG(uoil,krog,dkrog_uoil,option,auxvar%table_idx)
+
+!--Some simple intermediate derivs:-------------------------------------------
+  D_krog = D_uoil*dkrog_uoil
+  D_krow = 0.d0
+  D_krow(dof_osat) = dkro_sato
+
+  D_sv = 0.d0
+  D_sv(dof_ssat) = 1.d0
+  if (isSat) D_sv(dof_gsat) = 1.d0
+
+  D_sw = 0.d0
+  D_sw(dof_ssat) = -1.d0
+  D_sw(dof_osat) = -1.d0
+  if (isSat) D_sw(dof_gsat) = -1.d0
+!--/Some simple intermediate derivs:------------------------------------------
+
 
 ! Form the Eclipse three-phase Kro expression
 
+
+!--kroi and derivs:----------------------------------------------------------
   den=sv+sw-swco
   if( den>0.0 ) then
     kroi=(sv*krog+(sw-swco)*krow)/den
   else
     kroi=0.5*(krog+krow)
   endif
+  
+  if (getDerivs) then
+    if (den>0.0) then
+      num=(sv*krog+(sw-swco)*krow)
+      D_num = ProdRule(sv,D_sv,krog,D_krog,ndof)     &
+            + ProdRule(sw-swco,D_sw,krow,D_krow,ndof)
+      D_den = 0.d0
+      D_den(dof_osat) = -1.d0
+      D_kroi = DivRule(num,D_num,den,D_den,ndof)
+    else
+      D_kroi = 0.5*(D_krog+D_krow)
+    endif
+  endif
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%kroi = kroi
+      auxvar%tlT%D_kroi = D_kroi
+
+      auxvar%tlT%krog = krog
+      auxvar%tlT%D_krog = D_krog
+
+      auxvar%tlT%krow = krow
+      auxvar%tlT%D_krow = D_krow
+    endif
+  endif
+!--/kroi and derivs:---------------------------------------------------------
+
 
 !--Miscible lookup (Krow at Sh=So+Sg+Ss)
   call characteristic_curves%oil_rel_perm_func_owg% &
@@ -1909,23 +2417,91 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   socrs=fi*sogcr
   svcrs=fi*sgcr
 
+!--sh and krh derivs:---------------------------------------------------------
+  if (getDerivs) then
+    D_sh(:) = auxvar%D_sat(dof_osat,:) + auxvar%D_sat(dof_gsat,:) + auxvar%D_sat(dof_ssat,:)
+    D_krh = dkrh_sath*D_sh
+  endif
+!--/sh and krh derivs:--------------------------------------------------------
+
+!--krom and derivs:----------------------------------------------------------
 ! For non-zero Krom, must have So and Sh > Socrs
-  if( (sh .gt. (socrs+epss)) .and. (so .ge. socrs) ) then
+  if( (sh > (socrs+epss)) .and. (so >= socrs) ) then
     krom=krh*(so-socrs)/(sh-socrs)
   else
     krom=0.0
   endif
 
+ ! recall sh = so + sg + ss
+  if (getDerivs) then
+    D_krom = 0.d0
+    if( (sh > (socrs+epss)) .and. (so >= socrs) ) then
+      num = krh*(so-socrs)
+      worker = so-socrs
+      ! D_socrs = sogcr*D_fi = -sogcr*D_fm so:
+      D_worker = sogcr*D_fm + auxvar%D_sat(dof_osat,:)
+
+      D_num = ProdRule(krh,D_krh,worker,D_worker,ndof)
+
+      den = sh - socrs
+      D_den = D_sh + sogcr*D_fm
+
+      D_krom = DivRule(num,D_num,den,D_den,ndof)
+
+    else
+      D_krom = 0.d0
+    endif
+  endif
+
+ ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krom = krom
+      auxvar%tlT%D_krom = D_krom
+   endif
+  endif
+!--/krom and derivs:---------------------------------------------------------
+
+!--krvm and derivs:----------------------------------------------------------
 ! For non-zero Krvm, must have Sv and Sh > Svcrs
-  if( (sh .gt. (svcrs+epss)) .and. (sv .ge. svcrs) ) then
+  if( (sh > (svcrs+epss)) .and. (sv >= svcrs) ) then
     krvm=krh*(sv-svcrs)/(sh-svcrs)
   else
     krvm=0.0
   endif
 
+  if (getDerivs) then
+    D_krvm = 0.d0
+    if((sh > (svcrs+epss)) .and. (sv >= svcrs)) then
+      num = krh*(sv-svcrs)
+      den = sh-svcrs
+      worker = sv-svcrs
+      ! D_svcrs = sgcr*D_fi = -sgcr*D_fm so:
+      D_worker = sgcr*D_fm + D_sv
+      D_num= ProdRule(krh,D_krh,worker,D_worker,ndof)
+
+      deno= sh - svcrs
+      D_den= D_sh + sgcr*D_fm
+
+      D_krvm = DivRule(num,D_num,den,D_den,ndof)
+    else
+      D_krvm = 0.d0
+    endif
+  endif
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krvm = krvm
+      auxvar%tlT%D_krvm = D_krvm
+    endif
+  endif
+!--/krvm and derivs----------------------------------------------------------
+
+
 ! Now split vapour Krvm into Krgm and Krsm pro rata saturations
 
-  if( sv .gt. 0.0 ) then
+!--krgm, krsm and derivs:----------------------------------------------------
+  if( sv > 0.0 ) then
     krgm=krvm*sg/sv
     krsm=krvm*ss/sv
   else
@@ -1933,17 +2509,99 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     krsm=0.0
   endif
 
+   if (getDerivs) then
+    D_krgm = 0.d0
+    D_krsm = 0.d0
+    if( sv > 0.0) then
+
+      num = krvm*sg;
+      ! prod rule but we know there's only one nonzero deriv of sg so:
+      D_num= D_krvm*sg
+      if (isSat) D_num(dof_gsat) = D_num(dof_gsat) + krvm
+      D_krgm = DivRule(num,D_num,sv,D_sv,ndof)
+
+      num= krvm*ss;
+      ! prod rule but we know there's only one nonzero deriv of ss so:
+      D_num = D_krvm*ss; D_num(dof_ssat) = D_num(dof_ssat) + krvm
+      ! worker and D_worker unchanged
+      D_krsm = DivRule(num,D_num,sv,D_sv,ndof)
+    endif
+  endif
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krgm = krgm
+      auxvar%tlT%D_krgm = D_krgm
+
+      auxvar%tlT%krsm = krsm
+      auxvar%tlT%D_krsm = D_krsm
+    endif
+  endif
+!--/krgm, krsm and derivs---------------------------------------------------
+
+
 !--Oil viscosities--------------------------------------------------------------*/
 
 !--If PVCO defined in EOS OIL, the viscosities are extracted via table lookup--
 
-! Viscosity and viscosibility look-up at bubble point
-  call EOSOilViscosity    (auxvar%temp,pb, &
-                           auxvar%den(oid), viso, ierr,auxvar%table_idx)
-  call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+  ! Viscosity and viscosibility look-up at bubble point
+  if (getDerivs) then
+    call EOSOilViscosity(auxvar%temp,pb,auxvar%den(oid),viso,dvo_dt,dvo_dpb,ierr,auxvar%table_idx)
+    call EOSOilViscosibility(auxvar%temp,pb,cvisc,dcvisc_dt,dcvisc_dpb,ierr, &
+                             auxvar%table_idx)
+  else
+    call EOSOilViscosity    (auxvar%temp,pb, &
+                             auxvar%den(oid), viso, ierr,auxvar%table_idx)
+    call EOSOilViscosibility(auxvar%temp,pb,cvisc,ierr,auxvar%table_idx)
+  endif
 
+
+!----------Correct oil viscosity-----------------------------------------------
   cvusp=cvisc*(po-pb)
+
+  if (getDerivs) then
+    ! get derivatives of corrected viso
+
+    ! if saturated:
+      ! 1) cvusp = 0; cor = 1 constants
+      ! 2) pb is really oil pressure so pb derivs equal to po derivs
+    if (.NOT. isSat) then
+      ! 1) cvusp, cor now vary
+      ! 2) pb derivs diferent from po derivs
+      ! 3) have to apply corrector visc = cor*visc, so apply corresponding correctors
+      !    to derivs too
+
+      dcvusp_dpo = cvisc ! cvisc is independent of po here
+      dcvusp_dpb = dcvisc_dpb*(po-pb) - cvisc
+      dcvusp_dt = dcvisc_dt*(po-pb)
+
+      cor = (1.0+cvusp*(1.0+0.5*cvusp))
+      ! dcor/dx = dcvusp/dx + cvusp*dcvusp so:
+      one_p_cvusp = 1.d0 + cvusp
+      dcor_dpo = dcvusp_dpo*one_p_cvusp
+      dcor_dpb = dcvusp_dpb*one_p_cvusp
+      dcor_dt = dcvusp_dt*one_p_cvusp
+
+      dvo_dp = viso*dcor_dpo ! viso is independent of po here
+      dvo_dpb = viso*dcor_dpb + dvo_dpb*cor
+      dvo_dt = viso*dcor_dt + dvo_dt*cor
+
+    endif
+    D_viso = 0.d0
+    if (isSat) then
+      D_viso(dof_op) = dvo_dpb
+    else
+      D_viso(dof_op) = dvo_dp
+      D_viso(dof_gsat) = dvo_dpb
+    endif
+    ! no ssat deriv
+    D_viso(dof_temp) = dvo_dt
+
+  endif
+
+  !cvusp=cvisc*(po-pb) !!! moved above
   viso=viso*(1.0+cvusp*(1.0+0.5*cvusp))
+!----------/Correct oil viscosity-----------------------------------------------
 
 !-------------------------------------------------------------------------------
 !  Vapour (gas and solvent) mobilities (rel. perm / viscosity)
@@ -1955,6 +2613,7 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 !  Obtain all the immiscible limit rel. perms. from Krvi
 
+!-0=-krgi, krsi, and derivs:-----------------------------------------------------
   if( sv>0.0 ) then
     krgi=sg*krvi/sv
     krsi=ss*krvi/sv
@@ -1963,31 +2622,167 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     krsi=0.0
   endif
 
-!--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
+    if (getDerivs) then
+    ! existence of dkrv_satv implies:
+    ! dkrvi_sg = dkrv_satv
+    ! dkrvi_ss = dkrv_satv
+    ! b/c sv = ss + sg
+    D_krgi = 0.d0
+    D_krsi = 0.d0
+    if( sv>0.0 ) then
+      ! (would also be straightforward to replace this with a proddivrule() call)
+      if (isSat) D_krgi(dof_gsat) = sg*dkrv_satv/sv + ss*krvi/sv/sv
+      D_krgi(dof_ssat) =            sg*dkrv_satv/sv - sg*krvi/sv/sv
 
-  call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
-                       auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
-                       auxvar%table_idx)
+      ! (would also be straightforward to replace this with a proddivrule() call)
+      if (isSat) D_krsi(dof_gsat) = ss*dkrv_satv/sv - ss*krvi/sv/sv
+      D_krsi(dof_ssat) =            ss*dkrv_satv/sv + sg*krvi/sv/sv
+    else
+      ! nothing, or maybe constant slope?
+    endif
+  endif
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krgi = krgi
+      auxvar%tlT%D_krgi = D_krgi
+
+      auxvar%tlT%krsi = krsi
+      auxvar%tlT%D_krsi = D_krsi
+    endif
+  endif
+!--/krgi, krsi, and derivs:-----------------------------------------------------
+
+!--If PVDG defined in EOS GAS, the viscosities are extracted via table lookup--
+  if (getDerivs) then
+      D_visg = 0.d0
+      call  EOSGasViscosity(auxvar%temp,auxvar%pres(gid),auxvar%pres(gid),&
+                            auxvar%den(gid), &
+                            auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_temp), auxvar%D_den(gid,dof_op), &
+                            0.d0,1.d0, &                      ! dPcomp_dT, dPcomp_dPgas
+                            visg, dx_dt, dummy, dx_dcell_pres, ierr, &
+                            auxvar%table_idx)
+
+    ! pressure deriv is a a gas pressure derivative:
+    D_visg = dx_dcell_pres * auxvar%D_pres(gid,:)
+    D_visg(dof_temp) = D_visg(dof_temp) + dx_dt
+
+  else
+    call EOSGasViscosity(auxvar%temp,auxvar%pres(gid), &
+                         auxvar%pres(gid),auxvar%den(gid),visg,ierr,&
+                         auxvar%table_idx)
+  endif
 
 !--If PVDS defined in EOS SLV, the viscosities are extracted via table lookup--
 
-  call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
-                       viss,ierr,&
-                       auxvar%table_idx)
+  if (getDerivs) then
+    call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
+                         viss,dx_dt,dx_dcell_pres,ierr,&
+                         auxvar%table_idx)
+
+    ! pressure deriv is a a solvent pressure derivative:
+    !D_viss = dx_dcell_pres * D_cell_pres
+    D_viss = dx_dcell_pres * auxvar%D_pres(sid,:)
+    D_viss(dof_temp) = D_viss(dof_temp) + dx_dt
+  else
+    call EOSSlvViscosity(auxvar%temp,auxvar%pres(sid), &
+                         viss,ierr,&
+                         auxvar%table_idx)
+  endif
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%viso = viso
+      auxvar%tlT%visg = visg
+      auxvar%tlT%viss = viss
+
+      auxvar%tlT%D_viso = D_viso
+      auxvar%tlT%D_visg = D_visg
+      auxvar%tlT%D_visS = D_viss
+    endif
+  endif
 
 !-------------------------------------------------------------------------------
 !  Form the Todd-Longstaff rel perms
 !-------------------------------------------------------------------------------
 
-  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm, &
-                                   swcr,sgcr,sowcr,sogcr,swco, &
-                                   kroi,krgi,krsi, &
-                                   krom,krgm,krsm, &
-                                   kro ,krg ,krs  )
+  call TL4PRelativePermeabilities( so,sg,sw,ss,sv,sh,fm,      &
+                                 swcr,sgcr,sowcr,sogcr,swco,  &
+                                 kroi,krgi,krsi,              &
+                                 krom,krgm,krsm,              &
+                                 kro ,krg ,krs,               &
+                                 getDerivs,ndof,              &
+                                 D_fm,                        & ! fm derivs (in)
+                                 D_kroi,D_krgi,D_krsi,        & ! imiscible k derivs (in)
+                                 D_krom,D_krgm,D_krsm,        & ! miskible k derivs  (in)
+                                 D_kro ,D_krg ,D_krs   )        ! true k derivs     (out)
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%krotl = kro
+      auxvar%tlT%krgtl = krg
+      auxvar%tlT%krstl = krs
+      auxvar%tlT%D_krotl = D_kro
+      auxvar%tlT%D_krgtl = D_krg
+      auxvar%tlT%D_krstl = D_krs
+    endif
+  endif
 
 !--Form the Todd-Longstaff viscosities-----------------------------------------
 
-  call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl)
+  if (getDerivs) then
+    ! can cause problems if we pass in these
+    ! auxvar members directly if they are not allocated
+    ! (i.e. when running numerical) and in parallel, crashes
+    ! some tl np2 regtests.
+    ! (alternative: optional arguments)
+    D_so = auxvar%D_sat(oid,:)
+    D_sg = auxvar%D_sat(gid,:)
+    D_ss = auxvar%D_sat(sid,:)
+  else
+    ! they shouldn't be used in this case but for robustness:
+    D_so = 0.d0
+    D_sg = 0.d0
+    D_ss = 0.d0
+  endif
+
+  call TL4PViscosity(so,sg,ss,viso,visg,viss,visotl,visgtl,visstl, &
+                     getDerivs,ndof,                               &
+                     D_so,D_sg,D_ss,                               & 
+                     dof_osat,dof_gsat,dof_ssat,                   &
+                     D_viso,D_visg,D_viss,                         & ! visc derivs in
+                     D_visotl,D_visgtl,D_visstl,                   & ! tl visc derivs out
+                     isSat,                                        &
+                     denos,D_denos,dengs,D_dengs,denogs,D_denogs,  &
+                     denos_pre,D_denos_pre)
+
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%viscotl = visotl
+      auxvar%tlT%viscgtl = visgtl
+      auxvar%tlT%viscstl = visstl
+
+      auxvar%tlT%denos = denos
+      auxvar%tlT%dengs = dengs
+      auxvar%tlt%denogs = denogs
+
+      auxvar%tlT%denos_pre = denos_pre
+      auxvar%tlT%D_denos_pre = D_denos_pre
+
+      auxvar%tlT%D_viscotl = D_visotl
+      auxvar%tlT%D_viscgtl = D_visgtl
+      auxvar%tlT%D_viscstl = D_visstl
+
+      auxvar%tlT%D_denos = D_denos
+      auxvar%tlT%D_dengs = D_dengs
+      auxvar%tlT%D_denogs = D_denogs
+    endif
+  endif
 
 !--Form the Todd-Longstaff densities (for Darcy flow only)---------------------
 
@@ -1995,17 +2790,85 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   deng=auxvar%den_kg(gid)
   dens=auxvar%den_kg(sid)
 
-  call TL4PDensity( so,sg,ss,                            &
-                    viso,visg,viss,visotl,visgtl,visstl, &
-                    deno,deng,dens,denotl,dengtl,denstl )
+  if (getDerivs) then
+    ! can cause problems if we pass in these
+    ! auxvar members directly if they are not allocated
+    ! (i.e. when running numerical) and in parallel, crashes
+    ! some tl np2 regtests
+    ! (alternative: optional arguments)
+    D_deno = auxvar%D_den_kg(oid,:)
+    D_deng = auxvar%D_den_kg(gid,:)
+    D_dens = auxvar%D_den_kg(sid,:)
+  else
+    ! they shouldn't be used in this case but might as well
+    D_deno = 0.d0
+    D_deng = 0.d0
+    D_dens = 0.d0
+  endif
+
+  call TL4PDensity( so,sg,ss,                             &
+                    viso,visg,viss,visotl,visgtl,visstl,  &
+                    deno,deng,dens,denotl,dengtl,denstl , &
+                    getDerivs, ndof ,                     &
+                    D_so,D_sg,D_ss,                       &
+                    dof_osat,dof_gsat,dof_ssat,           &
+                    D_deno,D_deng,D_dens,                 &
+                    D_viso,D_visg,D_viss,                 &
+                    D_visotl,D_visgtl,D_visstl,           &
+                    D_denotl,D_dengtl,D_denstl,           &
+                    isSat,                                &
+                    denog,D_denog)
+
+  ! store variables if debugging mode wants to:
+  if (getDerivs) then
+    if (auxvar%has_TL_test_object) then
+      auxvar%tlT%denotl = denotl
+      auxvar%tlT%dengtl = dengtl
+      auxvar%tlT%denstl = denstl
+
+      auxvar%tlT%denog = denog
+      auxvar%tlT%D_denog = D_denog
+
+      auxvar%tlT%D_denotl = D_denotl
+      auxvar%tlT%D_dengtl = D_dengtl
+      auxvar%tlT%D_denstl = D_denstl
+    endif
+  endif
 
 !------------------------------------------------------------------------------
 !  Make and load mobilities
 !------------------------------------------------------------------------------
 
-  auxvar%mobility(oid) = kro/visotl
-  auxvar%mobility(gid) = krg/visgtl
-  auxvar%mobility(sid) = krs/visstl
+
+  if (getDerivs) then
+    auxvar%D_mobility(oid,:) = DivRule(kro,D_kro,visotl,D_visotl,ndof)
+    auxvar%D_mobility(gid,:) = DivRule(krg,D_krg,visgtl,D_visgtl,ndof)
+    auxvar%D_mobility(sid,:) = DivRule(krs,D_krs,visstl,D_visstl,ndof)
+  endif
+
+  if (mobSanityCheck) then
+    if (kro > 0.0) auxvar%mobility(oid) = kro/visotl
+    if (krg > 0.0) auxvar%mobility(gid) = krg/visgtl
+    if (krs > 0.0) auxvar%mobility(sid) = krs/visstl
+  else
+    auxvar%mobility(oid) = kro/visotl
+    auxvar%mobility(gid) = krg/visgtl
+    auxvar%mobility(sid) = krs/visstl
+  endif
+
+#if 0
+!!! we may wish to have a robust optional error check for things like these, it can
+!!! happen surprisingly often if saturations become marginal
+  if (isnan(auxvar%mobility(oid))) then
+    print *, "nan mob oil"
+  endif
+  if (isnan(auxvar%mobility(gid))) then
+    print *, "nan mob gas"
+  endif
+  if (isnan(auxvar%mobility(sid))) then
+    print *, "nan mob slv"
+  endif
+#endif
 
 !------------------------------------------------------------------------------
 !  Load densities
@@ -2014,6 +2877,12 @@ subroutine TL4PAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   auxvar%den_kg(oid)=denotl
   auxvar%den_kg(gid)=dengtl
   auxvar%den_kg(sid)=denstl
+
+  if (getDerivs) then
+    auxvar%D_den_kg(oid,:)=D_denotl
+    auxvar%D_den_kg(gid,:)=D_dengtl
+    auxvar%D_den_kg(sid,:)=D_denstl
+  endif
 
 end subroutine TL4PAuxVarCompute
 
@@ -2087,7 +2956,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       option%io_buffer = 'towg tl auxvars: towg_analytical_derivatives is true, &
                           but auxvar%has_derivs is false, should both be true. &
                           How did this happen?'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     auxvar%D_pres = 0.d0
@@ -2238,7 +3107,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
                       auxvar%den_kg(wid),auxvar%den(wid), &
                       d_x_d_cp, &
-                      d_x_d_T, ierr)
+                      d_x_d_T, ierr,auxvar%table_idx)
 
     ! den = den( cell_pressure, temp)
     ! chain rule for cell pressure part:
@@ -2272,7 +3141,7 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   else
     call EOSWaterDensity(auxvar%temp,cell_pressure, &
-                         auxvar%den_kg(wid),auxvar%den(wid),ierr)
+                     auxvar%den_kg(wid),auxvar%den(wid),ierr,auxvar%table_idx)
     call EOSWaterEnthalpy(auxvar%temp,cell_pressure,auxvar%H(wid),ierr)
   endif
   auxvar%H(wid) = auxvar%H(wid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -2357,13 +3226,15 @@ subroutine TOWGTLAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (getDerivs) then
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,d_ps_d_T,ierr)
     ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,d_ps_d_T,visw,d_x_d_T,d_x_d_cp,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,d_ps_d_T, & 
+                           visw,d_x_d_T,d_x_d_cp,ierr,auxvar%table_idx)
     D_visc = d_x_d_T*D_cell_pres
     D_visc(dof_temp) = D_visc(dof_temp) + d_x_d_T
   else
     call EOSWaterSaturationPressure(auxvar%temp, wat_sat_pres,ierr)
     ! use cell_pressure; cell_pressure - psat calculated internally
-    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw,ierr)
+    call EOSWaterViscosity(auxvar%temp,cell_pressure,wat_sat_pres,visw, &
+                           ierr,auxvar%table_idx)
   endif
 
   auxvar%mobility(wid) = krw/visw
@@ -2567,7 +3438,7 @@ subroutine vToddLongstaff( oid,gid,krh,visco,viscg,deno,deng,auxvar   &
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_denotl).AND.present(D_dengtl)                    )) then
       option%io_buffer = 'vToddLongstaff(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
           
 
@@ -2674,13 +3545,12 @@ subroutine vToddLongstaffViscosity(fo,fg,so,sg,visco,viscg,viscotl,viscgtl &
   PetscReal,dimension(1:ndof)  :: D_viscqpo,D_viscqpg,D_wviscqp,D_denom,D_viscm
   PetscReal,dimension(1:ndof)  :: D_viscoimw,D_viscgimw,D_viscmw,D_numerator
 
-  !!! TODO - input error check
   if (getDerivs .AND. &
       .NOT.(present(D_fo).AND.present(D_fg).AND.present(D_visco).AND.present(D_viscg).AND.&
             present(D_viscotl).AND.present(D_viscgtl)                   )) then
       option%io_buffer = 'vToddLongstaffViscosity(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
@@ -2807,14 +3677,13 @@ subroutine vToddLongstaffDensity( fo,fg,visco,viscg,viscotl,viscgtl &
   PetscReal,dimension(1:ndof) :: D_m,D_mqp,D_mooeqp,D_mogeqp,D_mooe,D_moge
   PetscReal,dimension(1:ndof) :: D_fo_oe,D_fo_ge,D_denm,P1,P2
 
-  !!! TODO - input error check
   if (getDerivs .AND. &
       .NOT.(present(D_deno).AND.present(D_deng).AND.present(D_visco).AND.present(D_viscg).AND.&
             present(D_viscotl).AND.present(D_viscgtl).AND.present(D_fo).AND.present(D_fg).AND.&
             present(D_denotl).AND.present(D_dengtl)                                            )) then
       option%io_buffer = 'vToddLongstaffDensity(): attempting to get analytical &
                           derivatives but not all optional arguments in place'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   endif
 
 !--Set up complement of omega--------------------------------------------------
@@ -3000,7 +3869,13 @@ subroutine TOWGImsTLAuxVarPerturb(auxvar,global_auxvar, &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
 
-
+#if 0
+  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
+    call NumCompare_tl3p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof)
+  endif
+#endif
   if (option%flow%numerical_derivatives_compare) then 
     call NumCompare_tl3p(option%nphase,option%nflowdof,auxvar,option,&
                             TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
@@ -3235,6 +4110,25 @@ subroutine TL4PAuxVarPerturb(auxvar,global_auxvar, &
   auxvar(TOWG_OIL_PRESSURE_DOF)%pert = &
      auxvar(TOWG_OIL_PRESSURE_DOF)%pert / towg_pressure_scale
 
+
+#if 0
+!!! no longer functional, was used for development testing
+  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%num_as_alyt_derivs) then
+    call Num_as_alyt_tl4p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
+                            isSaturated)
+  endif
+#endif
+
+  if (.NOT. option%flow%numerical_derivatives .AND. option%flow%numerical_derivatives_compare) then 
+    call NumCompare_tl4p(option%nphase,option%nflowdof,auxvar,option,&
+                            TOWG_OIL_PRESSURE_DOF,TOWG_OIL_SATURATION_DOF,&
+                            TOWG_GAS_SATURATION_3PH_DOF,towg_energy_dof, &
+                            isSaturated)
+  endif
+
+
 end subroutine TL4PAuxVarPerturb
 
 ! ************************************************************************** !
@@ -3416,7 +4310,7 @@ subroutine TOWGAuxVarArray2Strip(auxvars)
 
 end subroutine TOWGAuxVarArray2Strip
 
-subroutine TL4PMiscibilityFraction(sg,ss,fm)
+subroutine TL4PMiscibilityFraction(sg,ss,fm,dfmdsg,dfmdss)
 
 !------------------------------------------------------------------------------
 ! Set up the TL miscibility fraction
@@ -3428,17 +4322,73 @@ subroutine TL4PMiscibilityFraction(sg,ss,fm)
   implicit none
 
   PetscReal,intent(in ) :: sg,ss
-  PetscReal,intent(out) :: fm
-  PetscReal             :: svi,fs,sv,dfmdfs
+  PetscReal,intent(out) :: fm,dfmdsg,dfmdss
+  PetscReal             :: svi,fs,sv,dfmdfs,svsq,svsqi,sgi,ssi
 
   fm    =0.0
-  dfmdfs=0.0
+
+  dfmdsg=0.0
+  dfmdss=0.0
 
   sv=sg+ss
   if( sv>0.0 ) then
     svi=1.0/sv
     fs=ss*svi
+
+#if 0
+    ! to be considered - the rounding errors this avoids come up often. Note this has indeed been observed to change
+    ! the convergence behaviour of numerical and anlytical runs slightly
+    if (sg ==0.d0) fs = 1.d0
+#endif
+
+    dfmdfs=0.d0
     call TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
+
+    ! derivatives: note that the derivs of fs can be very problematic
+    ! for near 0 saturations.
+    dfmdsg = 0.0
+    dfmdss = 0.0
+    if (sg == 0.d0) then ! attempt to catch case of sg = 0, ss very small
+      ! explicitly, subbing in sg = 0, we have:
+      ! d fs / d sg = - ss / (ss+sg)^2 = -1/ss
+      ! d fs / d ss =   sg / (ss+sg)^2 =  0
+      ! so we do the following:
+      ssi = 0.0
+      if (ss > 0.0) ssi = 1.0/ss
+      dfmdsg = -dfmdfs*ssi
+
+      ! leave as default 0:
+      !dfmdss =  0.0
+    elseif (ss == 0.0) then
+      ! could happen that ss = 0 and sg very small can give similar problems, so:
+      ! d fs / d sg = - ss / (ss+sg)^2 = 0
+      ! d fs / d ss =   sg / (ss+sg)^2 = 1/sg
+      ! then:
+      !dfmdsg = 0.0
+      sgi = 0.d0
+      if (sg > 0.d0) then 
+        sgi = 1.d0/sg
+        dfmdss =  dfmdfs*sgi
+      endif
+    else ! standard trap but can still fail
+      svsq = sv*sv
+      svsqi = 1.0/svsq
+      if (svsq>0.0) then
+        dfmdsg = -dfmdfs*ss*svsqi
+        dfmdss =  dfmdfs*sg*svsqi
+      endif
+    endif
+
+#if 0
+!!! I'll leave these commented out but we may well want a nice robust error check for this at some point just in case
+    if (isnan(dfmdsg)) then
+      print *, "nan in fm computation derivs, dfmdsg"
+    endif
+    if (isnan(dfmdss)) then
+      print *, "nan in fm computation derivs, dfmdss"
+    endif
+#endif
+
   endif
 
 end subroutine TL4PMiscibilityFraction
@@ -3446,10 +4396,15 @@ end subroutine TL4PMiscibilityFraction
 ! ************************************************************************** !
 
 subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
-                                       swcr,sgcr,sowcr,sogcr,swco, &
-                                       kroi,krgi,krsi, &
-                                       krom,krgm,krsm, &
-                                       kro ,krg ,krs  )
+                                       swcr,sgcr,sowcr,sogcr,swco,         &
+                                       kroi,krgi,krsi,                     &
+                                       krom,krgm,krsm,                     &
+                                       kro ,krg ,krs,                      &
+                                       getDerivs,ndof,                     &
+                                       D_fm ,                              & ! fm derivs (in)
+                                       D_kroi,D_krgi,D_krsi,               & ! imiscible k derivs (in)
+                                       D_krom,D_krgm,D_krsm,               & ! miskible k derivs  (in)
+                                       D_kro ,D_krg ,D_krs   )               ! true k derivs     (out)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P relative permeabilities
@@ -3459,15 +4414,26 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
-  PetscReal,intent(in ) :: so  ,sg  ,sw   ,ss   ,sv  ,sh,fm 
-  PetscReal,intent(in ) :: swcr,sgcr,sowcr,sogcr,swco
-  PetscReal,intent(in ) :: kroi,krgi,krsi
-  PetscReal,intent(in ) :: krom,krgm,krsm
-  PetscReal,intent(out) :: kro ,krg ,krs
+  PetscReal,intent(in )                    :: so  ,sg  ,sw   ,ss   ,sv  ,sh,fm 
+  PetscReal,intent(in )                    :: swcr,sgcr,sowcr,sogcr,swco
+  PetscReal,intent(in )                    :: kroi,krgi,krsi
+  PetscReal,intent(in )                    :: krom,krgm,krsm
+  PetscReal,dimension(1:ndof),intent(in)   :: D_fm
+  PetscReal,dimension(1:ndof),intent(in)   :: D_kroi,D_krgi,D_krsi
+  PetscReal,dimension(1:ndof),intent(in)   :: D_krom,D_krgm,D_krsm
+
+  PetscReal,intent(out)                    :: kro ,krg ,krs
+  PetscReal,dimension(1:ndof),intent(out)  :: D_kro,D_krg,D_krs
 
   PetscReal svi,fs,fi
+
+  PetscBool :: getDerivs
+  PetscInt :: ndof
+
+
 
   kro=0.0
   krg=0.0
@@ -3481,13 +4447,34 @@ subroutine TL4PRelativePermeabilities( so  ,sg  ,sw   ,ss   ,sv  ,sh, fm , &
   krg=fm*krgm+fi*krgi
   krs=fm*krsm+fi*krsi
 
+
+  if (getDerivs) then
+
+   D_kro = ProdRule(fm,D_fm,krom,D_krom,ndof) &
+         + ProdRule(fi,-D_fm,kroi,D_kroi,ndof)   
+
+   D_krg = ProdRule(fm,D_fm,krgm,D_krgm,ndof) &
+         + ProdRule(fi,-D_fm,krgi,D_krgi,ndof)   
+
+   D_krs = ProdRule(fm,D_fm,krsm,D_krsm,ndof) &
+         + ProdRule(fi,-D_fm,krsi,D_krsi,ndof)   
+  endif
+
 end subroutine TL4PRelativePermeabilities
 
 ! ************************************************************************** !
 
-subroutine TL4PViscosity( so   ,sg   ,ss   , &
-                           visco,viscg,viscs, &
-                           viscotl,viscgtl,viscstl)
+subroutine TL4PViscosity( so   ,sg   ,ss                               , &
+                           visco,viscg,viscs                           , &
+                           viscotl,viscgtl,viscstl                     , &
+                           getDerivs,ndof                              , &
+                           D_so,D_sg,D_ss                              , &
+                           dof_osat,dof_gsat,dof_ssat                  , &
+                           D_visco,D_viscg,D_viscs                     , & ! visc derivs in
+                           D_viscotl,D_viscgtl,D_viscstl               , & ! tl visc derivs out
+                           isSat                                       , &
+                           denos,D_denos,dengs,D_dengs,denogs,D_denogs , &
+                           denos_pre,D_denos_pre)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P viscosities
@@ -3496,11 +4483,23 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
 ! Date  : Apr 2018
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
+  ! in :
   PetscReal,intent(in ) :: so     ,sg     ,ss
   PetscReal,intent(in ) :: visco  ,viscg  ,viscs
+  PetscBool,intent(in ) :: getDerivs,isSat
+  PetscInt ,intent(in ) :: ndof,dof_osat,dof_gsat,dof_ssat
+  PetscReal,dimension(1:ndof),intent(in)   :: D_visco,D_viscg,D_viscs
+  PetscReal,dimension(1:ndof),intent(in)   :: D_so,D_sg,D_ss
+
+
+  ! out:
+  PetscReal,dimension(1:ndof),intent(out)  :: D_viscotl,D_viscgtl,D_viscstl
   PetscReal,intent(out) :: viscotl,viscgtl,viscstl
+
+  ! intermediates:
   PetscReal             :: viscom ,viscgm ,viscsm
   PetscReal             :: viscoimw,viscgimw,viscsimw
   PetscReal             :: sos,sosi
@@ -3512,6 +4511,21 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   PetscReal             :: tlomegac
   PetscReal             :: viscom_w,viscgm_w,viscsm_w
   PetscReal             :: visco_wc,viscg_wc,viscs_wc
+
+  PetscReal,dimension(1:ndof)  :: D_voqp,D_vgqp,D_vsqp
+  PetscReal,dimension(1:ndof)  :: D_denos,D_dengs,D_denogs
+  PetscReal,dimension(1:ndof)  :: D_viscom,D_viscgm,D_viscsm
+  PetscReal,dimension(1:ndof)  :: D_viscom_w,D_viscgm_w,D_viscsm_w
+  PetscReal,dimension(1:ndof)  :: D_visco_wc,D_viscg_wc,D_viscs_wc
+  PetscReal,dimension(1:ndof)  :: D_worker
+  !PetscReal,dimension(1:ndof)  :: D_1,D_2,D_3,D_denos_alt
+  PetscReal,dimension(1:ndof)  :: D_sos,D_sgs,D_sh
+  PetscReal,dimension(1:ndof)  :: D_denos_pre
+  PetscReal :: denos_pre
+  PetscReal :: workerReal
+  PetscReal :: sosi_sq,worker,sgsi_sq,shi_sq
+
+  PetscInt :: i
 
 !--Set up complement of the Todd Longstaff omega-------------------------------
 
@@ -3531,26 +4545,69 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   shi=0.0
   if( sh>0.0  ) shi=1.0/sh
 
+  if (getDerivs) then
+    D_sos = D_so + D_ss
+    D_sgs = D_sg + D_ss
+    D_sh  = D_so + D_sg + D_ss
+  endif
+
 !--Use quarter-power mixing rule-----------------------------------------------
 
   voqp=visco**0.25
   vgqp=viscg**0.25
   vsqp=viscs**0.25
 
+  if (getDerivs) then
+    workerReal = 0.25
+    D_voqp = PowerRule(visco,D_visco,workerReal,ndof)
+    D_vgqp = PowerRule(viscg,D_viscg,workerReal,ndof)
+    D_vsqp = PowerRule(viscs,D_viscs,workerReal,ndof)
+  endif
+!--/Use quarter-power mixing rule----------------------------------------------
+
+!------------ denos and derivatives--------------------------------------------
+
   if( sosi>0.0 ) then
     denos= so*sosi*vsqp &
           +ss*sosi*voqp
   else
-    denos= 0.5*(vsqp+voqp)
+    !denos= 0.5*(vsqp+voqp)
+    denos= vsqp !PO assuming no solvent for viso when there is no oil
   endif
 
+   if (getDerivs) then
+    if (sosi>0.d0) then
+
+      D_denos = ProdDivRule(so,D_so,vsqp,D_vsqp,sos,D_sos,ndof) &
+              + ProdDivRule(ss,D_ss,voqp,D_voqp,sos,D_sos,ndof) 
+    else
+      D_denos= 0.5*(D_vsqp+D_voqp)
+    endif
+  endif
+
+!------------ /denos and derivatives--------------------------------------------
+
+
+!------------ dengs and derivatives--------------------------------------------
   if( sgsi>0.0 ) then
     dengs= sg*sgsi*vsqp &
           +ss*sgsi*vgqp
   else
-    dengs= 0.5*(vsqp+vgqp)
+    !dengs= 0.5*(vsqp+vgqp)
+    dengs= vsqp !PO assuming no solvent for visg when there is no gas
   endif
+   if (getDerivs) then
+    if (sgsi>0.d0) then
 
+      D_dengs = ProdDivRule(sg,D_sg,vsqp,D_vsqp,sgs,D_sgs,ndof) &
+              + ProdDivRule(ss,D_ss,vgqp,D_vgqp,sgs,D_sgs,ndof) 
+    else
+      D_dengs= 0.5*(D_vsqp+D_vgqp)
+    endif
+  endif
+!------------/dengs and derivatives--------------------------------------------
+
+!------------ denogs and derivatives--------------------------------------------
   if( shi>0.0 ) then
     denogs = so*shi*vgqp*vsqp &
             +sg*shi*vsqp*voqp &
@@ -3560,10 +4617,35 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
              +vsqp*voqp &
              +voqp*vgqp )/3.0
   endif
+   if (getDerivs) then
+    if (shi>0.d0) then
+
+     D_denogs = ProdProdDivRule(so,D_so,vgqp,D_vgqp,vsqp,D_vsqp,sh,D_sh,ndof) &
+              + ProdProdDivRule(sg,D_sg,vsqp,D_vsqp,voqp,D_voqp,sh,D_sh,ndof) &
+              + ProdProdDivRule(ss,D_ss,voqp,D_voqp,vgqp,D_vgqp,sh,D_sh,ndof)
+    else
+      D_denogs = ProdRule(vgqp,D_vgqp,vsqp,D_vsqp,ndof) &
+         + ProdRule(vsqp,D_vsqp,voqp,D_voqp,ndof) &
+         + ProdRule(voqp,D_voqp,vgqp,D_vgqp,ndof)
+      D_denogs = D_denogs/3.0
+    endif
+   endif
+!------------ /denogs and derivatives--------------------------------------------
+
+  denos_pre = denos
+  D_denos_pre = D_denos
+
+  if (getDerivs) then
+    workerReal = 4.d0
+    D_denos  = PowerRule(denos,D_denos,workerReal,ndof)
+    D_dengs  = PowerRule(dengs,D_dengs,workerReal,ndof)
+    D_denogs = PowerRule(denogs,D_denogs,workerReal,ndof)
+  endif
 
   denos =denos **4.0
   dengs =dengs **4.0
   denogs=denogs**4.0
+
 
   denosi =0.0
   if( denos >0.0 ) denosi =1.0/denos
@@ -3580,11 +4662,23 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   viscgm=viscg      *viscs*dengsi
   viscsm=visco*viscg*viscs*denogsi
 
+  if (getDerivs) then
+    D_viscom = ProdDivRule(visco,D_visco,viscs,D_viscs,denos,D_denos,ndof)
+    D_viscgm = ProdDivRule(viscg,D_viscg,viscs,D_viscs,dengs,D_dengs,ndof)
+    D_viscsm = ProdProdDivRule(visco,D_visco,viscg,D_viscg,viscs,D_viscs,denogs,D_denogs,ndof)
+  endif
+
 !--Construct mixed forms to power omega----------------------------------------
 
   viscom_w=viscom**val_tl_omega
   viscgm_w=viscgm**val_tl_omega
   viscsm_w=viscsm**val_tl_omega
+
+  if (getDerivs) then
+    D_viscom_w = PowerRule(viscom,D_viscom,val_tl_omega,ndof)
+    D_viscgm_w = PowerRule(viscgm,D_viscgm,val_tl_omega,ndof)
+    D_viscsm_w = PowerRule(viscsm,D_viscsm,val_tl_omega,ndof)
+  endif
 
 !--Construct original forms to power omega-------------------------------------
 
@@ -3592,38 +4686,97 @@ subroutine TL4PViscosity( so   ,sg   ,ss   , &
   viscg_wc=viscg**tlomegac
   viscs_wc=viscs**tlomegac
 
+  if (getDerivs) then
+    D_visco_wc = PowerRule(visco,D_visco,tlomegac,ndof)
+    D_viscg_wc = PowerRule(viscg,D_viscg,tlomegac,ndof)
+    D_viscs_wc = PowerRule(viscs,D_viscs,tlomegac,ndof)
+  endif
+
 !--Combine---------------------------------------------------------------------
 
   viscotl=viscom_w*visco_wc
   viscgtl=viscgm_w*viscg_wc
   viscstl=viscsm_w*viscs_wc
 
+  if (getDerivs) then
+    D_viscotl = ProdRule(viscom_w,D_viscom_w,visco_wc,D_visco_wc,ndof)
+    D_viscgtl = ProdRule(viscgm_w,D_viscgm_w,viscg_wc,D_viscg_wc,ndof)
+    D_viscstl = ProdRule(viscsm_w,D_viscsm_w,viscs_wc,D_viscs_wc,ndof)
+
+! we may wish to uncomment and have as an optional error check at some point; 
+! a lot can go wrong when the system gets to marginal saturations
+#if 0
+    do i = 1,ndof
+      if (isnan(D_viscotl(i))) then
+        print *, "viscotl nan deriv at ", i
+      endif
+      if (isnan(D_viscgtl(i))) then
+        print *, "viscgtl nan deriv at ", i
+      endif
+      if (isnan(D_viscstl(i))) then
+        print *, "viscstl nan deriv at ", i
+      endif
+    enddo
+#endif
+  endif
+
+
 end subroutine TL4PViscosity
 
 ! ************************************************************************** !
 
-subroutine TL4PDensity( so    ,sg    ,ss    , &
-                        viso  ,visg  ,viss  , &
-                        visotl,visgtl,visstl, &
-                        deno  ,deng  ,dens  , &
-                        denotl,dengtl,denstl )
+subroutine TL4PDensity( so    ,sg    ,ss    ,       &
+                        viso  ,visg  ,viss  ,       &
+                        visotl,visgtl,visstl,       &
+                        deno  ,deng  ,dens  ,       &
+                        denotl,dengtl,denstl,       &
+                        getDerivs, ndof     ,       &
+                        D_so,D_sg,D_ss      ,       &
+                        dof_osat,dof_gsat,dof_ssat, &
+                        D_deno,D_deng,D_dens,       &
+                        D_viso,D_visg,D_viss,       &
+                        D_visotl,D_visgtl,D_visstl, &
+                        D_denotl,D_dengtl,D_denstl, &
+                        isSat               ,       &
+                        denog,D_denog)
 
 !------------------------------------------------------------------------------
 ! Set up the interpolated TL4P gravity densities
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Apr 2018
+! Modified by PO: 01/26/2019
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
   PetscReal,intent(in ) :: so    ,sg    ,ss
   PetscReal,intent(in ) :: viso  ,visg  ,viss
   PetscReal,intent(in ) :: visotl,visgtl,visstl
   PetscReal,intent(in ) :: deno  ,deng  ,dens
+
+
+  PetscBool,intent(in ) :: getDerivs,isSat
+  PetscInt ,intent(in ) :: ndof,dof_osat,dof_gsat,dof_ssat
+  PetscReal,dimension(1:ndof),intent(in)  :: D_so,D_sg,D_ss
+  PetscReal,dimension(1:ndof),intent(in)  :: D_deno,D_deng,D_dens
+  PetscReal,dimension(1:ndof),intent(in)  :: D_viso,D_visg,D_viss
+  PetscReal,dimension(1:ndof),intent(in)  :: D_visotl,D_visgtl,D_visstl
+
   PetscReal,intent(out) :: denotl,dengtl,denstl
+  PetscReal,dimension(1:ndof),intent(out) :: D_denotl,D_dengtl,D_denstl
+
   PetscReal             :: tlomega,tlomegac,sh,shi,fo,fg,fs,denm,sog,sogi,go,gg
   PetscReal             :: visoqp,visgqp,d,d4,d4i,visog,denog,denmo,denmg,denms
+  PetscReal,dimension(1:ndof) :: D_denm,D_denog
+  PetscReal,dimension(1:ndof) :: D_d,D_d4,D_visoqp,D_visgqp,D_visog
+  PetscReal,dimension(1:ndof) :: D_sog,D_sh,D_fo,D_fg,D_fs,D_go,D_gg
+  PetscReal,dimension(1:ndof) :: D_denmo,D_denmg,D_denms
+  PetscReal,dimension(1:ndof) :: D_worker
+  PetscReal :: workerReal
+  PetscReal :: sgoi_sq
+  PetscInt :: i
 
 !--Initialise------------------------------------------------------------------
 
@@ -3637,38 +4790,65 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
 
   sh=so+sg+ss
 
+  if (getDerivs) then
+    D_sh  = D_so + D_sg + D_ss
+  endif
+
 !--Form the hydrocarbon saturation fractions-----------------------------------
 
   if( sh>0.0 ) then
-
+    !PO intialise value for Sh>0 - overwritten for M=1 or M/=1 in formMixedDen2
     shi=1.0/sh
 
     fo=so*shi
     fg=sg*shi
     fs=ss*shi
 
+    if (getDerivs) then
+      D_fo = DivRule(so,D_so,sh,D_sh,ndof)
+      D_fg = DivRule(sg,D_sg,sh,D_sh,ndof)
+      D_fs = DivRule(ss,D_ss,sh,D_sh,ndof)
+    endif
+    
+    !--Form the default mixed density for sh>0----------------------------------
+    denm= fo*deno &
+         +fg*deng &
+         +fs*dens
+    !--Omega-dependent mixing to final density for sh>0-------------------------
+    denotl=tlomegac*deno+tlomega*denm
+    dengtl=tlomegac*deng+tlomega*denm
+    denstl=tlomegac*dens+tlomega*denm
+    
   else
+    !PO intialise value for Sh=0 - overwritten for M=1 or M/=1 in formMixedDen2
+    denotl=deno
+    dengtl=deng
+    denstl=dens
 
-    fo=1.0/3.0
-    fg=1.0/3.0
-    fs=1.0/3.0
+    if (getDerivs) then
+      D_fo = 0.0
+      D_fg = 0.0
+      D_fs = 0.0
+    endif
 
   endif
 
-!--Form the default mixed density----------------------------------------------
+  if (getDerivs) then
+    D_denm = ProdRule(fo,D_fo,deno,D_deno,ndof) &
+           + ProdRule(fg,D_fg,deng,D_deng,ndof) &
+           + ProdRule(fs,D_fs,dens,D_dens,ndof) 
 
-  denm= fo*deno &
-       +fg*deng &
-       +fs*dens
-  denmo=denm
-  denmg=denm
-  denms=denm
+    ! don't need this if denmo etc aren't needed
+    D_denmo = D_denm
+    D_denmg = D_denm
+    D_denms = D_denm
+  endif
 
-!--Omega-dependent mixing to final density-------------------------------------
-
-  denotl=tlomegac*deno+tlomega*denm
-  dengtl=tlomegac*deng+tlomega*denm
-  denstl=tlomegac*dens+tlomega*denm
+  if (getDerivs) then
+    D_denotl=tlomegac*D_deno+tlomega*D_denm
+    D_dengtl=tlomegac*D_deng+tlomega*D_denm
+    D_denstl=tlomegac*D_dens+tlomega*D_denm
+  endif
 
 !--Now the main calculation: start with forming an oil-gas viscosity estimate--
 
@@ -3677,17 +4857,50 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
     sogi=1.0/sog
     go=so*sogi
     gg=sg*sogi
+    if (getDerivs) then
+      D_sog=D_so+D_sg
+      D_go = DivRule(so,D_so,sog,D_sog,ndof)
+      D_gg = DivRule(sg,D_sg,sog,D_sog,ndof)
+    endif
   else
     go=0.5
     gg=0.5
+    if (getDerivs) then
+      D_sog=0.0
+      D_go = 0.0 
+      D_gg = 0.0
+    endif
   endif
 
   denog=go*deno+gg*deng
+  if (getDerivs) then
+    if( sog>0.0 ) then
+      D_denog = ProdRule(go,D_go,deno,D_deno,ndof) &
+              + ProdRule(gg,D_gg,deng,D_deng,ndof)
+    else
+      ! better handling of this case may be possible
+      D_denog = 0.0
+    endif
+  endif
 
 !--Form the quarter-powers of the two viscosities (unless zero value is OK)----
 
   if( viso>0.0 ) visoqp=viso**0.25
   if( visg>0.0 ) visgqp=visg**0.25
+
+  if (getDerivs) then
+    workerReal = 0.25
+    if (viso>0.0) then
+      D_visoqp = PowerRule(viso,D_viso,workerReal,ndof)
+    else
+      D_visoqp = 0.d0
+    endif
+    if (visg>0.0) then
+      D_visgqp = PowerRule(visg,D_visg,workerReal,ndof)
+    else
+      D_visgqp = 0.d0
+    endif
+  endif
 
 !--Form 1/4 power combination (note indices to get inverses)---------------- --
 
@@ -3695,14 +4908,52 @@ subroutine TL4PDensity( so    ,sg    ,ss    , &
   d4=d**4.0
   if( d4>0.0 ) d4i=1.0/d4
 
+  if (getDerivs) then 
+    D_d = ProdRule(go,D_go,visgqp,D_visgqp,ndof) &
+        + ProdRule(gg,D_gg,visoqp,D_visoqp,ndof)
+    workerReal = 4.0
+    D_d4 = PowerRule(d,D_d,workerReal,ndof)
+
+  endif
+
 ! Form value
   visog=viso*visg*d4i
+  if (getDerivs) then
+    D_visog = ProdDivRule(viso,D_viso,visg,D_visg,d4,D_d4,ndof)
+  endif
 
 !--Now form the viscosity-weighted values--------------------------------------
 
-  call formMixedDen2(viso,viss ,visotl,deno,dens ,denotl)
-  call formMixedDen2(visg,viss ,visgtl,deng,dens ,dengtl)
-  call formMixedDen2(viss,visog,visstl,dens,denog,denstl)
+  call formMixedDen2(viso,viss,visotl,deno,dens ,denotl,    &
+                     getDerivs,ndof,                        &
+                     D_viso,D_viss,D_visotl,D_deno,D_dens,  &
+                     D_denotl)
+  call formMixedDen2(visg,viss,visgtl,deng,dens ,dengtl,    &
+                     getDerivs,ndof,                        &
+                     D_visg,D_viss,D_visgtl,D_deng,D_dens,  &
+                     D_dengtl)
+  call formMixedDen2(viss,visog,visstl,dens,denog,denstl,   &
+                     getDerivs,ndof,                        &
+                     D_viss,D_visog,D_visstl,D_dens,D_denog,&
+                     D_denstl)
+
+#if 0
+! we may wish to uncomment and have as an optional error check at some point; 
+! a lot can go wrong when the system gets to marginal saturations
+if (getDerivs) then
+  do i = 1,ndof
+    if (isnan(D_denotl(i))) then
+      print *, "denotl nan deriv at ", i
+    endif
+    if (isnan(D_dengtl(i))) then
+      print *, "dengtl nan deriv at ", i
+    endif
+    if (isnan(D_denstl(i))) then
+      print *, "denstl nan deriv at ", i
+    endif
+  enddo
+endif
+#endif
 
 end subroutine TL4PDensity
 
@@ -3741,9 +4992,27 @@ subroutine TL4PMiscibilityFractionFromSaturationFraction(fs,fm,dfmdfs)
     if( fs<=fmis_sl ) then
       fm    =0.0d0
       dfmdfs=0.0
+
+      ! constant slope at endpoint:
+      if (fs == fmis_sl) then
+        den=fmis_su-fmis_sl
+        deni=0.0
+        if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
+        dfmdfs=deni
+      endif
+
     else if( fs>=fmis_su ) then
       fm    =1.0d0
       dfmdfs=0.0
+
+      ! constant slope at endpoint:
+      if (fs == fmis_su) then
+        den=fmis_su-fmis_sl
+        deni=0.0
+        if( abs(den)>0.0 ) deni=1.0/(fmis_su-fmis_sl)
+        dfmdfs=deni
+      endif
+
     else
       den=fmis_su-fmis_sl
       deni=0.0
@@ -3757,7 +5026,10 @@ end subroutine TL4PMiscibilityFractionFromSaturationFraction
 
 ! ************************************************************************** !
 
-subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
+subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap &
+                              ,getDerivs,ndof &
+                              ,dof_soil,dof_sgas,dof_ssol &
+                              ,D_fm,D_uoil,D_uvap)
 
 !------------------------------------------------------------------------------
 ! Obtain lookup args modified for scaling (to be used against unscaled data)
@@ -3768,23 +5040,51 @@ subroutine TL4PScaleCriticals(sgcr,sogcr,fm,soil,svap,uoil,uvap)
 
   implicit none
 
-  PetscReal,intent(in ) :: sgcr,sogcr,fm,soil,svap
-  PetscReal,intent(out) :: uoil,uvap
-  PetscReal             :: ugcr,uogcr,fi
+  PetscReal,intent(in )                   :: sgcr,sogcr,fm,soil,svap
+  PetscBool,intent(in)                    :: getDerivs
+  PetscInt,intent(in)                     :: ndof,dof_soil,dof_sgas,dof_ssol
+  PetscReal,dimension(1:ndof),intent(in)  :: D_fm
+
+
+  PetscReal,intent(out)                   :: uoil,uvap
+  PetscReal,dimension(1:ndof),intent(out) :: D_uoil,D_uvap
+
+  PetscReal                               :: ugcr,uogcr,fi
+  PetscReal                               :: duvap_dugcr,duoil_duogcr
+  PetscReal                               :: duoil_soil,duvap_svap
+  PetscReal,dimension(1:ndof) :: D_fi,D_ugcr,D_uogcr
 
   fi=1.0-fm
 
   ugcr =fi*sgcr
   uogcr=fi*sogcr
 
-  call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap)
-  call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil)
+  if (getDerivs) then
+    D_ugcr  = -1.d0*D_fm*sgcr
+    D_uogcr = -1.d0*D_fm*sogcr
+  endif
+
+  call TL4PScaleLookupSaturation(sgcr ,ugcr ,svap,uvap,duvap_svap,duvap_dugcr)
+  call TL4PScaleLookupSaturation(sogcr,uogcr,soil,uoil,duoil_soil,duoil_duogcr)
+
+  if (getDerivs) then
+    D_uoil = 0.d0
+    D_uoil = duoil_duogcr*D_uogcr
+    D_uoil(dof_soil) = D_uoil(dof_soil) + duoil_soil
+
+    D_uvap = 0.d0
+    D_uvap = duvap_dugcr*D_ugcr
+    D_uvap(dof_sgas) = D_uvap(dof_sgas) + duvap_svap
+    D_uvap(dof_ssol) = D_uvap(dof_ssol) + duvap_svap
+  endif
 
 end subroutine TL4PScaleCriticals
 
 ! ************************************************************************** !
 
-subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
+!subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
+subroutine TL4PScaleLookupSaturation(sl,ul,s,u,du_s,du_ul)
+
 
 !------------------------------------------------------------------------------
 ! Transform a true saturation to a value to be used with unscaled data
@@ -3800,6 +5100,8 @@ subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
   PetscReal             :: slc
   PetscReal             :: sli,slci
 
+  PetscReal,intent(out) :: du_s,du_ul
+
 !--Form safe inverses----------------------------------------------------------
 
   sli=0.0
@@ -3813,24 +5115,35 @@ subroutine TL4PScaleLookupSaturation(sl,ul,s,u)
   if( s<=sl ) then
 ! First interval: scale by ul/sl so s=sl maps to ul
     u=s*ul*sli
+
+    du_s = ul*sli
+    du_ul = s*sli
   else
 ! Second interval: scale so that s=sl maps to ul, s=1 maps to 1
     u=ul+(s-sl)*(1.0-ul)*slci
+
+    du_s = (1.0-ul)*slci
+    du_ul = 1.0 - (s-sl)*slci
   endif
 
 end subroutine TL4PScaleLookupSaturation
 
 ! ************************************************************************** !
 
-subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
+subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl, &
+                         getDerivs,ndof,                    &
+                         D_visa,D_visb,D_visatl,D_dena,D_denb,       &
+                         D_denatl)
 
 !------------------------------------------------------------------------------
 ! Obtain interpolated Todd-Longstaff density to match Todd-Longstaff viscosity
 !------------------------------------------------------------------------------
 ! Author: Dave Ponting
 ! Date  : Apr 2018
+! Modified by PO: 01/26/2019
 !------------------------------------------------------------------------------
 
+  use Derivatives_utilities_module
   implicit none
 
   PetscReal,intent(in)   :: visa,visb,visatl,dena,denb
@@ -3838,6 +5151,19 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
   PetscReal              :: visbi,visatli
   PetscReal              :: m,me,mqp,meqp,mqpm1,mqpm1i
   PetscReal              :: fa,fb
+
+  PetscBool              :: getDerivs
+  PetscInt               :: ndof
+  PetscReal,dimension(1:ndof),intent(in) :: D_visa,D_visb,D_visatl,D_dena,D_denb
+  PetscReal,dimension(1:ndof),intent(inout) :: D_denatl
+
+  PetscReal,dimension(1:ndof) :: D_m,D_me,D_fa,D_mqp,D_meqp
+
+  PetscReal :: workerReal
+  
+  PetscReal              :: mc
+  PetscReal,parameter    :: eps_m = 1.0d-6
+  PetscBool              :: m_is_one
 
 !--Form the viscosity ratio and check that it is not unity---------------------
 
@@ -3848,14 +5174,33 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
   if( visatl>0.0 ) visatli=1.0/visatl
 
   m=visa*visbi
-  if( (m.ne.1.0) .and. (visatl>0.0) ) then
+  
+  if (getDerivs) then
+    D_m = DivRule(visa,D_visa,visb,D_visb,ndof)
+  endif
+
+  mc = 1.0 - m
+  m_is_one = PETSC_FALSE
+  if (dabs(mc) < eps_m ) m_is_one = PETSC_TRUE
+
+  if( (.not.m_is_one) .and. (visatl>0.0) ) then
 
 ! Build the interpolation coefficient, fa
 
     me=visa*visatli
 
+    if (getDerivs) then
+      D_me = DivRule(visa,D_visa,visatl,D_visatl,ndof)
+    endif
+
     mqp =M**0.25
     meqp=Me**0.25
+
+    if (getDerivs) then
+      workerReal = 0.25
+      D_mqp = PowerRule(m,D_m,workerReal,ndof)
+      D_meqp = PowerRule(me,D_me,workerReal,ndof)
+    endif
 
     mqpm1=mqp-1.0
 
@@ -3869,16 +5214,225 @@ subroutine formMixedDen2(visa,visb,visatl,dena,denb,denatl)
     if( fa<0.0 ) fa=0.0
     if( fa>1.0 ) fa=1.0
 
+    if (getDerivs) then
+      if (fa >= 0.0 .AND. fa <= 1.0) then
+        D_fa = DivRule(mqp-meqp,D_mqp-D_meqp,mqpm1,D_mqp,ndof)
+      else
+        D_fa = 0.d0
+      endif
+    endif
+
     fb=1.0-fa
 
 ! Construct output density and over-write existing default value
 
     denatl=dena*fa+denb*fb
 
+    if (getDerivs) then
+      ! i.e. denatl = dena*fa+denb(1-fa)
+      !             = fa*(dena-denb) + denb
+      D_denatl = ProdRule(fa,D_fa,dena-denb,D_dena-D_denb,ndof) &
+               + D_denb
+    endif
+
+  else
+    !assumes no phase-b in phase a (fa = 1)
+    denatl = dena
+    
   endif
 
 end subroutine formMixedDen2
 
 ! ************************************************************************** !
+
+subroutine TOWGAuxFieldVolRefAve(this,grid,material,imat,option)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+  !
+
+  use Option_module
+  use Grid_module
+  use Material_Aux_class
+  use Well_Data_class,only : SetFieldData
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: rpv_sh_l, rpv_sh_g,rpv_l, rpv_g
+  PetscReal :: pr,pv,sh
+  PetscReal :: fhpav_l,fhpav_g,fpav_l,fpav_g,fpav
+  PetscInt :: int_mpi
+  PetscErrorCode :: ierr
+
+!  Initial values for sums (with and without hydrocarbon fraction)
+
+  rpv_sh_l = 0.0d0
+  rpv_sh_g = 0.0d0
+  rpv_l   = 0.0d0
+  rpv_g   = 0.0d0
+
+  fhpav_l = 0.0d0
+  fhpav_g = 0.0d0
+  fpav_l  = 0.0d0
+  fpav_g  = 0.0d0
+
+!  Do the summations on this rank
+
+  material_auxvars => material%auxvars
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+
+    pv = material_auxvars(ghosted_id)%porosity_base * &
+         material_auxvars(ghosted_id)%volume
+    sh = this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%oil_phase) + &
+          this%auxvars(ZERO_INTEGER,ghosted_id)%sat(option%gas_phase)
+    if (this%IsSolventModel()) then
+       sh = sh + this%auxvars(ZERO_INTEGER,ghosted_id)% &
+                                           sat(option%solvent_phase)
+    end if
+    pr=this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+
+    rpv_sh_l = rpv_sh_l + sh * pv
+    rpv_l    = rpv_l    +      pv
+    fhpav_l  = fhpav_l  + sh * pv * pr
+    fpav_l   = fpav_l   +      pv * pr
+
+  end do
+
+!  Do the summations over ranks
+
+  int_mpi = ONE_INTEGER
+  call MPI_AllReduce(rpv_sh_l,rpv_sh_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fhpav_l,fhpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(rpv_l,rpv_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+  call MPI_AllReduce(fpav_l,fpav_g, &
+                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM,option%mycomm,ierr)
+
+! Form the average pressure: use simpler form if no hydrocarbon volume
+
+  if ( rpv_sh_g>0.0 ) then
+    fpav = fhpav_g/rpv_sh_g  !  Hydrocarbon volume exists
+  else if ( rpv_g>0.0 ) then
+    fpav = fpav_g/rpv_g      ! No hydrocarbon, but pore volume exists
+  endif
+
+!  Set value
+
+  call SetFieldData(fpav)
+
+  nullify(material_auxvars)
+
+end subroutine TOWGAuxFieldVolRefAve
+
+! ************************************************************************** !
+
+subroutine TOWGGetLocalSol(this,grid,material,imat,option,vsoll,isol,zsol)
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 08/24/18
+
+  use Grid_module
+  use Material_Aux_class
+  use Option_module
+  use String_module,only : StringCompareIgnoreCase
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+  type(grid_type) :: grid
+  type(material_type), pointer :: material
+  PetscInt, intent(in) :: imat(:)
+  type(option_type) :: option
+  PetscReal :: vsoll(:,:)
+  PetscInt,intent(in)::isol
+  character(len=8)::zsol
+  PetscInt::iphase
+  PetscBool::ispres
+  PetscBool::ispsat
+  PetscBool::istemp
+
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: local_id, ghosted_id
+
+  material_auxvars => material%auxvars
+
+!  Initialise phase pointer and solution flags
+
+  ispres = PETSC_FALSE
+  ispsat = PETSC_FALSE
+  istemp = PETSC_FALSE
+  iphase = 0
+
+!  Set phase pointer and solution flags
+
+  if (StringCompareIgnoreCase(zsol,'Pressure')) ispres = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Psat'    )) then
+    if (     (towg_miscibility_model == TOWG_SOLVENT_TL) &
+        .or. (towg_miscibility_model == TOWG_BLACK_OIL ) ) then
+      ispsat = PETSC_TRUE
+    endif
+  endif
+  if (StringCompareIgnoreCase(zsol,'Temp'    )) istemp = PETSC_TRUE
+  if (StringCompareIgnoreCase(zsol,'Soil'    )) iphase = option%oil_phase
+  if (StringCompareIgnoreCase(zsol,'Sgas'    )) iphase = option%gas_phase
+  if (StringCompareIgnoreCase(zsol,'Swat'    )) iphase = option%liquid_phase
+  if (StringCompareIgnoreCase(zsol,'Sslv'    )) then
+    if (towg_miscibility_model == TOWG_SOLVENT_TL) then
+      iphase = option%solvent_phase
+    endif
+  endif
+
+!  Extract value
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (imat(ghosted_id) <= 0) cycle
+    if (ispres) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%pres(option%oil_phase)
+    else if (ispsat) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%bo%bubble_point
+    else if (isTemp) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%temp
+    else if (iphase>0) then
+      vsoll(local_id,isol) = &
+        this%auxvars(ZERO_INTEGER,ghosted_id)%sat(iphase)
+    else
+      vsoll(local_id,isol) = 0.0
+    endif
+  end do
+
+end subroutine TOWGGetLocalSol
+
+! ************************************************************************** !
+
+function IsSolventModel(this)
+
+  implicit none
+
+  class(pm_towg_aux_type) :: this
+
+  PetscBool :: IsSolventModel
+
+  IsSolventModel = PETSC_FALSE
+
+  if (towg_miscibility_model == TOWG_SOLVENT_TL) IsSolventModel = PETSC_TRUE
+
+end function IsSolventModel
 
 end module PM_TOWG_Aux_module

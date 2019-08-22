@@ -94,7 +94,8 @@ module Utility_module
             Erf_, &
             DigitsOfAccuracy, &
             CalcParallelSum, &
-            MatCompare
+            MatCompare, &
+            ArrayIsSMonotonicInc
             
 contains
 
@@ -111,6 +112,7 @@ function rnd()
   iseed = iseed - (iseed/2796203) * 2796203
   rnd   = iseed/2796203.0
   return
+  
 end function rnd
 
 ! ************************************************************************** !
@@ -225,7 +227,7 @@ end function ran2
 
 ! ************************************************************************** !
 
-subroutine GetRndNumFromNormalDist(mean,st_dev,number)
+subroutine GetRndNumFromNormalDist(mean,st_dev,number,seed)
   ! 
   ! Generates a random number that is normally distributed, as defined by the
   ! mean and standard deviation given. This subroutine uses the Box-Muller
@@ -240,6 +242,7 @@ subroutine GetRndNumFromNormalDist(mean,st_dev,number)
   implicit none
   
   PetscReal :: mean, st_dev, number
+  PetscInt :: seed, f
 
   PetscBool, save :: switch
   PetscReal, save :: z0, z1
@@ -252,8 +255,10 @@ subroutine GetRndNumFromNormalDist(mean,st_dev,number)
   if (.not.switch) then
 
     ! Generate two random numbers between (0,1)
-    u1 = rnd()
-    u2 = rnd()
+    do f=1,seed
+      u1 = rnd()
+      u2 = rnd()
+    enddo
     
     z0 = sqrt(-2.0*log(u1)) * cos(TWO_PI*u2)
     z1 = sqrt(-2.0*log(u1)) * sin(TWO_PI*u2) 
@@ -1290,7 +1295,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
           option%io_buffer = trim(option%io_buffer) // &
             '  Expected ' // trim(adjustl(word2)) // &
             ' but read ' // trim(adjustl(word)) // '.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         exit
       else if (icount == 0) then
@@ -1300,7 +1305,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         else
           option%io_buffer = 'No values read in UtilityReadIntArray().'
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         exit
       endif
@@ -1453,7 +1458,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
           option%io_buffer = trim(option%io_buffer) // &
             '  Expected ' // trim(adjustl(word2)) // &
             ' but read ' // trim(adjustl(word)) // '.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         exit
       else if (icount == 0) then
@@ -1463,7 +1468,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         else
           option%io_buffer = 'No values read in UtilityReadRealArray().'
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         exit
       endif
@@ -2468,17 +2473,49 @@ subroutine MatCompare(a1,a2,n,m,tol,reltol,flagged_err)
     do j = 1,m
       dff = abs(a1(i,j) - a2(i,j)) 
       reldff = dff/abs(a1(i,j))
+
+
       if (dff > tol .OR. reldff > reltol) then
         print *, "difference in matrices at ", i, ", ", j, ", value ", dff, &
                  ", relative difference: ", reldff
         print *, a1(i,j), " compare to ", a2(i,j)
         print *, "..."
+#if 0
+        if (reldff == 1.d0) then
+          print *, "rel dif is 1"
+        endif
+#endif
         flagged_err = PETSC_TRUE
       endif
+
+
     end do
   end do 
 
 end subroutine MatCompare
+
+! ************************************************************************** !
+
+function ArrayIsSMonotonicInc(array)
+
+  !check if an array of Real is Strictly Monotonically Increasing
+
+  implicit none
+
+  PetscReal :: array(:)
+  PetscBool :: ArrayIsSMonotonicInc
+
+  PetscInt :: i
+
+  ArrayIsSMonotonicInc = PETSC_TRUE
+
+  do i=2,size(array(:))
+    if ( array(i) <= array(i-1) ) then
+      ArrayIsSMonotonicInc = PETSC_FALSE
+    end if
+  end do
+
+end function ArrayIsSMonotonicInc
 
 ! ************************************************************************** !
 

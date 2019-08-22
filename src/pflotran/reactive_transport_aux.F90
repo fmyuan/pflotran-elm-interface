@@ -141,7 +141,7 @@ module Reactive_Transport_Aux_module
   
   public :: RTAuxCreate, RTAuxDestroy, &
             RTAuxVarInit, RTAuxVarCopy, RTAuxVarDestroy, &
-            RTAuxVarStrip
+            RTAuxVarStrip, RTAuxVarCopyInitialGuess
             
 contains
 
@@ -510,6 +510,42 @@ subroutine RTAuxVarCopy(auxvar,auxvar2,option)
   endif
   
 end subroutine RTAuxVarCopy
+
+! ************************************************************************** !
+
+subroutine RTAuxVarCopyInitialGuess(auxvar,auxvar2,option)
+  ! 
+  ! Copies select entries in rt_auxvar that serve as an initial guess when
+  ! equilibrating constraints
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/18/17
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  type(reactive_transport_auxvar_type) :: auxvar, auxvar2
+  type(option_type) :: option  
+  
+  auxvar%pri_molal = auxvar2%pri_molal
+
+#if 0
+  if (associated(auxvar%srfcplxrxn_free_site_conc)) then
+    auxvar%srfcplxrxn_free_site_conc = auxvar2%srfcplxrxn_free_site_conc
+  endif
+  
+  auxvar%pri_act_coef = auxvar2%pri_act_coef
+  if (associated(auxvar%sec_act_coef)) &
+    auxvar%sec_act_coef = auxvar2%sec_act_coef
+
+  if (associated(auxvar%immobile)) then
+    auxvar%immobile = auxvar2%immobile
+  endif
+#endif
+  
+end subroutine RTAuxVarCopyInitialGuess
 
 ! ************************************************************************** !
 

@@ -67,7 +67,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 20 1 20
   BOUNDS 
@@ -191,14 +191,14 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION saline
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 saline
   /

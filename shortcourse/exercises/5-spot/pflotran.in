@@ -1,7 +1,18 @@
 #Description: 2D 5-spot copper leaching problem
 
-# == mode =====================================================================
-MODE RICHARDS
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
 
 # == chemistry ================================================================
 CHEMISTRY
@@ -51,6 +62,7 @@ ACTIVITY_COEFFICIENTS ! NEWTON_ITERATION
 MOLAL
 OUTPUT
 All
+TOTAL
 /
 UPDATE_MINERAL_SURFACE_AREA
 /
@@ -59,7 +71,7 @@ UPDATE_MINERAL_SURFACE_AREA
 REFERENCE_POROSITY 0.25d0
 
 # == time stepping ============================================================
-TIMESTEPPER
+TIMESTEPPER FLOW
 TS_ACCELERATION 8
 MAX_STEPS 100000
 #MAX_STEPS 1
@@ -67,7 +79,7 @@ MAX_STEPS 100000
 
 # == discretization ===========================================================
 GRID
-TYPE structured 
+TYPE STRUCTURED 
 NXYZ 30 30 1
 BOUNDS
 0.d0 0.d0 0.d0
@@ -120,7 +132,7 @@ DIFFUSION_COEFFICIENT 1.d-9
 # == material properties ======================================================
 MATERIAL_PROPERTY HD
 ID 1
-SATURATION_FUNCTION default
+CHARACTERISTIC_CURVES default
 POROSITY 0.05
 TORTUOSITY 1.0
 PERMEABILITY
@@ -129,15 +141,10 @@ PERM_ISO 5.43d-13
 /
 
 # == saturation / permeability functions ======================================
-SATURATION_FUNCTION HD
-SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-RESIDUAL_SATURATION 0.115
-LAMBDA 0.286
-ALPHA 1.9401d-4
-/
 
 #=========================== saturation functions =============================
-SATURATION_FUNCTION default
+CHARACTERISTIC_CURVES default
+  DEFAULT
 /
 
 # == output ===================================================================
@@ -183,7 +190,7 @@ COORDINATES
 # == flow conditions ==========================================================
 FLOW_CONDITION Initial
 TYPE
-PRESSURE hydrostatic
+PRESSURE HYDROSTATIC
 /
 DATUM 0.d0 0.d0 15.d0
 PRESSURE 101325.d0
@@ -207,21 +214,21 @@ END
 
 # == transport conditions =====================================================
 TRANSPORT_CONDITION injection
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 Inlet
 /
 /
 
 TRANSPORT_CONDITION Initial
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 Initial
 /
 /
 
 TRANSPORT_CONDITION withdrawal
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 Initial
 /
@@ -278,3 +285,5 @@ SO4--         5.d-4  Z
 Tracer        1.d0   T
 /
 /
+
+END_SUBSURFACE

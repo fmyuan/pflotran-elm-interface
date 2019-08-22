@@ -12,7 +12,7 @@ module PM_Miscible_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_miscible_type
   contains
-    procedure, public :: Read => PMMiscibleRead
+    procedure, public :: ReadSimulationBlock => PMMiscibleRead
     procedure, public :: InitializeTimestep => PMMiscibleInitializeTimestep
     procedure, public :: Residual => PMMiscibleResidual
     procedure, public :: Jacobian => PMMiscibleJacobian
@@ -206,7 +206,7 @@ subroutine PMMiscibleUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: ifac
   
 #ifdef PM_MISCIBLE_DEBUG  
-  call printMsg(this%option,'PMMiscible%UpdateTimestep()')
+  call PrintMsg(this%option,'PMMiscible%UpdateTimestep()')
 #endif
   
   if (iacceleration > 0) then

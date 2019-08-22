@@ -1,9 +1,9 @@
-appleyard.o : realization_subsurface.o
-auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
-              inlinesurface_aux.o material_aux.o miscible_aux.o mphase_aux.o \
-              pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
-              reactive_transport_aux.o richards_aux.o \
-              secondary_continuum_aux.o th_aux.o wipp_flow_aux.o
+auxiliary.o : flash2_aux.o general_aux.o global_aux.o hydrate_aux.o \
+              immis_aux.o inlinesurface_aux.o material_aux.o miscible_aux.o \
+              mphase_aux.o nw_transport_aux.o pflotran_constants.o \
+              pm_toil_ims_aux.o pm_towg_aux.o reactive_transport_aux.o \
+              richards_aux.o secondary_continuum_aux.o th_aux.o \
+              wipp_flow_aux.o
 auxvars_base.o : option.o pflotran_constants.o
 auxvars_flow.o : auxvars_base.o option.o pflotran_constants.o utility.o
 auxvars_flow_energy.o : auxvars_base.o auxvars_flow.o option.o \
@@ -35,13 +35,14 @@ characteristic_curves_wipp.o : characteristic_curves_base.o \
                                characteristic_curves_common.o option.o \
                                pflotran_constants.o
 checkpoint.o : discretization.o field.o global.o grid.o hdf5.o hdf5_aux.o \
-               input_aux.o material.o option.o output_aux.o \
+               input_aux.o material.o material_aux.o option.o output_aux.o \
                pflotran_constants.o realization_subsurface.o string.o units.o \
                utility.o variables.o waypoint.o
 checkpoint_surface.o : discretization.o grid.o option.o output_aux.o \
                        pflotran_constants.o realization_surface.o \
                        surface_field.o
-co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o utility.o
+co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o string.o \
+                    utility.o
 co2_span_wagner_spline.o : pflotran_constants.o spline.o
 co2_sw.o : co2_span_wagner.o co2_span_wagner_spline.o option.o \
            pflotran_constants.o
@@ -55,28 +56,28 @@ communicator_unstructured.o : communicator_base.o dm_kludge.o \
                               grid_unstructured_explicit.o \
                               pflotran_constants.o
 condition.o : dataset.o dataset_ascii.o dataset_base.o general_aux.o \
-              global_aux.o hdf5_aux.o input_aux.o logging.o option.o \
-              pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
-              reaction_aux.o string.o time_storage.o transport_constraint.o \
-              units.o utility.o
-condition_control.o : condition.o connection.o coupler.o dataset_base.o \
-                      dataset_common_hdf5.o dataset_gridded_hdf5.o \
-                      discretization.o eos_water.o field.o general_aux.o \
-                      global.o global_aux.o grid.o hdf5.o material_aux.o \
-                      option.o patch.o pflotran_constants.o pm_toil_ims_aux.o \
-                      pm_towg_aux.o reaction.o reaction_aux.o \
-                      reactive_transport.o reactive_transport_aux.o \
-                      realization_subsurface.o realization_surface.o region.o \
-                      surface_field.o surface_global_aux.o surface_th_aux.o \
+              global_aux.o hdf5_aux.o hydrate_aux.o input_aux.o logging.o \
+              lookup_table.o nw_transport_aux.o option.o pflotran_constants.o \
+              pm_toil_ims_aux.o pm_towg_aux.o reaction_aux.o string.o \
+              time_storage.o transport_constraint.o units.o utility.o
+condition_control.o : condition.o connection.o coupler.o dataset.o \
+                      dataset_base.o dataset_common_hdf5.o \
+                      dataset_gridded_hdf5.o discretization.o eos_water.o \
+                      field.o general_aux.o global.o global_aux.o grid.o \
+                      hdf5.o hydrate_aux.o material_aux.o nw_transport.o \
+                      nw_transport_aux.o option.o patch.o pflotran_constants.o \
+                      pm_toil_ims_aux.o pm_towg_aux.o reaction.o \
+                      reaction_aux.o reactive_transport.o \
+                      reactive_transport_aux.o realization_subsurface.o \
+                      realization_surface.o region.o surface_field.o \
+                      surface_global_aux.o surface_th_aux.o \
                       transport_constraint.o variables.o wipp_flow_aux.o
 connection.o : pflotran_constants.o utility.o
 convergence.o : grid.o option.o pflotran_constants.o solver.o string.o
 coupler.o : condition.o connection.o dataset_base.o dataset_gridded_hdf5.o \
             grid.o grid_unstructured_aux.o grid_unstructured_explicit.o \
             input_aux.o option.o pflotran_constants.o region.o string.o \
-            utility.o well.o well_base.o
-criticality.o : data_mediator_vec.o input_aux.o option.o pflotran_constants.o \
-                realization_base.o realization_subsurface.o region.o string.o
+            utility.o
 data_mediator.o : data_mediator_base.o option.o
 data_mediator_base.o : dataset_global_hdf5.o option.o pflotran_constants.o
 data_mediator_dataset.o : data_mediator_base.o dataset_base.o \
@@ -108,10 +109,11 @@ debug.o : input_aux.o option.o pflotran_constants.o string.o
 derivative_tests.o : auxvars_flow.o auxvars_toil_ims.o auxvars_towg.o option.o \
                      pflotran_constants.o
 derivatives_utilities.o :
-discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
-                   grid_unstructured_aux.o grid_unstructured_explicit.o \
-                   grid_unstructured_polyhedra.o input_aux.o material_aux.o \
-                   option.o pflotran_constants.o string.o
+discretization.o : dm_kludge.o grid.o grid_grdecl.o grid_structured.o \
+                   grid_unstructured.o grid_unstructured_aux.o \
+                   grid_unstructured_explicit.o grid_unstructured_polyhedra.o \
+                   input_aux.o material_aux.o option.o pflotran_constants.o \
+                   string.o
 dm_kludge.o : grid_unstructured_aux.o pflotran_constants.o
 eos.o : co2_span_wagner.o eos_database.o eos_gas.o eos_oil.o eos_slv.o \
         eos_water.o input_aux.o option.o pflotran_constants.o string.o
@@ -123,7 +125,8 @@ eos_oil.o : eos_database.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o utility.o
 eos_slv.o : eos_database.o input_aux.o lookup_table.o option.o \
             pflotran_constants.o
-eos_water.o : geometry.o pflotran_constants.o utility.o
+eos_water.o : eos_database.o geometry.o input_aux.o lookup_table.o option.o \
+              pflotran_constants.o utility.o
 factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          factory_subsurface.o geomech_grid.o \
                          geomech_grid_aux.o geomechanics_condition.o \
@@ -150,34 +153,37 @@ factory_pflotran.o : checkpoint.o eos.o factory_geomechanics.o \
                      pm_subsurface_flow.o pm_surface.o pm_surface_flow.o \
                      pm_surface_th.o pmc_base.o simulation_base.o \
                      simulation_geomechanics.o simulation_subsurface.o \
-                     simulation_surfsubsurface.o string.o units.o waypoint.o
+                     simulation_surface.o simulation_surfsubsurface.o string.o \
+                     units.o waypoint.o
 factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        coupler.o data_mediator_dataset.o dataset.o \
                        dataset_ascii.o dataset_base.o dataset_common_hdf5.o \
                        debug.o discretization.o eos.o eos_water.o field.o \
-                       fluid.o general.o global.o grid.o grid_structured.o \
-                       grid_unstructured_aux.o hdf5_aux.o init_common.o \
-                       init_subsurface.o init_subsurface_flow.o \
-                       init_subsurface_transport.o input_aux.o integral_flux.o \
-                       logging.o material.o observation.o option.o output.o \
-                       output_aux.o output_tecplot.o patch.o \
+                       fluid.o general.o general_aux.o global.o grid.o \
+                       grid_grdecl.o grid_structured.o grid_unstructured_aux.o \
+                       hdf5_aux.o hydrate.o init_common.o init_subsurface.o \
+                       init_subsurface_flow.o init_subsurface_transport.o \
+                       input_aux.o integral_flux.o logging.o material.o \
+                       nw_transport.o nw_transport_aux.o observation.o \
+                       option.o output.o output_aux.o output_tecplot.o patch.o \
                        pflotran_constants.o pm_auxiliary.o pm_base.o \
-                       pm_base_pointer.o pm_flash2.o pm_general.o pm_immis.o \
-                       pm_miscible.o pm_mphase.o pm_richards.o \
-                       pm_richards_ts.o pm_rt.o pm_subsurface_flow.o pm_th.o \
-                       pm_toil_ims.o pm_towg.o pm_towg_aux.o \
-                       pm_ufd_biosphere.o pm_ufd_decay.o pm_waste_form.o \
-                       pm_wipp_flow.o pm_wipp_srcsink.o pmc_auxiliary.o \
-                       pmc_base.o pmc_subsurface.o pmc_third_party.o \
-                       reaction.o reaction_aux.o reaction_database.o \
-                       reaction_mineral.o reaction_solid_solution.o \
-                       reactive_transport.o realization_base.o \
-                       realization_subsurface.o region.o regression.o \
-                       saturation_function.o simulation_subsurface.o solver.o \
-                       srcsink_sandbox.o strata.o string.o timestepper_BE.o \
+                       pm_base_pointer.o pm_flash2.o pm_general.o pm_hydrate.o \
+                       pm_immis.o pm_miscible.o pm_mphase.o pm_nwt.o \
+                       pm_richards.o pm_richards_ts.o pm_rt.o \
+                       pm_subsurface_flow.o pm_th.o pm_th_ts.o pm_toil_ims.o \
+                       pm_towg.o pm_towg_aux.o pm_ufd_biosphere.o \
+                       pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o \
+                       pm_wipp_srcsink.o pmc_auxiliary.o pmc_base.o \
+                       pmc_subsurface.o pmc_third_party.o reaction.o \
+                       reaction_aux.o reaction_database.o reaction_mineral.o \
+                       reaction_solid_solution.o reactive_transport.o \
+                       realization_base.o realization_subsurface.o region.o \
+                       regression.o saturation_function.o \
+                       simulation_subsurface.o solver.o srcsink_sandbox.o \
+                       strata.o string.o th_aux.o timestepper_BE.o \
                        timestepper_TS.o timestepper_steady.o \
                        transport_constraint.o units.o utility.o waypoint.o \
-                       well_data.o well_spec_base.o wipp.o
+                       well_data.o wipp.o
 factory_surface.o : checkpoint.o checkpoint_surface.o condition.o \
                     condition_control.o coupler.o dataset.o dataset_base.o \
                     dataset_common_hdf5.o debug.o discretization.o grid.o \
@@ -228,6 +234,10 @@ general_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
 general_common.o : connection.o coupler.o eos_gas.o eos_water.o general_aux.o \
                    global_aux.o material_aux.o option.o pflotran_constants.o \
                    upwind_direction.o utility.o wipp.o
+general_derivative.o : characteristic_curves.o characteristic_curves_common.o \
+                       coupler.o eos_gas.o eos_water.o general_aux.o \
+                       general_common.o global_aux.o material_aux.o option.o \
+                       pflotran_constants.o
 generic.o : pflotran_constants.o string.o
 geomech_grid.o : gauss.o geomech_grid_aux.o geomechanics_region.o geometry.o \
                  grid_unstructured_aux.o grid_unstructured_cell.o input_aux.o \
@@ -298,6 +308,10 @@ grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured.o grid_unstructured_aux.o \
          grid_unstructured_explicit.o grid_unstructured_polyhedra.o logging.o \
          option.o pflotran_constants.o region.o utility.o
+grid_grdecl.o : grid_grdecl_util.o grid_unstructured_aux.o input_aux.o \
+                option.o output_aux.o output_eclipse.o pflotran_constants.o \
+                string.o utility.o
+grid_grdecl_util.o : pflotran_constants.o
 grid_structured.o : connection.o input_aux.o option.o pflotran_constants.o \
                     utility.o
 grid_unstructured.o : connection.o geometry.o grid_unstructured_aux.o \
@@ -317,18 +331,28 @@ hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
          logging.o option.o patch.o pflotran_constants.o realization_base.o \
          realization_subsurface.o region.o utility.o
 hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
+hydrate.o : connection.o coupler.o debug.o discretization.o eos_water.o \
+            field.o fluid.o global_aux.o grid.o hydrate_aux.o hydrate_common.o \
+            input_aux.o material.o material_aux.o option.o output_aux.o \
+            patch.o pflotran_constants.o realization_subsurface.o \
+            saturation_function.o srcsink_sandbox.o srcsink_sandbox_base.o \
+            srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o string.o \
+            upwind_direction.o variables.o
+hydrate_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
+                material_aux.o option.o pflotran_constants.o string.o \
+                utility.o
+hydrate_common.o : connection.o coupler.o eos_gas.o eos_water.o global_aux.o \
+                   hydrate_aux.o material_aux.o option.o pflotran_constants.o \
+                   upwind_direction.o utility.o wipp.o
 hydrostatic.o : condition.o connection.o coupler.o dataset_ascii.o \
                 dataset_common_hdf5.o dataset_gridded_hdf5.o eos_water.o \
-                general_aux.o grid.o grid_structured.o option.o \
-                pflotran_constants.o pm_toil_ims_aux.o region.o utility.o \
-                wipp_flow_aux.o
-hydrostatic_common.o : connection.o eos_gas.o eos_oil.o eos_water.o grid.o \
-                       option.o pflotran_constants.o utility.o
+                general_aux.o grid.o grid_structured.o hydrate_aux.o option.o \
+                pflotran_constants.o pm_toil_ims_aux.o region.o string.o \
+                utility.o wipp_flow_aux.o
 hydrostatic_multi_phase.o : characteristic_curves.o condition.o connection.o \
-                            coupler.o dataset_ascii.o dataset_gridded_hdf5.o \
-                            eos_gas.o eos_oil.o eos_water.o grid.o \
-                            hydrostatic_common.o option.o pflotran_constants.o \
-                            pm_toil_ims_aux.o region.o utility.o
+                            coupler.o eos_gas.o eos_oil.o eos_water.o grid.o \
+                            lookup_table.o option.o pflotran_constants.o \
+                            pm_toil_ims_aux.o pm_towg_aux.o utility.o
 immis.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
           connection.o coupler.o debug.o discretization.o eos_water.o field.o \
           global_aux.o grid.o immis_aux.o material.o material_aux.o option.o \
@@ -344,20 +368,21 @@ init_common.o : condition.o connection.o coupler.o discretization.o field.o \
                 string.o utility.o waypoint.o
 init_subsurface.o : dataset_base.o dataset_common_hdf5.o \
                     dataset_gridded_hdf5.o discretization.o field.o \
-                    geomechanics_subsurface_properties.o grid.o hdf5.o \
-                    input_aux.o logging.o material.o material_aux.o option.o \
-                    patch.o pflotran_constants.o realization_subsurface.o \
-                    region.o srcsink_sandbox.o strata.o utility.o variables.o \
-                    wipp.o
-init_subsurface_flow.o : co2_sw.o condition_control.o coupler.o \
-                         discretization.o field.o flash2.o general.o grid.o \
-                         hdf5.o immis.o init_common.o material.o miscible.o \
-                         mphase.o option.o patch.o pflotran_constants.o \
-                         pm_richards_ts.o realization_subsurface.o richards.o \
-                         th.o toil_ims.o towg.o well.o wipp_flow.o
-init_subsurface_transport.o : condition_control.o global.o option.o \
-                              pflotran_constants.o reactive_transport.o \
-                              realization_subsurface.o variables.o
+                    geomechanics_subsurface_properties.o grid.o grid_grdecl.o \
+                    hdf5.o input_aux.o logging.o material.o material_aux.o \
+                    option.o patch.o pflotran_constants.o \
+                    realization_subsurface.o region.o srcsink_sandbox.o \
+                    strata.o utility.o variables.o wipp.o
+init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
+                         flash2.o general.o grid.o hdf5.o hydrate.o immis.o \
+                         init_common.o material.o miscible.o mphase.o option.o \
+                         patch.o pflotran_constants.o pm_richards_ts.o \
+                         pm_th_ts.o realization_subsurface.o richards.o th.o \
+                         toil_ims.o towg.o wipp_flow.o
+init_subsurface_transport.o : condition_control.o global.o nw_transport.o \
+                              option.o pflotran_constants.o \
+                              reactive_transport.o realization_subsurface.o \
+                              variables.o
 init_surface.o : condition.o condition_control.o convergence.o \
                  discretization.o eos.o field.o grid.o grid_structured.o \
                  grid_unstructured.o grid_unstructured_aux.o hdf5.o \
@@ -401,25 +426,34 @@ mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
                     saturation_function.o
 multisimulation.o : input_aux.o option.o pflotran_constants.o
+nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
+                 field.o fluid.o global_aux.o grid.o logging.o material.o \
+                 material_aux.o nw_transport_aux.o option.o output_aux.o \
+                 pflotran_constants.o realization_subsurface.o \
+                 transport_constraint.o
+nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o \
+                     pflotran_constants.o string.o utility.o
 observation.o : connection.o input_aux.o option.o pflotran_constants.o \
                 region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
 option_flow.o : pflotran_constants.o
 option_transport.o : pflotran_constants.o
 output.o : connection.o coupler.o debug.o discretization.o field.o \
-           general_aux.o grid.o hdf5.o input_aux.o logging.o material_aux.o \
-           option.o output_aux.o output_common.o output_ekg.o output_hdf5.o \
-           output_observation.o output_tecplot.o output_vtk.o patch.o \
-           pflotran_constants.o reaction_aux.o realization_base.o \
+           general_aux.o grid.o hdf5.o hydrate_aux.o input_aux.o logging.o \
+           material_aux.o option.o output_aux.o output_common.o output_ekg.o \
+           output_hdf5.o output_observation.o output_tecplot.o output_vtk.o \
+           patch.o pflotran_constants.o reaction_aux.o realization_base.o \
            realization_subsurface.o region.o string.o units.o utility.o \
-           variables.o waypoint.o well.o wipp_flow_aux.o
+           variables.o waypoint.o wipp_flow_aux.o
 output_aux.o : option.o pflotran_constants.o variables.o
 output_common.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                   global_aux.o grid.o grid_structured.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                   hdf5_aux.o logging.o material_aux.o option.o output_aux.o \
                   patch.o pflotran_constants.o realization_base.o \
-                  richards_aux.o variables.o
+                  richards_aux.o th_aux.o variables.o
+output_eclipse.o : grid_grdecl_util.o option.o pflotran_constants.o string.o \
+                   well_type.o
 output_ekg.o : option.o output_aux.o pflotran_constants.o
 output_geomechanics.o : geomech_grid.o geomech_grid_aux.o \
                         geomechanics_discretization.o geomechanics_field.o \
@@ -434,17 +468,19 @@ output_hdf5.o : connection.o coupler.o discretization.o field.o grid.o \
                 output_common.o patch.o pflotran_constants.o \
                 pflotran_provenance.o reaction_aux.o realization_base.o \
                 string.o utility.o variables.o
-output_observation.o : connection.o coupler.o discretization.o field.o \
-                       flash2.o general.o general_aux.o global_aux.o grid.o \
-                       grid_structured.o immis.o integral_flux.o logging.o \
-                       material_aux.o miscible.o mphase.o observation.o \
-                       option.o output_aux.o output_common.o patch.o \
+output_observation.o : connection.o coupler.o discretization.o eos_gas.o \
+                       eos_oil.o eos_slv.o eos_water.o field.o flash2.o \
+                       general.o general_aux.o global_aux.o grid.o \
+                       grid_grdecl.o grid_structured.o hydrate.o immis.o \
+                       integral_flux.o logging.o material_aux.o miscible.o \
+                       mphase.o observation.o option.o output_aux.o \
+                       output_common.o output_eclipse.o patch.o \
                        pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
                        reaction_aux.o reactive_transport.o \
                        reactive_transport_aux.o realization_base.o \
-                       realization_subsurface.o region.o richards.o th.o \
-                       toil_ims.o towg.o utility.o variables.o well_data.o \
-                       wipp_flow.o wipp_flow_aux.o
+                       realization_subsurface.o region.o richards.o string.o \
+                       th.o toil_ims.o towg.o utility.o variables.o \
+                       well_data.o well_type.o wipp_flow.o wipp_flow_aux.o
 output_surface.o : connection.o coupler.o discretization.o field.o grid.o \
                    grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                    hdf5_aux.o input_aux.o logging.o option.o output_aux.o \
@@ -466,21 +502,27 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           coupler.o dataset.o dataset_ascii.o dataset_base.o \
           dataset_common_hdf5.o dataset_gridded_hdf5.o dataset_map_hdf5.o \
           eos_water.o field.o general_aux.o geometry.o global_aux.o grid.o \
-          grid_unstructured_cell.o hydrostatic.o hydrostatic_multi_phase.o \
-          immis_aux.o integral_flux.o material.o material_aux.o miscible_aux.o \
-          mphase_aux.o observation.o option.o output_aux.o \
-          pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o reaction.o \
-          reaction_aux.o reaction_mineral.o reaction_mineral_aux.o \
+          grid_unstructured_cell.o hydrate_aux.o hydrostatic.o \
+          hydrostatic_multi_phase.o immis_aux.o integral_flux.o material.o \
+          material_aux.o miscible_aux.o mphase_aux.o nw_transport_aux.o \
+          observation.o option.o output_aux.o pflotran_constants.o \
+          pm_toil_ims_aux.o pm_towg_aux.o reaction.o reaction_aux.o \
+          reaction_mineral.o reaction_mineral_aux.o \
           reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
           richards_aux.o saturation.o saturation_function.o strata.o string.o \
           surface_auxiliary.o surface_field.o surface_material.o th_aux.o \
           transport_constraint.o upwind_direction.o utility.o variables.o \
-          well.o well_spec_base.o wipp_flow_aux.o
+          wipp_flow_aux.o
 pflotran.o : factory_pflotran.o factory_subsurface.o multisimulation.o \
              option.o pflotran_constants.o pflotran_provenance.o \
              simulation_base.o
 pflotran_constants.o :
+pflotran_derivative.o : eos.o general_derivative.o option.o
 pflotran_provenance.o :
+pflotran_rxn.o : global_aux.o input_aux.o material_aux.o option.o \
+                 pflotran_constants.o reaction.o reaction_aux.o \
+                 reaction_database.o reactive_transport_aux.o string.o \
+                 transport_constraint.o
 pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
                  input_aux.o option.o pflotran_constants.o pm_base.o \
                  reaction_aux.o reactive_transport_aux.o \
@@ -493,12 +535,12 @@ pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
 pm_flash2.o : eos_water.o flash2.o flash2_aux.o input_aux.o option.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               realization_subsurface.o string.o utility.o
-pm_general.o : checkpoint.o field.o general.o general_aux.o global.o \
-               global_aux.o grid.o input_aux.o material.o material_aux.o \
-               option.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
-               pm_subsurface_flow.o realization_base.o \
-               realization_subsurface.o saturation_function.o string.o \
-               upwind_direction.o variables.o
+pm_general.o : checkpoint.o convergence.o field.o general.o general_aux.o \
+               global.o global_aux.o grid.o input_aux.o material.o option.o \
+               patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \
+               realization_base.o realization_subsurface.o \
+               saturation_function.o string.o upwind_direction.o utility.o \
+               variables.o
 pm_geomechanics_force.o : checkpoint.o communicator_base.o \
                           communicator_structured.o \
                           communicator_unstructured.o convergence.o \
@@ -506,6 +548,12 @@ pm_geomechanics_force.o : checkpoint.o communicator_base.o \
                           geomechanics_discretization.o geomechanics_force.o \
                           geomechanics_realization.o global.o grid.o option.o \
                           pflotran_constants.o pm_base.o
+pm_hydrate.o : checkpoint.o convergence.o field.o global.o global_aux.o grid.o \
+               hydrate.o hydrate_aux.o input_aux.o material.o option.o patch.o \
+               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
+               realization_base.o realization_subsurface.o \
+               saturation_function.o string.o upwind_direction.o utility.o \
+               variables.o
 pm_immis.o : eos_water.o immis.o immis_aux.o input_aux.o option.o \
              pflotran_constants.o pm_base.o pm_subsurface_flow.o \
              realization_subsurface.o string.o utility.o
@@ -517,11 +565,16 @@ pm_mphase.o : connection.o coupler.o eos_water.o global_aux.o grid.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               reaction_aux.o reactive_transport_aux.o realization_subsurface.o \
               string.o utility.o
-pm_richards.o : characteristic_curves.o eos_water.o field.o global_aux.o \
-                grid.o input_aux.o material_aux.o option.o patch.o \
+pm_nwt.o : communicator_base.o condition.o convergence.o data_mediator.o \
+           field.o global.o grid.o input_aux.o integral_flux.o material.o \
+           material_aux.o nw_transport.o nw_transport_aux.o option.o \
+           output_aux.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
+           realization_subsurface.o string.o utility.o variables.o
+pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
+                general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
-                realization_subsurface.o richards.o richards_aux.o \
-                richards_common.o string.o utility.o
+                realization_subsurface.o richards.o richards_aux.o string.o \
+                utility.o
 pm_richards_ts.o : discretization.o field.o global_aux.o grid.o material_aux.o \
                    option.o patch.o pflotran_constants.o pm_base.o \
                    pm_richards.o pm_subsurface_flow.o realization_subsurface.o \
@@ -533,19 +586,20 @@ pm_rt.o : checkpoint.o communicator_base.o communicator_structured.o \
           option.o output_ekg.o patch.o pflotran_constants.o pm_base.o \
           reaction_aux.o reactive_transport.o reactive_transport_aux.o \
           realization_base.o realization_subsurface.o secondary_continuum.o \
-          string.o variables.o
+          string.o utility.o variables.o
 pm_subsurface_flow.o : auxvars_flow.o characteristic_curves.o \
                        characteristic_curves_wipp.o checkpoint.o \
                        communicator_base.o communicator_structured.o \
                        communicator_unstructured.o condition.o \
-                       condition_control.o convergence.o coupler.o \
-                       data_mediator.o dataset_base.o dataset_common_hdf5.o \
+                       condition_control.o convergence.o data_mediator.o \
+                       dataset_base.o dataset_common_hdf5.o \
                        dataset_gridded_hdf5.o discretization.o global.o grid.o \
-                       hdf5.o input_aux.o integral_flux.o material.o \
-                       material_aux.o option.o patch.o pflotran_constants.o \
-                       pm_base.o realization_base.o realization_subsurface.o \
-                       srcsink_sandbox.o string.o upwind_direction.o \
-                       variables.o well_data.o well_solver.o wipp.o
+                       grid_grdecl.o hdf5.o input_aux.o integral_flux.o \
+                       material.o material_aux.o option.o patch.o \
+                       pflotran_constants.o pm_base.o realization_base.o \
+                       realization_subsurface.o srcsink_sandbox.o string.o \
+                       upwind_direction.o variables.o well_data.o \
+                       well_solver.o wipp.o
 pm_surface.o : checkpoint_surface.o communicator_base.o \
                communicator_unstructured.o condition.o discretization.o \
                global.o grid.o input_aux.o option.o pflotran_constants.o \
@@ -559,20 +613,24 @@ pm_surface_th.o : communicator_base.o condition.o discretization.o eos_water.o \
                   string.o surface_field.o surface_th.o surface_th_aux.o \
                   utility.o
 pm_th.o : communicator_base.o communicator_structured.o \
-          communicator_unstructured.o discretization.o eos_water.o field.o \
-          global.o global_aux.o grid.o input_aux.o material_aux.o option.o \
-          patch.o pflotran_constants.o pm_base.o pm_subsurface_flow.o \
-          realization_subsurface.o saturation_function.o \
-          secondary_continuum_aux.o string.o th.o th_aux.o utility.o
-pm_toil_ims.o : appleyard.o auxvars_toil_ims.o checkpoint.o field.o global.o \
-                global_aux.o grid.o input_aux.o material.o material_aux.o \
-                option.o patch.o pflotran_constants.o pm_base.o \
-                pm_subsurface_flow.o pm_toil_ims_aux.o realization_base.o \
-                realization_subsurface.o string.o toil_ims.o variables.o
+          communicator_unstructured.o convergence.o discretization.o \
+          eos_water.o field.o general_aux.o global.o global_aux.o grid.o \
+          input_aux.o option.o patch.o pflotran_constants.o pm_base.o \
+          pm_subsurface_flow.o realization_subsurface.o saturation_function.o \
+          string.o th.o th_aux.o utility.o
+pm_th_ts.o : debug.o discretization.o field.o global_aux.o grid.o \
+             material_aux.o option.o patch.o pflotran_constants.o pm_base.o \
+             pm_subsurface_flow.o pm_th.o realization_subsurface.o th.o \
+             th_aux.o
+pm_toil_ims.o : auxvars_toil_ims.o checkpoint.o field.o global.o global_aux.o \
+                grid.o input_aux.o material.o material_aux.o option.o patch.o \
+                pflotran_constants.o pm_base.o pm_subsurface_flow.o \
+                pm_toil_ims_aux.o realization_base.o realization_subsurface.o \
+                string.o toil_ims.o variables.o
 pm_toil_ims_aux.o : auxvars_toil_ims.o characteristic_curves.o \
                     derivative_tests.o eos_oil.o eos_water.o global_aux.o \
                     grid.o material_aux.o option.o pflotran_constants.o \
-                    pm_base_aux.o utility.o
+                    pm_base_aux.o string.o utility.o well_data.o
 pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
             pflotran_constants.o pm_base.o pm_subsurface_flow.o pm_towg_aux.o \
             realization_base.o realization_subsurface.o string.o towg.o \
@@ -580,7 +638,8 @@ pm_towg.o : checkpoint.o field.o global.o input_aux.o material.o option.o \
 pm_towg_aux.o : auxvars_towg.o characteristic_curves.o derivative_tests.o \
                 derivatives_utilities.o eos_gas.o eos_oil.o eos_slv.o \
                 eos_water.o global_aux.o grid.o material_aux.o option.o \
-                pflotran_constants.o pm_base_aux.o utility.o
+                pflotran_constants.o pm_base_aux.o string.o utility.o \
+                well_data.o
 pm_ufd_biosphere.o : coupler.o global_aux.o grid.o input_aux.o material_aux.o \
                      option.o output_aux.o pflotran_constants.o pm_base.o \
                      reaction_aux.o reactive_transport_aux.o \
@@ -590,19 +649,20 @@ pm_ufd_decay.o : field.o global.o global_aux.o grid.o input_aux.o material.o \
                  pflotran_constants.o pm_base.o reaction_aux.o \
                  reaction_mineral_aux.o reactive_transport_aux.o \
                  realization_subsurface.o string.o utility.o
-pm_waste_form.o : checkpoint.o condition.o criticality.o data_mediator_vec.o \
+pm_waste_form.o : checkpoint.o condition.o data_mediator_vec.o dataset.o \
                   dataset_ascii.o dataset_base.o discretization.o field.o \
                   geometry.o global_aux.o grid.o grid_structured.o \
-                  grid_unstructured.o hdf5.o input_aux.o material_aux.o \
-                  option.o output_aux.o patch.o pflotran_constants.o pm_base.o \
-                  reaction_aux.o reactive_transport_aux.o realization_base.o \
+                  grid_unstructured.o hdf5.o hdf5_aux.o input_aux.o logging.o \
+                  material_aux.o option.o output_aux.o patch.o \
+                  pflotran_constants.o pm_base.o reaction_aux.o \
+                  reactive_transport_aux.o realization_base.o \
                   realization_subsurface.o region.o string.o units.o utility.o
 pm_wipp_flow.o : checkpoint.o convergence.o dataset.o dataset_base.o \
                  dataset_common_hdf5.o debug.o discretization.o field.o \
                  global.o global_aux.o grid.o hdf5.o input_aux.o material.o \
                  material_aux.o option.o patch.o pflotran_constants.o \
                  pm_base.o pm_subsurface_flow.o pm_wipp_srcsink.o \
-                 realization_base.o realization_subsurface.o \
+                 realization_base.o realization_subsurface.o region.o \
                  saturation_function.o string.o upwind_direction.o utility.o \
                  variables.o wipp_flow.o wipp_flow_aux.o
 pm_wipp_srcsink.o : data_mediator_vec.o eos_gas.o eos_water.o global_aux.o \
@@ -624,10 +684,10 @@ pmc_geomechanics.o : convergence.o geomechanics_discretization.o \
 pmc_subsurface.o : connection.o convergence.o coupler.o discretization.o \
                    eos_water.o field.o grid.o material.o material_aux.o \
                    option.o patch.o pflotran_constants.o pm_base.o \
-                   pm_base_pointer.o pm_general.o pm_richards.o pm_rt.o \
-                   pm_subsurface_flow.o pm_th.o pm_toil_ims.o pm_towg.o \
-                   pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o pmc_base.o \
-                   realization_base.o realization_subsurface.o \
+                   pm_base_pointer.o pm_general.o pm_nwt.o pm_richards.o \
+                   pm_rt.o pm_subsurface_flow.o pm_th.o pm_toil_ims.o \
+                   pm_towg.o pm_ufd_decay.o pm_waste_form.o pm_wipp_flow.o \
+                   pmc_base.o realization_base.o realization_subsurface.o \
                    secondary_continuum.o solver.o string.o timestepper_BE.o \
                    timestepper_TS.o timestepper_base.o variables.o
 pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \
@@ -759,36 +819,38 @@ reaction_surf_complex.o : global_aux.o input_aux.o material_aux.o \
 reaction_surf_complex_aux.o : option.o pflotran_constants.o \
                               reaction_database_aux.o utility.o
 reactive_transport.o : co2_span_wagner.o co2eos.o condition.o connection.o \
-                       coupler.o debug.o discretization.o eos_water.o field.o \
-                       fluid.o generic.o global.o global_aux.o grid.o hdf5.o \
-                       logging.o material.o material_aux.o option.o \
-                       output_aux.o output_tecplot.o patch.o \
-                       pflotran_constants.o reaction.o reaction_aux.o \
-                       reaction_surf_complex_aux.o reactive_transport_aux.o \
-                       realization_subsurface.o region.o secondary_continuum.o \
+                       coupler.o dataset.o dataset_base.o debug.o \
+                       discretization.o eos_water.o field.o fluid.o generic.o \
+                       global.o global_aux.o grid.o hdf5.o logging.o \
+                       material.o material_aux.o option.o output_aux.o \
+                       output_tecplot.o patch.o pflotran_constants.o \
+                       reaction.o reaction_aux.o reaction_surf_complex_aux.o \
+                       reactive_transport_aux.o realization_subsurface.o \
+                       region.o secondary_continuum.o \
                        secondary_continuum_aux.o string.o transport.o \
                        transport_constraint.o
 reactive_transport_aux.o : matrix_block_aux.o option.o pflotran_constants.o \
                            reaction_aux.o reaction_surf_complex_aux.o \
                            utility.o
 realization_base.o : communicator_base.o data_mediator.o data_mediator_base.o \
-                     debug.o discretization.o field.o input_aux.o option.o \
-                     output_aux.o patch.o pflotran_constants.o reaction_aux.o \
-                     waypoint.o
+                     debug.o discretization.o field.o input_aux.o \
+                     nw_transport_aux.o option.o output_aux.o patch.o \
+                     pflotran_constants.o reaction_aux.o waypoint.o
 realization_subsurface.o : characteristic_curves.o communicator_structured.o \
                            communicator_unstructured.o condition.o coupler.o \
                            data_mediator_base.o data_mediator_dataset.o \
                            dataset.o dataset_base.o dataset_common_hdf5.o \
                            debug.o discretization.o dm_kludge.o field.o \
-                           fluid.o grid.o grid_structured.o \
+                           fluid.o grid.o grid_grdecl.o grid_structured.o \
                            grid_unstructured.o grid_unstructured_aux.o \
                            grid_unstructured_cell.o input_aux.o material.o \
-                           material_aux.o option.o output_aux.o patch.o \
+                           material_aux.o nw_transport_aux.o option.o \
+                           output_aux.o output_eclipse.o patch.o \
                            pflotran_constants.o reaction.o reaction_aux.o \
                            reactive_transport_aux.o realization_base.o \
                            region.o saturation_function.o strata.o string.o \
                            time_storage.o transport_constraint.o variables.o \
-                           waypoint.o well_data.o well_spec_base.o
+                           waypoint.o well_data.o
 realization_surface.o : condition.o coupler.o dataset.o dataset_base.o debug.o \
                         discretization.o dm_kludge.o field.o grid.o \
                         grid_unstructured.o grid_unstructured_aux.o \
@@ -797,12 +859,13 @@ realization_surface.o : condition.o coupler.o dataset.o dataset_base.o debug.o \
                         reaction_aux.o realization_base.o \
                         realization_subsurface.o region.o strata.o string.o \
                         surface_field.o surface_material.o time_storage.o \
-                        waypoint.o well_spec_base.o
+                        waypoint.o
 region.o : geometry.o grid_structured.o grid_unstructured_cell.o input_aux.o \
            logging.o option.o pflotran_constants.o string.o utility.o
 regression.o : discretization.o grid.o input_aux.o option.o output.o \
                output_aux.o output_common.o pflotran_constants.o \
-               realization_subsurface.o string.o timestepper_BE.o utility.o
+               realization_subsurface.o string.o timestepper_BE.o \
+               timestepper_TS.o timestepper_base.o utility.o
 richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              field.o global_aux.o grid.o inlinesurface.o inlinesurface_aux.o \
              logging.o material.o material_aux.o matrix_buffer.o option.o \
@@ -849,8 +912,7 @@ simulation_subsurface.o : characteristic_curves.o condition.o discretization.o \
                           reaction_clm.o reaction_sandbox.o \
                           realization_subsurface.o region.o regression.o \
                           simulation_base.o srcsink_sandbox.o strata.o \
-                          timestepper_BE.o timestepper_base.o waypoint.o \
-                          wipp.o
+                          timestepper_base.o waypoint.o wipp.o
 simulation_surface.o : logging.o option.o output.o pflotran_constants.o \
                        pmc_base.o pmc_surface.o realization_surface.o \
                        regression.o simulation_base.o timestepper_base.o \
@@ -914,14 +976,15 @@ surface_th.o : connection.o coupler.o debug.o discretization.o dm_kludge.o \
                surface_material.o surface_th_aux.o utility.o variables.o
 surface_th_aux.o : eos_water.o option.o pflotran_constants.o \
                    surface_global_aux.o
-th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
-       field.o fluid.o global_aux.o grid.o logging.o material.o material_aux.o \
-       option.o output_aux.o patch.o pflotran_constants.o \
-       realization_subsurface.o region.o saturation_function.o \
-       secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
-       utility.o variables.o
-th_aux.o : eos_water.o global_aux.o material_aux.o option.o \
-           pflotran_constants.o saturation_function.o
+th.o : characteristic_curves.o condition.o connection.o coupler.o debug.o \
+       discretization.o eos_water.o field.o fluid.o global_aux.o grid.o \
+       logging.o material.o material_aux.o option.o output_aux.o patch.o \
+       pflotran_constants.o realization_subsurface.o region.o \
+       saturation_function.o secondary_continuum.o secondary_continuum_aux.o \
+       string.o th_aux.o utility.o variables.o
+th_aux.o : characteristic_curves.o characteristic_curves_common.o eos_water.o \
+           global_aux.o material_aux.o option.o pflotran_constants.o \
+           saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \
@@ -937,22 +1000,20 @@ timestepper_steady.o : convergence.o option.o output.o pflotran_constants.o \
 timestepper_surface.o : option.o output.o pflotran_constants.o pm_base.o \
                         pm_surface_flow.o solver.o surface_flow.o \
                         timestepper_base.o utility.o waypoint.o
-toil_ims.o : appleyard.o auxvars_flow.o auxvars_toil_ims.o condition.o \
-             connection.o coupler.o debug.o discretization.o eos_oil.o \
-             eos_water.o field.o global_aux.o grid.o material.o material_aux.o \
-             option.o output_aux.o output_tecplot.o patch.o \
-             pflotran_constants.o pm_toil_ims_aux.o realization_subsurface.o \
-             saturation_function.o toil_ims_derivs.o utility.o variables.o \
-             well_data.o well_solver.o
+toil_ims.o : auxvars_flow.o auxvars_toil_ims.o condition.o connection.o \
+             coupler.o debug.o discretization.o eos_oil.o eos_water.o field.o \
+             global_aux.o grid.o material.o material_aux.o option.o \
+             output_aux.o output_tecplot.o patch.o pflotran_constants.o \
+             pm_toil_ims_aux.o realization_subsurface.o saturation_function.o \
+             toil_ims_derivs.o utility.o variables.o well_data.o well_solver.o
 toil_ims_derivs.o : auxvars_toil_ims.o global_aux.o pflotran_constants.o \
                     pm_toil_ims_aux.o
-towg.o : appleyard.o auxvars_flow.o auxvars_towg.o condition.o connection.o \
-         coupler.o debug.o derivatives_utilities.o discretization.o eos_gas.o \
-         eos_oil.o eos_slv.o eos_water.o field.o global_aux.o grid.o \
-         material.o material_aux.o option.o output_aux.o patch.o \
-         pflotran_constants.o pm_towg_aux.o realization_base.o \
-         realization_subsurface.o saturation_function.o utility.o variables.o \
-         well_data.o well_solver.o
+towg.o : auxvars_flow.o auxvars_towg.o condition.o connection.o coupler.o \
+         debug.o derivatives_utilities.o discretization.o eos_gas.o eos_oil.o \
+         eos_slv.o eos_water.o field.o global_aux.o grid.o material.o \
+         material_aux.o option.o output_aux.o patch.o pflotran_constants.o \
+         pm_towg_aux.o realization_base.o realization_subsurface.o \
+         saturation_function.o utility.o variables.o well_data.o well_solver.o
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
               option.o pflotran_constants.o reactive_transport_aux.o
 transport_constraint.o : global_aux.o input_aux.o logging.o option.o \
@@ -965,41 +1026,19 @@ upwind_direction.o : option.o
 utility.o : input_aux.o option.o pflotran_constants.o string.o
 variables.o :
 waypoint.o : option.o output_aux.o pflotran_constants.o utility.o
-well.o : auxiliary.o condition.o connection.o option.o output_aux.o \
-         pflotran_constants.o well_base.o well_flow.o well_flow_energy.o \
-         well_oil_producer.o well_spec_base.o well_toil_ims.o \
-         well_water_injector.o
-well_base.o : connection.o grid.o hydrostatic_common.o material_aux.o option.o \
-              output_aux.o pflotran_constants.o utility.o well_spec_base.o
-well_data.o : input_aux.o option.o pflotran_constants.o string.o units.o \
-              utility.o
-well_flow.o : auxvars_flow.o condition.o grid.o hydrostatic_common.o option.o \
-              pflotran_constants.o utility.o well_base.o well_spec_base.o
-well_flow_energy.o : auxvars_flow_energy.o grid.o hydrostatic_common.o \
-                     material_aux.o option.o output_aux.o pflotran_constants.o \
-                     utility.o well_base.o well_flow.o
-well_oil_producer.o : eos_oil.o eos_water.o grid.o option.o output_aux.o \
-                      pflotran_constants.o well_base.o well_flow.o \
-                      well_flow_energy.o well_spec_base.o
+well_data.o : grid.o grid_grdecl.o input_aux.o option.o pflotran_constants.o \
+              string.o units.o utility.o well_type.o
 well_solver.o : auxiliary.o auxvars_toil_ims.o auxvars_towg.o eos_gas.o \
-                eos_oil.o eos_slv.o eos_water.o grid.o material_aux.o option.o \
-                pflotran_constants.o pm_toil_ims_aux.o pm_towg_aux.o \
-                well_data.o
-well_spec_base.o : input_aux.o option.o pflotran_constants.o string.o units.o \
-                   utility.o
-well_toil_ims.o : auxvars_toil_ims.o eos_oil.o eos_water.o option.o \
-                  output_aux.o pflotran_constants.o pm_toil_ims_aux.o \
-                  toil_ims_derivs.o well_base.o well_flow.o well_flow_energy.o \
-                  well_oil_producer.o well_spec_base.o well_water_injector.o
-well_water_injector.o : eos_water.o grid.o hydrostatic_common.o option.o \
-                        output_aux.o pflotran_constants.o well_base.o \
-                        well_flow.o well_flow_energy.o well_spec_base.o
+                eos_oil.o eos_slv.o eos_water.o grid.o grid_grdecl.o \
+                material_aux.o option.o pflotran_constants.o pm_toil_ims_aux.o \
+                pm_towg_aux.o well_data.o well_type.o
+well_type.o : pflotran_constants.o
 wipp.o : characteristic_curves_base.o characteristic_curves_wipp.o input_aux.o \
          lookup_table.o material_aux.o option.o pflotran_constants.o string.o \
          units.o utility.o
-wipp_flow.o : characteristic_curves.o connection.o coupler.o discretization.o \
-              field.o general_aux.o global_aux.o grid.o material.o \
-              material_aux.o option.o output_aux.o patch.o \
+wipp_flow.o : characteristic_curves.o connection.o coupler.o debug.o \
+              discretization.o field.o general_aux.o global_aux.o grid.o \
+              material.o material_aux.o option.o output_aux.o patch.o \
               pflotran_constants.o pm_wipp_srcsink.o realization_subsurface.o \
               srcsink_sandbox.o srcsink_sandbox_base.o \
               srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \

@@ -72,7 +72,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case default
             option%io_buffer  = 'CPR T2 Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
 
       case('CPRT1_TYPE')
@@ -89,7 +89,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case default
             option%io_buffer  = 'CPR T1 KSP type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
 
       case('CPR_EXTRACTION_TYPE')
@@ -104,7 +104,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case default
             option%io_buffer  = 'CPR Extraction type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
 
       case('CPR_EX_OFFSET')
@@ -173,7 +173,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
                 case default
                   option%io_buffer  = 'HYPRE BoomerAMG cycle type: ' &
                                       // trim(word) // ' unknown.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             case('BOOMERAMG_MAX_LEVELS')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -397,13 +397,13 @@ subroutine SolverCPRRead(stash, input, option, ierr)
             case default
               option%io_buffer  = 'HYPRE option: ' // trim(keyword) // &
                                   ' unknown.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
         enddo
     case default
       option%io_buffer  = 'CPR preconditioner option: ' // trim(keyword) // &
                           ' unknown.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end select
   enddo
 
@@ -427,10 +427,28 @@ subroutine SolverCPRInit(J, stash, pcin, ierr, option)
   MPI_Comm :: C
   PetscErrorCode :: ierr
   type(option_type) :: option
+  MatType :: Jtype
+
+  ! Unfortunately we cannot guarantee currently compatibilty with AIJ type
+  ! matrices. For most modes there will already be an error thrown
+  ! if type is set to AIJ *by the infile* but it is possible to 
+  ! get around this with a command line option, which causes assorted
+  ! problems. For CPR specifically we have that the indexing calculations
+  ! for extracting the pressure subsystem break with AIJ so for now just
+  ! refuse to run with both CPR and AIJ:
+  call MatGetType(J,Jtype,ierr); CHKERRQ(ierr)
+  if (.NOT.(Jtype == MATMPIBAIJ .OR. Jtype == MATBAIJ .OR. Jtype == MATSEQBAIJ )) then
+    option%io_buffer  = 'CPR preconditioner: not compatible with matrix type: ' // trim(Jtype) // &
+                        ' -  Please try again with blocked matrix type BAIJ '                  // &
+                        '(for most modes this should be the default).'
+    call PrintErrMsg(option)
+  endif
+
+
 
   call PetscObjectGetComm(pcin, C, ierr); CHKERRQ(ierr)
 
-  call CPRmake(pcin, stash, C, ierr, option)
+  call CPRMake(pcin, stash, C, ierr, option)
 
   ! set the A matrix in the stash to J:
   stash%A = J

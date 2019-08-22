@@ -21,6 +21,8 @@ module Simulation_Subsurface_class
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
     ! pointer to reactive transport process model coupler
     class(pmc_subsurface_type), pointer :: rt_process_model_coupler
+    ! pointer to nuclear waste transport process model coupler
+    class(pmc_subsurface_type), pointer :: nwt_process_model_coupler
     ! pointer to realization object shared by flow and reactive transport
     class(realization_subsurface_type), pointer :: realization 
     ! regression object
@@ -91,6 +93,7 @@ subroutine SubsurfaceSimulationInit(this,option)
   call SimulationBaseInit(this,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%rt_process_model_coupler)
+  nullify(this%nwt_process_model_coupler)
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
@@ -141,18 +144,24 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'multi-phase'
     case(RICHARDS_MODE)
       write(id,'(a)') 'richards'
+    case(RICHARDS_TS_MODE)
+      write(id,'(a)') 'richards_ts'
     case(IMS_MODE)
       write(id,'(a)') 'immiscible'
     case(FLASH2_MODE)
       write(id,'(a)') 'flash2'
     case(G_MODE)
       write(id,'(a)') 'general'
+    case(H_MODE)
+      write(id,'(a)') 'hydrate'
     case(WF_MODE)
       write(id,'(a)') 'wipp flow'
     case(MIS_MODE)
       write(id,'(a)') 'miscible'
     case(TH_MODE)
       write(id,'(a)') 'thermo-hydro'
+    case(TH_TS_MODE)
+      write(id,'(a)') 'thermo-hydro_ts'
     case(TOIL_IMS_MODE)
       write(id,'(a)') 'thermal-oil-immiscible'
   end select
@@ -222,7 +231,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   
 #ifdef DEBUG
-  call printMsg(this%option,'SubsurfaceSimulationJumpStart()')
+  call PrintMsg(this%option,'SubsurfaceSimulationJumpStart()')
 #endif
 
   nullify(master_timestepper)
@@ -243,17 +252,20 @@ subroutine SubsurfaceSimulationJumpStart(this)
   if (associated(this%rt_process_model_coupler)) then
     tran_timestepper => this%rt_process_model_coupler%timestepper
   endif
+  if (associated(this%nwt_process_model_coupler)) then
+    tran_timestepper => this%nwt_process_model_coupler%timestepper
+  endif
   
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
   if (master_timestepper%max_time_step < 0) then
-    call printMsg(option,'')
+    call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
                        '), specified by TIMESTEPPER->MAX_STEPS, ' // &
                        'has been met.  Stopping....'  
-    call printMsg(option)
-    call printMsg(option,'')
+    call PrintMsg(option)
+    call PrintMsg(option,'')
     option%status = DONE
     return
   endif
@@ -271,20 +283,20 @@ subroutine SubsurfaceSimulationJumpStart(this)
   
   !if TIMESTEPPER->MAX_STEPS < 1, print out initial condition only
   if (master_timestepper%max_time_step < 1) then
-    call printMsg(option,'')
+    call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
                        '), specified by TIMESTEPPER->MAX_STEPS, ' // &
                        'has been met.  Stopping....'  
-    call printMsg(option)
-    call printMsg(option,'') 
+    call PrintMsg(option)
+    call PrintMsg(option,'')
     option%status = DONE
     return
   endif
 
   ! increment plot number so that 000 is always the initial condition, 
-  !and nothing else
+  ! and nothing else
   if (output_option%plot_number == 0) output_option%plot_number = 1
 
   if (associated(flow_timestepper)) then
@@ -292,7 +304,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
       option%io_buffer = &
         'Null flow waypoint list; final time likely equal to start time.&
         &time or simulation time needs to be extended on a restart.'
-      call printMsg(option)
+      call PrintMsg(option)
       option%status = FAIL
       return
     else
@@ -304,7 +316,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
       option%io_buffer = &
         'Null transport waypoint list; final time likely equal to start &
         &time or simulation time needs to be extended on a restart.'
-      call printMsg(option)
+      call PrintMsg(option)
       option%status = FAIL
       return
     else
@@ -337,7 +349,7 @@ subroutine SubsurfaceFinalizeRun(this)
   ! Date: 03/18/13
   ! 
 
-  use Timestepper_BE_class
+  use Timestepper_Base_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
   use WIPP_module, only : WIPPDestroy
@@ -350,11 +362,11 @@ subroutine SubsurfaceFinalizeRun(this)
   
   PetscErrorCode :: ierr
   
-  class(timestepper_BE_type), pointer :: flow_timestepper
-  class(timestepper_BE_type), pointer :: tran_timestepper
+  class(timestepper_base_type), pointer :: flow_timestepper
+  class(timestepper_base_type), pointer :: tran_timestepper
 
 #ifdef DEBUG
-  call printMsg(this%option,'SubsurfaceFinalizeRun()')
+  call PrintMsg(this%option,'SubsurfaceFinalizeRun()')
 #endif
   
   call SimulationBaseFinalizeRun(this)
@@ -362,19 +374,13 @@ subroutine SubsurfaceFinalizeRun(this)
   nullify(flow_timestepper)
   nullify(tran_timestepper)
   if (associated(this%flow_process_model_coupler)) then
-    select type(ts => this%flow_process_model_coupler%timestepper)
-      class is(timestepper_BE_type)
-        flow_timestepper => ts
-    end select
+    flow_timestepper => this%flow_process_model_coupler%timestepper
     call SSSandboxDestroyList()
     call WIPPDestroy()
     call KlinkenbergDestroy()
   endif
   if (associated(this%rt_process_model_coupler)) then
-    select type(ts => this%rt_process_model_coupler%timestepper)
-      class is(timestepper_BE_type)
-        tran_timestepper => ts
-    end select
+    tran_timestepper => this%rt_process_model_coupler%timestepper
     call RSandboxDestroy()
     call RCLMRxnDestroy()
   endif
@@ -399,7 +405,7 @@ subroutine SubsurfaceSimulationStrip(this)
   class(simulation_subsurface_type) :: this
   
 #ifdef DEBUG
-  call printMsg(this%option,'SubsurfaceSimulationStrip()')
+  call PrintMsg(this%option,'SubsurfaceSimulationStrip()')
 #endif
   
   call SimulationBaseStrip(this)
@@ -426,7 +432,7 @@ subroutine SubsurfaceSimulationDestroy(simulation)
   class(simulation_subsurface_type), pointer :: simulation
   
 #ifdef DEBUG
-  call printMsg(simulation%option,'SimulationDestroy()')
+  call PrintMsg(simulation%option,'SimulationDestroy()')
 #endif
   
   if (.not.associated(simulation)) return

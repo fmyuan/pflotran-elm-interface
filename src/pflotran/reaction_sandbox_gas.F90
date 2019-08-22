@@ -291,7 +291,7 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
     if (compute_derivative) then
       option%io_buffer = 'NUMERICAL_JACOBIAN must always be used in SUBSURFACE_TRANSPORT' // &
            ' process model due to assumptions in gas reaction sandbox'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   end if
     

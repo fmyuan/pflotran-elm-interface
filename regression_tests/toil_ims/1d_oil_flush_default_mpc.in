@@ -34,7 +34,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 19 1 1 
   BOUNDS
@@ -127,14 +127,13 @@ CHARACTERISTIC_CURVES ch1
 
 #=========================== EOSs =============================================
 
-! if all commented, initialised IFC67 for density, enthaplty and viscosity  
-!EOS WATER
-!  DENSITY CONSTANT 997.16d0
-!  ENTHALPY CONSTANT 1.8890d0
-!  VISCOSITY CONSTANT 8.904156d-4
-!END
+! if den, enth and visc models not specified default to IFC67
+EOS WATER
+  SURFACE_DENSITY 1000.0 kg/m^3 !not used in this dataset as no wells
+END
 
 EOS OIL
+  SURFACE_DENSITY 800.0d0 !kg/m3 !not used in this dataset as no wells
   DENSITY CONSTANT 800.0d0 !kg/m3
   ENTHALPY LINEAR_TEMP 1.d3 !J/kg/°C h=cp_oil*T 
   VISCOSITY CONSTANT 0.5d-3
@@ -167,12 +166,11 @@ END
 FLOW_CONDITION initial
   !UNITS Pa,C,M,yr
   TYPE
-    PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  !DATUM 0.d0 0.d0 0.d0
-  PRESSURE 1.D5
+  PRESSURE 1.D5 Pa
   OIL_SATURATION 0.6d0 
   TEMPERATURE 15.d0 C
 /
@@ -181,11 +179,11 @@ FLOW_CONDITION wat_injection
   !UNITS Pa,C,M,yr
   TYPE
     RATE mass_rate
-    ENTHALPY dirichlet !can use also temperature
+    ENTHALPY DIRICHLET !can use also temperature
   /
   !Wat(kg/s), oil(kg/s), Energy rate (J/sec) - overwritten by Temp or Enthalpy 
   RATE 0.03d0 0.d0 0.0d0 kg/s kg/s MW
-  ENTHALPY 2.d5 !(J/kg)
+  ENTHALPY 2.d5 J/kg !(J/kg)
 /
 #=========================== condition couplers ===============================
 # initial condition

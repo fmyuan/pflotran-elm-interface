@@ -21,7 +21,7 @@ END
 #=========================== solver options ===================================
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 2 2 2
   BOUNDS
     0.d0 0.d0 0.d0
@@ -150,7 +150,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 6.d0
   PRESSURE 101325 ! Pa
@@ -158,7 +158,7 @@ END
 
 FLOW_CONDITION east
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0.d0 0.d0 7.d0
   PRESSURE 101325 ! Pa

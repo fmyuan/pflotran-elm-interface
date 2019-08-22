@@ -138,7 +138,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
 
-  ! need these for reactive transport only if if flow if computed
+  ! need these for reactive transport only if flow is computed
   if (option%nflowdof > 0 .and. option%ntrandof > 0) then
     allocate(auxvar%sat_store(nphase,TWO_INTEGER))
     auxvar%sat_store = 0.d0
@@ -147,7 +147,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
  
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
 !      if (option%ntrandof > 0) then
 !        allocate(auxvar%den_store(nphase,TWO_INTEGER))
 !        auxvar%den_store = 0.d0
@@ -171,7 +171,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       auxvar%reaction_rate = 0.d0
       allocate(auxvar%reaction_rate_store(option%nflowspec))
       auxvar%reaction_rate_store = 0.d0
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
     ! allocate(auxvar%xmass(nphase))
     ! auxvar%xmass = 1.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))

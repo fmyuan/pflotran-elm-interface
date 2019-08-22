@@ -168,7 +168,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
     call PCApply(amg_pc,s,z,ierr); CHKERRQ(ierr)
 
     if (ctx%amg_report) then
-      call PCView(amg_pc, PETSC_VIEWER_STDOUT_SELF, ierr);CHKERRQ(ierr)
+      call PCView(amg_pc, PETSC_VIEWER_STDOUT_WORLD, ierr);CHKERRQ(ierr)
     endif
   endif
 
@@ -265,7 +265,7 @@ subroutine CPRSetupT1(ctx,  ierr)
       call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
     case default
       ctx%option%io_buffer = 'CPRSetupT1, extraction type not defined'
-      call printErrMsg(ctx%option)
+      call PrintErrMsg(ctx%option)
   end select
 
 end subroutine CPRSetupT1
@@ -412,7 +412,7 @@ subroutine CPRMake(p, ctx, c, ierr, option)
        StringCompare(ctx%T2_type,'EUCLID'))) then
     option%io_buffer = 'CPR solver settings require that PETSc be &
       &configured with hypre (--download-hypre=yes).'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 #endif
 
@@ -674,12 +674,12 @@ subroutine DeallocateWorkersInCPRStash(ctx)
 
   type(cpr_pc_type) :: ctx
 
-  deallocate(ctx%vals)
-  deallocate(ctx%insert_vals)
-  deallocate(ctx%colIdx)
-  deallocate(ctx%colIdx_keep)
-  deallocate(ctx%insert_colIdx)
-  deallocate(ctx%all_vals)
+  if (allocated(ctx%vals))deallocate(ctx%vals)
+  if (allocated(ctx%insert_vals))deallocate(ctx%insert_vals)
+  if (allocated(ctx%colIdx))deallocate(ctx%colIdx)
+  if (allocated(ctx%colIdx_keep))deallocate(ctx%colIdx_keep)
+  if (allocated(ctx%insert_colIdx))deallocate(ctx%insert_colIdx)
+  if (allocated(ctx%all_vals))deallocate(ctx%all_vals)
 
   !! also the pointers:
   nullify(ctx%option)
@@ -737,7 +737,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
   call MatGetSize(A, rws, cls, ierr); CHKERRQ(ierr)
   if (rws /= cls) then
     ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
-    call printErrMsg(ctx%option)
+    call PrintErrMsg(ctx%option)
   endif
   nblks = rws/b
   nblks_l = (r_nd-r_st)/b
@@ -766,7 +766,7 @@ subroutine MatGetSubQIMPES(a, ap, factors1Vec,  ierr, ctx)
     enddo
     if (firstrowdex == -1) then
       ctx%option%io_buffer = 'MatGetSubQIMPES, cannot find diagonal entry, check matrix'
-      call printErrMsg(ctx%option)
+      call PrintErrMsg(ctx%option)
     endif
     aa = ctx%vals(firstrowdex)
     bb = ctx%vals(firstrowdex+1)
@@ -893,7 +893,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
   call MatGetSize(a, rws, cls, ierr); CHKERRQ(ierr)
   if (rws /= cls) then
     ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
-    call printErrMsg(ctx%option)
+    call PrintErrMsg(ctx%option)
   endif
 
   nblks = rws/b
@@ -921,7 +921,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
     enddo
     if (firstrowdex == -1) then
       ctx%option%io_buffer = 'MatGetSubQIMPES_var, cannot find diagonal entry, check matrix'
-      call printErrMsg(ctx%option)
+      call PrintErrMsg(ctx%option)
     endif
     numcols_keep = numcols
     ! restore first row
@@ -949,7 +949,7 @@ subroutine MatGetSubQIMPES_var(a, ap, factors1Vec,  ierr, &
 
     if (invinfo > 0) then
       ctx%option%io_buffer = 'MatGetSubQIMPES_var, singular diagonal block'
-      call printErrMsg(ctx%option)
+      call PrintErrMsg(ctx%option)
     endif
     ! scaling factor: the sum of abs of the first column of
     ! diagonal

@@ -163,7 +163,7 @@ subroutine SurfaceInit(surf_realization,input,option)
 
         case default
           option%io_buffer = 'Surface-flow supports only unstructured grid'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
   end select
 
@@ -209,10 +209,10 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
 
   ! Check if surface-flow is compatible with the given flowmode
   select case(option%iflowmode)
-    case(RICHARDS_MODE,TH_MODE)
+    case(RICHARDS_MODE,TH_MODE,TH_TS_MODE,RICHARDS_TS_MODE)
     case default
       option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
   end select
 
   call SurfaceInitReadRegionFiles(surf_realization)
@@ -231,10 +231,10 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   call RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       call SurfaceFlowSetup(surf_realization)
     case default
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       call SurfaceTHSetup(surf_realization)
   end select
 
@@ -248,17 +248,17 @@ subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
   ! override initial conditions if they are to be read from a file
   if (len_trim(option%surf_initialize_flow_filename) > 1) then
     option%io_buffer = 'For surface-flow initial conditions cannot be read from file'
-    call printErrMsgByRank(option)
+    call PrintErrMsgByRank(option)
   endif
   
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       call SurfaceFlowUpdateAuxVars(surf_realization)
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       call SurfaceTHUpdateAuxVars(surf_realization)
     case default
       option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
   end select
   
 end subroutine InitSurfaceSetupRealization
@@ -297,10 +297,10 @@ subroutine InitSurfaceSetupSolvers(surf_realization,solver,final_time)
   
   option => surf_realization%option
   
-  call printMsg(option,"  Beginning setup of FLOW SNES ")
+  call PrintMsg(option,"  Beginning setup of FLOW SNES ")
 
   ! Setup PETSc TS for explicit surface flow solution
-  call printMsg(option,"  Beginning setup of SURF FLOW TS ")
+  call PrintMsg(option,"  Beginning setup of SURF FLOW TS ")
 
   call SolverCreateTS(solver,option%mycomm)
   call TSSetProblemType(solver%ts,TS_NONLINEAR, &
@@ -395,7 +395,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
       if (.not.associated(strata%region) .and. strata%active) then
         option%io_buffer = 'Reading of material prop from file for' // &
           ' surface flow is not implemented.'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
         !call readMaterialsFromFile(realization,strata%realization_dependent, &
         !                           strata%material_property_filename)
       ! Otherwise, set based on region
@@ -454,23 +454,23 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
           option%io_buffer = 'No material property for surface material id ' // &
                               trim(adjustl(dataset_name)) &
                               //  ' defined in input file.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       else if (Uninitialized(surf_material_id)) then 
         write(dataset_name,*) grid%nG2A(ghosted_id)
         option%io_buffer = 'Uninitialized surface material id in patch at cell ' // &
                             trim(adjustl(dataset_name))
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       else if (surf_material_id > size(surf_realization%surf_material_property_array)) then
         write(option%io_buffer,*) surf_material_id
         option%io_buffer = 'Unmatched surface material id in patch:' // &
           adjustl(trim(option%io_buffer))
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       else
         option%io_buffer = 'Something messed up with surface material ids. ' // &
           ' Possibly material ids not assigned to all grid cells. ' // &
           ' Contact Glenn!'
-        call printErrMsgByRank(option)
+        call PrintErrMsgByRank(option)
       endif
       man0_p(local_id) = surf_material_property%mannings
     enddo ! local_id - loop
@@ -529,7 +529,7 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
              (.not. vert_ids_exists)) then
           option%io_buffer = '"Regions/' // trim(surf_region%name) // &
               ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
         if (cell_ids_exists .or. face_ids_exists) then
           call HDF5ReadRegionFromFile(surf_realization%patch%grid, &

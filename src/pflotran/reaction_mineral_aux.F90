@@ -82,6 +82,9 @@ module Reaction_Mineral_Aux_module
     PetscInt :: nmnrl
     PetscBool :: print_all
     PetscBool :: print_saturation_index
+    PetscBool :: print_rate
+    PetscBool :: print_volume_fraction
+    PetscBool :: print_surface_area
     character(len=MAXWORDLENGTH), pointer :: mineral_names(:)
     
     type(mineral_rxn_type), pointer :: mineral_list
@@ -174,7 +177,10 @@ function MineralCreate()
     
   nullify(mineral%mineral_list)
   mineral%print_all = PETSC_FALSE
+  mineral%print_volume_fraction = PETSC_TRUE
+  mineral%print_rate = PETSC_TRUE
   mineral%print_saturation_index = PETSC_FALSE
+  mineral%print_surface_area = PETSC_FALSE
   
   ! for saturation states
   mineral%nmnrl = 0  
@@ -417,6 +423,7 @@ function GetMineralFromName(name,mineral)
 
   GetMineralFromName => mineral%mineral_list
   do
+    if (.not.associated(GetMineralFromName)) exit
     if (StringCompare(name,GetMineralFromName%name,MAXWORDLENGTH)) return
     GetMineralFromName => GetMineralFromName%next
   enddo
@@ -560,7 +567,7 @@ function GetMineralIDFromName2(name,mineral,must_be_kinetic,throw_error, &
   if (throw_error .and. GetMineralIDFromName2 <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
       '" not found among minerals in GetMineralIDFromName().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end function GetMineralIDFromName2
@@ -594,7 +601,7 @@ function GetKineticMineralIDFromName(name,mineral,option)
   if (GetKineticMineralIDFromName <= 0) then
     option%io_buffer = 'Mineral "' // trim(name) // &
       '" not found among kinetic minerals in GetKineticMineralIDFromName().'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end function GetKineticMineralIDFromName

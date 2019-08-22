@@ -25,7 +25,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 1 1 1
   BOUNDS
     0.d0 0.d0 0.d0
@@ -131,9 +131,9 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    GAS_PRESSURE dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    GAS_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   GAS_PRESSURE 106325.d0
   GAS_SATURATION 0.9d0

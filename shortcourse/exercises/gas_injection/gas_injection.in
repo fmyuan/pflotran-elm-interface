@@ -7,7 +7,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL ! two-phase flow and energy
       OPTIONS
-        ANALYTICAL_DERIVATIVES
         GAS_COMPONENT_FORMULA_WEIGHT 44.d0 ! CO2
         ISOTHERMAL ! ignore energy component for this simulation
       /

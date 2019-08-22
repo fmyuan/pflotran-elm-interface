@@ -126,7 +126,6 @@ subroutine GeomechanicsSubsurfacePropsPropertytoAux(auxvar,this)
   class(material_auxvar_type), intent(inout) :: auxvar
   class(geomechanics_subsurface_properties_type), pointer :: &
     this 
-  type(option_type) :: option
  
   auxvar%geomechanics_subsurface_prop(Bandis_A_index) = &
     this%Bandis_A  
@@ -237,7 +236,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
                                                    local_stress, &
                                                    local_strain, &
                                                    local_pressure, &
-                                                   porosity_after)
+                                                   porosity_after,option)
   !
   ! Calculates the change in porosity due to geomechanical strains
   !
@@ -293,7 +292,7 @@ subroutine GeomechanicsSubsurfacePropsPoroEvaluate(grid, &
       write(string,*) model_id
       option%io_buffer = 'geomechanical compressibility model "' // &
         trim(string) // '" not recognized.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end select
           
 end subroutine GeomechanicsSubsurfacePropsPoroEvaluate
@@ -397,7 +396,8 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
                                                    local_stress, &
                                                    local_strain, &
                                                    local_pressure, &
-                                                   permeability_after)
+                                                   permeability_after, &
+                                                   option)
   !
   ! Calculates the change in permeability due to geomechanical strains
   ! according to Bandis calculation of b
@@ -451,7 +451,7 @@ subroutine GeomechanicsSubsurfacePropsPermEvaluate(grid, &
       write(string,*) model_id
       option%io_buffer = 'geomechanical perm model "' // &
       trim(string) // '" not recognized.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine GeomechanicsSubsurfacePropsPermEvaluate

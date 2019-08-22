@@ -195,7 +195,7 @@ subroutine WIPPWellSrcSink(this,Residual,Jacobian,compute_derivative, &
   if (compute_derivative) then
     option%io_buffer = 'WIPPWellSrcSink is not configured for &
       &analytical derivatives.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine WIPPWellSrcSink

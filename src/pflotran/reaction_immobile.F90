@@ -150,7 +150,7 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   if (Uninitialized(immobile_decay_rxn%rate_constant)) then
     option%io_buffer = 'RATE_CONSTANT or HALF_LIFE must be set in ' // &
       'IMMOBILE_DECAY_REACTION.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (.not.associated(immobile%decay_rxn_list)) then
     immobile%decay_rxn_list => immobile_decay_rxn
@@ -223,7 +223,7 @@ subroutine ImmobileProcessConstraint(immobile,constraint_name, &
                 'Immobile species "' // trim(constraint%names(iimmobile)) // &
                 '" from CONSTRAINT "' // trim(constraint_name) // &
                 '" not found among immobile species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       immobile_name(iimmobile) = constraint%names(iimmobile)
       constraint_conc(iimmobile) = &

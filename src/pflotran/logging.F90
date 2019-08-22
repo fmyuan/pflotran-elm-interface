@@ -97,6 +97,10 @@ module Logging_module
     PetscLogEvent :: event_rt_auxvars
     PetscLogEvent :: event_rt_auxvars_bc
     
+    PetscLogEvent :: event_nwt_residual
+    PetscLogEvent :: event_nwt_jacobian
+    PetscLogEvent :: event_nwt_auxvars
+    
     PetscLogEvent :: event_mass_balance
 
     PetscBool :: allow_new_stages
@@ -377,6 +381,16 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('RTAuxVarsBC', &
                              logging%class_pflotran, &
                              logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
+                             
+  call PetscLogEventRegister('NWTResidual', &
+                             logging%class_pflotran, &
+                             logging%event_nwt_residual,ierr);CHKERRQ(ierr)
+  call PetscLogEventRegister('NWTJacobian', &
+                             logging%class_pflotran, &
+                             logging%event_nwt_jacobian,ierr);CHKERRQ(ierr)
+  call PetscLogEventRegister('NWTAuxVars', &
+                             logging%class_pflotran, &
+                             logging%event_nwt_auxvars,ierr);CHKERRQ(ierr)                             
                              
   call PetscLogEventRegister('MassBalance', &
                              logging%class_pflotran, &

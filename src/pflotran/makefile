@@ -51,7 +51,7 @@ PETSC_MAKE_STOP_ON_ERROR=
 # so that PFLOTRAN will be built with the same options as 
 # the petsc configured in $PETSC_DIR/$PETSC_ARCH
 
-MYFLAGS = -I. 
+MYFLAGS = -I.
 
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
@@ -172,8 +172,12 @@ ifdef towg_debug
   MYFLAGS += ${FC_DEFINE_FLAG}TOWG_DEBUG
 endif
 
-ifdef well_class
-  MYFLAGS += ${FC_DEFINE_FLAG}WELL_CLASS
+ifdef ug_mpi_scatter_glb
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GLOBAL
+endif
+
+ifdef ug_mpi_scatter_ghost
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GHOST_ONLY
 endif
 
 ifdef have_hdf5
@@ -187,6 +191,11 @@ ifdef scorpio
   MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO
   MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO_WRITE
   MYFLAGS += -I${SCORPIO_DIR}/include
+endif
+
+ifdef codecov
+  MYFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
 endif
 
 ###############################################################################
@@ -229,7 +238,7 @@ CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log $(SRC_DIR)/p
 # please see pflotran_object_files.txt for a list of the object files. this 
 # approach of including the object files allows us to re-use the list in other
 # makefiles (e.g. clm-pflotran/makefile).
-include pflotran_object_files.txt
+include $(SRC_DIR)/pflotran_object_files.txt
 
 # End object file block
 
@@ -238,11 +247,13 @@ include pflotran_object_files.txt
 ###############################################################################
 
 # Concatentate dependency groups 
-pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(well_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
-	${pflotran_src}pflotran.o
+	$(deriv_obj)
+
+pflotran_obj = $(pflotran_base_obj) ${pflotran_src}pflotran.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
@@ -259,6 +270,10 @@ libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 
 pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
 	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
+
+# PFLOTRAN derivative test
+pflotran_derivative : $(pflotran_base_obj) pflotran_derivative.o
+	${FLINKER} -o pflotran_derivative $(pflotran_base_obj) pflotran_derivative.o ${PETSC_LIB} ${LIBS} 
 
 $(SRC_DIR)/pflotran_provenance.F90 : FORCE
 ifeq ($(UPDATE_PROVENANCE),1)
@@ -278,7 +293,7 @@ endif
 # it is picked up by the default/implicit build rule (defined by PETSc)
 ###############################################################################
 ifndef fast
-  include pflotran_dependencies.txt
+  include $(SRC_DIR)/pflotran_dependencies.txt
 endif
 ###############################################################################
 # End Dependencies
@@ -317,7 +332,7 @@ check : FORCE
 	fi
 
 clean-pflotran :
-	-rm -f $(CLEANFILES) *.o *.mod *.a;
+	-rm -f $(CLEANFILES) *.o *.mod *.a *.gcov *.gcda *.gcno;
 
 # Flags
 echo-flags :

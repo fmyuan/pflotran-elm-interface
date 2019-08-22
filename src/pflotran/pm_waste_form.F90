@@ -18,9 +18,9 @@ module PM_Waste_Form_class
   use Geometry_module
   use Data_Mediator_Vec_class
   use Dataset_Base_class
+  use Dataset_Ascii_class
   use Region_module
   use Checkpoint_module
-  use Criticality_module
  
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -73,6 +73,8 @@ module PM_Waste_Form_class
 ! ---------------------------------------------------------------------------
 ! rad_species_list(:): pointer to a linked list of radionuclide objects
 ! num_species: [-] number of radionuclides in the waste form inventory
+! seed: [-] integer that provides a seed for the random number
+!    generator for normal distribution
 ! canister_degradation_model: Boolean which indicates if the waste package
 !    degradation model is on or off
 ! vitality_rate_mean: [log10/yr] mean waste package degradation rate, used
@@ -93,6 +95,7 @@ module PM_Waste_Form_class
   type, public :: wf_mechanism_base_type
     type(rad_species_type), pointer :: rad_species_list(:)
     PetscInt :: num_species
+    PetscInt :: seed
     PetscBool :: canister_degradation_model
     PetscReal :: vitality_rate_mean
     PetscReal :: vitality_rate_stdev
@@ -353,11 +356,12 @@ module PM_Waste_Form_class
     type(criticality_mediator_type), pointer :: criticality_mediator
     PetscBool :: print_mass_balance
     PetscBool :: implicit_solution
+    PetscBool :: dataset_solution
     PetscLogDouble :: cumulative_time
   contains
     procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
-    procedure, public :: Read => PMWFRead
+    procedure, public :: ReadPMBlock => PMWFRead
     procedure, public :: InitializeRun => PMWFInitializeRun
     procedure, public :: InitializeTimestep => PMWFInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWFFinalizeTimestep
@@ -372,6 +376,56 @@ module PM_Waste_Form_class
   end type pm_waste_form_type
 
 ! -------------------------------------------------------------------
+
+! Stores variables relevant to criticality calculations
+  type, public :: criticality_mechanism_type
+    character(len=MAXWORDLENGTH) :: mech_name
+    character(len=MAXSTRINGLENGTH) :: rad_dataset_name
+    character(len=MAXSTRINGLENGTH) :: heat_dataset_name
+    PetscReal :: decay_heat
+    PetscReal :: crit_heat
+    PetscReal :: sw
+    PetscReal :: rho_w
+    PetscReal :: temperature
+    PetscReal :: k_effective
+    PetscInt :: heat_source_cond
+    class(dataset_ascii_type), pointer :: rad_dataset
+    class(dataset_ascii_type), pointer :: heat_dataset
+    type(criticality_mechanism_type), pointer :: next
+  end type criticality_mechanism_type
+
+! -----------------------------------------------------
+
+  ! Stores information regarding the criticality event
+  type, public :: criticality_event_type
+    character(len=MAXWORDLENGTH) :: mech_name
+    PetscBool :: steady_state
+    PetscReal :: crit_start
+    PetscReal :: crit_end
+    PetscBool :: crit_flag
+  end type criticality_event_type
+
+! -----------------------------------------------------
+
+  ! Criticality process model object. Includes relevant variables for 
+  ! criticality consequence calculations.
+  type, public :: criticality_type
+    type(criticality_event_type), pointer :: crit_event
+    type(criticality_mechanism_type), pointer :: crit_mech
+    type(region_type), pointer :: region
+    type(criticality_type), pointer :: next
+  end type criticality_type
+
+! -----------------------------------------------------
+
+  type, public :: criticality_mediator_type
+    type(criticality_type), pointer :: criticality_list
+    type(criticality_mechanism_type), pointer :: crit_mech_list
+    class(data_mediator_vec_type), pointer :: data_mediator
+    PetscInt :: total_num_cells
+  end type criticality_mediator_type
+
+! -----------------------------------------------------
   
   public :: PMWFCreate, &
             PMWFSetup, &
@@ -380,7 +434,15 @@ module PM_Waste_Form_class
             PMWFMechanismWIPPCreate, &
             PMWFMechanismCustomCreate, &
             PMWFMechanismFMDMCreate, &
-            PMWFRadSpeciesCreate
+            PMWFRadSpeciesCreate, &
+            CriticalityMediatorCreate, &
+            CriticalityMechCreate, &
+            CriticalityCreate, &
+            ReadCriticalityMech, &
+            CriticalityCalc, &
+            CriticalityInitializeRun, &
+            AssignCritMech, &
+            CriticalitySolve
   
 contains
 
@@ -405,6 +467,7 @@ subroutine PMWFMechanismInit(this)
   nullify(this%next)
   nullify(this%rad_species_list)
   this%num_species = 0
+  this%seed = 1
   this%matrix_density = UNINITIALIZED_DOUBLE
   this%specific_surface_area = UNINITIALIZED_DOUBLE
   this%name = ''
@@ -717,6 +780,7 @@ function PMWFCreate()
   nullify(PMWFCreate%criticality_mediator)
   PMWFCreate%print_mass_balance = PETSC_FALSE
   PMWFCreate%implicit_solution = PETSC_FALSE
+  PMWFCreate%dataset_solution = PETSC_FALSE
   PMWFCreate%cumulative_time = 0.d0
   PMWFCreate%name = 'waste form general'
   PMWFCreate%header = 'WASTE FORM (GENERAL)'
@@ -772,7 +836,7 @@ subroutine PMWFRead(this,input)
   error_string = 'WASTE_FORM_GENERAL'
 
   option%io_buffer = 'pflotran card:: ' // trim(error_string)
-  call printMsg(option)
+  call PrintMsg(option)
 
   do
     call InputReadPflotranString(input,option)
@@ -797,6 +861,9 @@ subroutine PMWFRead(this,input)
         this%implicit_solution = PETSC_TRUE
         cycle
     !-------------------------------------
+      case('DATASET_SOLUTION')
+        this%dataset_solution = PETSC_TRUE
+        cycle
     end select
 
     error_string = 'WASTE_FORM_GENERAL'
@@ -837,7 +904,7 @@ subroutine PMWFRead(this,input)
       option%io_buffer = 'WASTE_FORM MECHANISM ' // &
                          trim(cur_waste_form%mech_name) // &
                          ' not found amoung given mechanism names.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     
     if (.not.cur_waste_form%mechanism%canister_degradation_model) then
@@ -847,7 +914,7 @@ subroutine PMWFRead(this,input)
           trim(cur_waste_form%mech_name) // ' does not have the canister &
           &degradation model turned on, but at least one of the waste forms &
           &assigned to this mechanism specifies a canister vitality rate.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       ! canister breach time specified, but can.deg. model is off:
       if (initialized(cur_waste_form%breach_time)) then
@@ -855,7 +922,7 @@ subroutine PMWFRead(this,input)
           trim(cur_waste_form%mech_name) // ' does not have the canister &
           &degradation model turned on, but at least one of the waste forms &
           &assigned to this mechanism specifies a canister breach time.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
 
@@ -870,7 +937,7 @@ subroutine PMWFRead(this,input)
         &VITALITY_LOG10_STDEV, and VITALITY_UPPER_TRUNCATION within &
         &the WASTE_FORM MECHANISM ' // trim(cur_waste_form%mechanism%name) &
         // ' block should be specified, but not both.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     
     ! the canister degradation model is on, but there are problems with
@@ -887,7 +954,7 @@ subroutine PMWFRead(this,input)
           &-or- the VITALITY_LOG10_MEAN, VITALITY_LOG10_STDEV, and &
           &VITALITY_UPPER_TRUNCATION within the WASTE_FORM with MECHANISM ' // &
           trim(cur_waste_form%mechanism%name) // ' is missing.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       ! all parameters are given:
       if ( (initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
@@ -901,7 +968,7 @@ subroutine PMWFRead(this,input)
           &VITALITY_UPPER_TRUNCATION within the WASTE_FORM with MECHANISM ' // &
           trim(cur_waste_form%mechanism%name) // ' should be specified, &
           &but not all.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       ! both breach time and can. deg. rate were given
       if (initialized(cur_waste_form%canister_vitality_rate) .and. &
@@ -910,7 +977,7 @@ subroutine PMWFRead(this,input)
           &CANISTER_BREACH_TIME within the WASTE_FORM block with &
           &WASTE_FORM MECHANISM ' // trim(cur_waste_form%mechanism%name) &
           // ' should be specified, but not both.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       ! both breach time and can. deg. distribution were given
       if ((initialized(cur_waste_form%mechanism%vitality_rate_mean) .or. &
@@ -924,7 +991,7 @@ subroutine PMWFRead(this,input)
           &VITALITY_UPPER_TRUNCATION within the WASTE_FORM with MECHANISM ' // &
           trim(cur_waste_form%mechanism%name) // ' should be specified, &
           &but not both.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     
@@ -988,6 +1055,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   class(wf_mechanism_base_type), pointer :: new_mechanism, cur_mechanism
   PetscInt :: k, j
   PetscReal :: double
+  PetscInt :: integer
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
@@ -1031,7 +1099,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             &be defined and the ANL FMDM library must be linked to PFLOTRAN &
             &to employ the fuel matrix degradation model.'
           if (.not.bypass_warning_message) then
-            call printErrMsg(this%option)
+            call PrintErrMsg(this%option)
           endif
 #endif
           error_string = trim(error_string) // ' FMDM'
@@ -1046,7 +1114,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         case default
           option%io_buffer = 'Unrecognized mechanism type &
                              &in the ' // trim(error_string) // ' block.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       !---------------------------------
       end select
       
@@ -1076,7 +1144,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 ! applies to dsnf & wipp types
                 option%io_buffer = 'ERROR: SPECIFIC_SURFACE_AREA cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
               class default
                 new_mechanism%specific_surface_area = double
@@ -1092,6 +1160,14 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 new_mechanism%matrix_density = double
             end select
         !--------------------------
+          case('SEED')
+            call InputReadInt(input,option,integer)
+            call InputErrorMsg(input,option,'seed',error_string)
+            select type(new_mechanism)
+              class default
+                new_mechanism%seed = integer
+            end select
+        !--------------------------
           case('FRACTIONAL_DISSOLUTION_RATE_VI')
             call InputReadDouble(input,option,double)
             call InputErrorMsg(input,option,'fractional dissolution rate vi', &
@@ -1105,7 +1181,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE_VI &
                            &cannot be specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1121,7 +1197,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: FRACTIONAL_DISSOLUTION_RATE cannot &
                                    &be specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1136,7 +1212,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: DISSOLUTION_RATE cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1152,7 +1228,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: K0 (intrinsic dissolution rate) &
                                 &cannot be specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1168,7 +1244,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: K_LONG (dissolution rate) cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1182,7 +1258,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: NU (pH dependence parameter) cannot &
                                    &be specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1198,7 +1274,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: EA (effective activation energy) &
                                 &cannot be specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1216,7 +1292,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                     option%io_buffer = 'ERROR: Q value (ion activity product) &
                                      &was not provided, or Q instructions not &
                                      &understood for ' // trim(error_string)
-                    call printMsg(option)
+                    call PrintMsg(option)
                     num_errors = num_errors + 1
                   endif
                 endif
@@ -1228,7 +1304,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: Q (ion activity product) cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1242,7 +1318,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: K (equilibrium constant) cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1256,7 +1332,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: V (exponent parameter) cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1274,7 +1350,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                     option%io_buffer = 'ERROR: PH value was not provided, or &
                                        &PH instructions not understood for ' &
                                        // trim(error_string) // '.'
-                    call printMsg(option)
+                    call PrintMsg(option)
                     num_errors = num_errors + 1
                   endif
                 endif
@@ -1286,7 +1362,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: PH cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1304,7 +1380,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               class default
                 option%io_buffer = 'ERROR: KIENZLER_DISSOLUTION cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1321,15 +1397,15 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 option%io_buffer = 'Warning: FMDM is not linked, but an &
                                    &FMDM mechanism was defined. BURNUP &
                                    &will be used for fuel dissolution rate.'
-                call printMsg(option)
+                call PrintMsg(option)
 #else
                 option%io_buffer = 'FMDM is linked.'
-                call printMsg(option)
+                call PrintMsg(option)
 #endif
               class default
                 option%io_buffer = 'ERROR: BURNUP cannot be &
                                    &specified for ' // trim(error_string)
-                call printMsg(option)
+                call PrintMsg(option)
                 num_errors = num_errors + 1
             end select
         !--------------------------
@@ -1342,8 +1418,9 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 option%io_buffer = 'More than 50 radionuclide species are &
                   &provided in the ' // trim(error_string) // &
                   ', SPECIES block.'
-                call PrintErrMsgToDev('if reducing to less than 50 is not &
-                                      an option.',option)
+                call PrintErrMsgToDev(option, &
+                                       'if reducing to less than 50 is not &
+                                       &an option.')
               endif
               temp_species_array(k) = PMWFRadSpeciesCreate() 
               ! read species name
@@ -1383,7 +1460,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               option%io_buffer = 'ERROR: At least one radionuclide species &
                                  &must be provided in the ' // &
                                  trim(error_string) // ', SPECIES block.'
-              call printMsg(option)
+              call PrintMsg(option)
               num_errors = num_errors + 1
             endif
             allocate(new_mechanism%rad_species_list(k))
@@ -1441,7 +1518,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                    ' not recognized in the ' // &
                                    trim(error_string) // &
                                    ' CANISTER_DEGRADATION_MODEL block.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               end select
             enddo
         !--------------------------
@@ -1455,7 +1532,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
       if (new_mechanism%name == '') then
         option%io_buffer = 'ERROR: NAME must be specified in ' // &
                            trim(error_string) // ' block.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       select type(new_mechanism)
@@ -1464,7 +1541,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             option%io_buffer = 'ERROR: SPECIFIC_SURFACE_AREA must be specified &
                                &in ' // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%k0)) then
@@ -1472,7 +1549,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%k_long)) then
@@ -1480,7 +1557,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%nu)) then
@@ -1488,7 +1565,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%Ea)) then
@@ -1496,7 +1573,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%Q)) then
@@ -1504,7 +1581,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%K)) then
@@ -1512,7 +1589,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%pH)) then
@@ -1520,7 +1597,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%v)) then
@@ -1528,7 +1605,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block, or choose &
                                &the KIENZLER_DISSOLUTION option.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
         type is(wf_mechanism_custom_type)
@@ -1540,7 +1617,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if ( (Initialized(new_mechanism%frac_dissolution_rate) .and. &
@@ -1553,7 +1630,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                // ' ' // trim(new_mechanism%name) // ' block. &
                                &Both types of dissolution rates cannot be &
                                &specified.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if ( (Initialized(new_mechanism%specific_surface_area) .and. &
@@ -1564,7 +1641,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                                &DISSOLUTION_RATE with SPECIFIC_SURFACE_AREA &
                                &must be specified in ' // trim(error_string) &
                                // ' ' // trim(new_mechanism%name) // ' block.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
         type is(wf_mechanism_fmdm_type)
@@ -1572,14 +1649,14 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             option%io_buffer = 'ERROR: BURNUP must be specified in ' &
                                // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
           if (Uninitialized(new_mechanism%specific_surface_area)) then
             option%io_buffer = 'ERROR: SPECIFIC_SURFACE_AREA must be specified &
                                &in ' // trim(error_string) // ' ' // &
                                trim(new_mechanism%name) // ' block.'
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           endif
       end select
@@ -1587,7 +1664,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         option%io_buffer = 'ERROR: MATRIX_DENSITY must be specified in ' // &
                            trim(error_string) // ' ' // &
                            trim(new_mechanism%name) // ' block.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
 
@@ -1597,7 +1674,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                            &the ' // trim(error_string) // ' ' // &
                            trim(new_mechanism%name) // &
                            ', CANISTER_DEGRADATION_MODEL block.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
 
@@ -1605,7 +1682,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         option%io_buffer = 'ERROR: At least one SPECIES must be specified in &
                            &the ' // trim(error_string) // ' ' // &
                            trim(new_mechanism%name) // ' block.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
 
@@ -1634,7 +1711,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the MECHANISM block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine PMWFReadMechanism
@@ -1656,7 +1733,6 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   use String_module
   use Units_module
   use Region_module
-  use Criticality_module
   
   implicit none
   
@@ -1779,10 +1855,22 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                                      error_string)
                   call StringToUpper(word)
                   new_criticality%crit_event%mech_name= trim(word)
-                case('CRIT_TIME')
+                case('CRIT_START')
                   call InputReadDouble(input,option,new_criticality% &
-                                       crit_event%crit_time)
-                  call InputErrorMsg(input,option,'CRIT_TIME',error_string)
+                                       crit_event%crit_start)
+                  call InputErrorMsg(input,option,'CRIT_START',error_string)
+                  call InputReadAndConvertUnits(input,new_criticality% &
+                           crit_event%crit_start,'sec', &
+                           trim(error_string)//',CRIT_START', &
+                           option)
+                case('CRIT_END')
+                  call InputReadDouble(input,option,new_criticality% &
+                                       crit_event%crit_end)
+                  call InputErrorMsg(input,option,'CRIT_END',error_string)
+                  call InputReadAndConvertUnits(input,new_criticality% &
+                           crit_event%crit_end,'sec', &
+                           trim(error_string)//',CRIT_END', &
+                           option)
                 case default
                   call InputKeywordUnrecognized(word,error_string,option)
               end select
@@ -1812,27 +1900,27 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
       if (Uninitialized(new_waste_form%volume)) then
         option%io_buffer = 'ERROR: VOLUME must be specified for all &
                            &waste forms.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Uninitialized(new_waste_form%coordinate%z) .and. &
           (len(trim(new_waste_form%region_name)) == 0)) then
         option%io_buffer = 'ERROR: Either COORDINATE or REGION must be &
                            &specified for all waste forms.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (Initialized(new_waste_form%coordinate%z) .and. &
           (len(trim(new_waste_form%region_name)) > 0)) then
         option%io_buffer = 'ERROR: Either COORDINATE or REGION must be &
                            &specified for all waste forms, but not both.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       if (new_waste_form%mech_name == '') then
         option%io_buffer = 'ERROR: MECHANISM_NAME must be specified for &
                            &all waste forms.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
       !note: do not throw error if EXPOSURE_FACTOR isn't specified (default = 1)
@@ -1861,7 +1949,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
   if (.not.associated(this%waste_form_list)) then
     option%io_buffer = 'ERROR: At least one WASTE_FORM must be specified &
                        &in the WASTE_FORM_GENERAL block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   
@@ -1869,7 +1957,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the WASTE_FORM_GENERAL,WASTE_FORM block(s). See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine PMWFReadWasteForm
@@ -1891,7 +1979,6 @@ subroutine PMWFAssociateRegion(this,region_list)
   use Grid_module
   use Grid_Structured_module
   use Grid_Unstructured_module
-  use Criticality_module
 
   implicit none
   
@@ -1964,7 +2051,7 @@ subroutine PMWFAssociateRegion(this,region_list)
         case default
           option%io_buffer = 'Only STRUCTURED_GRID and &
                     &IMPLICIT_UNSTRUCTURED_GRID types supported in PMWasteForm.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       ! create the region only if the current process owns the waste form
       if (local_id(1) > 0) then
@@ -2002,7 +2089,7 @@ subroutine PMWFAssociateRegion(this,region_list)
       if (.not.associated(cur_waste_form%region)) then
         option%io_buffer = 'WASTE_FORM REGION ' // &
                            trim(cur_waste_form%region_name) // ' not found.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     !
@@ -2211,8 +2298,11 @@ subroutine PMWFSetup(this)
         ! memory of the random number generator will not be global
         call GetRndNumFromNormalDist( &
              cur_waste_form%mechanism%vitality_rate_mean, &
-             cur_waste_form%mechanism%vitality_rate_stdev,&
-             cur_waste_form%canister_vitality_rate)
+             cur_waste_form%mechanism%vitality_rate_stdev, &
+             cur_waste_form%canister_vitality_rate, &
+             cur_waste_form%mechanism%seed)
+        write(*,*) 'cur_waste_form%canister_vitality_rate = '
+        write(*,*) cur_waste_form%canister_vitality_rate
         if (cur_waste_form%canister_vitality_rate > &
             cur_waste_form%mechanism%vitality_rate_trunc) then
           cur_waste_form%canister_vitality_rate = &
@@ -2300,7 +2390,7 @@ subroutine PMWFSetup(this)
                                &defined as a species and/or the card&
                                &USE_FULL_GEOCHEMISTRY is not specified in the &
                                &CHEMISTRY block - (MECHANISM GLASS).'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           else
             cur_mechanism%h_ion_id = &
                     this%realization%reaction%species_idx%h_ion_id                                
@@ -2344,7 +2434,7 @@ subroutine PMWFSetup(this)
                     option%io_buffer = 'Q may not be calculated when SiO2(aq) &
                               &is not defined as a primary or secondary &
                               &species - (MECHANISM GLASS).'
-                    call printErrMsg(option)
+                    call PrintErrMsg(option)
                   endif
                 enddo
               endif
@@ -2355,7 +2445,7 @@ subroutine PMWFSetup(this)
                                &defined as a species and/or the card &
                                &USE_FULL_GEOCHEMISTRY is not specified in the &
                                &CHEMISTRY block - (MECHANISM GLASS).'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
     end select
@@ -2444,10 +2534,12 @@ end subroutine PMWFSetup
   endif
 
   ! set up heat transfer
+  
   if (associated(this%criticality_mediator)) then
     call CriticalityInitializeRun(this%criticality_mediator,this%realization, &
                                   this%option)
   endif
+
   ! set up mass transfer
   call RealizCreateTranMassTransferVec(this%realization)
   this%data_mediator => DataMediatorVecCreate()
@@ -2523,6 +2615,7 @@ subroutine PMWFInitializeTimestep(this)
   use Grid_module
   use Patch_module
   use Utility_module
+  use Dataset_Ascii_class
   
   implicit none
   
@@ -2582,12 +2675,13 @@ subroutine PMWFInitializeTimestep(this)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
+  type(criticality_type), pointer :: cur_criticality
   PetscReal :: dV
   PetscReal :: dt
   PetscReal :: avg_temp_local, avg_temp_global
   PetscInt :: local_id, ghosted_id
   PetscInt :: idof
-  PetscInt :: i, k, p, g, d, f
+  PetscInt :: i, k, p, g, d, f, j
   PetscInt :: num_species
   PetscErrorCode :: ierr
   PetscReal, allocatable :: Coeff(:)
@@ -2606,6 +2700,9 @@ subroutine PMWFInitializeTimestep(this)
   PetscReal, parameter :: tolerance = 1.d-12
   PetscInt :: it, iiso, idaughter
 ! -----------------------------------------------------------
+  PetscReal :: t_low, t_high
+  PetscReal, pointer :: times(:)
+  class(dataset_ascii_type), pointer :: dataset
 
   global_auxvars => this%realization%patch%aux%Global%auxvars
   material_auxvars => this%realization%patch%aux%Material%auxvars
@@ -2743,12 +2840,62 @@ subroutine PMWFInitializeTimestep(this)
     ! Save the concentration after inst. release for the decay step
     concentration_old = cur_waste_form%rad_concentration
 
-    
-
     if ((cur_waste_form%volume >= 0.d0) .and. &
         (option%time >= cur_waste_form%decay_start_time)) then !--------------
 
-    if (.not.this%implicit_solution) then !-----------------------------------
+    if (this%dataset_solution) then
+      !Import radionuclide inventory from external neutronics code calculations
+      if (.not.cur_waste_form%breached) then
+        do k = 1,num_species
+          cur_waste_form%rad_mass_fraction(k) = 1.d-20
+          cur_waste_form%rad_concentration(k) = &
+            cur_waste_form%rad_mass_fraction(k) / &
+            cwfm%rad_species_list(k)%formula_weight
+        enddo
+      else
+        cur_criticality => this%criticality_mediator%criticality_list 
+        dataset => cur_criticality%crit_mech%rad_dataset
+        times => dataset%time_storage%times
+        if (num_species > dataset%dims(1)) then
+          option%io_buffer = 'Number of species in dataset is less than ' // &
+                       'the number specified in Waste Form Process Model.' 
+          call PrintErrMsg(option)
+        elseif (num_species < dataset%dims(1)) then
+          option%io_buffer = 'Number of species in dataset is greater than ' //&
+                         'the number specified in Waste Form Process Model.'
+          call PrintErrMsg(option)
+        endif
+        j=1
+        t_low = times(j)
+        t_high = t_low
+        do
+          if(option%time < times(j)) exit
+          if(j == size(times)) exit
+          t_low = times(j)
+          j = j+1
+          t_high = times(j)
+        enddo
+
+        do k = 1,num_species
+          if (j == size(times) .and. option%time >= times(j)) then
+            cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-1)* &
+                    num_species+k)
+          elseif (j==1) then
+            cur_waste_form%rad_mass_fraction(k) = 1.d-20
+          else 
+            cur_waste_form%rad_mass_fraction(k) = dataset%rbuffer((j-2)* &
+                  num_species+k) + (option%time-t_low)/(t_high-t_low)* &
+                  (dataset%rbuffer((j-2)*num_species+k+num_species)-dataset% &
+                  rbuffer((j-2)*num_species+k))
+         endif
+         cur_waste_form%rad_concentration(k) = &
+            cur_waste_form%rad_mass_fraction(k) / &
+            cwfm%rad_species_list(k)%formula_weight
+
+        enddo
+      endif
+      
+    elseif (.not.this%implicit_solution) then !-----------------------------------
 
     ! 3-generation analytical solution derived for multiple parents and
     ! grandparents and non-zero initial daughter concentrations (see Section
@@ -2964,7 +3111,6 @@ subroutine PMWFSolve(this,time,ierr)
   use Material_Aux_class
   use Reactive_Transport_Aux_module, only : rt_min_saturation
   use Grid_module
-  use Criticality_module
   
   implicit none
 
@@ -3115,6 +3261,10 @@ subroutine PMWFSolve(this,time,ierr)
       cur_waste_form%instantaneous_mass_rate = 0.d0
     endif
     !
+    if (associated(this%criticality_mediator)) then
+      call CriticalitySolve(this%criticality_mediator,this%realization,time, &
+                            cur_waste_form%scaling_factor,ierr)
+    endif
     cur_waste_form => cur_waste_form%next
   enddo
  
@@ -3131,10 +3281,6 @@ subroutine PMWFSolve(this,time,ierr)
   
   call VecRestoreArrayF90(this%realization%field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%data_mediator%vec,vec_p,ierr);CHKERRQ(ierr)
-  
-  if (associated(this%criticality_mediator)) then
-    call CriticalitySolve(this%criticality_mediator,this%realization,time,ierr)
-  endif
   
   call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
 
@@ -4718,6 +4864,637 @@ subroutine PMWFDestroy(this)
 end subroutine PMWFDestroy
 
 ! ************************************************************************** !
+
+subroutine CriticalityInit(this)
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  implicit none
+
+  type(criticality_type), pointer :: this
+
+  allocate(this)
+  allocate(this%crit_event)
+  allocate(this%crit_mech)
+  nullify(this%region)
+  nullify(this%next)
+
+  this%crit_event%steady_state = PETSC_FALSE
+  this%crit_event%crit_flag = PETSC_FALSE
+  this%crit_event%crit_start = 0.d0
+  this%crit_event%crit_end = 0.d0
+
+
+
+end subroutine CriticalityInit
+
+! ************************************************************************** !
+
+subroutine CriticalityMechInit(this)
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  use Dataset_Ascii_class
+
+  implicit none
+
+  type(criticality_mechanism_type), pointer :: this
+
+  allocate(this)
+  nullify(this%next)
+
+  this%decay_heat = 0.d0
+  this%crit_heat = 0.d0
+  this%sw = 0.d0
+  this%rho_w = 0.d0
+  this%temperature = 0.d0
+  this%k_effective = 0.d0
+
+  this%rad_dataset => DatasetAsciiCreate()
+  this%heat_dataset => DatasetAsciiCreate()
+
+end subroutine CriticalityMechInit
+
+! ************************************************************************** !
+
+subroutine CriticalityMediatorInit(this)
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  implicit none
+
+  type(criticality_mediator_type), pointer :: this
+
+  nullify(this%data_mediator)
+  nullify(this%criticality_list)
+  nullify(this%crit_mech_list)
+
+
+end subroutine CriticalityMediatorInit
+
+! ************************************************************************** !
+
+function CriticalityMediatorCreate()
+
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  implicit none
+
+  type(criticality_mediator_type), pointer :: CriticalityMediatorCreate
+  type(criticality_mediator_type), pointer :: crit
+
+  allocate(crit)
+  call CriticalityMediatorInit(crit)
+
+  CriticalityMediatorCreate => crit
+
+end function CriticalityMediatorCreate
+
+
+! ************************************************************************** !
   
+function CriticalityCreate()
+
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  implicit none
+
+  type(criticality_type), pointer :: CriticalityCreate
+  type(criticality_type), pointer :: crit
+
+  allocate(crit)
+  call CriticalityInit(crit)
+
+  CriticalityCreate => crit
+
+end function CriticalityCreate
+
+! ************************************************************************** !
+
+function CriticalityMechCreate()
+
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  implicit none
+
+  type(criticality_mechanism_type), pointer :: CriticalityMechCreate
+  type(criticality_mechanism_type), pointer :: crit
+
+  allocate(crit)
+  call CriticalityMechInit(crit)
+
+  CriticalityMechCreate => crit
+
+end function CriticalityMechCreate
+
+! ************************************************************************** !
+
+subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
+
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+  use Dataset_Ascii_class
+
+  implicit none
+
+  type(criticality_mediator_type), pointer :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword, internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string,temp_string
+
+  PetscBool :: found
+
+  character(len=MAXWORDLENGTH) :: word
+  type(criticality_mechanism_type), pointer :: new_crit_mech, cur_crit_mech
+
+  error_string = trim(error_string) // ',CRITICALITY'
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('CRITICALITY_MECH')
+      allocate(new_crit_mech)
+      new_crit_mech => CriticalityMechCreate()
+      do
+        call InputReadPflotranString(input, option)
+        if (InputError(input)) exit
+        if (InputCheckExit(input,option)) exit
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword',error_string)
+        call StringToUpper(word)
+        select case (trim(word))
+          case('NAME')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option, &
+                  'criticality mechanism assignment',error_string)
+            call StringToUpper(word)
+            new_crit_mech%mech_name = trim(word)
+          case('HEAT_OF_CRITICALITY')
+            call InputReadDouble(input,option,new_crit_mech%crit_heat)
+            call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY',error_string)
+          case('DECAY_HEAT')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            select case (trim(word))
+              case('TOTAL')
+                new_crit_mech%heat_source_cond = 1
+              case('ADDITIONAL')
+                new_crit_mech%heat_source_cond = 2
+              case('CYCLIC')
+                new_crit_mech%heat_source_cond = 3
+            end select
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadWord(input,option,word,PETSC_FALSE)
+              select case(trim(word))
+                case('DATASET')
+                  internal_units = 'MW'
+                  call InputReadFilename(input,option,new_crit_mech% &
+                          heat_dataset_name)
+                  call DatasetAsciiReadFile(new_crit_mech%heat_dataset, &
+                          new_crit_mech%heat_dataset_name,temp_string, &
+                          internal_units,error_string,option)
+                  new_crit_mech%heat_dataset%time_storage% &
+                          time_interpolation_method = 2
+              end select
+            enddo
+          case('INVENTORY')
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadWord(input,option,word,PETSC_FALSE)
+              select case(trim(word))
+                case('DATASET')
+                  internal_units = 'g/g'
+                  call InputReadFilename(input,option,new_crit_mech% &
+                          rad_dataset_name)
+                  call DatasetAsciiReadFile(new_crit_mech%rad_dataset, &
+                          new_crit_mech%rad_dataset_name,temp_string, &
+                          internal_units,error_string,option)
+                  new_crit_mech%rad_dataset%time_storage% &
+                          time_interpolation_method = 2
+              end select
+            enddo
+        end select
+      enddo
+      if (.not. associated(this%crit_mech_list)) then
+        this%crit_mech_list => new_crit_mech
+      else
+        cur_crit_mech => this%crit_mech_list
+        do
+          if (.not. associated(cur_crit_mech)) exit
+          if (.not. associated(cur_crit_mech%next)) then
+            cur_crit_mech => new_crit_mech
+          endif
+          cur_crit_mech => cur_crit_mech%next
+        enddo
+      endif
+      nullify(cur_crit_mech)
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine ReadCriticalityMech
+
+! ************************************************************************** !
+
+subroutine CriticalityCalc(this,time,ierr)
+
+  ! Calculate mass and heat source terms as a function of time.
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+  implicit none
+
+  type(criticality_mechanism_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+
+  PetscReal :: t_low, t_high
+  PetscReal, pointer :: times(:)
+  class(dataset_ascii_type), pointer :: dataset
+  PetscInt :: j
+
+  dataset => this%heat_dataset
+  if (associated(dataset%time_storage)) then
+    times => dataset%time_storage%times
+    j=1
+    t_low = times(j)
+    t_high = t_low
+    do
+      if(time < times(j)) exit
+      if(j == size(times)) exit
+      t_low = times(j)
+      j = j+1
+      t_high = times(j)
+    enddo
+
+    if (j == size(times) .and. time >= times(j)) then
+      this%decay_heat = dataset%rbuffer(j)
+    elseif (j==1) then
+      this%decay_heat = 0.d0
+    else
+      this%decay_heat = dataset%rbuffer(j-1) + (time-t_low)/(t_high-t_low)* &
+               (dataset%rbuffer(j)-dataset%rbuffer(j-1))
+    endif
+  else
+    this%decay_heat = 0.d0
+  endif
+end subroutine CriticalityCalc
+
+! ************************************************************************** !
+
+subroutine CriticalityInitializeRun(this, realization, option)
+
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Option_module
+
+  implicit none
+
+  type(criticality_mediator_type), pointer :: this
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  type(criticality_type), pointer :: cur_criticality
+  PetscInt :: vec_size, i, j
+  PetscInt, allocatable :: energy_indices_in_residual(:)
+  PetscErrorCode :: ierr
+  IS :: is
+
+  call RealizCreateFlowMassTransferVec(realization)
+  this%data_mediator => DataMediatorVecCreate()
+  call this%data_mediator%AddToList(realization%flow_data_mediator_list)
+
+  cur_criticality => this%criticality_list
+  vec_size = 0
+
+  do
+    if (.not. associated(cur_criticality)) exit
+    vec_size = vec_size + cur_criticality%region%num_cells
+    cur_criticality => cur_criticality%next
+  enddo
+
+  call VecCreateSeq(PETSC_COMM_SELF, vec_size,this%data_mediator%vec, &
+                    ierr);CHKERRQ(ierr)
+  call VecSetFromOptions(this%data_mediator%vec,ierr); CHKERRQ(ierr)
+
+  cur_criticality => this%criticality_list
+  allocate(energy_indices_in_residual(vec_size))
+  j = 0
+  do
+    if (.not. associated(cur_criticality)) exit
+      do i = 1, cur_criticality%region%num_cells
+        j = j + 1
+        energy_indices_in_residual(j) = cur_criticality%region% &
+                                        cell_ids(i) * option%nflowdof - 1
+      enddo
+    cur_criticality => cur_criticality%next
+  enddo
+  energy_indices_in_residual(:) = energy_indices_in_residual(:) + &
+      realization%patch%grid%global_offset*option%nflowdof
+
+  this%total_num_cells = j
+
+  call ISCreateGeneral(option%mycomm,vec_size, &
+                       energy_indices_in_residual, &
+                       PETSC_COPY_VALUES,is,ierr);CHKERRQ(ierr)
+  call VecScatterCreate(this%data_mediator%vec,PETSC_NULL_IS, &
+                        realization%field%flow_r, is, &
+                        this%data_mediator%scatter_ctx, ierr); CHKERRQ(ierr)
+  if (allocated(energy_indices_in_residual)) then
+      deallocate(energy_indices_in_residual)
+  endif
+
+  call ISDestroy(is,ierr);CHKERRQ(ierr)
+
+end subroutine CriticalityInitializeRun
+
+! ************************************************************************** !
+
+subroutine AssignCritMech(this)
+
+  use String_module
+
+  implicit none
+
+  type(criticality_mediator_type), pointer :: this
+
+  type(criticality_mechanism_type), pointer :: cur_mechanism
+  type(criticality_type), pointer :: cur_criticality
+
+  cur_criticality => this%criticality_list
+  do
+    if(.not. associated(cur_criticality)) exit
+    cur_mechanism => this%crit_mech_list
+    do
+      if (.not. associated(cur_mechanism)) exit
+      if (StringCompare(cur_criticality%crit_event%mech_name, &
+          cur_mechanism%mech_name)) then
+        cur_criticality%crit_mech => cur_mechanism
+        exit
+      endif
+    enddo
+    cur_criticality => cur_criticality%next
+  enddo
+
+end subroutine AssignCritMech
+
+! ************************************************************************** !
+
+subroutine CriticalitySolve(this,realization,time,scaling_factor,ierr)
+  !
+  !Author: Michael Nole
+  !Date: 11/05/18
+  !
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Realization_Subsurface_class
+
+  implicit none
+
+  type(criticality_mediator_type), pointer :: this
+  class(realization_subsurface_type), pointer :: realization
+  PetscReal :: time
+  PetscReal, pointer :: scaling_factor(:)
+  PetscErrorCode :: ierr
+
+  PetscInt :: i,j
+  type(criticality_type), pointer :: cur_criticality
+  PetscReal, pointer :: heat_source(:)
+
+  call VecGetArrayF90(this%data_mediator%vec,heat_source, &
+                      ierr);CHKERRQ(ierr)
+
+  cur_criticality => this%criticality_list
+  j = 0
+  do
+    if (.not. associated(cur_criticality)) exit
+
+    if (time >= cur_criticality%crit_event%crit_start .and. time < &
+            cur_criticality%crit_event%crit_end) then
+      cur_criticality%crit_event%crit_flag = PETSC_TRUE
+    else
+      cur_criticality%crit_event%crit_flag = PETSC_FALSE
+    endif
+
+    call CriticalityCalc(cur_criticality%crit_mech,time,ierr)
+
+    do i = 1, cur_criticality%region%num_cells
+      j = j + 1
+      heat_source(j) = cur_criticality%crit_mech%decay_heat
+
+      if (cur_criticality%crit_event%crit_flag) then
+        heat_source(j) = heat_source(j) + cur_criticality%crit_mech%crit_heat
+      endif
+
+      ! Distribute heat source throughout all cells in a waste package
+      heat_source(j) = heat_source(j) * scaling_factor(j)
+    enddo
+
+    cur_criticality => cur_criticality%next
+  enddo
+
+  call VecRestoreArrayF90(this%data_mediator%vec,heat_source, &
+                          ierr);CHKERRQ(ierr)
+
+end subroutine CriticalitySolve
+
+! ************************************************************************** !
+subroutine CritReadValues(input, option, keyword, dataset_base, &
+                          data_external_units, data_internal_units)
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use Logging_module
+  use HDF5_Aux_module
+  use Units_module
+  use Dataset_module
+  use Dataset_Base_class
+  use Dataset_Ascii_class
+  use hdf5
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  class(dataset_base_type), pointer :: dataset_base
+  character(len=*) :: data_external_units
+  character(len=*) :: data_internal_units
+
+  character(len=MAXSTRINGLENGTH), pointer :: internal_unit_strings(:)
+  class(dataset_ascii_type), pointer :: dataset_ascii
+  character(len=MAXSTRINGLENGTH) :: string2, filename, hdf5_path
+  character(len=MAXWORDLENGTH) :: word, realization_word
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscInt :: length, i, icount
+  PetscInt :: icol
+  PetscInt :: ndims
+  PetscInt, pointer :: dims(:)
+  PetscReal, pointer :: real_buffer(:)
+  PetscErrorCode :: ierr
+
+  integer(HID_T) :: file_id
+  integer(HID_T) :: prop_id
+  PetscMPIInt :: hdf5_err
+  ! dataset_base, though of type dataset_base_type, should always be created
+  ! as dataset_ascii_type.
+  dataset_ascii => DatasetAsciiCast(dataset_base)
+  if (.not.associated(dataset_ascii)) then
+    ! The dataset was not of type dataset_ascii and was likely set to a different
+    ! type.  There is a bug in the input file.
+    option%io_buffer = 'Dataset associated with ' // trim(keyword) // &
+      ' in the input file is already associated with a different dataset &
+      &type.  Check for duplicate definitions of ' // trim(keyword) // '.'
+    call PrintErrMsg(option)
+  endif
+
+  filename = ''
+  realization_word = ''
+  hdf5_path = ''
+
+  internal_unit_strings => StringSplit(data_internal_units,',')
+
+  input%ierr = 0
+  string2 = trim(input%buf)
+  call InputReadWord(input,option,word,PETSC_TRUE)
+  call InputErrorMsg(input,option,'file or value','CONDITION')
+  call StringToLower(word)
+  length = len_trim(word)
+  if (StringStartsWithAlpha(word)) then
+    if (length == FOUR_INTEGER .and. &
+        StringCompare(word,'file',FOUR_INTEGER)) then
+      input%err_buf2 = trim(keyword) // ', FILE'
+      input%err_buf = 'keyword'
+      call InputReadFilename(input,option,string2)
+      if (input%ierr == 0) then
+        filename = string2
+      else
+        option%io_buffer = 'The ability to read realization dependent &
+          &datasets outside the DATASET block is no longer supported'
+        call PrintErrMsg(option)
+      endif
+
+      if (len_trim(filename) < 2) then
+        option%io_buffer = 'No filename listed under Flow_Condition: ' // &
+                           trim(keyword)
+        call PrintErrMsg(option)
+      endif
+      if (index(filename,'.h5') > 0) then
+        write(option%io_buffer,'("Reading of HDF5 datasets for flow ", &
+                                 &"conditions not currently supported.")')
+        call PrintErrMsg(option)
+      else
+        i = index(filename,'.',PETSC_TRUE)
+        if (i > 2) then
+          filename = filename(1:i-1) // trim(realization_word) // filename(i:)
+        else
+          filename = trim(filename) // trim(realization_word)
+        endif
+        error_string = 'CONDITION,' // trim(keyword) // ',FILE'
+        call DatasetAsciiReadFile(dataset_ascii,filename,data_external_units, &
+                                  data_internal_units,error_string,option)
+        dataset_ascii%filename = filename
+      endif
+
+    else if (StringCompare(word,'dataset')) then
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      input%err_buf2 = trim(keyword) // ', DATASET'
+      input%err_buf = 'dataset name'
+      call InputErrorMsg(input,option)
+      call DatasetDestroy(dataset_base)
+      dataset_base => DatasetBaseCreate()
+      dataset_base%name = word
+    else if (length==FOUR_INTEGER .and. StringCompare(word,'list',length)) then
+      error_string = 'CONDITION,' // trim(keyword) // ',LIST'
+      call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
+                                data_internal_units,error_string,option)
+    else
+      option%io_buffer = 'Keyword "' // trim(word) // &
+        '" not recognized in when reading condition values for "' // &
+        trim(keyword) // '".'
+      call PrintErrMsg(option)
+    endif
+  else
+    input%buf = trim(string2)
+    error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
+    call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
+                                data_internal_units,error_string,option)
+#if 0
+    allocate(dataset_ascii%rarray(dataset_ascii%array_width))
+    do icol=1,dataset_ascii%array_width
+      call InputReadDouble(input,option,dataset_ascii%rarray(icol))
+      write(input%err_buf,'(a,i2)') trim(keyword) // &
+                                    ' dataset_values, icol = ', icol
+      input%err_buf2 = 'CONDITION'
+      call InputErrorMsg(input,option)
+    enddo
+    string2 = input%buf
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    if (InputError(input)) then
+      call InputCheckMandatoryUnits(input,option)
+      word = trim(keyword) // ' UNITS'
+      call InputDefaultMsg(input,option,word)
+    else
+      input%buf = string2
+      units = ''
+      do icol=1,dataset_ascii%array_width
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,keyword,'CONDITION')
+        dataset_ascii%rarray(icol) = UnitsConvertToInternal(word, &
+                                     internal_unit_strings(icol),option) * &
+                                     dataset_ascii%rarray(icol)
+        units = trim(units) // ' ' // trim(word)
+      enddo
+    endif
+#endif
+  endif
+
+  deallocate(internal_unit_strings)
+  nullify(internal_unit_strings)
+
+  call PetscLogEventEnd(logging%event_flow_condition_read_values, &
+                        ierr);CHKERRQ(ierr)
+
+end subroutine CritReadValues
+
+! ************************************************************************** !
+
+subroutine CriticalityStrip(this)
+
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/01/18
+  implicit none
+
+  type(criticality_mediator_type), pointer :: this
+  nullify(this)
+
+
+end subroutine CriticalityStrip
+
+! ************************************************************************** !
+
 end module PM_Waste_Form_class
 

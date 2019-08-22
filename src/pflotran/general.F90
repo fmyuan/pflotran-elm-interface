@@ -69,7 +69,7 @@ subroutine GeneralSetup(realization)
   type(general_auxvar_type), pointer :: gen_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(fluid_property_type), pointer :: cur_fluid_property
-  
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -82,19 +82,15 @@ subroutine GeneralSetup(realization)
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call printMsg(option)
-    error_found = PETSC_TRUE
-  endif
+
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil heat capacity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-    call printMsg(option)
+    call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
   
@@ -108,36 +104,36 @@ subroutine GeneralSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
         flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'ERROR: Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
         flag(4) == 0) then
       flag(4) = 1
       option%io_buffer = 'ERROR: Non-initialized soil particle density.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
         flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
-      call printMsg(option)
+      call PrintMsg(option)
       flag(5) = 1
     endif
   enddo
   
   if (error_found .or. maxval(flag) > 0) then
     option%io_buffer = 'Material property errors found in GeneralSetup.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! allocate auxvar data structures for all grid cells  
@@ -199,13 +195,13 @@ subroutine GeneralSetup(realization)
       diffusion_coefficient(LIQUID_PHASE))) then
     option%io_buffer = &
       UninitializedMessage('Liquid phase diffusion coefficient','')
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(patch%aux%General%general_parameter% &
       diffusion_coefficient(GAS_PHASE))) then
     option%io_buffer = &
       UninitializedMessage('Gas phase diffusion coefficient','')
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   list => realization%output_option%output_snap_variable_list
@@ -216,17 +212,6 @@ subroutine GeneralSetup(realization)
   general_ts_count = 0
   general_ts_cut_count = 0
   general_ni_count = 0
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_flag = 0
-  debug_iteration_count = 0
-  debug_timestep_cut_count = 0
-  debug_timestep_count = 0
-  ! create new file
-  open(debug_info_unit, file='debug_info.txt', action="write", &
-       status="unknown")
-  write(debug_info_unit,*) 'type timestep cut iteration'
-  close(debug_info_unit)
-#endif  
 
   call PatchSetupUpwindDirection(patch,option)
 
@@ -248,22 +233,16 @@ subroutine GeneralInitializeTimestep(realization)
   implicit none
   
   type(realization_subsurface_type) :: realization
-
+  
+  if (general_restrict_state_chng) then
+    realization%patch%aux%General%auxvars(:,:)%istatechng = PETSC_FALSE
+  endif
+  
   general_newton_iteration_number = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
   general_ni_count = 0
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_flag = 0
-!  if (realization%option%time >= 35.6d0*3600d0*24.d0*365.d0 - 1.d-40) then
-!  if (.false.) then
-  if (.true.) then
-    debug_iteration_count = 0
-    debug_flag = 1
-  endif
-  debug_iteration_count = 0
-#endif
 
 end subroutine GeneralInitializeTimestep
 
@@ -314,16 +293,11 @@ subroutine GeneralUpdateSolution(realization)
     gen_auxvars(ZERO_INTEGER,ghosted_id)%istate_store(PREV_TS) = &
       global_auxvars(ghosted_id)%istate
   enddo
-  
+ 
   general_ts_count = general_ts_count + 1
   general_ts_cut_count = 0
   general_ni_count = 0
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_iteration_count = 0
-  debug_timestep_cut_count = 0
-  debug_timestep_count = debug_timestep_count + 1
-#endif   
-  
+ 
 end subroutine GeneralUpdateSolution
 
 ! ************************************************************************** !
@@ -367,9 +341,6 @@ subroutine GeneralTimeCut(realization)
   enddo
 
   general_ts_cut_count = general_ts_cut_count + 1
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_timestep_cut_count = debug_timestep_cut_count + 1
-#endif 
 
   call GeneralInitializeTimestep(realization)  
 
@@ -752,7 +723,10 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     option%iflag = GENERAL_UPDATE_FOR_ACCUM
     natural_id = grid%nG2A(ghosted_id)
     if (grid%nG2L(ghosted_id) == 0) natural_id = -natural_id
-    call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
+    !hdp - Debugging purposes
+    !write(option%io_buffer,'("cell id: ",i7)') natural_id
+    !call PrintMsg(option)
+      call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
@@ -775,13 +749,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     call GeneralOutputAuxVars(gen_auxvars(0,ghosted_id), &
                               global_auxvars(ghosted_id),natural_id,word, &
                               PETSC_TRUE,option)
-#endif
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-    if (debug_flag > 0) then
-      write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', natural_id, &
-                        global_auxvars(ghosted_id)%istate, &
-                        xx_loc_p(ghosted_start:ghosted_end)
-    endif
 #endif
   enddo
 
@@ -830,7 +797,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                         option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" needs gas pressure defined.'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                       endif
                     ! for air pressure dof
                     case(GENERAL_AIR_PRESSURE_INDEX)
@@ -853,13 +820,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                 trim(boundary_condition%flow_condition%name) // &
                                 '" needs gas pressure defined to calculate air ' // &
                                 'pressure from temperature.'
-                              call printErrMsg(option)
+                              call PrintErrMsg(option)
                             endif
                           endif
                           xxbc(idof) = gas_pressure - saturation_pressure
                         else
                           option%io_buffer = 'Cannot find boundary constraint for air pressure.'
-                          call printErrMsg(option)
+                          call PrintErrMsg(option)
                         endif
                       else
                         xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
@@ -874,7 +841,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 !                        option%io_buffer = 'Mixed FLOW_CONDITION "' // &
 !                          trim(boundary_condition%flow_condition%name) // &
 !                          '" needs saturation defined.'
-!                        call printErrMsg(option)
+!                        call PrintErrMsg(option)
                       endif
                     case(GENERAL_TEMPERATURE_INDEX)
                       real_index = boundary_condition%flow_aux_mapping(variable)
@@ -884,33 +851,44 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                         option%io_buffer = 'Mixed FLOW_CONDITION "' // &
                           trim(boundary_condition%flow_condition%name) // &
                           '" needs temperature defined.'
-                        call printErrMsg(option)
+                        call PrintErrMsg(option)
                       endif
                   end select
                 case(NEUMANN_BC)
                 case default
                   option%io_buffer = 'Unknown BC type in GeneralUpdateAuxVars().'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             enddo  
         end select
       else
         ! we do this for all BCs; Neumann bcs will be set later
         do idof = 1, option%nflowdof
-          real_index = boundary_condition%flow_aux_mapping(dof_to_primary_variable(idof,istate))
+          if (istate > 3) then
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,TWO_PHASE_STATE))
+          else
+            real_index = boundary_condition%flow_aux_mapping(&
+                    dof_to_primary_variable(idof,istate))
+          endif
           if (real_index > 0) then
             xxbc(idof) = boundary_condition%flow_aux_real_var(real_index,iconn)
           else
             option%io_buffer = 'Error setting up boundary condition in GeneralUpdateAuxVars'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         enddo
       endif
           
-      ! set this based on data given 
-      global_auxvars_bc(sum_connection)%istate = istate
+      ! set this based on data given
+      if (istate <= 5) then 
+        global_auxvars_bc(sum_connection)%istate = istate
+      else
+        global_auxvars_bc(sum_connection)%istate = TWO_PHASE_STATE
+      endif
       ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
       option%iflag = GENERAL_UPDATE_FOR_BOUNDARY
+
       call GeneralAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
@@ -920,19 +898,12 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                 option)
       ! update state and update aux var; this could result in two update to 
       ! the aux var as update state updates if the state changes
-      call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
+       call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
                                     global_auxvars_bc(sum_connection), &
                                     material_auxvars(ghosted_id), &
                                     patch%characteristic_curves_array( &
                                       patch%sat_func_id(ghosted_id))%ptr, &
                                     natural_id,option)
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-      if (debug_flag > 0) then
-        write(debug_unit,'(a,i5,i3,7es24.15)') 'bc_auxvar:', natural_id, &
-                           global_auxvars_bc(ghosted_id)%istate, &
-                            xxbc(:)
-      endif
-#endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1001,8 +972,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     
       xxss(1) = maxval(gen_auxvar_ss%pres(option% &
                      liquid_phase:option%gas_phase))
-      xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
-              + qsrc_vol(air_comp_id))
+      if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
+          dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
+        xxss(2) = 0.d0
+      else
+        xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
+                + qsrc_vol(air_comp_id))
+      endif
       xxss(3) = gen_auxvar_ss%temp
     
       cell_pressure = maxval(gen_auxvar%pres(option% &
@@ -1044,7 +1020,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                 cell_ids(1)))%ptr, &
                                 source_sink%region%cell_ids(1), &
                                 option)
-
       gen_auxvars_ss(ssn) = gen_auxvar_ss
     enddo
     source_sink => source_sink%next
@@ -1106,14 +1081,8 @@ subroutine GeneralUpdateFixedAccum(realization)
   material_parameter => patch%aux%Material%material_parameter
     
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  !Heeho initialize dynamic accumulation term for every p iteration step
-  if (general_tough2_conv_criteria) then
-    call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
-  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1124,6 +1093,7 @@ subroutine GeneralUpdateFixedAccum(realization)
     local_start = local_end - option%nflowdof + 1
     ! GENERAL_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
     option%iflag = GENERAL_UPDATE_FOR_FIXED_ACCUM
+
     call GeneralAuxVarCompute(xx_p(local_start:local_end), &
                               gen_auxvars(ZERO_INTEGER,ghosted_id), &
                               global_auxvars(ghosted_id), &
@@ -1138,21 +1108,12 @@ subroutine GeneralUpdateFixedAccum(realization)
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
-                             local_id == general_debug_cell_id) 
+                             local_id == general_debug_cell_id)
   enddo
   
-  if (general_tough2_conv_criteria) then
-    accum_p2 = accum_p
-  endif
   
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  
-  !Heeho initialize dynamic accumulation term for every p iteration step
-  if (general_tough2_conv_criteria) then
-    call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
   
 end subroutine GeneralUpdateFixedAccum
 
@@ -1240,6 +1201,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                          realization%option%nflowdof)
   PetscReal :: v_darcy(realization%option%nphase)
   
+
   discretization => realization%discretization
   option => realization%option
   patch => realization%patch
@@ -1255,24 +1217,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
   
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    debug_iteration_count = debug_iteration_count + 1
-    write(word,*) debug_timestep_count
-    string = 'residual_debug_data_' // trim(adjustl(word))
-    write(word,*) debug_timestep_cut_count
-    string = trim(string) // '_' // trim(adjustl(word))
-    write(word,*) debug_iteration_count
-    debug_filename = trim(string) // '_' // trim(adjustl(word)) // '.txt'
-    open(debug_unit, file=debug_filename, action="write", status="unknown")
-    open(debug_info_unit, file='debug_info.txt', action="write", &
-         position="append", status="unknown")
-    write(debug_info_unit,*) 'residual ', debug_timestep_count, &
-      debug_timestep_cut_count, debug_iteration_count
-    close(debug_info_unit)
-  endif
-#endif
-
+  
   general_newton_iteration_number = general_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop
@@ -1324,14 +1269,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! accumulation at t(k) (doesn't change during Newton iteration)
   call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   r_p = -accum_p
+  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-  
-  !Heeho dynamically update p+1 accumulation term
-  if (general_tough2_conv_criteria) then
-    call VecGetArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
-  
   ! accumulation at t(k+1)
+  call VecGetArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
@@ -1345,21 +1286,11 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy, &
                              general_analytical_derivatives, &
-                             local_id == general_debug_cell_id) 
+                             local_id == general_debug_cell_id)
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
-    
-    !Heeho dynamically update p+1 accumulation term
-    if (general_tough2_conv_criteria) then
-      accum_p2(local_start:local_end) = Res(:)
-    endif
-    
+    accum_p2(local_start:local_end) = Res(:)
   enddo
-
-  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  !Heeho dynamically update p+1 accumulation term
-  if (general_tough2_conv_criteria) then
-    call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
-  endif
+  call VecRestoreArrayF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
 
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
@@ -1538,7 +1469,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-
+  
   if (patch%aux%General%inactive_cells_exist) then
     do i=1,patch%aux%General%n_inactive_rows
       r_p(patch%aux%General%inactive_rows_local(i)) = 0.d0
@@ -1586,22 +1517,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif  
 
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  call VecGetArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
-    write(debug_unit,'(a,i5,7es24.15)') 'fixed residual:', local_id, &
-      accum_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
-  enddo
-  call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  do local_id = 1, grid%nlmax
-    write(debug_unit,'(a,i5,7es24.15)') 'residual:', local_id, &
-      r_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
-  enddo
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-#endif
-  
-  
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Gresidual','', &
                             general_ts_count,general_ts_cut_count, &
@@ -1619,14 +1534,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     call DebugViewerDestroy(realization%debug,viewer)
   endif
 
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    close(debug_unit)
-  endif
-#endif
-
   update_upwind_direction = PETSC_FALSE
-  
+
 end subroutine GeneralResidual
 
 ! ************************************************************************** !
@@ -1712,6 +1621,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
+
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
     J = B
@@ -1722,23 +1632,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   call MatZeroEntries(J,ierr);CHKERRQ(ierr)
-
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(word,*) debug_timestep_count
-    string = 'jacobian_debug_data_' // trim(adjustl(word))
-    write(word,*) debug_timestep_cut_count
-    string = trim(string) // '_' // trim(adjustl(word))
-    write(word,*) debug_iteration_count
-    debug_filename = trim(string) // '_' // trim(adjustl(word)) // '.txt'
-    open(debug_unit, file=debug_filename, action="write", status="unknown")
-    open(debug_info_unit, file='debug_info.txt', action="write", &
-         position="append", status="unknown")
-    write(debug_info_unit,*) 'jacobian ', debug_timestep_count, &
-      debug_timestep_cut_count, debug_iteration_count
-    close(debug_info_unit)
-  endif
-#endif
 
   if (.not.general_analytical_derivatives) then
     ! Perturb aux vars
@@ -2006,13 +1899,13 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
     option => realization%option
     call MatNorm(J,NORM_1,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("1 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_FROBENIUS,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("2 norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
     call MatNorm(J,NORM_INFINITY,norm,ierr);CHKERRQ(ierr)
     write(option%io_buffer,'("inf norm: ",es11.4)') norm
-    call printMsg(option) 
+    call PrintMsg(option)
   endif
 
 !  call MatView(J,PETSC_VIEWER_STDOUT_WORLD,ierr)
@@ -2024,21 +1917,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
 #endif
 
-#ifdef DEBUG_GENERAL_FILEOUTPUT
-  if (debug_flag > 0) then
-    write(word,*) debug_timestep_count
-    string = 'jacobian_' // trim(adjustl(word))
-    write(word,*) debug_timestep_cut_count
-    string = trim(string) // '_' // trim(adjustl(word))
-    write(word,*) debug_iteration_count
-    string = trim(string) // '_' // trim(adjustl(word)) // '.out'
-    call PetscViewerASCIIOpen(realization%option%mycomm,trim(string), &
-                              viewer,ierr);CHKERRQ(ierr)
-    call MatView(J,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    close(debug_unit)
-  endif
-#endif
   ! update after evaluations to ensure zero-based index to match screen output
   general_ni_count = general_ni_count + 1
 

@@ -47,7 +47,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 5 5 5
   BOUNDS
     0.d0 0.d0 0.d0
@@ -159,7 +159,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM DATASET xy_dataset
   PRESSURE 101325.d0
@@ -167,7 +167,7 @@ END
 
 FLOW_CONDITION east_line
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM DATASET y_dataset
   PRESSURE 101325.d0
@@ -175,7 +175,7 @@ END
 
 FLOW_CONDITION south_line
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM DATASET x_dataset
   PRESSURE 101325.d0

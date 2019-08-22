@@ -1,5 +1,7 @@
 module Solver_module
  
+#include "petsc/finclude/petsc.h"
+  use petsc
 #include "petsc/finclude/petscts.h"
   use petscts
   use PFLOTRAN_Constants_module
@@ -156,8 +158,8 @@ function SolverCreate()
   
   solver%J = PETSC_NULL_MAT
   solver%Jpre = PETSC_NULL_MAT
-  solver%J_mat_type = MATBAIJ
-  solver%Jpre_mat_type = ''
+  solver%J_mat_type = PETSC_NULL_CHARACTER
+  solver%Jpre_mat_type = PETSC_NULL_CHARACTER
 !  solver%interpolation = 0
   nullify(solver%interpolation)
   solver%matfdcoloring = PETSC_NULL_MATFDCOLORING
@@ -254,14 +256,6 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetErrorIfNotConverged(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
   endif
 
-  ! allow override from command line
-  call KSPSetFromOptions(solver%ksp,ierr);CHKERRQ(ierr)
-  call PCSetFromOptions(solver%pc,ierr);CHKERRQ(ierr)
-    
-  ! get the ksp_type and pc_type incase of command line override.
-  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
-  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
-
   ! Set the tolerances for the Newton solver.
   call SNESSetTolerances(solver%snes, solver%newton_atol, solver%newton_rtol, &
                          solver%newton_stol,solver%newton_max_iterations, &
@@ -291,7 +285,14 @@ subroutine SolverSetSNESOptions(solver, option)
   
   ! allow override from command line; for some reason must come before
   ! LineSearchParams, or they crash
+  ! Note that SNESSetFromOptions() calls KSPSetFromOptions(), which calls
+  ! PCSetFromOptions(), so these should not be called separately (doing so
+  ! causes unintended results when PCCOMPOSITE is used).
   call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
+
+  ! get the ksp_type and pc_type incase of command line override.
+  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
+  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
 
   if (solver%linear_shift) then
     ! the below must come after SNESSetFromOptions
@@ -312,10 +313,8 @@ subroutine SolverSetSNESOptions(solver, option)
           call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
         case(PCGASM)
-#if (PETSC_VERSION_MINOR >= 8)
           call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                                PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-#endif
       end select
       allocate(sub_ksps(nsub_ksp))
       select case(solver%pc_type)
@@ -326,10 +325,8 @@ subroutine SolverSetSNESOptions(solver, option)
           call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               sub_ksps,ierr);CHKERRQ(ierr)
         case(PCGASM)
-#if (PETSC_VERSION_MINOR >= 8)
           call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                                sub_ksps,ierr);CHKERRQ(ierr)
-#endif
       end select
       do i = 1, nsub_ksp
         call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
@@ -360,7 +357,7 @@ subroutine SolverSetSNESOptions(solver, option)
     elseif (.not.(solver%pc_type == PCLU .or. solver%pc_type == PCILU)) then
       option%io_buffer = 'PCFactorSetZeroPivot for PC ' // &
         trim(solver%pc_type) // ' is not supported at this time.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -433,6 +430,50 @@ subroutine SolverReadLinear(solver,input,option)
       prefix = '-tran_'
   end select
 
+  if(option%flow%resdef) then
+    ! Can be expanded on later.
+    ! Set to fgmres and cpr solver options, and some sensible
+    ! defaults for fgmres
+
+    option%io_buffer = 'LINEAR_SOLVER: applying common defaults &
+                       &(RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+    ! 1) CPR preconditioner
+    solver%pc_type = PCSHELL
+    allocate(solver%cprstash)
+    call SolverCPRInitializeStorage(solver%cprstash)
+    option%io_buffer = 'LINEAR_SOLVER: PC has beeen set to CPR &
+                       &(RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+    ! 2) FGMRES linear solver
+    solver%ksp_type = KSPFGMRES
+    option%io_buffer = 'LINEAR_SOLVER: linear solver has beeen set &
+                       &to FGMRES (RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+    ! 3) ksp modified gs
+    string = trim(prefix) // 'ksp_gmres_modifiedgramschmidt'
+    word = ''
+    call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                              trim(string),trim(word),ierr);CHKERRQ(ierr)
+    option%io_buffer = 'LINEAR_SOLVER: FGMRES option modified Gram &
+                       &Schmidt enabled (RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+    ! 4) ksp restart a bit bigger, say 100 - though note can be too 
+    !    big for limited memory systems/large models
+    string = trim(prefix) // 'ksp_gmres_restart'
+    word = '100'
+    call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
+                              trim(string),trim(word), &
+                              ierr);CHKERRQ(ierr)
+    option%io_buffer = 'LINEAR_SOLVER: FGMRES restart value set to &
+                       &100 (RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+    option%io_buffer = 'LINEAR_SOLVER: end of setting RESERVOIR_DEFAULTS &
+      &defaults. Note these may be overwritten if there is other input &
+      &in the LINEAR_SOLVER card.'
+    call PrintMsg(option)
+   endif
+
   input%ierr = 0
   do
   
@@ -474,8 +515,14 @@ subroutine SolverReadLinear(solver,input,option)
           case default
             option%io_buffer  = 'Krylov solver type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
+
+        if (option%flow%resdef) then
+          option%io_buffer = 'WARNING: SOLVER TYPE has been changed, &
+            &overwritting the RESERVOIR_DEFAULTS default'
+          call PrintMsg(option)
+        endif
 
       case('PRECONDITIONER_TYPE','PRECONDITIONER','PC','PC_TYPE')
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -505,8 +552,14 @@ subroutine SolverReadLinear(solver,input,option)
           case default
             option%io_buffer  = 'Preconditioner type: ' // trim(word) // &
                                 ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
+
+        if (option%flow%resdef) then
+          option%io_buffer = 'WARNING: PRECONDITIONER has been changed, &
+            &overwritting the RESERVOIR_DEFAULTS default'
+          call PrintMsg(option)
+        endif
 
       case('HYPRE_OPTIONS')
         do
@@ -531,7 +584,7 @@ subroutine SolverReadLinear(solver,input,option)
                 case default
                   option%io_buffer  = 'HYPRE preconditioner type: ' // &
                                       trim(word) // ' unknown.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             case('BOOMERAMG_CYCLE_TYPE')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -551,7 +604,7 @@ subroutine SolverReadLinear(solver,input,option)
                 case default
                   option%io_buffer  = 'HYPRE BoomerAMG cycle type: ' &
                                       // trim(word) // ' unknown.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             case('BOOMERAMG_MAX_LEVELS')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -775,7 +828,7 @@ subroutine SolverReadLinear(solver,input,option)
             case default
               option%io_buffer  = 'HYPRE option: ' // trim(keyword) // &
                                   ' unknown.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
         enddo
 
@@ -829,6 +882,10 @@ subroutine SolverReadLinear(solver,input,option)
         call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                   trim(string),trim(word), &
                                   ierr);CHKERRQ(ierr)
+        if (option%flow%resdef) then
+          option%io_buffer = 'WARNING: GMRES_RESTART has been changed, overwritting the RESERVOIR_DEFAULTS default'
+          call PrintMsg(option)
+        endif
 
       case('GMRES_MODIFIED_GS')
         ! Equivalent to 
@@ -941,24 +998,24 @@ subroutine SolverReadNewton(solver,input,option)
         option%io_buffer = 'Flow NEWTON_SOLVER ITOL_SCALED_RESIDUAL is ' // &
           'now specific to each process model and must be defined in ' // &
           'the SIMULATION/PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
           
       case('ITOL_RELATIVE_UPDATE')
         option%io_buffer = 'Flow NEWTON_SOLVER ITOL_RELATIVE_UPDATE is ' // &
           'now specific to each process model and must be defined in ' // &
           'the SIMULATION/PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
       case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
         if (.not.option%use_mc) then
           option%io_buffer = 'NEWTON ITOL_SEC not supported without ' // &
             'MULTIPLE_CONTINUUM keyword.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (.not.solver%itype == TRANSPORT_CLASS) then
           option%io_buffer = 'NEWTON ITOL_SEC supported in ' // &
             'TRANSPORT only.'
-          call printErrMsg(option)        
+          call PrintErrMsg(option)
         endif         
         call InputReadDouble(input,option,solver%newton_inf_res_tol_sec)
         call InputErrorMsg(input,option,'newton_inf_res_tol_sec', &
@@ -982,9 +1039,11 @@ subroutine SolverReadNewton(solver,input,option)
             solver%J_mat_type = MATMFFD
           case('HYPRESTRUCT')
             solver%J_mat_type = MATHYPRESTRUCT
+          case('SELL')
+            solver%J_mat_type = MATSELL
           case default
             option%io_buffer = 'Matrix type: ' // trim(word) // ' unknown.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
         
       case('PRECONDITIONER_MATRIX_TYPE')
@@ -1001,11 +1060,14 @@ subroutine SolverReadNewton(solver,input,option)
             solver%Jpre_mat_type = MATMFFD
           case('HYPRESTRUCT')
              solver%Jpre_mat_type = MATHYPRESTRUCT
+          case('SELL')
+            solver%J_mat_type = MATSELL
           case('SHELL')
              solver%Jpre_mat_type = MATSHELL
           case default
-            option%io_buffer  = 'Preconditioner Matrix type: ' // trim(word) // ' unknown.'
-            call printErrMsg(option)
+            option%io_buffer  = 'Preconditioner Matrix type: ' // &
+              trim(word) // ' unknown.'
+            call PrintErrMsg(option)
         end select
         
       case ('VERBOSE_LOGGING','VERBOSE_ERROR_MESSAGING')
@@ -1081,7 +1143,7 @@ subroutine SolverPrintLinearInfo(solver,header,option)
     if (solver%ksp_type == KSPPREONLY .and. solver%pc_type == PCLU) then
       option%io_buffer = 'Direct solver (KSPPREONLY + PCLU) not ' // &
         ' supported when running in parallel.  Switch to SOLVER ITERATIVE.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 #endif
@@ -1350,7 +1412,7 @@ subroutine SolverNewtonPrintFailedReason(solver,option)
         trim(adjustl(word)) // ').'
   end select
   option%io_buffer = 'Newton solver reason: ' // trim(error_string)
-  call printMsg(option)
+  call PrintMsg(option)
 
   ! print out subsequent information specific to each case
   select case(snes_reason)
@@ -1466,13 +1528,13 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_INDEFINITE_MAT'
       endif
-    case(KSP_DIVERGED_PCSETUP_FAILED)
+    case(KSP_DIVERGED_PC_FAILED)
       if (solver%verbose_logging) then
         error_string = 'Preconditioner setup failed.'
         pc = solver%pc
         call PCGetType(pc,pc_type,ierr);CHKERRQ(ierr)
-        call PCGetSetUpFailedReason(pc,pc_failed_reason, &
-                                    ierr);CHKERRQ(ierr)
+        call PCGetFailedReason(pc,pc_failed_reason, &
+                               ierr);CHKERRQ(ierr)
         ! have to perform global reduction on pc_failed_reason
         temp_int = pc_failed_reason
         call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI, &
@@ -1487,19 +1549,19 @@ subroutine SolverLinearPrintFailedReason(solver,option)
                                     sub_ksps,ierr);CHKERRQ(ierr)
             if (nsub_ksp > 1) then
               option%io_buffer = 'NSUB_KSP > 1.  What to do?'
-              call PrintErrMsgToDev('',option)
+              call PrintErrMsgToDev(option,'')
             endif
             do i = 1, nsub_ksp
               call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
-              call PCGetSetUpFailedReason(pc,pc_failed_reason, &
-                                          ierr);CHKERRQ(ierr)
+              call PCGetFailedReason(pc,pc_failed_reason, &
+                                     ierr);CHKERRQ(ierr)
             enddo
             deallocate(sub_ksps)
             nullify(sub_ksps)
           else
             option%io_buffer = 'Error in SUB PC of unknown type "' // &
               trim(pc_type) // '".'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
         ! have to perform global reduction (again) on pc_failed_reason
@@ -1537,10 +1599,10 @@ subroutine SolverLinearPrintFailedReason(solver,option)
               ') is too large due to a zero pivot of ' // &
               trim(adjustl(word2)) // '. Please set a ZERO_PIVOT_TOL smaller &
               &than that value.'
-            call PrintErrMsgToDev('if you need further help',option)
+            call PrintErrMsgToDev(option,'if you need further help')
         end select
       else
-        error_string = 'KSP_DIVERGED_PCSETUP_FAILED'
+        error_string = 'KSP_DIVERGED_PC_FAILED'
       endif
     case default
       write(word,*) ksp_reason 
@@ -1548,7 +1610,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
         trim(adjustl(word)) // ').'
   end select
   option%io_buffer = 'Linear solver reason: ' // trim(error_string)
-  call printMsg(option)
+  call PrintMsg(option)
 
 end subroutine SolverLinearPrintFailedReason
 

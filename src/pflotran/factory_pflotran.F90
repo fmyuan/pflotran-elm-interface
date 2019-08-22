@@ -61,6 +61,11 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Option_module
   use Multi_Simulation_module
   use Simulation_Base_class
+  use Simulation_Subsurface_class
+  use Simulation_Surface_class
+  use Simulation_Surf_Subsurf_class
+  use Simulation_Geomechanics_class
+  use Output_Aux_module
   use Logging_module
   use EOS_module
   use PM_Surface_class
@@ -75,6 +80,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   type(option_type), pointer :: option
   
   character(len=MAXSTRINGLENGTH) :: filename
+  PetscBool :: flag
   PetscErrorCode :: ierr
 
   call MultiSimulationIncrement(multisimulation,option)
@@ -96,6 +102,42 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   ! for process models.  This call sets flag that disables the creation of
   ! new stages, which is necessary for multisimulation
   call LoggingSetupComplete()
+
+  ! adding error message if binary checkpoint/restart is used in
+  ! combination with unstructured gridding
+  flag = PETSC_FALSE
+  if (associated(simulation%checkpoint_option)) then
+    if (simulation%checkpoint_option%format == CHECKPOINT_BINARY) then
+      flag = PETSC_TRUE
+    endif
+  endif
+  if (index(option%restart_filename,'.chk') > 0) then
+    flag = PETSC_TRUE
+  endif
+  if (flag) then
+    flag = PETSC_FALSE
+    select type(s=>simulation)
+      class is(simulation_subsurface_type) 
+        ! also covers simulation_surfsubsurface_type and 
+        ! simulation_geomechanics_type
+        if (s%realization%patch%grid%itype /= STRUCTURED_GRID) then
+          flag = PETSC_TRUE
+        endif
+      class is(simulation_surface_type) 
+        if (s%surf_realization%patch%grid%itype /= STRUCTURED_GRID) then
+          flag = PETSC_TRUE
+        endif
+      class default
+        option%io_buffer = 'Unknown simulation class in &
+          &PFLOTRANInitializePostPetsc'
+        call PrintErrMsg(option)
+    end select
+    if (flag) then
+        option%io_buffer = 'Binary Checkpoint/Restart (.chk format) is not &
+          &supported for unstructured grids.  Please use HDF5 (.h5 format).'
+        call PrintErrMsg(option)
+    endif
+  endif
 
 end subroutine PFLOTRANInitializePostPetsc
 
@@ -202,6 +244,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               call SubsurfaceReadFlowPM(input,option,new_pm)
             case('SUBSURFACE_TRANSPORT')
               call SubsurfaceReadRTPM(input,option,new_pm)
+            case('NUCLEAR_WASTE_TRANSPORT')
+              call SubsurfaceReadNWTPM(input,option,new_pm)
             case('WASTE_FORM')
               call SubsurfaceReadWasteFormPM(input,option,new_pm)
             case('UFD_DECAY')
@@ -212,7 +256,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
                 &unless you are running in WIPP_FLOW mode and intend to &
                 &include gas generation.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             case('SURFACE_SUBSURFACE')
               call SurfSubsurfaceReadFlowPM(input,option,new_pm)
             case('GEOMECHANICS_SUBSURFACE')
@@ -221,7 +265,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('AUXILIARY')
               if (len_trim(pm_name) < 1) then
                 option%io_buffer = 'AUXILIARY process models must have a name.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               new_pm => PMAuxiliaryCreate()
               input%buf = pm_name
@@ -260,10 +304,9 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         ! this section preserves the legacy implementation
         call InputReadFilename(input,option,option%restart_filename)
         if (input%ierr == 0) then
-          call InputReadDouble(input,option,option%restart_time)
+          call InputReadWord(input,option,word,PETSC_TRUE)
           if (input%ierr == 0) then
-            call InputReadAndConvertUnits(input,option%restart_time, &
-                                        'sec','RESTART,time units',option)
+            option%restart_time = 0.d0
           endif 
           cycle
           ! end legacy implementation
@@ -299,7 +342,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               &"-restart" be present in the restart file name so that the &
               &realization id can be inserted prior to -restart.  E.g. &
               &pflotran-restart.h5 -> pflotranR1-restart.h5'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           option%restart_filename = trim(string)
         endif
@@ -314,7 +357,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
 
   if (.not.associated(pm_master)) then
     option%io_buffer = 'No process models defined in SIMULATION block.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if (option%print_ekg) then
@@ -338,7 +381,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
       if (len_trim(simulation_type) == 0) then
         option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
           &SUBSURFACE") must be specified within the SIMULATION block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call InputKeywordUnrecognized(simulation_type, &
                      'SIMULATION,SIMULATION_TYPE',option)            
@@ -505,7 +548,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   if (pflotranin_option_found .and. input_prefix_option_found) then
     option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
       '"-input_prefix" on the command lines.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if (pflotranin_option_found) then
     strings => StringSplit(option%input_filename,'.')
     option%input_prefix = strings(1)
@@ -547,11 +590,11 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   if (option_found) then
     if (i < 1) then
       option%io_buffer = 'realization_id must be greater than zero.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     option%id = i
   endif
-  
+ 
 end subroutine PFLOTRANInitCommandLineSettings
 
 end module Factory_PFLOTRAN_module

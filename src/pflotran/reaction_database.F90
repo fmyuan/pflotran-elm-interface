@@ -120,7 +120,7 @@ subroutine DatabaseRead(reaction,option)
   
   if (len_trim(reaction%database_filename) < 2) then
     option%io_buffer = 'Database filename not included in input deck.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   input => InputCreate(IUNIT_TEMP,reaction%database_filename,option)
 
@@ -463,7 +463,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = &
                  'Aqueous primary species (' // trim(cur_aq_spec%name) // &
                  ') duplicated in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_aq_spec2 => cur_aq_spec2%next
     enddo
@@ -477,7 +477,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Aqueous primary species (' // &
                            trim(cur_aq_spec%name) // &
                            ') duplicated as secondary species in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_aq_spec2 => cur_aq_spec2%next
     enddo
@@ -491,7 +491,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Aqueous primary species (' // &
                            trim(cur_aq_spec%name) // &
                            ') duplicated as gas species in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_gas_spec2 => cur_gas_spec2%next
     enddo
@@ -515,7 +515,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Aqueous secondary species (' // &
                            trim(cur_aq_spec%name) // &
                            ') duplicated in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_aq_spec2 => cur_aq_spec2%next
     enddo
@@ -529,7 +529,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Aqueous secondary species (' // &
                            trim(cur_aq_spec%name) // &
                            ') duplicated as gas species in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_gas_spec2 => cur_gas_spec2%next
     enddo
@@ -554,7 +554,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Gas species (' // &
                            trim(cur_aq_spec%name) // &
                            ') duplicated in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_gas_spec2 => cur_gas_spec2%next
     enddo
@@ -575,7 +575,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Mineral (' // &
                            trim(cur_mineral%name) // &
                            ') duplicated in input file.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_mineral2 => cur_mineral2%next
     enddo
@@ -596,7 +596,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Surface complex (' // &
                             trim(cur_srfcplx2%name) // &
                     ') duplicated in master surface complex list.'
-        call printMsg(option)                          
+        call PrintMsg(option)
       endif
       cur_srfcplx2 => cur_srfcplx2%next
     enddo
@@ -627,7 +627,7 @@ subroutine DatabaseRead(reaction,option)
         option%io_buffer = 'Surface complex "' // &
                            trim(cur_srfcplx%name) // &
                            '" not found in master list.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     
       ! ensure that site listed in reaction matches site in complex
@@ -645,7 +645,7 @@ subroutine DatabaseRead(reaction,option)
                              trim(cur_srfcplx_rxn%free_site_name) // &
                              ' not found in surface complex:' // &
                              trim(cur_srfcplx%name)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif
       ! ensure that duplicate surface complexes do not exist in reaction
@@ -660,7 +660,7 @@ subroutine DatabaseRead(reaction,option)
           option%io_buffer = 'Surface complex (' // &
                              trim(cur_srfcplx2%name) // &
                       ') duplicated in input file surface complex reaction.'
-          call printMsg(option)                          
+          call PrintMsg(option)
         endif
         cur_srfcplx2 => cur_srfcplx2%next
       enddo
@@ -669,7 +669,7 @@ subroutine DatabaseRead(reaction,option)
     cur_srfcplx_rxn => cur_srfcplx_rxn%next
   enddo  
   
-  if (flag) call printErrMsg(option,'Species duplicated in input file.')
+  if (flag) call PrintErrMsg(option,'Species duplicated in input file.')
 
   ! check that all species, etc. were read
   ! also check whether legitimate logK values exist if non-isothermal and
@@ -684,7 +684,7 @@ subroutine DatabaseRead(reaction,option)
       option%io_buffer = 'Aqueous primary species (' // &
                trim(cur_aq_spec%name) // &
                ') not found in database.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (.not.reaction%use_geothermal_hpt) then
       if (.not.DatabaseCheckLegitimateLogKs(cur_aq_spec%dbaserxn, &
@@ -704,7 +704,7 @@ subroutine DatabaseRead(reaction,option)
       option%io_buffer = &
                'Aqueous secondary species (' // trim(cur_aq_spec%name) // &
                ') not found in database.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (.not.reaction%use_geothermal_hpt) then
       if (.not.DatabaseCheckLegitimateLogKs(cur_aq_spec%dbaserxn, &
@@ -723,7 +723,7 @@ subroutine DatabaseRead(reaction,option)
       flag = PETSC_TRUE
       option%io_buffer = 'Gas species (' // trim(cur_gas_spec%name) // &
                          ') not found in database.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (.not.reaction%use_geothermal_hpt) then
       if (.not.DatabaseCheckLegitimateLogKs(cur_gas_spec%dbaserxn, &
@@ -742,7 +742,7 @@ subroutine DatabaseRead(reaction,option)
       flag = PETSC_TRUE
       option%io_buffer = 'Mineral (' // trim(cur_mineral%name) // &
                ') not found in database.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (.not.reaction%use_geothermal_hpt) then
       if (.not.DatabaseCheckLegitimateLogKs(cur_mineral%dbaserxn, &
@@ -761,7 +761,7 @@ subroutine DatabaseRead(reaction,option)
       flag = PETSC_TRUE
       option%io_buffer = 'Surface species (' // trim(cur_srfcplx%name) // &
                 ') not found in database.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (.not.reaction%use_geothermal_hpt) then
       if (.not.DatabaseCheckLegitimateLogKs(cur_srfcplx%dbaserxn, &
@@ -774,13 +774,13 @@ subroutine DatabaseRead(reaction,option)
     cur_srfcplx => cur_srfcplx%next
   enddo  
     
-  if (flag) call printErrMsg(option,'Species not found in database.')
+  if (flag) call PrintErrMsg(option,'Species not found in database.')
   if (.not.option%use_isothermal) then
     !geh: only stop if running with temperature dependent log Ks.
     if (logK_error_flag) then
       option%io_buffer = 'Non-isothermal reactions not possible due to &
         &missing logKs in database.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -1115,10 +1115,10 @@ subroutine BasisInit(reaction,option)
         &number of secondary species defined.'
     else
       option%io_buffer = 'Too many reactions read from database for &
-        &number of secondary species defined.  Perhaps REDOX &
-        &SPECIES need to be defined?'
+        &number of secondary species defined.  Perhaps &
+        &DECOUPLED_EQUILIBRIUM_REACTIONS need to be defined?'
     endif
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   allocate(pri_matrix(ncomp_secondary,ncomp_h2o))
@@ -1178,7 +1178,7 @@ subroutine BasisInit(reaction,option)
         option%io_buffer = 'Primary species ' // &
                  trim(cur_pri_aq_spec%name) // &
                  ' found in secondary or gas list.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       pri_matrix(icount,i) = -1.d0
       do ispec=1,cur_pri_aq_spec%dbaserxn%nspec
@@ -1210,7 +1210,7 @@ subroutine BasisInit(reaction,option)
         option%io_buffer = 'Secondary aqueous species ' // &
                  trim(cur_sec_aq_spec%name) // &
                  ' found in primary species list.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       sec_matrix(icount,-i) = -1.d0
       do ispec=1,cur_sec_aq_spec%dbaserxn%nspec
@@ -1242,7 +1242,7 @@ subroutine BasisInit(reaction,option)
         option%io_buffer = 'Gas species ' // &
                  trim(cur_gas_spec%name) // &
                  ' found in primary species list.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       sec_matrix(icount,-i) = -1.d0
       do ispec=1,cur_gas_spec%dbaserxn%nspec
@@ -1796,7 +1796,7 @@ subroutine BasisInit(reaction,option)
        option%iflowmode == FLASH2_MODE)) then
     option%io_buffer = 'An ACTIVE_GAS_SPECIES block must be specified in &
       &CHEMISTRY to run a CO2 flow mode coupled with reactive transport.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   
@@ -1861,7 +1861,7 @@ subroutine BasisInit(reaction,option)
     write(string,'(2i4)') temp_int, mineral%nkinmnrl
     option%io_buffer = 'Inconsistent number of kinetic minerals: ' // &
       trim(string)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   if (mineral%nmnrl > 0) then
@@ -2267,7 +2267,7 @@ subroutine BasisInit(reaction,option)
                 option%io_buffer = 'Kinetic mineral prefactor species "' // &
                   trim(cur_prefactor_species%name) // &
                   '" not found among primary or secondary species.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               mineral%kinmnrl_prefactor_id(j,i,ikinmnrl) = &
                 cur_prefactor_species%id
@@ -2379,7 +2379,7 @@ subroutine BasisInit(reaction,option)
         surface_complexation%nkinsrfcplxrxn) then
       option%io_buffer = 'Inconsistent number of surface complexation &
                          &reactions. (Initial Check)'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   
     ! generic list of surface complexes
@@ -2734,7 +2734,7 @@ subroutine BasisInit(reaction,option)
                                 trim(cur_srfcplx_rxn%surface_name) // &
                                 ' listed in surface complexation &
                                 &reaction not found in kinetic mineral list'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         case(COLLOID_SURFACE)
           surface_complexation%srfcplxrxn_to_surf(irxn) = &
@@ -2744,7 +2744,7 @@ subroutine BasisInit(reaction,option)
                                 trim(cur_srfcplx_rxn%surface_name) // &
                                 ' listed in surface complexation &
                                 &reaction not found in colloid list'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           ! loop over primary species associated with colloid sorption and
           ! add to colloid species list, if not already listed
@@ -2767,7 +2767,7 @@ subroutine BasisInit(reaction,option)
           option%io_buffer = 'No mineral or colloid name specified &
             &for equilibrium surface complexation reaction:' // &
             trim(adjustl(word))
-          call printWrnMsg(option)
+          call PrintWrnMsg(option)
       end select
       surface_complexation%srfcplxrxn_site_density(irxn) = &
         cur_srfcplx_rxn%site_density
@@ -2806,7 +2806,7 @@ subroutine BasisInit(reaction,option)
         surface_complexation%nkinsrfcplxrxn) then
       option%io_buffer = 'Inconsistent number of surface complexation &
                          &reactions. (Final Check)'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     
   endif ! surface_complexation%nsrfcplxrxn > 0
@@ -2840,7 +2840,7 @@ subroutine BasisInit(reaction,option)
     if (minval(reaction%coll_spec_to_pri_spec) < 1) then
       option%io_buffer = 'Species colloid surface complexation reaction not &
                          & recognized among primary species'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     allocate(reaction%total_sorb_mobile_print(reaction%ncollcomp))
     reaction%total_sorb_mobile_print = PETSC_FALSE
@@ -2902,7 +2902,7 @@ subroutine BasisInit(reaction,option)
         if (reaction%eqionx_rxn_to_surf(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
             ' listed in ion exchange &reaction not found in mineral list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif
       cur_cation => cur_ionx_rxn%cation_list
@@ -2924,7 +2924,7 @@ subroutine BasisInit(reaction,option)
         if (.not.found) then
           option%io_buffer = 'Cation ' // trim(cur_cation%name) // &
                    ' in ion exchange reaction not found in swapped basis.'
-          call printErrMsg(option)  
+          call PrintErrMsg(option)
         endif
         cur_cation => cur_cation%next
       enddo
@@ -2995,7 +2995,7 @@ subroutine BasisInit(reaction,option)
         option%io_buffer = 'Cannot have more than one reactant in &
                            &radioactive decay reaction: (' // &
                            trim(cur_radiodecay_rxn%reaction) // ').'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
 
       ! calculate maximum
@@ -3287,7 +3287,7 @@ subroutine BasisInit(reaction,option)
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
             ' not found among immobile species.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         else
           microbial%biomassid(irxn) = temp_int
           microbial%biomass_yield(irxn) = &
@@ -3301,7 +3301,7 @@ subroutine BasisInit(reaction,option)
           option%io_buffer = 'Biomass species "' // &
             trim(cur_microbial_rxn%biomass%species_name) // &
             ' should not be included in microbial reaction.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif       
       endif
       
@@ -3321,7 +3321,7 @@ subroutine BasisInit(reaction,option)
         if (temp_int == 0) then
           option%io_buffer = 'Monod species "' // &
             trim(cur_monod%species_name) // ' not found in microbial reaction.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! if species stoichiometry is > 0., it is a product and cannot be
         ! used in a monod expression.
@@ -3329,7 +3329,7 @@ subroutine BasisInit(reaction,option)
           option%io_buffer = 'Monod species "' // &
             trim(cur_monod%species_name) // ' must be a reactant and not ' // &
             'a product in microbial reaction.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         
         microbial%monod_specid(monod_count) = &
@@ -3358,7 +3358,7 @@ subroutine BasisInit(reaction,option)
           option%io_buffer = 'Inhibition species "' // &
             trim(cur_inhibition%species_name) // &
             ' not found in microbial reaction.'
-          call printWrnMsg(option)
+          call PrintWrnMsg(option)
         endif
         
         microbial%inhibition_specid(inhibition_count) = &
@@ -3407,7 +3407,7 @@ subroutine BasisInit(reaction,option)
         option%io_buffer = 'Species "' // &
         trim(cur_immobile_decay_rxn%species_name) // &
         '" in immobile decay reaction not found among immobile species.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       reaction%immobile%decay_rate_constant(irxn) = &
         cur_immobile_decay_rxn%rate_constant
@@ -3424,7 +3424,7 @@ subroutine BasisInit(reaction,option)
     if (reaction%neqcplx > 0) then
       option%io_buffer = 'Isotherm reactions currently calculated as a &
                          &function of free-ion, not totals.  Contact Glenn!'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   
     ! allocate arrays
@@ -3475,7 +3475,7 @@ subroutine BasisInit(reaction,option)
         option%io_buffer = 'Species ' // trim(cur_kd_rxn%species_name) // &
                  ' in kd reaction &
                  & not found among primary species list.'
-        call printErrMsg(option)     
+        call PrintErrMsg(option)
       endif
       reaction%eqkdtype(irxn) = cur_kd_rxn%itype
       ! associate mineral id
@@ -3487,7 +3487,7 @@ subroutine BasisInit(reaction,option)
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in kd (linear sorption) &
                              &reaction not found in mineral list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       endif      
       reaction%eqkddistcoef(irxn) = cur_kd_rxn%Kd
@@ -4026,7 +4026,7 @@ function GetSpeciesBasisID(reaction,option,ncomp_h2o,reaction_name, &
            ' listed in reaction for ' // &
            trim(reaction_name) // &
            ' not found among primary, secondary, or gas species.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end function GetSpeciesBasisID
 

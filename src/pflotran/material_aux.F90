@@ -16,14 +16,21 @@ module Material_Aux_class
   PetscInt, parameter, public :: perm_yz_index = 5
   PetscInt, parameter, public :: perm_xz_index = 6
   
-  PetscInt, parameter, public :: POROSITY_CURRENT = 0
-  PetscInt, parameter, public :: POROSITY_BASE = 1
-  PetscInt, parameter, public :: POROSITY_INITIAL = 2
+  ! do not use 0 as an index as there is a case statement in material.F90
+  ! designed to catch erroneous values outside [1,2].
+  PetscInt, parameter, public :: POROSITY_CURRENT = 1
+  PetscInt, parameter, public :: POROSITY_BASE = 2
+  PetscInt, parameter, public :: POROSITY_INITIAL = 3
 
   ! Tensor to scalar conversion models
+  ! default for structured grids = TENSOR_TO_SCALAR_LINEAR
+  ! default for unstructured grids = TENSOR_TO_SCALAR_POTENTIAL
+  ! Both are set in discretization.F90:DiscretizationReadRequiredCards() 
+  ! immediately after the GRID cards is read with a call to 
+  ! MaterialAuxSetPermTensorModel()
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
-  PetscInt, parameter, public :: TENSOR_TO_SCALAR_QUADRATIC = 2
-  PetscInt, parameter, public :: TENSOR_TO_SCALAR_ELLIPTIC = 3
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW = 2
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL = 3
 
   ! flag to determine which model to use for tensor to scalar conversion 
   ! of permeability
@@ -58,6 +65,8 @@ module Material_Aux_class
   contains
     procedure, public :: PermeabilityTensorToScalar => &
                            MaterialDiagPermTensorToScalar
+    procedure, public :: PermeabilityTensorToScalarSafe => &
+                           MaterialDiagPermTensorToScalarSafe
   end type material_auxvar_type
   
   type, public :: fracture_auxvar_type
@@ -68,7 +77,6 @@ module Material_Aux_class
   end type fracture_auxvar_type
  
   type, public :: material_parameter_type
-    PetscReal, pointer :: soil_residual_saturation(:,:)
     PetscReal, pointer :: soil_heat_capacity(:) ! MJ/kg rock-K
     PetscReal, pointer :: soil_thermal_conductivity(:,:) ! W/m-K
   end type material_parameter_type  
@@ -145,7 +153,6 @@ function MaterialAuxCreate()
   allocate(aux)
   nullify(aux%auxvars)
   allocate(aux%material_parameter)
-  nullify(aux%material_parameter%soil_residual_saturation)
   nullify(aux%material_parameter%soil_heat_capacity)
   nullify(aux%material_parameter%soil_thermal_conductivity)
   aux%num_aux = 0
@@ -256,13 +263,13 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
   !! Please note that if you add a new model type above then you MUST add
   !! it to this little list here too. 
   if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
-      model == TENSOR_TO_SCALAR_QUADRATIC .OR. &
-      model == TENSOR_TO_SCALAR_QUADRATIC) then
+      model == TENSOR_TO_SCALAR_FLOW .OR. &
+      model == TENSOR_TO_SCALAR_POTENTIAL) then
     perm_tens_to_scal_model = model
   else
     option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
                          model type is not recognized.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine MaterialAuxSetPermTensorModel
@@ -278,7 +285,6 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   ! 
-
   use Utility_module, only : Equal
 
   implicit none
@@ -307,15 +313,59 @@ subroutine MaterialDiagPermTensorToScalar(material_auxvar,dist, &
   select case(perm_tens_to_scal_model)
     case(TENSOR_TO_SCALAR_LINEAR)
       scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
-    case(TENSOR_TO_SCALAR_QUADRATIC)
-      scalar_permeability = DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_FLOW)
+      scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL)
+      scalar_permeability = DiagPermTensortoScalar_Potential(kx,ky,kz,dist)
     case default
       ! as default, just do linear 
-      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      !scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+      ! as default, do perm in direction of flow
+      !scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+      ! as default, do perm in direction of potential gradient
+      scalar_permeability = DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
   end select
+
 
 end subroutine MaterialDiagPermTensorToScalar
 
+! ************************************************************************** !
+
+subroutine MaterialDiagPermTensorToScalarSafe(material_auxvar,dist, &
+                                      scalar_permeability)
+  !
+  ! Transforms a diagonal perm. tensor to a scalar through a dot product.
+  ! This version will not generate NaNs for zero permeabilities
+  !
+  ! Author: Dave Ponting
+  ! Date: 03/19/19
+  !
+
+  implicit none
+
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal, intent(out) :: scalar_permeability
+
+  PetscReal :: kx, ky, kz
+
+  kx = material_auxvar%permeability(perm_xx_index)
+  ky = material_auxvar%permeability(perm_yy_index)
+  kz = material_auxvar%permeability(perm_zz_index)
+
+  select case(perm_tens_to_scal_model)
+    case(TENSOR_TO_SCALAR_LINEAR)
+      scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_FLOW)
+      scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL)
+      scalar_permeability = DiagPermTensortoScalar_PotentialSafe(kx,ky,kz,dist)
+    case default
+      scalar_permeability = DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
+  end select
+
+end subroutine MaterialDiagPermTensorToScalarSafe
 ! ************************************************************************** !
 
 function DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
@@ -331,17 +381,80 @@ end function DiagPermTensorToScalar_Linear
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Quadratic(kx,ky,kz,dist)
+function DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
+  
+  !Permeability in the direction of flow
+
   implicit none
-  PetscReal :: DiagPermTensorToScalar_Quadratic
+  PetscReal :: DiagPermTensorToScalar_Flow
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx,ky,kz
 
-  DiagPermTensorToScalar_Quadratic = kx*dabs(dist(1))**2.0 + &
+  DiagPermTensorToScalar_Flow = kx*dabs(dist(1))**2.0 + &
                                      ky*dabs(dist(2))**2.0 + &
                                      kz*dabs(dist(3))**2.0
 
-end function DiagPermTensorToScalar_Quadratic
+end function DiagPermTensorToScalar_Flow
+
+! ************************************************************************** !
+
+function DiagPermTensorToScalar_Potential(kx,ky,kz,dist)
+  
+  !Permeability in the direction of the potential gradient
+
+  implicit none
+  PetscReal :: DiagPermTensorToScalar_Potential
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: kx,ky,kz
+
+  DiagPermTensorToScalar_Potential = 1.d0/(dist(1)*dist(1)/kx + &
+                                         dist(2)*dist(2)/ky + &
+                                         dist(3)*dist(3)/kz)
+
+end function DiagPermTensorToScalar_Potential
+
+! ************************************************************************** !
+
+function DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
+
+  ! Permeability in the direction of the potential gradient
+  ! This version will not generate NaNs for zero permeabilities
+  !
+  ! Author: Dave Ponting
+  ! Date: 03/19/19
+  !
+
+  implicit none
+  PetscReal :: DiagPermTensorToScalar_PotentialSafe
+  PetscReal, intent(in) :: dist(-1:3)
+  PetscReal :: kx, ky, kz, kxi, kyi, kzi, den, deni
+
+  !  Form safe inverse permeabilities
+
+  kxi = 0.0
+  kyi = 0.0
+  kzi = 0.0
+
+  if (kx>0.0) kxi = 1.0/kx
+  if (ky>0.0) kyi = 1.0/ky
+  if (kz>0.0) kzi = 1.0/kz
+
+  !  Form denominator
+
+  den = dist(1)*dist(1)*kxi + &
+        dist(2)*dist(2)*kyi + &
+        dist(3)*dist(3)*kzi
+
+  !  Form safe inverse denominator
+
+  deni = 0.0
+  if (den>0.0) deni=1.0/den
+
+  !  Store final value
+
+  DiagPermTensorToScalar_PotentialSafe = deni
+
+end function DiagPermTensorToScalar_PotentialSafe
 
 ! ************************************************************************** !
 
@@ -734,7 +847,6 @@ subroutine MaterialAuxDestroy(aux)
   nullify(aux%auxvars)
     
   if (associated(aux%material_parameter)) then
-    call DeallocateArray(aux%material_parameter%soil_residual_saturation)
     call DeallocateArray(aux%material_parameter%soil_heat_capacity)
     call DeallocateArray(aux%material_parameter%soil_thermal_conductivity)
   endif

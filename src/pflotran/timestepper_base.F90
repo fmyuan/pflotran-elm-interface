@@ -235,7 +235,7 @@ subroutine TimestepperBaseRead(this,input,option)
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseRead not supported.  Requires extension.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine TimestepperBaseRead
 
@@ -281,7 +281,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
     case('MAX_NUM_CONTIGUOUS_REVERTS')
       call InputReadInt(input,option,this%max_num_contig_revert)
       call InputErrorMsg(input,option,'max_num_contig_reverts',error_string)
-    case('TIMESTEP_MINIMUM_SIZE')
+    case('MINIMUM_TIMESTEP_SIZE','TIMESTEP_MINIMUM_SIZE')
       call InputReadDouble(input,option,this%dt_min)
       call InputErrorMsg(input,option,keyword,error_string)
       call InputReadAndConvertUnits(input,this%dt_min,'sec', &
@@ -313,7 +313,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
          'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
       option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
         &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     case default
       call InputKeywordUnrecognized(keyword,error_string,option)
   end select
@@ -339,7 +339,7 @@ subroutine TimestepperBaseUpdateDT(this,process_model)
   class(pm_base_type) :: process_model
   
   process_model%option%io_buffer = 'TimestepperBaseStepDT must be extended.'
-  call printErrMsg(process_model%option)
+  call PrintErrMsg(process_model%option)
 
 end subroutine TimestepperBaseUpdateDT
 
@@ -390,7 +390,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
 !geh: for debugging
 #ifdef DEBUG
   option%io_buffer = 'TimestepperBaseSetTargetTime()'
-  call printMsg(option)
+  call PrintMsg(option)
 #endif
   
   if (this%time_step_cut_flag) then
@@ -543,7 +543,6 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
     stop_flag = TS_STOP_END_SIMULATION ! stop after end of time step
   endif
   
-  option%refactor_dt = dt
   this%dt = dt
   this%dt_max = dt_max
   this%target_time = target_time
@@ -576,7 +575,7 @@ subroutine TimestepperBaseStepDT(this,process_model,stop_flag)
   option => process_model%option
   
   option%io_buffer = 'TimestepperBaseStepDT must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine TimestepperBaseStepDT
 
@@ -666,7 +665,7 @@ subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseCheckpointBinary must be extended.'
-  call printErrMsg(option)  
+  call PrintErrMsg(option)
     
 end subroutine TimestepperBaseCheckpointBinary
 
@@ -689,7 +688,7 @@ subroutine TimestepperBaseCheckpointHDF5(this, h5_chk_grp_id, option)
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseCheckpointHDF5 must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine TimestepperBaseCheckpointHDF5
 
@@ -712,7 +711,7 @@ subroutine TimestepperBaseRestartHDF5(this, h5_chk_grp_id, option)
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseRestartHDF5 must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine TimestepperBaseRestartHDF5
 
@@ -816,7 +815,7 @@ subroutine TimestepperBaseRestartBinary(this,viewer,option)
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseRestartBinary must be extended.'
-  call printErrMsg(option)  
+  call PrintErrMsg(option)
     
 end subroutine TimestepperBaseRestartBinary
 
@@ -958,7 +957,7 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   character(len=MAXSTRINGLENGTH) :: string
   
 #ifdef DEBUG
-  call printMsg(option,'TimestepperBaseFinalizeRun()')
+  call PrintMsg(option,'TimestepperBaseFinalizeRun()')
 #endif
   
   if (OptionPrintToScreen(option)) then

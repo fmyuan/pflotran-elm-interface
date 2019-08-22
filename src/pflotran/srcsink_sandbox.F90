@@ -115,7 +115,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     option%io_buffer = 'Reactive transport may not be simulated when a &
       &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
       &capability exists in the source/sink sandbox for solute mass.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   nullify(new_sandbox)
@@ -405,7 +405,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(RICHARDS_MODE,G_MODE,WF_MODE)
+      case(RICHARDS_MODE,G_MODE,H_MODE,WF_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -417,7 +417,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
                                  cell_string,icolumn)
     end select
     select case(option%iflowmode)
-      case(G_MODE,WF_MODE)
+      case(G_MODE,H_MODE,WF_MODE)
         variable_string = ' Gas Component'
         ! cumulative
         units_string = 'kg'
@@ -473,14 +473,14 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       flow_dof_scale(1) = FMWH2O
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       flow_dof_scale(1) = FMWH2O
     case(MIS_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWGLYC
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       flow_dof_scale(1:2) = general_fmw(1:2)
     case(WF_MODE)
       flow_dof_scale(1:2) = wipp_flow_fmw(1:2)

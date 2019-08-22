@@ -569,7 +569,7 @@ subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
       enddo
     case default
       option%io_buffer = 'Variable unrecognized in GlobalGetAuxVarVecLoc.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
@@ -614,7 +614,7 @@ subroutine GlobalWeightAuxVars(realization,weight)
   enddo
   
   select case(option%iflowmode) 
-    case(G_MODE)
+    case(G_MODE,H_MODE)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
@@ -778,7 +778,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
       call realization%comm1%GlobalToLocal(field%work,field%work_loc)
       call GlobalSetAuxVarVecLoc(realization,field%work_loc,SC_FUGA_COEFF, &
                                  time_level)
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       ! pressure
       call RealizationGetVariable(realization,field%work,LIQUID_PRESSURE, &
                                   ZERO_INTEGER)

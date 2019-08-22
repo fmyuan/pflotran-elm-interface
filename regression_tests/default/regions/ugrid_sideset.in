@@ -18,7 +18,7 @@ SUBSURFACE
 
   #=========================== discretization ===================================
   GRID
-    TYPE unstructured ./ugrid_sideset_mesh.h5
+    TYPE UNSTRUCTURED ./ugrid_sideset_mesh.h5
     MAX_CELLS_SHARING_A_VERTEX 100
   END
 
@@ -74,7 +74,7 @@ SUBSURFACE
   #=========================== flow conditions ==================================
   FLOW_CONDITION initial
     TYPE
-      PRESSURE hydrostatic
+      PRESSURE HYDROSTATIC
     /
     PRESSURE 101293
     DATUM 0.d0 0.d0 0.0d0

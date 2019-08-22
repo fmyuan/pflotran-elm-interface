@@ -66,7 +66,7 @@ END
 
 #===================== Discretization =========================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 100 1 1
   BOUNDS
@@ -105,7 +105,7 @@ FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
 #========================= material properties ================================
-MATERIAL_PROPERTY soil1
+MATERIAL_PROPERTY soil
   ID 1
   POROSITY 0.5d0
   TORTUOSITY 1.d0
@@ -113,7 +113,7 @@ MATERIAL_PROPERTY soil1
   SPECIFIC_HEAT 1E3
   THERMAL_CONDUCTIVITY_DRY 0.5
   THERMAL_CONDUCTIVITY_WET 0.5
-  SATURATION_FUNCTION default
+  CHARACTERISTIC_CURVES default
   LONGITUDINAL_DISPERSIVITY 3.1536d0
   PERMEABILITY
     PERM_X 1.d-15
@@ -123,12 +123,19 @@ MATERIAL_PROPERTY soil1
 END
 
 #========================= saturation functions ===============================
-SATURATION_FUNCTION default
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.5d-1
-  LAMBDA 0.75
-  ALPHA 1.d-3
-END
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d9
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.5d0
+  /
+/
 
 #========================= output options =====================================
 OUTPUT
@@ -181,8 +188,8 @@ END
 FLOW_CONDITION initial
   UNITS Pa, C, yr
   TYPE
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 1.5D5
   TEMPERATURE 100.D0
@@ -190,8 +197,8 @@ END
 
 FLOW_CONDITION west
   TYPE
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 10.0D5
   TEMPERATURE 25.D0
@@ -199,14 +206,14 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION background_conc
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /
 END
 
 TRANSPORT_CONDITION inlet_conc
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 inlet_constraint
   /
@@ -237,7 +244,7 @@ END
 #===================== stratigraphy couplers ==================================
 STRATA
   REGION all
-  MATERIAL soil1
+  MATERIAL soil
 END
 
 

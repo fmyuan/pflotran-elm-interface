@@ -92,3 +92,7 @@ src/clm-pflotran/*.F90
 !src/clm-pflotran/pflotran_interface_main.F90
 !src/clm-pflotran/pflotran_model.F90
 
+*.gcov 
+*.gcda 
+*.gcno
+

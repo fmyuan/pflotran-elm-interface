@@ -78,7 +78,7 @@ module PM_UFD_Biosphere_class
   contains
     procedure, public :: SetRealization => PMUFDBSetRealization
     procedure, public :: Setup => PMUFDBSetup
-    procedure, public :: Read => PMUFDBRead
+    procedure, public :: ReadPMBlock => PMUFDBRead
     procedure, public :: InitializeRun => PMUFDBInitializeRun
     procedure, public :: InitializeTimestep => PMUFDBInitializeTimestep
     procedure, public :: FinalizeTimestep => PMUFDBFinalizeTimestep
@@ -304,7 +304,7 @@ subroutine PMUFDBRead(this,input)
   option => this%option
   input%ierr = 0
   option%io_buffer = 'pflotran card:: UFD_BIOSPHERE'
-  call printMsg(option)
+  call PrintMsg(option)
   
   do
     call InputReadPflotranString(input,option)
@@ -408,13 +408,13 @@ subroutine PMUFDBRead(this,input)
     option%io_buffer = 'At least one ERB model must be specified &
                        &in the ' // trim(error_string) // ' block, with the &
                        &keyword ERB_1A or ERB_1B.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (.not.associated(this%supported_rad_list)) then
     option%io_buffer = 'At least one supported radionuclide must be specified &
                        &in the ' // trim(error_string) // ' block, with the &
                        &keyword SUPPORTED_RADIONUCLIDES.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (this%unsupp_rads_needed .and. &
      (.not.associated(this%unsupported_rad_list))) then
@@ -423,7 +423,7 @@ subroutine PMUFDBRead(this,input)
                        &radionuclides were specified. You must specify all &
                        &unsupported radionuclides using the keyword &
                        &UNSUPPORTED_RADIONUCLIDES block.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   
@@ -475,7 +475,7 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
           type is(ERB_1A_type)
             option%io_buffer = 'ERROR: DILUTION_FACTOR cannot be specified &
                                &for ' // trim(error_string)
-            call printMsg(option)
+            call PrintMsg(option)
             num_errors = num_errors + 1
           type is(ERB_1B_type)
             call InputReadDouble(input,option,ERB_model%dilution_factor)
@@ -505,13 +505,13 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
   if (ERB_model%region_name == '') then
     option%io_buffer = 'ERROR: REGION must be specified in the ' // &
                        trim(error_string) // ' block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   if (Uninitialized(ERB_model%indv_consumption_rate)) then
     option%io_buffer = 'ERROR: INDIVIDUAL_CONSUMPTION_RATE must be specified &
                        &in the ' // trim(error_string) // ' block.'
-    call printMsg(option)
+    call PrintMsg(option)
     num_errors = num_errors + 1
   endif
   
@@ -520,7 +520,7 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
       if (Uninitialized(ERB_model%dilution_factor)) then
         option%io_buffer = 'ERROR: DILUTION_FACTOR must be specified in &
                            &the ' // trim(error_string) // ' block.'
-        call printMsg(option)
+        call PrintMsg(option)
         num_errors = num_errors + 1
       endif
   end select
@@ -529,7 +529,7 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
     write(option%io_buffer,*) num_errors
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' //trim(error_string) // ' block. See above.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine PMUFDBReadERBmodel
@@ -614,26 +614,26 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
         if (Uninitialized(new_supp_rad%kd)) then
           option%io_buffer = 'ERROR: ELEMENT_KD must be specified &
                              &in the ' // trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_supp_rad%dcf)) then
           option%io_buffer = 'ERROR: INGESTION_DOSE_COEF must be specified &
                              &in the ' // trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_supp_rad%decay_rate)) then
           option%io_buffer = 'ERROR: DECAY_RATE must be specified &
                              &in the ' // trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (num_errors > 0) then
           write(option%io_buffer,*) num_errors
           option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' //trim(error_string) // ' block. See above.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! add new supported radionuclide to list
         added = PETSC_FALSE
@@ -751,32 +751,32 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
         if (Uninitialized(new_unsupp_rad%kd)) then
           option%io_buffer = 'ERROR: ELEMENT_KD must be specified in the ' // &
                              trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_unsupp_rad%dcf)) then
           option%io_buffer = 'ERROR: INGESTION_DOSE_COEF must be specified in &
                              &the ' // trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (Uninitialized(new_unsupp_rad%decay_rate)) then
           option%io_buffer = 'ERROR: DECAY_RATE must be specified &
                              &in the ' // trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (new_unsupp_rad%supported_parent_name == '') then
           option%io_buffer = 'ERROR: SUPPORTED_PARENT must be specified in &
                              &the ' // trim(error_string) // ' block.'
-          call printMsg(option)
+          call PrintMsg(option)
           num_errors = num_errors + 1
         endif
         if (num_errors > 0) then
           write(option%io_buffer,*) num_errors
           option%io_buffer = trim(adjustl(option%io_buffer)) // ' errors in &
                        &the ' //trim(error_string) // ' block. See above.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! add new unsupported radionuclide to list
         added = PETSC_FALSE
@@ -873,7 +873,7 @@ subroutine PMUFDBAssociateRegion(this,region_list)
         option%io_buffer = 'ERB model (' // trim(cur_ERB%name) // ') REGION ' &
                            // trim(cur_ERB%region_name) // ' not found among &
                            &defined regions.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     cur_ERB => cur_ERB%next
   enddo
@@ -991,7 +991,7 @@ subroutine PMUFDBSupportedRadCheckRT(this)
   else
     option%io_buffer = 'The UFD_BIOSPHERE process model requires reactive &
                        &transport.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   cur_supp_rad => this%supported_rad_list
@@ -1021,7 +1021,7 @@ subroutine PMUFDBSupportedRadCheckRT(this)
       option%io_buffer = 'SUPPORTED_RADIONUCLIDE ' // trim(rad_name) // &
         ' must be included as a primary or secondary species under the &
         &CHEMISTRY block.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     
     cur_supp_rad => cur_supp_rad%next
@@ -1083,7 +1083,7 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
         trim(cur_unsupp_rad%name) // "'s SUPPORTED_PARENT " &
         // trim(cur_unsupp_rad%supported_parent_name) // ' not found among &
         &defined supported radionuclides.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     cur_unsupp_rad => cur_unsupp_rad%next
   enddo
@@ -1103,7 +1103,7 @@ subroutine PMUFDBAscUnsuppRadWithSuppRad(this)
           option%io_buffer = 'ROCK_DENSITY is not specified in the &
               &MATERIAL_PROPERTY that ERB Model ' // trim(cur_ERB%name) // &
               ' resides in.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       endif
     cur_ERB => cur_ERB%next
@@ -1159,7 +1159,7 @@ subroutine PMUFDBCheckSrcSinkCouplers(this)
             option%io_buffer = 'ERB_1B model "' // trim(cur_ERB%name) // &
               '" REGION "' // trim(cur_ERB%region_name) // '" cannot be &
               &associated with a SOURCE_SINK. Did you intend an ERB_1A model?' 
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
       !------------------------------------
       end select   
@@ -1173,7 +1173,7 @@ subroutine PMUFDBCheckSrcSinkCouplers(this)
                 &associated with a SOURCE_SINK. ERB_1A model types must &
                 &indicate a REGION that is associated with a SOURCE_SINK. &
                 &Did you intend an ERB_1B model type?' 
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
     end select
     cur_ERB => cur_ERB%next

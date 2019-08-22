@@ -115,7 +115,7 @@ noskip
   REACTION_SANDBOX
     SIMPLE
   /
-  DATABASE ./simple_rxn_database.dat
+  DATABASE ../../database/simple_rxn_database.dat
   LOG_FORMULATION
   ACTIVITY_COEFFICIENTS OFF
   OUTPUT

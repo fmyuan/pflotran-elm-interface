@@ -4,7 +4,7 @@ module EOS_Gas_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use EOSData_module
+  use EOS_Database_module
   use Utility_module, only : Equal
   
   implicit none
@@ -18,7 +18,7 @@ module EOS_Gas_module
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
   !density at reference P and T
-  PetscReal :: reference_density_kg
+  PetscReal :: surface_density_kg
   ! specific to RKS EOS
   PetscBool :: rks_use_hydrogen
   PetscBool :: rks_use_effect_critical_props
@@ -33,6 +33,9 @@ module EOS_Gas_module
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
   PetscReal :: exponent_gas_compressibility
+  
+  ! Error
+  PetscInt, parameter, public :: EOS_GAS_TEMP_BOUND_EXCEEDED = 71
 
   ! This is the offset added to temperature [C] used to calculate the energy
   ! equation of state.  Swithing between 0. and 273.15 greatly changes results.
@@ -43,10 +46,10 @@ module EOS_Gas_module
 #endif
 
   ! EOS databases
-  class(eos_database_type), pointer :: eos_dbase
+  class(eos_database_type), pointer :: eos_dbase => null()
 
   ! PVT tables - eos_tables
-  class(eos_table_type), pointer :: pvt_table
+  class(eos_table_type), pointer :: pvt_table => null()
 
   ! In order to support generic EOS subroutines, we need the following:
   ! 1. An interface declaration that defines the argument list (best to have 
@@ -123,7 +126,7 @@ module EOS_Gas_module
       PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSGasDensityEnergyDummy
     subroutine EOSGasHenryDummy(T,Psat,Hc,calculate_derivative, &
-                                Psat_p,Psat_T,Hc_P,Hc_T)
+                                Psat_p,Psat_T,Hc_P,Hc_T,ierr)
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: Psat     ! saturation pressure
@@ -133,6 +136,7 @@ module EOS_Gas_module
       PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
       PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
       PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
+      PetscErrorCode, intent(out) :: ierr
     end subroutine EOSGasHenryDummy
   end interface
   
@@ -183,8 +187,8 @@ module EOS_Gas_module
             EOSGasSetHenry, &
             EOSGasSetHenryConstant, &
             EOSGasSetEOSDBase, &
-            EOSGasSetReferenceDensity, &
-            EOSGasGetReferenceDensity, &
+            EOSGasSetSurfaceDensity, &
+            EOSGasGetSurfaceDensity, &
             EOSGasSetPVDG, &
             EOSGasTableProcess, &
             EOSGasDBaseDestroy
@@ -202,6 +206,8 @@ subroutine EOSGasInit()
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_henry = UNINITIALIZED_DOUBLE
+
+  surface_density_kg = UNINITIALIZED_DOUBLE
 
   ! exponential
   exponent_reference_density = UNINITIALIZED_DOUBLE
@@ -316,15 +322,6 @@ subroutine EOSGasVerify(ierr,error_string)
     !ierr = 6
     !error_string = trim(error_string) // " FMWAIR"
   end if
-
-  if ( associated(pvt_table) ) then
-    if(Uninitialized(reference_density_kg)) then
-      error_string = trim(error_string) // &
-      'A reference (e.g. Surface) density must be specified ' // &
-      'using either REFERENCE_DENSITY, SURFACE_DENSITY or STANDARD_DENSITY '
-      ierr = 1
-    end if
-  end if
       
 end subroutine EOSGasVerify
 
@@ -429,27 +426,27 @@ end function EOSGasGetFMW
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetReferenceDensity(input_ref_density_kg)
+subroutine EOSGasSetSurfaceDensity(input_ref_density_kg)
 
   implicit none
 
   PetscReal :: input_ref_density_kg
 
-  reference_density_kg = input_ref_density_kg
+  surface_density_kg = input_ref_density_kg
 
-end subroutine EOSGasSetReferenceDensity
+end subroutine EOSGasSetSurfaceDensity
 
 ! ************************************************************************** !
 
-function EOSGasGetReferenceDensity()
+function EOSGasGetSurfaceDensity()
 
   implicit none
 
-  PetscReal :: EOSGasGetReferenceDensity
+  PetscReal :: EOSGasGetSurfaceDensity
 
-  EOSGasGetReferenceDensity = reference_density_kg
+  EOSGasGetSurfaceDensity = surface_density_kg
 
-end function EOSGasGetReferenceDensity
+end function EOSGasGetSurfaceDensity
 
 ! ************************************************************************** !
 
@@ -981,29 +978,11 @@ subroutine EOSGasViscosityEOSDBase(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
-
-  !ierr initialised in EOSEOSProp 
-  !call eos_dbase%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,ierr)
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas,ierr)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
-
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = InitToNan()
-  ! 
-  ! dV_dT = NaN
-  ! dV_dPcomp = NaN
-  ! dV_dPgas = NaN
-  ! dV_dRhocomp = NaN
-  ! 
-  ! if (calculate_derivative) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet. 
-  !   print*, "EOSGasViscosityEOSDBase - Viscosity derivatives not supported"
-  !   stop
-  ! end if
   
 end subroutine EOSGasViscosityEOSDBase
 
@@ -1027,29 +1006,12 @@ subroutine EOSGasViscosityTable(T, P_comp, P_gas, Rho_comp, V_mix, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  PetscReal :: NaN
-
-  !call pvt_table%EOSProp(T,P_gas,EOS_VISCOSITY,V_mix,table_idxs,ierr)
-  
+  ierr = 0
   call pvt_table%EOSPropGrad(T,P_gas,EOS_VISCOSITY,V_mix,dV_dT,dV_dPgas, &
                              ierr,table_idxs)
 
   dV_dPcomp = 0.0d0
   dV_dRhocomp = 0.0d0
-  ! initialize to derivative to NaN so that not mistakenly used.
-  ! NaN = InitToNan()
-  ! 
-  ! dV_dT = NaN
-  ! dV_dPcomp = NaN
-  ! dV_dPgas = NaN
-  ! dV_dRhocomp = NaN
-  ! 
-  ! if (calculate_derivative) then
-  !   ! not yet implemented
-  !   ierr = 99 !error 99 points out that deriv are asked but not available yet.
-  !   print*, "EOSGasViscosityTable - Viscosity derivatives not supported"
-  !   stop
-  ! end if
 
 end subroutine EOSGasViscosityTable
 
@@ -1497,8 +1459,7 @@ subroutine EOSGasDensityEOSDBase(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-  !ierr initialised in EOSEOSProp 
-  !call eos_dbase%EOSProp(T,P,EOS_DENSITY,Rho_gas,ierr)
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP,ierr)
 
   !PO todo: conversion when loaidng database to do this operation only once
@@ -1529,10 +1490,8 @@ subroutine EOSGasDensityTable(T, P, Rho_gas, dRho_dT, dRho_dP, ierr, &
   PetscErrorCode, intent(out) :: ierr
   PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
 
-
+  ierr = 0
   !Rho from pvt table is in kmol/m3
-  !call pvt_table%EOSProp(T,P,EOS_DENSITY,Rho_gas,table_idxs,ierr)
-
   call pvt_table%EOSPropGrad(T,P,EOS_DENSITY,Rho_gas,dRho_dT,dRho_dP, &
                              ierr,table_idxs)
 
@@ -1668,10 +1627,8 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
 
   PetscReal :: NaN
 
-  !ierr initialised in EOSProp - PO: should do only one lookup here
-  !call eos_dbase%EOSProp(T,P,EOS_ENTHALPY,H,ierr)
-  !call eos_dbase%EOSProp(T,P,EOS_INTERNAL_ENERGY,U,ierr)
-
+  !PO: should do only one lookup here
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
   
@@ -1748,23 +1705,24 @@ end subroutine EOSGasEnergyConstant
 
 ! ************************************************************************** !
 
-subroutine EOSGasHenryNoDerive(T,Psat,Hc)
+subroutine EOSGasHenryNoDerive(T,Psat,Hc,ierr)
 
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: Psat     ! saturation pressure
   PetscReal, intent(out) :: Hc      ! Henry's constant
+  PetscErrorCode, intent(out) :: ierr
   
   PetscReal :: dum1, dum2, dum3, dum4
   
-  call EOSGasHenryPtr(T,Psat,Hc,PETSC_FALSE,dum1,dum2,dum3,dum4)
+  call EOSGasHenryPtr(T,Psat,Hc,PETSC_FALSE,dum1,dum2,dum3,dum4,ierr)
                           
 end subroutine EOSGasHenryNoDerive
 
 ! ************************************************************************** !
 
-subroutine EOSGasHenryDerive(T,Psat,Psat_P,Psat_T,Hc,Hc_P,Hc_T)
+subroutine EOSGasHenryDerive(T,Psat,Psat_P,Psat_T,Hc,Hc_P,Hc_T,ierr)
 
   implicit none
 
@@ -1775,10 +1733,11 @@ subroutine EOSGasHenryDerive(T,Psat,Psat_P,Psat_T,Hc,Hc_P,Hc_T)
   PetscReal, intent(out) :: Hc      ! Henry's constant
   PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
   PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
+  PetscErrorCode, intent(out) :: ierr
   
 !  PetscReal :: pert, T_pert, Hc_pert, dum1, dum2
   
-  call EOSGasHenryPtr(T,Psat,Hc,PETSC_TRUE,Psat_P,Psat_T,Hc_P,Hc_T)
+  call EOSGasHenryPtr(T,Psat,Hc,PETSC_TRUE,Psat_P,Psat_T,Hc_P,Hc_T,ierr)
 !  pert = 1.d-8 * T
 !  T_pert = T + pert
 !  call EOSGasHenryPtr(T_pert,Psat,Hc_pert,PETSC_FALSE,Psat_P,Psat_T,dum1,dum2)
@@ -1821,7 +1780,7 @@ end subroutine EOSGasHenry_air_noderiv
 ! ************************************************************************** !
 
 subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
-                           Psat_P,Psat_T,Hc_P,Hc_T)
+                           Psat_P,Psat_T,Hc_P,Hc_T,ierr)
 ! 
 !   Calculates Henry's constant as a function of temperature [C], 
 !   and saturation pressure [Pa].  
@@ -1841,6 +1800,7 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
     PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
     PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
+    PetscErrorCode, intent(out) :: ierr
 
     PetscReal :: Tr,tau,TK
     PetscReal :: tmp, tmpA, tmpB, tmpC
@@ -1851,6 +1811,9 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     TK = T+273.15D0
     Tr = TK/Tcw
     tau = 1.D0-Tr
+    if ( tau < 0.d0 ) then
+      ierr = EOS_GAS_TEMP_BOUND_EXCEEDED
+    end if
     !tmp = a/Tr + b * tau**0.355d0/Tr + c * (Tr**(-0.41d0)) * exp(tau)
     tmpA = a/Tr
     tmpB = b*(tau**0.355d0)/Tr
@@ -1874,7 +1837,7 @@ end subroutine EOSGasHenry_air
 ! ************************************************************************** !
 
 subroutine EOSGasHenryConstant(T,Psat,Hc,calculate_derivative, &
-                               Psat_P,Psat_T,Hc_P,Hc_T)
+                               Psat_P,Psat_T,Hc_P,Hc_T,ierr)
 
   implicit none
 
@@ -1886,7 +1849,8 @@ subroutine EOSGasHenryConstant(T,Psat,Hc,calculate_derivative, &
   PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
   PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
   PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
-
+  PetscErrorCode, intent(out) :: ierr
+  
   Hc = constant_henry
   Hc_P = 0.d0
   Hc_T = 0.d0
@@ -1992,7 +1956,7 @@ subroutine EOSGasTableProcess(option)
 
   select case(pvt_table%name)
   case("PVDG")
-      call pvt_table%ConvertFVFtoMolarDensity(fmw_gas,reference_density_kg)
+      call pvt_table%ConvertFVFtoMolarDensity(fmw_gas,surface_density_kg)
   end select
 
 end subroutine EOSGasTableProcess
@@ -2245,7 +2209,7 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
     ! Need saturation pressure to calculate air partial pressure
     call EOSWaterSaturationPressure(temp(itemp),saturation_pressure,ierr)
     saturation_pressure_array(itemp) = saturation_pressure
-    call EOSGasHenry(temp(itemp),saturation_pressure,henry(itemp))
+    call EOSGasHenry(temp(itemp),saturation_pressure,henry(itemp),ierr)
     do ipres = 1, npres
       call EOSGasDensityPtr(temp(itemp),pres(ipres), &
                             density_kg(ipres,itemp), &

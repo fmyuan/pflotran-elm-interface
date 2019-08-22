@@ -1,0 +1,33 @@
+#Description: 5-cell flow and tracer problem for verifying checkpoint/restart
+#             with reversion
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        REPLACE_INIT_PARAMS_ON_RESTART
+      /
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+  RESTART
+    FILENAME general-t-h5-restart.h5
+    RESET_TO_TIME_ZERO
+  /
+END
+
+SUBSURFACE
+  EXTERNAL_FILE general_material_revised.txt
+  EXTERNAL_FILE general_subsurface_block.txt
+  OUTPUT
+    VARIABLES
+      POROSITY
+      TORTUOSITY
+      PERMEABILITY
+    /
+  /
+END_SUBSURFACE

@@ -106,7 +106,7 @@ recursive subroutine PMCAuxiliaryRunToTime(this,sync_time,stop_flag)
     call PetscLogStagePush(this%stage,ierr);CHKERRQ(ierr)
   endif
   this%option%io_buffer = trim(this%name)
-  call printVerboseMsg(this%option)
+  call PrintVerboseMsg(this%option)
   
   ! Get data of other process-model
   call this%GetAuxData()
@@ -166,7 +166,7 @@ recursive subroutine PMCAuxiliaryFinalizeRun(this)
   class(pmc_auxiliary_type) :: this
   
 #ifdef DEBUG
-  call printMsg(this%option,'PMCAuxiliary%FinalizeRun()')
+  call PrintMsg(this%option,'PMCAuxiliary%FinalizeRun()')
 #endif
   
 end subroutine PMCAuxiliaryFinalizeRun
@@ -206,7 +206,7 @@ recursive subroutine PMCAuxiliaryDestroy(this)
   class(pmc_auxiliary_type) :: this
   
 #ifdef DEBUG
-  call printMsg(this%option,'PMCAuxiliary%Destroy()')
+  call PrintMsg(this%option,'PMCAuxiliary%Destroy()')
 #endif
 
   call PMCAuxiliaryStrip(this)

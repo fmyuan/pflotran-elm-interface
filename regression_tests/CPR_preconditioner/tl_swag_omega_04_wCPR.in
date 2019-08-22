@@ -39,7 +39,7 @@ END
 #=========================== discretization ===================================
 ! PV~10E5 m3
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   ORIGIN 0.d0 0.d0 -1000.d0
   NXYZ 10 1 1
   DXYZ
@@ -140,11 +140,13 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 1000.0d0 !kg/m3 !not used in this model
   DENSITY CONSTANT 1000.00d0
   VISCOSITY CONSTANT 1.0d-3 ! 1 cp
 END
 
 EOS OIL
+  SURFACE_DENSITY 1000.0d0 !kg/m3 !not used in this model
   FORMULA_WEIGHT 1000.0d0
   DENSITY INVERSE_LINEAR ! den = den0 / [1- C(p-p1)] [1 + E(t-t1)]
     REFERENCE_VALUE 1000.00d0           !den0 [kg/m3]
@@ -161,6 +163,7 @@ EOS OIL
 END
 
 EOS GAS
+  SURFACE_DENSITY 1.0d0 !kg/m3 !not used in this model
   FORMULA_WEIGHT 16.04d0
   DENSITY   DEFAULT
   VISCOSITY CONSTANT 2.0d-5 ! 0.02 cp
@@ -216,7 +219,7 @@ noskip
 FLOW_CONDITION gas_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 0.0000000 0.000000 50 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -225,7 +228,7 @@ FLOW_CONDITION gas_injector_cond
 FLOW_CONDITION water_injector_cond
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE 50 0.0 0 0 m^3/day m^3/day m^3/day MW
   TEMPERATURE 15.0 C
@@ -234,12 +237,12 @@ FLOW_CONDITION water_injector_cond
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    GAS_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    GAS_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  OIL_PRESSURE 20.0D6 !200bars
+  OIL_PRESSURE 20.0D6 Pa !200bars
   OIL_SATURATION 1.0d0 !With this accounts for connate water
   GAS_SATURATION 0.0d0 !
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars

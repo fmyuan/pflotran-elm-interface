@@ -47,7 +47,7 @@ module Characteristic_Curves_module
             CharCurvesProcessTables, &
             CharCurvesGetGetResidualSats, &
             CharacteristicCurvesDestroy, &
-            CharCurvesInputRecord 
+            CharCurvesInputRecord
 
 contains
 
@@ -165,6 +165,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SF_KRP11_Create()
           case('BRAGFLO_KRP12')
             this%saturation_function => SF_KRP12_Create()
+          case('IGHCC2_COMP')
+            this%saturation_function => SF_IGHCC2_Comp_Create()
           case default
             call InputKeywordUnrecognized(word,'SATURATION_FUNCTION',option)
         end select
@@ -176,7 +178,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
                            &CAP_PRESSURE_FUNCTION_OW or PC_OW for Pcow; &
                            &CAP_PRESSURE_FUNCTION_WG or PC_WG for Pcwg or; &
                            &CAP_PRESSURE_FUNCTION_OG or PC_OG for Pcog'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case('SATURATION_FUNCTION_OW','CAP_PRESSURE_FUNCTION_OW','PC_OW')
         call InputReadWordDbaseCompatible(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'SATURATION_FUNCTION_OW',error_string)
@@ -245,7 +247,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
                           &BROOKS_COREY_OG not supported please use:  &
                           &CONSTANT for Pcog = const, TABLE for lookup tables &
                           &VAN_GENUCHTEN_SL for Pcog(Sl)'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           ! case('TABLE')
           !   this%oil_gas_sat_func => SF_OG_table_Create()
           !   call InputReadWord(input,option,this%oil_gas_sat_func%table_name, &
@@ -370,6 +372,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('MODIFIED_KOSUGI_GAS')
             rel_perm_function_ptr => RPF_mK_Gas_Create()
             phase_keyword = 'GAS'
+          case('IGHCC2_COMP_LIQ')
+            rel_perm_function_ptr => RPF_IGHCC2_Comp_Liq_Create()
+            phase_keyword = 'LIQUID'
+          case('IGHCC2_COMP_GAS')
+            rel_perm_function_ptr => RPF_IGHCC2_Comp_Gas_Create()
+            phase_keyword = 'GAS'
           case('CONSTANT')
             rel_perm_function_ptr => RPF_Constant_Create()
             ! phase_keyword = 'NONE'
@@ -389,7 +397,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
                                &CHARACTERISTIC_CURVES,PERMEABILITY_FUNCTION. &
                                &This is most likely a development issue, and &
                                &not an input deck mistake. '
-            call PrintErrMsgToDev('',option)
+            call PrintErrMsgToDev(option,'')
           case default
             call InputKeywordUnrecognized(word, &
               'PERMEABILITY_FUNCTION,PHASE',option)
@@ -538,7 +546,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
                    &PERMEABILITY_FUNCTION_OW or KROW for krow; &
                    &PERMEABILITY_FUNCTION_OG or KROG for krog; &
                    &PERMEABILITY_FUNCTION_OIL or KRO for kro;'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case('TABLE')
         char_curves_table => CharCurvesTableCreate()
         call InputReadWord(input,option,char_curves_table%name,PETSC_TRUE)
@@ -621,6 +629,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       error_string = trim(error_string) // 'BRAGFLO_KRP11'
     class is(sat_func_KRP12_type)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
+    class is(sat_func_IGHCC2_Comp_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP'
   end select
   do
     call InputReadPflotranString(input,option)
@@ -641,6 +651,9 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
         call InputReadDouble(input,option,saturation_function%pcmax)
         call InputErrorMsg(input,option,'MAX_CAPILLARY_PRESSURE', &
                             error_string)
+      case('CALCULATE_INTERFACIAL_TENSION')
+        saturation_function%calc_int_tension = PETSC_TRUE
+      
       case('SMOOTH')
         smooth = PETSC_TRUE
       case default
@@ -936,10 +949,23 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                    'SATURATION_FUNCTION BRAGFLO_KRP12',option)
         end select
     !------------------------------------------
+      class is(sat_func_IGHCC2_Comp_type)
+        select case(keyword)
+          case('M')
+            call InputReadDouble(input,option,sf%m)
+            call InputErrorMsg(input,option,'m',error_string)
+          case('ALPHA')
+            call InputReadDouble(input,option,sf%alpha)
+            call InputErrorMsg(input,option,'alpha',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+                   'saturation function IGHCC2 Comparison',option)
+        end select
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for ' &
                            // trim(error_string) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     !------------------------------------------
     end select
   enddo
@@ -952,7 +978,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   !------------------------------------------
     class is(sat_func_constant_type)
       option%io_buffer = 'Constant saturation function is being used.'
-      call printWrnMsg(option)
+      call PrintWrnMsg(option)
   !------------------------------------------
     class is(sat_func_VG_type)
   !------------------------------------------
@@ -960,7 +986,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       if (.not.smooth) then
         option%io_buffer = 'Brooks-Corey saturation function is being used &
           &without SMOOTH option.'
-        call printWrnMsg(option)
+        call PrintWrnMsg(option)
       endif
   !------------------------------------------
     class is(sat_func_Linear_type)
@@ -971,7 +997,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
           &is being used with the IGNORE_PERMEABILITY feature, you must &
           &specify ALPHA (inverse of the threshold capillary pressure). Do &
           &not specify PCT_A or PCT_EXP.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
   !------------------------------------------
   end select
@@ -1072,6 +1098,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_LIQ'
     class is(rpf_mK_gas_type)
       error_string = trim(error_string) // 'MODIFIED_KOSUGI_GAS'
+    class is(rpf_IGHCC2_Comp_liq_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
+    class is(rpf_IGHCC2_Comp_gas_type)
+      error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
   end select
@@ -1540,10 +1570,35 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               option)
         end select
     !------------------------------------------
+      class is(rpf_IGHCC2_Comp_liq_type)
+        select case(keyword)
+          case('LAMBDA')
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'lambda',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'IGHCC2 Comparison liq rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_IGHCC2_Comp_gas_type)
+        select case(keyword)
+          case('LAMBDA')
+            call InputReadDouble(input,option,rpf%lambda)
+            call InputErrorMsg(input,option,'lambda',error_string)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'IGHCC2 Comparison gas rel perm function', &
+              option)
+        end select
+    !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for relative ' // &
                            'permeability function class.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     !------------------------------------------
     end select
   enddo
@@ -1558,7 +1613,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       ! entering means the new phase keyword was also NONE (the default), so
       ! throw an error and abort:
       option%io_buffer = 'PHASE is not specified for ' // trim(error_string) 
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
   
@@ -1569,7 +1624,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       option%io_buffer = 'A liquid-phase relative permeability function &
                          &is being requested for the gas phase under ' &
                          // trim(error_string) // '.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
   
@@ -1580,7 +1635,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       option%io_buffer = 'A gas-phase relative permeability function &
                          &is being requested for the liquid phase under ' &
                          // trim(error_string) // '.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -1663,7 +1718,10 @@ subroutine CharCurvesConvertListToArray(list,array,option)
     array(count)%ptr => cur_characteristic_curves
     if (cur_characteristic_curves%test .and. &
         option%myrank == option%io_rank) then
+      call OptionSetBlocking(option,PETSC_FALSE)
       call CharacteristicCurvesTest(cur_characteristic_curves,option)
+      call OptionSetBlocking(option,PETSC_TRUE)
+      call OptionCheckNonBlockingError(option)
     endif
     cur_characteristic_curves => cur_characteristic_curves%next
   enddo
@@ -1702,6 +1760,9 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
                     option)
       if (option%iflow_sub_mode == TOWG_TODD_LONGSTAFF) then
         CharCurvesGetGetResidualSats(option%gas_phase) = 0.0d0
+      end if
+      if (option%iflow_sub_mode == TOWG_SOLVENT_TL) then
+        CharCurvesGetGetResidualSats(option%solvent_phase) = 0.0d0
       end if
     case(TOIL_IMS_MODE)
       call characteristic_curves%GetOWGCriticalAndConnateSats( &
@@ -1797,10 +1858,14 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
             gas_res_sat = rpf%Sr
           class is(rel_perm_func_default_type)
             gas_res_sat = rpf%Sr
+          class is (rpf_IGHCC2_comp_liq_type)
+            gas_res_sat = rpf%Sr
+          class is (rpf_IGHCC2_comp_gas_type)
+            gas_res_sat = rpf%Srg
           class default
             option%io_buffer = 'Relative permeability class not supported in &
                   &CharCurvesGetGetResidualSats.'
-            call PrintErrMsgToDev('',option)
+            call PrintErrMsgToDev(option,'')
         end select
         CharCurvesGetGetResidualSats(option%gas_phase) = gas_res_sat
       endif
@@ -1888,7 +1953,7 @@ function CharacteristicCurvesGetID(characteristic_curves_array, &
            '" in material property "' // &
            trim(material_property_name) // &
            '" not found among available characteristic curves.'
-  call printErrMsg(option)    
+  call PrintErrMsg(option)
 
 end function CharacteristicCurvesGetID
 
@@ -2037,20 +2102,20 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
                        trim(characteristic_curves%name) // '". A &
                        &PERMEABILITY_FUNCTION block must be specified &
                        &for the liquid phase.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   end if
 
   if (associated(characteristic_curves%gas_rel_perm_function) ) then
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
     if (option%iflowmode == G_MODE .or. option%iflowmode == TOWG_MODE .or. &
-        option%iflowmode == WF_MODE) then
+        option%iflowmode == WF_MODE .or. option%iflowmode == H_MODE) then
       option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &
                          &PERMEABILITY_FUNCTION block must be specified &
                          &for the gas phase.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
   end if
 
@@ -2101,7 +2166,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                         trim(characteristic_curves%name) // '". A &
                         &PERMEABILITY_FUNCTION_WAT/KRW block must be &
                         &specified for the water phase.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else
     !to avoid that verify for RPF_wat_MBC fails set sgcr and socr to zero
     !real values assigned later once RPF_gas and RPF_oil have been verirified
@@ -2123,7 +2188,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                         trim(characteristic_curves%name) // '". A &
                         &CAP_PRESSURE_FUNCTION_OW/PC_OW block must be &
                         &specified for the water/oil phase interface.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else
     select type (sf => characteristic_curves%oil_wat_sat_func)
       class is(sat_func_xw_constant_type)
@@ -2138,18 +2203,20 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
         end if  
     end select
     call characteristic_curves%oil_wat_sat_func%verify(string,option)
+    !Pm min is computed after function verification
+    call characteristic_curves%oil_wat_sat_func%ComputePcMin(option)
     !check if swco and swcr defined in krw and pcw are the same
     if (characteristic_curves%oil_wat_sat_func%GetConnateSaturation(option) &
         /= swco ) then
       option%io_buffer = adjustl(trim(string)) // & 
                          'Swco defined in KRW and PC_XW differs- check input'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     if (characteristic_curves%oil_wat_sat_func%GetCriticalSaturation(option) &
         /= swcr ) then
       option%io_buffer = adjustl(trim(string)) // & 
                         'Swcr defined in KRW and PC_XW differs- check input'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
   end if
 
@@ -2161,7 +2228,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                           trim(characteristic_curves%name) // '". A &
                           &PERMEABILITY_FUNCTION_GAS/KRG block must be &
                           &specified for the gas phase.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       !to avoid that verify for RPF_gas_MBC fails set swcr and socr to zero
       !real values assigned later once RPF_wat and RPF_oil have been verirified      
@@ -2187,7 +2254,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                           trim(characteristic_curves%name) // '". A &
                           &CAP_PRESSURE_FUNCTION_OG/PC_OG block must be &
                           &specified for the oil/gas phase interface.'
-      call printErrMsg(option)      
+      call PrintErrMsg(option)
     else
       select type(sf => characteristic_curves%oil_gas_sat_func )
         class is(sat_func_og_constant_type)
@@ -2203,18 +2270,20 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
           end if          
       end select
       call characteristic_curves%oil_gas_sat_func%verify(string,option)
+      !Pcmin compute after fucntion vericifation
+      call characteristic_curves%oil_gas_sat_func%ComputePcMin(option)
       !check if sgco and sgcr defined in KRG and PC_OG have the same values
       if (characteristic_curves%oil_gas_sat_func%GetConnateSaturation(option) &
           /= sgco ) then
         option%io_buffer = adjustl(trim(string)) // &
                           'Sgco in KRG and PC_OG differs - check input'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       end if
       if (characteristic_curves%oil_gas_sat_func%GetCriticalSaturation( &
           option) /= sgcr ) then
         option%io_buffer = adjustl(trim(string)) // &
                            'Sgcr in KRG and PC_OG differs - check input'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       end if    
     end if    
   end if  ! end check oil/gas capillary pressure (Pcog)
@@ -2226,7 +2295,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                           trim(characteristic_curves%name) // '". A &
                           &PERMEABILITY_FUNCTION_OW/KROW/KRH block must be &
                           &specified for the oil phase in water.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       select type(rpf => characteristic_curves%ow_rel_perm_func_owg)
         class is(rel_perm_ow_owg_MBC_type)
@@ -2241,7 +2310,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                           &defined in CHARACTERISTIC_CURVES " // &
                           trim(characteristic_curves%name) // '". A &
                           &This is not supported in TOIL and TOWG_IMMISCIBLE'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if    
   end if !end oil phase check
 
@@ -2252,7 +2321,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                           trim(characteristic_curves%name) // '". A &
                           &PERMEABILITY_FUNCTION_OIL/KRO block must be &
                           &specified for the oil phase.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     else
       select type(rpf => characteristic_curves%oil_rel_perm_func_owg)
         class is(rel_perm_oil_owg_ecl_type)
@@ -2294,7 +2363,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                     trim(characteristic_curves%name) // '". This is not &
                     &supported in TOWG:Black Oil,SOLVENT. KROW must be &
                     &defined within KRO'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if
     if ( associated(characteristic_curves%og_rel_perm_func_owg) ) then
       option%io_buffer = "KROG (Oil relative permeability in water) &
@@ -2302,7 +2371,7 @@ subroutine CharacteristicCurvesOWGVerify(characteristic_curves,option)
                     trim(characteristic_curves%name) // '". This is not &
                     &supported in TOWG:Black Oil,SOLVENT. KROG must be &
                     &defined within KRO'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     end if        
   end if !end if oil_perm_3ph_owg
 

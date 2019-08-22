@@ -12,7 +12,10 @@ END
 SUBSURFACE
 
 # m/s
-UNIFORM_VELOCITY 5.69333e-4 0.d0 0.d0
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 5.69333e-4 0.d0 0.d0 m/yr
+END
 
 #=========================== runtime ==========================================
 #CHECKPOINT 100
@@ -94,7 +97,7 @@ MAX_STEPS 100000
 
 # == discretization ===========================================================
 GRID
-TYPE structured 
+TYPE STRUCTURED 
 NXYZ 250 1 1
 BOUNDS
 0.d0 0.d0 0.d0
@@ -235,7 +238,7 @@ noskip
 
 FLOW_CONDITION Initial
 TYPE
-PRESSURE hydrostatic
+PRESSURE HYDROSTATIC
 /
 DATUM 0.d0 0.d0 0.d0
 PRESSURE 101325.d0
@@ -243,7 +246,7 @@ PRESSURE 101325.d0
 
 FLOW_CONDITION west
 TYPE
-PRESSURE hydrostatic
+PRESSURE HYDROSTATIC
 /
 DATUM 0.d0 0.d0 0.d0
 PRESSURE 101425.d0
@@ -251,7 +254,7 @@ END
 
 FLOW_CONDITION east
 TYPE
-PRESSURE hydrostatic
+PRESSURE HYDROSTATIC
 /
 DATUM 0.d0 0.d0 0.d0
 PRESSURE 101325.d0
@@ -259,21 +262,21 @@ END
 
 # == transport conditions =====================================================
 TRANSPORT_CONDITION Initial
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 Initial
 /
 /
 
 TRANSPORT_CONDITION east
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 Initial
 /
 /
 
 TRANSPORT_CONDITION west
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0    Inlet1
 10307.1 Inlet2

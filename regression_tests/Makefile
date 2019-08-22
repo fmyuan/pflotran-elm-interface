@@ -42,7 +42,9 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/reaction_sandbox/reaction_sandbox.cfg \
 	default/batch/batch.cfg \
+	default/debug/debug.cfg \
 	default/eos/eos.cfg \
 	default/dispersion/dispersion.cfg \
 	default/materials/materials.cfg \
@@ -66,15 +68,12 @@ STANDARD_CFG = \
 	default/velocity/velocity.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
-	ngee/ngee.cfg \
+	general/hydrate/hydrate.cfg \
+        ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
 	ufd/ufd.cfg \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg \
@@ -83,20 +82,24 @@ STANDARD_CFG = \
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
 
 ifneq ($(strip $(HYPRE_LIB)),)
-	STANDARD_CFG += \
-		CPR_preconditioner/CPR_preconditioner.cfg
+STANDARD_CFG += \
+	toil_ims/toil_ims.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg \
+	CPR_preconditioner/CPR_preconditioner.cfg
 endif
 
 ifneq ($(strip $(PARMETIS_LIB)),)
-	STANDARD_CFG += \
-		default/discretization/discretization.cfg \
-		geomech/uniaxial_strain/uniaxial_strain.cfg \
-	        geomech/uniaxial_loading/uniaxial_loading.cfg \
-        	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
-        	geomech/terzaghi/terzaghi.cfg \
-	        surfaceflow/surface_flow_only/surface_only.cfg \
-		surfaceflow/surface_th/surface_th.cfg \
-		surfaceflow/inlinesurface/inlinesurface.cfg
+STANDARD_CFG += \
+	default/discretization/discretization.cfg \
+	geomech/uniaxial_strain/uniaxial_strain.cfg \
+	geomech/uniaxial_loading/uniaxial_loading.cfg \
+        geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+        geomech/terzaghi/terzaghi.cfg \
+	surfaceflow/surface_flow_only/surface_only.cfg \
+	surfaceflow/surface_th/surface_th.cfg \
+	surfaceflow/inlinesurface/inlinesurface.cfg
 endif
 
 #

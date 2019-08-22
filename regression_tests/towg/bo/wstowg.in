@@ -19,20 +19,13 @@ SUBSURFACE
 #=========================== discretization ===================================
 
 GRID
-  TYPE structured
-  ORIGIN 0.d0 0.d0 -2540.508
-  NXYZ 3 3 3
-  DXYZ
-    1000
-    1000
-    15.24 9.144 6.096 ! Note upwards order
-  END
+  TYPE grdecl wstowg.grdecl
 END
 
 #=========================set up standard conditions ==========================
 
-REFERENCE_PRESSURE    1.0D5 Pa
-REFERENCE_TEMPERATURE 15.0 !C
+!REFERENCE_PRESSURE    1.0D5 Pa
+!REFERENCE_TEMPERATURE 15.0 !C
 
 #=========================== solver options ===================================
 
@@ -58,21 +51,10 @@ TIME
   MAXIMUM_TIMESTEP_SIZE 20 d at 0. d
 END
 
-#=========================== output options ===================================
-OUTPUT
-  TIMES d 0.0 500 
-  PRINT_PRIMAL_GRID
-  EXPLICIT_GRID_PRIMAL_GRID_TYPE cell_centered
-  MASS_BALANCE_FILE
-    PERIODIC TIMESTEP 1
-  END
-END
-
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation
   ID 1
-  POROSITY 0.1d0
   TORTUOSITY 1.d0
   ROCK_DENSITY 2.350d3
   SPECIFIC_HEAT 1.0d3
@@ -82,11 +64,6 @@ MATERIAL_PROPERTY formation
   SOIL_COMPRESSIBILITY    4.35d-10 ! 1/Pa
   SOIL_REFERENCE_PRESSURE 1.0D5
   CHARACTERISTIC_CURVES ch1
-  PERMEABILITY
-    PERM_X 0.9869D-12 
-    PERM_Y 0.9869D-12 
-    PERM_Z 0.9869D-12 
-  /
 /
 
 #=========================== saturation functions =============================
@@ -160,6 +137,7 @@ CHARACTERISTIC_CURVES ch1
 #=========================== EOSs =============================================
 
 EOS WATER
+  SURFACE_DENSITY 996.95710 kg/m^3
   DENSITY CONSTANT 996.95710
   VISCOSITY CONSTANT 0.31d-3 ! 1 cp
 END
@@ -253,16 +231,15 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    BUBBLE_POINT dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    BUBBLE_POINT DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  OIL_PRESSURE 33.094D6 !331 bars
+  OIL_PRESSURE 33.094D6 Pa !331 bars
   OIL_SATURATION 0.88d0
-  BUBBLE_POINT 27.6804D6 !276 bars
+  BUBBLE_POINT 27.6804D6 Pa !276 bars
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
-  DATUM 0.d0 0.d0 -2540.508
 /
 
 #=========================== regression data =================================

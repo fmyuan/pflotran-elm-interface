@@ -83,7 +83,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
           trim(adjustl(string)) // ').  ' // &
           'Increase variable "max_stoich_solid_names" in ' // &
           'SolidSolutionReadFromInputFile.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       call InputReadWord(input,option, &
                          stoich_solid_names(stoich_solid_count), &
@@ -209,7 +209,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
            
   if (len_trim(solid_solution_rxn%database_filename) < 2) then
     option%io_buffer = 'Database filename not included in input deck.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   input => InputCreate(IUNIT_TEMP,solid_solution_rxn%database_filename,option)
 
@@ -227,7 +227,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         if (solid_solution_rxn%num_dbase_temperatures == 0) then
           option%io_buffer = 'Temperatures must be defined prior to ' // &
                              'reading solid solution.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       
         call InputReadWord(input,option,name,PETSC_TRUE)

@@ -590,10 +590,10 @@ END
 FLOW_CONDITION initial \bluecomment{! named \greencomment{initial}}
   UNITS Pa,C,M,yr \bluecomment{! units}
   TYPE
-    PRESSURE hydrostatic    \bluecomment{! type is \redcomment{hydrostatic}}
-    TEMPERATURE dirichlet   \bluecomment{! type is \redcomment{dirichlet}}
-    CONCENTRATION dirichlet \bluecomment{! type is \redcomment{dirichlet}}
-    ENTHALPY dirichlet      \bluecomment{! type is \redcomment{dirichlet}}
+    PRESSURE HYDROSTATIC    \bluecomment{! type is \redcomment{HYDROSTATIC}}
+    TEMPERATURE DIRICHLET   \bluecomment{! type is \redcomment{DIRICHLET}}
+    CONCENTRATION DIRICHLET \bluecomment{! type is \redcomment{DIRICHLET}}
+    ENTHALPY DIRICHLET      \bluecomment{! type is \redcomment{DIRICHLET}}
   /
   DATUM 0.d0 0.d0 1000.d0 \bluecomment{! datum is at top of the domain}
   GRADIENT                \bluecomment{! geothermal gradient}
@@ -610,11 +610,11 @@ FLOW_CONDITION src  \bluecomment{! named \greencomment{src}}
   #UNITS Pa,C,M,yr \bluecomment{! units}
   SYNC_TIMESTEP_WITH_UPDATE \bluecomment{! ensures that timestep syncs}
   TYPE                      \bluecomment{! with injection time}
-    RATE mass_rate          \bluecomment{! mass injection rate}
-    PRESSURE dirichlet
-    TEMPERATURE dirichlet
-    CONCENTRATION dirichlet
-    ENTHALPY dirichlet
+    RATE MASS_RATE          \bluecomment{! mass injection rate}
+    PRESSURE DIRICHLET
+    TEMPERATURE DIRICHLET
+    CONCENTRATION DIRICHLET
+    ENTHALPY DIRICHLET
   /
   RATE LIST                \bluecomment{! time and rate values list}
     TIME_UNITS y           \bluecomment{! time units}

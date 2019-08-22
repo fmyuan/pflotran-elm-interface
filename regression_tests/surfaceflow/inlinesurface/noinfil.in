@@ -41,7 +41,7 @@ SUBSURFACE
   ! Domain and region information -----------------------------------
 
   GRID
-    TYPE unstructured ./simple.h5
+    TYPE UNSTRUCTURED ./simple.h5
   END
 
   REGION all
@@ -65,7 +65,7 @@ SUBSURFACE
   FLOW_CONDITION initial
     UNITS Pa
     TYPE
-      PRESSURE hydrostatic
+      PRESSURE HYDROSTATIC
     END
     PRESSURE 101325.d0
     DATUM 0.0d0 0.0d0 0.1d0

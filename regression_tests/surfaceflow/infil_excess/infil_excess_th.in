@@ -5,7 +5,7 @@ MODE TH NO_FREEZING
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured ../surface_flow_only/sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
+  TYPE UNSTRUCTURED ../surface_flow_only/sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
 END
 
 #=========================== fluid properties =================================
@@ -69,8 +69,8 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
-    TEMPERATURE dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 4.0d0
@@ -84,7 +84,7 @@ END
 FLOW_CONDITION from_surface
   TYPE
     PRESSURE heterogeneous_surface_seepage
-    TEMPERATURE heterogeneous_dirichlet
+    TEMPERATURE HETEROGENEOUS_DIRICHLET
   /
   PRESSURE 101325.d0
   TEMPERATURE 0.d0
@@ -128,7 +128,7 @@ END
 SURFACE_FLOW
 
 SURF_GRID
-  TYPE unstructured ../surface_flow_only/sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
+  TYPE UNSTRUCTURED ../surface_flow_only/sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
 END
 
 SURF_FLOW_FORMULATION diffusive
@@ -170,7 +170,7 @@ END
 SURF_FLOW_CONDITION atm_rain_forcing
   TYPE
     RATE volumetric_rate
-    TEMPERATURE dirichlet
+    TEMPERATURE DIRICHLET
   /
   RATE LIST
     TIME_UNITS sec
@@ -192,8 +192,8 @@ END
 
 SURF_FLOW_CONDITION surf_initial
   TYPE
-    PRESSURE hydrostatic
-    TEMPERATURE dirichlet
+    PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 1.0d0
@@ -203,8 +203,8 @@ END
 
 SURF_FLOW_CONDITION outflow
   TYPE
-    PRESSURE zero_gradient
-    TEMPERATURE dirichlet
+    PRESSURE ZERO_GRADIENT
+    TEMPERATURE DIRICHLET
   /
   PRESSURE 101325.d0
   TEMPERATURE 1.d0

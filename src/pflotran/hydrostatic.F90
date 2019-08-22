@@ -8,7 +8,6 @@ module Hydrostatic_module
 
   private
 
-
   public :: HydrostaticUpdateCoupler, &
             HydrostaticTest
  
@@ -38,8 +37,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Gridded_HDF5_class
   use Dataset_Common_HDF5_class
   use Dataset_Ascii_class
+  use String_module
   
   use General_Aux_module
+  use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
   !use TOilIms_Aux_module
   use PM_TOilIms_Aux_module 
@@ -148,6 +149,40 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 2
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
+    case(H_MODE)
+      temperature_at_datum = &
+        condition%hydrate%temperature%dataset%rarray(1)
+      if (associated(condition%hydrate%temperature%gradient)) then
+        temperature_gradient(1:3) = &
+          condition%hydrate%temperature%gradient%rarray(1:3)
+      endif
+      concentration_at_datum = &
+        condition%hydrate%mole_fraction%dataset%rarray(1)
+      if (associated(condition%hydrate%mole_fraction%gradient)) then
+        concentration_gradient(1:3) = &
+        condition%hydrate%mole_fraction%gradient%rarray(1:3)
+      endif
+      pressure_at_datum = &
+        condition%hydrate%liquid_pressure%dataset%rarray(1)
+      gas_pressure = option%reference_pressure
+      if (associated(condition%hydrate%gas_pressure)) then
+        gas_pressure = condition%hydrate%gas_pressure%dataset%rarray(1)
+      endif
+      ! gradient is in m/m; needs conversion to Pa/m
+      if (associated(condition%hydrate%liquid_pressure%gradient)) then
+        piezometric_head_gradient(1:3) = &
+          condition%hydrate%liquid_pressure%gradient%rarray(1:3)
+      endif
+      ! for liquid state
+      coupler%flow_aux_mapping(HYDRATE_LIQUID_PRESSURE_INDEX) = 1
+      coupler%flow_aux_mapping(HYDRATE_LIQ_MOLE_FRACTION_INDEX) = 2
+      coupler%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX) = 3
+      ! for two-phase state
+      coupler%flow_aux_mapping(HYDRATE_GAS_PRESSURE_INDEX) = 1
+      ! air pressure here is being hijacked to store capillary pressure
+      coupler%flow_aux_mapping(HYDRATE_AIR_PRESSURE_INDEX) = 2
+      coupler%flow_aux_mapping(HYDRATE_TEMPERATURE_INDEX) = 3
+      coupler%flow_aux_mapping(HYDRATE_GAS_SATURATION_INDEX) = 3
     case(WF_MODE)
       pressure_at_datum = &
         condition%general%liquid_pressure%dataset%rarray(1)    
@@ -183,7 +218,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           option%io_buffer = 'HDF5-type datasets for temperature are not &
             &supported in combination with hydrostatic, seepage, or &
             &conductance boundary conditions for pressure.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (condition%temperature%itype == DIRICHLET_BC) then
 #ifndef THDIRICHLET_TEMP_BC_HACK
@@ -243,14 +278,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           'Incorrect dataset type in HydrostaticUpdateCoupler. Dataset "' // &
           trim(condition%datum%name) // '" in file "' // &
           trim(condition%datum%filename) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
       
   call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                           aux,rho_kg,dummy,ierr)
   if (ierr /= 0) then
-    call printMsgByCell(option,-1, &
+    call PrintMsgByCell(option,-1, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
   endif
   
@@ -258,7 +293,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   
   if (dabs(gravity_magnitude-EARTH_GRAVITY) > 0.1d0) then
     option%io_buffer = 'Magnitude of gravity vector is not near 9.81.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! if a pressure gradient is prescribed in Z (at this point it will be a
@@ -326,28 +361,25 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     dist_z = grid%z_min_global-max(datum_dataset_rmax,datum(Z_DIRECTION))
     ipressure = idatum+int(dist_z/delta_z)
     if (ipressure < 1) then
-      write(word,*) ipressure
       option%io_buffer = 'Minimum index for pressure array outside of &
-        &bounds (' // trim(adjustl(word)) // ') for hydrostatic FLOW_&
-        &CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsgToDev('include your input deck',option)
+        &bounds (' // trim(StringWrite(ipressure)) // ') for hydrostatic &
+        &FLOW_CONDITION "' // trim(condition%name) // '".'
+      call PrintErrMsgToDev(option,'include your input deck')
     endif
     dist_z = grid%z_max_global-min(datum_dataset_rmin,datum(Z_DIRECTION))
     ipressure = idatum+int(dist_z/delta_z)
     if (ipressure > num_pressures) then
-      write(option%io_buffer,*) num_pressures
-      write(word,*) ipressure
       option%io_buffer = 'Maximum index for pressure array outside of &
-        &bounds (' // trim(adjustl(word)) // ' > ' // &
-        trim(adjustl(option%io_buffer)) // ') for hydrostatic FLOW_&
+        &bounds (' // trim(StringWrite(ipressure)) // ' > ' // &
+        trim(StringWrite(num_pressures)) // ') for hydrostatic FLOW_&
         &CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsgToDev('include your input deck',option)
+      call PrintErrMsgToDev(option,'include your input deck')
     endif
 
     call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                             aux,rho_kg,dummy,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,-2, &
+      call PrintMsgByCell(option,-2, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
     endif
     temperature = temperature_at_datum
@@ -360,14 +392,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE, &
-             TOIL_IMS_MODE)
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,H_MODE, &
+             MIS_MODE,TOIL_IMS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0, &
                               aux,rho_kg,dummy,ierr)
       if (ierr /= 0) then
-        call printMsgByCell(option,-3, &
+        call PrintMsgByCell(option,-3, &
                       'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
       endif
       num_iteration = 0
@@ -376,7 +408,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,-4, &
+          call PrintMsgByCell(option,-4, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
         endif
 !geh        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
@@ -401,7 +433,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE,TOIL_IMS_MODE)
+      case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE,TOIL_IMS_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -409,13 +441,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE, &
+        case(TH_MODE,TH_TS_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE, &
           TOIL_IMS_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
       if (ierr /= 0) then
-        call printMsgByCell(option,-5, &
+        call PrintMsgByCell(option,-5, &
                       'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
       endif
       num_iteration = 0
@@ -424,7 +456,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,-6, &
+          call PrintMsgByCell(option,-6, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
         endif
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
@@ -490,6 +522,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     if (associated(pressure_array)) then
       ipressure = idatum+int(dist_z/delta_z)
+      if (ipressure < 1 .or. ipressure > num_pressures) then
+        option%io_buffer = 'Hydrostatic pressure array sampled outside &
+          &bounds: ' // trim(StringWrite(ipressure))
+        call PrintErrMsg(option)
+      endif
       dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-(z(ipressure) + z_offset)
       pressure = pressure_array(ipressure) + &
                  density_array(ipressure)*option%gravity(Z_DIRECTION) * &
@@ -510,7 +547,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign pressure
     select case(option%iflowmode)
-      case(G_MODE,WF_MODE)
+      case(G_MODE,WF_MODE,H_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case (MPH_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
@@ -524,10 +561,10 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%reference_pressure)
           select case(option%iflowmode)
-            case(RICHARDS_MODE)
+            case(RICHARDS_MODE,RICHARDS_TS_MODE)
               coupler%flow_aux_real_var(RICHARDS_CONDUCTANCE_DOF,iconn) = &
                 condition%pressure%aux_real(1)
-            case(TH_MODE)
+            case(TH_MODE,TH_TS_MODE)
               coupler%flow_aux_real_var(TH_CONDUCTANCE_DOF,iconn) = &
                 condition%pressure%aux_real(1)
           end select
@@ -548,7 +585,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         coupler%flow_aux_real_var(3,iconn) = concentration_at_datum
 
         coupler%flow_aux_int_var(1,iconn) = condition%iphase
-      case(TH_MODE)
+      case(TH_MODE,TH_TS_MODE)
         temperature = temperature_at_datum + &
                     ! gradient in K/m
                     temperature_gradient(X_DIRECTION)*dist_x + & 
@@ -585,6 +622,24 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         else
           coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
           coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
+        endif
+      case(H_MODE)
+        temperature = temperature_at_datum + &
+                    ! gradient in K/m
+                    temperature_gradient(X_DIRECTION)*dist_x + &
+                    temperature_gradient(Y_DIRECTION)*dist_y + &
+                    temperature_gradient(Z_DIRECTION)*dist_z
+        coupler%flow_aux_real_var(3,iconn) = &
+          temperature
+        ! switch to two-phase if liquid pressure drops below gas pressure
+        if (pressure < gas_pressure) then
+          ! we hijack the air pressure entry, storing capillary pressure there
+          coupler%flow_aux_real_var(1,iconn) = gas_pressure
+          coupler%flow_aux_real_var(2,iconn) = gas_pressure - pressure
+          coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = GA_STATE
+        else
+          coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
+          coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) = L_STATE
         endif
       case(TOIL_IMS_MODE)
         temperature = temperature_at_datum + &

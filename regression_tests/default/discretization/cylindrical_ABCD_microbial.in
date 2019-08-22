@@ -74,7 +74,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured cylindrical
+  TYPE STRUCTURED CYLINDRICAL
   NXYZ 5 1 1
   BOUNDS
     0.d0 0.d0
@@ -168,7 +168,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   DATUM 0. 0. 10.
   PRESSURE 101325d0
@@ -183,21 +183,21 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial
   /
 END
 
 TRANSPORT_CONDITION biozone
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial_biozone
   /
 END
 
 TRANSPORT_CONDITION inlet
-  TYPE dirichlet_zero_gradient
+  TYPE DIRICHLET_ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 inlet
   /

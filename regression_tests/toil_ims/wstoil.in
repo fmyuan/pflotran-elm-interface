@@ -11,8 +11,8 @@ SIMULATION
       /
     / ! end of subsurface_flow
   / ! end of process models
-  CHECKPOINT
-  /
+  !CHECKPOINT
+  !/
 END  !! end simulation block
 
 SUBSURFACE
@@ -20,14 +20,7 @@ SUBSURFACE
 #=========================== discretization ===================================
 
 GRID
-  TYPE structured
-  ORIGIN 0.d0 0.d0 -2540.508
-  NXYZ 4 4 3
-  DXYZ
-    200
-    200
-    10 10 10 
-  END
+  TYPE grdecl wstoil.grdecl
 END
 
 #=========================set up standard conditions ==========================
@@ -53,28 +46,16 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 100 d
+  FINAL_TIME 365 d
   INITIAL_TIMESTEP_SIZE 1.0d-5 d
   MINIMUM_TIMESTEP_SIZE 1.0D-10 d
   MAXIMUM_TIMESTEP_SIZE 10 d at 0. d
-END
-
-#=========================== output options ===================================
-OUTPUT
-  FORMAT HDF5
-  TIMES d 0.0 50 100
-  PRINT_PRIMAL_GRID
-  EXPLICIT_GRID_PRIMAL_GRID_TYPE cell_centered
-  MASS_BALANCE_FILE
-    PERIODIC TIMESTEP 1
-  END
 END
 
 #=========================== material properties ==============================
 
 MATERIAL_PROPERTY formation
   ID 1
-  POROSITY 0.1
   TORTUOSITY 1.d0
   ROCK_DENSITY 2.350d3
   SPECIFIC_HEAT 1.0d3
@@ -84,11 +65,6 @@ MATERIAL_PROPERTY formation
   SOIL_COMPRESSIBILITY    4.35d-10 ! 1/Pa
   SOIL_REFERENCE_PRESSURE 1.0D5
   CHARACTERISTIC_CURVES ch1
-  PERMEABILITY
-    PERM_X 0.9869D-12 
-    PERM_Y 0.9869D-12 
-    PERM_Z 0.9869D-12 
-  /
 /
 
 #=========================== saturation functions =============================
@@ -121,6 +97,8 @@ CHARACTERISTIC_CURVES ch1
 # Converted to reference 5000 psi, Bw=1.01, and density=64/1.01 lbs/cuft
 
 EOS WATER
+  !Surf den computed with exponential model for P= 1.0D5 Pa abd T = 15 C
+  SURFACE_DENSITY 999.96296212005427 kg/m^3
   DENSITY EXPONENTIAL 1015.0313 34473786 4.351132E-10
   VISCOSITY CONSTANT  0.0003   ! 0.3 cp
 END
@@ -177,8 +155,8 @@ WELL_DATA prod
   RADIUS 0.0762 m
   WELL_TYPE PRODUCER
   BHPL      100  Bar
-  TARG_OSV  400 m^3/day
-  TARG_LSV  450 m^3/day
+  TARG_OSV  430 m^3/day
+  TARG_LSV  460 m^3/day
   CIJK 4 4 2 2 
 END
 
@@ -186,11 +164,11 @@ END
 
 FLOW_CONDITION initial_press
   TYPE
-    OIL_PRESSURE dirichlet
-    OIL_SATURATION dirichlet
-    TEMPERATURE dirichlet
+    OIL_PRESSURE DIRICHLET
+    OIL_SATURATION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
-  OIL_PRESSURE 33.094D6 !331 bars
+  OIL_PRESSURE 33.094D6 Pa !331 bars
   OIL_SATURATION 0.88d0
   TEMPERATURE 15.0d0 C  !up to here it refers to primary vars
   DATUM 0.d0 0.d0 -2540.508

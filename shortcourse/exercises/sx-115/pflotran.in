@@ -64,7 +64,7 @@ LINEAR_SOLVER TRANSPORT
 
 #=========================== discretization ===================================
 GRID
-TYPE structured
+TYPE STRUCTURED
 ORIGIN 0.d0 0.d0 0.d0
 NXYZ 1 1 136
 BOUNDS
@@ -314,7 +314,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
 TYPE
-PRESSURE hydrostatic
+PRESSURE HYDROSTATIC
 /
 PRESSURE 1.e5 ! 200 meter piezometric head (200*997.32*9.81)
 /
@@ -328,7 +328,7 @@ FLUX 2.53678e-9 ! 0.08 m/yr
 
 FLOW_CONDITION water_table
 TYPE
-PRESSURE dirichlet
+PRESSURE DIRICHLET
 /
 PRESSURE 1.4e5 ! 200 meter piezometric head (200*997.32*9.81)
 /
@@ -352,28 +352,28 @@ noskip
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
-TYPE zero_gradient
+TYPE ZERO_GRADIENT
 CONSTRAINT_LIST
 0.d0 initial
 /
 END
 
 TRANSPORT_CONDITION boundary
-TYPE zero_gradient
+TYPE ZERO_GRADIENT
 CONSTRAINT_LIST
 0.d0 initial
 /
 END
 
 TRANSPORT_CONDITION infiltration
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 infiltration
 /
 END
 
 TRANSPORT_CONDITION source
-TYPE dirichlet
+TYPE DIRICHLET
 CONSTRAINT_LIST
 0.d0 well
 /

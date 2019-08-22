@@ -54,7 +54,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 2 2 10
   DXYZ
     1.d0
@@ -105,7 +105,7 @@ END
 
 #=========================== transport conditions =============================
 TRANSPORT_CONDITION background_conc
-  TYPE zero_gradient
+  TYPE ZERO_GRADIENT
   CONSTRAINT_LIST
     0.d0 initial_constraint
   /

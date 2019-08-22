@@ -1,15 +1,14 @@
 #Description: surface flow decoupled from subsurface flow
 
 SIMULATION
-  SIMULATION_TYPE SUBSURFACE
+  SIMULATION_TYPE SURFACE_SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE RICHARDS
-      OPTIONS
-        PRESSURE_DAMPENING_FACTOR 0.1
-        MAX_PRESSURE_CHANGE 1.d4
-      /
     /
+    SURFACE_SUBSURFACE flow
+      MODE RICHARDS
+  /
   /
 END
 
@@ -20,7 +19,7 @@ SUBSURFACE
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
+  TYPE UNSTRUCTURED sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
 END
 
 #=========================== timestepper =================================
@@ -90,7 +89,7 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 6.0d0
@@ -133,7 +132,7 @@ END_SUBSURFACE
 SURFACE_FLOW
 
 SURF_GRID
-  TYPE unstructured sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
+  TYPE UNSTRUCTURED sloping_plane_400X_320Y_80dx_80dy_0.2000dz_0.0005slope.h5
 END
 
 SURF_FLOW_FORMULATION diffusive
@@ -177,7 +176,7 @@ SURF_FLOW_CONDITION rain
   /
   RATE LIST
     TIME_UNITS sec
-    DATA_UNITS m/sec
+    DATA_UNITS m^3/sec
     0.d0 5.5d-6
     12000.d0 0.d0
   /
@@ -185,7 +184,7 @@ END
 
 SURF_FLOW_CONDITION surf_initial
   TYPE
-    PRESSURE hydrostatic
+    PRESSURE HYDROSTATIC
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 1.0d0
@@ -194,7 +193,7 @@ END
 
 SURF_FLOW_CONDITION outflow
   TYPE
-    PRESSURE zero_gradient
+    PRESSURE ZERO_GRADIENT
   /
   PRESSURE 101325.d0
 END

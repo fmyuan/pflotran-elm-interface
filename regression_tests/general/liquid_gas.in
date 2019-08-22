@@ -8,6 +8,8 @@ SIMULATION
       OPTIONS
         MAX_SATURATION_CHANGE 1.d0
         MAX_CONCENTRATION_CHANGE 0.5d0
+        CHECK_MAX_DPL_LIQ_STATE_ONLY
+        GAS_PHASE_AIR_MASS_DOF WATER_MOL_FRAC
       /
     /
   /
@@ -45,7 +47,7 @@ NEWTON_SOLVER FLOW
 
 #=========================== discretization ===================================
 GRID
-  TYPE structured
+  TYPE STRUCTURED
   NXYZ 2 1 1
   BOUNDS
     0.d0 0.d0 0.d0
@@ -109,11 +111,8 @@ CHARACTERISTIC_CURVES cc1
 
 #=========================== output options ===================================
 OUTPUT
-#  PERIODIC TIME 20 h
-#  TIMES y 0.24
-#  PERIODIC_OBSERVATION TIMESTEP 1
-#  FORMAT TECPLOT POINT
-  VELOCITY_AT_CENTER
+  FORMAT TECPLOT BLOCK
+  FLUXES
 /
 
 #=========================== times ============================================
@@ -169,9 +168,9 @@ OBSERVATION
 #=========================== flow conditions ==================================
 FLOW_CONDITION liquid_phase
   TYPE
-    LIQUID_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   DATUM 0. 0. 0.d0
   LIQUID_PRESSURE 111325.d0
@@ -181,9 +180,9 @@ FLOW_CONDITION liquid_phase
 
 FLOW_CONDITION gas_phase
   TYPE
-    GAS_PRESSURE dirichlet
-    MOLE_FRACTION dirichlet
-    TEMPERATURE dirichlet
+    GAS_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
   /
   GAS_PRESSURE 111325.d0
   ! psat at 25 C is 3165.9896022949661

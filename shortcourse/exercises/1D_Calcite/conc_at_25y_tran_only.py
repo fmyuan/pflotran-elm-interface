@@ -18,7 +18,7 @@ path.append('.')
 files = pft.get_tec_filenames('calcite_tran_only',[5])
 filenames = pft.get_full_paths(path,files)
 
-f = plt.figure(figsize=(6,6))
+f = plt.figure(figsize=(8,6))
 plt.subplot(1,1,1)
 f.suptitle("1D Calcite at 25 Years",fontsize=16)
 plt.xlabel('X [m]')
@@ -50,8 +50,8 @@ plt.legend(loc=2)
 # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
 plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
 #      plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-plt.setp(plt.gca().get_legend().draw_frame(False))
+plt.gca().get_legend().get_frame().set_fill(False)
+plt.gca().get_legend().draw_frame(False)
 #        plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
 
 plt.twinx()
@@ -68,8 +68,8 @@ plt.legend(loc=1)
 # xx-small, x-small, small, medium, large, x-large, xx-large, 12, 14
 plt.setp(plt.gca().get_legend().get_texts(),fontsize='small')
 #      plt.setp(plt.gca().get_legend().get_texts(),linespacing=0.)
-plt.setp(plt.gca().get_legend().get_frame().set_fill(False))
-plt.setp(plt.gca().get_legend().draw_frame(False))
+plt.gca().get_legend().get_frame().set_fill(False)
+plt.gca().get_legend().draw_frame(False)
 #        plt.gca().yaxis.get_major_formatter().set_powerlimits((-1,1))
 
 f.subplots_adjust(hspace=0.2,wspace=0.2,

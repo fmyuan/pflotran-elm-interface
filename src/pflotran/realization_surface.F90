@@ -3,9 +3,6 @@ module Realization_Surface_class
   use Realization_Base_class
   
   use Condition_module
-#ifdef WELL_CLASS
-  use WellSpec_Base_class
-#endif
   use Debug_module
   use Discretization_module
   use Input_Aux_module
@@ -34,9 +31,6 @@ private
     type(surface_field_type), pointer :: surf_field
     type(region_list_type), pointer :: surf_regions
     type(condition_list_type),pointer :: surf_flow_conditions
-#ifdef WELL_CLASS
-    type(well_spec_list_type), pointer :: surf_well_specs
-#endif
     type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
@@ -125,10 +119,7 @@ function RealizSurfCreate(option)
   
   allocate(surf_realization%surf_flow_conditions)
   call FlowConditionInitList(surf_realization%surf_flow_conditions)
-#ifdef WELL_CLASS
-  allocate(surf_realization%surf_well_specs)
-  call WellSpecInitList(surf_realization%surf_well_specs)
-#endif
+
   allocate(surf_realization%surf_transport_conditions)
   call TranConditionInitList(surf_realization%surf_transport_conditions)
   
@@ -209,9 +200,6 @@ subroutine RealizSurfProcessCouplers(surf_realization)
     if (.not.associated(cur_patch)) exit
     call PatchProcessCouplers(cur_patch,surf_realization%surf_flow_conditions, &
                               surf_realization%surf_transport_conditions, &
-#ifdef WELL_CLASS
-                              surf_realization%surf_well_specs, & 
-#endif
                               surf_realization%option)
     cur_patch => cur_patch%next
   enddo
@@ -596,7 +584,7 @@ subroutine RealizSurfProcessFlowConditions(surf_realization)
                            cur_surf_flow_condition%default_time_storage, &
                            string,option)
     select case(option%iflowmode)
-      case(RICHARDS_MODE,TH_MODE)
+      case(RICHARDS_MODE,TH_MODE,RICHARDS_TS_MODE,TH_TS_MODE)
         do i = 1, size(cur_surf_flow_condition%sub_condition_ptr)
            ! find dataset
           call DatasetFindInList(surf_realization%datasets, &
@@ -611,7 +599,7 @@ subroutine RealizSurfProcessFlowConditions(surf_realization)
         enddo
       case default
         option%io_buffer='RealizSurfProcessFlowConditions not implemented in this mode'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
     cur_surf_flow_condition => cur_surf_flow_condition%next
   enddo
@@ -770,7 +758,7 @@ subroutine RealizSurfMapSurfSubsurfGrids(realization,surf_realization)
   if (found.eqv.PETSC_FALSE) then
     option%io_buffer = 'When running with -DSURFACE_FLOW need to specify ' // &
       ' in the inputfile explicitly region: top '
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call MatCreateAIJ(option%mycomm, &
@@ -1160,7 +1148,7 @@ subroutine RealizSurfMapSurfSubsurfGrid( &
     enddo
     if (max_value<3) then
       option%io_buffer = 'Atleast three vertices need to form a face'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   enddo
 
@@ -1304,9 +1292,7 @@ subroutine RealizSurfDestroy(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(surf_realization%surf_well_specs)
-#endif
+
   call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
@@ -1353,9 +1339,7 @@ subroutine RealizSurfStrip(surf_realization)
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
-#ifdef WELL_CLASS
-  call WellSpecDestroyList(surf_realization%surf_well_specs)
-#endif
+
   call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
@@ -1480,7 +1464,7 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
     final_time = cur_waypoint%time
   else
     option%io_buffer = 'Final time not found in RealizSurfAddWaypointsToList'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   ! add update of flow conditions
@@ -1501,7 +1485,7 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
               '" dataset "' // trim(sub_condition%name) // &
               '", the number of times is excessive for synchronization ' // &
               'with waypoints.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           do itime = 1, size(times)
             waypoint => WaypointCreate()

@@ -103,15 +103,15 @@ subroutine setSurfaceFlowMode(option)
   type(option_type) :: option
   
   select case(option%iflowmode)
-    case(RICHARDS_MODE)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
       option%nsurfflowdof = ONE_INTEGER
-    case(TH_MODE)
+    case(TH_MODE,TH_TS_MODE)
       option%nsurfflowdof = TWO_INTEGER
     case default
       write(option%io_buffer,*) option%iflowmode
       option%io_buffer = 'Flow Mode ' // &
         trim(option%io_buffer) // ' not recognized in setSurfaceFlowMode().'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   
 end subroutine setSurfaceFlowMode
@@ -281,7 +281,7 @@ subroutine InitCommonReadRegionFiles(realization)
             (.not. vert_ids_exists)) then
           option%io_buffer = '"Regions/' // trim(region%name) // &
                 ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
         if (cell_ids_exists .or. face_ids_exists) then
           call HDF5ReadRegionFromFile(realization%patch%grid,region, &
@@ -365,7 +365,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
     open(unit=fid,file=filename,status="old",iostat=status)
     if (status /= 0) then
       option%io_buffer = 'File: ' // trim(filename) // ' not found.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     allocate(values(block_size))
     allocate(indices(block_size))
@@ -386,7 +386,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
                      option%mycomm,ierr)      
       if (flag /= 0) then
         option%io_buffer = 'Insufficent data in file: ' // filename
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       if (option%myrank == option%io_rank) then
         call VecSetValues(natural_vec,read_count,indices,values,INSERT_VALUES, &
@@ -399,7 +399,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
     if (count /= grid%nmax) then
       write(option%io_buffer,'("Number of data in file (",i8, &
       & ") does not match size of vector (",i8,")")') count, grid%nlmax
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     close(fid)
     deallocate(values)
@@ -513,7 +513,7 @@ subroutine InitCommonReadVelocityField(realization)
       option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
         trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call HDF5ReadCellIndexedRealArray(realization,field%work,filename, &
                                       group_name,dataset_name,PETSC_FALSE)
@@ -546,7 +546,7 @@ subroutine InitCommonReadVelocityField(realization)
       option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
         trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call HDF5ReadCellIndexedRealArray(realization,field%work,filename, &
                                       group_name,dataset_name,PETSC_FALSE)

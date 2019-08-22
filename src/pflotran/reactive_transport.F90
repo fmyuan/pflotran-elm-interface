@@ -141,8 +141,9 @@ subroutine RTSetup(realization)
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
   PetscBool :: error_found
+  PetscBool :: species_dependent_diffusion
   PetscInt :: flag(10)  
-  
+
   option => realization%option
   patch => realization%patch
   grid => patch%grid
@@ -157,10 +158,14 @@ subroutine RTSetup(realization)
   rt_parameter%nimcomp = reaction%immobile%nimmobile
   rt_parameter%ngas = reaction%gas%nactive_gas
   rt_parameter%offset_immobile = reaction%offset_immobile
-  if (reaction%gas%nactive_gas > 0 .and. option%transport%nphase == 1) then
-    option%io_buffer = 'INCLUDE_GAS_PHASE must be included in SUBSURFACE_&
-      &TRANSPORT block when simulating active gases.'
-    call printErrMsg(option)
+
+  if (reaction%gas%nactive_gas > 0) then
+    if (option%transport%nphase == 1) then
+      option%io_buffer = 'The number of transport phases is set &
+        &incorrectly for transport with active gases. Please email &
+        &your input deck to pflotran-dev@googlegroups.com' 
+      call PrintErrMsg(option)
+    endif
   endif
 
   if (reaction%ncollcomp > 0) then
@@ -204,24 +209,24 @@ subroutine RTSetup(realization)
     if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
       flag(1) = 1
       option%io_buffer = 'Non-initialized cell volume.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (material_auxvars(ghosted_id)%tortuosity < 0.d0 .and. flag(3) == 0) then
       flag(3) = 1
       option%io_buffer = 'Non-initialized tortuosity.'
-      call printMsg(option)
+      call PrintMsg(option)
     endif
     if (reaction%neqkdrxn > 0) then
       if (material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
           flag(4) == 0) then
         flag(4) = 1
         option%io_buffer = 'Non-initialized soil particle density.'
-        call printMsg(option)
+        call PrintMsg(option)
       endif
     endif
     if (associated(reaction%surface_complexation)) then
@@ -233,7 +238,7 @@ subroutine RTSetup(realization)
               flag(4) == 0) then
             flag(4) = 1
             option%io_buffer = 'Non-initialized soil particle density.'
-            call printMsg(option)
+            call PrintMsg(option)
           endif
         enddo
       endif
@@ -243,7 +248,7 @@ subroutine RTSetup(realization)
   if (maxval(flag) > 0) then
     option%io_buffer = &
       'Material property errors found in RTSetup (reactive transport).'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif  
   
 !============== Create secondary continuum variables - SK 2/5/13 ===============
@@ -332,17 +337,19 @@ subroutine RTSetup(realization)
 
   ! overwrite diffusion coefficients with species specific values
   ! aqueous diffusion
+  species_dependent_diffusion = PETSC_FALSE
   iphase = option%liquid_phase
   cur_generic_parameter => reaction%aq_diffusion_coefficients
   do
     if (.not.associated(cur_generic_parameter)) exit
+    species_dependent_diffusion = PETSC_TRUE
     i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
                                     reaction,PETSC_FALSE,option)
     if (Uninitialized(i)) then
       option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
         '" listed in aqueous diffusion coefficient list not found among &
         &aqueous species.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     rt_parameter%diffusion_coefficient(i,iphase) = &
         cur_generic_parameter%rvalue
@@ -351,12 +358,12 @@ subroutine RTSetup(realization)
   if (associated(reaction%gas_diffusion_coefficients)) then
     if (rt_parameter%nphase <= 1) then
       option%io_buffer = 'GAS_DIFFUSION_COEFFICIENTS may not be set when &
-        &INCLUDE_GAS_PHASE is not included in the SIMULATION,&
-        &SUBSURFACE_TRANSPORT block.'
-      call printErrMsg(option)
+        &an ACTIVE_GAS is not included in the CHEMISTRY block'
+      call PrintErrMsg(option)
     endif
     ! gas diffusion
     iphase = option%gas_phase
+    species_dependent_diffusion = PETSC_TRUE
     cur_generic_parameter => reaction%gas_diffusion_coefficients
     do
       if (.not.associated(cur_generic_parameter)) exit
@@ -375,10 +382,28 @@ subroutine RTSetup(realization)
         option%io_buffer = 'Species "' // trim(cur_generic_parameter%name) // &
           '" listed in gas diffusion coefficient list has no aqueous &
           &counterpart'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       cur_generic_parameter => cur_generic_parameter%next
     enddo
+  endif
+
+  if (species_dependent_diffusion) then
+    if (reaction%gas%nactive_gas > 0) then
+      if (maxval(reaction%gas%acteqspecid(0,:)) > 1) then
+        option%io_buffer = 'Active gas transprot is not supported when &
+          &gas species are not defined as a one to one match with the &
+          &primary species [e.g. O2(aq) <-> O2(g)].'
+        call PrintErrMsg(option)
+      endif
+    endif
+    if (reaction%neqcplx > 0) then
+      option%io_buffer = 'Species-dependent diffusion may not be used &
+        &with aqueous speciation since fluxes are currently implemented &
+        &based on the total aqueous component concentration and the &
+        &diffusion of secondary complexes is lumped.'
+      call PrintErrMsg(option)
+    endif
   endif
  
   list => realization%output_option%output_snap_variable_list
@@ -657,7 +682,13 @@ subroutine RTInitializeTimestep(realization)
   use Realization_Subsurface_class
 
   type(realization_subsurface_type) :: realization
+  PetscErrorCode :: ierr
   
+  ! copying of solution to tran_yy for temporary storage in case of 
+  ! time step cut must be performed here as tran_xx change outside of
+  ! reactive transport (e.g. pm_ufd_decay)
+  call VecCopy(realization%field%tran_xx,realization%field%tran_yy, &
+               ierr);CHKERRQ(ierr)
   call RTUpdateFixedAccumulation(realization)
   ! geh: never use transport coefs evaluated at time k
 !  call RTUpdateTransportCoefs(realization)
@@ -706,8 +737,6 @@ subroutine RTUpdateEquilibriumState(realization)
   reaction => realization%reaction
   grid => patch%grid
 
-  call VecCopy(realization%field%tran_xx,realization%field%tran_yy, &
-               ierr);CHKERRQ(ierr)
   call DiscretizationGlobalToLocal(realization%discretization, &
                                    realization%field%tran_xx, &
                                    realization%field%tran_xx_loc,NTRANDOF)
@@ -1330,7 +1359,7 @@ subroutine RTCalculateRHS_t1(realization)
   
   iphase = 1
   option%io_buffer = 'RTCalculateRHS_t1 must be refactored'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 #if 0
 !geh - activity coef updates must always be off!!!
@@ -3541,7 +3570,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
           option%io_buffer = 'Current multicomponent implementation is for '// &
                              'aqueous reactions only'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         
         if (rt_sec_transport_vars(local_id)%sec_jac_update) then
@@ -3549,7 +3578,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         else
           option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
          
         Jup = Jup - jac_transport                                                                   
@@ -3572,7 +3601,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
     
     if (reaction%ncoll > 0) then
       option%io_buffer = 'Source/sink not yet implemented for colloids'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     cur_connection_set => source_sink%connection_set
@@ -3883,10 +3912,13 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   use Option_module
   use Field_module
   use Logging_module
+  use Global_Aux_module
+  use Material_Aux_class
+  use Transport_Constraint_module
   
 #ifdef XINGYUAN_BC
-!  use Dataset_module
-!  use Dataset_Aux_module
+  use Dataset_module
+  use Dataset_Base_class
   use Output_Tecplot_module
 #endif
   
@@ -3919,14 +3951,20 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   PetscInt, parameter :: iphase = 1
   PetscInt :: offset
   PetscErrorCode :: ierr
-  PetscBool :: skip_equilibrate_constraint
+  PetscBool :: equilibrate_constraint
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
+  type(tran_constraint_coupler_type), pointer :: constraint_coupler
   PetscInt, save :: icall
   
 #ifdef XINGYUAN_BC
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: name
   PetscInt :: idof_aq_dataset
-  class(dataset_type), pointer :: dataset
+  class(dataset_base_type), pointer :: dataset
   PetscReal :: temp_real
   PetscBool, save :: first = PETSC_TRUE
   PetscReal, pointer :: work_p(:)
@@ -3939,6 +3977,11 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   grid => patch%grid
   field => realization%field
   reaction => realization%reaction
+  rt_auxvars => patch%aux%RT%auxvars
+  rt_auxvars_bc => patch%aux%RT%auxvars_bc
+  global_auxvars => patch%aux%Global%auxvars
+  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  material_auxvars => patch%aux%Material%auxvars
 
 #ifdef XINGYUAN_BC
 !geh  call VecZeroEntries(field%work,ierr)
@@ -3961,52 +4004,50 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
       istartaq = offset + reaction%offset_aqueous + 1
       iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
       
-      patch%aux%RT%auxvars(ghosted_id)%pri_molal = xx_loc_p(istartaq:iendaq)
+      rt_auxvars(ghosted_id)%pri_molal = xx_loc_p(istartaq:iendaq)
       if (reaction%immobile%nimmobile > 0) then
         istartim = offset + reaction%offset_immobile + 1
         iendim = offset + reaction%offset_immobile + reaction%immobile%nimmobile
-        patch%aux%RT%auxvars(ghosted_id)%immobile = xx_loc_p(istartim:iendim)
+        rt_auxvars(ghosted_id)%immobile = xx_loc_p(istartim:iendim)
       endif
       if (reaction%ncoll > 0) then
         istartcoll = offset + reaction%offset_colloid + 1
         iendcoll = offset + reaction%offset_colloid + reaction%ncoll
-        patch%aux%RT%auxvars(ghosted_id)%colloid%conc_mob = &
+        rt_auxvars(ghosted_id)%colloid%conc_mob = &
           xx_loc_p(istartcoll:iendcoll)* &
-          patch%aux%Global%auxvars(ghosted_id)%den_kg(1)*1.d-3
+          global_auxvars(ghosted_id)%den_kg(1)*1.d-3
       endif
       if (.not.option%use_isothermal) then
-        call RUpdateTempDependentCoefs(patch%aux%Global%auxvars(ghosted_id), &
+        call RUpdateTempDependentCoefs(global_auxvars(ghosted_id), &
                                        reaction,PETSC_FALSE, &
                                        option)
       endif
       if (update_activity_coefs) then
-        call RActivityCoefficients(patch%aux%RT%auxvars(ghosted_id), &
-                                   patch%aux%Global%auxvars(ghosted_id), &
+        call RActivityCoefficients(rt_auxvars(ghosted_id), &
+                                   global_auxvars(ghosted_id), &
                                    reaction,option)
         if (option%iflowmode == MPH_MODE .or. &
             option%iflowmode == FLASH2_MODE) then
-          call CO2AqActCoeff(patch%aux%RT%auxvars(ghosted_id), &
-                                   patch%aux%Global%auxvars(ghosted_id), &
+          call CO2AqActCoeff(rt_auxvars(ghosted_id), &
+                                   global_auxvars(ghosted_id), &
                                    reaction,option)
         endif                           
       endif
-      call RTAuxVarCompute(patch%aux%RT%auxvars(ghosted_id), &
-                           patch%aux%Global%auxvars(ghosted_id), &
+      call RTAuxVarCompute(rt_auxvars(ghosted_id), &
+                           global_auxvars(ghosted_id), &
                            patch%aux%Material%auxvars(ghosted_id), &
                            reaction,option)
 #if 0                           
       if (associated(reaction%species_idx) .and. &
-          associated(patch%aux%Global%auxvars(ghosted_id)%m_nacl)) then
+          associated(global_auxvars(ghosted_id)%m_nacl)) then
         if (reaction%species_idx%na_ion_id /= 0 .and. &
             reaction%species_idx%cl_ion_id /= 0) then
-          patch%aux%Global%auxvars(ghosted_id)%m_nacl(1) = &
-                patch%aux%RT%auxvars(ghosted_id)% &
-                  pri_molal(reaction%species_idx%na_ion_id)
-          patch%aux%Global%auxvars(ghosted_id)%m_nacl(2) = &
-                patch%aux%RT%auxvars(ghosted_id)% &
-                  pri_molal(reaction%species_idx%cl_ion_id)
+          global_auxvars(ghosted_id)%m_nacl(1) = &
+                rt_auxvars(ghosted_id)%pri_molal(reaction%species_idx%na_ion_id)
+          global_auxvars(ghosted_id)%m_nacl(2) = &
+                rt_auxvars(ghosted_id)%pri_molal(reaction%species_idx%cl_ion_id)
          else
-          patch%aux%Global%auxvars(ghosted_id)%m_nacl = option%m_nacl
+          global_auxvars(ghosted_id)%m_nacl = option%m_nacl
         endif
       endif
 #endif
@@ -4024,28 +4065,25 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
     do 
       if (.not.associated(boundary_condition)) exit
       cur_connection_set => boundary_condition%connection_set
+      constraint_coupler => boundary_condition%tran_condition% &
+                                  cur_constraint_coupler
 
-      basis_molarity_p => boundary_condition%tran_condition% &
-        cur_constraint_coupler%aqueous_species%basis_molarity
+      basis_molarity_p => constraint_coupler%aqueous_species%basis_molarity
 
       if (reaction%ncoll > 0) then
-        basis_coll_conc_p => boundary_condition%tran_condition% &
-                             cur_constraint_coupler%colloids%basis_conc_mob
+        basis_coll_conc_p => constraint_coupler%colloids%basis_conc_mob
       endif
 
 #ifdef XINGYUAN_BC
       idof_aq_dataset = 0
       do idof = 1, reaction%naqcomp ! primary aqueous concentrations
-        if (boundary_condition%tran_condition% &
-            cur_constraint_coupler%aqueous_species%external_dataset(idof)) then
+        if (constraint_coupler%aqueous_species%external_dataset(idof)) then
           idof_aq_dataset = idof
-          string = 'constraint ' // trim(boundary_condition%tran_condition% &
-                                         cur_constraint_coupler%constraint_name)
-          dataset => DatasetGetPointer(realization%datasets, &
-                        boundary_condition%tran_condition% &
-                          cur_constraint_coupler%aqueous_species% &
-                          constraint_aux_string(idof), &
-                        string,option)
+          string = 'constraint ' // trim(constraint_coupler%constraint_name)
+!          dataset => DatasetGetPointer(realization%datasets, &
+!                          constraint_coupler%aqueous_species% &
+!                          constraint_aux_string(idof), &
+!                        string,option)
           call DatasetLoad(dataset,option)
           exit
         endif
@@ -4084,36 +4122,27 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
             0.d0, &  ! z
             option%tran_time,temp_real,option)
 !geh    work_p(local_id) = temp_real
-    boundary_condition%tran_condition%cur_constraint_coupler% &
-      aqueous_species%constraint_conc(idof_aq_dataset) = temp_real
-    if (first) patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
-                 basis_molarity_p
+    constraint_coupler%aqueous_species%constraint_conc(idof_aq_dataset) = &
+      temp_real
+    if (first) rt_auxvars_bc(sum_connection)%pri_molal = basis_molarity_p
     call ReactionEquilibrateConstraint( &
-        patch%aux%RT%auxvars_bc(sum_connection), &
-        patch%aux%Global%auxvars_bc(sum_connection),reaction, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%constraint_name, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%aqueous_species, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%free_ion_guess, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%minerals, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%surface_complexes, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%colloids, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%immobile_species, &
-        patch%aux%Material%auxvars(ghosted_id)%porosity, &
-        boundary_condition%tran_condition% &
-          cur_constraint_coupler%num_iterations, &
+        rt_auxvars_bc(sum_connection), &
+        global_auxvars_bc(sum_connection), &
+        material_auxvars(ghosted_id),reaction, &
+        constraint_coupler%constraint_name, &
+        constraint_coupler%aqueous_species, &
+        constraint_coupler%free_ion_guess, &
+        constraint_coupler%minerals, &
+        constraint_coupler%surface_complexes, &
+        constraint_coupler%colloids, &
+        constraint_coupler%immobile_species, &
+        constraint_coupler%num_iterations, &
         PETSC_TRUE,option)
-    basis_molarity_p => boundary_condition%tran_condition% &
-      cur_constraint_coupler%aqueous_species%basis_molarity 
+    basis_molarity_p => constraint_coupler%aqueous_species%basis_molarity 
   endif
 #endif        
 
+        equilibrate_constraint = constraint_coupler%equilibrate_at_each_cell
         if (option%iflowmode /= MPH_MODE .and. &
             option%iflowmode /= FLASH2_MODE) then
   !       Note: the  DIRICHLET_BC is not time dependent in this case (icall)    
@@ -4123,12 +4152,12 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                 ! by dividing by density of water (mol/L -> mol/kg)
               xxbc(istartaq_loc:iendaq_loc) = &
                 basis_molarity_p(1:reaction%naqcomp) / &
-                patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
+                global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                 1000.d0
               if (reaction%ncoll > 0) then
                 xxbc(istartcoll_loc:iendcoll_loc) = &
                   basis_coll_conc_p(1:reaction%ncoll) / &
-                  patch%aux%Global%auxvars_bc(sum_connection)%den_kg(iphase) * &
+                  global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                   1000.d0
               endif
             case(DIRICHLET_ZERO_GRADIENT_BC)
@@ -4138,14 +4167,12 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                   ! same as dirichlet above
                   xxbc(istartaq_loc:iendaq_loc) = &
                     basis_molarity_p(1:reaction%naqcomp) / &
-                    patch%aux%Global% &
-                      auxvars_bc(sum_connection)%den_kg(iphase) * &
-                  & 1000.d0
+                    global_auxvars_bc(sum_connection)%den_kg(iphase) * &
+                    1000.d0
                   if (reaction%ncoll > 0) then
                     xxbc(istartcoll_loc:iendcoll_loc) = &
                       basis_coll_conc_p(1:reaction%ncoll) / &
-                      patch%aux%Global% &
-                        auxvars_bc(sum_connection)%den_kg(iphase) * &
+                      global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                       1000.d0
                   endif
                 else
@@ -4154,8 +4181,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                   if (reaction%ncoll > 0) then
                     xxbc(istartcoll_loc:iendcoll_loc) = &
                       basis_coll_conc_p(1:reaction%ncoll) / &
-                      patch%aux%Global% &
-                        auxvars_bc(sum_connection)%den_kg(iphase) * &
+                      global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                       1000.d0
                   endif
                 endif
@@ -4165,18 +4191,17 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               if (reaction%ncoll > 0) then
                 xxbc(istartcoll_loc:iendcoll_loc) = &
                   basis_coll_conc_p(1:reaction%ncoll) / &
-                  patch%aux%Global% &
-                    auxvars_bc(sum_connection)%den_kg(iphase) * &
+                  global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                   1000.d0
               endif
           end select
           ! no need to update boundary fluid density since it is already set
-          patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
+          rt_auxvars_bc(sum_connection)%pri_molal = &
             xxbc(istartaq_loc:iendaq_loc)
           if (reaction%ncoll > 0) then
-            patch%aux%RT%auxvars_bc(sum_connection)%colloid%conc_mob = &
+            rt_auxvars_bc(sum_connection)%colloid%conc_mob = &
               xxbc(istartcoll_loc:iendcoll_loc)* &
-              patch%aux%Global%auxvars_bc(sum_connection)%den_kg(1)*1.d-3
+              global_auxvars_bc(sum_connection)%den_kg(1)*1.d-3
           endif
           if (.not.option%use_isothermal) then
             call RUpdateTempDependentCoefs(patch%aux%Global% &
@@ -4186,22 +4211,22 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
           endif          
           if (update_activity_coefs) then
             call RActivityCoefficients( &
-                        patch%aux%RT%auxvars_bc(sum_connection), &
-                        patch%aux%Global%auxvars_bc(sum_connection), &
+                        rt_auxvars_bc(sum_connection), &
+                        global_auxvars_bc(sum_connection), &
                         reaction,option)
             if (option%iflowmode == MPH_MODE .or. &
                 option%iflowmode == FLASH2_MODE) then
-              call CO2AqActCoeff(patch%aux%RT%auxvars_bc(sum_connection), &
-                                 patch%aux%Global%auxvars_bc(sum_connection), &
+              call CO2AqActCoeff(rt_auxvars_bc(sum_connection), &
+                                 global_auxvars_bc(sum_connection), &
                                  reaction,option) 
               endif                           
           endif
-          call RTAuxVarCompute(patch%aux%RT%auxvars_bc(sum_connection), &
-                               patch%aux%Global%auxvars_bc(sum_connection), &
+          call RTAuxVarCompute(rt_auxvars_bc(sum_connection), &
+                               global_auxvars_bc(sum_connection), &
                                patch%aux%Material%auxvars(ghosted_id), &
                                reaction,option)
         else
-          skip_equilibrate_constraint = PETSC_FALSE
+          equilibrate_constraint = PETSC_TRUE
         ! Chuan needs to fill this in.
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
@@ -4214,10 +4239,10 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               !      ReactionEquilibrateConstraint() below for 
               !      use_prev_soln_as_guess.  If the previous solution is 
               !      zero, the code will crash.
-              if (patch%aux%RT%auxvars_bc(sum_connection)%pri_molal(1) < &
+              if (rt_auxvars_bc(sum_connection)%pri_molal(1) < &
                   1.d-200) then
-!               patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = 1.d-9
-                patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
+!               rt_auxvars_bc(sum_connection)%pri_molal = 1.d-9
+                rt_auxvars_bc(sum_connection)%pri_molal = &
                     xx_loc_p(istartaq:iendaq)
               endif
             case(DIRICHLET_ZERO_GRADIENT_BC)
@@ -4225,73 +4250,62 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                   ! don't need to do anything as the constraint below 
                   ! provides all the concentrations, etc.
                   
-                if (patch%aux%RT%auxvars_bc(sum_connection)%pri_molal(1) < &
+                if (rt_auxvars_bc(sum_connection)%pri_molal(1) < &
                     1.d-200) then
-!                 patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = 1.d-9
-                  patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
+!                 rt_auxvars_bc(sum_connection)%pri_molal = 1.d-9
+                  rt_auxvars_bc(sum_connection)%pri_molal = &
                     xx_loc_p(istartaq:iendaq)
                 endif
               else
                 ! same as zero_gradient below
-                skip_equilibrate_constraint = PETSC_TRUE
-                patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
+                equilibrate_constraint = PETSC_FALSE
+                rt_auxvars_bc(sum_connection)%pri_molal = &
                   xx_loc_p(istartaq:iendaq)
                 if (reaction%ncoll > 0) then
-                  patch%aux%RT%auxvars_bc(sum_connection)%colloid%conc_mob = &
+                  rt_auxvars_bc(sum_connection)%colloid%conc_mob = &
                     xx_loc_p(istartcoll:iendcoll)* &
-                    patch%aux%Global%auxvars_bc(sum_connection)%den_kg(1)*1.d-3
+                    global_auxvars_bc(sum_connection)%den_kg(1)*1.d-3
                 endif
               endif
             case(ZERO_GRADIENT_BC)
-              skip_equilibrate_constraint = PETSC_TRUE
-              patch%aux%RT%auxvars_bc(sum_connection)%pri_molal = &
+              equilibrate_constraint = PETSC_FALSE
+              rt_auxvars_bc(sum_connection)%pri_molal = &
                 xx_loc_p(istartaq:iendaq)
               if (reaction%ncoll > 0) then
-                patch%aux%RT%auxvars_bc(sum_connection)%colloid%conc_mob = &
+                rt_auxvars_bc(sum_connection)%colloid%conc_mob = &
                   xx_loc_p(istartcoll:iendcoll)* &
-                  patch%aux%Global%auxvars_bc(sum_connection)%den_kg(1)*1.d-3
+                  global_auxvars_bc(sum_connection)%den_kg(1)*1.d-3
               endif                
           end select
-          ! no need to update boundary fluid density since it is already set
-          if (.not.skip_equilibrate_constraint) then
-            ! print *,'RT redo constrain on BCs: 1: ', sum_connection
-            call ReactionEquilibrateConstraint( &
-              patch%aux%RT%auxvars_bc(sum_connection), &
-              patch%aux%Global%auxvars_bc(sum_connection), &
-              patch%aux%Material%auxvars(ghosted_id),reaction, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                constraint_name, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                aqueous_species, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                free_ion_guess, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                minerals, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                surface_complexes, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                colloids, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                immobile_species, &
-              boundary_condition%tran_condition%cur_constraint_coupler% &
-                num_iterations, &
-              PETSC_TRUE,option)
-            ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
-          endif         
         endif
+        if (equilibrate_constraint) then
+          call ReactionEquilibrateConstraint( &
+                            rt_auxvars_bc(sum_connection), &
+                            global_auxvars_bc(sum_connection), &
+                            patch%aux%Material%auxvars(ghosted_id),reaction, &
+                            constraint_coupler%constraint_name, &
+                            constraint_coupler%aqueous_species, &
+                            constraint_coupler%free_ion_guess, &
+                            constraint_coupler%minerals, &
+                            constraint_coupler%surface_complexes, &
+                            constraint_coupler%colloids, &
+                            constraint_coupler%immobile_species, &
+                            constraint_coupler%num_iterations, &
+                            PETSC_TRUE,option)
+        endif         
 #if 0
         if (associated(reaction%species_idx) .and. &
-            associated(patch%aux%Global%auxvars_bc(sum_connection)%m_nacl)) then
+            associated(global_auxvars_bc(sum_connection)%m_nacl)) then
           if (reaction%species_idx%na_ion_id /= 0 .and. &
               reaction%species_idx%cl_ion_id /= 0) then
-            patch%aux%Global%auxvars_bc(sum_connection)%m_nacl(1) = &
-              patch%aux%RT%auxvars_bc(sum_connection)% &
-                pri_molal(reaction%species_idx%na_ion_id)
-            patch%aux%Global%auxvars_bc(sum_connection)%m_nacl(2) = &
-              patch%aux%RT%auxvars_bc(sum_connection)% &
-                pri_molal(reaction%species_idx%cl_ion_id)
-            else
-            patch%aux%Global%auxvars_bc(sum_connection)%m_nacl = option%m_nacl
+            global_auxvars_bc(sum_connection)%m_nacl(1) = &
+                  rt_auxvars_bc(sum_connection)% &
+                    pri_molal(reaction%species_idx%na_ion_id)
+            global_auxvars_bc(sum_connection)%m_nacl(2) = &
+                  rt_auxvars_bc(sum_connection)% &
+                    pri_molal(reaction%species_idx%cl_ion_id)
+          else
+            global_auxvars_bc(sum_connection)%m_nacl = option%m_nacl
           endif
         endif
 #endif        
@@ -4335,8 +4349,8 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   implicit none
   
   type(realization_subsurface_type) :: realization
-  PetscReal :: dcmax
-  PetscReal :: dvfmax
+  PetscReal :: dcmax(:)
+  PetscReal :: dvfmax(:)
   
   type(option_type), pointer :: option
   type(field_type), pointer :: field 
@@ -4362,8 +4376,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   call VecWAXPY(field%tran_dxx,-1.d0,field%tran_xx,field%tran_yy, &
                 ierr);CHKERRQ(ierr)
   
-  call VecStrideNorm(field%tran_dxx,ZERO_INTEGER,NORM_INFINITY,dcmax, &
-                     ierr);CHKERRQ(ierr)
+  call VecStrideNormAll(field%tran_dxx,NORM_INFINITY,dcmax,ierr);CHKERRQ(ierr)
                      
 #if 1
   ! update mineral volume fractions
@@ -4376,7 +4389,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
         delta_volfrac = rt_auxvars(ghosted_id)%mnrl_rate(imnrl)* &
                         reaction%mineral%kinmnrl_molar_vol(imnrl)* &
                         option%tran_dt
-        dvfmax = max(dabs(delta_volfrac),dvfmax)
+        dvfmax(imnrl) = max(dabs(delta_volfrac),dvfmax(imnrl))
       enddo
     enddo
   endif 
@@ -4814,22 +4827,22 @@ subroutine RTExplicitAdvection(realization)
   if (reaction%ncoll > 0) then
     option%io_buffer = &
       'Need to add colloidal source/sinks to RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (patch%aux%RT%rt_parameter%nphase > 1) then
     option%io_buffer = &
       'Need to add multiphase source/sinks to RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (reaction%ncomp /= reaction%naqcomp) then
     option%io_buffer = &
       'Need to account for non-aqueous species to RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (option%compute_mass_balance_new) then  
     option%io_buffer = &
       'Mass balance not yet supported in RTExplicitAdvection()'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 ! Interior Flux Terms -----------------------------------
