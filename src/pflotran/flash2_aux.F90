@@ -375,7 +375,7 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
       auxvar%sat(2) = 0.D0
       iphase = 1
     elseif (x(3) > (1.D0-sat_pressure/p)) then
-	    !gas only
+      !gas only
       iphase = 2
       auxvar%xmol(4) = x(3)
       auxvar%xmol(3) = 1.D0 - auxvar%xmol(4)

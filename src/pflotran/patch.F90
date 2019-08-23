@@ -4866,7 +4866,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
          OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
@@ -4948,11 +4948,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
               vec_ptr(local_id) = &
                   patch%aux%TH%auxvars(grid%nL2G(local_id))%u
             enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%transient_por
-            enddo
           case default
             call PatchUnsupportedVariable('TH',ivar,option)
         end select
@@ -4990,9 +4985,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
             call PatchUnsupportedVariable('RICHARDS','GAS_VISCOSITY',option)
           case(GAS_MOBILITY)
             call PatchUnsupportedVariable('RICHARDS','GAS_MOBILITY',option)
-          case(EFFECTIVE_POROSITY)
-            call PatchUnsupportedVariable('RICHARDS','EFFECTIVE_POROSITY', &
-                                          option)
           case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -5576,11 +5568,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
                 patch%aux%General%auxvars(ZERO_INTEGER, &
                   ghosted_id)%mobility(option%gas_phase)
             enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
-            enddo
           case default
             call PatchUnsupportedVariable('GENERAL',ivar,option)
         end select
@@ -5813,11 +5800,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
                 patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
                   ghosted_id)%mobility(option%gas_phase)
             enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%Hydrate%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
-            enddo
           case default
             call PatchUnsupportedVariable('HYDRATE',ivar,option)
         end select
@@ -5936,11 +5918,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mu(option%gas_phase)
-            enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
             enddo
           case default
             call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
@@ -6062,11 +6039,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%viscosity(option%oil_phase)
-            enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOil_ims%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
             enddo
           case default
             call PatchUnsupportedVariable('TOIL_IMS',ivar,option)
@@ -6264,11 +6236,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%mobility(option%solvent_phase)
-            enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
-                  grid%nL2G(local_id))%effective_porosity
             enddo
           case(BUBBLE_POINT)
             do local_id=1,grid%nlmax
@@ -6697,7 +6664,8 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
         case default
           call PatchUnsupportedVariable('REACTIVE_TRANSPORT',ivar,option)
       end select
-    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -6922,7 +6890,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,EFFECTIVE_POROSITY, &
+         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
@@ -6930,7 +6898,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
          SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
          SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
 
-     if (associated(patch%aux%TH)) then
+      if (associated(patch%aux%TH)) then
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
@@ -6969,8 +6937,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(SECONDARY_TEMPERATURE)
             local_id = grid%nG2L(ghosted_id)
             value = patch%aux%SC_heat%sec_heat_vars(local_id)%sec_temp(isubvar)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%TH%auxvars(ghosted_id)%transient_por
           case default
             call PatchUnsupportedVariable('TH',ivar,option)
         end select
@@ -6991,9 +6957,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
             call PatchUnsupportedVariable('RICHARDS','LIQUID_ENERGY',option)
           case(GAS_ENERGY)
             call PatchUnsupportedVariable('RICHARDS','GAS_ENERGY',option)
-          case(EFFECTIVE_POROSITY)
-            call PatchUnsupportedVariable('RICHARDS','EFFECTIVE_POROSITY', &
-                                          option)
           case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(1)
           case(CAPILLARY_PRESSURE)
@@ -7294,9 +7257,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
                       kr(option%gas_phase) / &
                     patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      effective_porosity
           case(ICE_SATURATION)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%ice_phase)
@@ -7441,9 +7401,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
                       kr(option%gas_phase) / &
                     patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mobility(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      effective_porosity
           case(ICE_SATURATION)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%ice_phase)
@@ -7520,9 +7477,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(GAS_VISCOSITY)
             value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
                       mu(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%WIPPFlo%auxvars(ZERO_INTEGER,ghosted_id)% &
-                      effective_porosity
           case default
             call PatchUnsupportedVariable('WIPP_FLOW',ivar,option)
         end select
@@ -7597,9 +7551,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(OIL_VISCOSITY)
             value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
                     viscosity(option%oil_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    effective_porosity
           case default
             call PatchUnsupportedVariable('TOIL_IMS',ivar,option)
         end select
@@ -7693,9 +7644,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(GAS_MOBILITY)
             value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
                     mobility(option%gas_phase)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%TOWG%auxvars(ZERO_INTEGER,ghosted_id)% &
-                    effective_porosity
           case(BUBBLE_POINT)
             if(    ( towg_miscibility_model == TOWG_SOLVENT_TL )   &
                .or.( towg_miscibility_model == TOWG_BLACK_OIL  ) ) then
@@ -8006,8 +7954,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
         case default
           call PatchUnsupportedVariable('REACTIVE_TRANSPORT',ivar,option)
       end select
-    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
          PERMEABILITY_XY,PERMEABILITY_XZ,PERMEABILITY_YZ, &
@@ -9092,7 +9040,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         case(COLLOID_IMMOBILE)
           call PrintErrMsg(option,'Setting of immobile colloid concentration at grid cell not supported.')
       end select
-    case(POROSITY,MINERAL_POROSITY)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &

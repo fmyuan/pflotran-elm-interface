@@ -110,15 +110,15 @@ module Variables_module
   PetscInt, parameter, public :: SATURATION_PRESSURE     = 95
   PetscInt, parameter, public :: MAXIMUM_PRESSURE        = 96
 
-  PetscInt, parameter, public :: EFFECTIVE_POROSITY      = 97
-  PetscInt, parameter, public :: LIQUID_HEAD             = 98
+  PetscInt, parameter, public :: INITIAL_POROSITY        = 97
+  PetscInt, parameter, public :: BASE_POROSITY           = 98
 
-  PetscInt, parameter, public :: GAS_CONCENTRATION       = 99
+  PetscInt, parameter, public :: LIQUID_HEAD             = 99
+  PetscInt, parameter, public :: GAS_CONCENTRATION       = 100
 
-  PetscInt, parameter, public :: SEC_MIN_RATE            = 100
-  PetscInt, parameter, public :: SEC_MIN_SI              = 101
-  PetscInt, parameter, public :: RESIDUAL                = 102
-  PetscInt, parameter, public :: MINERAL_POROSITY        = 103
+  PetscInt, parameter, public :: SEC_MIN_RATE            = 101
+  PetscInt, parameter, public :: SEC_MIN_SI              = 102
+  PetscInt, parameter, public :: RESIDUAL                = 103
 
   PetscInt, parameter, public :: SOIL_COMPRESSIBILITY    = 104
   PetscInt, parameter, public :: SOIL_REFERENCE_PRESSURE = 105

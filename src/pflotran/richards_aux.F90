@@ -17,7 +17,7 @@ module Richards_Aux_module
   PetscInt, public :: richards_ni_count
   PetscInt, public :: richards_ts_cut_count
   PetscInt, public :: richards_ts_count
-  
+
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
@@ -205,7 +205,8 @@ end subroutine RichardsAuxVarCopy
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-                                 characteristic_curves,natural_id,option)
+                                 characteristic_curves,natural_id, &
+                                 update_porosity,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -232,6 +233,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
+  PetscBool :: update_porosity
   
   PetscInt :: i
   PetscBool :: saturated
@@ -245,6 +247,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dkr_sat
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
+  PetscReal :: compressed_porosity, dcompressed_porosity_dp
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -257,6 +260,10 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
  
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%reference_temperature
+
+  if (update_porosity) then
+    call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
+  endif
  
   ! For a very large negative liquid pressure (e.g. -1.d18), the capillary 
   ! pressure can go near infinite, resulting in ds_dp being < 1.d-40 below 
@@ -422,7 +429,7 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
                        material_auxvar_pert, &
                        characteristic_curves, &
-                       -999, &
+                       -999, PETSC_TRUE, &
                        option)   
 
   rich_auxvar%d2den_dp2 = (rich_auxvar_pert%dden_dp - rich_auxvar%dden_dp)/pert
