@@ -18,14 +18,14 @@ module PFLOTRAN_Constants_module
 
 !#include "petsc/finclude/petscsys.h"
 #define VMAJOR 3
-#define VMINOR 10
-#define VSUBMINOR 2
+#define VMINOR 11
+#define VSUBMINOR 3
 #if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
      (PETSC_VERSION_MAJOR == VMAJOR &&                  \
       (PETSC_VERSION_MINOR < VMINOR ||                  \
        (PETSC_VERSION_MINOR == VMINOR &&                \
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
-#error "Please use PETSc version 3.10.2: 'git checkout v3.10.2' in $PETSC_DIR"
+#error "Please use PETSc version 3.11.3: 'git checkout v3.11.3' in $PETSC_DIR"
 #endif
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.

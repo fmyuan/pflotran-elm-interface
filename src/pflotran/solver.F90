@@ -3,10 +3,6 @@ module Solver_module
 #include "petsc/finclude/petsc.h"
   use petsc
 #include "petsc/finclude/petscts.h"
-#if PETSC_VERSION_GE(3,11,0)
-#define KSP_DIVERGED_PCSETUP_FAILED KSP_DIVERGED_PC_FAILED
-#define PCGetSetUpFailedReason PCGetFailedReason
-#endif
   use petscts
   use PFLOTRAN_Constants_module
   use CPR_Preconditioner_module
@@ -317,10 +313,8 @@ subroutine SolverSetSNESOptions(solver, option)
           call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
         case(PCGASM)
-#if (PETSC_VERSION_MINOR >= 8)
           call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                                PETSC_NULL_KSP,ierr);CHKERRQ(ierr)
-#endif
       end select
       allocate(sub_ksps(nsub_ksp))
       select case(solver%pc_type)
@@ -331,10 +325,8 @@ subroutine SolverSetSNESOptions(solver, option)
           call PCASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                               sub_ksps,ierr);CHKERRQ(ierr)
         case(PCGASM)
-#if (PETSC_VERSION_MINOR >= 8)
           call PCGASMGetSubKSP(solver%pc,nsub_ksp,first_sub_ksp, &
                                sub_ksps,ierr);CHKERRQ(ierr)
-#endif
       end select
       do i = 1, nsub_ksp
         call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
@@ -1536,13 +1528,13 @@ subroutine SolverLinearPrintFailedReason(solver,option)
       else
         error_string = 'KSP_DIVERGED_INDEFINITE_MAT'
       endif
-    case(KSP_DIVERGED_PCSETUP_FAILED)
+    case(KSP_DIVERGED_PC_FAILED)
       if (solver%verbose_logging) then
         error_string = 'Preconditioner setup failed.'
         pc = solver%pc
         call PCGetType(pc,pc_type,ierr);CHKERRQ(ierr)
-        call PCGetSetUpFailedReason(pc,pc_failed_reason, &
-                                    ierr);CHKERRQ(ierr)
+        call PCGetFailedReason(pc,pc_failed_reason, &
+                               ierr);CHKERRQ(ierr)
         ! have to perform global reduction on pc_failed_reason
         temp_int = pc_failed_reason
         call MPI_Allreduce(MPI_IN_PLACE,temp_int,ONE_INTEGER_MPI, &
@@ -1561,8 +1553,8 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             endif
             do i = 1, nsub_ksp
               call KSPGetPC(sub_ksps(i),pc,ierr);CHKERRQ(ierr)
-              call PCGetSetUpFailedReason(pc,pc_failed_reason, &
-                                          ierr);CHKERRQ(ierr)
+              call PCGetFailedReason(pc,pc_failed_reason, &
+                                     ierr);CHKERRQ(ierr)
             enddo
             deallocate(sub_ksps)
             nullify(sub_ksps)
@@ -1610,7 +1602,7 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             call PrintErrMsgToDev(option,'if you need further help')
         end select
       else
-        error_string = 'KSP_DIVERGED_PCSETUP_FAILED'
+        error_string = 'KSP_DIVERGED_PC_FAILED'
       endif
     case default
       write(word,*) ksp_reason 

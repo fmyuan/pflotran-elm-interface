@@ -4020,8 +4020,8 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        count_upwind_direction_flip, &
                        PETSC_FALSE) 
          do irow = 1, option%nflowdof
-           Jup(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/ 2.d0 * &
-                            hyd_auxvar_up(idof)%pert
+           Jup(irow,idof) = (res_pert_plus(irow)-res_pert_minus(irow))/(2.d0 * &
+                            hyd_auxvar_up(idof)%pert)
          enddo !irow
        enddo ! idof
     else

@@ -237,9 +237,7 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTimeStep(solver%ts,option%surf_flow_dt,ierr);CHKERRQ(ierr)
-#if (PETSC_VERSION_MINOR >= 8)
   call TSSetStepNumber(solver%ts,ZERO_INTEGER,ierr);CHKERRQ(ierr)
-#endif
   call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
                            ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)

@@ -233,6 +233,7 @@ subroutine PMHydrateRead(this,input)
   use Input_Aux_module
   use String_module
   use Option_module
+
   
   implicit none
   
@@ -298,10 +299,10 @@ subroutine PMHydrateRead(this,input)
       case('PHASE_CHANGE_EPSILON')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        option%phase_chng_epsilon = tempreal
+        hydrate_phase_chng_epsilon = tempreal
       
       case('RESTRICT_STATE_CHANGE')
-        option%restrict_state_chng = PETSC_TRUE
+        hydrate_restrict_state_chng = PETSC_TRUE
       ! Tolerances
       
       case('NO_STATE_TRANSITION_OUTPUT')
