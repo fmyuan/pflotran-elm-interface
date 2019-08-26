@@ -2314,6 +2314,19 @@ subroutine UGridCalculateDist(pt_up, pt_dn, pt_center, vol_up, vol_dn, &
   v(:) = pt_dn(:) - pt_up(:)
   v_up(:) = pt_center(:) - pt_up(:)
   distance = sqrt(DotProduct(v,v))
+  if (distance < 1.d-40) then
+    error = PETSC_TRUE
+    option%io_buffer = 'Coincident cell centers at ('
+    write(string,'(2(es16.9,","),es16.9)') pt_up(:)
+    option%io_buffer = trim(option%io_buffer) // trim(adjustl(string)) // &
+      ') and ('
+    write(string,'(2(es16.9,","),es16.9)') pt_dn(:)
+    option%io_buffer = trim(option%io_buffer) // trim(adjustl(string)) // &
+      ').'
+    option%io_buffer = trim(option%io_buffer) // ' Please check the &
+      &location of the cell centers.'
+    call PrintMsgByRank(option)
+  endif
   unit_vector = v / distance
 
   select case(approach)
