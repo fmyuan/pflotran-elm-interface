@@ -198,7 +198,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   endif
   call h5eset_auto_f(ON,hdf5_err)
 
-  ! write attributes
+  ! write group attributes
   call OutputHDF5WriteSnapShotAtts(grp_id,option)
   
   ! write out data sets 
@@ -671,6 +671,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   endif
   call h5eset_auto_f(ON,hdf5_err)
 
+  ! write group attributes
+  call OutputHDF5WriteSnapShotAtts(grp_id,option)
+
   ! write out data sets 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
                                   option)
@@ -1142,6 +1145,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
   endif
   call h5eset_auto_f(ON,hdf5_err)
+
+  ! write group attributes
+  call OutputHDF5WriteSnapShotAtts(grp_id,option)
 
   ! write out data sets 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
