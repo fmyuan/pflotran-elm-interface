@@ -363,7 +363,7 @@ subroutine NWTRead(nw_trans,input,option)
             case('SOLUBILITY')
               call InputReadDouble(input,option,new_species%solubility_limit)
               call InputErrorMsg(input,option,'species solubility',error_string)
-            case('PRECIP_MOLAR_DENSITY')
+            case('PRECIP_MOLAR_DENSITY','PRECIPITATE_MOLAR_DENSITY')
               call InputReadDouble(input,option,new_species%mnrl_molar_density)
               call InputErrorMsg(input,option,'species mineral molar density', &
                                  error_string)
@@ -388,7 +388,7 @@ subroutine NWTRead(nw_trans,input,option)
           call PrintErrMsg(option)
         endif
         if (Uninitialized(new_species%mnrl_molar_density)) then
-          option%io_buffer = 'PRECIP_MOLAR_DENSITY not provided in ' // &
+          option%io_buffer = 'PRECIPITATE_MOLAR_DENSITY not provided in ' // &
                              trim(error_string) // ' block for SPECIES ' // &
                              trim(new_species%name) // '.'
           call PrintErrMsg(option)
