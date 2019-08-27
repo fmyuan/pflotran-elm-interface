@@ -232,7 +232,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
           if (icomp > nw_trans%params%nspecies) then
             option%io_buffer = 'Number of concentration constraints exceeds &
                                &the number of species given in the &
-                               &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT block. &
+                               &NUCLEAR_WASTE_CHEMISTRY block. &
                                &Error in constraint: ' // trim(constraint%name)
             call PrintErrMsg(option)
           endif

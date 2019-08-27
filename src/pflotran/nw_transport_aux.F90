@@ -308,7 +308,7 @@ subroutine NWTRead(nw_trans,input,option)
   character(len=MAXWORDLENGTH), pointer :: temp_species_parents(:)
   type(radioactive_decay_rxn_type), pointer :: new_rad_rxn, prev_rad_rxn
   
-  error_string_base = 'SUBSURFACE,NUCLEAR_WASTE_TRANSPORT'
+  error_string_base = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
   nullify(prev_species)
   allocate(temp_species_names(50))
   allocate(temp_species_parents(50))
@@ -519,7 +519,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    error_string = 'SUBSURFACE_NUCLEAR_WASTE_TRANSPORT,OUTPUT'
+    error_string = 'NUCLEAR_WASTE_CHEMISTRY,OUTPUT'
     call InputReadWord(input,option,word,PETSC_TRUE)  
     call InputErrorMsg(input,option,'keyword',error_string)
                      
@@ -577,7 +577,7 @@ subroutine NWTReadPass2(nw_trans,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   
-  error_string = 'SUBSURFACE,SUBSURFACE_NUCLEAR_WASTE_TRANSPORT'
+  error_string = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
   
   input%ierr = 0
   do

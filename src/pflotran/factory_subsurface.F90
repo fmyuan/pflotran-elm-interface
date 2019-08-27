@@ -1572,7 +1572,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
         if (.not.associated(realization%nw_trans)) then
           option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
             &process model in the SIMULATION block without the corresponding &
-            &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT in the SUBSURFACE block.'
+            &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
           call PrintErrMsg(option)
         endif
         call cur_pm%SetRealization(realization)
@@ -2082,10 +2082,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         call ReactionInit(realization%reaction,input,option)  
         
 !....................
-      case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
-           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO')  ! its so long, it gets cut off
+      case('NUCLEAR_WASTE_CHEMISTRY')
         if (.not.associated(simulation%nwt_process_model_coupler)) then
-          option%io_buffer = 'SUBSURFACE_NUCLEAR_WASTE_TRANSPORT card is &
+          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is &
             &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
             &in the SIMULATION block.'
           call PrintErrMsg(option)
@@ -2296,10 +2295,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         call ReactionReadPass2(reaction,input,option)
         
 !....................
-      case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
-           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO')  ! its so long, it gets cut off
+      case('NUCLEAR_WASTE_CHEMISTRY')
         if (.not.associated(simulation%nwt_process_model_coupler)) then
-          option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT card is included, but no &
+          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is included, but no &
             &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
           call PrintErrMsg(option)
         endif

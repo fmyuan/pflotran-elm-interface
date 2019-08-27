@@ -82,8 +82,8 @@ STANDARD_CFG = \
 	wipp/wipp_flow/input_format/input_format.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg \
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
         wipp/transport/batch/wipp_batch.cfg 
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
@@ -180,13 +180,13 @@ NOHDF5_CFG = \
 	default/eos/eos.cfg \
 	default/regions/regions.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-#	wipp/bragflo/wipp_flow/wipp_flow.cfg \
         wipp/transport/batch/wipp_batch.cfg 
+#	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 
 test : standard

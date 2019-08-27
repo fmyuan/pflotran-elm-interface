@@ -119,7 +119,7 @@ END
 
 !=============================== transport ====================================
 
-SUBSURFACE_NUCLEAR_WASTE_TRANSPORT
+NUCLEAR_WASTE_CHEMISTRY
 
   SPECIES
     NAME                 AM241L
