@@ -2083,8 +2083,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
 !....................
       case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
-           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO', &  ! its so long, it gets cut off
-           'NUCLEAR_WASTE_TRANSPORT')
+           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO')  ! its so long, it gets cut off
         if (.not.associated(simulation%nwt_process_model_coupler)) then
           option%io_buffer = 'SUBSURFACE_NUCLEAR_WASTE_TRANSPORT card is &
             &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
@@ -2298,8 +2297,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         
 !....................
       case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
-           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO', &  ! its so long, it gets cut off
-           'NUCLEAR_WASTE_TRANSPORT')
+           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO')  ! its so long, it gets cut off
         if (.not.associated(simulation%nwt_process_model_coupler)) then
           option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT card is included, but no &
             &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'

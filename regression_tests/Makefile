@@ -83,6 +83,7 @@ STANDARD_CFG = \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg \
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+        wipp/transport/batch/wipp_batch.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
@@ -148,7 +149,8 @@ TRANSPORT_CFG = \
 	default/column/column.cfg \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	default/velocity/velocity.cfg
+	default/velocity/velocity.cfg \
+        wipp/transport/batch/wipp_batch.cfg
 
 MESH_CFG = \
 	default/discretization/discretization.cfg
@@ -184,6 +186,7 @@ WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg \
+        wipp/transport/batch/wipp_batch.cfg 
 
 
 test : standard
