@@ -122,11 +122,6 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
                                               ele_kd(ispecies)
         endif
-        !
-        !nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)
-        !nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
-        !                                    ele_kd(ispecies)
-        !
         nwt_auxvar%total_bulk_conc(ispecies) = &
                             (nwt_auxvar%aqueous_eq_conc(ispecies)*sat*por) + &
                             nwt_auxvar%mnrl_eq_conc(ispecies) + &
@@ -146,17 +141,17 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
                                               ele_kd(ispecies)
         endif
-        !
-        !nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)  
-        !nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
-        !                                    ele_kd(ispecies)
-        !
         nwt_auxvar%total_bulk_conc(ispecies) = &
                             (nwt_auxvar%aqueous_eq_conc(ispecies)*sat*por) + &
                             nwt_auxvar%mnrl_eq_conc(ispecies) + &
                             nwt_auxvar%sorb_eq_conc(ispecies)
     !---------------------------------------
       case(CONSTRAINT_SB_EQUILIBRIUM)
+        if (ele_kd(ispecies) == 0.d0) then
+          option%io_buffer = 'No value given for elemental Kd, but the &
+            &concentration is being constrained by SB.'
+          call PrintErrMsg(option)
+        endif
         nwt_auxvar%sorb_eq_conc(ispecies) = &
                               nwt_species_constraint%constraint_conc(ispecies)
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
