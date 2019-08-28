@@ -122,38 +122,38 @@ END
 NUCLEAR_WASTE_CHEMISTRY
 
   SPECIES
-    NAME                 AM241L
-    SOLUBILITY           3.08531847680638d-03    # [mol/m^3-liq]
-    PRECIP_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD         0.0d0                   # [m^3-water/m^3-bulk]
+    NAME                      AM241L
+    SOLUBILITY                1.0d20     # [mol/m^3-liq]
+    PRECIPITATE_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD              4.d-4      # [m^3-water/m^3-bulk]
   /
 
   SPECIES
-    NAME                      PU239L
-    SOLUBILITY                5.94620667361208d-03   # [mol/m^3-liq]
-    PRECIPITATE_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD              0.0d0                  # [m^3-water/m^3-bulk]
+    NAME                 PU239L
+    SOLUBILITY           1.0d20     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         3.d-4      # [m^3-water/m^3-bulk]
   /
 
   SPECIES
-    NAME                      PU238L
-    SOLUBILITY                1.72615583236094d-05    # [mol/m^3-liq]
-    PRECIPITATE_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD              0.0d0                   # [m^3-water/m^3-bulk]
+    NAME                 PU238L
+    SOLUBILITY           1.0d20     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         2.d-3      # [m^3-water/m^3-bulk]
   /
 
   SPECIES
     NAME                 U234L
-    SOLUBILITY           3.92771529575587d-04   # [mol/m^3-liq]
-    PRECIP_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD         0.0d0                  # [m^3-water/m^3-bulk]
+    SOLUBILITY           1.0d20     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         5.d-10      # [m^3-water/m^3-bulk]
   /
 
   SPECIES
     NAME                 TH230L
-    SOLUBILITY           1.10410404254448d-06   # [mol/m^3-liq]
-    PRECIP_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD         0.0d0                  # [m^3-water/m^3-bulk]
+    SOLUBILITY           1.0d20     # [mol/m^3-liq]
+    PRECIP_MOLAR_DENSITY 38.61d3    # [mol/m^3-mnrl] (quartz example)
+    ELEMENTAL_KD         6.d-5      # [m^3-water/m^3-bulk]
   /
 
   RADIOACTIVE_DECAY

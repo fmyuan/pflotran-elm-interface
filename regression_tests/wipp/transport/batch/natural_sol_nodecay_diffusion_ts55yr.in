@@ -30,7 +30,7 @@ END
 GRID
   GRAVITY 0.0d0  -9.80665d+00  0.0d0  ! use y as the vertical direction
   TYPE structured
-  NXYZ 1 1 1
+  NXYZ 5 1 1
   DXYZ
      1*100.0d0 
      1*100.0d0 
@@ -41,7 +41,7 @@ END
 !=========================== fluid properties =================================
 
 FLUID_PROPERTY
-  DIFFUSION_COEFFICIENT 0.d0
+  DIFFUSION_COEFFICIENT 1.d-9
 END
 
 !=========================== material properties ==============================
@@ -67,6 +67,14 @@ REGION rgs_repo
   /
 END
 
+REGION bc_face
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0   0.d0
+    0.d0 100.d0 4.38406d1
+  /
+END
+
 !=========================== stratigraphy couplers ============================
 
 STRATA
@@ -80,7 +88,15 @@ TRANSPORT_CONDITION transport_initial_condition
   TYPE dirichlet_zero_gradient
   CONSTRAINT_LIST
     ! time[s]    constraint
-    0.0d0      constraint_inventory_initial
+    0.0d0      constraint_chemistry_initial
+  /
+END
+
+TRANSPORT_CONDITION transport_bc_condition
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    ! time[s]    constraint
+    0.0d0      constraint_chemistry_bc
   /
 END
 
@@ -89,6 +105,11 @@ END
 INITIAL_CONDITION
   TRANSPORT_CONDITION transport_initial_condition
   REGION rgs_repo
+END
+
+BOUNDARY_CONDITION
+  TRANSPORT_CONDITION transport_bc_condition
+  REGION bc_face
 END
 
 !=========================== solver options ===================================
@@ -117,6 +138,19 @@ OBSERVATION
   REGION rgs_repo
 END
 
+skip
+OUTPUT 
+  OBSERVATION_FILE
+    NO_PRINT_INITIAL
+    ! NO_PRINT_FINAL
+    PERIODIC TIMESTEP 1
+    VARIABLES
+      VOLUME
+    /
+  /
+END
+noskip
+
 !=============================== transport ====================================
 
 NUCLEAR_WASTE_CHEMISTRY
@@ -133,37 +167,7 @@ NUCLEAR_WASTE_CHEMISTRY
     SOLUBILITY                5.94620667361208d-03   # [mol/m^3-liq]
     PRECIPITATE_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
     ELEMENTAL_KD              0.0d0                  # [m^3-water/m^3-bulk]
-  /
-
-  SPECIES
-    NAME                      PU238L
-    SOLUBILITY                1.72615583236094d-05    # [mol/m^3-liq]
-    PRECIPITATE_MOLAR_DENSITY 38.61d3                 # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD              0.0d0                   # [m^3-water/m^3-bulk]
-  /
-
-  SPECIES
-    NAME                 U234L
-    SOLUBILITY           3.92771529575587d-04   # [mol/m^3-liq]
-    PRECIP_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD         0.0d0                  # [m^3-water/m^3-bulk]
-  /
-
-  SPECIES
-    NAME                 TH230L
-    SOLUBILITY           1.10410404254448d-06   # [mol/m^3-liq]
-    PRECIP_MOLAR_DENSITY 38.61d3                # [mol/m^3-mnrl] (quartz example)
-    ELEMENTAL_KD         0.0d0                  # [m^3-water/m^3-bulk]
-  /
-
-  RADIOACTIVE_DECAY
-  # [1/sec]
-    5.081724d-11  AM241L
-    9.127564d-13  PU239L
-    2.503240d-10  PU238L -> U234L
-    8.983245d-14  U234L -> TH230L
-    2.852458d-13  TH230L      
-  /                       
+  /                     
 
   OUTPUT
     ALL_SPECIES
@@ -175,36 +179,25 @@ END
 
 !=========================== transport constraints ============================
 
-CONSTRAINT constraint_inventory_initial
+CONSTRAINT constraint_chemistry_initial
   CONCENTRATIONS
    ! species_name  concentration  constraint_type 
-   ! T is for total bulk concentration [mol/m^3-bulk]
+   ! AQ is for aqueous concentration [mol/m^3-liq]
    ! Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
 
-   ! Total mass AM241L = 2.117537E+02 kg
-   ! Molar mass AM241L = 2.41057E-01 kg/mol
-   ! Total mols AM241L = 8.784382E+02 mol
-    AM241L    2.003708d-3    T  # [mol/m^3-bulk]
+    AM241L    1.d-20    AQ  # [mol/m^3-liq]
+    PU239L    1.d-20    AQ  # [mol/m^3-liq]
+  /
+END
 
-   ! Total mass PU239L = 1.407980E+04 kg
-   ! Molar mass PU239L = 2.39052E-01 kg/mol
-   ! Total mols PU239L = 5.889848E+04 mol
-    PU239L    0.134346d0     T  # [mol/m^3-bulk]
+CONSTRAINT constraint_chemistry_bc
+  CONCENTRATIONS
+   ! species_name  concentration  constraint_type 
+   ! VF is for mineral volume fraction [m^3-mnrl/m^3-void]
+   ! Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
 
-   ! Total mass PU238L = 3.510318E+01 kg
-   ! Molar mass PU238L = 2.38050E-01 kg/mol
-   ! Total mols PU238L = 1.474613E+02 mol
-    PU238L    3.363580d-4    T  # [mol/m^3-bulk]
-
-   ! Total mass U234L = 6.095460E+01 kg
-   ! Molar mass U234L = 2.34041E-01 kg/mol
-   ! Total mols U234L = 2.604441E+02 mol
-    U234L     5.940705d-4    T  # [mol/m^3-bulk]
-
-   ! Total mass TH230L = 2.740472E-01 kg
-   ! Molar mass TH230L = 2.30033E-01 kg/mol
-   ! Total mols TH230L = 1.191338E+00 mol
-    TH230L    2.717432d-6    T  # [mol/m^3-bulk]
+    AM241L    1.d-8    VF  # [m^3-mnrl/m^3-void]
+    PU239L    1.d-5    VF  # [m^3-mnrl/m^3-void]
   /
 END
 
