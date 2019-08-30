@@ -347,57 +347,6 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
                              nwt_constraint_coupler%nwt_auxvar%mnrl_eq_conc(:)
         nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(:) = &
                             nwt_constraint_coupler%nwt_auxvar%mnrl_vol_frac(:)
-
-      !do iconn = 1, cur_connection_set%num_connections
-      !  sum_connection = sum_connection + 1
-      !  local_id = cur_connection_set%id_dn(iconn)
-      !  ghosted_id = grid%nL2G(local_id)
-      !  
-      !  if (realization%patch%imat(ghosted_id) <= 0) cycle
-
-      !  offset = (ghosted_id-1)*nw_trans%params%nspecies
-      !  istart = offset + 1
-      !  iend = offset + nw_trans%params%nspecies        
-      !  
-        !call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
-        !                      global_auxvars(ghosted_id), &
-        !                      material_auxvars(ghosted_id), &
-        !                      nw_trans,option)
-        
-        !select case(boundary_condition%tran_condition%itype)
-        !  case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
-        !    ! don't need to do anything as the constraint below provides all
-        !    ! the concentrations, etc.
-        !      
-        !    ! jenn:todo Is this kludge still needed?
-        !    !geh: terrible kludge, but should work for now.
-        !    !geh: the problem is that ...%pri_molal() on first call is 
-        !    !      zero and PETSC_TRUE is passed into 
-        !    !      ReactionEquilibrateConstraint() below for 
-        !    !      use_prev_soln_as_guess.  If the previous solution is 
-        !    !      zero, the code will crash.
-        !    if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
-        !      nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-        !                                                  xx_loc_p(istart:iend)
-        !    endif
-        !  case(DIRICHLET_ZERO_GRADIENT_BC)
-        !    if (realization%patch%boundary_velocities(iphase,sum_connection) &
-        !        >= 0.d0) then
-        !          ! don't need to do anything as the constraint below 
-        !          ! provides all the concentrations, etc.
-        !      if (nwt_auxvars_bc(sum_connection)%total_bulk_conc(1) < 1.d-200) then
-        !        nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-        !                                                  xx_loc_p(istart:iend)
-        !      endif
-        !    else
-        !      ! same as zero_gradient below
-        !      nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-        !                                                  xx_loc_p(istart:iend)
-        !    endif
-        !  case(ZERO_GRADIENT_BC)
-        !    nwt_auxvars_bc(sum_connection)%total_bulk_conc = &
-        !                                                  xx_loc_p(istart:iend)               
-        !end select
           
       enddo ! iconn
       
@@ -563,6 +512,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   type(connection_set_list_type), pointer :: connection_set_list
   PetscInt :: iconn, sum_connection
+  PetscBool :: bc
   PetscReal :: Res(realization%nw_trans%params%nspecies)
   PetscReal :: Res_up(realization%nw_trans%params%nspecies)
   PetscReal :: Res_dn(realization%nw_trans%params%nspecies)
@@ -719,6 +669,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0 
+  bc = PETSC_FALSE
   do 
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
@@ -742,7 +693,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%internal_velocities(:,sum_connection), &
-                      nw_trans,option,Res_up,Res_dn)
+                      nw_trans,option,bc,Res_up,Res_dn)
                             
       if (local_id_up>0) then
         offset = (local_id_up-1)*nspecies
@@ -774,6 +725,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   ! Boundary Flux Terms ---------------------------------------
   boundary_condition => realization%patch%boundary_condition_list%first
   sum_connection = 0    
+  bc = PETSC_TRUE
   do
     if (.not.associated(boundary_condition)) exit
     
@@ -796,12 +748,12 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       realization%patch%internal_velocities(:,sum_connection), &
-                      nw_trans,option,Res_up,Res_dn)
+                      nw_trans,option,bc,Res_up,Res_dn)
                             
       offset = (local_id-1)*nspecies
       istart = offset + 1
       iend = offset + nspecies
-      r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies)
+      r_p(istart:iend) = r_p(istart:iend) + Res_dn(1:nspecies) 
       ! note: Don't need to worry about Res_up because that is outside of
       ! the domain, and doesn't have a place in r_p.
       
@@ -1145,7 +1097,7 @@ end subroutine NWTResidualRx
 subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
                            global_auxvar_up,global_auxvar_dn, &
                            material_auxvar_up,material_auxvar_dn, &
-                           area,dist,velocity,nw_trans,option,Res_up,Res_dn)
+                           area,dist,velocity,nw_trans,option,bc,Res_up,Res_dn)
   ! 
   ! Computes the flux terms in the residual function.
   ! All residual entries should be in [mol-species/sec].
@@ -1159,6 +1111,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
 
   implicit none
   
+  ! if bc, _up is actually _bc:
   type(nw_transport_auxvar_type) :: nwt_auxvar_up, nwt_auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
@@ -1166,6 +1119,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   PetscReal :: velocity(*)
   type(nw_trans_realization_type), pointer :: nw_trans
   type(option_type) :: option
+  PetscBool :: bc
   PetscReal :: Res_up(nw_trans%params%nspecies)
   PetscReal :: Res_dn(nw_trans%params%nspecies)
   
@@ -1233,20 +1187,30 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! units of q = [m/s]
   q = velocity(LIQUID_PHASE)  ! liquid is the only mobile phase
   ! units of unit_n = [-] unitless
-  unit_n_up = -1 
-  unit_n_dn = +1
+  unit_n_up = -1  
+  unit_n_dn = +1  
   
   ! upstream weighting
-  if (q > 0.d0) then ! q flows from _up to _dn (think: upstream to downstream)
-    Res_up(:) = (unit_n_up*area) * &
-                 (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
-    Res_dn(:) = (unit_n_dn*area) * &
-                 (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
-  else               ! q flows from _dn to _up (think: downstream to upstream)
-    Res_up(:) = (unit_n_up*area) * &
-                 (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
-    Res_dn(:) = (unit_n_dn*area) * &
-                 (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
+  if (.not.bc) then
+    if (q > 0.d0) then ! q flows from _up to _dn (think: upstream to downstream)
+      Res_up(:) = (unit_n_up*area) * &
+                   (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
+      Res_dn(:) = (unit_n_dn*area) * &
+                   (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
+    else               ! q flows from _dn to _up (think: downstream to upstream)
+      Res_up(:) = (unit_n_up*area) * &
+                   (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
+      Res_dn(:) = (unit_n_dn*area) * &
+                   (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
+    endif
+  else ! boundary calculation and there is only Res_dn(:)
+    if (q > 0.d0) then ! q flows into domain
+      Res_dn(:) = (unit_n_dn*area) * &
+                   (q*nwt_auxvar_up%aqueous_eq_conc(:) - diffusive_flux(:))
+    else               ! q flows out of domain
+      Res_dn(:) = (unit_n_dn*area) * &
+                   (q*nwt_auxvar_dn%aqueous_eq_conc(:) - diffusive_flux(:))
+    endif
   endif
 
   deallocate(diffusivity_dn)
@@ -1475,7 +1439,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       
       if (realization%patch%imat(ghosted_id) <= 0) cycle
-          
+      
       call NWTJacobianFlux(nwt_auxvars_bc(sum_connection), &
                       nwt_auxvars(ghosted_id), &
                       global_auxvars_bc(sum_connection), &
