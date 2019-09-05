@@ -1318,70 +1318,11 @@ function UGridExplicitSetInternConnect(explicit_grid,upwind_fraction_method, &
     pt_center(1) = explicit_grid%face_centroids(iconn)%x
     pt_center(2) = explicit_grid%face_centroids(iconn)%y
     pt_center(3) = explicit_grid%face_centroids(iconn)%z
-#if 0
-    v(1) = explicit_grid%cell_centroids(id_dn)%x - &
-           explicit_grid%cell_centroids(id_up)%x
-    v(2) = explicit_grid%cell_centroids(id_dn)%y - &
-           explicit_grid%cell_centroids(id_up)%y
-    v(3) = explicit_grid%cell_centroids(id_dn)%z - &
-           explicit_grid%cell_centroids(id_up)%z
-    ! project upwind vector (vector between upwind cell center and face
-    ! centroid) onto vector between cell centers
-    v_up(1) = explicit_grid%face_centroids(iconn)%x - &
-              explicit_grid%cell_centroids(id_up)%x
-    v_up(2) = explicit_grid%face_centroids(iconn)%y - &
-              explicit_grid%cell_centroids(id_up)%y
-    v_up(3) = explicit_grid%face_centroids(iconn)%z - &
-              explicit_grid%cell_centroids(id_up)%z
-    distance = sqrt(DotProduct(v,v))
-    unit_vector = v / distance
-    v_up_projected = DotProduct(unit_vector,v_up)*unit_vector
-    upwind_fraction = sqrt(DotProduct(v_up_projected,v_up_projected))/distance
-    if (upwind_fraction > 1.d0 .or. minval(v_up*unit_vector) < 0.d0) then
-      error = PETSC_TRUE
-      write(string,'(2(es16.9,","),es16.9)') &
-        explicit_grid%face_centroids(iconn)%x, &
-        explicit_grid%face_centroids(iconn)%y, &
-        explicit_grid%face_centroids(iconn)%z
-      option%io_buffer = 'Face (' // trim(adjustl(string)) // ') cannot &
-        &be projected onto the vector between cell centers ('
-      write(string,'(2(es16.9,","),es16.9)') &
-        explicit_grid%cell_centroids(id_up)%x, &
-        explicit_grid%cell_centroids(id_up)%y, &
-        explicit_grid%cell_centroids(id_up)%z
-      option%io_buffer = trim(option%io_buffer) // trim(adjustl(string)) // &
-        ') and ('
-      write(string,'(2(es16.9,","),es16.9)') &
-        explicit_grid%cell_centroids(id_dn)%x, &
-        explicit_grid%cell_centroids(id_dn)%y, &
-        explicit_grid%cell_centroids(id_dn)%z
-      option%io_buffer = trim(option%io_buffer) // trim(adjustl(string)) // &
-        ').'
-      if (upwind_fraction > 1.d0) then
-        write(string,'(es10.3)') upwind_fraction
-        option%io_buffer = trim(option%io_buffer) // ' Upwind fraction: ' // &
-          trim(adjustl(string)) // ';'
-      endif
-      if (minval(v_up*unit_vector) < 0.d0) then
-        write(string,'(2(es16.9,","),es16.9)') (v_up*unit_vector)
-          option%io_buffer = trim(option%io_buffer) // &
-            ' v_up*unit_vector: (' // &
-            trim(adjustl(string)) // ');'
-      endif
-      option%io_buffer = trim(option%io_buffer) // ' Please check the &
-        &location of the cell centers and face center.'
-      call PrintMsgByRank(option)
-    endif
-    connections%dist(-1,iconn) = upwind_fraction
-    connections%dist(0,iconn) = distance
-    connections%dist(1:3,iconn) = unit_vector
-#else
     call UGridCalculateDist(pt_up,pt_dn,pt_center, &
                             explicit_grid%cell_volumes(id_up), &
                             explicit_grid%cell_volumes(id_dn), &
                             upwind_fraction_method, &
                             connections%dist(:,iconn),error,option)
-#endif
     connections%area(iconn) = explicit_grid%face_areas(iconn)
   enddo
   if (error) then
