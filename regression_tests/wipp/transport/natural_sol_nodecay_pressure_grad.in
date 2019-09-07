@@ -212,7 +212,7 @@ BOUNDARY_CONDITION
 END
 
 !=========================== solver options ===================================
-
+skip
 NEWTON_SOLVER TRANSPORT
   RTOL 1.0d-06
   ATOL 1.0d-25
@@ -222,7 +222,7 @@ TIMESTEPPER TRANSPORT
   TS_ACCELERATION 30
   DT_FACTOR 2. 2. 2. 2. 2. 2. 2. 2. 2. 2. 1.8 1.6 1.4 1.2 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.
 END
-
+noskip
 !=========================== times ============================================
 
 TIME
