@@ -8,7 +8,11 @@ if [ $CMAKE_BUILD -eq 0 ]; then
   cd src/pflotran;
 
   # Run unit tests
-  make codecov=1 utest
+  if [ $MINIMAL_BUILD -eq 0 ]; then
+    make codecov=1 utest
+  else
+    make utest
+  fi
   UNIT_EXIT_CODE=$?
   if [ $UNIT_EXIT_CODE -ne 0 ]; then
     echo "Unit tests failed" >&2
