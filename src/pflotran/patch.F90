@@ -4865,7 +4865,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
-         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
+         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
@@ -5451,11 +5451,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
                 patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                   pres(option%saturation_pressure_id)
             enddo
-          case(STATE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
-            enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
@@ -5670,11 +5665,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
               vec_ptr(local_id) = &
                 patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                   pres(option%saturation_pressure_id)
-            enddo
-          case(STATE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -6242,11 +6232,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
               vec_ptr(local_id) = patch%aux%TOWG%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%bo%bubble_point
             enddo
-          case(STATE)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
-            enddo
           case default
             call PatchUnsupportedVariable('TOWG',ivar,option)
         end select
@@ -6664,6 +6649,11 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
         case default
           call PatchUnsupportedVariable('REACTIVE_TRANSPORT',ivar,option)
       end select
+    case(STATE,PHASE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
+      enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
@@ -6759,12 +6749,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
           option%io_buffer = 'Output of gas phase relative permeability &
             &not supported for current flow mode.'
       end select
-    case(PHASE)
-      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = vec_ptr2(grid%nL2G(local_id))
-      enddo
-      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
     case(MATERIAL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -6889,7 +6873,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
-         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
+         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
@@ -7179,8 +7163,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(SATURATION_PRESSURE)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%saturation_pressure_id)
-          case(STATE)
-            value = patch%aux%Global%auxvars(ghosted_id)%istate
           case(LIQUID_SATURATION)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%liquid_phase)
@@ -7321,8 +7303,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           case(SATURATION_PRESSURE)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%saturation_pressure_id)
-          case(STATE)
-            value = patch%aux%Global%auxvars(ghosted_id)%istate
           case(LIQUID_SATURATION)
             value = patch%aux%Hydrate%auxvars(ZERO_INTEGER,ghosted_id)% &
                       sat(option%liquid_phase)
@@ -7954,6 +7934,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
         case default
           call PatchUnsupportedVariable('REACTIVE_TRANSPORT',ivar,option)
       end select
+    case(STATE,PHASE)
+      value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
@@ -8014,10 +7996,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
           option%io_buffer = 'Output of gas phase relative permeability &
             &not supported for current flow mode.'
       end select
-    case(PHASE)
-      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      value = vec_ptr2(ghosted_id)
-      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(abs(patch%imat(ghosted_id)))
     case(FRACTURE)
@@ -8122,7 +8100,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,HYDRATE_SATURATION,ICE_SATURATION, &
-         LIQUID_MOBILITY,GAS_MOBILITY,STATE)
+         LIQUID_MOBILITY,GAS_MOBILITY)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -8741,11 +8719,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
                 pres(option%capillary_pressure_id) = vec_ptr(local_id)
             enddo
-          case(STATE)
-            do local_id=1,grid%nlmax
-              patch%aux%Global%auxvars(grid%nL2G(local_id))%istate = &
-                int(vec_ptr(local_id)+1.d-10)
-            enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
               patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
@@ -8823,11 +8796,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             do local_id=1,grid%nlmax
               patch%aux%Hydrate%auxvars(ZERO_INTEGER,grid%nL2G(local_id))% &
                 pres(option%capillary_pressure_id) = vec_ptr(local_id)
-            enddo
-          case(STATE)
-            do local_id=1,grid%nlmax
-              patch%aux%Global%auxvars(grid%nL2G(local_id))%istate = &
-                int(vec_ptr(local_id)+1.d-10)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
@@ -9052,6 +9020,11 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
                                       ivar,vec_ptr(ghosted_id))
         enddo
       endif
+    case(STATE,PHASE)
+      do local_id=1,grid%nlmax
+        patch%aux%Global%auxvars(grid%nL2G(local_id))%istate = &
+          int(vec_ptr(local_id)+1.d-10)
+      enddo
     case(VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       option%io_buffer = 'Setting of volume, tortuosity, ' // &
         'soil compressibility or soil reference pressure in ' // &
@@ -9063,18 +9036,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       option%io_buffer = 'Setting of permeability in "PatchSetVariable"' // &
         ' not supported.'
       call PrintErrMsg(option)
-    case(PHASE)
-      if (vec_format == GLOBAL) then
-        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-        do local_id=1,grid%nlmax
-          vec_ptr2(grid%nL2G(local_id)) = vec_ptr(local_id)
-        enddo
-        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      else if (vec_format == LOCAL) then
-        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-        vec_ptr2(1:grid%ngmax) = vec_ptr(1:grid%ngmax)
-        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      endif
     case(MATERIAL_ID)
       !geh: this would require the creation of a permanent mapping between
       !     external and internal material ids, which we want to avoid.

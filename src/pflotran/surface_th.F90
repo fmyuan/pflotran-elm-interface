@@ -1035,7 +1035,7 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
   PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)
   PetscReal :: xxbc(surf_realization%option%nflowdof)
   PetscReal :: xxss(surf_realization%option%nflowdof)
@@ -1277,7 +1277,7 @@ subroutine SurfaceTHUpdateTemperature(surf_realization)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
   PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)
   PetscReal :: xxbc(surf_realization%option%nflowdof)
   PetscReal :: xxss(surf_realization%option%nflowdof)

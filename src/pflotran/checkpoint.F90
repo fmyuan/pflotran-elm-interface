@@ -380,18 +380,13 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that indicates what phases are present, as well as the 'var' vector 
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call DiscretizationLocalToGlobal(realization%discretization, &
-                                         field%iphas_loc,global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      case(G_MODE,TOWG_MODE,H_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case default
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                          global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      case default
     end select 
 
     ! Porosity and permeability.
@@ -478,34 +473,13 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
-        call DiscretizationGlobalToLocal(discretization,global_vec, &
-                                         field%iphas_loc,ONEDOF)
-        call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
-        call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                        field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == TOIL_IMS_MODE) then
-          !iphase value not needed - leave it as initialised
-          ! consider to remove iphase for all ims modes
-        endif
-        if (option%iflowmode == MPH_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == IMS_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == FLASH2_MODE) then
-        ! set vardof vec in mphase
-        endif
-      case(G_MODE,TOWG_MODE,H_MODE) 
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case default
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%work_loc,ONEDOF)
         call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
                                    ZERO_INTEGER)
-      case default
     end select
     
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
@@ -1124,17 +1098,8 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call DiscretizationLocalToGlobal(realization%discretization, &
-                                         field%iphas_loc,global_vec,ONEDOF)
-
-        call DiscretizationGlobalToNatural(discretization, global_vec, &
-                                           natural_vec, ONEDOF)
-        dataset_name = "State" // CHAR(0)
-        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
-            pm_grp_id, H5T_NATIVE_DOUBLE)
-      case(G_MODE,TOWG_MODE,H_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case default
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
         call DiscretizationLocalToGlobal(discretization,field%work_loc, &
@@ -1144,7 +1109,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
         dataset_name = "State" // CHAR(0)
         call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
             pm_grp_id, H5T_NATIVE_DOUBLE)
-       case default
     end select
 
     ! Porosity and permeability.
@@ -1267,27 +1231,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,TH_TS_MODE,RICHARDS_MODE,RICHARDS_TS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,TOIL_IMS_MODE)
-        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
-             pm_grp_id, H5T_NATIVE_DOUBLE)
-        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
-                                           global_vec, ONEDOF)
-        call DiscretizationGlobalToLocal(realization%discretization, &
-                                         global_vec, field%iphas_loc, ONEDOF)
-        call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
-        call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                        field%iphas_old_loc,ONEDOF)
-        if (option%iflowmode == MPH_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == IMS_MODE) then
-        ! set vardof vec in mphase
-        endif
-        if (option%iflowmode == FLASH2_MODE) then
-        ! set vardof vec in mphase
-        endif
-      case(G_MODE,TOWG_MODE,H_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case default
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
         call DiscretizationNaturalToGlobal(discretization, natural_vec, &
@@ -1296,7 +1241,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
                                          global_vec, field%work_loc, ONEDOF)
         call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
                                    ZERO_INTEGER)
-     case default
     end select
 
     ! Porosity and permeability.

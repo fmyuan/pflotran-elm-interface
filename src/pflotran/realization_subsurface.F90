@@ -261,10 +261,6 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%ithrm_loc)
     call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%icap_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_old_loc)
     
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &

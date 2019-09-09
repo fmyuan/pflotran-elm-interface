@@ -604,7 +604,7 @@ subroutine TOilImsUpdateFixedAccum(realization)
 
   PetscInt :: ghosted_id, local_id, local_start, local_end
   PetscInt :: imat
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
 
   PetscReal :: Jdum(realization%option%nflowdof,realization%option%nflowdof)  
