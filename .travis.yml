@@ -55,6 +55,7 @@ script:
 #  - ./.travis/pflotran-interface-build.sh
 #  - ./.travis/pflotran-interface-test.sh
 #  - cat src/clm-pflotran/*.testlog
+  - ./.travis/pflotran-codecov.sh
 
 after_success:
-  - ./.travis/pflotran-codecov.sh
+#  - ./.travis/pflotran-codecov.sh
