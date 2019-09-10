@@ -46,14 +46,15 @@ script:
 #  - echo CC=${CC}
 #  - echo CXX=${CXX}
 #  - echo FC=${FC}
-  - ./.travis/install-petsc.sh
-  - ./.travis/pflotran-build.sh
-  - ./.travis/pflotran-rxn-build.sh
-  - ./.travis/pflotran-test.sh
-  - cat regression_tests/*.testlog
-  - ./.travis/pflotran-interface-build.sh
-  - ./.travis/pflotran-interface-test.sh
-  - cat src/clm-pflotran/*.testlog
+
+#  - ./.travis/install-petsc.sh
+#  - ./.travis/pflotran-build.sh
+#  - ./.travis/pflotran-rxn-build.sh
+#  - ./.travis/pflotran-test.sh
+#  - cat regression_tests/*.testlog
+#  - ./.travis/pflotran-interface-build.sh
+#  - ./.travis/pflotran-interface-test.sh
+#  - cat src/clm-pflotran/*.testlog
 
 after_success:
   - ./.travis/pflotran-codecov.sh
