@@ -59,6 +59,10 @@ module PM_WIPP_Flow_class
     PetscReal :: rotation_ceiling  ! elevation in z
     PetscReal :: rotation_basement ! elevation in z
     character(len=MAXWORDLENGTH), pointer :: rotation_region_names(:)
+    PetscInt, pointer :: auto_pressure_material_ids(:)
+    PetscReal :: auto_pressure_rho_b0
+    PetscReal :: auto_pressure_c_b
+    PetscReal :: auto_pressure_Pb_ref
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
@@ -171,6 +175,10 @@ subroutine PMWIPPFloInitObject(this)
   this%rotation_ceiling = UNINITIALIZED_DOUBLE
   this%rotation_basement = UNINITIALIZED_DOUBLE
   nullify(this%rotation_region_names)
+  nullify(this%auto_pressure_material_ids)
+  this%auto_pressure_rho_b0 = 1220.d0
+  this%auto_pressure_c_b = 3.1d-10
+  this%auto_pressure_Pb_ref = 101325.d0
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
@@ -402,6 +410,26 @@ subroutine PMWIPPFloRead(this,input)
         this%rotation_region_names(:) = strings(:)
         deallocate(strings)
         nullify(strings)
+      case('AUTO_PRESSURE_MATERIAL_IDS')
+        strings => StringSplit(adjustl(input%buf),' ')
+        allocate(this%auto_pressure_material_ids(size(strings)))
+        do temp_int = 1, size(strings)
+          call InputReadInt(strings(temp_int),option, &
+                            this%auto_pressure_material_ids(temp_int), &
+                            input%ierr)
+          call InputErrorMsg(input,option,keyword,error_string)
+        enddo
+        deallocate(strings)
+        nullify(strings)
+      case('AUTO_PRESSURE_RHO_B0')
+        call InputReadDouble(input,option,this%auto_pressure_rho_b0)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESSURE_C_B')
+        call InputReadDouble(input,option,this%auto_pressure_c_b)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESSURE_PB_REF')
+        call InputReadDouble(input,option,this%auto_pressure_Pb_ref)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('JACOBIAN_PRESSURE_DERIV_SCALE')
         call InputReadDouble(input,option,this%linear_system_scaling_factor)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -486,6 +514,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   ! Date: 07/11/17
 
   use Realization_Base_class
+  use Patch_module
+  use WIPP_Flow_module, only : WIPPFloUpdateAuxVars
   use WIPP_Flow_Aux_module
   use Input_Aux_module
   use Dataset_Base_class
@@ -511,16 +541,34 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   type(wippflo_auxvar_type), pointer :: wippflo_auxvars(:,:)
   type(grid_type), pointer :: grid
   type(region_type), pointer :: region
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscReal, pointer :: work_p(:)
   PetscReal, pointer :: work_loc_p(:)
+  PetscReal, pointer :: flow_xx_p(:)
   PetscReal :: h
   PetscReal :: x, z
   PetscInt :: idof, icell, iregion
   PetscInt :: ghosted_id, local_id
+  PetscInt :: imat, nmat_id
+  ! for auto pressure
+  PetscReal :: rhob0
+  PetscReal :: cb
+  PetscReal :: Pbref
+  PetscReal :: zref
+  PetscReal :: Pb0
+  PetscReal :: ze
+  PetscReal :: rhobref
+  PetscReal :: Phiref
+  PetscReal :: rhob
+  PetscReal :: Pb
+  PetscReal, parameter :: gravity = 9.80665d0
 
-  grid => this%realization%patch%grid
+  patch => this%realization%patch
+  grid => patch%grid
   field => this%realization%field
+  option => this%option
 
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(field%work,SIX_INTEGER,field%max_change_vecs, &
@@ -535,12 +583,12 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   call PMSubsurfaceFlowInitializeRun(this)
   
   ! look for WIPP_SOURCE_SINK block 
-  input => InputCreate(IN_UNIT,this%option%input_filename,this%option)
+  input => InputCreate(IN_UNIT,option%input_filename,option)
   block_string = 'WIPP_SOURCE_SINK'
-  call InputFindStringInFile(input,this%option,block_string)
+  call InputFindStringInFile(input,option,block_string)
   if (input%ierr == 0 .and. wippflo_use_gas_generation) then
     this%pmwss_ptr => PMWSSCreate()
-    this%pmwss_ptr%option => this%option
+    this%pmwss_ptr%option => option
     call this%pmwss_ptr%ReadPMBlock(input)
   endif
   ! call setup/initialization of all WIPP process models
@@ -555,7 +603,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     string = 'BRAGFLO ALPHA Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%alpha_dataset_name, &
-                                     string,this%option)
+                                     string,option)
     select type(d => dataset)
       class is(dataset_common_hdf5_type)
         string2 = ''
@@ -566,34 +614,34 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           string2, &
                                           string, &
                                           d%realization_dependent)
-        wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+        wippflo_auxvars => patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
         call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
-        do ghosted_id = 1, this%realization%patch%grid%ngmax
-          do idof = 0, this%option%nflowdof
+        do ghosted_id = 1, grid%ngmax
+          do idof = 0, option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%alpha = work_loc_p(ghosted_id)
           enddo
         enddo
         call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
-        this%option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
-        call PrintErrMsg(this%option)
+        option%io_buffer = 'Unsupported dataset type for BRAGFLO ALPHA.'
+        call PrintErrMsg(option)
     end select
   else
     if (.not.wippflo_default_alpha .and. wippflo_use_lumped_harm_flux) then
-      this%option%io_buffer = 'ALPHA should have been read from a dataset.'
-      call PrintErrMsg(this%option)
+      option%io_buffer = 'ALPHA should have been read from a dataset.'
+      call PrintErrMsg(option)
     endif
   endif
 
   ! read in elevations
-  wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+  wippflo_auxvars => patch%aux%WIPPFlo%auxvars
   if (len_trim(this%elevation_dataset_name) > 0) then
     string = 'BRAGFLO Elevation Dataset'
     dataset => DatasetBaseGetPointer(this%realization%datasets, &
                                      this%elevation_dataset_name, &
-                                     string,this%option)
+                                     string,option)
     select type(d => dataset)
       class is(dataset_common_hdf5_type)
         string2 = ''
@@ -604,11 +652,11 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                                           string2, &
                                           string, &
                                           d%realization_dependent)
-        wippflo_auxvars => this%realization%patch%aux%WIPPFlo%auxvars
+        wippflo_auxvars => patch%aux%WIPPFlo%auxvars
         call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
         call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
-        do ghosted_id = 1, this%realization%patch%grid%ngmax
-          do idof = 0, this%option%nflowdof
+        do ghosted_id = 1, patch%grid%ngmax
+          do idof = 0, option%nflowdof
             wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
           enddo
           !geh: remove after 9/30/19
@@ -617,41 +665,40 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         call VecRestoreArrayReadF90(field%work_loc, &
                                     work_loc_p,ierr);CHKERRQ(ierr)
       class default
-        this%option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
+        option%io_buffer = 'Unsupported dataset type for WIPP FLOW &
           &Elevation.'
-        call PrintErrMsg(this%option)
+        call PrintErrMsg(option)
     end select
   else if (Initialized(this%rotation_angle)) then
     if (.not.Initialized(this%rotation_origin(3))) then
-      this%option%io_buffer = 'An origin must be defined for dip rotation.'
-      call PrintErrMsg(this%option)
+      option%io_buffer = 'An origin must be defined for dip rotation.'
+      call PrintErrMsg(option)
     endif
     call VecGetArrayF90(field%work,work_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       z = grid%z(ghosted_id)
       if (z > this%rotation_ceiling .or. z < this%rotation_basement) then
-        h = z
+        work_p(local_id) = z
       else
         x = grid%x(ghosted_id)
         ! from PA.33 in CRA2014 appendix
         h = (x-this%rotation_origin(1))* &
             sin(this%rotation_angle) + &
             (z-this%rotation_origin(3))* &
-            cos(this%rotation_angle) + &
-            this%rotation_origin(3)
+            cos(this%rotation_angle)
+        work_p(local_id) = h + this%rotation_origin(3)
       endif
-      work_p(local_id) = h
     enddo
     if (associated(this%rotation_region_names)) then
       do iregion = 1, size(this%rotation_region_names)
         region => RegionGetPtrFromList(this%rotation_region_names(iregion), &
-                                       this%realization%patch%region_list)
+                                       patch%region_list)
         if (.not.associated(region)) then
-          this%option%io_buffer = 'Region "' // &
+          option%io_buffer = 'Region "' // &
                trim(this%rotation_region_names(iregion)) // &
                '" in WIPP FLOW Elevation definition not found in region list'
-          call PrintErrMsg(this%option)
+          call PrintErrMsg(option)
         endif
         do icell = 1, region%num_cells
           local_id = region%cell_ids(icell)
@@ -662,10 +709,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
           h = (x-this%rotation_origin(1))* &
               sin(this%rotation_angle) + &
               (z-this%rotation_origin(3))* &
-              cos(this%rotation_angle) + &
-              this%rotation_origin(3)
-          
-          work_p(local_id) = h
+              cos(this%rotation_angle)
+          work_p(local_id) = h + this%rotation_origin(3)
         enddo
       enddo
     endif
@@ -673,7 +718,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
     call VecGetArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax 
-      do idof = 0, this%option%nflowdof
+      do idof = 0, option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = work_loc_p(ghosted_id)
       enddo
       !geh: remove after 9/30/19
@@ -682,14 +727,58 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     call VecRestoreArrayReadF90(field%work_loc,work_loc_p,ierr);CHKERRQ(ierr)
   else ! or set them baesd on grid cell elevation
     do ghosted_id = 1, grid%ngmax
-      do idof = 0, this%option%nflowdof
+      do idof = 0, option%nflowdof
         wippflo_auxvars(idof,ghosted_id)%elevation = grid%z(ghosted_id)
       enddo
     enddo
   endif
+  ! auto pressures by material id
+  if (associated(this%auto_pressure_material_ids)) then
+    rhob0 = this%auto_pressure_rho_b0
+    cb = this%auto_pressure_c_b
+    Pbref = this%auto_pressure_Pb_ref
+    if (.not.Initialized(this%rotation_origin(3)) .or. &
+        .not.Initialized(this%rotation_angle)) then
+      option%io_buffer = 'DIP_ROTATION_ORIGIN and DIP_ROTATION_ANGLE must be &
+        &initialized under WIPP_FLOW,OPTIONS.'
+      call PrintErrMsg(option)
+    endif
+    zref = this%rotation_origin(3)
+    call VecGetArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
+    nmat_id = size(this%auto_pressure_material_ids)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      imat = patch%imat(ghosted_id)
+      do i = 1, nmat_id
+        if (imat == this%auto_pressure_material_ids(i)) exit
+      enddo
+      ! if found, i <= nmatid; otherwise i = nmat+1
+      if (i <= nmat_id) then
+        x = grid%x(ghosted_id)
+        z = grid%z(ghosted_id)
+        ! All questions from CRA2014 Appendix PA
+        h = (x-this%rotation_origin(1))* &  ! PA.33
+            sin(this%rotation_angle) + &
+            (z-this%rotation_origin(3))* &
+            cos(this%rotation_angle)
+        Pb0 = flow_xx_p((local_id-1)*2+WIPPFLO_LIQUID_PRESSURE_DOF)
+        ze = zref + h                                                ! PA.57
+        rhobref = rhob0*exp(-cb*(Pbref-Pb0))                         ! PA.56
+        Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
+        rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
+        Pb = Pbref + 1.d0/cb*log(rhob/rhob0)                         ! PA.53
+        flow_xx_p((local_id-1)*2+WIPPFLO_LIQUID_PRESSURE_DOF) = Pb
+      endif
+    enddo
+    call VecRestoreArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
+    ! have to ensure the auxvars are updated for initial condition output
+    call DiscretizationGlobalToLocal(this%realization%discretization, &
+                                     field%flow_xx,field%flow_xx_loc,NFLOWDOF)
+    call WIPPFloUpdateAuxVars(this%realization)
+  endif
 
   call DiscretizationCreateVector(this%realization%discretization,NFLOWDOF, &
-                                  this%scaling_vec,GLOBAL,this%option)
+                                  this%scaling_vec,GLOBAL,option)
   call VecDuplicate(this%scaling_vec,this%stored_residual_vec, &
                     ierr);CHKERRQ(ierr)
 
@@ -2159,6 +2248,7 @@ subroutine PMWIPPFloDestroy(this)
 
   call DeallocateArray(this%max_change_ivar)
   call DeallocateArray(this%rotation_region_names)
+  call DeallocateArray(this%auto_pressure_material_ids)
   if (this%stored_residual_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%stored_residual_vec,ierr);CHKERRQ(ierr)
   endif

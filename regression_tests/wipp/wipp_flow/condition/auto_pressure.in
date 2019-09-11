@@ -1,0 +1,181 @@
+#Description: test auto pressure calculation functionality
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE WIPP_FLOW
+      OPTIONS
+        DEFAULT_ALPHA
+        DIP_ROTATION_ANGLE 1.d0
+        DIP_ROTATION_ORIGIN 5.d0 0.5d0 5.d0
+        AUTO_PRESSURE_MATERIAL_IDS 2 3
+        AUTO_PRESSURE_RHO_B0 1400.d0
+        AUTO_PRESSURE_C_B 2.9d-10
+        AUTO_PRESSURE_PB_REF 2.d5
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== flow mode ========================================
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 8
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 2 1 2
+  BOUNDS
+    0.d0 0.d0 0.d0
+    20.d0 1.d0 20.d0
+  /
+END
+
+#=========================== solver options ===================================
+TIMESTEPPER FLOW
+  MAXIMUM_NUMBER_OF_TIMESTEPS 0
+END
+
+#=========================== datasets =========================================
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+EOS WATER
+  DENSITY BRAGFLO 1.220000d+03 1.013250d+05 3.100000d-10
+  VISCOSITY CONSTANT 2.100000d-03
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY  soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY  auto_pressure
+  ID 2
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+MATERIAL_PROPERTY  auto_pressure2
+  ID 3
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+#  TEST
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    GAS_RESIDUAL_SATURATION 1.d-40
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
+
+#=========================== output options ===================================
+OUTPUT
+  VARIABLES
+    LIQUID_PRESSURE
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1. y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 0.01d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+REGION top_west
+  COORDINATES
+    0.d0 0.d0 10.d0
+    10.d0 0.d0 20.d0
+  /
+END
+
+REGION top_east
+  COORDINATES
+    10.d0 0.d0 10.d0
+    20.d0 0.d0 20.d0
+  /
+END
+
+#=========================== observation points ===============================
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial 
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    GAS_SATURATION DIRICHLET
+  /
+  LIQUID_PRESSURE 1.d6
+  GAS_SATURATION 0.d0
+/
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+/
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+STRATA
+  MATERIAL auto_pressure
+  REGION top_west
+/
+
+STRATA
+  MATERIAL auto_pressure2
+  REGION top_east
+/
+
+END_SUBSURFACE
