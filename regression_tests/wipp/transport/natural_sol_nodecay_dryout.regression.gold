@@ -18,11 +18,16 @@
       Min:   9.9999996929878E-01
      Mean:   9.9999999190289E-01
         3:   9.9999999839070E-01
--- PRESSURE: Capillary Pressure --
-      Max:   0.0000000000000E+00
-      Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
-        3:   0.0000000000000E+00
+-- GENERIC: Liquid Density --
+      Max:   1.2205326494618E+03
+      Min:   1.2205308306047E+03
+     Mean:   1.2205317396705E+03
+        3:   1.2205317393077E+03
+-- GENERIC: Gas Density --
+      Max:   1.2274380784050E+00
+      Min:   1.2235289168882E+00
+     Mean:   1.2254827182586E+00
+        3:   1.2254819388742E+00
 -- CONCENTRATION: Total Bulk Conc. AM241L --
       Max:   3.0045364234025E-02
       Min:   2.9813964413317E-02
@@ -78,12 +83,8 @@
       Min:         3
      Mean:   3.0000000000000E+00
         3:         3
--- GENERIC: LIQUID VELOCITY [m/yr] --
-        3:   0.0000000000000E+00 -3.6667049525441E-07  0.0000000000000E+00
--- GENERIC: GAS VELOCITY [m/yr] --
-        3:   0.0000000000000E+00  5.1999393890147E-07  0.0000000000000E+00
 -- SOLUTION: Flow --
-   Time (seconds):   1.8527340888977E-01
+   Time (seconds):   3.9641618728638E-02
    Time Steps:          111
    Newton Iterations:          167
    Solver Iterations:          167
