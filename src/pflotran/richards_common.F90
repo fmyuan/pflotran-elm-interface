@@ -515,9 +515,9 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
-         HET_SURF_SEEPAGE_BC, &
-         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC, &
+         DIRICHLET_SEEPAGE_BC,HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
@@ -553,8 +553,9 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_dn%dden_dp
 
         select case(pressure_bc_type)
-          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
-               HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+          case(HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+               HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+               HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
@@ -580,7 +581,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ! not exceed depth of standing water.
           if (option%surf_flow_on) then
           if (Equal(rich_auxvar_dn%vars_for_sflow(11),0.d0)) then
-            if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. &
+            if (pressure_bc_type == HET_SURF_HYDROSTATIC_SEEPAGE_BC .and. &
                 option%surf_flow_on) then
               call EOSWaterdensity(option%reference_temperature, &
                                    option%reference_pressure,rho,dum1,ierr)
@@ -790,9 +791,9 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
-         HET_SURF_SEEPAGE_BC, &
-         HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC, &
+         DIRICHLET_SEEPAGE_BC,HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
@@ -823,8 +824,9 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
         select case(pressure_bc_type)
-          case(SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
-               HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+          case(HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+               HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+               HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
@@ -844,7 +846,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water.
-        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. &
+        if (pressure_bc_type == HET_SURF_HYDROSTATIC_SEEPAGE_BC .and. &
             option%surf_flow_on) then
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)

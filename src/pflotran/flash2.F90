@@ -1660,7 +1660,7 @@ subroutine Flash2BCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   do np = 1, option%nphase  
     select case(ibndtype(1))
         ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
       Dq = perm_dn / dd_up
         ! Flow term
       ukvr=0.D0
@@ -1811,7 +1811,7 @@ subroutine Flash2BCFluxAdv(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   do np = 1, option%nphase  
     select case(ibndtype(1))
         ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
       Dq = perm_dn / dd_up
         ! Flow term
       ukvr = 0.D0

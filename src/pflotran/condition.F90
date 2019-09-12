@@ -1338,7 +1338,9 @@ subroutine FlowConditionRead(condition,input,option)
             case('well','production_well', 'injection_well')
               sub_condition_ptr%itype = WELL_SS
             case('seepage')
-              sub_condition_ptr%itype = SEEPAGE_BC
+              sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
+            case('dirichlet_seepage')
+              sub_condition_ptr%itype = DIRICHLET_SEEPAGE_BC
             case('volumetric_rate')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_unit_string = 'm^3/sec'
@@ -1360,11 +1362,11 @@ subroutine FlowConditionRead(condition,input,option)
             case('heterogeneous_dirichlet')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_seepage')
-              sub_condition_ptr%itype = HET_SEEPAGE_BC
+              sub_condition_ptr%itype = HET_HYDROSTATIC_SEEPAGE_BC
             case('heterogeneous_conductance')
               sub_condition_ptr%itype = HET_CONDUCTANCE_BC
             case('heterogeneous_surface_seepage')
-              sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
+              sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case('spillover')
               sub_condition_ptr%itype = SPILLOVER_BC
             case('surface_dirichlet')
@@ -1515,6 +1517,18 @@ subroutine FlowConditionRead(condition,input,option)
     condition%iphase = default_iphase
   endif
 
+  !geh: simple check to ensure that DIRICHLET_SEEPAGE is only used in TH and
+  !     RICHARDS
+  select case(option%iflowmode)
+    case(RICHARDS_MODE,TH_MODE)
+    case default
+      if (pressure%itype == DIRICHLET_SEEPAGE_BC) then
+        option%io_buffer = 'DIRICHLET_SEEPAGE_BC only supported for RICHARDS &
+          &and TH.'
+        call PrintErrMsg(option)
+      endif
+  end select
+
   ! datum is not required
   string = trim(condition%name) // '/' // 'Datum'
   call DatasetVerify(condition%datum,default_time_storage,string,option)
@@ -1523,8 +1537,9 @@ subroutine FlowConditionRead(condition,input,option)
   if (associated(rate)) then
     select case(rate%itype)
       case(DIRICHLET_BC,NEUMANN_BC,HYDROSTATIC_BC,UNIT_GRADIENT_BC, &
-           CONDUCTANCE_BC,ZERO_GRADIENT_BC,SEEPAGE_BC,SURFACE_DIRICHLET, &
-           SURFACE_SPILLOVER,HET_DIRICHLET_BC,HET_SEEPAGE_BC,&
+           CONDUCTANCE_BC,ZERO_GRADIENT_BC,HYDROSTATIC_SEEPAGE_BC, &
+           DIRICHLET_SEEPAGE_BC,SURFACE_DIRICHLET, &
+           SURFACE_SPILLOVER,HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,&
            HET_CONDUCTANCE_BC)
         option%io_buffer = 'RATE condition must not be of type: dirichlet, &
           &neumann, zero_gradient, dirichlet_zero_gradient, hydrostatic, &
@@ -2008,7 +2023,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             case('conductance')
               sub_condition_ptr%itype = CONDUCTANCE_BC
             case('seepage')
-              sub_condition_ptr%itype = SEEPAGE_BC
+              sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
@@ -2079,7 +2094,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             case('heterogeneous_dirichlet')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_surface_seepage')
-              sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
+              sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case default
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
@@ -2535,7 +2550,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
             case('conductance')
               sub_condition_ptr%itype = CONDUCTANCE_BC
             case('seepage')
-              sub_condition_ptr%itype = SEEPAGE_BC
+              sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
@@ -2606,7 +2621,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
             case('heterogeneous_dirichlet')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_surface_seepage')
-              sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
+              sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case default
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
@@ -3063,7 +3078,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             case('conductance')
               sub_condition_ptr%itype = CONDUCTANCE_BC
             case('seepage')
-              sub_condition_ptr%itype = SEEPAGE_BC
+              sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
             case('zero_gradient')
               sub_condition_ptr%itype = ZERO_GRADIENT_BC
             case('mass_rate')
@@ -3133,7 +3148,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             case('heterogeneous_dirichlet')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case('heterogeneous_surface_seepage')
-              sub_condition_ptr%itype = HET_SURF_SEEPAGE_BC
+              sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case('bhp')
               sub_condition_ptr%itype = WELL_BHP
             case('bhp_min')
@@ -3585,7 +3600,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             case('conductance')
               sub_condition_ptr%itype = CONDUCTANCE_BC
             case('seepage')
-              sub_condition_ptr%itype = SEEPAGE_BC
+              sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
@@ -4948,8 +4963,10 @@ function GetSubConditionName(subcon_itype)
       string = 'conductance'
     case(ZERO_GRADIENT_BC)
       string = 'zero gradient'
-    case(SEEPAGE_BC)
+    case(HYDROSTATIC_SEEPAGE_BC)
       string = 'seepage'
+    case(DIRICHLET_SEEPAGE_BC)
+      string = 'dirichlet seepage'
     case(VOLUMETRIC_RATE_SS)
       string = 'volumetric rate'
     case(EQUILIBRIUM_SS)
@@ -4966,7 +4983,7 @@ function GetSubConditionName(subcon_itype)
       string = 'heterogeneous mass rate'
     case(HET_DIRICHLET_BC)
       string = 'heterogeneous dirichlet'
-    case(HET_SEEPAGE_BC)
+    case(HET_HYDROSTATIC_SEEPAGE_BC)
       string = 'heterogeneous seepage'
     case(HET_CONDUCTANCE_BC)
       string = 'heterogeneous conductance'
@@ -4976,7 +4993,7 @@ function GetSubConditionName(subcon_itype)
       string = 'scaled energy rate'
     case(HET_ENERGY_RATE_SS)
       string = 'heterogeneous energy rate'
-    case(HET_SURF_SEEPAGE_BC)
+    case(HET_SURF_HYDROSTATIC_SEEPAGE_BC)
       string = 'heterogeneous surface seepage'
     case(SPILLOVER_BC)
       string = 'spillover'

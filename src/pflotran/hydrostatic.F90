@@ -554,7 +554,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       case(TOIL_IMS_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case default
-        if (condition%pressure%itype == SEEPAGE_BC) then
+        if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%reference_pressure)
         else if (condition%pressure%itype == CONDUCTANCE_BC) then
