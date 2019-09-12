@@ -1,6 +1,8 @@
 module NWT_Equilibrium_module
 
-#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use NW_Transport_Aux_module
 
@@ -62,9 +64,9 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
   
   ! jenn:todo Why do I get weird PETSC_FALSE/TRUE compile error here?
   if (sat > 0.d0) then
-    dry_out = 0
+    dry_out = PETSC_FALSE
   else
-    dry_out = 1
+    dry_out = PETSC_TRUE
   endif
   
   do ispecies = 1,nw_trans%params%nspecies
