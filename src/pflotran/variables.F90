@@ -165,12 +165,10 @@ module Variables_module
 
   PetscInt, parameter, public :: HYDRATE_SATURATION      = 134
   
-  PetscInt, parameter, public :: AQUEOUS_EQ_CONC         = 1001
-  PetscInt, parameter, public :: MNRL_EQ_CONC            = 1002
-  PetscInt, parameter, public :: SORB_EQ_CONC            = 1003
-  PetscInt, parameter, public :: TOTAL_BULK_CONC         = 1004
-  PetscInt, parameter, public :: MNRL_VOLUME_FRACTION    = 1005
-  
-  
+  PetscInt, parameter, public :: AQUEOUS_EQ_CONC         = 135
+  PetscInt, parameter, public :: MNRL_EQ_CONC            = 136
+  PetscInt, parameter, public :: SORB_EQ_CONC            = 137
+  PetscInt, parameter, public :: TOTAL_BULK_CONC         = 138
+  PetscInt, parameter, public :: MNRL_VOLUME_FRACTION    = 139
 
 end module Variables_module
