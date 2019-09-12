@@ -1061,7 +1061,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 
   PetscInt :: ghosted_id, local_id
   PetscInt :: numfaces, jface, ghost_face_id, j, region_id
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Res(1)
   PetscErrorCode :: ierr
@@ -1378,8 +1378,6 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before RichardsUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                  field%iphas_loc,ONEDOF)
 
   call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
