@@ -113,6 +113,7 @@ END
 OUTPUT
   VARIABLES
     LIQUID_PRESSURE
+    GAS_SATURATION
   /
 END
 
@@ -153,7 +154,7 @@ FLOW_CONDITION initial
     GAS_SATURATION DIRICHLET
   /
   LIQUID_PRESSURE 1.d6
-  GAS_SATURATION 0.d0
+  GAS_SATURATION 0.5d0
 /
 
 #=========================== condition couplers ===============================

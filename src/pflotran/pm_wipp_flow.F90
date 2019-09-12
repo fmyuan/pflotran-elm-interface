@@ -551,7 +551,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal :: x, z
   PetscInt :: idof, icell, iregion
   PetscInt :: ghosted_id, local_id
-  PetscInt :: imat, nmat_id
+  PetscInt :: imat, nmat_id, ndof
   ! for auto pressure
   PetscReal :: rhob0
   PetscReal :: cb
@@ -734,6 +734,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   endif
   ! auto pressures by material id
   if (associated(this%auto_pressure_material_ids)) then
+    ndof = option%nflowdof
     rhob0 = this%auto_pressure_rho_b0
     cb = this%auto_pressure_c_b
     Pbref = this%auto_pressure_Pb_ref
@@ -767,7 +768,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
         rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
         Pb = Pbref + 1.d0/cb*log(rhob/rhob0)                         ! PA.53
-        flow_xx_p((local_id-1)*2+WIPPFLO_LIQUID_PRESSURE_DOF) = Pb
+        flow_xx_p((local_id-1)*ndof+WIPPFLO_LIQUID_PRESSURE_DOF) = Pb
+        flow_xx_p((local_id-1)*ndof+WIPPFLO_GAS_SATURATION_DOF) = 0.d0
       endif
     enddo
     call VecRestoreArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
