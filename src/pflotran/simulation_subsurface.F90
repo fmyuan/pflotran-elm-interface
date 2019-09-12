@@ -384,6 +384,9 @@ subroutine SubsurfaceFinalizeRun(this)
     call RSandboxDestroy()
     call RCLMRxnDestroy()
   endif
+  if (associated(this%nwt_process_model_coupler)) then
+    tran_timestepper => this%nwt_process_model_coupler%timestepper
+  endif
   
   call RegressionOutput(this%regression,this%realization, &
                         flow_timestepper,tran_timestepper)  

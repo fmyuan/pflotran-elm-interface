@@ -10,6 +10,7 @@ module Condition_module
   use Dataset_Ascii_class
   use Time_Storage_module
   use Lookup_Table_module
+  use NWT_Constraint_module
 
   use Transport_Constraint_module
 !  use Reaction_Surface_Complexation_Aux_module
@@ -162,6 +163,8 @@ module Condition_module
     character(len=MAXWORDLENGTH) :: name  ! name of condition (e.g. initial, recharge)
     type(tran_constraint_coupler_type), pointer :: constraint_coupler_list
     type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
+    type(nwt_constraint_coupler_type), pointer :: nwt_constraint_coupler_list
+    type(nwt_constraint_coupler_type), pointer :: cur_nwt_constraint_coupler
     type(tran_condition_type), pointer :: next
   end type tran_condition_type
 
@@ -188,6 +191,7 @@ module Condition_module
             TranConditionDestroyList, TranConditionGetPtrFromList, &
             TranConditionRead, &
             TranConditionUpdate, &
+            NWTConditionUpdate, &
             FlowConditionIsTransient, &
             ConditionReadValues, &
             GetSubConditionName, &
@@ -272,6 +276,8 @@ function TranConditionCreate(option)
   allocate(condition)
   nullify(condition%constraint_coupler_list)
   nullify(condition%cur_constraint_coupler)
+  nullify(condition%nwt_constraint_coupler_list)
+  nullify(condition%cur_nwt_constraint_coupler)
   nullify(condition%next)
   condition%id = 0
   condition%itype = 0
@@ -4434,8 +4440,9 @@ end subroutine FlowConditionCommonRead
 
 ! ************************************************************************** !
 
-subroutine TranConditionRead(condition,constraint_list,reaction,nw_trans, &
-                             rt_on,input,option)
+subroutine TranConditionRead(condition,tran_constraint_list, &
+                             nwt_constraint_list,reaction,nw_trans, &
+                             input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -4450,19 +4457,24 @@ subroutine TranConditionRead(condition,constraint_list,reaction,nw_trans, &
   use Units_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
+  use NWT_Constraint_module
 
   implicit none
 
   type(tran_condition_type) :: condition
-  type(tran_constraint_list_type) :: constraint_list
+  type(tran_constraint_list_type) :: tran_constraint_list
+  type(nwt_constraint_list_type) :: nwt_constraint_list
   type(reaction_type), pointer :: reaction
   type(nw_trans_realization_type), pointer :: nw_trans
-  PetscBool :: rt_on
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  type(tran_constraint_type), pointer :: constraint
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler, cur_coupler
+  type(tran_constraint_type), pointer :: tran_constraint
+  type(tran_constraint_coupler_type), pointer :: tran_constraint_coupler 
+  type(tran_constraint_coupler_type), pointer :: cur_tran_coupler
+  type(nwt_constraint_type), pointer :: nwt_constraint
+  type(nwt_constraint_coupler_type), pointer :: nwt_constraint_coupler 
+  type(nwt_constraint_coupler_type), pointer :: cur_nwt_coupler
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
@@ -4530,93 +4542,175 @@ subroutine TranConditionRead(condition,constraint_list,reaction,nw_trans, &
 
           if (InputCheckExit(input,option)) exit
 
-          constraint_coupler => TranConstraintCouplerCreate(option)
-          call InputReadDouble(input,option,constraint_coupler%time)
-          call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
-          ! time units are optional
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
-          ! read constraint name
-          call InputReadWord(input,option,constraint_coupler%constraint_name, &
-                             PETSC_TRUE)
-          if (InputError(input)) then
-            constraint_coupler%time_units = default_time_units
-            constraint_coupler%constraint_name = trim(word)
-          else
-            constraint_coupler%time_units = word
+          if (associated(reaction)) then
+            tran_constraint_coupler => TranConstraintCouplerCreate(option)
+            call InputReadDouble(input,option,tran_constraint_coupler%time)
+            call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
+            ! time units are optional
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
+            ! read constraint name
+            call InputReadWord(input,option, &
+                               tran_constraint_coupler%constraint_name, &
+                               PETSC_TRUE)
+            if (InputError(input)) then
+              tran_constraint_coupler%time_units = default_time_units
+              tran_constraint_coupler%constraint_name = trim(word)
+            else
+              tran_constraint_coupler%time_units = word
+            endif
+            ! convert time units
+            if (len_trim(tran_constraint_coupler%time_units) > 0) then
+              internal_units = 'sec'
+              tran_constraint_coupler%time = tran_constraint_coupler%time* &
+                UnitsConvertToInternal(tran_constraint_coupler%time_units, &
+                                       internal_units,option)
+            endif
+            ! add to end of list
+            if (.not.associated(condition%constraint_coupler_list)) then
+              condition%constraint_coupler_list => tran_constraint_coupler
+            else
+              cur_tran_coupler => condition%constraint_coupler_list
+              do
+                if (.not.associated(cur_tran_coupler%next)) exit
+                cur_tran_coupler => cur_tran_coupler%next
+              enddo
+              cur_tran_coupler%next => tran_constraint_coupler
+            endif
           endif
-          ! convert time units
-          if (len_trim(constraint_coupler%time_units) > 0) then
-            internal_units = 'sec'
-            constraint_coupler%time = constraint_coupler%time* &
-              UnitsConvertToInternal(constraint_coupler%time_units, &
-                                     internal_units,option)
-          endif
-          ! add to end of list
-          if (.not.associated(condition%constraint_coupler_list)) then
-            condition%constraint_coupler_list => constraint_coupler
-          else
-            cur_coupler => condition%constraint_coupler_list
-            do
-              if (.not.associated(cur_coupler%next)) exit
-              cur_coupler => cur_coupler%next
-            enddo
-            cur_coupler%next => constraint_coupler
+          if (associated(nw_trans)) then
+            nwt_constraint_coupler => NWTConstraintCouplerCreate(option)
+            call InputReadDouble(input,option,nwt_constraint_coupler%time)
+            call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
+            ! time units are optional
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
+            ! read constraint name
+            call InputReadWord(input,option, &
+                               nwt_constraint_coupler%constraint_name, &
+                               PETSC_TRUE)
+            if (InputError(input)) then
+              nwt_constraint_coupler%time_units = default_time_units
+              nwt_constraint_coupler%constraint_name = trim(word)
+            else
+              nwt_constraint_coupler%time_units = word
+            endif
+            ! convert time units
+            if (len_trim(nwt_constraint_coupler%time_units) > 0) then
+              internal_units = 'sec'
+              nwt_constraint_coupler%time = nwt_constraint_coupler%time* &
+                UnitsConvertToInternal(nwt_constraint_coupler%time_units, &
+                                       internal_units,option)
+            endif
+            ! add to end of list
+            if (.not.associated(condition%nwt_constraint_coupler_list)) then
+              condition%nwt_constraint_coupler_list => nwt_constraint_coupler
+            else
+              cur_nwt_coupler => condition%nwt_constraint_coupler_list
+              do
+                if (.not.associated(cur_nwt_coupler%next)) exit
+                cur_nwt_coupler => cur_nwt_coupler%next
+              enddo
+              cur_nwt_coupler%next => nwt_constraint_coupler
+            endif
           endif
         enddo
+        
       case('CONSTRAINT')
-        constraint => TranConstraintCreate(option)
-        constraint_coupler => TranConstraintCouplerCreate(option)
-        call InputReadWord(input,option,constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'constraint','name')
-        option%io_buffer = 'Constraint: ' // trim(constraint%name)
-        call PrintMsg(option)
-        if (rt_on) then
-          call TranConstraintReadRT(constraint,reaction,input,option)
-        else
-#if 0
-!geh: breaks pflotran_rxn build
-          call TranConstraintReadNWT(constraint,nw_trans,input,option)
-#endif
+        if (associated(reaction)) then
+          tran_constraint => TranConstraintCreate(option)
+          tran_constraint_coupler => TranConstraintCouplerCreate(option)
+          call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint','name')
+          option%io_buffer = 'Constraint: ' // trim(tran_constraint%name)
+          call PrintMsg(option)
+          call TranConstraintRead(tran_constraint,reaction,input,option)
+          call TranConstraintAddToList(tran_constraint,tran_constraint_list)
+          call TranConstraintMapToCoupler(tran_constraint_coupler, &
+                                          tran_constraint)
+          tran_constraint_coupler%time = 0.d0
+          ! add to end of coupler list
+          if (.not.associated(condition%constraint_coupler_list)) then
+            condition%constraint_coupler_list => tran_constraint_coupler
+          else
+            cur_tran_coupler => condition%constraint_coupler_list
+            do
+              if (.not.associated(cur_tran_coupler%next)) exit
+              cur_tran_coupler => cur_tran_coupler%next
+            enddo
+            cur_tran_coupler%next => tran_constraint_coupler
+          endif
         endif
-        call TranConstraintAddToList(constraint,constraint_list)
-        call TranConstraintMapToCoupler(constraint_coupler,constraint)
-        constraint_coupler%time = 0.d0
-        ! add to end of coupler list
-        if (.not.associated(condition%constraint_coupler_list)) then
-          condition%constraint_coupler_list => constraint_coupler
-        else
-          cur_coupler => condition%constraint_coupler_list
-          do
-            if (.not.associated(cur_coupler%next)) exit
-            cur_coupler => cur_coupler%next
-          enddo
-          cur_coupler%next => constraint_coupler
+        if (associated(nw_trans)) then
+          nwt_constraint => NWTConstraintCreate(option)
+          nwt_constraint_coupler => NWTConstraintCouplerCreate(option)
+          call InputReadWord(input,option,nwt_constraint%name,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint','name')
+          option%io_buffer = 'Constraint: ' // trim(nwt_constraint%name)
+          call PrintMsg(option)
+          call NWTConstraintRead(nwt_constraint,nw_trans,input,option)
+          call NWTConstraintAddToList(nwt_constraint,nwt_constraint_list)
+          call NWTConstraintMapToCoupler(nwt_constraint_coupler,nwt_constraint)
+          nwt_constraint_coupler%time = 0.d0
+          ! add to end of coupler list
+          if (.not.associated(condition%nwt_constraint_coupler_list)) then
+            condition%nwt_constraint_coupler_list => nwt_constraint_coupler
+          else
+            cur_nwt_coupler => condition%nwt_constraint_coupler_list
+            do
+              if (.not.associated(cur_nwt_coupler%next)) exit
+              cur_nwt_coupler => cur_nwt_coupler%next
+            enddo
+            cur_nwt_coupler%next => nwt_constraint_coupler
+          endif
         endif
+
       case default
         call InputKeywordUnrecognized(word,'transport condition',option)
     end select
 
   enddo
 
-  if (.not.associated(condition%constraint_coupler_list)) then
-    option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
-                       &Transport Condition "' // trim(condition%name) // '".'
-    call PrintErrMsg(option)
+  if (associated(reaction)) then
+    if (.not.associated(condition%constraint_coupler_list)) then
+      option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
+                         &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
+      call PrintErrMsg(option)
+    endif
   endif
-
+  if (associated(nw_trans)) then
+    if (.not.associated(condition%nwt_constraint_coupler_list)) then
+      option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
+                         &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
+      call PrintErrMsg(option)
+    endif
+  endif
+  
+  
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
                                         option)
-    cur_coupler => condition%constraint_coupler_list
-    do
-      if (.not.associated(cur_coupler)) exit
-      if (len_trim(cur_coupler%time_units) == 0) then
-        cur_coupler%time = cur_coupler%time*conversion
-      endif
-      cur_coupler => cur_coupler%next
-    enddo
+    if (associated(reaction)) then
+      cur_tran_coupler => condition%constraint_coupler_list
+      do
+        if (.not.associated(cur_tran_coupler)) exit
+        if (len_trim(cur_tran_coupler%time_units) == 0) then
+          cur_tran_coupler%time = cur_tran_coupler%time*conversion
+        endif
+        cur_tran_coupler => cur_tran_coupler%next
+      enddo
+    endif
+    if (associated(nw_trans)) then
+      cur_nwt_coupler => condition%nwt_constraint_coupler_list
+      do
+        if (.not.associated(cur_nwt_coupler)) exit
+        if (len_trim(cur_nwt_coupler%time_units) == 0) then
+          cur_nwt_coupler%time = cur_nwt_coupler%time*conversion
+        endif
+        cur_nwt_coupler => cur_nwt_coupler%next
+      enddo
+    endif
   endif
 
   call PetscLogEventEnd(logging%event_tran_condition_read,ierr);CHKERRQ(ierr)
@@ -5093,6 +5187,47 @@ subroutine TranConditionUpdate(condition_list,option)
   enddo
 
 end subroutine TranConditionUpdate
+
+! ************************************************************************** !
+
+subroutine NWTConditionUpdate(condition_list,option)
+  ! 
+  ! Updates a transient transport condition for NW Transport.
+  !
+  ! Author: Jenn Frederick
+  ! Date: 06/26/2019
+  !
+
+  use Option_module
+
+  implicit none
+
+  type(tran_condition_list_type) :: condition_list
+  type(option_type) :: option
+
+  type(tran_condition_type), pointer :: condition
+
+  condition => condition_list%first
+  do
+    if (.not.associated(condition)) exit
+
+    do
+      if (associated(condition%cur_nwt_constraint_coupler%next)) then
+        if (option%time >= condition%cur_nwt_constraint_coupler%next%time) then
+          condition%cur_nwt_constraint_coupler => &
+            condition%cur_nwt_constraint_coupler%next
+        else
+          exit
+        endif
+      else
+        exit
+      endif
+    enddo
+    condition => condition%next
+
+  enddo
+
+end subroutine NWTConditionUpdate
 
 ! ************************************************************************** !
 
