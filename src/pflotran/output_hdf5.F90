@@ -197,6 +197,9 @@ subroutine OutputHDF5(realization_base,var_list_type)
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
   endif
   call h5eset_auto_f(ON,hdf5_err)
+
+  ! write group attributes
+  call OutputHDF5WriteSnapShotAtts(grp_id,option)
   
   ! write out data sets 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
@@ -667,6 +670,9 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
   endif
   call h5eset_auto_f(ON,hdf5_err)
+
+  ! write group attributes
+  call OutputHDF5WriteSnapShotAtts(grp_id,option)
 
   ! write out data sets 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
@@ -1139,6 +1145,9 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
   endif
   call h5eset_auto_f(ON,hdf5_err)
+
+  ! write group attributes
+  call OutputHDF5WriteSnapShotAtts(grp_id,option)
 
   ! write out data sets 
   call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
@@ -3342,5 +3351,40 @@ subroutine OutputHDF5DatasetStringArray(parent_id, type, name, length, data)
   call h5sclose_f(dataspace_id, hdf5_err)
 
 end subroutine OutputHDF5DatasetStringArray
+
+! ************************************************************************** !
+
+subroutine OutputHDF5WriteSnapShotAtts(parent_id,option)
+  ! 
+  ! Writes attributes associated with a snapshot time in the output file.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/31/19
+  ! 
+  use hdf5
+  use Option_module
+
+  implicit none
+
+  integer(HID_T) :: parent_id
+  type(option_type) :: option
+
+  integer(HID_T) :: attribute_id
+  integer(HID_T) :: dataspace_id
+  character(len=MAXWORDLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: string
+  integer(HSIZE_T) :: dims(1)
+  PetscMPIInt :: hdf5_err
+
+  dims = 1
+  call h5screate_simple_f(1,dims,dataspace_id,hdf5_err)
+  string = 'Time (s)'
+  call h5acreate_f(parent_id,string,H5T_NATIVE_DOUBLE,dataspace_id, &
+                   attribute_id,hdf5_err)
+  call h5awrite_f(attribute_id,H5T_NATIVE_DOUBLE,option%time,dims,hdf5_err)
+  call h5aclose_f(attribute_id, hdf5_err)
+  call h5sclose_f(dataspace_id, hdf5_err)
+
+end subroutine OutputHDF5WriteSnapShotAtts
 
 end module Output_HDF5_module

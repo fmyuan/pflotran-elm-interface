@@ -152,6 +152,8 @@ subroutine SubsurfaceSimInputRecord(this)
       write(id,'(a)') 'flash2'
     case(G_MODE)
       write(id,'(a)') 'general'
+    case(H_MODE)
+      write(id,'(a)') 'hydrate'
     case(WF_MODE)
       write(id,'(a)') 'wipp flow'
     case(MIS_MODE)
@@ -381,6 +383,9 @@ subroutine SubsurfaceFinalizeRun(this)
     tran_timestepper => this%rt_process_model_coupler%timestepper
     call RSandboxDestroy()
     call RCLMRxnDestroy()
+  endif
+  if (associated(this%nwt_process_model_coupler)) then
+    tran_timestepper => this%nwt_process_model_coupler%timestepper
   endif
   
   call RegressionOutput(this%regression,this%realization, &

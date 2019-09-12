@@ -53,3 +53,11 @@
       Min:         4
      Mean:   4.0000000000000E+00
         1:         4
+-- SOLUTION: Transport --
+   Time (seconds):   2.1365165710449E-02
+   Time Steps:           32
+   Newton Iterations:           64
+   Solver Iterations:           64
+   Time Step Cuts:            0
+   Solution 2-Norm:   4.2427120216236E+19
+   Residual 2-Norm:   1.2093567305978E+05

@@ -368,7 +368,7 @@ subroutine PMNWTFinalizeTimestep(this)
 
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_Aux_class, only : POROSITY_BASE 
   use Global_module
 
   implicit none
@@ -383,7 +383,7 @@ subroutine PMNWTFinalizeTimestep(this)
     call RealizationUpdatePropertiesTS(this%realization)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_MINERAL)
+                                 POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
   endif

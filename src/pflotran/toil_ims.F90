@@ -31,9 +31,9 @@ module TOilIms_module
 
   abstract interface
     subroutine TOilImsFluxDummy(toil_auxvar_up,global_auxvar_up, &
-                     material_auxvar_up,sir_up, thermal_conductivity_up, &
+                     material_auxvar_up,thermal_conductivity_up, &
                      toil_auxvar_dn,global_auxvar_dn,material_auxvar_dn, &
-                     sir_dn, thermal_conductivity_dn, area, dist, parameter, &
+                     thermal_conductivity_dn, area, dist, parameter, &
                      option,v_darcy,Res,jup,jdn,analytical_derivatives)
       
       use AuxVars_TOilIms_module
@@ -49,7 +49,6 @@ module TOilIms_module
       type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
       class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
       type(option_type) :: option
-      PetscReal :: sir_up(:), sir_dn(:)
       PetscReal :: v_darcy(option%nphase)
       PetscReal :: area
       PetscReal :: dist(-1:3)
@@ -140,11 +139,6 @@ subroutine TOilImsSetup(realization)
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
 
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'Non-initialized soil residual saturation.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
   if (minval(material_parameter%soil_heat_capacity(:)) < 0.d0) then
     option%io_buffer = 'Non-initialized soil heat capacity.'
     call PrintMsg(option)
@@ -169,7 +163,8 @@ subroutine TOilImsSetup(realization)
       option%io_buffer = 'Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
       call PrintMsg(option)
@@ -609,7 +604,7 @@ subroutine TOilImsUpdateFixedAccum(realization)
 
   PetscInt :: ghosted_id, local_id, local_start, local_end
   PetscInt :: imat
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
 
   PetscReal :: Jdum(realization%option%nflowdof,realization%option%nflowdof)  
@@ -1139,11 +1134,9 @@ end subroutine TOilImsAccumulation
 
 subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
                        material_auxvar_up, &
-                       sir_up, &
                        thermal_conductivity_up, &
                        toil_auxvar_dn,global_auxvar_dn, &
                        material_auxvar_dn, &
-                       sir_dn, &
                        thermal_conductivity_dn, &
                        area, dist, parameter, &
                        option,v_darcy,Res, &
@@ -1165,7 +1158,6 @@ subroutine TOilImsFluxPFL(toil_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -1523,11 +1515,9 @@ end subroutine TOilImsFluxPFL
 
 subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
                            material_auxvar_up, &
-                           sir_up, &
                            thermal_conductivity_up, &
                            toil_auxvar_dn,global_auxvar_dn, &
                            material_auxvar_dn, &
-                           sir_dn, &
                            thermal_conductivity_dn, &
                            area, dist, parameter, &
                            option,v_darcy,Res, &
@@ -1551,7 +1541,6 @@ subroutine TOilImsFluxDipc(toil_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: area
   PetscReal :: dist(-1:3)
@@ -1782,7 +1771,6 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn,global_auxvar_dn, &
                          material_auxvar_dn, &
-                         sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
                          option,v_darcy,Res, jdn,  &
@@ -1805,7 +1793,6 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn(:)
   PetscReal :: auxvars(:) ! from aux_real_var array
   PetscReal :: v_darcy(option%nphase), area
   type(toil_ims_parameter_type) :: toil_parameter
@@ -1947,8 +1934,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! reusing sir_dn for bounary auxvar
 !#define BAD_MOVE1 ! this works
 !#ifndef BAD_MOVE1       
-        if (toil_auxvar_up%sat(iphase) > sir_dn(iphase) .or. &
-            toil_auxvar_dn%sat(iphase) > sir_dn(iphase)) then
+        if (toil_auxvar_up%mobility(iphase) > eps .or. &
+            toil_auxvar_dn%mobility(iphase) > eps) then
 !#endif
           boundary_pressure = toil_auxvar_up%pres(iphase)
 
@@ -2657,11 +2644,9 @@ end subroutine TOilImsAccumDerivative
 
 subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
                                  material_auxvar_up, &
-                                 sir_up, &
                                  thermal_conductivity_up, &
                                  toil_auxvar_dn,global_auxvar_dn, &
                                  material_auxvar_dn, &
-                                 sir_dn, &
                                  thermal_conductivity_dn, &
                                  area, dist, &
                                  toil_parameter, &
@@ -2685,7 +2670,6 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_up(:), sir_dn(:)
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: area
@@ -2714,10 +2698,10 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
     !geh:print *, 'ToilImsFluxDerivative'
     option%iflag = -2
     call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                     material_auxvar_up,sir_up, &
+                     material_auxvar_up, &
                      thermal_conductivity_up, &
                      toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                     material_auxvar_dn,sir_dn, &
+                     material_auxvar_dn, &
                      thermal_conductivity_dn, &
                      area,dist,toil_parameter, &
                      option,v_darcy,res,Jdum1,Jdum2,PETSC_FALSE)
@@ -2725,10 +2709,10 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
     ! upgradient derivatives
     do idof = 1, option%nflowdof
       call ToilImsFlux(toil_auxvar_up(idof),global_auxvar_up, &
-                       material_auxvar_up,sir_up, &
+                       material_auxvar_up, &
                        thermal_conductivity_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
-                       material_auxvar_dn,sir_dn, &
+                       material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
                        option,v_darcy,res_pert,Jdum1,Jdum2,PETSC_FALSE)
@@ -2741,10 +2725,10 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
     ! downgradient derivatives
     do idof = 1, option%nflowdof
       call ToilImsFlux(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
-                       material_auxvar_up,sir_up, &
+                       material_auxvar_up, &
                        thermal_conductivity_up, &
                        toil_auxvar_dn(idof),global_auxvar_dn, &
-                       material_auxvar_dn,sir_dn, &
+                       material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
                        option,v_darcy,res_pert,Jdum1,Jdum2,PETSC_FALSE)
@@ -2773,11 +2757,9 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
   if (toil_analytical_derivatives) then
     call TOilImsFluxPFL(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                          material_auxvar_up, &
-                         sir_up, &
                          thermal_conductivity_up, &
                          toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                          material_auxvar_dn, &
-                         sir_dn, &
                          thermal_conductivity_dn, &
                          area, dist, toil_parameter,&
                          option,v_darcy,Res, &
@@ -2798,11 +2780,9 @@ subroutine ToilImsFluxDerivative(toil_auxvar_up,global_auxvar_up, &
 
       call TOilImsFluxPFL(toil_auxvar_up(ZERO_INTEGER),global_auxvar_up, &
                            material_auxvar_up, &
-                           sir_up, &
                            thermal_conductivity_up, &
                            toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                            material_auxvar_dn, &
-                           sir_dn, &
                            thermal_conductivity_dn, &
                            area, dist, toil_parameter,&
                            option,v_darcy,Res, &
@@ -2830,7 +2810,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    global_auxvar_up, &
                                    toil_auxvar_dn,global_auxvar_dn, &
                                    material_auxvar_dn, &
-                                   sir_dn, &
                                    thermal_conductivity_dn, &
                                    area,dist,toil_parameter, &
                                    option,Jdn)
@@ -2855,7 +2834,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
   type(option_type) :: option
-  PetscReal :: sir_dn(:)
   PetscReal :: area
   PetscReal :: dist(-1:3)
   type(toil_ims_parameter_type) :: toil_parameter
@@ -2886,7 +2864,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
-                       sir_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
                        option,v_darcy,res,Jdum,PETSC_FALSE)
@@ -2896,7 +2873,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn(idof),global_auxvar_dn, &
                          material_auxvar_dn, &
-                         sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
                          option,v_darcy,res_pert,Jdum,PETSC_FALSE)   
@@ -2925,7 +2901,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        toil_auxvar_up,global_auxvar_up, &
                        toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                        material_auxvar_dn, &
-                       sir_dn, &
                        thermal_conductivity_dn, &
                        area,dist,toil_parameter, &
                        option,v_darcy,res,jdn_alt,PETSC_TRUE)
@@ -2945,7 +2920,6 @@ subroutine ToilImsBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          toil_auxvar_up,global_auxvar_up, &
                          toil_auxvar_dn(ZERO_INTEGER),global_auxvar_dn, &
                          material_auxvar_dn, &
-                         sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,toil_parameter, &
                          option,v_darcy,res, jdn_alt,PETSC_TRUE)
@@ -3257,12 +3231,10 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
       call TOilImsFlux(patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_residual_saturation(:,icap_up), &
                      material_parameter%soil_thermal_conductivity(:,imat_up), &
                      patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_residual_saturation(:,icap_dn), &
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
@@ -3321,7 +3293,6 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
                      patch%aux%TOil_ims%auxvars(ZERO_INTEGER,ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     material_parameter%soil_residual_saturation(:,icap_dn), &
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
@@ -3662,12 +3633,10 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
       call TOilImsFluxDerivative(patch%aux%TOil_ims%auxvars(:,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
-                       material_parameter%soil_residual_saturation(:,icap_up), &
                        material_parameter%soil_thermal_conductivity(:,imat_up), &
                        patch%aux%TOil_ims%auxvars(:,ghosted_id_dn), &
                        global_auxvars(ghosted_id_dn), &
                        material_auxvars(ghosted_id_dn), &
-                       material_parameter%soil_residual_saturation(:,icap_dn), &
                        material_parameter%soil_thermal_conductivity(:,imat_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
@@ -3733,7 +3702,6 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
                      patch%aux%TOil_ims%auxvars(:,ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     material_parameter%soil_residual_saturation(:,icap_dn), &
                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &

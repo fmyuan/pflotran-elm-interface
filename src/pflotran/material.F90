@@ -9,6 +9,7 @@ module Material_module
   use Fracture_module
   use Geomechanics_Subsurface_Properties_module
   use Utility_module, only : Equal
+
   
   implicit none
 
@@ -136,6 +137,7 @@ function MaterialPropertyCreate()
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   ! 
+
   
   implicit none
 
@@ -191,7 +193,7 @@ function MaterialPropertyCreate()
 !  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
-  material_property%thermal_conductivity_frozen = 0.d0
+  material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE
   material_property%alpha_fr = 0.95d0
 
   material_property%thermal_expansitivity = 0.d0  
@@ -765,22 +767,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
       trim(material_property%permeability_dataset%name) // 'X'
   endif
 
-  if (option%iflowmode == TH_MODE .or. &
-      option%iflowmode == TH_TS_MODE) then
-     if (option%use_th_freezing .eqv. PETSC_TRUE) then
-        if (.not. therm_k_frz) then
-           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
-             &in inputdeck for MODE TH ICE'
-           call PrintErrMsg(option)
-        endif
-        if (.not. therm_k_exp_frz) then
-           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
-             &in inputdeck for MODE TH ICE'
-           call PrintErrMsg(option)
-        endif
-     endif
-  endif
-
   if (len_trim(material_property%soil_compressibility_function) > 0) then
     word = material_property%soil_compressibility_function
     select case(word)
@@ -1172,16 +1158,6 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
   
   num_mat_prop = size(material_property_array)
   num_characteristic_curves = size(characteristic_curves_array)
-  
-  allocate(material_parameter%soil_residual_saturation(option%nphase, &
-                                                   num_characteristic_curves))
-  material_parameter%soil_residual_saturation = UNINITIALIZED_DOUBLE
-  do i = 1, num_characteristic_curves
-    if (associated(characteristic_curves_array(i)%ptr)) then
-      material_parameter%soil_residual_saturation(:,i) = &
-        CharCurvesGetGetResidualSats(characteristic_curves_array(i)%ptr,option)
-    endif
-  enddo
 
   if (option%iflowmode /= RICHARDS_MODE .and. &
       option%iflowmode /= RICHARDS_TS_MODE) then
@@ -1510,7 +1486,7 @@ end subroutine MaterialAssignPropertyToAux
 
 ! ************************************************************************** !
 
-subroutine MaterialSetAuxVarScalar(Material,value,ivar)
+subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
   ! 
   ! Sets values of a material auxvar data using a scalar value.
   ! 
@@ -1525,6 +1501,7 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
   type(material_type) :: Material ! from realization%patch%aux%Material
   PetscReal :: value
   PetscInt :: ivar
+  PetscInt :: isubvar
 
   PetscInt :: i
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -1539,9 +1516,20 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
         Material%auxvars(i)%volume = value
       enddo
     case(POROSITY)
-      do i=1, Material%num_aux
-        Material%auxvars(i)%porosity = value
-      enddo
+      select case(isubvar)
+        case(POROSITY_CURRENT)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity = value
+          enddo
+        case(POROSITY_BASE)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity_base = value
+          enddo
+        case(POROSITY_INITIAL)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity_0 = value
+          enddo
+      end select
     case(TORTUOSITY)
       do i=1, Material%num_aux
         Material%auxvars(i)%tortuosity = value
@@ -1626,9 +1614,13 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
           enddo
-        case(POROSITY_MINERAL)
+        case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
+          enddo
+        case(POROSITY_INITIAL)
+          do ghosted_id=1, Material%num_aux
+            Material%auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
           enddo
         case default
           print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
@@ -1734,9 +1726,13 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
             vec_loc_p(ghosted_id) = &
               Material%auxvars(ghosted_id)%porosity
           enddo
-        case(POROSITY_MINERAL)
+        case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
             vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_base
+          enddo
+        case(POROSITY_INITIAL)
+          do ghosted_id=1, Material%num_aux
+            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_0
           enddo
         case default
           print *, 'Error indexing porosity in MaterialGetAuxVarVecLoc()'

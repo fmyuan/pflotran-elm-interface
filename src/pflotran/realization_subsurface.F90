@@ -267,10 +267,6 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%ithrm_loc)
     call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%icap_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_old_loc)
     
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
@@ -1539,7 +1535,8 @@ end subroutine RealizUpdateAllCouplerAuxVars
 
 subroutine RealizationRevertFlowParameters(realization)
   ! 
-  ! Assigns initial porosity/perms to vecs
+  ! Overwrites porosity/permeability in materials_auxvars with values stored in 
+  ! Vecs
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/08
@@ -1549,7 +1546,7 @@ subroutine RealizationRevertFlowParameters(realization)
   use Field_module
   use Discretization_module
   use Material_Aux_class, only : material_type, &
-                                 POROSITY_CURRENT, POROSITY_MINERAL
+                              POROSITY_CURRENT, POROSITY_BASE, POROSITY_INITIAL
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z, &
                                POROSITY
 
@@ -1584,7 +1581,9 @@ subroutine RealizationRevertFlowParameters(realization)
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)  
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_MINERAL)
+                               POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_CURRENT)
   ! tortuosity is not currently checkpointed
@@ -1599,7 +1598,8 @@ end subroutine RealizationRevertFlowParameters
 
 subroutine RealizStoreRestartFlowParams(realization)
   ! 
-  ! Assigns initial porosity/perms to vecs
+  ! Overwrites porosity/permeability Vecs with restart values stored in 
+  ! material_auxvars
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/08
@@ -1640,9 +1640,12 @@ subroutine RealizStoreRestartFlowParams(realization)
                                      field%perm0_zz,ONEDOF)
   endif   
   call MaterialGetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_CURRENT)
+                               POROSITY_BASE)
+  ! might as well update initial and base at the same time
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_MINERAL)
+                               POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                    field%porosity0,ONEDOF)
   ! tortuosity is not currently checkpointed
@@ -1913,7 +1916,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
-  PetscReal :: porosity_base
+  PetscReal :: porosity_base_
   PetscInt :: ivalue
   PetscErrorCode :: ierr
 
@@ -2079,11 +2082,11 @@ subroutine RealizationUpdatePropertiesTS(realization)
       imat = patch%imat(ghosted_id)
       critical_porosity = material_property_array(imat)%ptr% &
                             permeability_crit_por
-      porosity_base = material_auxvars(ghosted_id)%porosity_base
+      porosity_base_ = material_auxvars(ghosted_id)%porosity_base
       scale = 0.d0
-      if (porosity_base > critical_porosity .and. &
+      if (porosity_base_ > critical_porosity .and. &
           porosity0_p(local_id) > critical_porosity) then
-        scale = ((porosity_base - critical_porosity) / &
+        scale = ((porosity_base_ - critical_porosity) / &
                  (porosity0_p(local_id) - critical_porosity)) ** &
                 material_property_array(imat)%ptr%permeability_pwr
       endif
@@ -2133,7 +2136,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   ! perform check to ensure that porosity is bounded between 0 and 1
   ! since it is calculated as 1.d-sum_volfrac, it cannot be > 1
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_BASE)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                   field%work,ONEDOF)
   call VecMin(field%work,ivalue,min_value,ierr);CHKERRQ(ierr)
@@ -2263,13 +2266,15 @@ subroutine RealizationCalcMineralPorosity(realization)
   endif
   ! update ghosted porosities
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_BASE)
   call DiscretizationLocalToLocal(discretization,field%work_loc, &
                                   field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_CURRENT)
+                               POROSITY,POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_CURRENT)
+!  call MaterialSetAuxVarScalar(patch%aux%Material,UNINITIALIZED_DOUBLE, &
+!                               POROSITY,POROSITY_CURRENT)
 
 end subroutine RealizationCalcMineralPorosity
 
@@ -2611,7 +2616,7 @@ subroutine RealizUnInitializedVarsFlow(realization)
   ! 
   use Option_module
   use Material_Aux_class
-  use Variables_module, only : VOLUME, MINERAL_POROSITY, PERMEABILITY_X, &
+  use Variables_module, only : VOLUME, BASE_POROSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
@@ -2623,7 +2628,7 @@ subroutine RealizUnInitializedVarsFlow(realization)
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
   ! mineral porosity is the base, unmodified porosity
-  call RealizUnInitializedVar1(realization,MINERAL_POROSITY,'porosity')
+  call RealizUnInitializedVar1(realization,BASE_POROSITY,'porosity')
   call RealizUnInitializedVar1(realization,PERMEABILITY_X,'permeability X')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Y,'permeability Y')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Z,'permeability Z')
@@ -2649,7 +2654,7 @@ subroutine RealizUnInitializedVarsTran(realization)
   use Option_module
   use Material_module
   use Material_Aux_class
-  use Variables_module, only : VOLUME, MINERAL_POROSITY, TORTUOSITY
+  use Variables_module, only : VOLUME, BASE_POROSITY, TORTUOSITY
 
   implicit none
   
@@ -2657,7 +2662,7 @@ subroutine RealizUnInitializedVarsTran(realization)
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
   ! mineral porosity is the base, unmodified porosity
-  call RealizUnInitializedVar1(realization,MINERAL_POROSITY,'porosity')
+  call RealizUnInitializedVar1(realization,BASE_POROSITY,'porosity')
   call RealizUnInitializedVar1(realization,TORTUOSITY,'tortuosity')
 
 end subroutine RealizUnInitializedVarsTran

@@ -227,7 +227,7 @@ subroutine PMTHRead(this,input)
         this%rel_update_inf_tol(2) = tempreal
 
       case('FREEZING')
-        option%use_th_freezing = PETSC_TRUE
+        th_use_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call PrintMsg(option)
         ! Override the default setting for TH-mode with freezing
@@ -238,15 +238,15 @@ subroutine PMTHRead(this,input)
         call StringToUpper(word)
         select case (trim(word))
           case ('PAINTER_EXPLICIT')
-            option%ice_model = PAINTER_EXPLICIT
+            th_ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
-            option%ice_model = PAINTER_KARRA_IMPLICIT
+            th_ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
-            option%ice_model = PAINTER_KARRA_EXPLICIT
+            th_ice_model = PAINTER_KARRA_EXPLICIT
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
+            th_ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')
-            option%ice_model = DALL_AMICO
+            th_ice_model = DALL_AMICO
           case default
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
@@ -317,8 +317,6 @@ subroutine PMTHInitializeTimestep(this)
                                this%realization%field%icap_loc)
   call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
                                this%realization%field%ithrm_loc)
-  call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
-                               this%realization%field%iphas_loc)
 
   call THInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)

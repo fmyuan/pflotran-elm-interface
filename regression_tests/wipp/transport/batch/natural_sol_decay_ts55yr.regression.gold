@@ -128,3 +128,11 @@
       Min:         3
      Mean:   3.0000000000000E+00
         1:         3
+-- SOLUTION: Transport --
+   Time (seconds):   1.1776494979858E-01
+   Time Steps:           23
+   Newton Iterations:          446
+   Solver Iterations:          446
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.3224265734993E-01
+   Residual 2-Norm:   2.0790316610011E-13

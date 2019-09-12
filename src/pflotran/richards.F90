@@ -154,11 +154,6 @@ subroutine RichardsSetupPatch(realization)
   ! initialized
   material_parameter => patch%aux%Material%material_parameter
   error_found = PETSC_FALSE
-  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil residual saturation.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
   !TODO(geh): change to looping over ghosted ids once the legacy code is 
@@ -171,7 +166,8 @@ subroutine RichardsSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
       call PrintMsg(option)
@@ -780,7 +776,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                patch%characteristic_curves_array( &
                                  patch%sat_func_id(ghosted_id))%ptr, &
                                grid%nG2A(ghosted_id), &
-                               option)   
+                               PETSC_TRUE,option)   
   enddo
 
   if (option%inline_surface_flow) then
@@ -831,7 +827,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                  patch%characteristic_curves_array( &
                                    patch%sat_func_id(ghosted_id))%ptr, &
                                  -grid%nG2A(ghosted_id), &
-                                 option)
+                                 PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1065,7 +1061,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 
   PetscInt :: ghosted_id, local_id
   PetscInt :: numfaces, jface, ghost_face_id, j, region_id
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Res(1)
   PetscErrorCode :: ierr
@@ -1099,7 +1095,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
                    patch%characteristic_curves_array( &
                          patch%sat_func_id(ghosted_id))%ptr, &
                    grid%nG2A(ghosted_id), &
-                   option)
+                   PETSC_TRUE,option)
     call RichardsAccumulation(rich_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
@@ -1382,8 +1378,6 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before RichardsUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                  field%iphas_loc,ONEDOF)
 
   call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
@@ -3253,7 +3247,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            material_auxvars(ghosted_id), &
                            patch%characteristic_curves_array(icap_dn)%ptr, &
                            -grid%nG2A(ghosted_id), &
-                           option)
+                           PETSC_FALSE,option)
 
 
         if (rich_auxvar_up%kvr > eps .or. &

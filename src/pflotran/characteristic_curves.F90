@@ -1716,10 +1716,11 @@ subroutine CharCurvesConvertListToArray(list,array,option)
     if (.not.associated(cur_characteristic_curves)) exit
     count = count + 1
     array(count)%ptr => cur_characteristic_curves
-    if (cur_characteristic_curves%test .and. &
-        option%myrank == option%io_rank) then
+    if (cur_characteristic_curves%test) then
       call OptionSetBlocking(option,PETSC_FALSE)
-      call CharacteristicCurvesTest(cur_characteristic_curves,option)
+      if (option%myrank == option%io_rank) then
+        call CharacteristicCurvesTest(cur_characteristic_curves,option)
+      endif
       call OptionSetBlocking(option,PETSC_TRUE)
       call OptionCheckNonBlockingError(option)
     endif
@@ -2109,7 +2110,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
     if (option%iflowmode == G_MODE .or. option%iflowmode == TOWG_MODE .or. &
-        option%iflowmode == WF_MODE) then
+        option%iflowmode == WF_MODE .or. option%iflowmode == H_MODE) then
       option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &

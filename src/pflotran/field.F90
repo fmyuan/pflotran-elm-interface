@@ -22,7 +22,6 @@ module Field_module
     Vec :: tortuosity0
     Vec :: ithrm_loc
     Vec :: icap_loc
-    Vec :: iphas_loc, iphas_old_loc
 
     Vec :: perm0_xx, perm0_yy, perm0_zz
     !geh: required for higher order, but not supported at this time.
@@ -107,8 +106,6 @@ function FieldCreate()
   field%tortuosity0 = PETSC_NULL_VEC
   field%ithrm_loc = PETSC_NULL_VEC
   field%icap_loc = PETSC_NULL_VEC
-  field%iphas_loc = PETSC_NULL_VEC
-  field%iphas_old_loc = PETSC_NULL_VEC
 
   field%perm0_xx = PETSC_NULL_VEC
   field%perm0_yy = PETSC_NULL_VEC
@@ -212,12 +209,6 @@ subroutine FieldDestroy(field)
   endif
   if (field%icap_loc /= PETSC_NULL_VEC) then
     call VecDestroy(field%icap_loc,ierr);CHKERRQ(ierr)
-  endif
-  if (field%iphas_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(field%iphas_loc,ierr);CHKERRQ(ierr)
-  endif
-  if (field%iphas_old_loc /= PETSC_NULL_VEC) then
-    call VecDestroy(field%iphas_old_loc,ierr);CHKERRQ(ierr)
   endif
 
   if (field%perm0_xx /= PETSC_NULL_VEC) then

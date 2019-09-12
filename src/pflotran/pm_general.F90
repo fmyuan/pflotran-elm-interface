@@ -27,8 +27,6 @@ module PM_General_class
     PetscReal :: residual_scaled_inf_tol(3)
     PetscReal :: abs_update_inf_tol(3,3)
     PetscReal :: rel_update_inf_tol(3,3)
-    PetscReal :: hyd_abs_update_inf_tol(3,15)
-    PetscReal :: hyd_rel_update_inf_tol(3,15)
     PetscReal :: damping_factor
     PetscInt :: general_newton_max_iter
   contains
@@ -120,44 +118,6 @@ function PMGeneralCreate()
                              a_mass_abs_inf_tol, u_abs_inf_tol/)
   PetscReal, parameter :: residual_scaled_inf_tol(3) = 1.d-6
 
-  PetscReal, parameter :: hyd_sat_abs_inf_tol = 1.d-5 !1.d-10
-  !For convergence using hydrate and ice formation capability
-  PetscReal, parameter :: hyd_abs_update_inf_tol(3,15) = &
-    reshape([pres_abs_inf_tol,xmol_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,pres_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol,  &
-             pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
-             pres_abs_inf_tol,999.d0,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,xmol_abs_inf_tol,hyd_sat_abs_inf_tol, &
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,temp_abs_inf_tol, &
-             pres_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol, &
-             hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol,hyd_sat_abs_inf_tol], &
-            shape(hyd_abs_update_inf_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
-  PetscReal, parameter :: hyd_rel_update_inf_tol(3,15) = &
-    reshape([pres_rel_inf_tol,xmol_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,pres_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
-             pres_rel_inf_tol,999.d0,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,xmol_rel_inf_tol,sat_rel_inf_tol, &
-             sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
-             sat_rel_inf_tol,sat_rel_inf_tol,temp_rel_inf_tol, &
-             pres_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol, &
-             sat_rel_inf_tol,sat_rel_inf_tol,sat_rel_inf_tol], &
-            shape(hyd_rel_update_inf_tol)) * &
-            1.d0 ! change to 0.d0 to zero tolerances
 #ifdef PM_GENERAL_DEBUG  
   print *, 'PMGeneralCreate()'
 #endif  
@@ -190,10 +150,6 @@ function PMGeneralCreate()
   this%residual_scaled_inf_tol = residual_scaled_inf_tol
   this%abs_update_inf_tol = abs_update_inf_tol
   this%rel_update_inf_tol = rel_update_inf_tol
-
-  !For hydrate/ice module
-  this%hyd_abs_update_inf_tol = hyd_abs_update_inf_tol
-  this%hyd_rel_update_inf_tol = hyd_rel_update_inf_tol
 
   this%converged_flag(:,:,:) = PETSC_TRUE
   this%converged_real(:,:,:) = 0.d0
@@ -255,24 +211,6 @@ subroutine PMGeneralRead(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-      !man: hydrate
-      case('WITH_HYDRATE')
-        general_hydrate_flag = PETSC_TRUE
-      case('HYDRATE_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,keyword,error_string)
-        this%hyd_abs_update_inf_tol(2,3) = tempreal
-        this%hyd_abs_update_inf_tol(2,6) = tempreal
-        this%hyd_abs_update_inf_tol(2,7) = tempreal
-        this%hyd_abs_update_inf_tol(2,8) = tempreal
-        this%hyd_abs_update_inf_tol(2,9) = tempreal
-        this%hyd_abs_update_inf_tol(3,10) = tempreal
-        this%hyd_abs_update_inf_tol(1:2,11) = tempreal
-        this%hyd_abs_update_inf_tol(2:3,12) = tempreal
-        this%hyd_abs_update_inf_tol(1:2,13) = tempreal
-        this%hyd_abs_update_inf_tol(2:3,14) = tempreal
-        this%hyd_abs_update_inf_tol(:,15) = tempreal
-        
       !man: phase change
       case('MAX_NEWTON_ITERATIONS')
         call InputReadDouble(input,option,tempreal)
@@ -281,10 +219,10 @@ subroutine PMGeneralRead(this,input)
       case('PHASE_CHANGE_EPSILON')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
-        option%phase_chng_epsilon = tempreal
+        general_phase_chng_epsilon = tempreal
       
       case('RESTRICT_STATE_CHANGE')
-        option%restrict_state_chng = PETSC_TRUE
+        general_restrict_state_chng = PETSC_TRUE
       ! Tolerances
       
       case('NO_STATE_TRANSITION_OUTPUT')
@@ -344,30 +282,14 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(1,:) = tempreal
         this%abs_update_inf_tol(2,2) = tempreal
-        this%hyd_abs_update_inf_tol(1,1:10) = tempreal
-        this%hyd_abs_update_inf_tol(1,12) = tempreal
-        this%hyd_abs_update_inf_tol(1,14) = tempreal
-        this%hyd_abs_update_inf_tol(2,2) = tempreal
       case('TEMP_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(3,:) = tempreal
-        this%hyd_abs_update_inf_tol(3,1:9) = tempreal
-        this%hyd_abs_update_inf_tol(3,11) = tempreal
-        this%hyd_abs_update_inf_tol(3,13) = tempreal
       case('SAT_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%abs_update_inf_tol(2,3) = tempreal
-        this%hyd_abs_update_inf_tol(2,3) = tempreal
-        this%hyd_abs_update_inf_tol(2,6:9) = tempreal
-        this%hyd_abs_update_inf_tol(3,10) = tempreal
-        this%hyd_abs_update_inf_tol(2,11:15) = tempreal
-        this%hyd_abs_update_inf_tol(3,12) = tempreal
-        this%hyd_abs_update_inf_tol(3,14:15) = tempreal
-        this%hyd_abs_update_inf_tol(1,11) = tempreal
-        this%hyd_abs_update_inf_tol(1,13) = tempreal
-        this%hyd_abs_update_inf_tol(1,15) = tempreal
       case('XMOL_ABS_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -395,30 +317,14 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(1,:) = tempreal
         this%rel_update_inf_tol(2,2) = tempreal
-        this%hyd_rel_update_inf_tol(1,1:10) = tempreal
-        this%hyd_rel_update_inf_tol(1,12) = tempreal
-        this%hyd_rel_update_inf_tol(1,14) = tempreal
-        this%hyd_rel_update_inf_tol(2,2) = tempreal
       case('TEMP_REL_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(3,:) = tempreal
-        this%hyd_rel_update_inf_tol(3,1:9) = tempreal
-        this%hyd_rel_update_inf_tol(3,11) = tempreal
-        this%hyd_rel_update_inf_tol(3,13) = tempreal
       case('SAT_REL_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(2,3) = tempreal
-        this%hyd_rel_update_inf_tol(2,3) = tempreal
-        this%hyd_rel_update_inf_tol(2,6:9) = tempreal
-        this%hyd_rel_update_inf_tol(3,10) = tempreal
-        this%hyd_rel_update_inf_tol(2,11:15) = tempreal
-        this%hyd_rel_update_inf_tol(3,12) = tempreal
-        this%hyd_rel_update_inf_tol(3,14:15) = tempreal
-        this%hyd_rel_update_inf_tol(1,11) = tempreal
-        this%hyd_rel_update_inf_tol(1,13) = tempreal
-        this%hyd_rel_update_inf_tol(1,15) = tempreal
       case('XMOL_REL_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -453,6 +359,12 @@ subroutine PMGeneralRead(this,input)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call GeneralAuxSetEnergyDOF(word,option)
+      case('GAS_PHASE_AIR_MASS_DOF')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
+        call GeneralAuxSetAirMassDOF(word,option)
+        this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
+        this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
       case('ISOTHERMAL')
         general_isothermal = PETSC_TRUE
       case('NO_AIR')
@@ -1026,8 +938,10 @@ subroutine PMGeneralCheckUpdatePre(this,line_search,X,dX,changed,ierr)
           air_pressure_index = offset + GENERAL_GAS_STATE_AIR_PRESSURE_DOF
           dX_p(gas_pressure_index) = dX_p(gas_pressure_index) * &
                                      GENERAL_PRESSURE_SCALE
-          dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
-                                     GENERAL_PRESSURE_SCALE
+          if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+            dX_p(air_pressure_index) = dX_p(air_pressure_index) * &
+                                      GENERAL_PRESSURE_SCALE
+          endif
       end select
       scale = min(scale,temp_scale)
     enddo
@@ -1120,7 +1034,6 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     istate = global_auxvars(ghosted_id)%istate
-    if (general_hydrate_flag) istate = global_auxvars(ghosted_id)%hstate
     
     do idof = 1, option%nflowdof
       
@@ -1136,38 +1049,25 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
         dX_X0 = dabs(dX_abs/1.d-40)
       endif
       
-      if (general_hydrate_flag) then
-        if (dX_abs > this%hyd_abs_update_inf_tol(idof,istate)) then
-          converged_absolute = PETSC_FALSE
-        endif
-        if (dX_X0 > this%hyd_rel_update_inf_tol(idof,istate)) then
-          converged_relative = PETSC_FALSE
-        endif
-      else
-        if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-          converged_absolute = PETSC_FALSE
-        endif
-        if (converged_abs_update_real(idof,istate) < dX_abs) then
-          converged_abs_update_real(idof,istate) = dX_abs
-          converged_abs_update_cell(idof,istate) = natural_id
-        endif
-        if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-          converged_relative = PETSC_FALSE
-        endif
-        if (converged_rel_update_real(idof,istate) < dX_X0) then
-          converged_rel_update_real(idof,istate) = dX_X0
-          converged_rel_update_cell(idof,istate) = natural_id
-        endif
+      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
+        converged_absolute = PETSC_FALSE
       endif
+      if (converged_abs_update_real(idof,istate) < dX_abs) then
+        converged_abs_update_real(idof,istate) = dX_abs
+        converged_abs_update_cell(idof,istate) = natural_id
+      endif
+      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+        converged_relative = PETSC_FALSE
+      endif
+      if (converged_rel_update_real(idof,istate) < dX_X0) then
+        converged_rel_update_real(idof,istate) = dX_X0
+        converged_rel_update_cell(idof,istate) = natural_id
+      endif
+
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
-        if (general_hydrate_flag) then
-          converged_abs_update_flag(idof,1) = PETSC_FALSE
-          converged_rel_update_flag(idof,1) = PETSC_FALSE
-        else
-          converged_abs_update_flag(idof,istate) = PETSC_FALSE
-          converged_rel_update_flag(idof,istate) = PETSC_FALSE
-        endif
+        converged_abs_update_flag(idof,istate) = PETSC_FALSE
+        converged_rel_update_flag(idof,istate) = PETSC_FALSE
       endif
     enddo
   enddo
@@ -1251,7 +1151,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   field => this%realization%field
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
-  
+
   if (this%check_post_convergence) then
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum2,accum2_p,ierr);CHKERRQ(ierr)

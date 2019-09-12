@@ -2807,7 +2807,7 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%sat_clm)
 
     if (pflotran_model%option%iflowmode == TH_MODE .and. &
-        pflotran_model%option%use_th_freezing) then
+        th_use_freezing) then
 
       TH_auxvars => patch%aux%TH%auxvars
 

@@ -427,7 +427,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
-  use Hydrate_module
   
   implicit none
   
@@ -2338,36 +2337,24 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_up = gen_auxvar_up%sat(option%liquid_phase)
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
   
-  if (general_hydrate_flag) then
-    call HydrateCompositeThermalCond(material_auxvar_up%porosity, &
-               gen_auxvar_up%sat,thermal_conductivity_up(1), &
-               thermal_conductivity_dn(2),k_eff_up)
+  if (sat_up > 0.d0) then
+    tempreal = sqrt(sat_up) * &
+           (thermal_conductivity_up(2) - thermal_conductivity_up(1))
+    k_eff_up = thermal_conductivity_up(1) + tempreal
+    dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
   else
-    if (sat_up > 0.d0) then
-      tempreal = sqrt(sat_up) * &
-             (thermal_conductivity_up(2) - thermal_conductivity_up(1))
-      k_eff_up = thermal_conductivity_up(1) + tempreal
-      dkeff_up_dsatlup = 0.5d0 * tempreal / sat_up
-    else
-      k_eff_up = thermal_conductivity_up(1)
-      dkeff_up_dsatlup = 0.d0
-    endif
+    k_eff_up = thermal_conductivity_up(1)
+    dkeff_up_dsatlup = 0.d0
   endif
 
-  if (general_hydrate_flag) then
-    call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
-              gen_auxvar_dn%sat,thermal_conductivity_dn(1), &
-              thermal_conductivity_dn(2), k_eff_dn)
+  if (sat_dn > 0.d0) then
+    tempreal = sqrt(sat_dn) * &
+           (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+    k_eff_dn = thermal_conductivity_dn(1) + tempreal
+    dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
   else
-    if (sat_dn > 0.d0) then
-      tempreal = sqrt(sat_dn) * &
-             (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-      k_eff_dn = thermal_conductivity_dn(1) + tempreal
-      dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
-    else
-      k_eff_dn = thermal_conductivity_dn(1)
-      dkeff_dn_dsatldn = 0.d0
-    endif
+    k_eff_dn = thermal_conductivity_dn(1)
+    dkeff_dn_dsatldn = 0.d0
   endif
   
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
@@ -2460,7 +2447,6 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
-  use Hydrate_module
 
   implicit none
   
@@ -3777,16 +3763,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-      if (general_hydrate_flag) then
-        call HydrateCompositeThermalCond(material_auxvar_dn%porosity, &
-                  gen_auxvar_dn%sat,thermal_conductivity_dn(1), &
-                  thermal_conductivity_dn(2),k_eff_dn)
-      else
-        tempreal = sqrt(sat_dn) * &
-                 (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
-        k_eff_dn = thermal_conductivity_dn(1) + tempreal
-        dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
-      endif
+      tempreal = sqrt(sat_dn) * &
+               (thermal_conductivity_dn(2) - thermal_conductivity_dn(1))
+      k_eff_dn = thermal_conductivity_dn(1) + tempreal
+      dkeff_dn_dsatldn = 0.5d0 * tempreal / sat_dn
 
       dkeff_ave_dkeffdn = 1.d0 / dist(0)
       k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn

@@ -548,7 +548,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,POROSITY_CURRENT)
   call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
@@ -1086,6 +1088,13 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                     realization%patch%aux%General%inactive_rows_local_ghosted, &
                       realization%patch%aux%General%n_inactive_rows, &
                       realization%patch%aux%General%inactive_cells_exist, &
+                      option)
+      case(H_MODE)
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%Hydrate%inactive_rows_local, &
+                    realization%patch%aux%Hydrate%inactive_rows_local_ghosted, &
+                      realization%patch%aux%Hydrate%n_inactive_rows, &
+                      realization%patch%aux%Hydrate%inactive_cells_exist, &
                       option)
       case(WF_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &

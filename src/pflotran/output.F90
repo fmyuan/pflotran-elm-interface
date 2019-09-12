@@ -1057,13 +1057,11 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         name = 'Mineral Porosity'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
-                                     MINERAL_POROSITY)
+                                     BASE_POROSITY)
       case ('EFFECTIVE_POROSITY')
-        units = ''
-        name = 'Effective Porosity'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     EFFECTIVE_POROSITY)
+        option%io_buffer = 'EFFECTIVE_POROSITY no longer supported for &
+          &OUTPUT.  Please use POROSITY; it should be the same value.'
+        call PrintErrMsg(option)
       case ('TORTUOSITY')
         units = ''
         name = 'Tortuosity'
@@ -2141,6 +2139,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Grid_module
   use Input_Aux_module
   use General_Aux_module
+  use Hydrate_Aux_module
   use WIPP_Flow_Aux_module
 
   class(realization_base_type) :: realization_base
@@ -2182,6 +2181,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
       iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
       iauxvars(2) = GENERAL_ENERGY_DOF
+      auxvar_names(2) = 'temperature'
+    case(H_MODE)
+      allocate(iauxvars(2),auxvar_names(2))
+      iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
+      auxvar_names(1) = 'liquid_pressure'
+      iauxvars(2) = HYDRATE_ENERGY_DOF
       auxvar_names(2) = 'temperature'
     case(WF_MODE)
       allocate(iauxvars(2),auxvar_names(2))

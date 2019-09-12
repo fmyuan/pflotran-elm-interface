@@ -1,10 +1,10 @@
 module Well_Solver_module
 
-!  This well solver finds the current state of a well, automatically switching
-!  to the controlling target mode.
-!  The calculated well flows are place in the Pflotran residual
-!  Well data is obtained from     the Well_Data class
-!  Solution results are stored in the Well_Data class
+  ! This well solver finds the current state of a well, automatically switching
+  ! to the controlling target mode.
+  ! The calculated well flows are place in the Pflotran residual
+  ! Well data is obtained from     the Well_Data class
+  ! Solution results are stored in the Well_Data class
 
 #include "petsc/finclude/petscsys.h"
 
@@ -19,8 +19,8 @@ module Well_Solver_module
 
   private
 
-    PetscInt, parameter :: max_iterTT  = 20  ! Max iterations over target types
-    PetscInt, parameter :: max_iterPW  = 20  ! Max iterations for well solution
+    PetscInt, parameter :: max_iterTT  = 10  ! Max iterations over target types
+    PetscInt, parameter :: max_iterPW  = 40  ! Max iterations for well solution
     PetscInt, parameter :: max_iterWBS = 20  ! Max iterations for well solution
 
     PetscReal, parameter :: ws_atm   = 1.01325d5  ! Used for default bhp limits
@@ -698,46 +698,9 @@ subroutine SolveWell(aux, option, well_data, r_p)
         w_pb  = c_pb(1)
       endif
 
-      ! Treat producer and injector separately
+      ! Set up w_sp, treating producer and injector separately
 
-      if (ws_isproducer) then
-
-        ! Case of producer
-
-        do iphase = 1, ws_nphase
-          w_sp(iphase) = c_sp(1, iphase)
-        enddo
-
-        if (ws_oil .and. ws_gas) then
-          if (w_sp(ipoil)>1.0E-6 .and. w_sp(ipgas)<1.0E-6) then
-             w_issat = PETSC_FALSE
-          else
-             w_issat = PETSC_TRUE
-          endif
-        endif
-
-      else
-
-       ! Case of injector
-
-        w_sp = 0.0
-        if (ws_isoilinjector .and. ws_oil) then
-          w_sp(ipoil) = 1.0
-          w_issat     = PETSC_FALSE
-        endif
-        if (ws_isgasinjector .and. ws_gas) then
-          w_sp(ipgas) = 1.0
-          w_issat     = PETSC_TRUE
-        endif
-        if (ws_iswatinjector .and. ws_wat) then
-          w_sp(ipwat) = 1.0
-          w_issat     = PETSC_TRUE
-        endif
-        if (ws_isslvinjector .and. ws_slv) then
-          w_sp(ipslv) = 1.0
-          w_issat     = PETSC_TRUE
-        endif
-      endif
+      call setWellboreSaturation(ipoil,ipgas,ipwat,ipslv)
 
       w_trel = c_t (1)
 
@@ -772,7 +735,7 @@ subroutine SolveWell(aux, option, well_data, r_p)
     ! Loop over attempts to find the well target type
 
     do iterTT = 1, max_iterTT
-      finished = solveForWellTarget(well_data,pw, option, itt, jwwi,wellisdead)
+      finished = solveForWellTarget(pw, option, itt, jwwi,wellisdead)
       if (finished) exit
     enddo
 
@@ -836,7 +799,7 @@ end subroutine SolveWell
 
 ! *************************************************************************** !
 
-function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
+function solveForWellTarget(pw, option, itt, jwwi, wellisdead)
   !
   ! Solve for a given well target
   !
@@ -846,7 +809,6 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
   implicit none
 
   PetscBool :: solveForWellTarget
-  class(well_data_type), pointer :: well_data
   PetscReal, intent(inout) :: pw
   type(option_type), pointer :: option
   PetscInt, intent(inout) :: itt
@@ -854,11 +816,13 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
   PetscBool, intent(out) :: wellisdead
 
   PetscInt  :: iterpw, jtt, nconv, ierr
-  PetscBool :: finished, possible, usediff
+  PetscBool :: finished, possible, usediff, &
+               found_rw_pos,found_rw_neg, bracketed, increasing, do_bisection
   ! fpsc: flow with positive sign convention
   PetscReal :: conv_crit, rw, jww, fpsc, ftarg, pwtarg, &
                tactpw, eps, anal, diff, rat, rwe, &
-               bl(1), bg(1), ftot
+               ftot, pw_rw_pos, pw_rw_neg, pwl, pwu, &
+               tact, dpw, rwtarg, mid, width
 
   ! Initialize
 
@@ -870,6 +834,7 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
   usediff   = PETSC_FALSE
   wellisdead = PETSC_FALSE
   solveForWellTarget = PETSC_FALSE
+  do_bisection = PETSC_FALSE
 
   pwtarg = ws_targets(W_BHP_LIMIT)
   if (pwtarg<0.0) then
@@ -902,11 +867,46 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
     solveForWellTarget = PETSC_TRUE
   else
 
-  ! Do the iteration in pw for the well solution when on this target
+    ! Do the iteration in pw for the well solution when on this target
 
     finished = PETSC_FALSE
     nconv    = 0
+
+    ! Initialise the bisection system
+
+    call initialiseBisection( pwl         , pwu         , &
+                              pw_rw_pos   , pw_rw_neg   , &
+                              found_rw_pos, found_rw_neg, &
+                              bracketed   , increasing  )
+
+    ! If not bhp control, do test to see if target viable, switch if not
+
+    if (itt /= W_BHP_LIMIT) then
+      tact = getActualFlowForTargetType(pwtarg, option, itt, possible, tactpw)
+      rwtarg = w_sign*tact - ws_targets(itt)
+      if (rwtarg > 0.0) then
+
+        ! Well viable so use initial pwtarg/rwtarg as first bisection point
+        call updateBisectionLimits( pwtarg      , rwtarg      , &
+                                    pwl         , pwu         , &
+                                    pw_rw_pos   , pw_rw_neg   , &
+                                    found_rw_pos, found_rw_neg, &
+                                    bracketed   , increasing )
+      else
+
+        ! Well has gone to bhp as cannot make target
+        itt = W_BHP_LIMIT
+      endif
+    endif
+
+    ! Start iteration
+
     do iterpw = 1, max_iterPW
+
+      ! Turn bisection on if not converged after half the iterations
+      if (iterpw==(max_iterPW/2)) do_bisection=PETSC_TRUE
+      ! Bisection off near end of iteration to let Newton bring it home
+      if (iterpw==(max_iterPW-4)) do_bisection=PETSC_FALSE
 
       if (usediff) then
         call getRwAndJw(option, itt, pw+eps, rwe, jww)
@@ -922,36 +922,64 @@ function solveForWellTarget(well_data, pw, option, itt, jwwi, wellisdead)
         call getRwAndJw(option, itt, pw, rw, jww)
       endif
 
-      if (w_crossproc) then
-        ierr = 0
-        bl(1) = rw
-        call MPI_Allreduce(bl, bg, ONE_INTEGER, &
-                           MPI_DOUBLE_PRECISION, MPI_MAX, w_comm, ierr)
-        call checkErr(ierr)
-        rw = bg(1)
-      endif
-
       if (abs(rw) < conv_crit) nconv = nconv+1
 
-      !  Check if finished
+      ! Check if finished
       finished = PETSC_FALSE
       if (nconv > 1)  finished = PETSC_TRUE
 
-      !  Check that we all agree
+      ! Check that we all agree
       finished = allTrue(finished)
 
-      !  Exit iteration iff all finished
+      ! Exit iteration iff all finished
       if (finished) exit
 
-      !  Not finished - continue iterating
+      ! Update bisection limits using this pw/rw
+
+      call updateBisectionLimits( pw          , rw          , &
+                                  pwl         , pwu         , &
+                                  pw_rw_pos   , pw_rw_neg   , &
+                                  found_rw_pos, found_rw_neg, &
+                                  bracketed   , increasing )
+
+      ! Update pw, limiting change in one iteration
 
       if (abs(jww)>0.0) then
         jwwi = 1.0/jww
       else
         jwwi = 0.0
       endif
-      pw = pw-rw*jwwi
+
+      dpw = -rw*jwwi
+      dpw = min( 100.0*ws_atm, dpw)
+      dpw = max(-100.0*ws_atm, dpw)
+      pw  = pw+dpw
+
+      ! Trap against minimum pw value allowed
+
       if (pw < ws_pwmin) pw = ws_pwmin
+
+      ! Use bisection if required
+      ! Not a strict bisection, some slack so reasonable Newton steps accepted
+
+      if (bracketed .and. do_bisection) then
+        mid  =0.5*(pwu+pwl)
+        width=    (pwu-pwl)
+        if (width > 0.0) then
+          pw=min(pw, mid+0.1*width)
+          pw=max(pw, mid-0.1*width)
+        endif
+      endif
+
+      ! Restart if no progress
+
+      if ( iterpw==(max_iterPW/4) ) then
+        if (ws_isproducer) then
+          pw=pwtarg*1.1 ! Just above the minimum bhp
+        else
+          pw=pwtarg*0.9 ! Just below the maximum bhp
+        endif
+      endif
 
     enddo
 
@@ -1029,6 +1057,101 @@ subroutine getRwAndJw(option, itt, pw, rw, jww)
   rw = extractResidualandJacobian(pw, option, itt, jww)
 
 end subroutine getRwAndJw
+
+! *************************************************************************** !
+
+subroutine initialiseBisection( pwl         , pwu         , &
+                                pw_rw_pos   , pw_rw_neg   , &
+                                found_rw_pos, found_rw_neg, &
+                                bracketed   , increasing )
+  !
+  ! Initialise the bisection sub-system
+  !
+  ! Author: Dave Ponting
+  ! Date  : 06/15/19
+
+  implicit none
+
+  PetscReal, intent(out) :: pwl         , pwu
+  PetscReal, intent(out) :: pw_rw_pos   , pw_rw_neg
+  PetscBool, intent(out) :: found_rw_pos, found_rw_neg, bracketed, increasing
+
+  pwl          = -1.0
+  pwu          = -1.0
+  found_rw_pos = PETSC_FALSE
+  found_rw_neg = PETSC_FALSE
+  pw_rw_pos    = -1.0
+  pw_rw_neg    = -1.0
+  bracketed    = PETSC_FALSE
+  increasing   = ws_isinjector
+
+end subroutine initialiseBisection
+
+! *************************************************************************** !
+
+subroutine updateBisectionLimits( pw          , rw          , &
+                                  pwl         , pwu         , &
+                                  pw_rw_pos   , pw_rw_neg   , &
+                                  found_rw_pos, found_rw_neg, &
+                                  bracketed   , increasing )
+  !
+  ! Update bisection values
+  !
+  ! Author: Dave Ponting
+  ! Date  : 07/11/19
+
+  implicit none
+
+  PetscReal, intent(in)    :: pw, rw
+  PetscReal, intent(inout) :: pwl, pwu
+  PetscReal, intent(inout) :: pw_rw_pos, pw_rw_neg
+  PetscBool, intent(inout) :: found_rw_pos,found_rw_neg,bracketed,increasing
+
+  ! Check rw and set flags indicating a pos. or neg. residual has been found
+
+  if (rw>0.0 .and. (.not.found_rw_pos)) then
+    found_rw_pos = PETSC_TRUE
+    pw_rw_pos = pw
+  endif
+
+  if (rw<0.0 .and. (.not.found_rw_neg)) then
+    found_rw_neg = PETSC_TRUE
+    pw_rw_neg = pw
+  endif
+
+  ! Check the bracket
+
+  if (bracketed) then
+
+    ! Bracket exists: see if can reduce
+
+    if (pw>=pwl .and. pw<=pwu) then
+      if (    (       increasing  .and. (rw>0.0) ) &
+          .or.( (.not.increasing) .and. (rw<0.0) ) ) then
+        pwu=pw
+      else
+        pwl=pw
+      endif
+    endif
+
+   else
+
+     ! No bracket, see if can set one up
+     if (found_rw_pos .and. found_rw_neg) then
+       bracketed = PETSC_TRUE
+       if ( pw_rw_pos > pw_rw_neg ) then
+         increasing = PETSC_TRUE
+         pwl = pw_rw_neg
+         pwu = pw_rw_pos
+       else
+         increasing = PETSC_FALSE
+         pwl = pw_rw_pos
+         pwu = pw_rw_neg
+       endif
+     endif
+   endif
+
+end subroutine updateBisectionLimits
 
 !**************************************************************************** !
 
@@ -1970,7 +2093,7 @@ subroutine findWellboreSolution(pw, option)
 
   PetscInt  :: iterwbs, ir, irw, ixw, icmpl, icompe, jdof, jcmplg, ierr, &
                itry, mtry
-  PetscReal :: epsconv,epsdiff,epssoln, Rnorm, so, sg, pb, deti, &
+  PetscReal :: epsconv, epsdiff, epssoln, Rnorm, so, sg, pb, deti, &
                diff, anal, rat, pwe, sum
   PetscReal :: lam, rNormhold
   PetscBool :: finished, usediff, usediff2, issathold
@@ -1994,10 +2117,14 @@ subroutine findWellboreSolution(pw, option)
 
   do iterwbs = 1, max_iterWBS
 
+    if ( iterwbs == max_iterWBS/2 ) then
+      call resetWellboreSolution(option)
+    endif
+
    ! Get residuals for difference checks
 
     if (usediff .or. usediff2) then
-      call getRwbsAndJwbs(pw, option,sum)
+      call getRwbsAndJwbs(pw, option, sum)
       do ir = 1, ws_nxw
         rwbshold(ir) = rwbs(ir)
         xwbshold(ir) = xwbs(ir)
@@ -2014,7 +2141,7 @@ subroutine findWellboreSolution(pw, option)
         if (ixw == 2 ) epsdiff = 1.0E-2
 
         xwbs(ixw) = xwbs(ixw)+epsdiff
-        call getRwbsAndJwbs(pw, option,sum)
+        call getRwbsAndJwbs(pw, option, sum)
         do ir = 1, ws_nxw
           diff = (rwbs(ir)-rwbshold(ir))/epsdiff
           anal = jwbs(ir, ixw)
@@ -2028,7 +2155,7 @@ subroutine findWellboreSolution(pw, option)
     if (usediff2) then
       epsdiff = 1.0
       pwe = pw+epsdiff
-      call getRwbsAndJwbs(pwe, option,sum)
+      call getRwbsAndJwbs(pwe, option, sum)
       do ir = 1, ws_nxw
         diff = (rwbs(ir)-rwbshold(ir))/epsdiff
         anal =  rwbspw(ir)
@@ -2042,12 +2169,12 @@ subroutine findWellboreSolution(pw, option)
     call getRwbsAndJwbs(pw, option,sum)
     Rnorm = getRnormwbs()
 
-    !  Does this norm indicate we are finished?
+    ! Does this norm indicate we are finished?
 
     finished = PETSC_FALSE
     if (Rnorm < epsconv .and. iterwbs>1 ) finished = PETSC_TRUE
 
-    !  Check that we all agree
+    ! Check that we all agree
 
     finished = allTrue(finished)
 
@@ -2082,7 +2209,7 @@ subroutine findWellboreSolution(pw, option)
 
     lam=1.0
     mtry = 4
-    do itry=1,mtry
+    do itry=1, mtry
 
       do ixw = 1, ws_nxw
         xwbs(ixw) = xwbs(ixw)+lam*dxwbs(ixw)
@@ -2119,12 +2246,14 @@ subroutine findWellboreSolution(pw, option)
       ! Limit to positive now change detected
 
       do ixw = 1, ws_nxw
-        if (xwbs(ixw) < 0.0) xwbs(ixw) = 0.0
+        if (ixw /= ws_loc_trel) then
+          if (xwbs(ixw) < 0.0) xwbs(ixw) = 0.0
+        endif
       enddo
 
       ! Get residual and norm
 
-      call getRwbsAndJwbs(pw, option,sum)
+      call getRwbsAndJwbs(pw, option, sum)
       Rnorm = getRnormwbs()
 
       ! Check if gain, leave if so
@@ -2244,6 +2373,109 @@ subroutine packWellboreSolution(option)
   endif
 
 end subroutine packWellboreSolution
+
+!*****************************************************************************!
+
+subroutine resetWellboreSolution(option)
+  !
+  ! Pack the wellbore solution into the well solution array
+  !
+  ! Author: Dave Ponting
+  ! Date  : 09/19/18
+
+  implicit none
+
+  type(option_type), pointer :: option
+  PetscInt :: ipoil, ipgas, ipwat, ipslv
+
+  ipoil = option%oil_phase
+  ipgas = option%gas_phase
+  ipwat = option%liquid_phase
+  ipslv = option%solvent_phase
+
+  ! Set up w_sp, treating producer and injector separately
+
+  call setWellboreSaturation(ipoil, ipgas, ipwat, ipslv)
+
+  ! Pack well bore solution working array, xwbs
+
+  if (ws_oil) then
+    xwbs(ws_loc_soil) = w_sp(option%oil_phase)
+  endif
+
+  if (ws_gas) then
+    if (w_issat) then
+      xwbs(ws_loc_sgpb) = w_sp(option%gas_phase)
+    else
+      xwbs(ws_loc_sgpb) = w_pb
+    endif
+  endif
+
+  if (.not.ws_isothermal) then
+    xwbs(ws_loc_trel) = w_trel
+  endif
+
+  if (is_solvent) then
+    xwbs(ws_loc_sslv) = w_sp(option%solvent_phase)
+  endif
+
+end subroutine resetWellboreSolution
+
+!*****************************************************************************!
+
+subroutine setWellboreSaturation(ipoil, ipgas, ipwat, ipslv)
+
+  !
+  ! Set the wellbore saturations
+  !
+  ! Author: Dave Ponting
+  ! Date  : 07/16/19
+
+  implicit none
+
+  PetscInt, intent(in) :: ipoil, ipgas, ipwat, ipslv
+  PetscInt :: iphase
+
+  if (ws_isproducer) then
+
+    ! Case of producer
+
+    do iphase = 1, ws_nphase
+      w_sp(iphase) = c_sp(1, iphase)
+    enddo
+
+    if (ws_oil .and. ws_gas) then
+      if (w_sp(ipoil)>1.0E-6 .and. w_sp(ipgas)<1.0E-6) then
+         w_issat = PETSC_FALSE
+      else
+         w_issat = PETSC_TRUE
+      endif
+    endif
+
+   else
+
+    ! Case of injector
+
+    w_sp = 0.0
+    if (ws_isoilinjector .and. ws_oil) then
+      w_sp(ipoil) = 1.0
+      w_issat     = PETSC_FALSE
+    endif
+    if (ws_isgasinjector .and. ws_gas) then
+      w_sp(ipgas) = 1.0
+      w_issat     = PETSC_TRUE
+    endif
+    if (ws_iswatinjector .and. ws_wat) then
+      w_sp(ipwat) = 1.0
+      w_issat     = PETSC_TRUE
+    endif
+    if (ws_isslvinjector .and. ws_slv) then
+      w_sp(ipslv) = 1.0
+      w_issat     = PETSC_TRUE
+    endif
+  endif
+
+end subroutine setWellboreSaturation
 
 ! *************************************************************************** !
 
@@ -2645,7 +2877,7 @@ subroutine findWellboreGravityDensityPredictor()
 
 end subroutine findWellboreGravityDensityPredictor
 
-!  ************************************************************************** !
+! ************************************************************************** !
 
 subroutine findWellborePropertiesAndDerivatives(pw, so, sg, sw, ss, &
                                                 pb, t, option)
@@ -3904,23 +4136,11 @@ subroutine checkSolverAvailable(option)
   implicit none
 
   type (option_type), pointer :: option
-  PetscInt  :: ncmp, iphase, nphase, wsnx
+  PetscInt  :: ncmp, iphase, nphase
   PetscBool :: water_found, mode_ok, is_grdecl
 
   ncmp   = option%nphase+1
   nphase = option%nphase
-
-  ! Do we have a direct matrix inverter for this system?
-
-  if (ws_isothermal) then
-    wsnx = ncmp-2
-  else
-    wsnx = ncmp-1
-  endif
-  if (wsnx>3) then
-    option%io_buffer = 'Wellsolver needs n>3 direct solver for this system'
-    call PrintErrMsg(option)
-  endif
 
   ! Is water present?
 
@@ -4005,7 +4225,7 @@ function allTrue(vote)
   PetscBool:: alltrue
   PetscBool, intent(in) :: vote
 
-  PetscInt :: il(1),ig(1),ierr
+  PetscInt :: il(1), ig(1), ierr
 
   il(1) = 1
   ig(1) = 0
@@ -4021,13 +4241,13 @@ function allTrue(vote)
 
     if (vote) il(1)=1
 
-    !  Get the minimum value (i.e. 0 if any vote is false)
+    ! Get the minimum value (i.e. 0 if any vote is false)
 
     call MPI_Allreduce(il, ig, ONE_INTEGER, &
-                        MPI_INTEGER, MPI_MIN, w_comm, ierr)
+                       MPI_INTEGER, MPI_MIN, w_comm, ierr)
     call checkErr(ierr)
 
-    !  Set allTrue to true iff all votes are true
+    ! Set allTrue to true iff all votes are true
 
     if (ig(1)==1) allTrue = PETSC_TRUE
 
@@ -4052,7 +4272,7 @@ subroutine checkErr(ierr)
 
   implicit none
 
-  PetscInt,intent(in)::ierr
+  PetscInt, intent(in) :: ierr
 
   if (ierr /= 0) ws_MPI_errs = ws_MPI_errs + 1
 

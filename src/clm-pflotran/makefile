@@ -40,6 +40,11 @@ MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 #MYFLAGS += ${FC_DEFINE_FLAG}LEGACY_SATURATION_FUNCTION
 
+ifdef codecov
+  MYFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
+endif
+
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
 ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))

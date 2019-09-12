@@ -43,7 +43,7 @@
       Min:   9.9692874098938E-01
      Mean:   9.9701922257595E-01
         2:   9.9701078999959E-01
--- GENERIC: Effective Porosity --
+-- GENERIC: Porosity --
       Max:   2.9995348911691E-01
       Min:   2.9952034928064E-01
      Mean:   2.9976340827036E-01
@@ -54,7 +54,7 @@
      Mean:   1.0000000000000E+00
         2:         1
 -- SOLUTION: Flow --
-   Time (seconds):   6.5258264541626E-02
+   Time (seconds):   6.6045045852661E-02
    Time Steps:           40
    Newton Iterations:           93
    Solver Iterations:           93
