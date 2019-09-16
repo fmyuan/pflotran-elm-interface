@@ -180,9 +180,9 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   ! Get dataset dimnesions
   call parallelIO_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
   if (ndims.ne.1) then
-    option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
-	   ' is not equal to 1.'
-	call PrintErrMsg(option)
+    option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // &
+      filename // ' is not equal to 1.'
+    call PrintErrMsg(option)
   endif
   
   ! Get size of each dimension

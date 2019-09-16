@@ -46,6 +46,7 @@ script:
 #  - echo CC=${CC}
 #  - echo CXX=${CXX}
 #  - echo FC=${FC}
+
   - ./.travis/install-petsc.sh
   - ./.travis/pflotran-build.sh
   - ./.travis/pflotran-rxn-build.sh
@@ -56,5 +57,4 @@ script:
   - cat src/clm-pflotran/*.testlog
 
 after_success:
- - bash <(curl -s https://codecov.io/bash)
-
+  - bash <(curl -s https://codecov.io/bash)

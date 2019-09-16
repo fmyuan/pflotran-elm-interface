@@ -294,17 +294,11 @@ subroutine IFunctionAccumulation(F,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvars(ghosted_id), &
-             global_auxvars(ghosted_id)%pres(1), &
-             compressed_porosity, dcompressed_porosity_dp)
-      por = compressed_porosity
-      dpor_dP = dcompressed_porosity_dp
-    else
-      por = material_auxvars(ghosted_id)%porosity
-      dpor_dP = 0.d0
-    endif
-    
+    call MaterialAuxVarCompute(material_auxvars(ghosted_id), &
+                               global_auxvars(ghosted_id)%pres(1))
+    por = material_auxvars(ghosted_id)%porosity
+    dpor_dP = material_auxvars(ghosted_id)%dporosity_dp
+
     den = global_auxvars(ghosted_id)%den(1)
     sat = global_auxvars(ghosted_id)%sat(1)
     temp = global_auxvars(ghosted_id)%temp
@@ -498,16 +492,10 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvars(ghosted_id), &
-             global_auxvars(ghosted_id)%pres(1), &
-             compressed_porosity, dcompressed_porosity_dp)
-      por = compressed_porosity
-      dpor_dP = dcompressed_porosity_dp
-    else
-      por = material_auxvars(ghosted_id)%porosity
-      dpor_dP = 0.d0
-    endif
+    call MaterialAuxVarCompute(material_auxvars(ghosted_id), &
+                               global_auxvars(ghosted_id)%pres(1))
+    por = material_auxvars(ghosted_id)%porosity
+    dpor_dP = material_auxvars(ghosted_id)%dporosity_dp
     
     den = global_auxvars(ghosted_id)%den(1)
     sat = global_auxvars(ghosted_id)%sat(1)
@@ -541,7 +529,7 @@ subroutine IJacobianAccumulation(J,shift,realization,ierr)
     ! A_M = d(rho*phi*s)/dP * dP_dtime * Vol + d(rho*phi*s)/dT * dT_dtime * Vol
     
     ! Jlocal(1,1) = shift*d(A_M)/d(Pdot) + d(A_M)/d(P)
-    !         		= shift*d(rho*phi*s)/dP*Vol + d2(rho*phi*s)/dP2*dP_dtime*Vol +
+    !             = shift*d(rho*phi*s)/dP*Vol + d2(rho*phi*s)/dP2*dP_dtime*Vol +
     !               d2(rho*phi*s)/dTdP*dT_dtime*Vol
     
     dmass_dP = ( &

@@ -11,6 +11,7 @@ module Realization_Subsurface_class
   use Condition_module
   use Well_Data_class
   use Transport_Constraint_module
+  use NWT_Constraint_module
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
@@ -37,6 +38,7 @@ private
     type(well_data_list_type), pointer :: well_data=>null()
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
+    type(nwt_constraint_list_type), pointer :: nwt_constraints
     
     type(tran_constraint_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
@@ -128,6 +130,8 @@ function RealizationCreate2(option)
   ! Author: Glenn Hammond
   ! Date: 10/25/07
   ! 
+  
+  use NWT_Constraint_module
 
   implicit none
   
@@ -152,6 +156,8 @@ function RealizationCreate2(option)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
   call TranConstraintInitList(realization%transport_constraints)
+  allocate(realization%nwt_constraints)
+  call NWTConstraintInitList(realization%nwt_constraints)
 
   nullify(realization%material_properties)
   nullify(realization%fluid_properties)
@@ -261,10 +267,6 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%ithrm_loc)
     call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%icap_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_loc)
-    call DiscretizationDuplicateVector(discretization,field%work_loc, &
-                                       field%iphas_old_loc)
     
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
@@ -686,7 +688,10 @@ subroutine RealizationProcessConditions(realization)
     call RealProcessFlowConditions(realization)
   endif
   if (realization%option%ntrandof > 0) then
-    call RealProcessTranConditions(realization)
+    if (associated(realization%reaction)) &
+      call RealProcessTranConditions(realization)
+    if (associated(realization%nw_trans)) &
+      call RealProcessNWTConditions(realization)
   endif
   
   ! update data mediators
@@ -1123,13 +1128,6 @@ subroutine RealProcessTranConditions(realization)
                                      cur_constraint%colloids, &
                                      cur_constraint%immobile_species, &
                                      realization%option)
-#if 0
-!geh: breaks pflotran_rxn build
-    if (associated(realization%nw_trans)) &
-      call NWTProcessConstraint(realization%nw_trans,cur_constraint%name, &
-                                cur_constraint%nwt_species,realization%option)
-#endif
-   
     cur_constraint => cur_constraint%next
   enddo
   
@@ -1144,7 +1142,6 @@ subroutine RealProcessTranConditions(realization)
                      realization%sec_transport_constraint%colloids, &
                      realization%sec_transport_constraint%immobile_species, &
                      realization%option)
-  ! jenn:todo Make NWT work with sec_transport_constraint?
   endif
   
   ! tie constraints to couplers, if not already associated
@@ -1155,17 +1152,7 @@ subroutine RealProcessTranConditions(realization)
     do
       if (.not.associated(cur_constraint_coupler)) exit
       ! if aqueous_species exists, it was coupled during the embedded read.
-#if 0
-!geh: breaks pflotran_rxn build
-      if ( ((associated(realization%reaction)) .and. &
-           (.not.associated(cur_constraint_coupler%aqueous_species))) &
-           .or. &
-           ((associated(realization%nw_trans)) .and. &
-           (.not.associated(cur_constraint_coupler%nwt_species))) ) then
-#else
-      if (associated(realization%reaction) .and. &
-          .not.associated(cur_constraint_coupler%aqueous_species)) then
-#endif
+      if (.not.associated(cur_constraint_coupler%aqueous_species)) then
         cur_constraint => realization%transport_constraints%first
         do
           if (.not.associated(cur_constraint)) exit
@@ -1178,17 +1165,7 @@ subroutine RealProcessTranConditions(realization)
           endif
           cur_constraint => cur_constraint%next
         enddo
-#if 0
-!geh: breaks pflotran_rxn build
-        if ( ((associated(realization%reaction)) .and. &
-           (.not.associated(cur_constraint_coupler%aqueous_species))) &
-           .or. &
-           ((associated(realization%nw_trans)) .and. &
-           (.not.associated(cur_constraint_coupler%nwt_species))) ) then
-#else
-        if (associated(realization%reaction) .and. &
-            .not.associated(cur_constraint_coupler%aqueous_species)) then
-#endif
+        if (.not.associated(cur_constraint_coupler%aqueous_species)) then
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'
@@ -1222,6 +1199,125 @@ subroutine RealProcessTranConditions(realization)
   enddo
 
 end subroutine RealProcessTranConditions
+
+! ************************************************************************** !
+
+subroutine RealProcessNWTConditions(realization)
+  ! 
+  ! Sets up auxiliary data associated with
+  ! NW transport conditions
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 06/26/2019
+  ! 
+
+  use String_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  
+  
+  PetscBool :: found, coupling_needed
+  type(option_type), pointer :: option
+  type(tran_condition_type), pointer :: cur_condition
+  type(nwt_constraint_coupler_type), pointer :: cur_constraint_coupler
+  type(nwt_constraint_type), pointer :: cur_constraint, another_constraint
+  
+  option => realization%option
+  coupling_needed = PETSC_FALSE
+  
+  ! check for duplicate constraint names
+  cur_constraint => realization%nwt_constraints%first
+  do
+    if (.not.associated(cur_constraint)) exit
+      another_constraint => cur_constraint%next
+      ! now compare names
+      found = PETSC_FALSE
+      do
+        if (.not.associated(another_constraint)) exit
+        if (StringCompare(cur_constraint%name,another_constraint%name, &
+            MAXWORDLENGTH)) then
+          found = PETSC_TRUE
+        endif
+        another_constraint => another_constraint%next
+      enddo
+      if (found) then
+        option%io_buffer = 'Duplicate transport constraints named "' // &
+                 trim(cur_constraint%name) // '"'
+        call PrintErrMsg(realization%option)
+      endif
+    cur_constraint => cur_constraint%next
+  enddo
+  
+  ! initialize constraints
+  cur_constraint => realization%nwt_constraints%first
+  do
+    if (.not.associated(cur_constraint)) exit
+    call NWTConstraintProcess(realization%nw_trans,cur_constraint%name, &
+                              cur_constraint%nwt_species,realization%option)   
+    cur_constraint => cur_constraint%next
+  enddo
+  
+  ! jenn:todo Make NWT work with sec_transport_constraint?
+  
+  ! tie constraints to couplers, if not already associated
+  cur_condition => realization%transport_conditions%first
+  do
+    if (.not.associated(cur_condition)) exit
+    cur_constraint_coupler => cur_condition%nwt_constraint_coupler_list
+    do
+      if (.not.associated(cur_constraint_coupler)) exit
+
+      if (.not.associated(cur_constraint_coupler%nwt_species)) then
+        cur_constraint => realization%nwt_constraints%first
+        do
+          if (.not.associated(cur_constraint)) exit
+          if (StringCompare(cur_constraint%name, &
+                            cur_constraint_coupler%constraint_name, &
+                            MAXWORDLENGTH)) then
+            call NWTConstraintMapToCoupler(cur_constraint_coupler, &
+                                            cur_constraint)
+            exit
+          endif
+          cur_constraint => cur_constraint%next
+        enddo
+
+        if (.not.associated(cur_constraint_coupler%nwt_species)) then
+          option%io_buffer = 'Transport constraint "' // &
+                   trim(cur_constraint_coupler%constraint_name) // &
+                   '" not found in given CONSTRAINTs.'
+          call PrintErrMsg(realization%option)
+        endif
+      endif
+      cur_constraint_coupler => cur_constraint_coupler%next
+    enddo
+    if (associated(cur_condition%nwt_constraint_coupler_list%next)) then ! more than one
+      cur_condition%is_transient = PETSC_TRUE
+    else
+      cur_condition%is_transient = PETSC_FALSE
+    endif
+    cur_condition => cur_condition%next
+  enddo
+ 
+  ! final details for setup
+  cur_condition => realization%transport_conditions%first
+  do
+    if (.not.associated(cur_condition)) exit
+    ! is the condition transient?
+    if (associated(cur_condition%nwt_constraint_coupler_list%next)) then ! more than one
+      cur_condition%is_transient = PETSC_TRUE
+    else
+      cur_condition%is_transient = PETSC_FALSE
+    endif
+    ! set pointer to first constraint coupler
+    cur_condition%cur_nwt_constraint_coupler => &
+                                     cur_condition%nwt_constraint_coupler_list
+    
+    cur_condition => cur_condition%next
+  enddo
+
+end subroutine RealProcessNWTConditions
 
 ! ************************************************************************** !
 
@@ -1401,8 +1497,12 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
   !     Otherwise, datasets will not have been read for routines such as
   !     hydrostatic and auxvars will be initialized to garbage.
   call FlowConditionUpdate(realization%flow_conditions,realization%option)
-  call TranConditionUpdate(realization%transport_conditions, &
-                           realization%option)
+  if (associated(realization%reaction)) &
+    call TranConditionUpdate(realization%transport_conditions, &
+                             realization%option)
+  if (associated(realization%nw_trans)) &
+    call NWTConditionUpdate(realization%transport_conditions, &
+                            realization%option)
   call PatchInitAllCouplerAuxVars(realization%patch,realization%option)
    
 end subroutine RealizationInitAllCouplerAuxVars
@@ -1435,7 +1535,8 @@ end subroutine RealizUpdateAllCouplerAuxVars
 
 subroutine RealizationRevertFlowParameters(realization)
   ! 
-  ! Assigns initial porosity/perms to vecs
+  ! Overwrites porosity/permeability in materials_auxvars with values stored in 
+  ! Vecs
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/08
@@ -1445,7 +1546,7 @@ subroutine RealizationRevertFlowParameters(realization)
   use Field_module
   use Discretization_module
   use Material_Aux_class, only : material_type, &
-                                 POROSITY_CURRENT, POROSITY_MINERAL
+                              POROSITY_CURRENT, POROSITY_BASE, POROSITY_INITIAL
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z, &
                                POROSITY
 
@@ -1480,7 +1581,9 @@ subroutine RealizationRevertFlowParameters(realization)
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)  
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_MINERAL)
+                               POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_CURRENT)
   ! tortuosity is not currently checkpointed
@@ -1495,7 +1598,8 @@ end subroutine RealizationRevertFlowParameters
 
 subroutine RealizStoreRestartFlowParams(realization)
   ! 
-  ! Assigns initial porosity/perms to vecs
+  ! Overwrites porosity/permeability Vecs with restart values stored in 
+  ! material_auxvars
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/08
@@ -1536,9 +1640,12 @@ subroutine RealizStoreRestartFlowParams(realization)
                                      field%perm0_zz,ONEDOF)
   endif   
   call MaterialGetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_CURRENT)
+                               POROSITY_BASE)
+  ! might as well update initial and base at the same time
   call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
-                               POROSITY_MINERAL)
+                               POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               POROSITY_CURRENT)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                    field%porosity0,ONEDOF)
   ! tortuosity is not currently checkpointed
@@ -1809,7 +1916,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
-  PetscReal :: porosity_base
+  PetscReal :: porosity_base_
   PetscInt :: ivalue
   PetscErrorCode :: ierr
 
@@ -1975,11 +2082,11 @@ subroutine RealizationUpdatePropertiesTS(realization)
       imat = patch%imat(ghosted_id)
       critical_porosity = material_property_array(imat)%ptr% &
                             permeability_crit_por
-      porosity_base = material_auxvars(ghosted_id)%porosity_base
+      porosity_base_ = material_auxvars(ghosted_id)%porosity_base
       scale = 0.d0
-      if (porosity_base > critical_porosity .and. &
+      if (porosity_base_ > critical_porosity .and. &
           porosity0_p(local_id) > critical_porosity) then
-        scale = ((porosity_base - critical_porosity) / &
+        scale = ((porosity_base_ - critical_porosity) / &
                  (porosity0_p(local_id) - critical_porosity)) ** &
                 material_property_array(imat)%ptr%permeability_pwr
       endif
@@ -2029,7 +2136,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   ! perform check to ensure that porosity is bounded between 0 and 1
   ! since it is calculated as 1.d-sum_volfrac, it cannot be > 1
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_BASE)
   call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                   field%work,ONEDOF)
   call VecMin(field%work,ivalue,min_value,ierr);CHKERRQ(ierr)
@@ -2159,13 +2266,15 @@ subroutine RealizationCalcMineralPorosity(realization)
   endif
   ! update ghosted porosities
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_BASE)
   call DiscretizationLocalToLocal(discretization,field%work_loc, &
                                   field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_CURRENT)
+                               POROSITY,POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_CURRENT)
+!  call MaterialSetAuxVarScalar(patch%aux%Material,UNINITIALIZED_DOUBLE, &
+!                               POROSITY,POROSITY_CURRENT)
 
 end subroutine RealizationCalcMineralPorosity
 
@@ -2507,7 +2616,7 @@ subroutine RealizUnInitializedVarsFlow(realization)
   ! 
   use Option_module
   use Material_Aux_class
-  use Variables_module, only : VOLUME, MINERAL_POROSITY, PERMEABILITY_X, &
+  use Variables_module, only : VOLUME, BASE_POROSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
 
   implicit none
@@ -2519,7 +2628,7 @@ subroutine RealizUnInitializedVarsFlow(realization)
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
   ! mineral porosity is the base, unmodified porosity
-  call RealizUnInitializedVar1(realization,MINERAL_POROSITY,'porosity')
+  call RealizUnInitializedVar1(realization,BASE_POROSITY,'porosity')
   call RealizUnInitializedVar1(realization,PERMEABILITY_X,'permeability X')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Y,'permeability Y')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Z,'permeability Z')
@@ -2545,7 +2654,7 @@ subroutine RealizUnInitializedVarsTran(realization)
   use Option_module
   use Material_module
   use Material_Aux_class
-  use Variables_module, only : VOLUME, MINERAL_POROSITY, TORTUOSITY
+  use Variables_module, only : VOLUME, BASE_POROSITY, TORTUOSITY
 
   implicit none
   
@@ -2553,7 +2662,7 @@ subroutine RealizUnInitializedVarsTran(realization)
 
   call RealizUnInitializedVar1(realization,VOLUME,'volume')
   ! mineral porosity is the base, unmodified porosity
-  call RealizUnInitializedVar1(realization,MINERAL_POROSITY,'porosity')
+  call RealizUnInitializedVar1(realization,BASE_POROSITY,'porosity')
   call RealizUnInitializedVar1(realization,TORTUOSITY,'tortuosity')
 
 end subroutine RealizUnInitializedVarsTran
@@ -2669,6 +2778,7 @@ subroutine RealizationDestroyLegacy(realization)
 
   use Dataset_module
   use Output_Eclipse_module, only : ReleaseEwriterBuffers
+  use NWT_Constraint_module
 
   implicit none
   
@@ -2693,6 +2803,7 @@ subroutine RealizationDestroyLegacy(realization)
 
   call TranConditionDestroyList(realization%transport_conditions)
   call TranConstraintDestroyList(realization%transport_constraints)
+  call NWTConstraintDestroyList(realization%nwt_constraints)
 
   call PatchDestroyList(realization%patch_list)
 
@@ -2738,6 +2849,7 @@ subroutine RealizationStrip(this)
 
   use Dataset_module
   use Output_Eclipse_module, only : ReleaseEwriterBuffers
+  use NWT_Constraint_module
 
   implicit none
   
@@ -2755,6 +2867,7 @@ subroutine RealizationStrip(this)
 
   call TranConditionDestroyList(this%transport_conditions)
   call TranConstraintDestroyList(this%transport_constraints)
+  call NWTConstraintDestroyList(this%nwt_constraints)
 
   if (associated(this%fluid_property_array)) &
     deallocate(this%fluid_property_array)

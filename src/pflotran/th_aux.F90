@@ -34,7 +34,6 @@ module TH_Aux_module
     PetscReal :: dh_dT
     PetscReal :: du_dp
     PetscReal :: du_dT
-    PetscReal :: transient_por
     PetscReal :: Dk_eff
     PetscReal :: Ke
     PetscReal :: dKe_dp
@@ -234,7 +233,6 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%dh_dT     = uninit_value
   auxvar%du_dp     = uninit_value
   auxvar%du_dT     = uninit_value    
-  auxvar%transient_por = uninit_value
   auxvar%Dk_eff    = uninit_value
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
@@ -331,7 +329,6 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dh_dT = auxvar%dh_dT
   auxvar2%du_dp = auxvar%du_dp
   auxvar2%du_dT = auxvar%du_dT  
-  auxvar2%transient_por = auxvar%transient_por
   auxvar2%Dk_eff = auxvar%Dk_eff
   auxvar2%Ke = auxvar%Ke
   auxvar2%dKe_dp = auxvar%dKe_dp
@@ -390,7 +387,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase,characteristic_curves, &
                                      th_parameter, ithrm, natural_id, &
-                                     option)
+                                     update_porosity,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -418,6 +415,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscInt :: ithrm
   class(material_auxvar_type) :: material_auxvar
   PetscInt :: natural_id
+  PetscBool :: update_porosity
 
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
@@ -450,6 +448,10 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   global_auxvar%pres = x(1)  
   global_auxvar%temp = x(2)
  
+  if (update_porosity) then
+    call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
+  endif
+
 ! auxvar%pc = option%reference_pressure - auxvar%pres
   auxvar%pc = min(option%reference_pressure - global_auxvar%pres(1), &
                   characteristic_curves%saturation_function%pcmax)
@@ -460,6 +462,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
+
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
      iphase = 3
@@ -607,7 +610,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    iphase, &
                                    saturation_function, &
                                    th_parameter, ithrm, natural_id, &
-                                   option)
+                                   update_porosity,option)
   ! 
   ! Computes auxillary variables for each grid cell when
   ! ice and vapor phases are present
@@ -639,6 +642,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscInt :: ithrm
   PetscInt :: iphase
   PetscInt :: natural_id
+  PetscBool :: update_porosity
 
   PetscErrorCode :: ierr
   PetscReal :: pw, dw_kg, dw_mol, hw, sat_pressure, visl
@@ -692,6 +696,9 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     global_auxvar%pres(1) = -1.d8 + option%reference_pressure + 1.d0
   endif
 
+  if (update_porosity) then
+    call MaterialAuxVarCompute(material_auxvar,global_auxvar%pres(1))
+  endif
  
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
 
@@ -969,7 +976,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   TH_auxvar%d2sat_dT2 = 0.d0 
   TH_auxvar%d2den_dT2 = 0.d0 
   TH_auxvar%d2u_dT2 = 0.d0 
-	
+
 
   do ideriv = 1,option%nflowdof
     pert = x(ideriv)*perturbation_tolerance
@@ -1002,7 +1009,7 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
                             global_auxvar_pert,material_auxvar_pert,&
                             iphase,characteristic_curves, &
                             TH_parameter,ithrm, &
-                            -999,option)
+                            -999,PETSC_TRUE,option)
     endif
     
     

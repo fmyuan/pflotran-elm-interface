@@ -390,7 +390,8 @@ subroutine TOWGSetup(realization)
       option%io_buffer = 'Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'Non-initialized porosity.'
       call PrintMsg(option)
@@ -1747,7 +1748,7 @@ subroutine TOWGUpdateFixedAccum(realization)
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
                           
   PetscErrorCode :: ierr
@@ -2766,7 +2767,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     bc_type = ibndtype(iphase)
     select case(bc_type)
       ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
@@ -2883,8 +2884,8 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
           debug_dphi(iphase) = delta_pressure
 #endif
 
-          ! PO CONDUCTANCE_BC and SEEPAGE_BC to be implemented/tested
-          if (bc_type == SEEPAGE_BC .or. &
+          ! PO CONDUCTANCE_BC and HYDROSTATIC_SEEPAGE_BC to be implemented/tested
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
               bc_type == CONDUCTANCE_BC) then
                 ! flow in         ! boundary cell is <= pref
             if (delta_pressure > 0.d0 .and. &

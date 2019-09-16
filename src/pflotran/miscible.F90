@@ -551,7 +551,7 @@ subroutine MiscibleUpdateAuxVarsPatch(realization)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscReal :: mnacl, ynacl, xphi
   PetscErrorCode :: ierr
@@ -781,7 +781,7 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
   type(global_auxvar_type), pointer :: global_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:), icap_loc_p(:)
   PetscReal, pointer :: porosity_loc_p(:), tortuosity_loc_p(:), volume_p(:), &
                         ithrm_loc_p(:), accum_p(:)
                           
@@ -1212,7 +1212,7 @@ subroutine MiscibleBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   ! Flow   
   do np = 1, option%nphase   ! note: nphase = 1
     select case(ibndtype(1))
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
         Dq = perm_dn / dd_up
         ! Flow term
         ukvr=0.D0
@@ -1347,9 +1347,6 @@ subroutine MiscibleResidual(snes,xx,r,realization,ierr)
 !geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_zz_loc,field%perm_zz_loc,ONEDOF)
   call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
 
-!  call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_loc,ONEDOF)
-
-
 ! pass #0 prepare numerical increment  
   cur_patch => realization%patch_list%first
   do
@@ -1437,7 +1434,7 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
                perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
                           
                
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
   PetscInt :: icap_up, icap_dn, ithrm_up, ithrm_dn
@@ -1727,7 +1724,7 @@ subroutine MiscibleResidualPatch0(snes,xx,r,realization,ierr)
                perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
                           
                
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:)
 
   PetscReal :: dw_kg, dw_mol,dddt,dddp
   PetscReal :: rho, fg, dfgdp, dfgdt, eng, dhdt, dhdp, visc, dvdt, dvdp, xphi
@@ -1783,7 +1780,6 @@ subroutine MiscibleResidualPatch0(snes,xx,r,realization,ierr)
     endif
     ghosted_id = ng   
     istart = (ng-1) * option%nflowdof + 1; iend = istart - 1 + option%nflowdof
-     ! iphase =int(iphase_loc_p(ng))
     call MiscibleAuxVarCompute_Ninc(xx_loc_p(istart:iend),auxvars(ng)%auxvar_elem(0),&
           global_auxvars(ng),&
           realization%fluid_properties,option)
@@ -1925,8 +1921,6 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
 
-! PetscReal, pointer :: iphase_loc_p(:) 
-
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -1949,8 +1943,6 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
 !geh refactor  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
 !geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
-
-! call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr); 
 
   ! Accumulation terms (include reaction------------------------------------
   if (.not.option%steady_state) then
@@ -1979,8 +1971,6 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
       patch%aux%Miscible%Resold_AR(local_id, :)+ Res(1:option%nflowdof)
     enddo
   endif
-
-! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr); 
 
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first
@@ -2238,7 +2228,7 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: porosity_loc_p(:), volume_p(:), &
                           xx_loc_p(:), tortuosity_loc_p(:),&
                           perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
   PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
@@ -2335,7 +2325,6 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
 
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
  ResInc = 0.D0
 
@@ -2633,7 +2622,7 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: porosity_loc_p(:), volume_p(:), &
                           xx_loc_p(:), tortuosity_loc_p(:),&
                           perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
   PetscInt :: icap,iphas,iphas_up,iphas_dn,icap_up,icap_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
@@ -2724,7 +2713,6 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
 !geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-! call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
   ResInc = 0.D0
 #if 1
@@ -2861,7 +2849,6 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
 !geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

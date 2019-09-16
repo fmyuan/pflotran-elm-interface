@@ -166,7 +166,8 @@ subroutine RichardsSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
       call PrintMsg(option)
@@ -775,7 +776,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                patch%characteristic_curves_array( &
                                  patch%sat_func_id(ghosted_id))%ptr, &
                                grid%nG2A(ghosted_id), &
-                               option)   
+                               PETSC_TRUE,option)   
   enddo
 
   if (option%inline_surface_flow) then
@@ -809,9 +810,10 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
 
       select case(boundary_condition%flow_condition% &
                     itype(RICHARDS_PRESSURE_DOF))
-        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
-             HET_SURF_SEEPAGE_BC, &
-             HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC, &
+        case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+             CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+             HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+             HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC, &
              SURFACE_DIRICHLET,SURFACE_SPILLOVER)
           xxbc(1) = boundary_condition% &
                       flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
@@ -826,7 +828,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                                  patch%characteristic_curves_array( &
                                    patch%sat_func_id(ghosted_id))%ptr, &
                                  -grid%nG2A(ghosted_id), &
-                                 option)
+                                 PETSC_FALSE,option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1060,7 +1062,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 
   PetscInt :: ghosted_id, local_id
   PetscInt :: numfaces, jface, ghost_face_id, j, region_id
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
   PetscReal :: Res(1)
   PetscErrorCode :: ierr
@@ -1094,7 +1096,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
                    patch%characteristic_curves_array( &
                          patch%sat_func_id(ghosted_id))%ptr, &
                    grid%nG2A(ghosted_id), &
-                   option)
+                   PETSC_TRUE,option)
     call RichardsAccumulation(rich_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
@@ -1377,8 +1379,6 @@ subroutine RichardsUpdateLocalVecs(xx,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before RichardsUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                  field%iphas_loc,ONEDOF)
 
   call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
@@ -3037,9 +3037,9 @@ subroutine RichardsUpdateSurfacePress(realization)
     if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
       if (boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
-         HET_SURF_SEEPAGE_BC) then
+         HET_SURF_HYDROSTATIC_SEEPAGE_BC) then
         call PrintErrMsg(option,'from_surface_bc is not of type ' // &
-                        'HET_SURF_SEEPAGE_BC')
+                        'HET_SURF_HYDROSTATIC_SEEPAGE_BC')
       endif
 
       do iconn = 1, cur_connection_set%num_connections
@@ -3178,9 +3178,9 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
       pressure_bc_type = boundary_condition%flow_condition% &
                            itype(RICHARDS_PRESSURE_DOF)
 
-      if (pressure_bc_type /= HET_SURF_SEEPAGE_BC) then
+      if (pressure_bc_type /= HET_SURF_HYDROSTATIC_SEEPAGE_BC) then
         call PrintErrMsg(option,'from_surface_bc is not of type ' // &
-                        'HET_SURF_SEEPAGE_BC')
+                        'HET_SURF_HYDROSTATIC_SEEPAGE_BC')
       endif
 
       do iconn = 1, cur_connection_set%num_connections
@@ -3248,7 +3248,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
                            material_auxvars(ghosted_id), &
                            patch%characteristic_curves_array(icap_dn)%ptr, &
                            -grid%nG2A(ghosted_id), &
-                           option)
+                           PETSC_FALSE,option)
 
 
         if (rich_auxvar_up%kvr > eps .or. &
@@ -3272,7 +3272,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
           dphi = global_auxvar_up%pres(1) - global_auxvar_max%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_max%dden_dp
 
-          if (pressure_bc_type == HET_SURF_SEEPAGE_BC) then
+          if (pressure_bc_type == HET_SURF_HYDROSTATIC_SEEPAGE_BC) then
             ! flow in         ! boundary cell is <= pref
             if (dphi > 0.d0 .and. global_auxvar_up%pres(1)- &
                                     option%reference_pressure < eps) then

@@ -1575,7 +1575,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
         if (.not.associated(realization%nw_trans)) then
           option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
             &process model in the SIMULATION block without the corresponding &
-            &SUBSURFACE_NUCLEAR_WASTE_TRANSPORT in the SUBSURFACE block.'
+            &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
           call PrintErrMsg(option)
         endif
         call cur_pm%SetRealization(realization)
@@ -2085,10 +2085,9 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         call ReactionInit(realization%reaction,input,option)  
         
 !....................
-      case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
-           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO')  ! its so long, it gets cut off
+      case('NUCLEAR_WASTE_CHEMISTRY')
         if (.not.associated(simulation%nwt_process_model_coupler)) then
-          option%io_buffer = 'SUBSURFACE_NUCLEAR_WASTE_TRANSPORT card is &
+          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is &
             &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
             &in the SIMULATION block.'
           call PrintErrMsg(option)
@@ -2142,6 +2141,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Reaction_Aux_module
   use NW_Transport_module
   use NW_Transport_Aux_module
+  use NWT_Constraint_module
   use Discretization_module
   use Input_Aux_module
   use String_module
@@ -2198,7 +2198,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscBool :: aveg_mass_flowrate
   PetscBool :: aveg_energy_flowrate
   PetscBool :: bool_flag,unsupported_output
-  PetscBool :: rt_on
 
   PetscInt :: flag1, flag2
 
@@ -2207,6 +2206,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
   type(tran_constraint_type), pointer :: tran_constraint
+  type(nwt_constraint_type), pointer :: nwt_constraint
   type(tran_constraint_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
@@ -2274,9 +2274,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
                           
-  rt_on = PETSC_FALSE
-  if (associated(realization%reaction)) rt_on = PETSC_TRUE
-
   call InputRewind(input)
   string = 'SUBSURFACE'
   call InputFindStringInFile(input,option,string)
@@ -2304,10 +2301,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         call ReactionReadPass2(reaction,input,option)
         
 !....................
-      case('SUBSURFACE_NUCLEAR_WASTE_TRANSPORT', &
-           'SUBSURFACE_NUCLEAR_WASTE_TRANSPO') ! so long it gets cut off
+      case('NUCLEAR_WASTE_CHEMISTRY')
         if (.not.associated(simulation%nwt_process_model_coupler)) then
-          option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT card is included, but no &
+          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is included, but no &
             &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
           call PrintErrMsg(option)
         endif
@@ -2502,8 +2498,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name')
         call PrintMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
-                               realization%transport_constraints,reaction, &
-                               realization%nw_trans,rt_on,input,option)
+                               realization%transport_constraints, &
+                               realization%nwt_constraints, &
+                               reaction,realization%nw_trans,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
         nullify(tran_condition)
@@ -2516,22 +2513,28 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call PrintErrMsg(option)
         endif
-        tran_constraint => TranConstraintCreate(option)
-        call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'constraint','name')
-        call PrintMsg(option,tran_constraint%name)
-        if (associated(reaction)) &
-          call TranConstraintReadRT(tran_constraint,reaction,input,option)
-#if 0
-!geh: breaks pflotran_rxn build
-        if (associated(realization%nw_trans)) &
-          call TranConstraintReadNWT(tran_constraint,realization%nw_trans, &
-                                     input,option)
-#endif
-        call TranConstraintAddToList(tran_constraint, &
-                                     realization%transport_constraints)
-        nullify(tran_constraint)
-
+        
+        if (associated(reaction)) then
+          tran_constraint => TranConstraintCreate(option)
+          call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint','name')
+          call PrintMsg(option,tran_constraint%name)
+          call TranConstraintRead(tran_constraint,reaction,input,option)
+          call TranConstraintAddToList(tran_constraint, &
+                                       realization%transport_constraints)
+          nullify(tran_constraint)
+        endif
+        if (associated(realization%nw_trans)) then
+          nwt_constraint => NWTConstraintCreate(option)
+          call InputReadWord(input,option,nwt_constraint%name,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint','name')
+          call PrintMsg(option,nwt_constraint%name)
+          call NWTConstraintRead(nwt_constraint,realization%nw_trans, &
+                                 input,option)
+          call NWTConstraintAddToList(nwt_constraint, &
+                                      realization%nwt_constraints)
+          nullify(nwt_constraint)
+        endif
 
 !....................
       case ('BOUNDARY_CONDITION')
@@ -2722,7 +2725,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'secondary constraint','name')
         call PrintMsg(option,sec_tran_constraint%name)
-        call TranConstraintReadRT(sec_tran_constraint,reaction,input,option)
+        call TranConstraintRead(sec_tran_constraint,reaction,input,option)
         realization%sec_transport_constraint => sec_tran_constraint
         nullify(sec_tran_constraint)
 

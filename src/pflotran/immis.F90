@@ -1489,7 +1489,7 @@ subroutine ImmisBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
     q = 0.d0
     ukvr=0.D0
     select case(ibndtype(MPH_PRESSURE_DOF))
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
       Dq = perm_dn / dd_up
 
       ! only consider phase that exists, this also deals with IPHASE=1,2
@@ -1595,7 +1595,7 @@ subroutine ImmisBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
        fluxe = fluxe + auxvars(2)*area*option%scale
        ! from W to MW, Added by Satish Karra 10/19/11
     case(ZERO_GRADIENT_BC)
-       ! No change in fluxe	
+       ! No change in fluxe
     end select
 ! end if
 
@@ -2503,7 +2503,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
         case(DIRICHLET_BC)
           xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           delxbc(idof) = 0.D0
-        case(HYDROSTATIC_BC,SEEPAGE_BC)
+        case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
           xxbc(MPH_PRESSURE_DOF) = boundary_condition%flow_aux_real_var(MPH_PRESSURE_DOF,iconn)
           if (idof >= MPH_TEMPERATURE_DOF) then
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)

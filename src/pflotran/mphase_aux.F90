@@ -13,7 +13,6 @@ module Mphase_Aux_module
 !#define GARCIA 1
 #define DUANDEN 1
 
-
   type, public :: mphase_auxvar_elem_type
     PetscReal :: pres
     PetscReal :: temp
@@ -35,7 +34,7 @@ module Mphase_Aux_module
   end type mphase_auxvar_elem_type
 
   type, public :: mphase_auxvar_type
-    
+    PetscInt :: istate_store
     type(mphase_auxvar_elem_type), pointer :: auxvar_elem(:) 
 #if 0
     PetscReal , pointer :: davgmw_dx(:)
@@ -161,6 +160,7 @@ subroutine MphaseAuxVarInit(auxvar,option)
      if (nvar>0) &
        auxvar%auxvar_elem(nvar)%hysdat => auxvar%auxvar_elem(0)%hysdat
 
+     auxvar%istate_store = 0
      auxvar%auxvar_elem(nvar)%pres = 0.d0
      auxvar%auxvar_elem(nvar)%temp = 0.d0
      auxvar%auxvar_elem(nvar)%sat = 0.d0

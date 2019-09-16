@@ -96,7 +96,8 @@ subroutine WIPPFloSetup(realization)
       option%io_buffer = 'ERROR: Non-initialized cell volume.'
       call PrintMsg(option)
     endif
-    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+    if (material_auxvars(ghosted_id)%porosity_base < 0.d0 .and. &
+        flag(2) == 0) then
       flag(2) = 1
       option%io_buffer = 'ERROR: Non-initialized porosity.'
       call PrintMsg(option)
@@ -615,7 +616,7 @@ subroutine WIPPFloUpdateFixedAccum(realization)
 
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscReal, pointer :: accum_p(:)
                           
   PetscErrorCode :: ierr

@@ -2581,7 +2581,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
       if (gen_auxvar_up%mobility(iphase) + &
           gen_auxvar_dn%mobility(iphase) > eps) then
 
@@ -2629,7 +2629,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           ddelta_pressure_dTdn = dist_gravity * ddensity_kg_ave_dden_kg_dn * &
                                  gen_auxvar_dn%d%denl_T * fmw_comp(iphase)
         endif
-        if (bc_type == SEEPAGE_BC .or. &
+        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             bc_type == CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
@@ -2637,7 +2637,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                 option%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
-              option%io_buffer = 'CONDUCTANCE_BC and SEEPAGE_BC need to be &
+              option%io_buffer = 'CONDUCTANCE_BC and HYDROSTATIC_SEEPAGE_BC need to be &
                 &Verified in GeneralBCFlux().'
               call PrintErrMsg(option)
               ddelta_pressure_dpdn = 0.d0
@@ -2920,7 +2920,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   xmol_bool = 1.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
       if (gen_auxvar_up%mobility(iphase) + &
           gen_auxvar_dn%mobility(iphase) > eps) then
 
@@ -2970,7 +2970,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           ddelta_pressure_dTdn = dist_gravity * ddensity_kg_ave_dden_kg_dn * &
                                  gen_auxvar_dn%d%deng_T * fmw_comp(iphase)
         endif
-        if (bc_type == SEEPAGE_BC .or. &
+        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             bc_type == CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &

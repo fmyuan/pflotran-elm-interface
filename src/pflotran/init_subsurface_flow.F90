@@ -126,8 +126,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(G_MODE)
         !geh: cannot update state during initialization as the guess will be
         !     assigned as the initial condition if the state changes. therefore,
-        !     pass in PETSC_FALSE
-        call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+        !     pass in PETSC_FALSE. But update BCs (second PETSC_TRUE)
+        call GeneralUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE)
       case(H_MODE)
         call HydrateUpdateAuxVars(realization,PETSC_FALSE)
       case(WF_MODE)

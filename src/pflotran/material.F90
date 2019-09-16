@@ -1486,7 +1486,7 @@ end subroutine MaterialAssignPropertyToAux
 
 ! ************************************************************************** !
 
-subroutine MaterialSetAuxVarScalar(Material,value,ivar)
+subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
   ! 
   ! Sets values of a material auxvar data using a scalar value.
   ! 
@@ -1501,6 +1501,7 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
   type(material_type) :: Material ! from realization%patch%aux%Material
   PetscReal :: value
   PetscInt :: ivar
+  PetscInt :: isubvar
 
   PetscInt :: i
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -1515,9 +1516,20 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
         Material%auxvars(i)%volume = value
       enddo
     case(POROSITY)
-      do i=1, Material%num_aux
-        Material%auxvars(i)%porosity = value
-      enddo
+      select case(isubvar)
+        case(POROSITY_CURRENT)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity = value
+          enddo
+        case(POROSITY_BASE)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity_base = value
+          enddo
+        case(POROSITY_INITIAL)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity_0 = value
+          enddo
+      end select
     case(TORTUOSITY)
       do i=1, Material%num_aux
         Material%auxvars(i)%tortuosity = value
@@ -1602,9 +1614,13 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
           enddo
-        case(POROSITY_MINERAL)
+        case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
+          enddo
+        case(POROSITY_INITIAL)
+          do ghosted_id=1, Material%num_aux
+            Material%auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
           enddo
         case default
           print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
@@ -1710,9 +1726,13 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
             vec_loc_p(ghosted_id) = &
               Material%auxvars(ghosted_id)%porosity
           enddo
-        case(POROSITY_MINERAL)
+        case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
             vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_base
+          enddo
+        case(POROSITY_INITIAL)
+          do ghosted_id=1, Material%num_aux
+            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_0
           enddo
         case default
           print *, 'Error indexing porosity in MaterialGetAuxVarVecLoc()'

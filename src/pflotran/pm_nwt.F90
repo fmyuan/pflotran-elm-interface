@@ -84,7 +84,7 @@ module PM_NWT_class
     procedure, public :: Destroy => PMNWTDestroy
   end type pm_nwt_type
   
-  public :: PMNWTCreate, PMNWTSetPlotVariables
+  public :: PMNWTCreate
   
   
 contains
@@ -307,8 +307,7 @@ subroutine PMNWTInitializeRun(this)
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
   
-  ! update boundary conditions (don't know if this is necessary)
-  ! jenn:todo Is updating BCs necessary in PMNWTInitializeRun()?
+  ! update the boundary conditions
   call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
   
   call PMNWTUpdateSolution(this)
@@ -369,7 +368,7 @@ subroutine PMNWTFinalizeTimestep(this)
 
   use Variables_module, only : POROSITY
   use Material_module, only : MaterialGetAuxVarVecLoc
-  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_Aux_class, only : POROSITY_BASE 
   use Global_module
 
   implicit none
@@ -384,7 +383,7 @@ subroutine PMNWTFinalizeTimestep(this)
     call RealizationUpdatePropertiesTS(this%realization)
     call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
                                  this%realization%field%work_loc, &
-                                 POROSITY,POROSITY_MINERAL)
+                                 POROSITY,POROSITY_BASE)
     call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
                                   this%realization%field%porosity_tpdt)
   endif
@@ -554,7 +553,7 @@ subroutine PMNWTUpdateSolution(this)
   
   class(pm_nwt_type) :: this
     
-  call TranConditionUpdate(this%realization%transport_conditions, &
+  call NWTConditionUpdate(this%realization%transport_conditions, &
                            this%realization%option)
                            
   if (associated(this%realization%uniform_velocity_dataset)) then
@@ -677,6 +676,8 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   nw_trans => this%realization%nw_trans
   
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+  
+  !WRITE(*,*)  '         dC_p = ', dC_p(:)
 
   if (nw_trans%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
@@ -693,6 +694,8 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   else
     call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    
+    !WRITE(*,*)  '          C_p = ', C_p(:)
     
     if (Initialized(nw_trans%params%truncated_concentration)) then
       dC_p = min(dC_p,C_p-nw_trans%params%truncated_concentration)
@@ -948,44 +951,6 @@ subroutine PMNWTTimeCut(this)
   endif
  
 end subroutine PMNWTTimeCut
-
-! ************************************************************************** !
-
-subroutine PMNWTSetPlotVariables(list,nw_trans,option,time_unit)
-  ! 
-  ! Adds variables to be printed for plotting.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 03/28/2019
-  !
-  
-  use Output_Aux_module
-  use Variables_module
-    
-  implicit none
-  
-  type(output_variable_list_type), pointer :: list
-  type(nw_trans_realization_type), pointer :: nw_trans
-  type(option_type), pointer :: option
-  character(len=MAXWORDLENGTH) :: time_unit
-  
-  character(len=MAXWORDLENGTH) :: name,  units
-  PetscInt :: i
-  
-  ! jenn:todo Where should I be setting nw_trans%print ? In an equivalent
-  ! block like CHEMISTRY,OUTPUT?
-  if (nw_trans%print%molality) then
-    do i=1,nw_trans%params%nspecies
-      if (nw_trans%species_print(i)) then
-        name = 'Molality ' // trim(nw_trans%species_names(i))
-        units = 'm'
-        call OutputVariableAddToList(list,name,OUTPUT_CONCENTRATION,units, &
-                                     PRIMARY_MOLALITY,i)
-      endif
-    enddo
-  endif 
-  
-end subroutine PMNWTSetPlotVariables
 
 ! ************************************************************************** !
 

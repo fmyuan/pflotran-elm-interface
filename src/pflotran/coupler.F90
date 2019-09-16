@@ -368,7 +368,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       if (associated(coupler%flow_condition)) then
         if (associated(coupler%flow_condition%pressure)) then
           if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%pressure%itype /= SEEPAGE_BC .and. &
+              coupler%flow_condition%pressure%itype /= HYDROSTATIC_SEEPAGE_BC .and. &
               coupler%flow_condition%pressure%itype /= CONDUCTANCE_BC) then
             select type(selector => coupler%flow_condition%pressure%dataset)
               class is(dataset_gridded_hdf5_type)
