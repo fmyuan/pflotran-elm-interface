@@ -1099,7 +1099,7 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,NEUMANN_BC, &
+          case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,NEUMANN_BC, &
                HET_DIRICHLET_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(ZERO_GRADIENT_BC)

@@ -1212,7 +1212,7 @@ subroutine MiscibleBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
   ! Flow   
   do np = 1, option%nphase   ! note: nphase = 1
     select case(ibndtype(1))
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
         Dq = perm_dn / dd_up
         ! Flow term
         ukvr=0.D0

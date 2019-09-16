@@ -1910,7 +1910,7 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
     bc_type = ibndtype(iphase) ! loop over equations 1.Liq and 2.Oil
     select case(bc_type)
       ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
@@ -1973,8 +1973,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !          debug_dphi(iphase) = delta_pressure
 !#endif
-          ! PO CONDUCTANCE_BC and SEEPAGE_BC not implemented
-          if (bc_type == SEEPAGE_BC .or. &
+          ! PO CONDUCTANCE_BC and HYDROSTATIC_SEEPAGE_BC not implemented
+          if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
               bc_type == CONDUCTANCE_BC) then
                 ! flow in         ! boundary cell is <= pref
             if (delta_pressure > 0.d0 .and. &

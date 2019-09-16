@@ -997,7 +997,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
         select case(boundary_condition%flow_condition%itype(idof))
           case(DIRICHLET_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
-          case(HYDROSTATIC_BC,SEEPAGE_BC)
+          case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
             xxbc(MPH_PRESSURE_DOF) = boundary_condition%flow_aux_real_var(MPH_PRESSURE_DOF,iconn)
             if (idof >= MPH_TEMPERATURE_DOF) then
               xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -1010,7 +1010,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
       enddo
 
       select case(boundary_condition%flow_condition%itype(MPH_CONCENTRATION_DOF))
-        case(DIRICHLET_BC,SEEPAGE_BC,HYDROSTATIC_BC)
+        case(DIRICHLET_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_BC)
           iphase = boundary_condition%flow_aux_int_var(1,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphase = global_auxvars(ghosted_id)%istate
@@ -1904,7 +1904,7 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
 
     select case(ibndtype(MPH_PRESSURE_DOF))
         ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
         Dq = perm_dn / dd_up
 #if 0        
 ! This factor 2/3 is multiplied to get bulk perm k=delta^3/12/l, karra 05/14/2013   
@@ -1936,7 +1936,7 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
 
 !         print *,'Seepage BC: press ',np,auxvar_up%pres,auxvar_dn%pres,dphi,gravity
 
-          if ((pressure_bc_type == SEEPAGE_BC .or. &
+          if ((pressure_bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             pressure_bc_type == CONDUCTANCE_BC ) .and. np == 2) then
               ! flow in         ! boundary cell is <= pref
             if (dphi > 0.d0) then
@@ -2891,7 +2891,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         select case(boundary_condition%flow_condition%itype(idof))
           case(DIRICHLET_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
-          case(HYDROSTATIC_BC,SEEPAGE_BC)
+          case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
             xxbc(MPH_PRESSURE_DOF) = boundary_condition%flow_aux_real_var(MPH_PRESSURE_DOF,iconn)
             if (idof>=MPH_TEMPERATURE_DOF)then
               xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -2907,7 +2907,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       enddo
 
       select case(boundary_condition%flow_condition%itype(MPH_CONCENTRATION_DOF))
-        case(DIRICHLET_BC,SEEPAGE_BC,HYDROSTATIC_BC)
+        case(DIRICHLET_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_BC)
           iphase = boundary_condition%flow_aux_int_var(1,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphase= global_auxvars(ghosted_id)%istate
@@ -3485,7 +3485,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
         case(DIRICHLET_BC)
           xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           delxbc(idof) = 0.D0
-        case(HYDROSTATIC_BC,SEEPAGE_BC)
+        case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
           xxbc(MPH_PRESSURE_DOF) = boundary_condition%flow_aux_real_var(MPH_PRESSURE_DOF,iconn)
           if (idof >= MPH_TEMPERATURE_DOF) then
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -3502,7 +3502,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
 
       select case(boundary_condition%flow_condition%itype(MPH_CONCENTRATION_DOF))
-      case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
         iphasebc = boundary_condition%flow_aux_int_var(1,iconn)
       case(ZERO_GRADIENT_BC)
         iphasebc = global_auxvars(ghosted_id)%istate
