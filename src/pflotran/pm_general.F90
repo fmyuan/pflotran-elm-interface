@@ -1357,7 +1357,8 @@ subroutine PMGeneralUpdateAuxVars(this)
   
   class(pm_general_type) :: this
 
-  call GeneralUpdateAuxVars(this%realization,PETSC_FALSE)
+                                                !update BCs (second PETSC_TRUE)
+  call GeneralUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
 
 end subroutine PMGeneralUpdateAuxVars   
 

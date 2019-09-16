@@ -631,7 +631,7 @@ end subroutine GeneralUpdateMassBalance
 
 ! ************************************************************************** !
 
-subroutine GeneralUpdateAuxVars(realization,update_state)
+subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   ! 
   ! Updates the auxiliary variables associated with the General problem
   ! 
@@ -655,6 +655,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 
   type(realization_subsurface_type) :: realization
   PetscBool :: update_state
+  PetscBool :: update_state_bc
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -896,14 +897,16 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                   patch%sat_func_id(ghosted_id))%ptr, &
                                 natural_id, &
                                 option)
-      ! update state and update aux var; this could result in two update to 
-      ! the aux var as update state updates if the state changes
-       call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
-                                    global_auxvars_bc(sum_connection), &
-                                    material_auxvars(ghosted_id), &
-                                    patch%characteristic_curves_array( &
-                                      patch%sat_func_id(ghosted_id))%ptr, &
-                                    natural_id,option)
+      if (update_state_bc) then
+        ! update state and update aux var; this could result in two update to 
+        ! the aux var as update state updates if the state changes
+         call GeneralAuxVarUpdateState(xxbc,gen_auxvars_bc(sum_connection), &
+                                      global_auxvars_bc(sum_connection), &
+                                      material_auxvars(ghosted_id), &
+                                      patch%characteristic_curves_array( &
+                                        patch%sat_func_id(ghosted_id))%ptr, &
+                                      natural_id,option)
+      endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1234,7 +1237,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   
                                              ! do update state
-  call GeneralUpdateAuxVars(realization,PETSC_TRUE)
+  call GeneralUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
 
 ! for debugging a single grid cell
 !  i = 6
