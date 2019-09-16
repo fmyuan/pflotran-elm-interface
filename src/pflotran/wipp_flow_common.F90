@@ -724,7 +724,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
       if (wippflo_auxvar_up%mobility(iphase) + &
           wippflo_auxvar_dn%mobility(iphase) > eps) then
 
@@ -756,7 +756,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         delta_pressure = boundary_pressure - &
                           wippflo_auxvar_dn%pres(iphase) + &
                           gravity_term
-        if (bc_type == SEEPAGE_BC .or. &
+        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             bc_type == CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
@@ -830,7 +830,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
   mobility = 0.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
       if (wippflo_auxvar_up%mobility(iphase) + &
           wippflo_auxvar_dn%mobility(iphase) > eps) then
 
@@ -862,7 +862,7 @@ subroutine WIPPFloBCFluxHarmonicPermOnly(ibndtype,auxvar_mapping,auxvars, &
         delta_pressure = boundary_pressure - &
                           wippflo_auxvar_dn%pres(iphase) + &
                           gravity_term
-        if (bc_type == SEEPAGE_BC .or. &
+        if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
             bc_type == CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
@@ -1050,7 +1050,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
 
   select case(bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
       if (bc_type == CONDUCTANCE_BC) then
         select case(iphase)
           case(LIQUID_PHASE)
@@ -1070,7 +1070,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       delta_pressure = boundary_pressure - &
                        wippflo_auxvar_dn%pres(iphase) + &
                        gravity_term
-      if (bc_type == SEEPAGE_BC .or. &
+      if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
           bc_type == CONDUCTANCE_BC) then
             ! flow in         ! boundary cell is <= pref
         if (delta_pressure > 0.d0 .and. &
@@ -1139,7 +1139,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
   rel_perm = 0.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
       if (bc_type == CONDUCTANCE_BC) then
         select case(iphase)
           case(LIQUID_PHASE)
@@ -1159,7 +1159,7 @@ subroutine WIPPFloBCFluxLumpedHarmonic(ibndtype,auxvar_mapping,auxvars, &
       delta_pressure = boundary_pressure - &
                        wippflo_auxvar_dn%pres(iphase) + &
                        gravity_term
-      if (bc_type == SEEPAGE_BC .or. &
+      if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
           bc_type == CONDUCTANCE_BC) then
             ! flow in         ! boundary cell is <= pref
         if (delta_pressure > 0.d0 .and. &

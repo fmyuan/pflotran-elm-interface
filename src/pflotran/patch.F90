@@ -2751,7 +2751,7 @@ subroutine PatchUpdateCouplerAuxVarsTOI(patch,coupler,option)
                                        'PatchUpdateCouplerAuxVarsTOI')
           end select
         !case(CONDUCTANCE_BC) !not implemented yet
-        !case(SEEPAGE_BC) !not implemented yet
+        !case(HYDROSTATIC_SEEPAGE_BC) !not implemented yet
         case default
           string = &
             GetSubConditionName(toil_ims%pressure%itype)
@@ -3331,7 +3331,7 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
         coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
                 flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
  !  case(SATURATION_BC)
     end select
@@ -3433,7 +3433,7 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
         coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
                 flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
  !  case(SATURATION_BC)
     end select
@@ -3534,7 +3534,7 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
         coupler%flow_aux_real_var(MPH_PRESSURE_DOF,1:num_connections) = &
                 flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
  !  case(SATURATION_BC)
     end select
@@ -3641,7 +3641,8 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
 !    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
 !                                                        flow_condition%iphase
     select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SPILLOVER_BC)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SPILLOVER_BC, &
+           DIRICHLET_SEEPAGE_BC)
         select type(selector =>flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
             coupler%flow_aux_real_var(TH_PRESSURE_DOF,1:num_connections) = &
@@ -3657,16 +3658,16 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
             call DatasetUnknownClass(selector,option, &
                                      'PatchUpdateCouplerAuxVarsTH')
         end select
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-      case(HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+      case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%pressure%dataset,TH_PRESSURE_DOF,option)
         if (flow_condition%pressure%itype == HET_CONDUCTANCE_BC) then
           coupler%flow_aux_real_var(TH_CONDUCTANCE_DOF,1:num_connections) = &
             flow_condition%pressure%aux_real(1)
         endif
-      case(HET_SURF_SEEPAGE_BC)
+      case(HET_SURF_HYDROSTATIC_SEEPAGE_BC)
         ! Do nothing, since this BC type is only used for coupling of
         ! surface-subsurface model
       case default
@@ -3900,7 +3901,7 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
         coupler%flow_aux_real_var(MIS_PRESSURE_DOF, &
                                   1:num_connections) = &
           flow_condition%pressure%dataset%rarray(1)
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
    !  case(SATURATION_BC)
     end select
@@ -3913,7 +3914,7 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
                                     1:num_connections) = &
             flow_condition%concentration%dataset%rarray(1)
         endif
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
    !  case(SATURATION_BC)
     end select
@@ -3976,7 +3977,8 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   flow_condition => coupler%flow_condition
   if (associated(flow_condition%pressure)) then
     select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SURFACE_DIRICHLET,SURFACE_SPILLOVER)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SURFACE_DIRICHLET, &
+           SURFACE_SPILLOVER,DIRICHLET_SEEPAGE_BC)
         select type(dataset => &
                     flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
@@ -3993,10 +3995,10 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
             call DatasetUnknownClass(dataset,option, &
                                      'PatchUpdateCouplerAuxVarsRich')
         end select
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
    !  case(SATURATION_BC)
-      case(HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+      case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%pressure%dataset, &
                 RICHARDS_PRESSURE_DOF,option)

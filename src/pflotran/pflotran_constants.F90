@@ -181,7 +181,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: DIRICHLET_ZERO_GRADIENT_BC = 3
   PetscInt, parameter, public :: ZERO_GRADIENT_BC = 4
   PetscInt, parameter, public :: HYDROSTATIC_BC = 5
-  PetscInt, parameter, public :: SEEPAGE_BC = 6
+  PetscInt, parameter, public :: HYDROSTATIC_SEEPAGE_BC = 6
   PetscInt, parameter, public :: MASS_RATE_SS = 7
   PetscInt, parameter, public :: VOLUMETRIC_RATE_SS = 8
   PetscInt, parameter, public :: SCALED_MASS_RATE_SS = 9
@@ -197,7 +197,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
-  PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
+  PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
   PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
   PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
@@ -211,9 +211,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
-  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 36
   PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
   PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
+  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
   
   PetscInt, parameter, public :: WELL_SS = 100
   

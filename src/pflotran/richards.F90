@@ -810,9 +810,10 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
 
       select case(boundary_condition%flow_condition% &
                     itype(RICHARDS_PRESSURE_DOF))
-        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC, &
-             HET_SURF_SEEPAGE_BC, &
-             HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC, &
+        case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+             CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+             HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+             HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC, &
              SURFACE_DIRICHLET,SURFACE_SPILLOVER)
           xxbc(1) = boundary_condition% &
                       flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
@@ -3036,9 +3037,9 @@ subroutine RichardsUpdateSurfacePress(realization)
     if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
       if (boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
-         HET_SURF_SEEPAGE_BC) then
+         HET_SURF_HYDROSTATIC_SEEPAGE_BC) then
         call PrintErrMsg(option,'from_surface_bc is not of type ' // &
-                        'HET_SURF_SEEPAGE_BC')
+                        'HET_SURF_HYDROSTATIC_SEEPAGE_BC')
       endif
 
       do iconn = 1, cur_connection_set%num_connections
@@ -3177,9 +3178,9 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
       pressure_bc_type = boundary_condition%flow_condition% &
                            itype(RICHARDS_PRESSURE_DOF)
 
-      if (pressure_bc_type /= HET_SURF_SEEPAGE_BC) then
+      if (pressure_bc_type /= HET_SURF_HYDROSTATIC_SEEPAGE_BC) then
         call PrintErrMsg(option,'from_surface_bc is not of type ' // &
-                        'HET_SURF_SEEPAGE_BC')
+                        'HET_SURF_HYDROSTATIC_SEEPAGE_BC')
       endif
 
       do iconn = 1, cur_connection_set%num_connections
@@ -3271,7 +3272,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
           dphi = global_auxvar_up%pres(1) - global_auxvar_max%pres(1) + gravity
           dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_max%dden_dp
 
-          if (pressure_bc_type == HET_SURF_SEEPAGE_BC) then
+          if (pressure_bc_type == HET_SURF_HYDROSTATIC_SEEPAGE_BC) then
             ! flow in         ! boundary cell is <= pref
             if (dphi > 0.d0 .and. global_auxvar_up%pres(1)- &
                                     option%reference_pressure < eps) then
