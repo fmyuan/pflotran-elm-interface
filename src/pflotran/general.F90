@@ -1631,13 +1631,10 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
-  if (general_newton_iteration_number == -1) then
-    general_newton_iteration_number = 1
-  else
-    call SNESGetIterationNumber(snes,general_newton_iteration_number, &
-                                ierr); CHKERRQ(ierr)
-    general_newton_iteration_number = general_newton_iteration_number + 1
-  endif
+  call SNESGetIterationNumber(snes,general_newton_iteration_number, &
+                              ierr); CHKERRQ(ierr)
+  general_newton_iteration_number = general_newton_iteration_number + 1
+
   general_sub_newton_iter_num = 0
   general_force_iteration = PETSC_FALSE
 
