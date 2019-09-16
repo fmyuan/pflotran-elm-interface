@@ -1245,7 +1245,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     general_allow_state_change = PETSC_FALSE
   endif
                                             ! do update state
-  call GeneralUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
+  call GeneralUpdateAuxVars(realization,general_allow_state_change, &
+                            general_allow_state_change)
 
 ! for debugging a single grid cell
 !  i = 6

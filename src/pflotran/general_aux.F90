@@ -1375,7 +1375,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   character(len=MAXSTRINGLENGTH) :: state_change_string
 
 
-  if (general_immiscible .or. gen_auxvar%istatechng .or. .not.general_allow_state_change) return
+  if (general_immiscible .or. gen_auxvar%istatechng) return
 
   lid = option%liquid_phase
   gid = option%gas_phase
