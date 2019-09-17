@@ -40,7 +40,6 @@ module PM_General_class
     procedure, public :: PostSolve => PMGeneralPostSolve
     procedure, public :: CheckUpdatePre => PMGeneralCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMGeneralCheckUpdatePost
-    procedure, public :: CheckUpdatePostTR => PMGeneralCheckUpdatePostTR
     procedure, public :: CheckConvergence => PMGeneralCheckConvergence
     procedure, public :: TimeCut => PMGeneralTimeCut
     procedure, public :: UpdateSolution => PMGeneralUpdateSolution
@@ -1084,126 +1083,6 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 
 end subroutine PMGeneralCheckUpdatePost
 
-! ************************************************************************** !
-
-subroutine PMGeneralCheckUpdatePostTR(this,snes,X0,dX,X1,X1_changed,ierr)
-  ! 
-  ! Author: Heeho Park
-  ! Date: 07/11/19
-  ! 
-  use General_Aux_module
-  use Global_Aux_module
-  use Grid_module
-  use Option_module
-  use Realization_Subsurface_class
-  use Grid_module
-  use Field_module
-  use Patch_module
-  use Option_module
-  
-  implicit none
-  
-  class(pm_general_type) :: this
-  SNES :: snes
-  Vec :: X0
-  Vec :: dX
-  Vec :: X1
-  PetscBool :: X1_changed
-  PetscErrorCode :: ierr
-
-  PetscReal, pointer :: X0_p(:)
-  PetscReal, pointer :: dX_p(:)
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
-  PetscInt :: local_id, ghosted_id, natural_id
-  PetscInt :: offset, ival, idof
-  PetscReal :: dX_abs, dX_X0
-  PetscBool :: converged_abs_update_flag(3,3)
-  PetscBool :: converged_rel_update_flag(3,3)
-  PetscInt :: converged_abs_update_cell(3,3)
-  PetscInt :: converged_rel_update_cell(3,3)
-  PetscReal :: converged_abs_update_real(3,3)
-  PetscReal :: converged_rel_update_real(3,3)
-  PetscInt :: istate
-  PetscBool :: converged_absolute
-  PetscBool :: converged_relative
-  
-  grid => this%realization%patch%grid
-  option => this%realization%option
-  field => this%realization%field
-  patch => this%realization%patch
-  global_auxvars => patch%aux%Global%auxvars
-  
-  X1_changed = PETSC_FALSE
-  
-  general_sub_newton_iter_num = general_sub_newton_iter_num + 1
-
-  call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-  converged_abs_update_flag = PETSC_TRUE
-  converged_rel_update_flag = PETSC_TRUE
-  converged_abs_update_cell = ZERO_INTEGER
-  converged_rel_update_cell = ZERO_INTEGER
-  converged_abs_update_real = 0.d0
-  converged_rel_update_real = 0.d0
-  
-  do local_id = 1, grid%nlmax
-    offset = (local_id-1)*option%nflowdof
-    ghosted_id = grid%nL2G(local_id)
-    natural_id = grid%nG2A(ghosted_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    istate = global_auxvars(ghosted_id)%istate
-    
-    do idof = 1, option%nflowdof
-      
-      ival = offset+idof
-      
-      ! infinity norms on update
-      converged_absolute = PETSC_TRUE
-      converged_relative = PETSC_TRUE
-      dX_abs = dabs(dX_p(ival))
-      if (X0_p(ival) > 0.d0) then
-        dX_X0 = dabs(dX_abs/(X0_p(ival)))
-      else
-        dX_X0 = dabs(dX_abs/1.d-40)
-      endif
-      
-      if (dX_abs > this%abs_update_inf_tol(idof,istate)) then
-        converged_absolute = PETSC_FALSE
-      endif
-      if (converged_abs_update_real(idof,istate) < dX_abs) then
-        converged_abs_update_real(idof,istate) = dX_abs
-        converged_abs_update_cell(idof,istate) = natural_id
-      endif
-      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
-        converged_relative = PETSC_FALSE
-      endif
-      if (converged_rel_update_real(idof,istate) < dX_X0) then
-        converged_rel_update_real(idof,istate) = dX_X0
-        converged_rel_update_cell(idof,istate) = natural_id
-      endif
-
-      ! only enter this condition if both are not converged
-      if (.not.(converged_absolute .or. converged_relative)) then
-        converged_abs_update_flag(idof,istate) = PETSC_FALSE
-        converged_rel_update_flag(idof,istate) = PETSC_FALSE
-      endif
-    enddo
-  enddo
-  call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-
-  this%converged_flag(:,:,ABS_UPDATE_INDEX) = converged_abs_update_flag(:,:)
-  this%converged_flag(:,:,REL_UPDATE_INDEX) = converged_rel_update_flag(:,:)
-  this%converged_real(:,:,ABS_UPDATE_INDEX) = converged_abs_update_real(:,:)
-  this%converged_real(:,:,REL_UPDATE_INDEX) = converged_rel_update_real(:,:)
-  this%converged_cell(:,:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:,:)
-  this%converged_cell(:,:,REL_UPDATE_INDEX) = converged_rel_update_cell(:,:)
-
-end subroutine PMGeneralCheckUpdatePostTR
 
 ! ************************************************************************** !
 

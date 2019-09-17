@@ -45,7 +45,6 @@ module PM_Base_class
     procedure, public :: AcceptSolution => PMBaseFunctionThisOnly
     procedure, public :: CheckUpdatePre => PMBaseCheckUpdatePre
     procedure, public :: CheckUpdatePost => PMBaseCheckUpdatePost
-    procedure, public :: CheckUpdatePostTR => PMBaseCheckUpdatePostTR
     procedure, public :: CheckConvergence => PMBaseCheckConvergence
     procedure, public :: TimeCut => PMBaseThisOnly
     procedure, public :: UpdateSolution => PMBaseThisOnly
@@ -226,22 +225,6 @@ subroutine PMBaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   print *, 'Must extend PMBaseCheckUpdatePost for: ' // trim(this%name)
   stop
 end subroutine PMBaseCheckUpdatePost
-
-! ************************************************************************** !
-
-subroutine PMBaseCheckUpdatePostTR(this,snes,X0,dX,X1,X1_changed,ierr)
-  
-  implicit none
-  class(pm_base_type) :: this
-  SNES :: snes
-  Vec :: X0
-  Vec :: dX
-  Vec :: X1
-  PetscBool :: X1_changed
-  PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseCheckUpdatePostTR for: ' // trim(this%name)
-  stop
-end subroutine PMBaseCheckUpdatePostTR
 
 ! ************************************************************************** !
 

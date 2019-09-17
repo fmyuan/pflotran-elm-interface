@@ -29,14 +29,12 @@ module PM_Base_Pointer_module
             PMJacobian, &
             PMCheckUpdatePre, &
             PMCheckUpdatePost, &
-            PMCheckUpdatePostTR, &
             PMCheckConvergence, &
             PMRHSFunction, &
             PMResidualPtr, &
             PMJacobianPtr, &
             PMCheckUpdatePrePtr, &
             PMCheckUpdatePostPtr, &
-            PMCheckUpdatePostTRPtr, &
             PMCheckConvergencePtr, &
             PMRHSFunctionPtr, &
             PMIFunctionPtr, &
@@ -385,64 +383,6 @@ subroutine PMCheckUpdatePostPtr(line_search,X0,dX,X1,dX_changed,X1_changed, &
   call this%pm%CheckUpdatePost(line_search,X0,dX,X1,dX_changed,X1_changed,ierr)
     
 end subroutine PMCheckUpdatePostPtr
-
-! ************************************************************************** !
-
-subroutine PMCheckUpdatePostTR(snes,X0,dX,X1,X1_changed,this,ierr)
-  ! 
-  ! Wrapper for native call to XXXCheckUpdatePostTR
-  ! 
-  ! Author: Heeho Park
-  ! Date: 07/11/19
-  ! 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-  implicit none
-
-  SNES :: snes
-  Vec :: X0
-  Vec :: dX
-  Vec :: X1
-  PetscBool :: X1_changed
-  class(pm_base_type) :: this
-  PetscErrorCode :: ierr
-  
-#ifdef DEBUG
-  print *, 'PMCheckUpdatePostTR()'
-#endif
-
-  call this%CheckUpdatePostTR(snes,X0,dX,X1,X1_changed,ierr)
-    
-end subroutine PMCheckUpdatePostTR
-
-! ************************************************************************** !
-
-subroutine PMCheckUpdatePostTRPtr(snes,X0,dX,X1,X1_changed,this,ierr)
-  ! 
-  ! Wrapper for native call to XXXCheckUpdatePostTR
-  ! 
-  ! Author: Heeho Park
-  ! Date: 07/11/19
-  ! 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-  implicit none
-
-  SNES :: snes
-  Vec :: X0
-  Vec :: dX
-  Vec :: X1
-  PetscBool :: X1_changed
-  type(pm_base_pointer_type) :: this
-  PetscErrorCode :: ierr
-  
-#ifdef DEBUG
-  print *, 'PMCheckUpdatePostPtrTR()'
-#endif
-
-  call this%pm%CheckUpdatePostTR(snes,X0,dX,X1,X1_changed,ierr)
-    
-end subroutine PMCheckUpdatePostTRPtr
 
 ! ************************************************************************** !
 
