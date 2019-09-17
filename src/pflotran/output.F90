@@ -1189,6 +1189,44 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      SALINITY)
+      case('COORDINATES')
+        units = 'm'
+        name = 'X Coordinate'
+        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
+                                                units,X_COORDINATE)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+        name = 'Y Coordinate'
+        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
+                                                units,Y_COORDINATE)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+        name = 'Z Coordinate'
+        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
+                                                units,Z_COORDINATE)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+      case('X_COORDINATE')
+        units = 'm'
+        name = 'X Coordinate'
+        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
+                                                units,X_COORDINATE)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+      case('Y_COORDINATE')
+        units = 'm'
+        name = 'Y Coordinate'
+        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
+                                                units,Y_COORDINATE)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
+      case('Z_COORDINATE')
+        units = 'm'
+        name = 'Z Coordinate'
+        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
+                                                units,Z_COORDINATE)
+        output_variable%iformat = 0 ! double
+        call OutputVariableAddToList(output_variable_list,output_variable)
       case default
         call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
