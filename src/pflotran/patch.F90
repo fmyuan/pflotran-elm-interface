@@ -6850,6 +6850,18 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
       call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES,ierr)
       call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+    case(X_COORDINATE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%x(grid%nL2G(local_id))
+      enddo
+    case(Y_COORDINATE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%y(grid%nL2G(local_id))
+      enddo
+    case(Z_COORDINATE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%z(grid%nL2G(local_id))
+      enddo
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
@@ -8122,6 +8134,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2((local_id-1)*option%nflowdof+isubvar)
       call VecRestoreArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
+    case(X_COORDINATE)
+      value = grid%x(ghosted_id)
+    case(Y_COORDINATE)
+      value = grid%y(ghosted_id)
+    case(Z_COORDINATE)
+      value = grid%z(ghosted_id)
     case default
       call PatchUnsupportedVariable(ivar,option)
   end select
