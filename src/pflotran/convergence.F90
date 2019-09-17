@@ -258,7 +258,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
     
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations) then
+    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
     endif
 
@@ -361,7 +361,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
     
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations) then
+    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
     endif
 

@@ -1083,6 +1083,7 @@ subroutine PMGeneralCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
 
 end subroutine PMGeneralCheckUpdatePost
 
+
 ! ************************************************************************** !
 
 subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
@@ -1135,6 +1136,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
+  PetscBool :: flags(37)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=12), parameter :: state_string(3) = &
     ['Liquid State','Gas State   ','2Phase State']
@@ -1221,14 +1223,25 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                        converged_scaled_residual_real(:,:)
     this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
                                        converged_scaled_residual_cell(:,:)
-    mpi_int = 9*MAX_INDEX
     ! do not perform an all reduce on cell id as this info is not printed 
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
+
+    ! geh: since we need to pack other flags into this global reduction,
+    !      convert to 1D array
+    flags(1:9*MAX_INDEX) = reshape(this%converged_flag,(/9*MAX_INDEX/))
+    ! due to the 'and' operation, must invert the boolean using .not.
+    flags(37) = .not.general_high_temp_ts_cut
+    mpi_int = 37
+    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+    this%converged_flag = reshape(flags(1:9*MAX_INDEX),(/3,3,MAX_INDEX/))
+    ! due to the 'and' operation, must invert the boolean using .not.
+    general_high_temp_ts_cut = .not.flags(37)
+
+    mpi_int = 9*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-  
+                                          
     option%convergence = CONVERGENCE_CONVERGED
     
     do itol = 1, MAX_INDEX
@@ -1291,6 +1304,38 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         call OptionPrint(string,option)
       endif
     endif
+    if (general_high_temp_ts_cut) then
+      general_high_temp_ts_cut = PETSC_FALSE
+      string = '    Exceeded General Mode EOS max temperature'
+      call OptionPrint(string,option)
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
+    endif
+
+    if (general_using_newtontr .and. general_state_changed) then
+        ! if we reach convergence in an inner newton iteration of TR
+        ! then we must force an outer iteration to allow state change
+        ! in case the solutions are out-of-bounds of the states -hdp
+        general_force_iteration = PETSC_TRUE
+    endif
+
+    if (general_using_newtontr .and. &
+        general_sub_newton_iter_num > 1 .and. &
+        general_force_iteration .and. &
+        option%convergence == CONVERGENCE_CONVERGED) then
+        ! This is a complicated case but necessary.
+        ! right now PFLOTRAN declares convergence with a negative rho in tr.c
+        ! this should not be happening thus cutting timestep.
+        option%convergence = CONVERGENCE_CUT_TIMESTEP
+    endif
+ 
+    call MPI_Allreduce(MPI_IN_PLACE,general_force_iteration,ONE_INTEGER, &
+                       MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+    option%force_newton_iteration = general_force_iteration
+    if (general_sub_newton_iter_num > 20) then
+      ! cut time step in case PETSC solvers are missing inner iterations
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
+    endif
+      
   endif
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &

@@ -238,7 +238,8 @@ subroutine GeneralInitializeTimestep(realization)
     realization%patch%aux%General%auxvars(:,:)%istatechng = PETSC_FALSE
   endif
   
-  general_newton_iteration_number = 0
+  general_newton_iteration_number = -999
+  general_sub_newton_iter_num = 0
   update_upwind_direction = PETSC_TRUE
   call GeneralUpdateFixedAccum(realization)
   
@@ -1187,7 +1188,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: i, imat, imat_up, imat_dn
   PetscInt, save :: iplot = 0
   PetscInt :: flow_src_sink_type
-
+  
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
   PetscReal, pointer :: vec_p(:)
@@ -1220,8 +1221,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
   
-  
-  general_newton_iteration_number = general_newton_iteration_number + 1
   ! bragflo uses the following logic, update when
   !   it == 1, before entering iteration loop
   !   it > 1 and mod(it-1,frequency) == 0
@@ -1236,8 +1235,18 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before GeneralUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   
-                                             ! do update state
-  call GeneralUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
+  ! do update state
+  general_high_temp_ts_cut = PETSC_FALSE
+  general_allow_state_change = PETSC_TRUE
+  general_state_changed = PETSC_FALSE
+  if (general_sub_newton_iter_num > 1 .and. general_using_newtontr) then
+    ! when newtonTR is active and has inner iterations to re-evaluate the residual,
+    ! primary variables must not change. -hdp
+    general_allow_state_change = PETSC_FALSE
+  endif
+                                            ! do update state
+  call GeneralUpdateAuxVars(realization,general_allow_state_change, &
+                            general_allow_state_change)
 
 ! for debugging a single grid cell
 !  i = 6
@@ -1479,6 +1488,10 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
   endif
   
+  if (general_high_temp_ts_cut) then
+    r_p(:) = 1.d20
+  endif
+
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   
   call GeneralSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
@@ -1519,7 +1532,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif  
-
+  
   if (realization%debug%vecview_residual) then
     call DebugWriteFilename(realization%debug,string,'Gresidual','', &
                             general_ts_count,general_ts_cut_count, &
@@ -1624,6 +1637,12 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
+  call SNESGetIterationNumber(snes,general_newton_iteration_number, &
+                              ierr); CHKERRQ(ierr)
+  general_newton_iteration_number = general_newton_iteration_number + 1
+
+  general_sub_newton_iter_num = 0
+  general_force_iteration = PETSC_FALSE
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then

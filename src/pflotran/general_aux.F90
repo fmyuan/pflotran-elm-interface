@@ -30,7 +30,13 @@ module General_Aux_module
   PetscBool, public :: general_harmonic_diff_density = PETSC_TRUE
 #endif
   PetscInt, public :: general_newton_iteration_number = 0
+  PetscInt, public :: general_sub_newton_iter_num = 0
 
+  PetscBool, public :: general_high_temp_ts_cut = PETSC_FALSE
+  PetscBool, public :: general_using_newtontr = PETSC_FALSE
+  PetscBool, public :: general_allow_state_change = PETSC_TRUE
+  PetscBool, public :: general_state_changed = PETSC_FALSE
+  PetscBool, public :: general_force_iteration = PETSC_FALSE
   PetscBool, public :: gen_chk_max_dpl_liq_state_only = PETSC_FALSE
 
   ! debugging
@@ -557,6 +563,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dpc_dsatl
   character(len=8) :: state_char
   PetscErrorCode :: ierr
+  PetscErrorCode :: eos_henry_ierr
   
   PetscReal :: sigma
 
@@ -583,6 +590,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   acid = option%air_id ! air component id
   wid = option%water_id
   eid = option%energy_id
+  
+  eos_henry_ierr = 0
   
   
 #ifdef DEBUG_GENERAL  
@@ -659,20 +668,16 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%psat_p = 0.d0
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-        endif
+                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                          eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-       endif
+        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                         eos_henry_ierr)
     endif
       gen_auxvar%pres(gid) = max(gen_auxvar%pres(lid),gen_auxvar%pres(spid))
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
@@ -735,18 +740,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%d%psat_p = 0.d0
         call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                           gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-        endif
+                          K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                          eos_henry_ierr)
         gen_auxvar%d%Hc = K_H_tilde
       else
         call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                         gen_auxvar%pres(spid),ierr)
-        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
-        if (ierr /= 0) then
-          call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-        endif
+        call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                         eos_henry_ierr)
       endif
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       ! set water mole fraction to zero as there is no water in liquid phase
@@ -808,18 +809,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
           gen_auxvar%d%psat_p = 0.d0
           call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid), &
                            gen_auxvar%d%psat_p,gen_auxvar%d%psat_T, &
-                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T,ierr)
-          if (ierr /= 0) then
-            call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-          endif
+                           K_H_tilde,gen_auxvar%d%Hc_p,gen_auxvar%d%Hc_T, &
+                           eos_henry_ierr)
           gen_auxvar%d%Hc = K_H_tilde
         else
           call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                           gen_auxvar%pres(spid),ierr)
-          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde,ierr)
-          if (ierr /= 0) then
-            call GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
-          endif
+          call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde, &
+                           eos_henry_ierr)
         endif
         if (general_immiscible) then
           gen_auxvar%pres(spid) = GENERAL_IMMISCIBLE_VALUE
@@ -907,6 +904,11 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
   end select
 
+  if (eos_henry_ierr /= 0) then
+     call GeneralEOSGasError(natural_id,eos_henry_ierr,gen_auxvar,option)
+  endif
+
+  
   cell_pressure = max(gen_auxvar%pres(lid),gen_auxvar%pres(gid), &
                       gen_auxvar%pres(spid))
         
@@ -1325,7 +1327,8 @@ subroutine GeneralEOSGasError(natural_id,ierr,gen_auxvar,option)
     option%io_buffer = 'Temperature at cell ID ' // trim(StringWrite(natural_id)) // &
                                ' exceeds the equation of state temperature bound with ' // &
                                trim(StringWrite(gen_auxvar%temp)) // ' [C].'
-    call PrintErrMsgByRank(option)
+    call PrintMsgByRank(option)
+    general_high_temp_ts_cut = PETSC_TRUE
   endif
 
   
@@ -1370,6 +1373,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   PetscBool :: istatechng, gas_flag
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: state_change_string
+
 
   if (general_immiscible .or. gen_auxvar%istatechng) return
 
@@ -1498,9 +1502,8 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
   end select
 
   !Update the primary variables
-
   if (istatechng) then
-
+    general_state_changed = istatechng
     if (general_restrict_state_chng) gen_auxvar%istatechng = PETSC_TRUE
 
     select case(global_auxvar%istate)
@@ -1603,6 +1606,30 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 
   PetscReal :: tempreal
 !#define LEGACY_PERTURBATION
+!#define HEEHO_PERTURBATION
+!#define HP_HARMONIC
+
+#ifdef HEEHO_PERTURBATION
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
+#ifdef HP_HARMONIC
+  PetscReal, parameter :: min_pres_tol = 0.002d0
+  PetscReal, parameter :: min_temp_tol = 4.61d-7
+!  PetscReal, parameter :: min_xmol_tol = 2.d-15
+!  PetscReal, parameter :: min_airl_tol = 2.d-13
+  PetscReal, parameter :: min_xmol_tol = 2.d-11
+  PetscReal, parameter :: min_airl_tol = 2.d-11
+  PetscReal, parameter :: min_airu_tol = 2.d-8
+  PetscReal, parameter :: min_sat_tol = 2.d-10
+#else
+  PetscReal, parameter :: min_pres_tol = 0.01d0
+  PetscReal, parameter :: min_temp_tol = 8.66d-7
+  PetscReal, parameter :: min_xmol_tol = 1.d-13
+  PetscReal, parameter :: min_airl_tol = 3.16d-11
+  PetscReal, parameter :: min_airu_tol = 3.16d-6
+  PetscReal, parameter :: min_sat_tol = 3.16d-10
+#endif
+
+#else
 #ifdef LEGACY_PERTURBATION
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
 #else
@@ -1610,7 +1637,9 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 ! 1.d-11 works well for Emily's 1D nacl2
 !  PetscReal, parameter :: perturbation_tolerance = 1.d-11
 #endif
-  PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
+#endif
+
+  PetscReal, parameter :: min_mole_fraction_pert = 1.d-13
   PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
 
@@ -1629,6 +1658,20 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
        x(GENERAL_ENERGY_DOF) = &
          gen_auxvar(ZERO_INTEGER)%temp
+#ifdef HEEHO_PERTURBATION
+       pert(GENERAL_LIQUID_PRESSURE_DOF) = &
+            max(perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF), &
+            min_pres_tol)
+       tempreal = max(perturbation_tolerance*x(GENERAL_LIQUID_STATE_X_MOLE_DOF), &
+            min_xmol_tol)
+       if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > 1.d-5) then
+          pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * tempreal
+       else
+          pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = tempreal
+       endif
+       pert(GENERAL_ENERGY_DOF) = -1.d0 * &
+            max(perturbation_tolerance*x(GENERAL_ENERGY_DOF), min_temp_tol)
+#else
 #ifdef LEGACY_PERTURBATION
        ! if the liquid state, the liquid pressure will always be greater
        ! than zero.
@@ -1648,12 +1691,19 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          min_perturbation
        if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
            1.d3 * perturbation_tolerance) then
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * & 
+                   (perturbation_tolerance * x(GENERAL_LIQUID_STATE_X_MOLE_DOF)&
+                    + min_mole_fraction_pert)
        else
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
+!         I think it should be what's below, has to confirm with M. Nole. -hdp         
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
+                                     x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
+                                     min_mole_fraction_pert
        endif
        pert(GENERAL_ENERGY_DOF) = -1.d0 * &
          (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
+#endif
 #endif
     case(GAS_STATE)
        x(GENERAL_GAS_PRESSURE_DOF) = &
@@ -1666,11 +1716,32 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
            gen_auxvar(ZERO_INTEGER)%xmol(option%water_id,option%air_id)
        endif
        x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+#ifdef HEEHO_PERTURBATION
+       pert(GENERAL_GAS_PRESSURE_DOF) = &
+            max(perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF), &
+            min_pres_tol)
+       if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > 1.d0) then
+          tempreal = max(perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF), &
+               min_airu_tol)
+       else
+          tempreal = max(perturbation_tolerance*x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF), &
+               min_airl_tol)
+       endif
+       if (x(GENERAL_GAS_PRESSURE_DOF) - &
+            x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+          pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+       else
+          pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+       endif
+       pert(GENERAL_ENERGY_DOF) = max(perturbation_tolerance*x(GENERAL_ENERGY_DOF), &
+            min_temp_tol)
+#else
 #ifdef LEGACY_PERTURBATION
        ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
        ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
+       !pert(GENERAL_GAS_PRESSURE_DOF) = &
+       !  -1.d0*perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)
+       
        ! perturb air pressure towards gas pressure unless the perturbed
        ! air pressure exceeds the gas pressure
        if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
@@ -1687,31 +1758,51 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        else
          if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
             1.d3 * perturbation_tolerance) then
-            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
-                                                       perturbation_tolerance
-          else
-            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance
-          endif
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * & 
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
        endif
        pert(GENERAL_ENERGY_DOF) = &
          perturbation_tolerance*x(GENERAL_ENERGY_DOF)
 #else
        ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
        ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
-       pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
-         (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+       !pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+       !  (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+
+       !MAN: Try perturbing upward, because lower gas pressure is associated with
+       !     lower gas saturation (i.e. two-phase)
+       pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
+                                x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation
+
        ! perturb air pressure towards gas pressure unless the perturbed
        ! air pressure exceeds the gas pressure
        tempreal = perturbation_tolerance* &
                   x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
-       if (x(GENERAL_GAS_PRESSURE_DOF) - &
-           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+       if (general_gas_air_mass_dof == GENERAL_AIR_PRESSURE_INDEX) then
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+         else
+           pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         endif
        else
-         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         if (x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > &
+            1.d3 * perturbation_tolerance) then
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * &
+                 perturbation_tolerance * x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         else
+            pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = perturbation_tolerance*&
+                 x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)
+         endif
        endif
+       
        pert(GENERAL_ENERGY_DOF) = &
          perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
+#endif
 #endif
     case(TWO_PHASE_STATE)
        x(GENERAL_GAS_PRESSURE_DOF) = &
@@ -1720,6 +1811,40 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 !         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
        x(GENERAL_GAS_SATURATION_DOF) = &
          gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+#ifdef HEEHO_PERTURBATION
+       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
+          x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+          pert(GENERAL_ENERGY_DOF) = max(perturbation_tolerance*x(GENERAL_ENERGY_DOF), &
+               min_temp_tol)
+       else
+         x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
+              gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
+         if (x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > 1.d0) then
+            tempreal = max(perturbation_tolerance*x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF), &
+                 min_airu_tol)
+         else
+            tempreal = max(perturbation_tolerance*x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF), &
+                 min_airl_tol)
+         endif
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+              x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > tempreal) then
+            pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = tempreal
+         else
+            pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         endif
+      endif
+      
+      pert(GENERAL_GAS_PRESSURE_DOF) = &
+           max(perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF), &
+           min_pres_tol)
+      tempreal = max(perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF), &
+                 min_sat_tol)
+      if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
+         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * tempreal
+      else
+         pert(GENERAL_GAS_SATURATION_DOF) = tempreal
+      endif
+#else
 #ifdef LEGACY_PERTURBATION
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
          x(GENERAL_ENERGY_DOF) = &
@@ -1747,17 +1872,27 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        ! always perturb toward 0.5
        if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
          pert(GENERAL_GAS_SATURATION_DOF) = &
-           -1.d0*perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)
+           -1.d0*(perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)      
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+!           -1.d0*(perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF) + &
+!           min_perturbation)
        else
          pert(GENERAL_GAS_SATURATION_DOF) = &
-           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)
+           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)  
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+!           perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF) + min_perturbation
        endif
 #else
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
          x(GENERAL_ENERGY_DOF) = &
            gen_auxvar(ZERO_INTEGER)%temp
-         pert(GENERAL_ENERGY_DOF) = &
-           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+         if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then
+           pert(GENERAL_ENERGY_DOF) = -1.d0 * &
+             (perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation)
+         else 
+           pert(GENERAL_ENERGY_DOF) = &
+             perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+         endif
        else
          ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
          x(GENERAL_ENERGY_DOF) = &
@@ -1773,13 +1908,20 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
            pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
          endif
        endif
-       pert(GENERAL_GAS_PRESSURE_DOF) = &
-         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
        if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
-         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+         pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 *(perturbation_tolerance* &
+                      x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation)
+         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * (perturbation_tolerance * &
+                                x(GENERAL_GAS_SATURATION_DOF)+min_perturbation)
        else
-         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+!         I think it should be what's below, has to confirm with M. Nole. -hdp
+         pert(GENERAL_GAS_PRESSURE_DOF) = perturbation_tolerance* &
+                      x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance * &
+                        x(GENERAL_GAS_SATURATION_DOF)+min_perturbation
        endif
+#endif
 #endif
   end select
   

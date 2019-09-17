@@ -130,6 +130,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use Discretization_module
   use Realization_Subsurface_class
   use Option_module
+  use General_Aux_module
   use PMC_Base_class
   use PM_Base_Pointer_module
   use PM_Base_class
@@ -162,6 +163,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   PetscBool :: add_pre_check, check_update, check_post_convergence
   PetscInt :: itransport, RT, NWT
   PetscInt :: trans_coupling
+  SNESType :: snes_type
   PetscErrorCode :: ierr
 
 #ifdef DEBUG
@@ -218,6 +220,14 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
           case(TOIL_IMS_MODE)   
         end select
       endif
+
+      select case(option%iflowmode)
+        case(G_MODE)
+          call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
+          if (trim(snes_type) == 'newtontr') then
+            general_using_newtontr = PETSC_TRUE
+          endif
+      end select
 
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
@@ -321,6 +331,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                         this%pm_ptr, &
 #endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
+
       if (pm%check_post_convergence) then
         call SNESLineSearchSetPostCheck(linesearch, &
 #if defined(USE_PM_AS_PETSC_CONTEXT)
@@ -334,7 +345,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
       endif
-
+                                  
       add_pre_check = PETSC_FALSE
       select type(pm)
         class is(pm_richards_type)
