@@ -63,6 +63,9 @@ module PM_WIPP_Flow_class
     PetscReal :: auto_pressure_rho_b0
     PetscReal :: auto_pressure_c_b
     PetscReal :: auto_pressure_Pb_ref
+    !####################################
+    PetscReal :: auto_pressure_Pb_0
+    !####################################
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
@@ -179,6 +182,9 @@ subroutine PMWIPPFloInitObject(this)
   this%auto_pressure_rho_b0 = 1220.d0
   this%auto_pressure_c_b = 3.1d-10
   this%auto_pressure_Pb_ref = 101325.d0
+  !#############################
+  this%auto_pressure_Pb_0 = UNINITIALIZED_DOUBLE !make user put this in
+  !#############################
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
@@ -430,6 +436,11 @@ subroutine PMWIPPFloRead(this,input)
       case('AUTO_PRESSURE_PB_REF')
         call InputReadDouble(input,option,this%auto_pressure_Pb_ref)
         call InputErrorMsg(input,option,keyword,error_string)
+      !#######################################################
+      case('AUTO_PRESSURE_PB_0')
+        call InputReadDouble(input,option,this%auto_pressure_Pb_0)
+        call InputErrorMsg(input,option,keyword,error_string)
+      !#######################################################
       case('JACOBIAN_PRESSURE_DERIV_SCALE')
         call InputReadDouble(input,option,this%linear_system_scaling_factor)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -734,16 +745,20 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   endif
   ! auto pressures by material id
   if (associated(this%auto_pressure_material_ids)) then
+    if (.not.Initialized(this%rotation_origin(3)) .or. &
+        .not.Initialized(this%rotation_angle) .or. &
+        .not.Initialized(this%auto_pressure_Pb_0)) then
+      option%io_buffer = 'DIP_ROTATION_ORIGIN, AUTO_PRESSURE_PB_0  and DIP_ROTATION_ANGLE &
+        & must be initialized under WIPP_FLOW,OPTIONS.'
+      call PrintErrMsg(option)
+    endif
     ndof = option%nflowdof
     rhob0 = this%auto_pressure_rho_b0
     cb = this%auto_pressure_c_b
     Pbref = this%auto_pressure_Pb_ref
-    if (.not.Initialized(this%rotation_origin(3)) .or. &
-        .not.Initialized(this%rotation_angle)) then
-      option%io_buffer = 'DIP_ROTATION_ORIGIN and DIP_ROTATION_ANGLE must be &
-        &initialized under WIPP_FLOW,OPTIONS.'
-      call PrintErrMsg(option)
-    endif
+    !###################################
+    Pb0 = this%auto_pressure_Pb_0
+    !###################################
     zref = this%rotation_origin(3)
     call VecGetArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
     nmat_id = size(this%auto_pressure_material_ids)
@@ -757,12 +772,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       if (i <= nmat_id) then
         x = grid%x(ghosted_id)
         z = grid%z(ghosted_id)
-        ! All questions from CRA2014 Appendix PA
         h = (x-this%rotation_origin(1))* &  ! PA.33
             sin(this%rotation_angle) + &
             (z-this%rotation_origin(3))* &
             cos(this%rotation_angle)
-        Pb0 = flow_xx_p((local_id-1)*2+WIPPFLO_LIQUID_PRESSURE_DOF)
+        !###############################
+        !Pb0 = flow_xx_p((local_id-1)*2+WIPPFLO_LIQUID_PRESSURE_DOF)
+        !the below was already correct
+        !###############################
         ze = zref + h                                                ! PA.57
         rhobref = rhob0*exp(-cb*(Pbref-Pb0))                         ! PA.56
         Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
