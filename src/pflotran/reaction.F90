@@ -195,7 +195,7 @@ subroutine ReactionReadPass1(reaction,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY')
     call StringToUpper(word)
     
@@ -297,7 +297,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,RADIOACTIVE_DECAY_REACTION')
           call StringToUpper(word)   
@@ -357,7 +357,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,GENERAL_REACTION')
           call StringToUpper(word)   
 
@@ -464,7 +464,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             call InputReadPflotranString(input,option)
             call InputReadStringErrorMsg(input,option,card)
             if (InputCheckExit(input,option)) exit
-            call InputReadCard(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'keyword', &
                                     'CHEMISTRY,MINERAL_KINETICS')
             call StringToUpper(word)
@@ -474,7 +474,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                   call InputReadPflotranString(input,option)
                   call InputReadStringErrorMsg(input,option,card)
                   if (InputCheckExit(input,option)) exit
-                  call InputReadCard(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword', &
                                       'CHEMISTRY,MINERAL_KINETICS,PREFACTOR')
                   call StringToUpper(word)
@@ -533,7 +533,7 @@ subroutine ReactionReadPass1(reaction,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CHEMISTRY,SORPTION')
           call StringToUpper(word)   
 
@@ -564,7 +564,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                   if (InputError(input)) exit
                   if (InputCheckExit(input,option)) exit
 
-                  call InputReadCard(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword', &
                                      'CHEMISTRY,ISOTHERM_REACTIONS')
                   call StringToUpper(word)
@@ -573,7 +573,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                   kd_rxn%itype = SORPTION_LINEAR
                   select case(trim(word))
                     case('TYPE')
-                      call InputReadCard(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       call InputErrorMsg(input,option,'type', &
                                          'CHEMISTRY,ISOTHERM_REACTIONS')
                       select case(word)
@@ -680,7 +680,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
 
-                call InputReadCard(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'keyword', &
                                    'CHEMISTRY,ION_EXCHANGE_RXN')
                 call StringToUpper(word)
@@ -711,7 +711,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                       call InputReadDouble(input,option,cation%k)
                       call InputErrorMsg(input,option,'keyword', &
                                          'CHEMISTRY,ION_EXCHANGE_RXN,K')
-                      call InputReadCard(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       if (input%ierr == 0) then
                         if (StringCompareIgnoreCase(word,'REFERENCE')) then
                           string = cation%name
@@ -805,7 +805,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         reaction%act_coef_update_algorithm = ACT_COEF_ALGORITHM_LAG        
         reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_TIMESTEP        
         do 
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           if (input%ierr /= 0) exit
           select case(trim(word))
             case('OFF')
@@ -863,7 +863,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         option%transport%reactive_transport_coupling = OPERATOR_SPLIT    
       case('EXPLICIT_ADVECTION')
         option%itranmode = EXPLICIT_ADVECTION
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           call StringToUpper(word)
           select case(word)
@@ -3112,7 +3112,7 @@ subroutine ReactionReadOutput(reaction,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,name,PETSC_TRUE)  
+    call InputReadCard(input,option,name)  
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,OUTPUT,SPECIES_NAME')
     
     word = name

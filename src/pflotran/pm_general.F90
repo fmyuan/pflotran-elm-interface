@@ -201,7 +201,7 @@ subroutine PMGeneralRead(this,input)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -356,11 +356,11 @@ subroutine PMGeneralRead(this,input)
          call InputErrorMsg(input,option,'liquid component formula wt.', &
              error_string)
       case('TWO_PHASE_ENERGY_DOF')
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call GeneralAuxSetEnergyDOF(word,option)
       case('GAS_PHASE_AIR_MASS_DOF')
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
         call GeneralAuxSetAirMassDOF(word,option)
         this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)

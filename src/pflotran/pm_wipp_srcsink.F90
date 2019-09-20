@@ -1059,7 +1059,7 @@ subroutine PMWSSRead(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     num_errors = 0
     error_string = 'WIPP_SOURCE_SINK'
@@ -1133,7 +1133,7 @@ subroutine PMWSSRead(this,input)
                                       // ',OUTPUT_START_TIME units',option)
         this%output_start_time = double
       case('RATE_UPDATE_FREQUENCY')
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(trim(word))
@@ -1161,7 +1161,7 @@ subroutine PMWSSRead(this,input)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -1264,7 +1264,7 @@ subroutine PMWSSRead(this,input)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -1275,7 +1275,7 @@ subroutine PMWSSRead(this,input)
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
-                call InputReadCard(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'keyword',error_string2)
                 call StringToUpper(word)
                 select case(trim(word))
@@ -1458,7 +1458,7 @@ subroutine PMWSSRead(this,input)
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
-                call InputReadCard(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'keyword',error_string3)
                 call StringToUpper(word)
                 select case(trim(word))

@@ -54,7 +54,7 @@ subroutine MicrobialRead(microbial,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,MICROBIAL_REACTION')
     call StringToUpper(word)   
 
@@ -83,7 +83,7 @@ subroutine MicrobialRead(microbial,input,option)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,MICROBIAL_REACTION,MONOD')
           call StringToUpper(word)   
@@ -121,7 +121,7 @@ subroutine MicrobialRead(microbial,input,option)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
           call StringToUpper(word)   
@@ -132,7 +132,7 @@ subroutine MicrobialRead(microbial,input,option)
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
               inhibition%species_name = word
             case('TYPE')
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'inhibition type', &
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
               call StringToUpper(word)   
@@ -186,7 +186,7 @@ subroutine MicrobialRead(microbial,input,option)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
           call StringToUpper(word)   

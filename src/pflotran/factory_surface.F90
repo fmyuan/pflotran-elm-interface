@@ -321,7 +321,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
     call StringToUpper(word)
     write(*,*) 'word :: ',trim(word)
@@ -333,7 +333,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         call InputSkipToEND(input,option,trim(word))
       !.........................................................................
       case ('SURF_FLOW_FORMULATION')
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call StringToUpper(word)
         select case(trim(word))
           !case ('KINEMATIC')
@@ -431,7 +431,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
       case ('SURF_SUBSURFACE_COUPLING')
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call StringToUpper(word)
         select case(trim(word))
           case('DECOUPLED')
@@ -461,7 +461,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','SURF_OUTPUT')
           call StringToUpper(word)
           select case(trim(word))
@@ -503,7 +503,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
               enddo
               call DeallocateArray(temp_real_array)
             case('OUTPUT_FILE')
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                                  'SURF_OUTPUT,OUTPUT_FILE')
               call StringToUpper(word)
@@ -519,7 +519,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                     'SURF_OUTPUT,PERIODIC,OUTPUT_FILE',option)
               end select
             case('SCREEN')
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment','OUTPUT,SCREEN')
               call StringToUpper(word)
               select case(trim(word))
@@ -534,7 +534,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                     'SURF_OUTPUT,PERIODIC,SCREEN',option)
               end select
             case('PERIODIC')
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                                  'SURF_OUTPUT,PERIODIC')
               call StringToUpper(word)
@@ -551,7 +551,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                                      internal_units,option)
                   output_option%periodic_snap_output_time_incr = temp_real* &
                                                             units_conversion
-                  call InputReadCard(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   if (input%ierr == 0) then
                     if (StringCompareIgnoreCase(word,'between')) then
                       call InputReadDouble(input,option,temp_real)
@@ -563,7 +563,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                       units_conversion = UnitsConvertToInternal(word, &
                                          internal_units,option)
                       temp_real = temp_real * units_conversion
-                      call InputReadCard(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       if (.not.StringCompareIgnoreCase(word,'and')) then
                         input%ierr = 1
                       endif
@@ -605,7 +605,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
               end select
             case('PERIODIC_OBSERVATION')
               output_option%print_observation = PETSC_TRUE
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                 'SURF_OUTPUT, PERIODIC_OBSERVATION')
               call StringToUpper(word)
@@ -633,13 +633,13 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                     'SURF_OUTPUT,PERIODIC_OBSERVATION,TIMESTEP',option)
               end select
             case('FORMAT')
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword','OUTPUT,FORMAT') 
               call StringToUpper(word)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
-                  call InputReadCard(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputDefaultMsg(input,option, &
                                        'OUTPUT,FORMAT,HDF5,# FILES')
                   if (len_trim(word) > 1) then 
@@ -650,7 +650,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                       case('MULTIPLE_FILES')
                         output_option%print_single_h5_file = PETSC_FALSE
                         output_option%times_per_h5_file = 1
-                        call InputReadCard(input,option,word,PETSC_TRUE)
+                        call InputReadCard(input,option,word)
                         if (len_trim(word)>0) then
                           select case(trim(word))
                             case('TIMES_PER_FILE')
@@ -673,7 +673,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                   output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
-                  call InputReadCard(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'TECPLOT','OUTPUT,FORMAT') 
                   call StringToUpper(word)
                   select case(trim(word))

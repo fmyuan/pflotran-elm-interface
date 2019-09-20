@@ -60,7 +60,7 @@ subroutine DatasetRead(input,dataset,option)
   ! not match any of type in the select case, assume default and use the 
   ! word as the name.
   
-  call InputReadCard(input,option,word,PETSC_TRUE)
+  call InputReadCard(input,option,word)
   word2 = word
   call StringToUpper(word2)
   

@@ -117,7 +117,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
     
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','integral_flux')   
       
     select case(trim(keyword))

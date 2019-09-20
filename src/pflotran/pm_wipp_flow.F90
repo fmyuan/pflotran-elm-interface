@@ -232,7 +232,7 @@ subroutine PMWIPPFloRead(this,input)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -336,7 +336,7 @@ subroutine PMWIPPFloRead(this,input)
         call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
                                       'sec',keyword,option)
       case('CONVERGENCE_TEST')
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call StringToUpper(word)
         select case(word)

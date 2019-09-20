@@ -484,7 +484,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
@@ -708,7 +708,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
@@ -859,7 +859,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
       class is(rel_perm_oil_owg_ecl_type)
         select case(keyword)
           case('PERMEABILITY_FUNCTION_OW','KROW')
-            call InputReadCard(input,option,perm_func_ch_type,PETSC_TRUE)
+            call InputReadCard(input,option,perm_func_ch_type,PETSC_FALSE)
             call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
             perm_func_ch_type = trim(perm_func_ch_type)
             call StringToUpper(perm_func_ch_type)
@@ -877,7 +877,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
                                rpf%rel_perm_ow%table_name,PETSC_TRUE)
             call InputErrorMsg(input,option,'KROW_TABLE',error_string)
           case('PERMEABILITY_FUNCTION_OG','KROG')
-            call InputReadCard(input,option,perm_func_ch_type,PETSC_TRUE)
+            call InputReadCard(input,option,perm_func_ch_type,PETSC_FALSE)
             call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
             perm_func_ch_type = trim(perm_func_ch_type)
             call StringToUpper(perm_func_ch_type)

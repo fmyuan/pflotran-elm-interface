@@ -99,7 +99,7 @@ subroutine WIPPGasGenerationRead(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_strg)
     call StringToUpper(word)   
 

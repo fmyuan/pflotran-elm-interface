@@ -179,7 +179,7 @@ subroutine ReadUserUnits(this,input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     select case(keyword)
       case('PRESSURE')
         call InputReadWord(input,option,user_units,PETSC_TRUE)
@@ -708,7 +708,7 @@ subroutine EOSDatabaseRead(this,option)
     !if (InputCheckExit(input_table,option)) exit
     if (InputError(input_table)) exit
 
-    call InputReadCard(input_table,option,keyword,PETSC_TRUE)
+    call InputReadCard(input_table,option,keyword,PETSC_FALSE)
     call InputErrorMsg(input_table,option,'keyword',error_string)
     call StringToUpper(keyword)
     select case(keyword)
@@ -737,7 +737,7 @@ subroutine EOSDatabaseRead(this,option)
         do
           call InputReadPflotranString(input_table,option)
           if (InputCheckExit(input_table,option)) exit
-          call InputReadCard(input_table,option,word,PETSC_TRUE)
+          call InputReadCard(input_table,option,word,PETSC_FALSE)
           select case(word)
             case('PRESSURE')
               pres_present = PETSC_TRUE
@@ -1141,7 +1141,7 @@ subroutine EOSTableRead(this,input,option)
       option%io_buffer = 'Error found as reading PVT table'
       call PrintErrMsg(option)
     end if
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     select case(keyword)
@@ -1156,7 +1156,7 @@ subroutine EOSTableRead(this,input,option)
                                // ' DATA block'
             call PrintErrMsg(option)
           end if
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'word',error_string)
           call StringToUpper(keyword)
           select case(word)

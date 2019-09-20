@@ -221,7 +221,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
         
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
       
     select case(trim(word))

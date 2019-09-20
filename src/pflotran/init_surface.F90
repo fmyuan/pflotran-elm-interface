@@ -125,13 +125,13 @@ subroutine SurfaceInit(surf_realization,input,option)
   word = ''
 
   call InputReadPflotranString(input,option)
-  call InputReadCard(input,option,word,PETSC_TRUE)
+  call InputReadCard(input,option,word)
   call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
   call StringToUpper(word)
     
   select case(trim(word))
     case ('TYPE')
-      call InputReadCard(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword','TYPE')
       call StringToUpper(word)
 

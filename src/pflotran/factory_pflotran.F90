@@ -216,20 +216,20 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'PROCESS_MODEL','SIMULATION')
     
     call StringToUpper(word)
     select case(trim(word))
       case('SIMULATION_TYPE')
-          call InputReadCard(input,option,simulation_type,PETSC_TRUE)
+          call InputReadCard(input,option,simulation_type,PETSC_FALSE)
           call InputErrorMsg(input,option,'simulation_type', &
                              'SIMULATION')
       case('PROCESS_MODELS')
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'process_model', &
                              'SIMULATION,PROCESS_MODELS')
           call InputReadWord(input,option,pm_name,PETSC_TRUE)
@@ -315,7 +315,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call StringToUpper(word)
           select case(word)
             case('FILENAME')
@@ -431,7 +431,7 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadCard(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'CHILD or PEER','SIMULATION')
     call StringToUpper(word)
     select case(trim(word))

@@ -125,7 +125,7 @@ subroutine RegressionRead(regression,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGRESSION')
     call StringToUpper(keyword)   
       
@@ -137,7 +137,7 @@ subroutine RegressionRead(regression,input,option)
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
 
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','REGRESSION,VARIABLES')
           call StringToUpper(word)
           new_variable => RegressionVariableCreate()

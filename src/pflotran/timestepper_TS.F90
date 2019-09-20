@@ -154,7 +154,7 @@ subroutine TimestepperTSRead(this,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
     call StringToUpper(keyword)
 

@@ -426,7 +426,7 @@ subroutine RegionRead(region,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGION')
     call StringToUpper(keyword)   
 
@@ -454,7 +454,7 @@ subroutine RegionRead(region,input,option)
         call InputErrorMsg(input,option,'k2','REGION')
       case('CARTESIAN_BOUNDARY')
         region%def_type = DEFINED_BY_CARTESIAN_BOUNDARY
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cartesian boundary face','REGION')
         call StringToUpper(word)
         select case(word)
@@ -502,12 +502,12 @@ subroutine RegionRead(region,input,option)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','REGION')
           call StringToUpper(word)   
           select case(trim(word))
             case('TYPE')
-              call InputReadCard(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'polygon type','REGION')
               call StringToUpper(word)
               select case(word)
@@ -541,7 +541,7 @@ subroutine RegionRead(region,input,option)
         option%io_buffer = 'REGION LIST currently not implemented'
         call PrintErrMsg(option)
       case('FACE')
-        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'face','REGION')
         call StringToUpper(word)
         select case(word)

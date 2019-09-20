@@ -123,7 +123,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_REGRESSION')
     call StringToUpper(keyword)   
       
@@ -135,7 +135,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
 
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','GEOMECHANICS_REGRESSION,VARIABLES')
           call StringToLower(word)
           new_variable => GeomechanicsRegressionVariableCreate()

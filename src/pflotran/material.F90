@@ -272,7 +272,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadCard(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','MATERIAL_PROPERTY')
     call StringToUpper(keyword)   
       
@@ -296,8 +296,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         material_property%active = PETSC_FALSE
       case('SATURATION_FUNCTION','CHARACTERISTIC_CURVES') 
         call InputReadCardDbaseCompatible(input,option, &
-                           material_property%saturation_function_name, &
-                           PETSC_TRUE)
+                           material_property%saturation_function_name)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('ROCK_DENSITY') 
@@ -437,8 +436,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         option%flow%transient_porosity = PETSC_TRUE
       case('CREEP_CLOSURE_TABLE') 
         call InputReadCardDbaseCompatible(input,option, &
-                           material_property%creep_closure_name, &
-                           PETSC_TRUE)
+                           material_property%creep_closure_name)
         call InputErrorMsg(input,option,'creep closure table name', &
                            'MATERIAL_PROPERTY')
       case('PERMEABILITY')
@@ -450,7 +448,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit
           
           if (InputError(input)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,PERMEABILITY')   
           select case(trim(word))
@@ -582,7 +580,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit          
           
           if (InputError(input)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,PERM_FACTOR')   
           select case(trim(word))
@@ -637,7 +635,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit          
           
           if (InputError(input)) exit
-          call InputReadCard(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')   
           select case(trim(word))

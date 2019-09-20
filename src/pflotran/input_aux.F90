@@ -1003,8 +1003,7 @@ end subroutine InputReadWord2
 
 ! ************************************************************************** !
 
-subroutine InputReadCardDbaseCompatible(input, option, word, &
-                                        return_blank_error)
+subroutine InputReadCardDbaseCompatible(input, option, word)
   ! 
   ! reads a word and checks whether there is an entry in the Dbase with which
   ! to swap
@@ -1018,7 +1017,6 @@ subroutine InputReadCardDbaseCompatible(input, option, word, &
   type(input_type) :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
-  PetscBool :: return_blank_error
   
   PetscBool :: found
 
