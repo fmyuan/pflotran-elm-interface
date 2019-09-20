@@ -110,7 +110,7 @@ module Input_Aux_module
     module procedure InputKeywordUnrecognized1
     module procedure InputKeywordUnrecognized2
   end interface
-  
+
   public :: InputCreate, InputDestroy, InputReadPflotranString, &
             InputReadWord, InputReadDouble, InputReadInt, InputCheckExit, &
             InputReadNDoubles, &
@@ -828,7 +828,7 @@ end subroutine InputReadPflotranStringSlave
 
 ! ************************************************************************** !
 
-subroutine InputReadCard(input, option, word, return_blank_error)
+subroutine InputReadCard(input, option, word, push_to_log)
   ! 
   ! Reads a keyword from the input deck, providing the option of logging
   ! 
@@ -841,13 +841,15 @@ subroutine InputReadCard(input, option, word, return_blank_error)
   type(input_type) :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
-  PetscBool :: return_blank_error
+  PetscBool, optional :: push_to_log
   
   if (InputError(input)) return
   
-  call InputReadWord(input,option,word,return_blank_error)
+  call InputReadWord(input,option,word,PETSC_TRUE)
   
-  if (option%keyword_logging) then
+  if (present(push_to_log)) then
+    call InputRegisterCard(input,word,option)
+  else
     call InputRegisterCard(input,word,option)
   endif
 
@@ -868,12 +870,27 @@ subroutine InputRegisterCard(input,card,option)
 
   type(input_type) :: input
   type(option_type) :: option
-  character(len=MAXWORDLENGTH) :: card
+  character(len=*) :: card
+
+  character(len=MAXSTRINGLENGTH) :: string
   
+  if (.not.option%keyword_logging) return
   if (InputError(input)) return
-  
-  option%io_buffer = 'KEYWORD: ' // trim(card)
-  call PrintMsg(option)
+
+  string = ''
+  select case(card)
+    case('/','NOSKIP')
+      string = trim(option%keyword_log) // ',' // trim(card)
+      call InputLogPop(input,option)
+    case default
+      option%keyword_log = trim(option%keyword_log) // ',' // trim(card)
+      string = option%keyword_log
+  end select
+
+  if (len_trim(string) > 0) then
+    option%io_buffer = 'KEYWORD: ' // trim(string)
+    call PrintMsg(option)
+  endif
 
 end subroutine InputRegisterCard
 
@@ -1016,9 +1033,7 @@ subroutine InputReadCardDbaseCompatible(input, option, word, &
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
   endif
 
-  if (option%keyword_logging) then
-    call InputRegisterCard(input,word,option)
-  endif
+  call InputRegisterCard(input,word,option)
   
 end subroutine InputReadCardDbaseCompatible
 
@@ -1456,6 +1471,8 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
     input%ierr = 1
   endif
 
+  call InputRegisterCard(input,string,option)
+
 end subroutine InputFindStringInFile3
 
 ! ************************************************************************** !
@@ -1523,7 +1540,36 @@ function InputCheckExit(input,option)
     InputCheckExit = PETSC_FALSE
   endif
 
+  if (InputCheckExit) then
+    call InputLogPop(input,option)
+  endif
+
 end function InputCheckExit
+
+! ************************************************************************** !
+
+subroutine InputLogPop(input,option)
+  ! 
+  ! Pops the top keyword off the stack
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/20/19
+  ! 
+
+  type(input_type) :: input
+  type(option_type) :: option  
+
+  PetscInt :: i
+  PetscBool, parameter :: back = PETSC_TRUE
+
+  if (.not.option%keyword_logging) return
+
+  i = index(option%keyword_log,',',back)
+  if (i > 0) then
+    option%keyword_log = option%keyword_log(1:i-1)
+  endif
+
+end subroutine InputLogPop
 
 ! ************************************************************************** !
 
