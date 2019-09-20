@@ -63,6 +63,8 @@ module PM_WIPP_Flow_class
     PetscReal :: auto_pressure_rho_b0
     PetscReal :: auto_pressure_c_b
     PetscReal :: auto_pressure_Pb_ref
+    PetscReal :: auto_pressure_Pb_0
+    PetscReal :: auto_press_shallow_origin(3)
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
@@ -179,6 +181,8 @@ subroutine PMWIPPFloInitObject(this)
   this%auto_pressure_rho_b0 = 1220.d0
   this%auto_pressure_c_b = 3.1d-10
   this%auto_pressure_Pb_ref = 101325.d0
+  this%auto_pressure_Pb_0 = UNINITIALIZED_DOUBLE !make user put this in
+  this%auto_press_shallow_origin = UNINITIALIZED_DOUBLE !this will default to dip rotation origin later
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
@@ -430,6 +434,12 @@ subroutine PMWIPPFloRead(this,input)
       case('AUTO_PRESSURE_PB_REF')
         call InputReadDouble(input,option,this%auto_pressure_Pb_ref)
         call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESSURE_PB_0')
+        call InputReadDouble(input,option,this%auto_pressure_Pb_0)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('AUTO_PRESS_SHALLOW_ORIGIN')
+        call InputReadNDoubles(input,option,this%auto_press_shallow_origin,THREE_INTEGER)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('JACOBIAN_PRESSURE_DERIV_SCALE')
         call InputReadDouble(input,option,this%linear_system_scaling_factor)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -557,10 +567,12 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal :: cb
   PetscReal :: Pbref
   PetscReal :: zref
+  PetscReal :: zref2
   PetscReal :: Pb0
   PetscReal :: ze
   PetscReal :: rhobref
   PetscReal :: Phiref
+  PetscReal :: Phiref2
   PetscReal :: rhob
   PetscReal :: Pb
   PetscReal, parameter :: gravity = 9.80665d0
@@ -734,17 +746,29 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   endif
   ! auto pressures by material id
   if (associated(this%auto_pressure_material_ids)) then
+    if (Uninitialized(this%rotation_origin(3)) .or. &
+        Uninitialized(this%rotation_angle) .or. &
+        Uninitialized(this%rotation_ceiling) .or. &
+        Uninitialized(this%rotation_basement) .or. &
+        Uninitialized(this%auto_pressure_Pb_0)) then
+      option%io_buffer = 'DIP_ROTATION_ORIGIN, DIP_ROTATION_CELINING, &
+         & DIP_ROTATION_BASEMENT, AUTO_PRESSURE_PB_0 and DIP_ROTATION_ANGLE &
+        & must be initialized under WIPP_FLOW,OPTIONS.'
+      call PrintErrMsg(option)
+   endif
+   if (.not.Initialized(this%auto_press_shallow_origin(3))) then
+      this%auto_press_shallow_origin = this%rotation_origin
+   endif
     ndof = option%nflowdof
     rhob0 = this%auto_pressure_rho_b0
     cb = this%auto_pressure_c_b
     Pbref = this%auto_pressure_Pb_ref
-    if (.not.Initialized(this%rotation_origin(3)) .or. &
-        .not.Initialized(this%rotation_angle)) then
-      option%io_buffer = 'DIP_ROTATION_ORIGIN and DIP_ROTATION_ANGLE must be &
-        &initialized under WIPP_FLOW,OPTIONS.'
-      call PrintErrMsg(option)
-    endif
+    Pb0 = this%auto_pressure_Pb_0
     zref = this%rotation_origin(3)
+    rhobref = rhob0*exp(-cb*(Pbref-Pb0))                         ! PA.56
+    Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
+    zref2 = this%auto_press_shallow_origin(3)
+    Phiref2 =  zref2 + 0  ! the second term is always zero because Pbref = Pb02
     call VecGetArrayF90(field%flow_xx, flow_xx_p, ierr);CHKERRQ(ierr)
     nmat_id = size(this%auto_pressure_material_ids)
     do local_id = 1, grid%nlmax
@@ -757,16 +781,22 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       if (i <= nmat_id) then
         x = grid%x(ghosted_id)
         z = grid%z(ghosted_id)
-        ! All questions from CRA2014 Appendix PA
-        h = (x-this%rotation_origin(1))* &  ! PA.33
-            sin(this%rotation_angle) + &
-            (z-this%rotation_origin(3))* &
-            cos(this%rotation_angle)
-        Pb0 = flow_xx_p((local_id-1)*2+WIPPFLO_LIQUID_PRESSURE_DOF)
-        ze = zref + h                                                ! PA.57
-        rhobref = rhob0*exp(-cb*(Pbref-Pb0))                         ! PA.56
-        Phiref = zref + 1.d0/(gravity*cb)*(1.d0/rhob0-1.d0/rhobref)  ! PA.55
-        rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
+        if (z > this%rotation_ceiling) then
+          h = z - zref2  ! PA.33 without rotation using shallow origin
+          ze = zref2 + h                                                ! PA.57
+          rhob = 1.d0/(gravity*cb*(ze-Phiref2+1.d0/(gravity*cb*rhob0))) ! PA.54
+        elseif (z < this%rotation_basement) then
+          h = z - zref  ! PA.33 without rotation using rotation origin
+          ze = zref + h                                                ! PA.57
+          rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
+        else  
+          h = (x-this%rotation_origin(1))* &  ! PA.33
+              sin(this%rotation_angle) + &
+              (z-this%rotation_origin(3))* &
+              cos(this%rotation_angle)
+          ze = zref + h                                                ! PA.57
+          rhob = 1.d0/(gravity*cb*(ze-Phiref+1.d0/(gravity*cb*rhob0))) ! PA.54
+        endif
         Pb = Pbref + 1.d0/cb*log(rhob/rhob0)                         ! PA.53
         flow_xx_p((local_id-1)*ndof+WIPPFLO_LIQUID_PRESSURE_DOF) = Pb
         flow_xx_p((local_id-1)*ndof+WIPPFLO_GAS_SATURATION_DOF) = 0.d0
