@@ -169,13 +169,13 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','GRID')
     call StringToUpper(word)
       
     select case(trim(word))
       case('TYPE')
-        call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
+        call InputReadCard(input,option,discretization%ctype,PETSC_TRUE)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToUpper(discretization%ctype)
         if (discretization%ctype == 'GRDECL') then
@@ -185,7 +185,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         select case(trim(discretization%ctype))
           case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
-            call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
+            call InputReadCard(input,option,structured_grid_ctype,PETSC_TRUE)
             call InputDefaultMsg(input,option,'grid_structured_type') 
             call StringToUpper(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
@@ -369,7 +369,7 @@ subroutine DiscretizationRead(discretization,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','GRID')
     call StringToUpper(word)
       
@@ -499,7 +499,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputErrorMsg(input,option,'stencil_width', &
                            'GRID')
       case ('STENCIL_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'stencil type','GRID')
         call StringToUpper(word)
         select case(trim(word))
@@ -529,7 +529,7 @@ subroutine DiscretizationRead(discretization,input,option)
             &structured grids.'
           call PrintErrMsg(option)
         endif
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
         call StringToUpper(word)
         select case(trim(word))
@@ -548,7 +548,7 @@ subroutine DiscretizationRead(discretization,input,option)
         end select
 
       case('PERM_TENSOR_TO_SCALAR_MODEL')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
         call StringToUpper(word)
         select case(trim(word))

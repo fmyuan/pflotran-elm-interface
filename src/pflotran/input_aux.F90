@@ -131,13 +131,15 @@ module Input_Aux_module
             InputCheckMandatoryUnits, &
             InputDbaseDestroy, &
             InputPushExternalFile, &
-            InputReadWordDbaseCompatible, &
+            InputReadCardDbaseCompatible, &
             InputReadAndConvertUnits, &
             InputRewind, &
             InputCloseNestedFiles, &
             InputReadFileDirNamePrefix, &
             UnitReadAndConversionFactor, &
-            InputReadFilename
+            InputReadFilename, & 
+            InputReadCard, &
+            InputRegisterCard
 
 contains
 
@@ -770,12 +772,14 @@ subroutine InputReadPflotranStringSlave(input, option)
     call StringToUpper(word)
     
     if (word(1:13) == 'EXTERNAL_FILE') then
+      call InputRegisterCard(input,word,option)
       ! have to strip the card 'EXTERNAL_FILE' from the buffer
       call InputReadWord(input,option,word,PETSC_TRUE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
       cycle
     else if (word(1:4) == 'SKIP') then
+      call InputRegisterCard(input,word,option)
       ! to avoid keywords that start with SKIP 
       if (len_trim(word) > 4) then
         exit
@@ -791,8 +795,12 @@ subroutine InputReadPflotranStringSlave(input, option)
         endif
         call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
         call StringToUpper(word)
-        if (word(1:4) == 'SKIP') skip_count = skip_count + 1
+        if (word(1:4) == 'SKIP') then
+          skip_count = skip_count + 1
+          call InputRegisterCard(input,word,option)
+        endif
         if (word(1:4) == 'NOSK') then
+          call InputRegisterCard(input,word,option)
           skip_count = skip_count - 1
           if (skip_count == 0) exit
         endif
@@ -817,6 +825,57 @@ subroutine InputReadPflotranStringSlave(input, option)
   endif
 
 end subroutine InputReadPflotranStringSlave
+
+! ************************************************************************** !
+
+subroutine InputReadCard(input, option, word, return_blank_error)
+  ! 
+  ! Reads a keyword from the input deck, providing the option of logging
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/20/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: word
+  PetscBool :: return_blank_error
+  
+  if (InputError(input)) return
+  
+  call InputReadWord(input,option,word,return_blank_error)
+  
+  if (option%keyword_logging) then
+    call InputRegisterCard(input,word,option)
+  endif
+
+end subroutine InputReadCard
+
+! ************************************************************************** !
+
+subroutine InputRegisterCard(input,card,option)
+  ! 
+  ! Sometimes cards are optional and cannot be registered at the time of 
+  ! being read. This routines allows  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/20/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: card
+  
+  if (InputError(input)) return
+  
+  option%io_buffer = 'KEYWORD: ' // trim(card)
+  call PrintMsg(option)
+
+end subroutine InputRegisterCard
 
 ! ************************************************************************** !
 
@@ -927,7 +986,7 @@ end subroutine InputReadWord2
 
 ! ************************************************************************** !
 
-subroutine InputReadWordDbaseCompatible(input, option, word, &
+subroutine InputReadCardDbaseCompatible(input, option, word, &
                                         return_blank_error)
   ! 
   ! reads a word and checks whether there is an entry in the Dbase with which
@@ -957,7 +1016,11 @@ subroutine InputReadWordDbaseCompatible(input, option, word, &
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
   endif
 
-end subroutine InputReadWordDbaseCompatible
+  if (option%keyword_logging) then
+    call InputRegisterCard(input,word,option)
+  endif
+  
+end subroutine InputReadCardDbaseCompatible
 
 ! ************************************************************************** !
 

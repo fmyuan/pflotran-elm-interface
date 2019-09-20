@@ -843,7 +843,7 @@ subroutine PMWFRead(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
@@ -1069,7 +1069,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   select case(trim(keyword))
   !-------------------------------------
     case('MECHANISM')
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'mechanism type',error_string)
       num_errors = 0
       call StringToUpper(word)
@@ -1122,13 +1122,13 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         call InputReadPflotranString(input,option)
         if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(trim(word))
         !--------------------------
           case('NAME')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'mechanism name',error_string)
             call StringToUpper(word)
             new_mechanism%name = trim(word)
@@ -1490,7 +1490,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             do
               call InputReadPflotranString(input,option)
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call StringToUpper(word)
               select case(trim(word))
               case('VITALITY_LOG10_MEAN')
@@ -1782,7 +1782,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
         call InputReadPflotranString(input,option)
         if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(trim(word))
@@ -1809,7 +1809,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
             new_waste_form%region_name = trim(word)
         !-----------------------------
           case('MECHANISM_NAME')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'mechanism assignment',error_string)
             call StringToUpper(word)
             new_waste_form%mech_name = trim(word)
@@ -1845,12 +1845,12 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
               call InputReadPflotranString(input, option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'keyword',error_string)
               call StringToUpper(word)
               select case (trim(word))
                 case('MECH_NAME')
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word,PETSC_TRUE)
                   call InputErrorMsg(input,option,'criticality mechanism assignment', &
                                      error_string)
                   call StringToUpper(word)
@@ -5032,12 +5032,12 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
         call InputReadPflotranString(input, option)
         if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case (trim(word))
           case('NAME')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option, &
                   'criticality mechanism assignment',error_string)
             call StringToUpper(word)
@@ -5046,7 +5046,7 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
             call InputReadDouble(input,option,new_crit_mech%crit_heat)
             call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY',error_string)
           case('DECAY_HEAT')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             select case (trim(word))
               case('TOTAL')
                 new_crit_mech%heat_source_cond = 1
@@ -5059,7 +5059,7 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_FALSE)
+              call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'MW'
@@ -5077,7 +5077,7 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_FALSE)
+              call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'g/g'
@@ -5383,6 +5383,7 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
+    call InputRegisterCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
         StringCompare(word,'file',FOUR_INTEGER)) then
       input%err_buf2 = trim(keyword) // ', FILE'

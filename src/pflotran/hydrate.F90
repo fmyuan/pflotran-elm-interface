@@ -53,7 +53,7 @@ subroutine HydrateRead(input,meth,option)
     if (input%ierr /= 0) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','HYDRATE')
     call StringToUpper(word)
 
@@ -67,7 +67,7 @@ subroutine HydrateRead(input,meth,option)
           if (input%ierr /= 0) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','HYDRATE')
           call StringToUpper(word)
           select case(trim(word))
@@ -95,7 +95,7 @@ subroutine HydrateRead(input,meth,option)
           end select
         enddo
       case('PERM_SCALING_FUNCTION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
         call StringToUpper(word)
         select case(trim(word))

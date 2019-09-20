@@ -133,7 +133,7 @@ subroutine CLM_CN_Read(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,REACTION_SANDBOX,CLM-CN')
     call StringToUpper(word)   
@@ -188,7 +188,7 @@ subroutine CLM_CN_Read(this,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
           call StringToUpper(word)   

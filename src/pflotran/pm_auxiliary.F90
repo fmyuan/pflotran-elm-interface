@@ -165,7 +165,7 @@ subroutine PMAuxiliaryRead(input, option, this)
   PetscReal :: tempreal
 
   error_string = 'SIMULATION,PROCESS_MODELS,AUXILIARY'
-  call InputReadWord(input,option,word,PETSC_FALSE)
+  call InputReadCard(input,option,word,PETSC_FALSE)
   call InputErrorMsg(input,option,'type',error_string)
   call StringToUpper(word)
   error_string = trim(error_string) // ',' // trim(word)
@@ -184,7 +184,7 @@ subroutine PMAuxiliaryRead(input, option, this)
       do
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(word)

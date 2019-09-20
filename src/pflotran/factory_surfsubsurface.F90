@@ -345,11 +345,11 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
       case('MODE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)

@@ -481,14 +481,14 @@ subroutine SolverReadLinear(solver,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','LINEAR SOLVER')
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
     
       case('SOLVER_TYPE','SOLVER','KRYLOV_TYPE','KRYLOV','KSP','KSP_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'ksp_type','LINEAR SOLVER')   
         call StringToUpper(word)
         select case(trim(word))
@@ -525,7 +525,7 @@ subroutine SolverReadLinear(solver,input,option)
         endif
 
       case('PRECONDITIONER_TYPE','PRECONDITIONER','PC','PC_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'pc_type','LINEAR SOLVER')   
         call StringToUpper(word)
         select case(trim(word))
@@ -565,13 +565,13 @@ subroutine SolverReadLinear(solver,input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
-          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputReadCard(input,option,keyword,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
                              'LINEAR SOLVER, HYPRE options')   
           call StringToUpper(keyword)
           select case(trim(keyword))
             case('TYPE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'type', &
                                  'LINEAR SOLVER, HYPRE options')  
               call StringToLower(word)
@@ -935,7 +935,7 @@ subroutine SolverReadNewton(solver,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','NEWTON SOLVER')
     call StringToUpper(keyword)   
       
@@ -1026,7 +1026,7 @@ subroutine SolverReadNewton(solver,input,option)
         call InputErrorMsg(input,option,'newton_maxf','NEWTON_SOLVER')
 
       case('MATRIX_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'mat_type','NEWTON SOLVER')   
         call StringToUpper(word)
         select case(trim(word))
@@ -1047,7 +1047,7 @@ subroutine SolverReadNewton(solver,input,option)
         end select
         
       case('PRECONDITIONER_MATRIX_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'mat_type','NEWTON SOLVER')   
         call StringToUpper(word)
         select case(trim(word))

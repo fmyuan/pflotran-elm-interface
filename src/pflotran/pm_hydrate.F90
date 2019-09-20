@@ -262,7 +262,7 @@ subroutine PMHydrateRead(this,input)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -468,7 +468,7 @@ subroutine PMHydrateRead(this,input)
          call InputErrorMsg(input,option,'liquid component formula wt.', &
              error_string)
       case('TWO_PHASE_ENERGY_DOF')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call HydrateAuxSetEnergyDOF(word,option)
       case('MAXIMUM_PRESSURE_CHANGE')

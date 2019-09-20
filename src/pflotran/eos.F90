@@ -72,7 +72,7 @@ subroutine EOSRead(input,option)
 
   input%ierr = 0
 
-  call InputReadWord(input,option,keyword,PETSC_TRUE)
+  call InputReadCard(input,option,keyword,PETSC_TRUE)
   call InputErrorMsg(input,option,'keyword','EOS')
   call StringToUpper(keyword)
 
@@ -82,7 +82,7 @@ subroutine EOSRead(input,option)
         temparray = 0.d0
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputReadCard(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','EOS,WATER')
         call StringToUpper(keyword)
         select case(trim(keyword))
@@ -97,7 +97,7 @@ subroutine EOSRead(input,option)
             call EOSWaterSetSurfaceDensity(tempreal)
           case('DENSITY')
             temparray = 0.d0
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,WATER')
             call StringToUpper(word)
             select case(trim(word))
@@ -134,7 +134,7 @@ subroutine EOSRead(input,option)
                                                'EOS,WATER,DENSITY,QUADRATIC')
                   if (InputCheckExit(input,option)) exit
                   if (InputError(input)) exit
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
+                  call InputReadCard(input,option,subkeyword,PETSC_TRUE)
                   call InputErrorMsg(input,option,'subkeyword', &
                                        'EOS,WATER,DENSITY,QUADRATIC')
                   select case(trim(subkeyword))
@@ -162,7 +162,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetDensity(word,temparray)
           case('ENTHALPY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'ENTHALPY','EOS,WATER')
             call StringToUpper(word)
             select case(trim(word))
@@ -178,7 +178,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetEnthalpy(word,temparray)
           case('VISCOSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'VISCOSITY','EOS,WATER')
             call StringToUpper(word)
             select case(trim(word))
@@ -195,7 +195,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetViscosity(word,temparray)
           case('STEAM_DENSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'STEAM_DENSITY','EOS,WATER')
             call StringToUpper(word)
             select case(trim(word))
@@ -212,7 +212,7 @@ subroutine EOSRead(input,option)
             end select
             call EOSWaterSetSteamDensity(word,temparray)
           case('STEAM_ENTHALPY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'STEAM_ENTHALPY','EOS,WATER')
             call StringToUpper(word)
             select case(trim(word))
@@ -248,7 +248,7 @@ subroutine EOSRead(input,option)
               call InputReadInt(input,option,test_n_pres)
               call InputErrorMsg(input,option,'num_pressures', &
                                  'EOS,WATER,TEST')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'temperature distribution type', &
                                  'EOS,WATER,TEST')
               if (StringCompareIgnoreCase(word,'uniform')) then
@@ -260,7 +260,7 @@ subroutine EOSRead(input,option)
                   trim(word) // '" for EOS Water not recognized.'
                 call PrintErrMsg(option)
               endif
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'pressure distribution type', &
                                  'EOS,WATER,TEST,')
               if (StringCompareIgnoreCase(word,'uniform')) then
@@ -299,7 +299,7 @@ subroutine EOSRead(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputReadCard(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','EOS,GAS')
         call StringToUpper(keyword)
         select case(trim(keyword))
@@ -311,7 +311,7 @@ subroutine EOSRead(input,option)
                            'kg/m^3','EOS,GAS,REFERENCE_DENSITY',option)
             call EOSGasSetSurfaceDensity(tempreal)
           case('DENSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,GAS')
             call StringToUpper(word)
             select case(trim(word))
@@ -330,7 +330,7 @@ subroutine EOSRead(input,option)
                                                  'EOS GAS,RKS')
                     if (InputCheckExit(input,option)) exit
                     if (InputError(input)) exit
-                    call InputReadWord(input,option,word,PETSC_TRUE)
+                    call InputReadCard(input,option,word,PETSC_TRUE)
                     call InputErrorMsg(input,option,'keyword', &
                                        'EOS GAS, RKS')
                     select case(trim(word))
@@ -390,7 +390,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,GAS,DENSITY',option)
             end select
           case('ENTHALPY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'ENTHALPY','EOS,GAS')
             call StringToUpper(word)
             select case(trim(word))
@@ -409,7 +409,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,GAS,ENTHALPY',option)
             end select
           case('VISCOSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'VISCOSITY','EOS,GAS')
             call StringToUpper(word)
             select case(trim(word))
@@ -425,7 +425,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,GAS,VISCOSITY',option)
             end select
           case('HENRYS_CONSTANT')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'HENRYS_CONSTANT','EOS,GAS')
             call StringToUpper(word)
             select case(trim(word))
@@ -460,7 +460,7 @@ subroutine EOSRead(input,option)
               call InputReadInt(input,option,test_n_pres)
               call InputErrorMsg(input,option,'num_pressures', &
                                  'EOS,GAS,TEST')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'temperature distribution type', &
                                  'EOS,GAS,TEST')
               if (StringCompareIgnoreCase(word,'uniform')) then
@@ -472,7 +472,7 @@ subroutine EOSRead(input,option)
                   trim(word) // '" for EOS Gas not recognized.'
                 call PrintErrMsg(option)
               endif
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'pressure distribution type', &
                                  'EOS,GAS,TEST,')
               if (StringCompareIgnoreCase(word,'uniform')) then
@@ -510,7 +510,7 @@ subroutine EOSRead(input,option)
                                            'EOS GAS,CO2_SPAN_WAGNER_DB')
               if (InputCheckExit(input,option)) exit
               if (InputError(input)) exit
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'keyword', &
                                        'EOS GAS, CO2_SPANWAGNER_DB')
               select case(trim(word))
@@ -560,7 +560,7 @@ subroutine EOSRead(input,option)
                   call InputReadWord(input,option,subkeyword,PETSC_TRUE)
                   call InputErrorMsg(input,option, &
                                      'databas file name',&
-                                     'EOS,GAS,FORMULA_WEIGHT')
+                                     'EOS,GAS,CO2_SPAN_WAGNER_DB')
                 case default
                   call InputKeywordUnrecognized(subkeyword,&
                                      'EOS,GAS,CO2_SPAN_WAGNER_DB',option)
@@ -611,7 +611,7 @@ subroutine EOSRead(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputReadCard(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','EOS,OIL')
         call StringToUpper(keyword)
         select case(trim(keyword))
@@ -631,7 +631,7 @@ subroutine EOSRead(input,option)
                              'kg/m^3','EOS,OIL,REFERENCE_DENSITY',option)
             call EOSOilSetSurfaceDensity(tempreal)
           case('DENSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,OIL')
             call StringToUpper(word)
             select case(trim(word))
@@ -652,7 +652,7 @@ subroutine EOSRead(input,option)
                 do
                   call InputReadPflotranString(input,option)
                   if (InputCheckExit(input,option)) exit
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
+                  call InputReadCard(input,option,subkeyword,PETSC_TRUE)
                   call InputErrorMsg(input,option,'subkeyword','EOS,OIL,VIS')
                   call StringToUpper(subkeyword)
                   select case(subkeyword)
@@ -694,7 +694,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,OIL,DENSITY',option)
             end select
           case('ENTHALPY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'ENTHALPY','EOS,OIL')
             call StringToUpper(word)
             select case(trim(word))
@@ -715,7 +715,7 @@ subroutine EOSRead(input,option)
                 do
                   call InputReadPflotranString(input,option)
                   if (InputCheckExit(input,option)) exit
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
+                  call InputReadCard(input,option,subkeyword,PETSC_TRUE)
                   call InputErrorMsg(input,option,'subkeyword',&
                                      'EOS,OIL,ENTHALPY')
                   call StringToUpper(subkeyword)
@@ -746,7 +746,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,OIL,ENTHALPY',option)
             end select
           case('VISCOSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'VISCOSITY','EOS,OIL')
             call StringToUpper(word)
             select case(trim(word))
@@ -762,7 +762,7 @@ subroutine EOSRead(input,option)
                 do
                   call InputReadPflotranString(input,option)
                   if (InputCheckExit(input,option)) exit
-                  call InputReadWord(input,option,subkeyword,PETSC_TRUE)
+                  call InputReadCard(input,option,subkeyword,PETSC_TRUE)
                   call InputErrorMsg(input,option,'subkeyword','EOS,OIL,VIS')
                   call StringToUpper(subkeyword)
                   select case(subkeyword)
@@ -840,7 +840,7 @@ subroutine EOSRead(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputReadCard(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','EOS,SLV')
         call StringToUpper(keyword)
         select case(trim(keyword))
@@ -852,7 +852,7 @@ subroutine EOSRead(input,option)
                            'kg/m^3','EOS,SLV,REFERENCE_DENSITY',option)
             call EOSSlvSetSurfaceDensity(tempreal)
           case('DENSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'DENSITY','EOS,SLV')
             call StringToUpper(word)
             select case(trim(word))
@@ -862,7 +862,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,SLV,DENSITY',option)
             end select
           case('ENTHALPY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'ENTHALPY','EOS,SLV')
             call StringToUpper(word)
             select case(trim(word))
@@ -872,7 +872,7 @@ subroutine EOSRead(input,option)
                 call InputKeywordUnrecognized(word,'EOS,SLV,ENTHALPY',option)
             end select
           case('VISCOSITY')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'VISCOSITY','EOS,SLV')
             call StringToUpper(word)
             select case(trim(word))

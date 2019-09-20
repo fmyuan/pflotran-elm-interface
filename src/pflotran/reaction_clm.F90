@@ -554,7 +554,7 @@ subroutine CLMDec_Read(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
       'CHEMISTRY,CLM_RXN,CLMDec')
     call StringToUpper(word)   
@@ -695,7 +695,7 @@ subroutine CLMDec_Read(this,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,CLM_RXN,CLMDec')
           call StringToUpper(word)   
@@ -3248,7 +3248,7 @@ subroutine PlantNRead(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,CLM_RXN,PLANTN')
     call StringToUpper(word)   
@@ -3849,7 +3849,7 @@ subroutine NitrRead(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,CLM_RXN,NITRIFICATION')
     call StringToUpper(word)   
@@ -3861,7 +3861,7 @@ subroutine NitrRead(this,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
           call StringToUpper(word)   
@@ -4554,7 +4554,7 @@ subroutine DeniRead(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,CLM_RXN,DENITRIFICATION')
     call StringToUpper(word)   
@@ -4566,7 +4566,7 @@ subroutine DeniRead(this,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
           call StringToUpper(word)   
@@ -5027,7 +5027,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CHEMISTRY,CLM_RXN')
     call StringToUpper(word)   
 

@@ -141,7 +141,7 @@ subroutine MineralReadKinetics(mineral,input,option)
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           error_string = 'CHEMISTRY,MINERAL_KINETICS'
           call InputErrorMsg(input,option,'word',error_string)
 
@@ -232,7 +232,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                 call InputReadPflotranString(input,option)
                 call InputReadStringErrorMsg(input,option,card)
                 if (InputCheckExit(input,option)) exit
-                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'word',error_string) 
                 select case(trim(word))
                   case('RATE_CONSTANT')
@@ -274,7 +274,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                       call InputReadPflotranString(input,option)
                       call InputReadStringErrorMsg(input,option,card)
                       if (InputCheckExit(input,option)) exit
-                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'keyword',error_string) 
                       select case(trim(word))
                         case('ALPHA')

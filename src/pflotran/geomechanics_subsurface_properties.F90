@@ -187,12 +187,12 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
       if (InputCheckExit(input,option)) exit
           
       if (InputError(input)) exit
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'keyword', &
                           'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS')   
       select case(trim(word))
         case('COMPRESSIBILITY_FUNCTION')
-          call InputReadWord(input,option, &
+          call InputReadCard(input,option, &
                              this%geomechanical_compressibility_function, &
                              PETSC_TRUE)
           call InputErrorMsg(input,option, &

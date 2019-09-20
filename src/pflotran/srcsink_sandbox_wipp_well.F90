@@ -87,7 +87,7 @@ subroutine WIPPWellRead(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
                        'SRCSINK_SANDBOX,WIPP')
     call StringToUpper(word)   

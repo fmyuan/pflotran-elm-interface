@@ -116,7 +116,7 @@ module Option_module
     PetscBool :: print_screen_flag
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
-
+    PetscBool :: keyword_logging
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -385,6 +385,7 @@ subroutine OptionInitAll(option)
   option%print_to_screen = PETSC_TRUE
   option%print_to_file = PETSC_TRUE
   option%verbosity = 0
+  option%keyword_logging = PETSC_FALSE
 
   option%input_filename = ''
 

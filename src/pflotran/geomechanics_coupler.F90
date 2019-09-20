@@ -215,7 +215,7 @@ subroutine GeomechCouplerRead(coupler,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS COUPLER')   
     call StringToUpper(word)      
     

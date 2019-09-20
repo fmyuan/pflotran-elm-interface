@@ -77,7 +77,7 @@ subroutine MassRateRead(this,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
                        'SOURCE_SINK_SANDBOX,MASS_RATE')
     call StringToUpper(word)   

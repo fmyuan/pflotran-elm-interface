@@ -325,7 +325,7 @@ subroutine NWTRead(nw_trans,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -349,7 +349,7 @@ subroutine NWTRead(nw_trans,input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
           
-          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputReadCard(input,option,keyword,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(keyword)
           
@@ -520,7 +520,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
     if (InputCheckExit(input,option)) exit
 
     error_string = 'NUCLEAR_WASTE_CHEMISTRY,OUTPUT'
-    call InputReadWord(input,option,word,PETSC_TRUE)  
+    call InputReadCard(input,option,word,PETSC_TRUE)  
     call InputErrorMsg(input,option,'keyword',error_string)
                      
     call StringToUpper(word)
@@ -586,7 +586,7 @@ subroutine NWTReadPass2(nw_trans,input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     

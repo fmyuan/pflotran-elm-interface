@@ -1340,14 +1340,14 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CHECKPOINT')
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'checkpoint option or value', &
                         'CHECKPOINT')
     call StringToUpper(word)
     select case(trim(word))
       case ('PERIODIC')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'time increment', &
+        call InputReadCard(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'increment', &
                             'CHECKPOINT,PERIODIC')
         select case(trim(word))
           case('TIME')
@@ -1409,7 +1409,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
         enddo
 #endif
       case ('FORMAT')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'format type', &
                             'CHECKPOINT,FORMAT')
         call StringToUpper(word)

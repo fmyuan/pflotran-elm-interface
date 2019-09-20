@@ -147,7 +147,7 @@ subroutine PMTHRead(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
@@ -234,7 +234,7 @@ subroutine PMTHRead(this,input)
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
       case('ICE_MODEL')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
           case ('PAINTER_EXPLICIT')

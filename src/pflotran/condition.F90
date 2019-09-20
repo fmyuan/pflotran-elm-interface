@@ -1188,7 +1188,7 @@ subroutine FlowConditionRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
@@ -1228,7 +1228,7 @@ subroutine FlowConditionRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
         call StringToUpper(word)
         select case(word)
@@ -1250,7 +1250,7 @@ subroutine FlowConditionRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(trim(word))
@@ -1277,7 +1277,7 @@ subroutine FlowConditionRead(condition,input,option)
             case default
               call InputKeywordUnrecognized(word,'condition,type',option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -1315,6 +1315,7 @@ subroutine FlowConditionRead(condition,input,option)
               string = word
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -1407,7 +1408,7 @@ subroutine FlowConditionRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           select case(trim(word))
             case('PRES','PRESS','PRESSURE')
@@ -1977,7 +1978,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
@@ -1988,7 +1989,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
         call StringToUpper(word)
         select case(word)
@@ -2007,7 +2008,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
@@ -2015,7 +2016,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
                                                               option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -2041,6 +2042,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2070,6 +2072,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2123,7 +2126,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
@@ -2504,7 +2507,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
@@ -2515,7 +2518,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
         call StringToUpper(word)
         select case(word)
@@ -2534,7 +2537,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
@@ -2542,7 +2545,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               sub_condition_ptr => FlowHydrateSubConditionPtr(word,hydrate, &
                                                               option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -2568,6 +2571,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2597,6 +2601,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2650,7 +2655,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
@@ -3035,7 +3040,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     !reads cards common to all modes
@@ -3053,7 +3058,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
 
@@ -3069,7 +3074,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               call InputKeywordUnrecognized(word,'flow condition',option)
           end select
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
 
@@ -3095,6 +3100,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = &
                       trim(sub_condition_ptr%ctype) // word
@@ -3125,6 +3131,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3174,7 +3181,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,sub_word,PETSC_TRUE)
+          call InputReadCard(input,option,sub_word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','GRADIENT,TYPE')
           call StringToUpper(sub_word)
           sub_condition_ptr => &
@@ -3568,7 +3575,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     !reads cards common to all modes
@@ -3586,13 +3593,13 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
           !when refactoring
           !sub_condition_ptr => FlowPMSubConditionPtr(word,condition,option)
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -3615,6 +3622,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3644,6 +3652,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputRegisterCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3686,7 +3695,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,sub_word,PETSC_TRUE)
+          call InputReadCard(input,option,sub_word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(sub_word)
           sub_condition_ptr => FlowTOWGSubConditionPtr(sub_word,towg,option)
@@ -3799,7 +3808,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
                                                'CONDITION,BUBBLE_POINT_TABLE')
           call StringToUpper(word)
@@ -4288,7 +4297,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       
     case('INTERPOLATION')
       card_found = PETSC_TRUE
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
       call StringToUpper(word)
       select case(word)
@@ -4353,7 +4362,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
         if (InputCheckExit(input,option)) exit
 
         if (InputError(input)) exit
-        call InputReadWord(input,option,sub_word,PETSC_TRUE)
+        call InputReadCard(input,option,sub_word,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword', &
                                                 'CONDITION,TEMPERATURE_TABLE')
         call StringToUpper(sub_word)
@@ -4514,13 +4523,13 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
 
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'TYPE','CONDITION')
         call StringToLower(word)
         select case(word)
@@ -4807,6 +4816,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
+    call InputRegisterCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
         StringCompare(word,'file',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'

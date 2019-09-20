@@ -103,7 +103,7 @@ subroutine DebugRead(debug,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','DEBUG')   
     call StringToUpper(keyword)
       
@@ -130,7 +130,7 @@ subroutine DebugRead(debug,input,option)
       case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
         debug%verbose_filename = PETSC_TRUE
       case('FORMAT')
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputReadCard(input,option,keyword,PETSC_TRUE)
         call InputErrorMsg(input,option,'keyword','DEBUG,FORMAT')   
         call StringToUpper(keyword)
         select case(keyword)

@@ -177,7 +177,7 @@ subroutine FractureRead(this,input,option)
       if (InputCheckExit(input,option)) exit
           
       if (InputError(input)) exit
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word,PETSC_TRUE)
       call InputErrorMsg(input,option,'keyword', &
                           'MATERIAL_PROPERTY,WIPP-FRACTURE')   
       select case(trim(word))
@@ -534,7 +534,7 @@ subroutine CreepClosureRead(this,input,option)
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -566,7 +566,7 @@ subroutine CreepClosureRead(this,input,option)
     call InputReadPflotranString(input2,option)
     if (InputError(input2)) exit
 
-    call InputReadWord(input2,option,keyword,PETSC_TRUE)
+    call InputReadCard(input2,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input2,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -961,7 +961,7 @@ subroutine KlinkenbergRead(this,input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -1203,7 +1203,7 @@ subroutine WIPPRead(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       

@@ -221,7 +221,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
         
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','CONSTRAINT')   
       
     select case(trim(word))
@@ -319,7 +319,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
               call InputErrorMsg(input,option,'constraining species name', &
                                  block_string)
             else
-              call InputReadWord(input,option,word,PETSC_FALSE)
+              call InputReadCard(input,option,word,PETSC_FALSE)
               if (input%ierr == 0) then
                 call StringToUpper(word)
                 select case(word)
@@ -441,6 +441,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputReadWord(string,word,PETSC_TRUE,ierr)
           ! if a dataset
           if (StringCompareIgnoreCase(word,'DATASET')) then
+            call InputRegisterCard(input,word,option)
             input%buf = trim(string)
             call InputReadWord(input,option,mineral_constraint% &
                                 constraint_vol_frac_string(imnrl),PETSC_TRUE)
@@ -457,6 +458,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputReadWord(string,word,PETSC_TRUE,ierr)
           ! if a dataset
           if (StringCompareIgnoreCase(word,'DATASET')) then
+            call InputRegisterCard(input,word,option)
             input%buf = trim(string)
             call InputReadWord(input,option,mineral_constraint% &
                                 constraint_area_string(imnrl),PETSC_TRUE)

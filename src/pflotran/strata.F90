@@ -197,7 +197,7 @@ subroutine StrataRead(strata,input,option)
     
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','STRATA')   
       
     select case(trim(keyword))

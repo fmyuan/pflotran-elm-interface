@@ -830,7 +830,7 @@ subroutine GrdeclReader(input, option)
 
   ! Keyword found
 
-    call InputReadWord(input, option, word, PETSC_TRUE)
+    call InputReadCard(input, option, word, PETSC_TRUE)
     call CheckError(input, 'ECLGRD subkeyword', qerr);if ( qerr ) exit
     call StringToUpper(word)
 

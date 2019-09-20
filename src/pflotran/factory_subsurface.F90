@@ -1037,11 +1037,11 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
       case('MODE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
@@ -1214,7 +1214,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
     found = PETSC_FALSE
@@ -1223,7 +1223,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
 
     select case(word)
       case('TYPE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
@@ -1284,7 +1284,7 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
     found = PETSC_FALSE
@@ -1333,7 +1333,7 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
       case default
@@ -1928,7 +1928,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
 
-      call InputReadWord(input,option,word,PETSC_FALSE)
+      call InputReadCard(input,option,word,PETSC_FALSE)
       call StringToUpper(word)
       card = trim(word)
 
@@ -2008,7 +2008,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
 
@@ -2283,7 +2283,7 @@ subroutine SubsurfaceReadInput(simulation,input)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
 
@@ -2322,7 +2322,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','SPECIFIED_VELOCITY')
           call StringToUpper(word)
           select case(trim(word))
@@ -2354,7 +2354,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 else
                   input%buf = string
                   input%ierr = 0
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word,PETSC_TRUE)
                   call InputErrorMsg(input,option,'keyword',error_string)
                   call StringToUpper(word)
                   select case(word)
@@ -2693,7 +2693,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &with MULTIPLE_CONTINUUM keyword.'
           call PrintErrMsg(option)
         endif
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('KEARST')
@@ -2736,7 +2736,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadDouble(input,option,option%m_nacl)
         call InputDefaultMsg(input,option,'NaCl Concentration')
 
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word(1:len_trim(word)))
           case('MOLAL')
@@ -2799,7 +2799,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('TIMESTEPPER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
@@ -2817,7 +2817,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('LINEAR_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
@@ -2835,7 +2835,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('NEWTON_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
@@ -3035,7 +3035,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword','OUTPUT')
           call StringToUpper(word)
         !----------------------------------------------------------------------
@@ -3113,7 +3113,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               output_option%periodic_msbl_output_ts_imod = 1
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputDefaultMsg(input,option, &
                                    'OUTPUT,MASS_BALANCE,DETAILED')
               if (len_trim(word) > 0) then
@@ -3136,7 +3136,7 @@ subroutine SubsurfaceReadInput(simulation,input)
            case ('EXPLICIT_GRID_PRIMAL_GRID_TYPE')
              if (associated(grid%unstructured_grid)) then
                if (associated(grid%unstructured_grid%explicit_grid)) then
-                 call InputReadWord(input,option,word,PETSC_TRUE)
+                 call InputReadCard(input,option,word,PETSC_TRUE)
                  call InputErrorMsg(input,option,word, &
                        'EXPLICIT_GRID_PRIMAL_GRID_TYPE')
                  call PrintMsg(option,word)
@@ -3195,7 +3195,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               enddo
               call DeallocateArray(temp_real_array)
             case('OUTPUT_FILE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'time increment', &
                                  'OUTPUT,OUTPUT_FILE')
               call StringToUpper(word)
@@ -3211,7 +3211,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                          'OUTPUT,OUTPUT_FILE',option)
               end select
             case('SCREEN')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'time increment','OUTPUT,SCREEN')
               call StringToUpper(word)
               select case(trim(word))
@@ -3226,7 +3226,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                          'OUTPUT,SCREEN',option)
               end select
             case('PERIODIC')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'time increment', &
                                  'OUTPUT,PERIODIC')
               call StringToUpper(word)
@@ -3243,7 +3243,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                                      internal_units,option)
                   output_option%periodic_snap_output_time_incr = temp_real* &
                                                             units_conversion
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word,PETSC_TRUE)
                   if (input%ierr == 0) then
                     if (StringCompareIgnoreCase(word,'between')) then
                       call InputReadDouble(input,option,temp_real)
@@ -3255,7 +3255,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                       units_conversion = UnitsConvertToInternal(word, &
                                          internal_units,option)
                       temp_real = temp_real * units_conversion
-                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word,PETSC_TRUE)
                       if (.not.StringCompareIgnoreCase(word,'and')) then
                         input%ierr = 1
                       endif
@@ -3320,7 +3320,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               call DeallocateArray(temp_real_array)
             case('PERIODIC_OBSERVATION')
               output_option%print_observation = PETSC_TRUE
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'time increment', &
                 'OUTPUT, PERIODIC_OBSERVATION')
               call StringToUpper(word)
@@ -3347,13 +3347,13 @@ subroutine SubsurfaceReadInput(simulation,input)
                          'OUTPUT,PERIODIC_OBSERVATION',option)
               end select
             case('FORMAT')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'keyword','OUTPUT,FORMAT')
               call StringToUpper(word)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word,PETSC_TRUE)
                   call InputDefaultMsg(input,option, &
                                        'OUTPUT,FORMAT,HDF5,# FILES')
                   if (len_trim(word) > 0) then
@@ -3364,7 +3364,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                       case('MULTIPLE_FILES')
                         output_option%print_single_h5_file = PETSC_FALSE
                         output_option%times_per_h5_file = 1
-                        call InputReadWord(input,option,word,PETSC_TRUE)
+                        call InputReadCard(input,option,word,PETSC_TRUE)
                         if (len_trim(word)>0) then
                           select case(trim(word))
                             case('TIMES_PER_FILE')
@@ -3388,7 +3388,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word,PETSC_TRUE)
                   call InputErrorMsg(input,option,'TECPLOT','OUTPUT,FORMAT')
                   call StringToUpper(word)
                   select case(trim(word))
@@ -3554,7 +3554,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'word','TIME')
           select case(trim(word))
             case('SCREEN_UNITS')
@@ -3610,7 +3610,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               internal_units = 'sec'
               waypoint%dt_max = temp_real*UnitsConvertToInternal(word, &
                                           internal_units,option)
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call StringToUpper(word)
                 if (StringCompare(word,'AT',TWO_INTEGER)) then
@@ -3713,7 +3713,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('RELATIVE_PERMEABILITY_AVERAGE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
           case ('UPWIND')
