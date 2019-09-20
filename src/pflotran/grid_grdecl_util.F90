@@ -8,6 +8,15 @@ module Grid_Grdecl_Util_module
 
   implicit none
 
+  ! Unit numbers for reading and writing reservoir engineering format files
+  ! 50-59 are reserved for reservoir files
+  PetscInt, parameter, public :: UNIT_GRDECL_READ = 50
+  PetscInt, parameter, public :: UNIT_SPEC_WRITE  = 51
+  PetscInt, parameter, public :: UNIT_SUMM_WRITE  = 52
+  PetscInt, parameter, public :: UNIT_GRID_WRITE  = 53
+  PetscInt, parameter, public :: UNIT_INIT_WRITE  = 54
+  PetscInt, parameter, public :: UNIT_REST_WRITE  = 55
+
   public :: GetCorners, GetOtherDirections, GetIntersection
   public :: GetMDtoM2Conv, GetTriangleArea
   public :: GetM2toMDConv, qarea

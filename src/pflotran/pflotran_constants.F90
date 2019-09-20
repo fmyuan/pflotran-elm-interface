@@ -42,13 +42,7 @@ module PFLOTRAN_Constants_module
   ! for embedded input files.
   PetscInt, parameter, public :: MAX_IN_UNIT = 25
   PetscInt, parameter, public :: IUNIT_TEMP = 86
-  ! Unit numbers for reading and writing reservoir engineering format files
-  PetscInt, parameter, public :: UNIT_GRDECL_READ = 50
-  PetscInt, parameter, public :: UNIT_SPEC_WRITE  = 51
-  PetscInt, parameter, public :: UNIT_SUMM_WRITE  = 52
-  PetscInt, parameter, public :: UNIT_GRID_WRITE  = 53
-  PetscInt, parameter, public :: UNIT_INIT_WRITE  = 54
-  PetscInt, parameter, public :: UNIT_REST_WRITE  = 55
+  ! Units 50-59 are reserved for reservoir engineering format files
   ! EKG_UNIT = 87
   PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
