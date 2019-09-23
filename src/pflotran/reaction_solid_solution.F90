@@ -106,7 +106,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
     call StringToUpper(card)
     select case(card)
       case('DATABASE')
-        call InputRegisterCard(input,card,option)
+        call InputPushCard(input,card,option)
         call InputReadNChars(string, &
                              solid_solution_rxn%database_filename, &
                              MAXSTRINGLENGTH,PETSC_TRUE,input%ierr)  

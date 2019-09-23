@@ -184,7 +184,7 @@ subroutine GeomechStrataRead(strata,input,option)
         call InputErrorMsg(input,option, &
                    'geomechancis material property name','GEOMECHANICS STRATA')
         if (StringCompareIgnoreCase(string,'realization_dependent')) then
-          call InputRegisterCard(input,string,option)
+          call InputPushCard(input,string,option)
           strata%realization_dependent = PETSC_TRUE
           call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
           call InputErrorMsg(input,option, &

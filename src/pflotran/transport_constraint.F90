@@ -441,7 +441,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputReadWord(string,word,PETSC_TRUE,ierr)
           ! if a dataset
           if (StringCompareIgnoreCase(word,'DATASET')) then
-            call InputRegisterCard(input,word,option)
+            call InputPushCard(input,word,option)
             input%buf = trim(string)
             call InputReadWord(input,option,mineral_constraint% &
                                 constraint_vol_frac_string(imnrl),PETSC_TRUE)
@@ -458,7 +458,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputReadWord(string,word,PETSC_TRUE,ierr)
           ! if a dataset
           if (StringCompareIgnoreCase(word,'DATASET')) then
-            call InputRegisterCard(input,word,option)
+            call InputPushCard(input,word,option)
             input%buf = trim(string)
             call InputReadWord(input,option,mineral_constraint% &
                                 constraint_area_string(imnrl),PETSC_TRUE)

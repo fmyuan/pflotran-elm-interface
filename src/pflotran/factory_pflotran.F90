@@ -213,6 +213,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
   word = ''
+  call InputPushBlock(input,'',option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -353,6 +354,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         call InputKeywordUnrecognized(word,'SIMULATION',option)            
     end select
   enddo
+  call InputPopBlock(input,option)
   call InputDestroy(input)
 
   if (.not.associated(pm_master)) then

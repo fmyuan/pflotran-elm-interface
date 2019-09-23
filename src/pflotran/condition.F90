@@ -1315,7 +1315,7 @@ subroutine FlowConditionRead(condition,input,option)
               string = word
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2042,7 +2042,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2072,7 +2072,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2571,7 +2571,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2601,7 +2601,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3100,7 +3100,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = &
                       trim(sub_condition_ptr%ctype) // word
@@ -3131,7 +3131,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3622,7 +3622,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3652,7 +3652,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
-                call InputRegisterCard(input,word,option)
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -4816,7 +4816,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
-    call InputRegisterCard(input,word,option)
+    call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
         StringCompare(word,'file',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'

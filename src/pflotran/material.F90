@@ -387,7 +387,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'MATERIAL_PROPERTY')
         length = 16
         if (StringCompare(word,'INITIAL_PRESSURE',length)) then
-          call InputRegisterCard(input,word,option)
+          call InputPushCard(input,word,option)
           material_property%soil_reference_pressure_initial = PETSC_TRUE
         else
           ! if not the keyword above, copy back into buffer to be read as a

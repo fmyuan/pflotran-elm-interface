@@ -5383,7 +5383,7 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
-    call InputRegisterCard(input,word,option)
+    call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
         StringCompare(word,'file',FOUR_INTEGER)) then
       input%err_buf2 = trim(keyword) // ', FILE'

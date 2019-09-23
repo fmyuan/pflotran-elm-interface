@@ -193,7 +193,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
       string = input%buf
       ierr = 0
       call InputReadWord(string,word,PETSC_TRUE,ierr)
-      call InputRegisterCard(input,word,option)
+      call InputPushCard(input,word,option)
       call InputErrorMsg(input,option,'KEYWORD',error_string)
       call StringToUpper(word)
       select case(word)
@@ -212,7 +212,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
           cycle
         case('INTERPOLATION')
           call InputReadWord(string,word,PETSC_TRUE,ierr)
-          call InputRegisterCard(input,word,option)
+          call InputPushCard(input,word,option)
           input%ierr = ierr
           call InputErrorMsg(input,option,'INTERPOLATION',error_string)   
           call StringToUpper(word)

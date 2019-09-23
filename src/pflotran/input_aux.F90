@@ -110,6 +110,11 @@ module Input_Aux_module
     module procedure InputKeywordUnrecognized1
     module procedure InputKeywordUnrecognized2
   end interface
+  
+  interface InputPushBlock
+    module procedure InputPushBlock1
+    module procedure InputPushBlock2
+  end interface
 
   public :: InputCreate, InputDestroy, InputReadPflotranString, &
             InputReadWord, InputReadDouble, InputReadInt, InputCheckExit, &
@@ -139,7 +144,9 @@ module Input_Aux_module
             UnitReadAndConversionFactor, &
             InputReadFilename, & 
             InputReadCard, &
-            InputRegisterCard
+            InputPushCard, &
+            InputPushBlock, &
+            InputPopBlock
 
 contains
 
@@ -772,14 +779,14 @@ subroutine InputReadPflotranStringSlave(input, option)
     call StringToUpper(word)
     
     if (word(1:13) == 'EXTERNAL_FILE') then
-      call InputRegisterCard(input,word,option)
+      call InputPushCard(input,word,option)
       ! have to strip the card 'EXTERNAL_FILE' from the buffer
       call InputReadWord(input,option,word,PETSC_TRUE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
       cycle
     else if (word(1:4) == 'SKIP') then
-      call InputRegisterCard(input,word,option)
+      call InputPushCard(input,word,option)
       ! to avoid keywords that start with SKIP 
       if (len_trim(word) > 4) then
         exit
@@ -797,10 +804,10 @@ subroutine InputReadPflotranStringSlave(input, option)
         call StringToUpper(word)
         if (word(1:4) == 'SKIP') then
           skip_count = skip_count + 1
-          call InputRegisterCard(input,word,option)
+          call InputPushCard(input,word,option)
         endif
         if (word(1:4) == 'NOSK') then
-          call InputRegisterCard(input,word,option)
+          call InputPushCard(input,word,option)
           skip_count = skip_count - 1
           if (skip_count == 0) exit
         endif
@@ -848,16 +855,16 @@ subroutine InputReadCard(input, option, word, push_to_log)
   call InputReadWord(input,option,word,PETSC_TRUE)
   
   if (present(push_to_log)) then
-    call InputRegisterCard(input,word,option)
+    call InputPushCard(input,word,option)
   else
-    call InputRegisterCard(input,word,option)
+    call InputPushCard(input,word,option)
   endif
 
 end subroutine InputReadCard
 
 ! ************************************************************************** !
 
-subroutine InputRegisterCard(input,card,option)
+subroutine InputPushCard(input,card,option)
   ! 
   ! Sometimes cards are optional and cannot be registered at the time of 
   ! being read. This routines allows  
@@ -880,19 +887,107 @@ subroutine InputRegisterCard(input,card,option)
   string = ''
   select case(card)
     case('/','NOSKIP')
-      string = trim(option%keyword_log) // ',' // trim(card)
+      string = trim(option%keyword_buf) // ',' // trim(card)
       call InputLogPop(input,option)
     case default
-      option%keyword_log = trim(option%keyword_log) // ',' // trim(card)
-      string = option%keyword_log
+      if (len_trim(option%keyword_buf) > 0) then
+        option%keyword_buf = trim(option%keyword_buf) // ',' // trim(card)
+      else
+        option%keyword_buf = trim(card)
+      endif
+      string = option%keyword_buf
   end select
 
   if (len_trim(string) > 0) then
-    option%io_buffer = 'KEYWORD: ' // trim(string)
+    option%io_buffer = 'KEYWORD: ' // trim(option%keyword_log) // trim(string)
     call PrintMsg(option)
   endif
 
-end subroutine InputRegisterCard
+end subroutine InputPushCard
+
+! ************************************************************************** !
+
+subroutine InputPushBlock1(input,option)
+  ! 
+  ! Fill in  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+
+  call InputPushBlock(input,'',option)
+
+end subroutine InputPushBlock1
+
+! ************************************************************************** !
+
+subroutine InputPushBlock2(input,block_name,option)
+  ! 
+  ! Fill in  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: block_name
+  
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (.not.option%keyword_logging) return
+  
+  if (len_trim(block_name) > 0) then
+    string = block_name
+  else
+    string = option%keyword_buf
+    option%keyword_buf = ''
+  endif
+
+  option%keyword_block_count = option%keyword_block_count + 1
+  option%keyword_block_map(option%keyword_block_count) = len_trim(option%keyword_log)
+  
+  if (len_trim(option%keyword_log) > 0) then
+    string = trim(option%keyword_log) // ',' // trim(string)
+  endif
+  option%keyword_log = trim(string)
+
+end subroutine InputPushBlock2
+
+! ************************************************************************** !
+
+subroutine InputPopBlock(input,option)
+  ! 
+  ! Fill in  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  
+  PetscInt :: i
+  
+  if (.not.option%keyword_logging) return
+
+  option%keyword_block_count = option%keyword_block_count - 1
+  if (option%keyword_block_count > 0) then
+    option%keyword_log = option%keyword_log(1:option%keyword_block_map(option%keyword_block_count))
+  else
+    option%keyword_log = ''
+  endif
+
+end subroutine InputPopBlock
 
 ! ************************************************************************** !
 
@@ -1031,7 +1126,7 @@ subroutine InputReadCardDbaseCompatible(input, option, word)
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
   endif
 
-  call InputRegisterCard(input,word,option)
+  call InputPushCard(input,word,option)
   
 end subroutine InputReadCardDbaseCompatible
 
@@ -1469,7 +1564,7 @@ subroutine InputFindStringInFile3(input, option, string, print_warning,found)
     input%ierr = 1
   endif
 
-  call InputRegisterCard(input,string,option)
+  call InputPushCard(input,string,option)
 
 end subroutine InputFindStringInFile3
 
@@ -1562,9 +1657,9 @@ subroutine InputLogPop(input,option)
 
   if (.not.option%keyword_logging) return
 
-  i = index(option%keyword_log,',',back)
+  i = index(option%keyword_buf,',',back)
   if (i > 0) then
-    option%keyword_log = option%keyword_log(1:i-1)
+    option%keyword_buf = option%keyword_buf(1:i-1)
   endif
 
 end subroutine InputLogPop
