@@ -1336,6 +1336,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   format_binary = PETSC_FALSE
   format_hdf5 = PETSC_FALSE
   default_time_units = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CHECKPOINT')

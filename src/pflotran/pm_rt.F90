@@ -149,6 +149,7 @@ subroutine PMRTRead(this,input)
   error_string = 'Reactive Transport Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)

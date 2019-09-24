@@ -116,6 +116,11 @@ module Input_Aux_module
     module procedure InputPushBlock2
   end interface
 
+  interface InputCheckExit
+    module procedure InputCheckExit1
+    module procedure InputCheckExit2
+  end interface
+
   public :: InputCreate, InputDestroy, InputReadPflotranString, &
             InputReadWord, InputReadDouble, InputReadInt, InputCheckExit, &
             InputReadNDoubles, &
@@ -885,8 +890,15 @@ subroutine InputPushCard(input,card,option)
   if (InputError(input)) return
 
   string = ''
+#if 0
   select case(card)
-    case('/','NOSKIP')
+    case('SKIP')
+      string = trim(card)
+      call InputPushBlock(input,string,option)
+    case('NOSKIP')
+      string = trim(card)
+      call InputLogPop(input,option)
+    case('/','END')
       string = trim(option%keyword_buf) // ',' // trim(card)
       call InputLogPop(input,option)
     case default
@@ -897,11 +909,30 @@ subroutine InputPushCard(input,card,option)
       endif
       string = option%keyword_buf
   end select
+#endif
+  if (len_trim(option%keyword_buf) > 0) then
+    option%keyword_buf = trim(option%keyword_buf) // ',' // trim(card)
+  else
+    option%keyword_buf = trim(card)
+  endif
+  string = option%keyword_buf
 
   if (len_trim(string) > 0) then
-    option%io_buffer = 'KEYWORD: ' // trim(option%keyword_log) // trim(string)
+    if (len_trim(option%keyword_log) > 0) then
+      option%io_buffer = 'KEYWORD: ' // trim(option%keyword_log) // &
+                         ',' // trim(string)
+    else
+      option%io_buffer = 'KEYWORD: ' // trim(string)
+    endif
     call PrintMsg(option)
   endif
+
+  select case(card)
+    case('SKIP')
+      call InputPushBlock(input,option)
+    case('NOSKIP')
+      call InputPopBlock(input,option)
+  end select
 
 end subroutine InputPushCard
 
@@ -950,14 +981,15 @@ subroutine InputPushBlock2(input,block_name,option)
     string = option%keyword_buf
     option%keyword_buf = ''
   endif
-
-  option%keyword_block_count = option%keyword_block_count + 1
-  option%keyword_block_map(option%keyword_block_count) = len_trim(option%keyword_log)
   
   if (len_trim(option%keyword_log) > 0) then
     string = trim(option%keyword_log) // ',' // trim(string)
   endif
   option%keyword_log = trim(string)
+
+  option%keyword_block_count = option%keyword_block_count + 1
+  option%keyword_block_map(option%keyword_block_count) = &
+    len_trim(option%keyword_log)
 
 end subroutine InputPushBlock2
 
@@ -980,6 +1012,7 @@ subroutine InputPopBlock(input,option)
   
   if (.not.option%keyword_logging) return
 
+  option%keyword_buf = ''
   option%keyword_block_count = option%keyword_block_count - 1
   if (option%keyword_block_count > 0) then
     option%keyword_log = option%keyword_log(1:option%keyword_block_map(option%keyword_block_count))
@@ -1588,14 +1621,32 @@ subroutine InputSkipToEND(input,option,string)
     call InputReadPflotranString(input,option)
     input%err_buf = 'End of file found before end of card ' // trim(string)
     call InputReadStringErrorMsg(input,option)
-    if (InputCheckExit(input,option)) exit
+    if (InputCheckExit(input,option,PETSC_FALSE)) exit
   enddo
 
 end subroutine InputSkipToEND
 
 ! ************************************************************************** !
 
-function InputCheckExit(input,option)
+function InputCheckExit1(input,option)
+  ! 
+  ! Checks whether an end character (.,/,'END') has been found
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+  type(input_type) :: input
+  type(option_type) :: option  
+
+  PetscBool :: InputCheckExit1
+
+  InputCheckExit1 = InputCheckExit(input,option,PETSC_TRUE)
+
+end function InputCheckExit1
+
+! ************************************************************************** !
+
+function InputCheckExit2(input,option,pop_block)
   ! 
   ! Checks whether an end character (.,/,'END') has been found
   ! 
@@ -1609,10 +1660,12 @@ function InputCheckExit(input,option)
 
   type(input_type) :: input
   type(option_type) :: option  
+  PetscBool :: pop_block
+
   PetscInt :: i
   character(len=1) :: tab
   
-  PetscBool :: InputCheckExit
+  PetscBool :: InputCheckExit2
 
   ! We must remove leading blanks and tabs. --RTM
   input%buf = adjustl(input%buf)
@@ -1628,41 +1681,18 @@ function InputCheckExit(input,option)
       StringCompare(input%buf(i:),'END') .or. &
       ! to end a block, e.g. END_SUBSURFACE
       StringStartsWith(input%buf(i:),'END_')) then
-    InputCheckExit = PETSC_TRUE
+    InputCheckExit2 = PETSC_TRUE
   else
-    InputCheckExit = PETSC_FALSE
+    InputCheckExit2 = PETSC_FALSE
   endif
 
-  if (InputCheckExit) then
-    call InputLogPop(input,option)
+  option%keyword_buf = ''
+
+  if (InputCheckExit2 .and. pop_block) then
+    call InputPopBlock(input,option)
   endif
 
-end function InputCheckExit
-
-! ************************************************************************** !
-
-subroutine InputLogPop(input,option)
-  ! 
-  ! Pops the top keyword off the stack
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/20/19
-  ! 
-
-  type(input_type) :: input
-  type(option_type) :: option  
-
-  PetscInt :: i
-  PetscBool, parameter :: back = PETSC_TRUE
-
-  if (.not.option%keyword_logging) return
-
-  i = index(option%keyword_buf,',',back)
-  if (i > 0) then
-    option%keyword_buf = option%keyword_buf(1:i-1)
-  endif
-
-end subroutine InputLogPop
+end function InputCheckExit2
 
 ! ************************************************************************** !
 

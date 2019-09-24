@@ -1034,6 +1034,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
 
   nullify(pm)
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -1909,6 +1910,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   wname = '<missing>'
   found = PETSC_FALSE
 
+  call InputPushBlock(input,'SUBSURFACE',option)
+
 ! Read in select required cards
 !.........................................................................
 
@@ -2008,7 +2011,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadCard(input,option,word,PETSC_FALSE)
+    ! do not use InputReadCard here as this is a search operation
+    call InputReadWord(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
 
@@ -2016,6 +2020,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 !....................
       case('DBASE_FILENAME')
+        call InputPushCard(input,card,option)
         call InputReadFilename(input,option,string)
         call InputErrorMsg(input,option,'filename','DBASE_FILENAME')
         if (index(string,'.h5') > 0) then
@@ -2026,16 +2031,19 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 !....................
       case('HDF5_WRITE_GROUP_SIZE')
+        call InputPushCard(input,card,option)
         call InputReadInt(input,option,option%hdf5_write_group_size)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
         call InputSkipToEnd(input,option,'HDF5_WRITE_GROUP_SIZE')
 
       case('HDF5_READ_GROUP_SIZE')
+        call InputPushCard(input,card,option)
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
 
 !....................
       case('PROC')
+        call InputPushCard(input,card,option)
         ! processor decomposition
         if (realization%discretization%itype == STRUCTURED_GRID) then
           grid => realization%patch%grid
@@ -2074,6 +2082,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
 !....................
       case('CHEMISTRY')
+        call InputPushCard(input,card,option)
         if (.not.associated(simulation%rt_process_model_coupler)) then
           option%io_buffer = 'CHEMISTRY card included when no &
             &SUBSURFACE_TRANSPORT process model included in SIMULATION block.'
@@ -2086,6 +2095,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
+        call InputPushCard(input,card,option)
         if (.not.associated(simulation%nwt_process_model_coupler)) then
           option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is &
             &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
@@ -2097,6 +2107,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
     end select
   enddo
+
+  call InputPopBlock(input,option)
 
 end subroutine SubsurfaceReadRequiredCards
 
@@ -2279,6 +2291,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit

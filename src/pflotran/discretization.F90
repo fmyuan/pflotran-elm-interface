@@ -162,6 +162,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -362,6 +363,7 @@ subroutine DiscretizationRead(discretization,input,option)
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -386,7 +388,7 @@ subroutine DiscretizationRead(discretization,input,option)
         end select
         call InputReadPflotranString(input,option) ! read END card
         call InputReadStringErrorMsg(input,option,'DISCRETIZATION,DXYZ,END')
-        if (.not.(InputCheckExit(input,option))) then
+        if (.not.(InputCheckExit(input,option,PETSC_FALSE))) then
           option%io_buffer = 'Card DXYZ should include either 3 entires ' // &
                    '(one for each grid direction or NX+NY+NZ entries)'
           call PrintErrMsg(option)
@@ -440,7 +442,7 @@ subroutine DiscretizationRead(discretization,input,option)
             call InputReadPflotranString(input,option)
             call InputReadStringErrorMsg(input,option, &
                                          'DISCRETIZATION,BOUNDS,END')
-            if (.not.(InputCheckExit(input,option))) then
+            if (.not.(InputCheckExit(input,option,PETSC_FALSE))) then
               if (OptionPrintToScreen(option)) then
                 if (grid%structured_grid%itype == CARTESIAN_GRID) then
                   print *, 'BOUNDS card for a cartesian structured grid ' // &
