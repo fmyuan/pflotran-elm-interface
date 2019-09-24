@@ -196,6 +196,7 @@ subroutine PMRTRead(this,input)
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMRTRead
 

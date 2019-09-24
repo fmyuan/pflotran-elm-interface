@@ -1432,6 +1432,8 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
         call InputKeywordUnrecognized(word,'CHECKPOINT',temp_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
+
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     units_conversion = UnitsConvertToInternal(default_time_units, &

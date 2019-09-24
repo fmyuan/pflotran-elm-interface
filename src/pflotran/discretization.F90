@@ -252,6 +252,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputKeywordUnrecognized(word,'DISCRETIZATION',option)
     end select 
   enddo  
+  call InputPopBlock(input,option)
 
   if (discretization%itype == NULL_GRID) then
     option%io_buffer = 'Discretization type not defined under ' // &
@@ -388,7 +389,7 @@ subroutine DiscretizationRead(discretization,input,option)
         end select
         call InputReadPflotranString(input,option) ! read END card
         call InputReadStringErrorMsg(input,option,'DISCRETIZATION,DXYZ,END')
-        if (.not.(InputCheckExit(input,option,PETSC_FALSE))) then
+        if (.not.(InputCheckExit(input,option))) then
           option%io_buffer = 'Card DXYZ should include either 3 entires ' // &
                    '(one for each grid direction or NX+NY+NZ entries)'
           call PrintErrMsg(option)
@@ -442,7 +443,7 @@ subroutine DiscretizationRead(discretization,input,option)
             call InputReadPflotranString(input,option)
             call InputReadStringErrorMsg(input,option, &
                                          'DISCRETIZATION,BOUNDS,END')
-            if (.not.(InputCheckExit(input,option,PETSC_FALSE))) then
+            if (.not.(InputCheckExit(input,option))) then
               if (OptionPrintToScreen(option)) then
                 if (grid%structured_grid%itype == CARTESIAN_GRID) then
                   print *, 'BOUNDS card for a cartesian structured grid ' // &
@@ -578,6 +579,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputKeywordUnrecognized(word,'GRID',option)
     end select 
   enddo  
+  call InputPopBlock(input,option)
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)

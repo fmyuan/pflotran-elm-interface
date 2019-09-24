@@ -116,11 +116,6 @@ module Input_Aux_module
     module procedure InputPushBlock2
   end interface
 
-  interface InputCheckExit
-    module procedure InputCheckExit1
-    module procedure InputCheckExit2
-  end interface
-
   public :: InputCreate, InputDestroy, InputReadPflotranString, &
             InputReadWord, InputReadDouble, InputReadInt, InputCheckExit, &
             InputReadNDoubles, &
@@ -897,7 +892,7 @@ subroutine InputPushCard(input,card,option)
       call InputPushBlock(input,string,option)
     case('NOSKIP')
       string = trim(card)
-      call InputLogPop(input,option)
+      call InputPopBlock(input,option)
     case('/','END')
       string = trim(option%keyword_buf) // ',' // trim(card)
       call InputLogPop(input,option)
@@ -1621,32 +1616,14 @@ subroutine InputSkipToEND(input,option,string)
     call InputReadPflotranString(input,option)
     input%err_buf = 'End of file found before end of card ' // trim(string)
     call InputReadStringErrorMsg(input,option)
-    if (InputCheckExit(input,option,PETSC_FALSE)) exit
+    if (InputCheckExit(input,option)) exit
   enddo
 
 end subroutine InputSkipToEND
 
 ! ************************************************************************** !
 
-function InputCheckExit1(input,option)
-  ! 
-  ! Checks whether an end character (.,/,'END') has been found
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 09/23/19
-  ! 
-  type(input_type) :: input
-  type(option_type) :: option  
-
-  PetscBool :: InputCheckExit1
-
-  InputCheckExit1 = InputCheckExit(input,option,PETSC_TRUE)
-
-end function InputCheckExit1
-
-! ************************************************************************** !
-
-function InputCheckExit2(input,option,pop_block)
+function InputCheckExit(input,option)
   ! 
   ! Checks whether an end character (.,/,'END') has been found
   ! 
@@ -1660,12 +1637,11 @@ function InputCheckExit2(input,option,pop_block)
 
   type(input_type) :: input
   type(option_type) :: option  
-  PetscBool :: pop_block
 
   PetscInt :: i
   character(len=1) :: tab
   
-  PetscBool :: InputCheckExit2
+  PetscBool :: InputCheckExit
 
   ! We must remove leading blanks and tabs. --RTM
   input%buf = adjustl(input%buf)
@@ -1681,18 +1657,14 @@ function InputCheckExit2(input,option,pop_block)
       StringCompare(input%buf(i:),'END') .or. &
       ! to end a block, e.g. END_SUBSURFACE
       StringStartsWith(input%buf(i:),'END_')) then
-    InputCheckExit2 = PETSC_TRUE
+    InputCheckExit = PETSC_TRUE
   else
-    InputCheckExit2 = PETSC_FALSE
+    InputCheckExit = PETSC_FALSE
   endif
 
   option%keyword_buf = ''
 
-  if (InputCheckExit2 .and. pop_block) then
-    call InputPopBlock(input,option)
-  endif
-
-end function InputCheckExit2
+end function InputCheckExit
 
 ! ************************************************************************** !
 

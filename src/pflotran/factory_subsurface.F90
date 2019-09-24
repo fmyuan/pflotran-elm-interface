@@ -1105,6 +1105,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (.not.associated(pm)) then
     option%io_buffer = 'A flow MODE (card) must be included in the &
@@ -3044,6 +3045,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         energy_flowrate = PETSC_FALSE
         aveg_mass_flowrate = PETSC_FALSE
         aveg_energy_flowrate = PETSC_FALSE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -3458,7 +3460,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           end select
 
         enddo
-
+        call InputPopBlock(input,option)
 
   ! If VARIABLES were not specified within the *_FILE blocks, point their
   ! variable lists to the master variable list, which can be specified within
@@ -3563,6 +3565,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !        dt_init = UNINITIALIZED_DOUBLE
         dt_init = 1.d0
         dt_min = UNINITIALIZED_DOUBLE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -3650,6 +3653,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               call InputKeywordUnrecognized(word,'TIME',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (Initialized(dt_init)) then
           if (associated(flow_timestepper)) then
             flow_timestepper%dt_init = dt_init
@@ -3776,6 +3780,7 @@ subroutine SubsurfaceReadInput(simulation,input)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   if (associated(simulation%flow_process_model_coupler)) then
     if (option%iflowmode == RICHARDS_TS_MODE) then

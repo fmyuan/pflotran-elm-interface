@@ -202,6 +202,7 @@ subroutine PMRichardsRead(this,input)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMRichardsRead
 

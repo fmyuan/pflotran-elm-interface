@@ -291,6 +291,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           cur_pm => new_pm
           nullify(new_pm)
         enddo
+        call InputPopBlock(input,option)
       case('MASTER')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc_master)
       case('PRINT_EKG')
@@ -333,6 +334,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               call InputKeywordUnrecognized(word,'SIMULATION,RESTART',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (realization_dependent_restart) then
           ! insert realization id
           i = index(option%restart_filename,'-restart')
@@ -356,6 +358,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         call InputKeywordUnrecognized(word,'SIMULATION',option)            
     end select
   enddo
+  call InputPopBlock(input,option)
   call InputDestroy(input)
 
   if (.not.associated(pm_master)) then
