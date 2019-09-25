@@ -1369,7 +1369,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
             call InputErrorMsg(input,option,'timestep increment', &
                                 'CHECKPOINT,PERIODIC,TIMESTEP')
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,PERIODIC', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,PERIODIC', &
                                           option)
         end select
       case ('TIMES')
@@ -1420,7 +1420,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
           case('HDF5')
             format_hdf5 = PETSC_TRUE
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,FORMAT', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,FORMAT', &
                                           option)
         end select
       case ('TIME_UNITS')
@@ -1429,7 +1429,8 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
       case default
         temp_string = 'Must specify PERIODIC TIME, PERIODIC TIMESTEP, &
                       &TIMES, or FORMAT'
-        call InputKeywordUnrecognized(word,'CHECKPOINT',temp_string,option)
+        call InputKeywordUnrecognized(input,word,'CHECKPOINT', &
+                                      temp_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

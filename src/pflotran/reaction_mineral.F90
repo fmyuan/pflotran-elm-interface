@@ -298,7 +298,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                                              'attenuation coefficient', &
                                              error_string)
                         case default
-                          call InputKeywordUnrecognized(word, &
+                          call InputKeywordUnrecognized(input,word, &
                             'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,SPECIES', &
                             option)
                       end select
@@ -320,7 +320,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                     endif                    
                     error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR'
                   case default
-                    call InputKeywordUnrecognized(word, &
+                    call InputKeywordUnrecognized(input,word, &
                       'CHEMISTRY,MINERAL_KINETICS,PREFACTOR',option)
                 end select
               enddo
@@ -341,7 +341,7 @@ subroutine MineralReadKinetics(mineral,input,option)
               endif
               error_string = 'CHEMISTRY,MINERAL_KINETICS'
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                       'CHEMISTRY,MINERAL_KINETICS',option)
           end select
         enddo

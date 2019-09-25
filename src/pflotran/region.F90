@@ -566,7 +566,7 @@ subroutine RegionRead(region,input,option)
             call PrintErrMsg(option)
         end select
       case default
-        call InputKeywordUnrecognized(keyword,'REGION',option)
+        call InputKeywordUnrecognized(input,keyword,'REGION',option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -1152,7 +1152,7 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
           call InputErrorMsg(input,option,'face area',hint)
         enddo
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'REGION (explicit unstructured grid)',option)
     end select
   enddo

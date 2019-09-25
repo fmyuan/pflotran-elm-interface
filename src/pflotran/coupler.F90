@@ -257,7 +257,7 @@ subroutine CouplerRead(coupler,input,option)
       case('TRANSPORT_CONDITION')
         call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
       case default
-        call InputKeywordUnrecognized(word,'coupler ',option)
+        call InputKeywordUnrecognized(input,word,'coupler ',option)
     end select 
   
   enddo 

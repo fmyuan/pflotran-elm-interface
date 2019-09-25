@@ -196,7 +196,8 @@ subroutine GeomechStrataRead(strata,input,option)
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
-        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_STRATA',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'GEOMECHANICS_STRATA',option)
     end select 
   
   enddo  

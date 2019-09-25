@@ -174,7 +174,8 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
         call InputReadInt(input,option,geomechanics_regression%num_vertices_per_process)
         call InputErrorMsg(input,option,'num vertices per process','GEOMECHANICS_REGRESSION')
       case default
-        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGRESSION',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'GEOMECHANICS_REGRESSION',option)
     end select
     
   enddo

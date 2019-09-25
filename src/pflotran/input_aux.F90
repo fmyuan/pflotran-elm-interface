@@ -2598,7 +2598,7 @@ end subroutine DbaseLookupWord
 
 ! ************************************************************************** !
 
-subroutine InputKeywordUnrecognized1(keyword,string,option)
+subroutine InputKeywordUnrecognized1(input,keyword,string,option)
   ! 
   ! Looks up double precision value in database
   ! 
@@ -2609,6 +2609,7 @@ subroutine InputKeywordUnrecognized1(keyword,string,option)
   
   implicit none
   
+  type(input_type) :: input
   character(len=*) :: keyword
   character(len=*) :: string
   type(option_type) :: option
@@ -2616,13 +2617,13 @@ subroutine InputKeywordUnrecognized1(keyword,string,option)
   character(len=1) :: null_string
 
   null_string = '' 
-  call InputKeywordUnrecognized2(keyword,string,null_string,option)
+  call InputKeywordUnrecognized2(input,keyword,string,null_string,option)
   
 end subroutine InputKeywordUnrecognized1
 
 ! ************************************************************************** !
 
-subroutine InputKeywordUnrecognized2(keyword,string,string2,option)
+subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   ! 
   ! Looks up double precision value in database
   ! 
@@ -2633,6 +2634,7 @@ subroutine InputKeywordUnrecognized2(keyword,string,string2,option)
   
   implicit none
   
+  type(input_type) :: input
   character(len=*) :: keyword
   character(len=*) :: string
   character(len=*) :: string2

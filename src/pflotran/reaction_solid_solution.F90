@@ -293,7 +293,7 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         solid_solution_rxn%num_dbase_temperatures = &
           size(solid_solution_rxn%dbase_temperatures)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'SOLID SOLUTION,DATABASE',option)
     end select
   enddo

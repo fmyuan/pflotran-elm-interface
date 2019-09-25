@@ -760,7 +760,7 @@ subroutine CLMDec_Read(this,input,option)
                   UnitsConvertToInternal(word,internal_units,option)
               endif
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)
           end select
         enddo
@@ -786,7 +786,8 @@ subroutine CLMDec_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN,CLMDec',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'CHEMISTRY,CLM_RXN,CLMDec',option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -3334,7 +3335,7 @@ subroutine PlantNRead(this,input,option)
       case('JACOBIAN_PLANT_NO3_SKIP')
         this%bskippno3jacobian = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'CHEMISTRY,CLM_RXN,PLANTN,REACTION',option)
     end select
   enddo
@@ -3887,8 +3888,9 @@ subroutine NitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+              call InputKeywordUnrecognized(input,word, &
+                'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE &
+                &RESPONSE FUNCTION', &
                 option)
           end select
         enddo
@@ -3940,7 +3942,7 @@ subroutine NitrRead(this,input,option)
       case('JACOBIAN_NITR_SKIP')
         this%bskipnitrjacobian = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION',option)
     end select
   enddo
@@ -4596,8 +4598,9 @@ subroutine DeniRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN,DENITRI,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+              call InputKeywordUnrecognized(input,word, &
+                'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE &
+                &RESPONSE FUNCTION', &
                 option)
           end select
         enddo 
@@ -4633,7 +4636,7 @@ subroutine DeniRead(this,input,option)
       case('JACOBIAN_DENI_SKIP')
         this%bskipdenijacobian = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION',option)
     end select
   enddo
@@ -5096,7 +5099,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         endif
 
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN',option)
+        call InputKeywordUnrecognized(input,word,'CHEMISTRY,CLM_RXN',option)
     end select
     
     call new_clmrxn%ReadInput(input,option)

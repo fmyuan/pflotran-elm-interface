@@ -104,7 +104,7 @@ subroutine MicrobialRead(microbial,input,option)
               call InputErrorMsg(input,option,'threshold concdntration', &
                                  'CHEMISTRY,MICROBIAL_REACTION,MONOD')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                                             'CHEMISTRY,MICROBIAL_REACTION,MONOD', &
                                             option)
           end select
@@ -153,7 +153,7 @@ subroutine MicrobialRead(microbial,input,option)
                                      'CHEMISTRY,MICROBIAL_REACTION,&
                                      &INHIBITION,THRESHOLD_INHIBITION')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'CHEMISTRY,MICROBIAL_REACTION,INHIBITION,TYPE',option)
               end select
             case('INHIBITION_CONSTANT')
@@ -161,7 +161,7 @@ subroutine MicrobialRead(microbial,input,option)
               call InputErrorMsg(input,option,'inhibition constant', &
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                       'CHEMISTRY,MICROBIAL_REACTION,INHIBITION',option)
           end select        
         enddo
@@ -207,14 +207,14 @@ subroutine MicrobialRead(microbial,input,option)
               call InputErrorMsg(input,option,'yield', &
                                  'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                                       'CHEMISTRY,MICROBIAL_REACTION,BIOMASS', &
                                             option)
           end select
         enddo
         call InputPopBlock(input,option)
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,MICROBIAL_REACTION', &
+        call InputKeywordUnrecognized(input,word,'CHEMISTRY,MICROBIAL_REACTION', &
                                       option)
     end select
   enddo

@@ -186,7 +186,7 @@ subroutine PMTOilImsRead(this,input)
       case('FLUX_DIPC')
         call TOilImsFluxDipcSetup()
       case default
-        call InputKeywordUnrecognized(keyword,'TOIL_IMS Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'TOIL_IMS Mode',option)
     end select
     
   enddo  

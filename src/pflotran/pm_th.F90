@@ -249,14 +249,14 @@ subroutine PMTHRead(this,input)
           case ('DALL_AMICO')
             th_ice_model = DALL_AMICO
           case default
-            option%io_buffer = 'Cannot identify the specificed ice model.' // &
-             'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
-             ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or DALL_AMICO.'
+            option%io_buffer = 'Cannot identify the specificed ice model. &
+             &Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT &
+             &or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO &
+             &or DALL_AMICO.'
             call PrintErrMsg(option)
           end select
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

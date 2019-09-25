@@ -199,7 +199,7 @@ subroutine PMRichardsRead(this,input)
         call InputReadDouble(input,option,Mannings_coeff)
         option%inline_surface_Mannings_coeff = Mannings_coeff
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

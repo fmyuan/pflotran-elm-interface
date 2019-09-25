@@ -1084,14 +1084,14 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
           !case('TOWG')
           case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE', &
                'BLACK_OIL','SOLVENT_TL')
-            pm => PMTOWGCreate(word,option)
+            pm => PMTOWGCreate(input,word,option)
           case ('RICHARDS_TS')
             pm => PMRichardsTSCreate()
           case ('TH_TS')
             pm => PMTHTSCreate()
           case default
             error_string = trim(error_string) // ',MODE'
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
         pm%option => option
       case('OPTIONS')
@@ -1102,7 +1102,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         endif
         call pm%ReadSimulationBlock(input)
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -2400,7 +2400,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                                 temp_string,internal_units, &
                                                 error_string,option)
                     case default
-                      call InputKeywordUnrecognized(word,error_string,option)
+                      call InputKeywordUnrecognized(input,word, &
+                                                    error_string,option)
                   end select
                   if (dataset_ascii%time_storage%time_interpolation_method == &
                       INTERPOLATION_NULL) then
@@ -3152,7 +3153,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   case('DETAILED')
                     option%mass_bal_detailed = PETSC_TRUE
                   case default
-                    call InputKeywordUnrecognized(word, &
+                    call InputKeywordUnrecognized(input,word, &
                            'OUTPUT,MASS_BALANCE',option)
                 end select
               endif
@@ -3237,7 +3238,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,OUTPUT_FILE,PERIODIC')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,OUTPUT_FILE',option)
               end select
             case('SCREEN')
@@ -3252,7 +3253,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC,SCREEN')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,SCREEN',option)
               end select
             case('PERIODIC')
@@ -3322,7 +3323,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,PERIODIC',option)
               end select
             case('OBSERVATION_TIMES')
@@ -3373,7 +3374,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC_OBSERVATION,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,PERIODIC_OBSERVATION',option)
               end select
             case('FORMAT')
@@ -3405,12 +3406,12 @@ subroutine SubsurfaceReadInput(simulation,input)
                                 'OUTPUT,FORMAT,HDF5,MULTIPLE_FILES,&
                                 &TIMES_PER_FILE')
                             case default
-                              call InputKeywordUnrecognized(word, &
+                              call InputKeywordUnrecognized(input,word, &
                                     'OUTPUT,FORMAT,HDF5,MULTIPLE_FILES',option)
                           end select
                         endif
                       case default
-                        call InputKeywordUnrecognized(word, &
+                        call InputKeywordUnrecognized(input,word, &
                                'OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
@@ -3429,7 +3430,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                     case('FEBRICK')
                       output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                     case default
-                      call InputKeywordUnrecognized(word, &
+                      call InputKeywordUnrecognized(input,word, &
                                'OUTPUT,FORMAT,TECPLOT',option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
@@ -3442,7 +3443,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  call InputKeywordUnrecognized(word,'OUTPUT,FORMAT',option)
+                  call InputKeywordUnrecognized(input,word, &
+                                                'OUTPUT,FORMAT',option)
               end select
             case('VELOCITY_AT_CENTER')
               vel_cent = PETSC_TRUE
@@ -3471,7 +3473,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('EXTEND_HDF5_TIME_FORMAT')
               output_option%extend_hdf5_time_format = PETSC_TRUE
             case default
-              call InputKeywordUnrecognized(word,'OUTPUT',option)
+              call InputKeywordUnrecognized(input,word,'OUTPUT',option)
           end select
 
         enddo
@@ -3665,7 +3667,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
               call WaypointInsertInList(waypoint,waypoint_list)
             case default
-              call InputKeywordUnrecognized(word,'TIME',option)
+              call InputKeywordUnrecognized(input,word,'TIME',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -3791,7 +3793,8 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('HYDRATE')
         call HydrateRead(input,patch%methanogenesis,option)
       case default
-        call InputKeywordUnrecognized(word,'SubsurfaceReadInput()',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SubsurfaceReadInput()',option)
     end select
 
   enddo

@@ -553,7 +553,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                                    error_string)
                 sf_sl%Sr = sf_owg%Swcr
               case default
-                call InputKeywordUnrecognized(keyword, &
+                call InputKeywordUnrecognized(input,keyword, &
                      'Van Genuchten Oil-Water saturation function',option)
             end select
         end select
@@ -575,7 +575,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                                    error_string)
                 sf_sl%Sr = sf_owg%Swcr
               case default
-                call InputKeywordUnrecognized(keyword, &
+                call InputKeywordUnrecognized(input,keyword, &
                      'Van Genuchten Oil-Water saturation function',option)
             end select
         end select          
@@ -606,7 +606,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                                    error_string)
                 sf_sl%Sr = sf_owg%Slcr
               case default
-                call InputKeywordUnrecognized(keyword, &
+                call InputKeywordUnrecognized(input,keyword, &
                        'Van Genuchten Oil-Gas-SL saturation function',option)
             end select
         end select
@@ -870,7 +870,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_ow => RPF_ow_owg_MBC_Create()
               case default
-                call InputKeywordUnrecognized(perm_func_ch_type, &
+                call InputKeywordUnrecognized(input,perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OW',option)
             end select
             call PermeabilityFunctionOWGRead(rpf%rel_perm_ow,input,option)
@@ -888,7 +888,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_og => RPF_og_owg_MBC_Create()
               case default
-                call InputKeywordUnrecognized(perm_func_ch_type, &
+                call InputKeywordUnrecognized(input,perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OG',option)
             end select
             call PermeabilityFunctionOWGRead(rpf%rel_perm_og,input,option)
@@ -905,7 +905,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             call InputErrorMsg(input,option,'KRO_TABLE',error_string)
             rpf%rel_perm_og%table_name = rpf%rel_perm_ow%table_name
           case default
-            call InputKeywordUnrecognized(keyword, &
+            call InputKeywordUnrecognized(input,keyword, &
                       'ECLIPSE relative permeability function',option)
           end select
     end select

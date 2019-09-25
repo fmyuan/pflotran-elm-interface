@@ -110,7 +110,7 @@ subroutine PMMphaseRead(this,input)
     
     select case(trim(word))
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

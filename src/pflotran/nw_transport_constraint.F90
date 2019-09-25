@@ -304,7 +304,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
                
         
       case default
-        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
+        call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
     end select 
   
   enddo  

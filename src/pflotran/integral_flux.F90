@@ -210,7 +210,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         integral_flux%vertices = int_array(:,1:icount)
         call DeallocateArray(int_array)
       case default
-        call InputKeywordUnrecognized(keyword,'INTEGRAL_FLUX',option)
+        call InputKeywordUnrecognized(input,keyword,'INTEGRAL_FLUX',option)
     end select 
   
   enddo  

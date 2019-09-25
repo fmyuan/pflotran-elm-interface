@@ -210,13 +210,13 @@ subroutine PMAuxiliaryRead(input, option, this)
             endif
           case default
             error_string = trim(error_string) // 'SALINITY'
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
       enddo
       call InputPopBlock(input,option)
       this%salinity%nspecies = i
     case default
-      call InputKeywordUnrecognized(word,error_string,option)
+      call InputKeywordUnrecognized(input,word,error_string,option)
   end select
 
   call PMAuxiliarySetFunctionPointer(this,this%ctype)

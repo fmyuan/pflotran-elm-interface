@@ -57,7 +57,7 @@ module PM_TOWG_class
 contains
 
 ! ************************************************************************** !
-function PMTOWGCreate(miscibility_model,option)
+function PMTOWGCreate(input,miscibility_model,option)
   ! 
   ! Creates TOWG process models shell
   ! 
@@ -75,6 +75,7 @@ function PMTOWGCreate(miscibility_model,option)
   
   class(pm_towg_type), pointer :: PMTOWGCreate
 
+  type(input_type) :: input
   character(len=MAXWORDLENGTH) :: miscibility_model
   type(option_type), pointer :: option
 
@@ -106,7 +107,7 @@ function PMTOWGCreate(miscibility_model,option)
       allocate(towg_pm%max_change_isubvar(6))
       towg_pm%max_change_isubvar = [0,0,0,0,0,0]
     case default
-      call InputKeywordUnrecognized(miscibility_model, &
+      call InputKeywordUnrecognized(input,miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
   end select
 
@@ -142,7 +143,7 @@ function PMTOWGCreate(miscibility_model,option)
       towg_energy_eq_idx = TOWG_SOLV_TL_ENERGY_EQ_IDX
       option%iflow_sub_mode = TOWG_SOLVENT_TL
     case default
-      call InputKeywordUnrecognized(miscibility_model, &
+      call InputKeywordUnrecognized(input,miscibility_model, &
                          'TOWG MISCIBILITY_MODEL',option)
   end select 
 
@@ -296,7 +297,7 @@ subroutine PMTOWGRead(this,input)
       !case('ANALYTICAL_DERIVATIVES')
       !  general_analytical_derivatives = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'TOWG Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'TOWG Mode',option)
     end select
     
   enddo  

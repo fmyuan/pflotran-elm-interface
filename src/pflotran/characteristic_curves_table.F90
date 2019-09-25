@@ -187,7 +187,7 @@ subroutine CharCurvesTableRead(this,input,option)
                                                         error_string,option)
         table_found = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)  
+        call InputKeywordUnrecognized(input,keyword,error_string,option)  
    end select        
  end do
  call InputPopBlock(input,option)

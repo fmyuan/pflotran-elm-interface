@@ -469,7 +469,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%geomech_gravity(1:3)
       case default    
-        call InputKeywordUnrecognized(word,'GEOMECHANICS_GRID',option)
+        call InputKeywordUnrecognized(input,word,'GEOMECHANICS_GRID',option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -672,7 +672,8 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                             temp_real*UnitsConvertToInternal(word, &
                             internal_units,option)
             case default
-              call InputKeywordUnrecognized(word,'GEOMECHANICS_TIME',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'GEOMECHANICS_TIME',option)
             end select
         enddo
         call InputPopBlock(input,option)
@@ -692,7 +693,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           case ('TWO_WAY_COUPLED')      
             option%geomech_subsurf_coupling = GEOMECH_TWO_WAY_COUPLED 
           case default
-            call InputKeywordUnrecognized(word, &
+            call InputKeywordUnrecognized(input,word, &
                    'GEOMECHANICS_SUBSURFACE_COUPLING',option)
         end select
         call InputPushBlock(input,option)
@@ -761,11 +762,11 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                                  'GEOMECHANICS_OUTPUT,FORMAT',option)
               end select
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                              'GEOMECHANICS_OUTPUT',option)
           end select
         enddo
@@ -783,7 +784,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
         
       !.........................................................................
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                                  'GeomechanicsInitReadInput',option)
     end select
   enddo

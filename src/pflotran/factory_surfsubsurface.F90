@@ -360,13 +360,13 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
             pm => PMSurfaceTHCreate()
           case default
             error_string = trim(error_string) // ',MODE'
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
         pm%option => option
         exit
       case default
         error_string = trim(error_string) // ',SURFACE_FLOW'
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

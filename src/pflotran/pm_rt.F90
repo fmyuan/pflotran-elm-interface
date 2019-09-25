@@ -193,7 +193,7 @@ subroutine PMRTRead(this,input)
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

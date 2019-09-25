@@ -224,7 +224,7 @@ subroutine ReadUserUnits(this,input,option)
       case default
         error_string = trim(error_string) // ': ' // this%name // &
         ': EOS DATA units'
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -782,7 +782,8 @@ subroutine EOSDatabaseRead(this,option)
               this%lookup_table_uni%var_array(EOS_VISCOSITY)%ptr => db_var
             case default
               error_string = trim(error_string) // ': DATA_LIST_ORDER'
-              call InputKeywordUnrecognized(keyword,error_string,option)
+              call InputKeywordUnrecognized(input_table,keyword, &
+                                            error_string,option)
           end select
         enddo
         call InputPopBlock(input_table,option)
@@ -811,7 +812,7 @@ subroutine EOSDatabaseRead(this,option)
       case('DATA')
         exit
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input_table,keyword,error_string,option)
     end select
 
   enddo
@@ -1198,7 +1199,7 @@ subroutine EOSTableRead(this,input,option)
             case default
               error_string = trim(error_string) // ': ' // trim(this%name) // &
                              ', DATA'
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         end do
         call InputPopBlock(input,option)
@@ -1206,7 +1207,7 @@ subroutine EOSTableRead(this,input,option)
         set_visc_lin_log = PETSC_TRUE
       case default
         error_string = trim(error_string) // ': ' // this%name
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

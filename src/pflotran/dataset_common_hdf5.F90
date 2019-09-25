@@ -166,7 +166,7 @@ subroutine DatasetCommonHDF5Read(this,input,option)
     call DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
 
     if (.not.found) then
-      call InputKeywordUnrecognized(keyword,'dataset',option)
+      call InputKeywordUnrecognized(input,keyword,'dataset',option)
     endif
   
   enddo

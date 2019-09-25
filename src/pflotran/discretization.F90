@@ -218,7 +218,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
-            call InputKeywordUnrecognized(discretization%ctype, &
+            call InputKeywordUnrecognized(input,discretization%ctype, &
                                           'discretization type',option)
         end select    
       case('NXYZ')
@@ -249,7 +249,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
-        call InputKeywordUnrecognized(word,'DISCRETIZATION',option)
+        call InputKeywordUnrecognized(input,word,'DISCRETIZATION',option)
     end select 
   enddo  
   call InputPopBlock(input,option)
@@ -511,7 +511,7 @@ subroutine DiscretizationRead(discretization,input,option)
           case ('STAR')
             discretization%stencil_type = DMDA_STENCIL_STAR
           case default
-            call InputKeywordUnrecognized(word, &
+            call InputKeywordUnrecognized(input,word, &
                    'DISCRETIZATION,stencil type',option)
         end select
       case('DOMAIN_FILENAME')
@@ -546,7 +546,8 @@ subroutine DiscretizationRead(discretization,input,option)
             discretization%grid%unstructured_grid%upwind_fraction_method = &
               UGRID_UPWIND_FRACTION_ABS_DIST
           case default
-            call InputKeywordUnrecognized(word,'GRID,UPWIND_FRACTION_METHOD', &
+            call InputKeywordUnrecognized(input,word, &
+                                          'GRID,UPWIND_FRACTION_METHOD', &
                                           option)
         end select
 
@@ -564,7 +565,8 @@ subroutine DiscretizationRead(discretization,input,option)
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,&
                               option)
           case default
-            call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
+            call InputKeywordUnrecognized(input,word, &
+                                    'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)
         end select
 
@@ -576,7 +578,7 @@ subroutine DiscretizationRead(discretization,input,option)
         endif
         discretization%grid%structured_grid%second_order_bc = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'GRID',option)
+        call InputKeywordUnrecognized(input,word,'GRID',option)
     end select 
   enddo  
   call InputPopBlock(input,option)

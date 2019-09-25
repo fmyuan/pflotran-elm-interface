@@ -373,7 +373,7 @@ subroutine NWTRead(nw_trans,input,option)
               call InputErrorMsg(input,option,'species elemental Kd', &
                                  error_string)
             case default
-              call InputKeywordUnrecognized(keyword,error_string,option)
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -468,7 +468,7 @@ subroutine NWTRead(nw_trans,input,option)
       case('OUTPUT')
         call NWTReadOutput(nw_trans,input,option)
       case default
-        call InputKeywordUnrecognized(keyword,error_string_base,option)
+        call InputKeywordUnrecognized(input,keyword,error_string_base,option)
     end select
             
   enddo
@@ -544,7 +544,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
       case('MINERAL_VOLUME_FRACTION')
         nw_trans%print_what%mnrl_vol_frac= PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
     
   enddo
@@ -618,7 +618,7 @@ subroutine NWTReadPass2(nw_trans,input,option)
           if (InputCheckExit(input,option)) exit
         enddo
       !case default
-      !  call InputKeywordUnrecognized(keyword,error_string,option)
+      !  call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
     
   enddo

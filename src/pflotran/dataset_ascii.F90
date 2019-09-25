@@ -224,7 +224,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
               default_interpolation_method = INTERPOLATION_LINEAR
             case default
               error_string = trim(error_string) // 'INTERPOLATION'
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
           cycle
         case('DATA_UNITS')

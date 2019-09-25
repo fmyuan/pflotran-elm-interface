@@ -1683,7 +1683,7 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        call InputKeywordUnrecognized(word,'SURFACE,VARIABLES',option)
+        call InputKeywordUnrecognized(input,word,'SURFACE,VARIABLES',option)
     end select
   enddo
   call InputPopBlock(input,option)

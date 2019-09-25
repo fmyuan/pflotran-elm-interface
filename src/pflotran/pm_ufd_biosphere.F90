@@ -399,7 +399,7 @@ subroutine PMUFDBRead(this,input)
     !-----------------------------------------
     !-----------------------------------------
       case default
-        call InputKeywordUnrecognized(word,'UFD_BIOSPHERE',option)
+        call InputKeywordUnrecognized(input,word,'UFD_BIOSPHERE',option)
     !-----------------------------------------
     end select  
   enddo
@@ -499,7 +499,7 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
         this%unsupp_rads_needed = PETSC_TRUE
     !-----------------------------------    
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     !----------------------------------- 
     end select
   enddo
@@ -612,7 +612,7 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
               new_supp_rad%decay_rate = double
           !-----------------------------------  
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
@@ -661,7 +661,7 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
         nullify(new_supp_rad)
     !-----------------------------------
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     !-----------------------------------
     end select
   enddo
@@ -753,7 +753,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
               call InputErrorMsg(input,option,'EMANATION_FACTOR',error_string)
           !-----------------------------------  
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
@@ -808,7 +808,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
         nullify(new_unsupp_rad)
     !-----------------------------------
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     !-----------------------------------
     end select
   enddo

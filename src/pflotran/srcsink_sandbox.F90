@@ -141,7 +141,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
       case('MASS_BALANCE')
         print_mass_balance = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX',option)
+        call InputKeywordUnrecognized(input,word,'SRCSINK_SANDBOX',option)
     end select
     
     if (associated(new_sandbox)) then

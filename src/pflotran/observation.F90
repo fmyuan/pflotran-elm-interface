@@ -213,7 +213,7 @@ subroutine ObservationRead(observation,input,option)
       case('AT_COORDINATE')
         observation%at_cell_center = PETSC_FALSE
       case default
-        call InputKeywordUnrecognized(keyword,'OBSERVATION',option)
+        call InputKeywordUnrecognized(input,keyword,'OBSERVATION',option)
     end select 
   
   enddo  

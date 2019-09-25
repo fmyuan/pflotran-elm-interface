@@ -105,7 +105,8 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
         call InputReadDouble(input,option,surf_material_property%mannings)
         call InputErrorMsg(input,option,'MANNINGS','SURFACE_MATERIAL_PROPERTY')
       case default
-        call InputKeywordUnrecognized(keyword,'SURFACE_MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'SURFACE_MATERIAL_PROPERTY',option)
       end select
   enddo
   call InputPopBlock(input,option)

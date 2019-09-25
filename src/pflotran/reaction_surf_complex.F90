@@ -123,7 +123,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
                 call InputErrorMsg(input,option,'backward_rate', &
                         'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE')
               case default
-                call InputKeywordUnrecognized(word, &
+                call InputKeywordUnrecognized(input,word, &
                        'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE',option)
             end select
           enddo
@@ -206,7 +206,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         call InputPopBlock(input,option)
         nullify(prev_srfcplx)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,SURFACE_COMPLEXATION_RXN',option)
     end select
 

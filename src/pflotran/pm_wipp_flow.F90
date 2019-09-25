@@ -346,7 +346,7 @@ subroutine PMWIPPFloRead(this,input)
           case('EITHER')
             this%convergence_test_both = PETSC_FALSE
           case default
-            call InputKeywordUnrecognized(keyword, &
+            call InputKeywordUnrecognized(input,keyword, &
                            trim(error_string)//','//keyword,option)
         end select
       case('RESIDUAL_TEST')
@@ -471,7 +471,7 @@ subroutine PMWIPPFloRead(this,input)
           this%dirichlet_dofs = int_array(1:icount) - 1 
         endif
       case default
-        call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
   enddo  
   call InputPopBlock(input,option)

@@ -145,7 +145,7 @@ subroutine DebugRead(debug,input,option)
             debug%output_format = DEBUG_NATIVE_FORMAT
         end select
       case default
-        call InputKeywordUnrecognized(keyword,'DEBUG',option)
+        call InputKeywordUnrecognized(input,keyword,'DEBUG',option)
     end select 
   
   enddo

@@ -232,12 +232,12 @@ subroutine StrataRead(strata,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (input%ierr == 0) then
           strata%final_time = strata%final_time * &
-                              UnitsConvertToInternal(word,internal_units,option)
+                       UnitsConvertToInternal(word,internal_units,option)
         endif
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
-        call InputKeywordUnrecognized(keyword,'STRATA',option)
+        call InputKeywordUnrecognized(input,keyword,'STRATA',option)
     end select 
   
   enddo

@@ -153,7 +153,7 @@ subroutine EOSRead(input,option)
                       call InputErrorMsg(input,option,'WATER_COMPRESSIBILITY', &
                                          'EOS,WATER,DENSITY,QUADRATIC')
                     case default
-                      call InputKeywordUnrecognized(subkeyword, &
+                      call InputKeywordUnrecognized(input,subkeyword, &
                                 'EOS,WATER,DENSITY,QUADRATIC',option)
                   end select
                 enddo
@@ -161,7 +161,7 @@ subroutine EOSRead(input,option)
               case('IFC67','DEFAULT','BATZLE_AND_WANG','TGDPB01','PLANAR', &
                               'TRANGENSTEIN','IF97')
               case default
-                call InputKeywordUnrecognized(word,'EOS,WATER,DENSITY',option)
+                call InputKeywordUnrecognized(input,word,'EOS,WATER,DENSITY',option)
             end select
             call EOSWaterSetDensity(word,temparray)
           case('ENTHALPY')
@@ -177,7 +177,8 @@ subroutine EOSRead(input,option)
                                'J/kmol','EOS,WATER,ENTHALPY,CONSTANT',option)
               case('IFC67','PAINTER','DEFAULT','PLANAR','IF97')
               case default
-                call InputKeywordUnrecognized(word,'EOS,WATER,ENTHALPY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,WATER,ENTHALPY',option)
             end select
             call EOSWaterSetEnthalpy(word,temparray)
           case('VISCOSITY')
@@ -193,7 +194,8 @@ subroutine EOSRead(input,option)
                               'Pa-s','EOS,WATER,VISCOSITY,CONSTANT',option)
               case('DEFAULT','BATZLE_AND_WANG','GRABOWSKI')
               case default
-                call InputKeywordUnrecognized(word,'EOS,WATER,VISCOSITY', &
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,WATER,VISCOSITY', &
                                               option)
             end select
             call EOSWaterSetViscosity(word,temparray)
@@ -210,7 +212,8 @@ subroutine EOSRead(input,option)
                            'kg/m^3','EOS,WATER,STEAM_DENSITY,CONSTANT',option)
               case('IFC67','DEFAULT','PLANAR','IF97')
               case default
-                call InputKeywordUnrecognized(word,'EOS,WATER,STEAM_DENSITY', &
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,WATER,STEAM_DENSITY', &
                                               option)
             end select
             call EOSWaterSetSteamDensity(word,temparray)
@@ -227,7 +230,7 @@ subroutine EOSRead(input,option)
                         'J/kmol','EOS,WATER,STEAM_ENTHALPY,CONSTANT',option)
               case('IFC67','DEFAULT','PLANAR','IF97')
               case default
-                call InputKeywordUnrecognized(word, &
+                call InputKeywordUnrecognized(input,word, &
                        'EOS,WATER,STEAM_ENTHALPY',option)
             end select
             call EOSWaterSetSteamEnthalpy(word,temparray)
@@ -286,7 +289,7 @@ subroutine EOSRead(input,option)
                                 test_filename)
             endif
           case default
-            call InputKeywordUnrecognized(keyword,'EOS,WATER',option)
+            call InputKeywordUnrecognized(input,keyword,'EOS,WATER',option)
         end select
       enddo
       call InputPopBlock(input,option)
@@ -379,7 +382,7 @@ subroutine EOSRead(input,option)
                                         'omega_b factor for RKS', &
                                             'EOS GAS,RKS')
                       case default
-                        call InputKeywordUnrecognized(word, &
+                        call InputKeywordUnrecognized(input,word, &
                                 'EOS GAS,RKS',option)
                     end select
                 enddo
@@ -394,7 +397,8 @@ subroutine EOSRead(input,option)
               case('IDEAL','DEFAULT')
                 call EOSGasSetDensityIdeal()
               case default
-                call InputKeywordUnrecognized(word,'EOS,GAS,DENSITY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,GAS,DENSITY',option)
             end select
           case('ENTHALPY')
             call InputReadCard(input,option,word)
@@ -413,7 +417,8 @@ subroutine EOSRead(input,option)
               case('IDEAL','DEFAULT')
                 call EOSGasSetEnergyIdeal()
               case default
-                call InputKeywordUnrecognized(word,'EOS,GAS,ENTHALPY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,GAS,ENTHALPY',option)
             end select
           case('VISCOSITY')
             call InputReadCard(input,option,word)
@@ -429,7 +434,8 @@ subroutine EOSRead(input,option)
                 call EOSGasSetViscosityConstant(tempreal)
               case('DEFAULT')
               case default
-                call InputKeywordUnrecognized(word,'EOS,GAS,VISCOSITY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,GAS,VISCOSITY',option)
             end select
           case('HENRYS_CONSTANT')
             call InputReadCard(input,option,word)
@@ -444,7 +450,8 @@ subroutine EOSRead(input,option)
               case('DEFAULT')
                 call EOSGasSetHenry()
               case default
-                call InputKeywordUnrecognized(word,'EOS,GAS,HENRYS_CONSTANT', &
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,GAS,HENRYS_CONSTANT', &
                                               option)
             end select
           case('TEST')
@@ -570,7 +577,7 @@ subroutine EOSRead(input,option)
                                      'databas file name',&
                                      'EOS,GAS,CO2_SPAN_WAGNER_DB')
                 case default
-                  call InputKeywordUnrecognized(subkeyword,&
+                  call InputKeywordUnrecognized(input,subkeyword,&
                                      'EOS,GAS,CO2_SPAN_WAGNER_DB',option)
               end select
             enddo
@@ -592,7 +599,7 @@ subroutine EOSRead(input,option)
             call InputErrorMsg(input,option,'EOS,GAS','DATABASE filename')
             call EOSGasSetEOSDBase(word,option)
           case default
-            call InputKeywordUnrecognized(keyword,'EOS,GAS',option)
+            call InputKeywordUnrecognized(input,keyword,'EOS,GAS',option)
         end select
       enddo
       call InputPopBlock(input,option)
@@ -694,7 +701,7 @@ subroutine EOSRead(input,option)
                             'EOS,OIL,DENSITY_LINEAR,THERMAL_EXPANSION_COEFF')
                       call EOSOilSetDenLinearExpanCoef(tempreal)
                     case default
-                      call InputKeywordUnrecognized(subkeyword, &
+                      call InputKeywordUnrecognized(input,subkeyword, &
                            'EOS,OIL,DENSITY_LINEAR',option)
                   end select
                 enddo
@@ -704,7 +711,8 @@ subroutine EOSRead(input,option)
                 call InputErrorMsg(input,option,'EOS,OIL','DEN DBASE filename')
                 call EOSOilSetDenDBase(word,option)
               case default
-                call InputKeywordUnrecognized(word,'EOS,OIL,DENSITY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,OIL,DENSITY',option)
             end select
           case('ENTHALPY')
             call InputReadCard(input,option,word)
@@ -758,7 +766,8 @@ subroutine EOSRead(input,option)
                 call InputErrorMsg(input,option,'EOS,OIL','ENT DBASE filename')
                 call EOSOilSetEntDBase(word,option)
               case default
-                call InputKeywordUnrecognized(word,'EOS,OIL,ENTHALPY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,OIL,ENTHALPY',option)
             end select
           case('VISCOSITY')
             call InputReadCard(input,option,word)
@@ -820,7 +829,7 @@ subroutine EOSRead(input,option)
                             'EOS,OIL,VISCOSITY_QUAD,TEMP_COEFF_2')
                       call EOSOilSetVisQuadTempCoef(tempreal,tempreal2)
                     case default
-                      call InputKeywordUnrecognized(subkeyword, &
+                      call InputKeywordUnrecognized(input,subkeyword, &
                            'EOS,OIL, VISCOSITY_QUAD',option)
                   end select
                 enddo
@@ -830,7 +839,8 @@ subroutine EOSRead(input,option)
                 call InputErrorMsg(input,option,'EOS,OIL','VIS DBASE filename')
                 call EOSOilSetVisDBase(word,option)
               case default
-                call InputKeywordUnrecognized(word,'EOS,OIL,VISCOSITY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,OIL,VISCOSITY',option)
             end select
           case('FORMULA_WEIGHT')
             call InputReadDouble(input,option,tempreal)
@@ -840,7 +850,7 @@ subroutine EOSRead(input,option)
                              'g/mol','EOS,OIL,FORMULA_WEIGHT',option)
             call EOSOilSetFMWConstant(tempreal)
           case default
-            call InputKeywordUnrecognized(keyword,'EOS,OIL',option)
+            call InputKeywordUnrecognized(input,keyword,'EOS,OIL',option)
         end select
       enddo
       call InputPopBlock(input,option)
@@ -878,7 +888,8 @@ subroutine EOSRead(input,option)
               case('IDEAL','DEFAULT')
                 call EOSSlvSetDensityIdeal()
               case default
-                call InputKeywordUnrecognized(word,'EOS,SLV,DENSITY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,SLV,DENSITY',option)
             end select
           case('ENTHALPY')
             call InputReadCard(input,option,word)
@@ -888,7 +899,8 @@ subroutine EOSRead(input,option)
               case('IDEAL','DEFAULT')
                 call EOSSlvSetEnergyIdeal()
               case default
-                call InputKeywordUnrecognized(word,'EOS,SLV,ENTHALPY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,SLV,ENTHALPY',option)
             end select
           case('VISCOSITY')
             call InputReadCard(input,option,word)
@@ -904,7 +916,8 @@ subroutine EOSRead(input,option)
                 call EOSSlvSetViscosityConstant(tempreal)
               case('DEFAULT')
               case default
-                call InputKeywordUnrecognized(word,'EOS,SLV,VISCOSITY',option)
+                call InputKeywordUnrecognized(input,word, &
+                                              'EOS,SLV,VISCOSITY',option)
             end select
           case('FORMULA_WEIGHT')
             call InputReadDouble(input,option,tempreal)
@@ -924,7 +937,7 @@ subroutine EOSRead(input,option)
             call InputErrorMsg(input,option,'EOS,SLV','DATABASE filename')
             call EOSSlvSetEOSDBase(word,option)
           case default
-            call InputKeywordUnrecognized(keyword,'EOS,SOLVENT',option)
+            call InputKeywordUnrecognized(input,keyword,'EOS,SOLVENT',option)
         end select
       enddo
       call InputPopBlock(input,option)
@@ -938,7 +951,7 @@ subroutine EOSRead(input,option)
         call PrintErrMsg(option)
       endif
     case default
-      call InputKeywordUnrecognized(keyword,'EOS',option)
+      call InputKeywordUnrecognized(input,keyword,'EOS',option)
   end select
 
 end subroutine EOSRead

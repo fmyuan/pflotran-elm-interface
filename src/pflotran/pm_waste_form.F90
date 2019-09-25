@@ -1528,7 +1528,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
             call InputPopBlock(input,option)
         !--------------------------
           case default
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         !--------------------------
         end select
       enddo
@@ -1880,7 +1880,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                            trim(error_string)//',CRIT_END', &
                            option)
                 case default
-                  call InputKeywordUnrecognized(word,error_string,option)
+                  call InputKeywordUnrecognized(input,word,error_string,option)
               end select
             enddo      
             call InputPopBlock(input,option)
@@ -1898,7 +1898,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
               enddo
             endif
           case default
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
         end select
 

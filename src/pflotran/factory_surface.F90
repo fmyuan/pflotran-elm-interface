@@ -342,7 +342,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
           case ('DIFFUSIVE')
             option%surface_flow_formulation = DIFFUSION_WAVE
           case default
-            call InputKeywordUnrecognized(word, &
+            call InputKeywordUnrecognized(input,word, &
                   'SURFACE_FLOW,SURF_FLOW_FORMULATION',option)
         end select
       !.........................................................................
@@ -517,7 +517,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'SURF_OUTPUT,PERIODIC,OUTPUT_FILE')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                     'SURF_OUTPUT,PERIODIC,OUTPUT_FILE',option)
               end select
             case('SCREEN')
@@ -532,7 +532,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'SURF_OUTPUT,PERIODIC,SCREEN')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                     'SURF_OUTPUT,PERIODIC,SCREEN',option)
               end select
             case('PERIODIC')
@@ -602,7 +602,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'SURF_OUTPUT,PERIODIC,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                     'SURF_OUTPUT,PERIODIC,TIMESTEP',option)
               end select
             case('PERIODIC_OBSERVATION')
@@ -631,7 +631,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                                      'SURF_OUTPUT,PERIODIC_OBSERVATION,&
                                      &TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                     'SURF_OUTPUT,PERIODIC_OBSERVATION,TIMESTEP',option)
               end select
             case('FORMAT')
@@ -662,12 +662,13 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                                      &increment','OUTPUT,FORMAT,MULTIPLE_FILES&
                                      &,TIMES_PER_FILE')
                             case default
-                              call InputKeywordUnrecognized(word, &
-                                'SURF_OUTPUT,FORMAT,HDF5,MULTIPLE_FILES',option)
+                              call InputKeywordUnrecognized(input,word, &
+                                'SURF_OUTPUT,FORMAT,HDF5,MULTIPLE_FILES', &
+                                option)
                           end select
                         endif
                       case default
-                        call InputKeywordUnrecognized(word, &
+                        call InputKeywordUnrecognized(input,word, &
                           'SURF_OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
@@ -702,7 +703,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'SURF_OUTPUT,FORMAT',option)
               end select
 
@@ -740,7 +741,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
               call OutputSurfaceVariableRead(input,option, &
                      output_option%aveg_output_variable_list)
             case default
-              call InputKeywordUnrecognized(word,'SURF_OUTPUT',option)
+              call InputKeywordUnrecognized(input,word,'SURF_OUTPUT',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -821,7 +822,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
               surf_realization%dt_coupling = &
                 temp_real*UnitsConvertToInternal(word,internal_units,option)
             case default
-              call InputKeywordUnrecognized(word,'TIME',option)
+              call InputKeywordUnrecognized(input,word,'TIME',option)
             end select
         enddo
         call InputPopBlock(input,option)
@@ -849,7 +850,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         exit
         
       case default
-        call InputKeywordUnrecognized(word,'SURFACE_FLOW',option)
+        call InputKeywordUnrecognized(input,word,'SURFACE_FLOW',option)
     end select
   enddo
   call InputPopBlock(input,option)

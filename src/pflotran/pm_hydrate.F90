@@ -520,7 +520,7 @@ subroutine PMHydrateRead(this,input)
       case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
         hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
     
   enddo  

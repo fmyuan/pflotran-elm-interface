@@ -140,7 +140,7 @@ subroutine WastePackageRead(this,input,option)
             UnitsConvertToInternal(word,internal_units,option)
         endif
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,UFD-WP',option)
     end select
   enddo

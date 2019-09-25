@@ -370,7 +370,7 @@ subroutine GeomechConditionRead(condition,input,option)
             case('FORCE_Z')
               sub_condition_ptr => force_z 
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition type',option)
           end select
           call InputReadCard(input,option,word)
@@ -385,7 +385,7 @@ subroutine GeomechConditionRead(condition,input,option)
             case('zero_gradient')
               sub_condition_ptr%itype = ZERO_GRADIENT_BC
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition bc type',option)
           end select
         enddo
@@ -430,7 +430,7 @@ subroutine GeomechConditionRead(condition,input,option)
                                  force_z%units, &
                                  internal_units)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'geomechanics condition',option)
     end select 
   

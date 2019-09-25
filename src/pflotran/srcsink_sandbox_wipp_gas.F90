@@ -138,7 +138,7 @@ subroutine WIPPGasGenerationRead(this,input,option)
         call InputReadDouble(input,option,this%satwick)
         call InputErrorMsg(input,option,'satwick',error_strg)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
           'SRCSINK_SANDBOX,WIPP-GAS_GENERATION',option)
     end select
   enddo

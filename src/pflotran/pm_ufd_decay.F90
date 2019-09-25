@@ -360,7 +360,7 @@ subroutine PMUFDDecayRead(this,input)
               allocate(element%Kd_material_name(i))
               element%Kd_material_name = Kd_material_name(1:i)
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -419,7 +419,7 @@ subroutine PMUFDDecayRead(this,input)
               prev_daughter => daughter
               nullify(daughter)
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -436,7 +436,7 @@ subroutine PMUFDDecayRead(this,input)
         this%print_output = PETSC_TRUE
       case default
         error_string = 'UFD Decay'
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

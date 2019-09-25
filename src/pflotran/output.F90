@@ -366,7 +366,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputErrorMsg(input,option,'timestep increment',string)
         !.............
           case default
-            call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
+            call InputKeywordUnrecognized(input,word,'OUTPUT,PERIODIC',option)
         end select
 
       case('PERIOD_SUM','PERIOD_RST')
@@ -423,7 +423,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputReadInt(input,option,output_option%screen_imod)
             call InputErrorMsg(input,option,'timestep increment',string)
           case default
-            call InputKeywordUnrecognized(word,string,option)
+            call InputKeywordUnrecognized(input,word,string,option)
         end select
 
 !...................
@@ -474,12 +474,12 @@ subroutine OutputFileRead(input,realization,output_option, &
                         call InputErrorMsg(input,option,'timestep increment', &
                                            string)
                       case default
-                        call InputKeywordUnrecognized(word,string,option)
+                        call InputKeywordUnrecognized(input,word,string,option)
                     end select
                   endif
               !.............
                 case default
-                  call InputKeywordUnrecognized(word,string,option)
+                  call InputKeywordUnrecognized(input,word,string,option)
               end select
             endif
         !.............
@@ -500,7 +500,7 @@ subroutine OutputFileRead(input,realization,output_option, &
               case('FEBRICK')
                 output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
               case default
-                call InputKeywordUnrecognized(word,string,option)
+                call InputKeywordUnrecognized(input,word,string,option)
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
                  .and. option%mycommsize > 1) then
@@ -514,7 +514,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             output_option%print_vtk = PETSC_TRUE
         !.............
           case default
-            call InputKeywordUnrecognized(word,string,option)
+            call InputKeywordUnrecognized(input,word,string,option)
         end select
 
 !...................................
@@ -577,7 +577,7 @@ subroutine OutputFileRead(input,realization,output_option, &
 !.................
       case default
         string = 'OUTPUT,' // trim(block_name)
-        call InputKeywordUnrecognized(word,string,option)
+        call InputKeywordUnrecognized(input,word,string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -1231,7 +1231,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        call InputKeywordUnrecognized(word,'VARIABLES',option)
+        call InputKeywordUnrecognized(input,word,'VARIABLES',option)
     end select
 
   enddo

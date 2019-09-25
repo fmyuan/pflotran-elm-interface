@@ -147,7 +147,7 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
         immobile_decay_rxn%rate_constant = &
           -1.d0*log(0.5d0)/immobile_decay_rxn%half_life
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

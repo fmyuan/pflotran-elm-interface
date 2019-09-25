@@ -304,7 +304,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_CHARGE_BAL
               case default
-                call InputKeywordUnrecognized(word, &
+                call InputKeywordUnrecognized(input,word, &
                        'CONSTRAINT,CONCENTRATION,TYPE',option)
             end select 
             
@@ -687,7 +687,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
       case('EQUILIBRATE_AT_EACH_CELL')
         constraint%equilibrate_at_each_cell = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
+        call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
     end select 
   
   enddo  

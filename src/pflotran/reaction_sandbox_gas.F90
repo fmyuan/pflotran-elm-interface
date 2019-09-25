@@ -162,7 +162,7 @@ subroutine GasRead(this,input,option)
            'CHEMISTRY,REACTION_SANDBOX,GAS')
 
     case default
-      call InputKeywordUnrecognized(word, &
+      call InputKeywordUnrecognized(input,word, &
            'CHEMISTRY,REACTION_SANDBOX,GAS',option)
     end select
   enddo

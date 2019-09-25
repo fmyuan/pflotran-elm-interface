@@ -560,7 +560,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')   
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
           end select
         enddo
@@ -601,7 +601,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputReadDouble(input,option,material_property%max_permfactor)
               call InputErrorMsg(input,option,'max permfactor','PERM_FACTOR')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERM_FACTOR',option)
           end select
         enddo
@@ -737,14 +737,14 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
           end select
         enddo
         call InputPopBlock(input,option)
 
       case default
-        call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select 
   enddo
   call InputPopBlock(input,option)

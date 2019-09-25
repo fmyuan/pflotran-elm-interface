@@ -168,7 +168,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
       case('GAS')
         new_sandbox => GasCreate()
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY,REACTION_SANDBOX',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'CHEMISTRY,REACTION_SANDBOX',option)
     end select
     
     call new_sandbox%ReadInput(input,option)

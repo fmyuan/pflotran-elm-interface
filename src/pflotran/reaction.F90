@@ -332,7 +332,7 @@ subroutine ReactionReadPass1(reaction,input,option)
               radioactive_decay_rxn%rate_constant = &
                 -1.d0*log(0.5d0)/radioactive_decay_rxn%half_life
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                 'CHEMISTRY,IMMOBILE_DECAY_REACTION',option)
           end select
         enddo   
@@ -604,7 +604,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                         case('FREUNDLICH')
                           kd_rxn%itype = SORPTION_FREUNDLICH
                         case default
-                          call InputKeywordUnrecognized(word, &
+                          call InputKeywordUnrecognized(input,word, &
                                 'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
                                 option)
                       end select
@@ -647,7 +647,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                                          'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
                       kd_rxn%kd_mineral_name = word                      
                     case default
-                      call InputKeywordUnrecognized(word, &
+                      call InputKeywordUnrecognized(input,word, &
                               'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
                   end select
                 enddo
@@ -740,7 +740,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                         if (StringCompareIgnoreCase(word,'REFERENCE')) then
                           string = cation%name
                         else
-                          call InputKeywordUnrecognized(word, &
+                          call InputKeywordUnrecognized(input,word, &
                                   'CHEMISTRY,ION_EXCHANGE_RXN,CATIONS',option)
                         endif
                       endif
@@ -783,7 +783,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                       cation => cation%next
                     enddo
                   case default
-                    call InputKeywordUnrecognized(word, &
+                    call InputKeywordUnrecognized(input,word, &
                               'CHEMISTRY,ION_EXCHANGE_RXN',option)
                 end select
               enddo
@@ -846,7 +846,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('NEWTON_ITERATION')
               reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_NEWTON_ITER
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                         'CHEMISTRY,ACTIVITY_COEFFICIENTS',option)
           end select
         enddo
@@ -906,7 +906,7 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('VANLEER')
               option%transport%tvd_flux_limiter = 5
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                         'CHEMISTRY,EXPLICIT_ADVECTION',option)
           end select
           option%io_buffer = 'Flux Limiter: ' // trim(word)
@@ -929,7 +929,7 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('USE_FULL_GEOCHEMISTRY')
         reaction%use_full_geochemistry = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'CHEMISTRY',option)
+        call InputKeywordUnrecognized(input,word,'CHEMISTRY',option)
     end select
   enddo
   call InputPopBlock(input,option)

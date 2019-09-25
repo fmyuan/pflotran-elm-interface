@@ -212,7 +212,7 @@ subroutine FractureRead(this,input,option)
         case('ALTER_PERM_Z')
           this%change_perm_z = 1.d0
         case default
-          call InputKeywordUnrecognized(word, &
+          call InputKeywordUnrecognized(input,word, &
                   'MATERIAL_PROPERTY,WIPP-FRACTURE',option)
       end select
     enddo
@@ -550,7 +550,7 @@ subroutine CreepClosureRead(this,input,option)
         call InputReadDouble(input,option,this%time_closeoff)
         call InputErrorMsg(input,option,'time closeoff',error_string)
      case default
-        call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
+        call InputKeywordUnrecognized(input,keyword,'CREEP_CLOSURE',option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -618,7 +618,7 @@ subroutine CreepClosureRead(this,input,option)
                               string,input2,option)
      case default
         error_string = trim(error_string) // ': ' // filename
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -978,7 +978,7 @@ subroutine KlinkenbergRead(this,input,option)
         call InputReadDouble(input,option,this%b)
         call InputErrorMsg(input,option,'b',error_string)
      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
@@ -1222,7 +1222,7 @@ subroutine WIPPRead(input,option)
 !        option%flow%transient_porosity = PETSC_TRUE
 !        wipp%creep_closure => creep_closure      
      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

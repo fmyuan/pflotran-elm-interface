@@ -280,7 +280,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               input%buf = pm_name
               call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'SIMULATION,PROCESS_MODELS',option)            
           end select
           if (.not.associated(new_pm%option)) new_pm%option => option
@@ -338,7 +338,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('REALIZATION_DEPENDENT')
               realization_dependent_restart = PETSC_TRUE
             case default
-              call InputKeywordUnrecognized(word,'SIMULATION,RESTART',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'SIMULATION,RESTART',option)
           end select
         enddo
         call InputPopBlock(input,option)
@@ -362,7 +363,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         option%input_record = PETSC_TRUE
         call OpenAndWriteInputRecord(option)
       case default
-        call InputKeywordUnrecognized(word,'SIMULATION',option)            
+        call InputKeywordUnrecognized(input,word,'SIMULATION',option)            
     end select
   enddo
   call InputPopBlock(input,option)
@@ -396,7 +397,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           &SUBSURFACE") must be specified within the SIMULATION block.'
         call PrintErrMsg(option)
       endif
-      call InputKeywordUnrecognized(simulation_type, &
+      call InputKeywordUnrecognized(input,simulation_type, &
                      'SIMULATION,SIMULATION_TYPE',option)            
   end select
   simulation%process_model_list => pm_master
@@ -454,7 +455,8 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
       case('CHILD')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc%child)
       case default
-        call InputKeywordUnrecognized(word,'PFLOTRANSetupPMCHierarchy',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'PFLOTRANSetupPMCHierarchy',option)
     end select    
   enddo
   call InputPopBlock(input,option)

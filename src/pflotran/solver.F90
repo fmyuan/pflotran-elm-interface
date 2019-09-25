@@ -900,7 +900,7 @@ subroutine SolverReadLinear(solver,input,option)
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
 
       case default
-        call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)
+        call InputKeywordUnrecognized(input,keyword,'LINEAR_SOLVER',option)
     end select 
   
   enddo 
@@ -1096,7 +1096,7 @@ subroutine SolverReadNewton(solver,input,option)
               boolean = PETSC_FALSE
             case(STRING_OTHER)
               error_string = trim(error_string) // ',' // keyword
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
           select case(trim(keyword))
             case('2R','FNORM','2NORMR')
@@ -1110,12 +1110,12 @@ subroutine SolverReadNewton(solver,input,option)
             case('IU','INORMU')
               solver%convergence_iu = boolean
             case default
-              call InputKeywordUnrecognized(keyword,error_string,option)
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
         enddo
         call InputPopBlock(input,option)
       case default
-        call InputKeywordUnrecognized(keyword,'NEWTON_SOLVER',option)
+        call InputKeywordUnrecognized(input,keyword,'NEWTON_SOLVER',option)
     end select 
   
   enddo  

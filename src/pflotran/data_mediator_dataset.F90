@@ -92,7 +92,7 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'DATASET,NAME','MASS_TRANSFER')
       case default
-        call InputKeywordUnrecognized(keyword,'MASS_TRANSFER',option)
+        call InputKeywordUnrecognized(input,keyword,'MASS_TRANSFER',option)
     end select
     
   enddo  

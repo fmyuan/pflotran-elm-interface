@@ -222,7 +222,7 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
           call InputReadDouble(input,option,this%normal_vector_z)
           call InputErrorMsg(input,option,'z-direction','NORMAL_VECTOR')
         case default
-          call InputKeywordUnrecognized(word, &
+          call InputKeywordUnrecognized(input,word, &
                   'MATERIAL_PROPERTY,GEOMECHANICS_SUBSURFACE_PROPS', &
                   option)
       end select

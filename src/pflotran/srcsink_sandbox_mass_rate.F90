@@ -117,7 +117,8 @@ subroutine MassRateRead(this,input,option)
           endif
         enddo
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,MASS_RATE',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SRCSINK_SANDBOX,MASS_RATE',option)
     end select
   enddo
   call InputPopBlock(input,option)

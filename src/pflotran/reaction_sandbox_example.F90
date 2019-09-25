@@ -145,7 +145,7 @@ subroutine ExampleRead(this,input,option)
             UnitsConvertToInternal(word,internal_units,option)
         endif
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,TEMPLATE',option)
     end select
   enddo

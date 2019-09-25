@@ -167,7 +167,8 @@ subroutine DownregRead(this,input,option)
           call PrintErrMsg(option)
         endif 
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SRCSINK_SANDBOX,DOWNREG',option)
     end select
   enddo
   call InputPopBlock(input,option)

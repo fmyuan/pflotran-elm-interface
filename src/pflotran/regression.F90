@@ -179,7 +179,7 @@ subroutine RegressionRead(regression,input,option)
       case('ALL_CELLS')
          regression%all_cells = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'REGRESSION',option)
+        call InputKeywordUnrecognized(input,keyword,'REGRESSION',option)
     end select
     
   enddo

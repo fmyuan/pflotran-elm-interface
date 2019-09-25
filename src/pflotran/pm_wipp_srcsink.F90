@@ -1146,7 +1146,7 @@ subroutine PMWSSRead(this,input)
           case('NO_LAG')
             this%rate_update_frequency = NO_LAG
           case default
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
     !-----------------------------------------
     !-----------------------------------------
@@ -1189,12 +1189,12 @@ subroutine PMWSSRead(this,input)
                 case('NO')
                   new_waste_panel%scale_by_volume = PETSC_FALSE
                 case default
-                  call InputKeywordUnrecognized(word,'SCALE_BY_VOLUME (must &
-                  &be "YES" or "NO")',option)
+                  call InputKeywordUnrecognized(input,word,'SCALE_BY_VOLUME &
+                  &(must be "YES" or "NO")',option)
               end select
           !-----------------------------------    
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
@@ -1452,7 +1452,7 @@ subroutine PMWSSRead(this,input)
                     call InputErrorMsg(input,option,'DRMCONC',error_string2)
                 !-----------------------------
                   case default
-                    call InputKeywordUnrecognized(word,error_string2,option)
+                    call InputKeywordUnrecognized(input,word,error_string2,option)
                 !-----------------------------
                 end select
               enddo
@@ -1481,7 +1481,7 @@ subroutine PMWSSRead(this,input)
                                        &(SULFATE)',error_string3)
                 !-----------------------------
                   case default
-                    call InputKeywordUnrecognized(word,error_string3,option)
+                    call InputKeywordUnrecognized(input,word,error_string3,option)
                 !-----------------------------
                 end select
               enddo
@@ -1495,7 +1495,7 @@ subroutine PMWSSRead(this,input)
               new_inventory%vrepos = double
           !-----------------------------------    
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
@@ -1775,7 +1775,7 @@ subroutine PMWSSRead(this,input)
           this%bh_material_names(spec_num) = bh_materials(spec_num)
         enddo
       case default
-        call InputKeywordUnrecognized(word,'WIPP_SOURCE_SINK',option)
+        call InputKeywordUnrecognized(input,word,'WIPP_SOURCE_SINK',option)
     !-----------------------------------------
     end select  
   enddo
