@@ -78,7 +78,7 @@ subroutine EOSRead(input,option)
 
   select case(trim(keyword))
     case('WATER')
-      call InputReadPflotranString(input,option)
+      call InputPushBlock(input,option)
       do
         temparray = 0.d0
         call InputReadPflotranString(input,option)
@@ -225,7 +225,7 @@ subroutine EOSRead(input,option)
                                    'EOS,WATER,STEAM_ENTHALPY,CONSTANT')
                 call InputReadAndConvertUnits(input,temparray(1), &
                         'J/kmol','EOS,WATER,STEAM_ENTHALPY,CONSTANT',option)
-        case('IFC67','DEFAULT','PLANAR','IF97')
+              case('IFC67','DEFAULT','PLANAR','IF97')
               case default
                 call InputKeywordUnrecognized(word, &
                        'EOS,WATER,STEAM_ENTHALPY',option)
