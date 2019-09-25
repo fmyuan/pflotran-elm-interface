@@ -256,7 +256,7 @@ subroutine GeomechRegionRead(region,input,option)
         call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGION',option)
     end select
   enddo
-  call InputPushBlock(input,option)
+  call InputPopBlock(input,option)
  
 end subroutine GeomechRegionRead
 

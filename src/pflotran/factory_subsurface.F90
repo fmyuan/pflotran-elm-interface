@@ -1927,6 +1927,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   string = "WELL_DATA"
   call InputFindStringInFile(input,option,string,PETSC_FALSE,found)
   if( found ) then
+    call InputPushBlock(input,'WELL_DATA',option)
 
 ! Read the WELL_DATA information
 
@@ -1993,6 +1994,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
       end select
     enddo
     call InputPopBlock(input,option)
+    call InputPopBlock(input,option) ! for WELL_DATA
   endif
 
   ! GRID information - GRID is a required card for every simulation
@@ -2000,6 +2002,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
+  call InputPushBlock(input,'GRID',option)
   call DiscretizationReadRequiredCards(discretization,input,option)
 
   select case(discretization%itype)
@@ -2012,11 +2015,12 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
       call PatchAddToList(patch,realization%patch_list)
       realization%patch => patch
   end select
+  call InputPopBlock(input,option)
 
   ! optional required cards - yes, an oxymoron, but we need to know if
   ! these exist before we can go any further.
   call InputRewind(input)
-  call InputPushBlock(input,option)
+  call InputPushBlock(input,'REQUIRED_CARDS',option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -2117,8 +2121,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
     end select
   enddo
-
-  call InputPopBlock(input,option)
+  call InputPopBlock(input,option) ! REQUIRED_CARDS
+  call InputPopBlock(input,option) ! SUBSURFACE
 
 end subroutine SubsurfaceReadRequiredCards
 
@@ -2301,7 +2305,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
-  call InputPushBlock(input,option)
+  call InputPushBlock(input,'SUBSURFACE',option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -3791,7 +3795,7 @@ subroutine SubsurfaceReadInput(simulation,input)
     end select
 
   enddo
-  call InputPopBlock(input,option)
+  call InputPopBlock(input,option) ! SUBSURFACE
 
   if (associated(simulation%flow_process_model_coupler)) then
     if (option%iflowmode == RICHARDS_TS_MODE) then

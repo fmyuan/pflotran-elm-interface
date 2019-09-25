@@ -98,6 +98,13 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   endif
   
   call PFLOTRANReadSimulation(simulation,option)
+  if (option%keyword_block_count /= 0) then
+    write(option%io_buffer,*) option%keyword_block_count
+    option%io_buffer = 'Non-zero input block count (' // &
+      trim(adjustl(option%io_buffer)) // '). Please email this message &
+      &and your input deck to pflotran-dev@googlegroups.com'
+    call PrintErrMsg(option)
+  endif
   ! Must come after simulation is initialized so that proper stages are setup
   ! for process models.  This call sets flag that disables the creation of
   ! new stages, which is necessary for multisimulation
@@ -591,6 +598,10 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   string = '-successful_exit_code'
   call InputGetCommandLineInt(string,i,option_found,option)
   if (option_found) option%successful_exit_code = i
+ 
+  string = '-keyword_screen_output'
+  call InputGetCommandLineTruth(string,option%keyword_logging_screen_output, &
+                                option_found,option)
  
   ! this will get overwritten later if stochastic
   string = '-realization_id'

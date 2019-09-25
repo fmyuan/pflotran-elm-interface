@@ -753,7 +753,6 @@ subroutine EOSRead(input,option)
                   end select
                 enddo
                 call InputPopBlock(input,option)
-                call InputPopBlock(input,option)
               case('DATABASE')
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,'EOS,OIL','ENT DBASE filename')
@@ -844,6 +843,7 @@ subroutine EOSRead(input,option)
             call InputKeywordUnrecognized(keyword,'EOS,OIL',option)
         end select
       enddo
+      call InputPopBlock(input,option)
       ! need to add verifying function - follow EOSgas template
       string = ''
       call EOSOilVerify(ierr,string)

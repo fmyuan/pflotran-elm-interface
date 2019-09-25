@@ -117,6 +117,7 @@ module Option_module
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
     PetscBool :: keyword_logging
+    PetscBool :: keyword_logging_screen_output
     character(len=MAXSTRINGLENGTH) :: keyword_log
     character(len=MAXSTRINGLENGTH) :: keyword_buf
     PetscInt :: keyword_block_map(20)
@@ -390,6 +391,7 @@ subroutine OptionInitAll(option)
   option%print_to_file = PETSC_TRUE
   option%verbosity = 0
   option%keyword_logging = PETSC_TRUE
+  option%keyword_logging_screen_output = PETSC_FALSE
   option%keyword_log = ''
   option%keyword_buf = ''
   option%keyword_block_map(:) = 0

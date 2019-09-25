@@ -435,7 +435,7 @@ subroutine GeomechConditionRead(condition,input,option)
     end select 
   
   enddo  
-  call InputPushBlock(input,option)
+  call InputPopBlock(input,option)
   
   word = 'displacement_x'
   call GeomechSubConditionVerify(option,condition,word,displacement_x, &
