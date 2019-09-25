@@ -216,6 +216,7 @@ subroutine GeomechRegionRead(region,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
  
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -255,6 +256,7 @@ subroutine GeomechRegionRead(region,input,option)
         call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGION',option)
     end select
   enddo
+  call InputPushBlock(input,option)
  
 end subroutine GeomechRegionRead
 

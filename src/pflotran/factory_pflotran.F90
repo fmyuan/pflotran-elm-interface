@@ -434,6 +434,7 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
   pmc => PMCBaseCreate()
   pmc%name = word
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -449,6 +450,7 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
         call InputKeywordUnrecognized(word,'PFLOTRANSetupPMCHierarchy',option)
     end select    
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PFLOTRANSetupPMCHierarchy
 

@@ -237,6 +237,7 @@ subroutine CouplerRead(coupler,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -259,7 +260,8 @@ subroutine CouplerRead(coupler,input,option)
         call InputKeywordUnrecognized(word,'coupler ',option)
     end select 
   
-  enddo  
+  enddo 
+  call InputPopBlock(input,option)
 
 end subroutine CouplerRead
 

@@ -111,6 +111,7 @@ subroutine DownregRead(this,input,option)
   this%dataset => dataset_ascii
   nullify(dataset_ascii)
 
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -169,6 +170,7 @@ subroutine DownregRead(this,input,option)
         call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (associated(this%dataset%time_storage)) then
     ! for now, forcing to step, which makes sense for src/sinks.

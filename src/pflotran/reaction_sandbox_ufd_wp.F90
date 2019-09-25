@@ -85,6 +85,7 @@ subroutine WastePackageRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -143,6 +144,7 @@ subroutine WastePackageRead(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,UFD-WP',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine WastePackageRead
 

@@ -209,6 +209,7 @@ subroutine GeomechCouplerRead(coupler,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -232,6 +233,7 @@ subroutine GeomechCouplerRead(coupler,input,option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine GeomechCouplerRead
 

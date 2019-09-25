@@ -111,6 +111,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
   PetscReal, pointer :: real_array(:,:)
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -213,6 +214,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
   if (len_trim(integral_flux%name) < 1) then
     option%io_buffer = 'All INTEGRAL_FLUXes must have a name.'

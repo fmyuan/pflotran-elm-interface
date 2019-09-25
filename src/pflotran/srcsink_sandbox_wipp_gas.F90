@@ -94,6 +94,7 @@ subroutine WIPPGasGenerationRead(this,input,option)
   
   error_strg = 'SRCSINK_SANDBOX,WIPP-GAS_GENERATION'
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -141,6 +142,7 @@ subroutine WIPPGasGenerationRead(this,input,option)
           'SRCSINK_SANDBOX,WIPP-GAS_GENERATION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WIPPGasGenerationRead
 

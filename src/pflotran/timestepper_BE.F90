@@ -167,6 +167,7 @@ subroutine TimestepperBERead(this,input,option)
   endif
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -198,6 +199,7 @@ subroutine TimestepperBERead(this,input,option)
     end select 
   
   enddo
+  call InputPopBlock(input,option)
   
   this%solver%print_ekg = this%print_ekg
 

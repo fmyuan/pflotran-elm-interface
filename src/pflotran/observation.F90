@@ -139,6 +139,7 @@ subroutine ObservationRead(observation,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -216,6 +217,7 @@ subroutine ObservationRead(observation,input,option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine ObservationRead
 

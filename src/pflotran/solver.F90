@@ -475,6 +475,7 @@ subroutine SolverReadLinear(solver,input,option)
    endif
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -562,6 +563,7 @@ subroutine SolverReadLinear(solver,input,option)
         endif
 
       case('HYPRE_OPTIONS')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
@@ -831,6 +833,7 @@ subroutine SolverReadLinear(solver,input,option)
               call PrintErrMsg(option)
           end select
         enddo
+        call InputPopBlock(input,option)
 
       case('ATOL')
         call InputReadDouble(input,option,solver%linear_atol)
@@ -900,7 +903,8 @@ subroutine SolverReadLinear(solver,input,option)
         call InputKeywordUnrecognized(keyword,'LINEAR_SOLVER',option)
     end select 
   
-  enddo  
+  enddo 
+  call InputPopBlock(input,option)
 
 end subroutine SolverReadLinear
 
@@ -929,6 +933,7 @@ subroutine SolverReadNewton(solver,input,option)
   PetscBool :: boolean
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input,option)
@@ -1075,13 +1080,14 @@ subroutine SolverReadNewton(solver,input,option)
 
       case ('CONVERGENCE_INFO')
         error_string = 'NEWTON_SOLVER,CONVERGENCE_INFO'
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
-          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputReadCard(input,option,keyword)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(keyword)
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call StringToUpper(word)
           select case(StringYesNoOther(word))
             case(STRING_YES)
@@ -1107,11 +1113,13 @@ subroutine SolverReadNewton(solver,input,option)
               call InputKeywordUnrecognized(keyword,error_string,option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case default
         call InputKeywordUnrecognized(keyword,'NEWTON_SOLVER',option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine SolverReadNewton
 

@@ -143,6 +143,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   class(reaction_sandbox_base_type), pointer :: new_sandbox, cur_sandbox
   
   nullify(new_sandbox)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -183,6 +184,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
       cur_sandbox%next => new_sandbox
     endif
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine RSandboxRead2
 

@@ -549,6 +549,7 @@ subroutine CLMDec_Read(this,input,option)
   nullify(new_reaction)
   nullify(prev_reaction)
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -645,6 +646,7 @@ subroutine CLMDec_Read(this,input,option)
          'CHEMISTRY,CLM_RXN,CLMDec')
 
      case('POOLS')
+       call InputPushBlock(input,option)
        do
          call InputReadPflotranString(input,option)
          if (InputError(input)) exit
@@ -655,7 +657,7 @@ subroutine CLMDec_Read(this,input,option)
          new_pool%nc_ratio = -999.d0
          nullify(new_pool%next)
 
-         call InputReadWord(input,option,new_pool%name,PETSC_TRUE)
+         call InputReadCard(input,option,new_pool%name,PETSC_TRUE)
          call InputErrorMsg(input,option,'pool name', &
            'CHEMISTRY,CLM_RXN,CLMDec,POOLS')
          call InputReadDouble(input,option,temp_real)
@@ -676,6 +678,7 @@ subroutine CLMDec_Read(this,input,option)
          prev_pool => new_pool
          nullify(new_pool)
        enddo
+       call InputPopBlock(input,option)
 
       case('REACTION')
       
@@ -690,6 +693,7 @@ subroutine CLMDec_Read(this,input,option)
         turnover_time = 0.d0
         rate_constant = 0.d0
         
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -760,6 +764,7 @@ subroutine CLMDec_Read(this,input,option)
                      'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
@@ -784,6 +789,7 @@ subroutine CLMDec_Read(this,input,option)
         call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN,CLMDec',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine CLMDec_Read
 
@@ -3243,6 +3249,7 @@ subroutine PlantNRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -3331,6 +3338,7 @@ subroutine PlantNRead(this,input,option)
                'CHEMISTRY,CLM_RXN,PLANTN,REACTION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PlantNRead
 
@@ -3844,6 +3852,7 @@ subroutine NitrRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -3856,6 +3865,7 @@ subroutine NitrRead(this,input,option)
 
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -3881,7 +3891,8 @@ subroutine NitrRead(this,input,option)
                 'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
                 option)
           end select
-        enddo 
+        enddo
+        call InputPopBlock(input,option)
       case('RATE_CONSTANT_NO3')
         call InputReadDouble(input,option,this%k_nitr_max)
         call InputErrorMsg(input,option,'nitr rate coefficient', &
@@ -3933,6 +3944,7 @@ subroutine NitrRead(this,input,option)
                 'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine NitrRead
 
@@ -4549,6 +4561,7 @@ subroutine DeniRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -4561,6 +4574,7 @@ subroutine DeniRead(this,input,option)
 
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -4587,6 +4601,7 @@ subroutine DeniRead(this,input,option)
                 option)
           end select
         enddo 
+        call InputPopBlock(input,option)
 
       case('RATE_CONSTANT')
         call InputReadDouble(input,option,this%k_deni_max)
@@ -4622,6 +4637,7 @@ subroutine DeniRead(this,input,option)
                'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine DeniRead
 
@@ -5022,6 +5038,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   class(clm_rxn_base_type), pointer :: new_clmrxn, cur_clmrxn
   
   nullify(new_clmrxn)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -5095,6 +5112,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
       cur_clmrxn%next => new_clmrxn
     endif
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine RCLMRxnRead2
 

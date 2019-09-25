@@ -144,6 +144,7 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%write_ecl = PETSC_TRUE
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -579,6 +580,7 @@ subroutine OutputFileRead(input,realization,output_option, &
         call InputKeywordUnrecognized(word,string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 
   if (vel_cent) then
@@ -665,6 +667,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
   type(output_variable_type), pointer :: output_variable
   PetscInt :: temp_int
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -1232,6 +1235,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine OutputVariableRead
 

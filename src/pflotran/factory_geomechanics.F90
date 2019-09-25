@@ -421,6 +421,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,card)
@@ -471,6 +472,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
         call InputKeywordUnrecognized(word,'GEOMECHANICS_GRID',option)
     end select
   enddo
+  call InputPopBlock(input,option)
     
 end subroutine GeomechanicsInit
 
@@ -553,6 +555,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
   if (associated(geomech_realization%geomech_patch)) grid => &
     geomech_realization%geomech_patch%geomech_grid
     
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -649,6 +652,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
 
       !.........................................................................
       case ('GEOMECHANICS_TIME')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -671,6 +675,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
               call InputKeywordUnrecognized(word,'GEOMECHANICS_TIME',option)
             end select
         enddo
+        call InputPopBlock(input,option)
                 
       !.........................................................................
       case ('GEOMECHANICS_DEBUG')
@@ -690,6 +695,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
             call InputKeywordUnrecognized(word, &
                    'GEOMECHANICS_SUBSURFACE_COUPLING',option)
         end select
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -701,8 +707,10 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
           call GeomechSubsurfMapFromFilename(grid,grid%mapping_filename, &
                                              option)
         enddo
+        call InputPopBlock(input,option)
       !.........................................................................
       case ('GEOMECHANICS_OUTPUT')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -761,6 +769,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                              'GEOMECHANICS_OUTPUT',option)
           end select
         enddo
+        call InputPopBlock(input,option)
                         
       !.........................................................................
       case ('GEOMECHANICS_STRATIGRAPHY','GEOMECHANICS_STRATA')
@@ -778,6 +787,7 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                                  'GeomechanicsInitReadInput',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GeomechanicsInitReadInput
 

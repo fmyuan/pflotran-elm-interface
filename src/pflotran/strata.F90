@@ -190,7 +190,7 @@ subroutine StrataRead(strata,input,option)
   character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
-
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -241,6 +241,7 @@ subroutine StrataRead(strata,input,option)
     end select 
   
   enddo
+  call InputPopBlock(input,option)
 
   if (len_trim(strata%region_name) == 0 .and. &
       len_trim(strata%material_property_name) > 0) then

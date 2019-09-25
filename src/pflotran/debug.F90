@@ -97,6 +97,7 @@ subroutine DebugRead(debug,input,option)
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -147,7 +148,8 @@ subroutine DebugRead(debug,input,option)
         call InputKeywordUnrecognized(keyword,'DEBUG',option)
     end select 
   
-  enddo  
+  enddo
+  call InputPopBlock(input,option)
 
 end subroutine DebugRead
 

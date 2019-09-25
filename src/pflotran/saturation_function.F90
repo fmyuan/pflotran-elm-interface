@@ -179,6 +179,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   end select
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -357,6 +358,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     end select 
   
   enddo 
+  call InputPopBlock(input,option)
   
   if (saturation_function%m < 1.d-40 .and. &
       .not. &

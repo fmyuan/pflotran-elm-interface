@@ -117,6 +117,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
   geomechanics_regression => GeomechanicsRegressionCreate()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -131,6 +132,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
     
       case('VARIABLES') 
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
@@ -147,6 +149,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
           endif
           cur_variable => new_variable
         enddo
+        call InputPopBlock(input,option)
       case('VERTICES')
         max_vertices = 100
         allocate(int_array(max_vertices))
@@ -175,6 +178,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine GeomechanicsRegressionRead
 

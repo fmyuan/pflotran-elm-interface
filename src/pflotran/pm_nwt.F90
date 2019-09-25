@@ -181,6 +181,7 @@ subroutine PMNWTReadSimulationBlock(this,input)
   error_string = 'NUCLEAR_WASTE_TRANSPORT OPTIONS'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -227,6 +228,7 @@ subroutine PMNWTReadSimulationBlock(this,input)
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMNWTReadSimulationBlock
 

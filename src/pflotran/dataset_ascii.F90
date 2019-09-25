@@ -183,6 +183,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   ierr = 0
   k = 0
   default_interpolation_method = INTERPOLATION_NULL
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     ! reach the end of file or close out block
@@ -265,6 +266,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
       call ReallocateArray(temp_array,max_size) 
     endif  
   enddo
+  call InputPopBlock(input,option)
   
   if (row_count == 0) then
     option%io_buffer = 'No values provided in Ascii Dataset.'

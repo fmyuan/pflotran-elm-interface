@@ -306,6 +306,7 @@ subroutine PMUFDBRead(this,input)
   option%io_buffer = 'pflotran card:: UFD_BIOSPHERE'
   call PrintMsg(option)
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -402,6 +403,7 @@ subroutine PMUFDBRead(this,input)
     !-----------------------------------------
     end select  
   enddo
+  call InputPopBlock(input,option)
   
   ! error messages
   if (.not.associated(this%ERB_list)) then
@@ -456,6 +458,7 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
   PetscInt :: num_errors
   
   num_errors = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -500,7 +503,8 @@ subroutine PMUFDBReadERBmodel(this,input,option,ERB_model,error_string)
     !----------------------------------- 
     end select
   enddo
-
+  call InputPopBlock(input,option)
+  
   ! error messages
   if (ERB_model%region_name == '') then
     option%io_buffer = 'ERROR: REGION must be specified in the ' // &
@@ -562,6 +566,7 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
   PetscInt :: num_errors
   PetscBool :: added
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -580,6 +585,7 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
         call InputErrorMsg(input,option,'radionuclide name',error_string)
         new_supp_rad%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_supp_rad%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -610,6 +616,7 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages
         if (Uninitialized(new_supp_rad%kd)) then
           option%io_buffer = 'ERROR: ELEMENT_KD must be specified &
@@ -658,6 +665,7 @@ subroutine PMUFDBReadSupportedRad(this,input,option,error_string)
     !-----------------------------------
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMUFDBReadSupportedRad
 
@@ -690,6 +698,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
   PetscInt :: num_errors
   PetscBool :: added
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -708,6 +717,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
         call InputErrorMsg(input,option,'radionuclide name',error_string)
         new_unsupp_rad%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_unsupp_rad%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -747,6 +757,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages
         if (Uninitialized(new_unsupp_rad%kd)) then
           option%io_buffer = 'ERROR: ELEMENT_KD must be specified in the ' // &
@@ -801,6 +812,7 @@ subroutine PMUFDBReadUnsuppRad(this,input,option,error_string)
     !-----------------------------------
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMUFDBReadUnsuppRad
 

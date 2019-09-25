@@ -176,6 +176,7 @@ subroutine ReadUserUnits(this,input,option)
       prop_array =>  this%lookup_table_gen%var_array
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -225,7 +226,8 @@ subroutine ReadUserUnits(this,input,option)
         ': EOS DATA units'
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
-  end do
+  enddo
+  call InputPopBlock(input,option)
 
   call this%UnitConversionFactors(option)
   nullify(prop_array)
@@ -702,6 +704,7 @@ subroutine EOSDatabaseRead(this,option)
   set_visc_lin_log = PETSC_FALSE
 
   !reading the database file header
+  call InputPushBlock(input_table,option)
   do
 
     call InputReadPflotranString(input_table,option)
@@ -734,6 +737,7 @@ subroutine EOSDatabaseRead(this,option)
         pres_present = PETSC_FALSE; 
         temp_present = PETSC_FALSE;
         prop_count = 0
+        call InputPushBlock(input_table,option)
         do
           call InputReadPflotranString(input_table,option)
           if (InputCheckExit(input_table,option)) exit
@@ -780,7 +784,8 @@ subroutine EOSDatabaseRead(this,option)
               error_string = trim(error_string) // ': DATA_LIST_ORDER'
               call InputKeywordUnrecognized(keyword,error_string,option)
           end select
-        end do
+        enddo
+        call InputPopBlock(input_table,option)
         this%num_prop = prop_count
         if ( prop_count == 0 ) then
           option%io_buffer =  'EOS databse = ' // trim(this%file_name) // &
@@ -809,7 +814,8 @@ subroutine EOSDatabaseRead(this,option)
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
 
-  end do
+  enddo
+  call InputPopBlock(input_table,option)
 
   nullify(db_var)
 
@@ -1134,6 +1140,7 @@ subroutine EOSTableRead(this,input,option)
   error_string =  trim(this%name)
 
   !reading pvt table
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -1148,6 +1155,7 @@ subroutine EOSTableRead(this,input,option)
       case('DATA_UNITS')
         call this%ReadUserUnits(input,option)
       case('DATA')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
@@ -1193,13 +1201,15 @@ subroutine EOSTableRead(this,input,option)
               call InputKeywordUnrecognized(word,error_string,option)
           end select
         end do
+        call InputPopBlock(input,option)
       case('VISCOSITY_LINLOG_INTERPOLATION')
         set_visc_lin_log = PETSC_TRUE
       case default
         error_string = trim(error_string) // ': ' // this%name
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
-  end do
+  enddo
+  call InputPopBlock(input,option)
 
   if (n_temp_count == 0) then
     option%io_buffer = 'PVT Table = ' // trim(this%name) // &

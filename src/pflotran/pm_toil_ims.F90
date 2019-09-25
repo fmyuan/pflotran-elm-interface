@@ -109,6 +109,7 @@ subroutine PMTOilImsRead(this,input)
   error_string = 'TOilIms Options'  
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -189,6 +190,7 @@ subroutine PMTOilImsRead(this,input)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
   
 end subroutine PMTOilImsRead
 

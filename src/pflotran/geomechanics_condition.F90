@@ -302,6 +302,7 @@ subroutine GeomechConditionRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -343,6 +344,7 @@ subroutine GeomechConditionRead(condition,input,option)
               INTERPOLATION_LINEAR
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -387,6 +389,7 @@ subroutine GeomechConditionRead(condition,input,option)
                      'geomechanics condition bc type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('TIME','TIMES')
         call InputReadDouble(input,option,default_time)
         call InputErrorMsg(input,option,'TIME','CONDITION')   
@@ -432,6 +435,7 @@ subroutine GeomechConditionRead(condition,input,option)
     end select 
   
   enddo  
+  call InputPushBlock(input,option)
   
   word = 'displacement_x'
   call GeomechSubConditionVerify(option,condition,word,displacement_x, &

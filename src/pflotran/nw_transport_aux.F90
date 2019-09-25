@@ -319,6 +319,7 @@ subroutine NWTRead(nw_trans,input,option)
   k = 0
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -343,7 +344,7 @@ subroutine NWTRead(nw_trans,input,option)
                                 &an option.')
         endif
         new_species => NWTSpeciesCreate()
-        
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -375,6 +376,7 @@ subroutine NWTRead(nw_trans,input,option)
               call InputKeywordUnrecognized(keyword,error_string,option)
           end select
         enddo
+        call InputPopBlock(input,option)
         
         if (new_species%name == '') then
           option%io_buffer = 'NAME not provided in ' // trim(error_string) // &
@@ -470,6 +472,7 @@ subroutine NWTRead(nw_trans,input,option)
     end select
             
   enddo
+  call InputPopBlock(input,option)
   
   if (k == 0) then
      option%io_buffer = 'ERROR: At least one species must be provided &
@@ -513,6 +516,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
   character(len=MAXWORDLENGTH) :: word
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -544,6 +548,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
   if (nw_trans%print_what%all_concs) then
     nw_trans%print_what%total_bulk_conc= PETSC_TRUE
@@ -580,6 +585,7 @@ subroutine NWTReadPass2(nw_trans,input,option)
   error_string = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -616,6 +622,7 @@ subroutine NWTReadPass2(nw_trans,input,option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine NWTReadPass2
 

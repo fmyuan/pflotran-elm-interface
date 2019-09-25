@@ -81,6 +81,7 @@ subroutine PMSurfaceFlowRead(this,input)
   error_string = 'Surface Flow Options'
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input,option)
@@ -100,6 +101,7 @@ subroutine PMSurfaceFlowRead(this,input)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine PMSurfaceFlowRead
 

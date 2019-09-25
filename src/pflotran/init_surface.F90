@@ -123,7 +123,7 @@ subroutine SurfaceInit(surf_realization,input,option)
   input%ierr = 0
   ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
-
+  call InputPushBlock(input,option)
   call InputReadPflotranString(input,option)
   call InputReadCard(input,option,word)
   call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
@@ -166,6 +166,7 @@ subroutine SurfaceInit(surf_realization,input,option)
           call PrintErrMsg(option)
       end select
   end select
+  call InputPopBlock(input,option)
 
 end subroutine SurfaceInit
 

@@ -74,6 +74,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   srfcplx_rxn%itype = SRFCMPLX_RXN_EQUILIBRIUM
   temp_srfcplx_count = 0
   num_times_surface_type_set = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -93,6 +94,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         srfcplx_rxn%itype = SRFCMPLX_RXN_KINETIC
       case('COMPLEX_KINETICS')
         nullify(prev_srfcplx)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -102,12 +104,13 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           call InputReadWord(input,option,srfcplx%name,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
             'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE')
-                        
+          
+          call InputPushBlock(input,option)
           do
             call InputReadPflotranString(input,option)
             call InputReadStringErrorMsg(input,option,card)
             if (InputCheckExit(input,option)) exit
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'word', &
                     'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE') 
             select case(trim(word))
@@ -124,6 +127,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
                        'CHEMISTRY,SURFACE_COMPLEXATION_RXN,COMPLEX_KINETIC_RATE',option)
             end select
           enddo
+          call InputPopBlock(input,option)
                                       
           if (.not.associated(rate_list)) then
             rate_list => srfcplx
@@ -134,6 +138,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           prev_srfcplx => srfcplx
           nullify(srfcplx)
         enddo
+        call InputPopBlock(input,option)
         nullify(prev_srfcplx)
       case('RATE','RATES') 
         srfcplx_rxn%itype = SRFCMPLX_RXN_MULTIRATE_KINETIC
@@ -176,6 +181,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           'CHEMISTRY,SURFACE_COMPLEXATION_RXN,SITE_DENSITY')                   
       case('COMPLEXES')
         nullify(prev_srfcplx)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -197,6 +203,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           prev_srfcplx => srfcplx
           nullify(srfcplx)
         enddo
+        call InputPopBlock(input,option)
         nullify(prev_srfcplx)
       case default
         call InputKeywordUnrecognized(word, &
@@ -204,6 +211,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
   
   if (num_times_surface_type_set > 1) then
     option%io_buffer = 'Surface site type (e.g. MINERAL, ROCK_DENSITY, ' // &

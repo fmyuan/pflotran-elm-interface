@@ -342,6 +342,7 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
 
   nullify(pm)
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -368,6 +369,7 @@ subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (.not.associated(pm)) then
     option%io_buffer = 'A flow MODE (card) must be included in the ' // &

@@ -1652,6 +1652,7 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable  
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -1685,6 +1686,7 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
         call InputKeywordUnrecognized(word,'SURFACE,VARIABLES',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine OutputSurfaceVariableRead
 

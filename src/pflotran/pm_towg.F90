@@ -202,6 +202,7 @@ subroutine PMTOWGRead(this,input)
   !this%miscibility_model = UNINITIALIZED_INTEGER
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -299,6 +300,7 @@ subroutine PMTOWGRead(this,input)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
   !if (Uninitialized(towg_miscibility_model)) then 
   !  option%io_buffer = 'TOWG MISCIBILITY_MODEL not set up'

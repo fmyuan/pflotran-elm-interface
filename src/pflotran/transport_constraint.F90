@@ -214,6 +214,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
   ! read the constraint
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -233,6 +234,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
         block_string = 'CONSTRAINT, CONCENTRATIONS'
         icomp = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
@@ -249,8 +251,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
           
-          call InputReadWord(input,option,aq_species_constraint%names(icomp), &
-                          PETSC_TRUE)
+          call InputReadCard(input,option,aq_species_constraint%names(icomp))
           call InputErrorMsg(input,option,'aqueous species name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(aq_species_constraint%names(icomp))
@@ -260,7 +261,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                                aq_species_constraint%constraint_conc(icomp))
           call InputErrorMsg(input,option,'concentration',block_string)
           
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputDefaultMsg(input,option, &
                                trim(block_string) // ' constraint_type')
           length = len_trim(word)
@@ -313,9 +314,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                   CONSTRAINT_GAS .or.&
                 aq_species_constraint%constraint_type(icomp) == &
                   CONSTRAINT_SUPERCRIT_CO2) then
-              call InputReadWord(input,option,aq_species_constraint% &
-                                 constraint_aux_string(icomp), &
-                                 PETSC_TRUE)
+              call InputReadCard(input,option,aq_species_constraint% &
+                                 constraint_aux_string(icomp))
               call InputErrorMsg(input,option,'constraining species name', &
                                  block_string)
             else
@@ -337,6 +337,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           endif  
         
         enddo  
+        call InputPopBlock(input,option)
         
         if (icomp < reaction%naqcomp) then
           option%io_buffer = &
@@ -361,6 +362,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
         block_string = 'CONSTRAINT, FREE_ION_GUESS'
         icomp = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
@@ -377,9 +379,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
           
-          call InputReadWord(input,option, &
-                             free_ion_guess_constraint%names(icomp), &
-                             PETSC_TRUE)
+          call InputReadCard(input,option, &
+                             free_ion_guess_constraint%names(icomp))
           call InputErrorMsg(input,option,'free ion guess name',block_string)
           option%io_buffer = 'Constraint Species: ' // &
                              trim(free_ion_guess_constraint%names(icomp))
@@ -388,6 +389,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           call InputReadDouble(input,option,free_ion_guess_constraint%conc(icomp))
           call InputErrorMsg(input,option,'free ion guess',block_string)
         enddo
+        call InputPopBlock(input,option)
 
         if (icomp < reaction%naqcomp) then
           option%io_buffer = &
@@ -413,6 +415,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
         block_string = 'CONSTRAINT, MINERALS'
         imnrl = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
@@ -429,8 +432,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
           
-          call InputReadWord(input,option,mineral_constraint%names(imnrl), &
-                             PETSC_TRUE)
+          call InputReadCard(input,option,mineral_constraint%names(imnrl))
           call InputErrorMsg(input,option,'mineral name',block_string)
           option%io_buffer = 'Constraint Minerals: ' // &
                              trim(mineral_constraint%names(imnrl))
@@ -481,6 +483,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call InputDefaultMsg(input,option)
           endif
         enddo  
+        call InputPopBlock(input,option)
         
         if (imnrl < reaction%mineral%nkinmnrl) then
           option%io_buffer = &
@@ -504,6 +507,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
         block_string = 'CONSTRAINT, SURFACE_COMPLEXES'
         isrfcplx = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
@@ -520,8 +524,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
           
-          call InputReadWord(input,option,srfcplx_constraint%names(isrfcplx), &
-                          PETSC_TRUE)
+          call InputReadCard(input,option,srfcplx_constraint%names(isrfcplx))
           call InputErrorMsg(input,option,'surface complex name',block_string)
           option%io_buffer = 'Constraint Surface Complex: ' // &
                              trim(srfcplx_constraint%names(isrfcplx))
@@ -530,6 +533,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                                srfcplx_constraint%constraint_conc(isrfcplx))
           call InputErrorMsg(input,option,'concentration',block_string)
         enddo  
+        call InputPopBlock(input,option)
         
         if (isrfcplx < reaction%surface_complexation%nkinsrfcplx) then
           option%io_buffer = &
@@ -550,6 +554,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
         block_string = 'CONSTRAINT, COLLOIDS'
         icomp = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
@@ -566,8 +571,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
           
-          call InputReadWord(input,option,colloid_constraint%names(icomp), &
-                          PETSC_TRUE)
+          call InputReadCard(input,option,colloid_constraint%names(icomp))
           call InputErrorMsg(input,option,'colloid name',block_string)
           option%io_buffer = 'Constraint Colloids: ' // &
                              trim(colloid_constraint%names(icomp))
@@ -581,6 +585,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                              block_string)
         
         enddo  
+        call InputPopBlock(input,option)
         
         if (icomp < reaction%ncoll) then
           option%io_buffer = &
@@ -606,6 +611,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
 
         block_string = 'CONSTRAINT, IMMOBILE'
         iimmobile = 0
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,block_string)
@@ -622,8 +628,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call PrintErrMsg(option)
           endif
           
-          call InputReadWord(input,option, &
-                             immobile_constraint%names(iimmobile),PETSC_TRUE)
+          call InputReadCard(input,option, &
+                             immobile_constraint%names(iimmobile))
           call InputErrorMsg(input,option,'immobile name',block_string)
           option%io_buffer = 'Constraint Immobile: ' // &
                              trim(immobile_constraint%names(iimmobile))
@@ -662,6 +668,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
               UnitsConvertToInternal(word,internal_units,option)
           endif
         enddo  
+        call InputPopBlock(input,option)
         
         if (iimmobile < reaction%immobile%nimmobile) then
           option%io_buffer = &
@@ -684,6 +691,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
   
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 

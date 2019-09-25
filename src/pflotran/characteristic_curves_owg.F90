@@ -480,6 +480,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
       error_string = trim(error_string) // 'CONSTANT_PRESSURE_OG'
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -621,6 +622,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
     end select
   !add reading instructions for other OWG saturation functions (tables etc)
   end do
+  call InputPopBlock(input,option)
 
   if ( smooth .and. associated(sat_func_owg%sat_func_sl) ) then
     call sat_func_owg%sat_func_sl%SetupPolynomials(option,error_string)
@@ -704,6 +706,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
       error_string = trim(error_string) // 'ECLIPSE'  
   end select
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -907,6 +910,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
           end select
     end select
   end do !end loop line within rel perm funct def
+  call InputPopBlock(input,option)
 
   !pass parameter to sl_functions
   select type(rpf => permeability_function)

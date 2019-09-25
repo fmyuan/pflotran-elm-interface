@@ -168,7 +168,7 @@ subroutine FractureRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   option%flow%fracture_on = PETSC_TRUE
-  
+  call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
@@ -216,6 +216,7 @@ subroutine FractureRead(this,input,option)
                   'MATERIAL_PROPERTY,WIPP-FRACTURE',option)
       end select
     enddo
+    call InputPopBlock(input,option)
 
 end subroutine FractureRead
 
@@ -529,7 +530,7 @@ subroutine CreepClosureRead(this,input,option)
   time_units_conversion = 1.d0
   filename = ''
   input%ierr = 0
-
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit  
@@ -552,6 +553,7 @@ subroutine CreepClosureRead(this,input,option)
         call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(filename) < 1) then
     option%io_buffer = 'FILENAME must be specified for CREEP_CLOSURE.'
@@ -562,6 +564,7 @@ subroutine CreepClosureRead(this,input,option)
   error_string = 'CREEP_CLOSURE file'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
   input2%ierr = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input2,option)
     if (InputError(input2)) exit
@@ -618,6 +621,7 @@ subroutine CreepClosureRead(this,input,option)
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   call InputDestroy(input2)
   
   if (size(this%lookup_table%axis1%values) /= this%num_times) then
@@ -955,6 +959,7 @@ subroutine KlinkenbergRead(this,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string = 'KLINKENBERG_EFFECT'
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -976,6 +981,7 @@ subroutine KlinkenbergRead(this,input,option)
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (Uninitialized(this%a)) then
     option%io_buffer = &
@@ -1197,6 +1203,7 @@ subroutine WIPPRead(input,option)
   wipp => WIPPGetPtr()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -1218,6 +1225,7 @@ subroutine WIPPRead(input,option)
         call InputKeywordUnrecognized(keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine WIPPRead
 

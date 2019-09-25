@@ -92,6 +92,7 @@ subroutine PMImmisRead(this,input)
   error_string = 'Immiscible Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -112,6 +113,7 @@ subroutine PMImmisRead(this,input)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMImmisRead
 

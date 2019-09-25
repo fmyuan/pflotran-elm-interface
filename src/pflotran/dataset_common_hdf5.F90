@@ -152,6 +152,7 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   PetscBool :: found
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -169,6 +170,7 @@ subroutine DatasetCommonHDF5Read(this,input,option)
     endif
   
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(this%hdf5_dataset_name) < 1) then
     this%hdf5_dataset_name = this%name

@@ -87,6 +87,7 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     
@@ -107,6 +108,7 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
         call InputKeywordUnrecognized(keyword,'SURFACE_MATERIAL_PROPERTY',option)
       end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SurfaceMaterialPropertyRead
 

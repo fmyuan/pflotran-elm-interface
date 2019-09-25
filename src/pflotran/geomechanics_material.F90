@@ -90,6 +90,7 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     
@@ -133,6 +134,7 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
                                  'GEOMECHANICS_MATERIAL_PROPERTY',option)
       end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GeomechanicsMaterialPropertyRead
 

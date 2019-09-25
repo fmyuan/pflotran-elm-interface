@@ -119,6 +119,7 @@ subroutine RegressionRead(regression,input,option)
   regression => RegressionCreate()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -133,6 +134,7 @@ subroutine RegressionRead(regression,input,option)
     
       case('VARIABLES') 
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
@@ -149,10 +151,12 @@ subroutine RegressionRead(regression,input,option)
           endif
           cur_variable => new_variable
         enddo
+        call InputPopBlock(input,option)
       case('CELLS')
         max_cells = 100
         allocate(int_array(max_cells))
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
@@ -163,6 +167,7 @@ subroutine RegressionRead(regression,input,option)
           call InputReadInt(input,option,int_array(count))
           call InputErrorMsg(input,option,'natural cell id','REGRESSION,CELLS')
         enddo
+        call InputPopBlock(input,option)
         allocate(regression%natural_cell_ids(count))
         regression%natural_cell_ids = int_array(1:count)
         call PetscSortInt(count,regression%natural_cell_ids, &
@@ -178,6 +183,7 @@ subroutine RegressionRead(regression,input,option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine RegressionRead
 

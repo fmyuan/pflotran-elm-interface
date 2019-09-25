@@ -88,6 +88,7 @@ subroutine ExampleRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -148,6 +149,7 @@ subroutine ExampleRead(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,TEMPLATE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine ExampleRead
 

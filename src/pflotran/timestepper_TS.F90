@@ -148,6 +148,7 @@ subroutine TimestepperTSRead(this,input,option)
   character(len=MAXSTRINGLENGTH) :: string
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -175,6 +176,7 @@ subroutine TimestepperTSRead(this,input,option)
     end select
   
   enddo
+  call InputPopBlock(input,option)
 
   this%solver%print_ekg = this%print_ekg
 

@@ -181,6 +181,7 @@ subroutine PMAuxiliaryRead(input, option, this)
       this%salinity%molecular_weights = UNINITIALIZED_DOUBLE
       i = 0
       word = ''
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputCheckExit(input,option)) exit
@@ -212,6 +213,7 @@ subroutine PMAuxiliaryRead(input, option, this)
             call InputKeywordUnrecognized(word,error_string,option)
         end select
       enddo
+      call InputPopBlock(input,option)
       this%salinity%nspecies = i
     case default
       call InputKeywordUnrecognized(word,error_string,option)

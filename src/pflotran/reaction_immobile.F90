@@ -54,6 +54,7 @@ subroutine ImmobileRead(immobile,input,option)
   else
     nullify(prev_immobile_species)
   endif
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -61,7 +62,7 @@ subroutine ImmobileRead(immobile,input,option)
     ! this count is required for comparisons prior to BasisInit()
     immobile%nimmobile = immobile%nimmobile + 1          
     new_immobile_species => ImmobileSpeciesCreate()
-    call InputReadWord(input,option,new_immobile_species%name,PETSC_TRUE)
+    call InputReadCard(input,option,new_immobile_species%name)
     call InputErrorMsg(input,option,'keyword', &
                         'CHEMISTRY,IMMOBILE_SPECIES')
     if (.not.associated(prev_immobile_species)) then
@@ -74,6 +75,7 @@ subroutine ImmobileRead(immobile,input,option)
     prev_immobile_species => new_immobile_species
     nullify(new_immobile_species)
   enddo   
+  call InputPopBlock(input,option)
 
 end subroutine ImmobileRead
 
@@ -110,6 +112,7 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   immobile%ndecay_rxn = immobile%ndecay_rxn + 1
         
   immobile_decay_rxn => ImmobileDecayRxnCreate()
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -147,6 +150,7 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   if (Uninitialized(immobile_decay_rxn%rate_constant)) then
     option%io_buffer = 'RATE_CONSTANT or HALF_LIFE must be set in ' // &
       'IMMOBILE_DECAY_REACTION.'

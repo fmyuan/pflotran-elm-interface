@@ -179,6 +179,7 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
   
+  call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
@@ -226,6 +227,7 @@ subroutine GeomechanicsSubsurfacePropsRead(this,input,option)
                   option)
       end select
     enddo
+    call InputPopBlock(input,option)
     
 end subroutine GeomechanicsSubsurfacePropsRead
 

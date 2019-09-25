@@ -1213,6 +1213,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
   error_string = 'SIMULATION,PROCESS_MODELS,WASTE_FORM'
 
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -1243,6 +1244,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (.not.associated(pm)) then
     option%io_buffer = 'TYPE card missing in ' // trim(error_string)
@@ -1283,6 +1285,7 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
   pm%option => option
 
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -1300,6 +1303,7 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine SubsurfaceReadUFDDecayPM
 
@@ -1332,6 +1336,7 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
   pm%option => option
 
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -1344,6 +1349,7 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine SubsurfaceReadUFDBiospherePM
 
@@ -1928,6 +1934,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 ! Search for completion locations
 
+    call InputPushBlock(input,option)
     do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
@@ -1985,6 +1992,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputReadWord(input,option,wname,PETSC_TRUE)
       end select
     enddo
+    call InputPopBlock(input,option)
   endif
 
   ! GRID information - GRID is a required card for every simulation
@@ -2008,6 +2016,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   ! optional required cards - yes, an oxymoron, but we need to know if
   ! these exist before we can go any further.
   call InputRewind(input)
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -2332,6 +2341,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         internal_units = 'm/sec'
         flag1 = UNINITIALIZED_INTEGER ! uniform?
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -2411,6 +2421,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
           end select
         enddo
+        call InputPopBlock(input,option)
       case ('NONUNIFORM_VELOCITY')
         option%io_buffer = 'The NONUNIFORM_VELOCITY card within SUBSURFACE &
           &block has been deprecated. Use the SPECIFIED_VELOCITY block.'

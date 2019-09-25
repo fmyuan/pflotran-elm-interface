@@ -36,6 +36,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
   character(len=MAXSTRINGLENGTH) :: string
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -150,6 +151,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
       !           placing in a separate routine where non-common settings
       !           are passed in (e.g. prefix)
       case('CPR_HYPRE_OPTIONS')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
@@ -403,12 +405,14 @@ subroutine SolverCPRRead(stash, input, option, ierr)
               call PrintErrMsg(option)
           end select
         enddo
+        call InputPopBlock(input,option)
     case default
       option%io_buffer  = 'CPR preconditioner option: ' // trim(keyword) // &
                           ' unknown.'
       call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine SolverCPRRead
 

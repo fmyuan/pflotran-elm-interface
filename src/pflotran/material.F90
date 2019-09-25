@@ -266,6 +266,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -440,6 +441,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'creep closure table name', &
                            'MATERIAL_PROPERTY')
       case('PERMEABILITY')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -562,6 +564,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
             dabs(material_property%permeability(1,1) - &
@@ -572,6 +575,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       ! Permfactor is the multiplier to permeability to increase perm
       ! The perm increase could be due to pressure or other variable
       ! Added by Satish Karra, LANL, 1/8/12
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -601,6 +605,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                      'MATERIAL_PROPERTY,PERM_FACTOR',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('PERMEABILITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%permeability_pwr)
@@ -627,6 +632,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           'reaction_aux.F90.'
           call PrintErrMsg(option)
       case('SECONDARY_CONTINUUM')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -735,11 +741,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
           end select
         enddo
+        call InputPopBlock(input,option)
 
       case default
         call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)
     end select 
   enddo
+  call InputPopBlock(input,option)
   
   if (material_property%tortuosity_function_of_porosity) then
     if (associated(material_property%tortuosity_dataset)) then

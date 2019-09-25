@@ -89,6 +89,7 @@ subroutine FluidPropertyRead(fluid_property,input,option)
   character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -129,6 +130,7 @@ subroutine FluidPropertyRead(fluid_property,input,option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
   if (.not.(StringCompareIgnoreCase(fluid_property%phase_name,'LIQUID') .or. &
             StringCompareIgnoreCase(fluid_property%phase_name,'GAS'))) then

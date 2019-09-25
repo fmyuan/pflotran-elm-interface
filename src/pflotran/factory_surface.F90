@@ -317,6 +317,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
 
   if (associated(patch)) grid => patch%grid
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
@@ -457,6 +458,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         energy_flowrate = PETSC_FALSE
         aveg_mass_flowrate = PETSC_FALSE
         aveg_energy_flowrate = PETSC_FALSE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -741,6 +743,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
               call InputKeywordUnrecognized(word,'SURF_OUTPUT',option)
           end select
         enddo
+        call InputPopBlock(input,option)
 
         if (velocities) then
           if (output_option%print_tecplot) &
@@ -784,6 +787,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
 
       !.........................................................................
       case ('SURF_TIME')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -820,6 +824,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
               call InputKeywordUnrecognized(word,'TIME',option)
             end select
         enddo
+        call InputPopBlock(input,option)
       !.........................................................................
       case ('SURF_DATASET')
       nullify(dataset)
@@ -847,6 +852,7 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
         call InputKeywordUnrecognized(word,'SURFACE_FLOW',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (option%restart_flag .neqv. option%surf_restart_flag) then
     option%io_buffer='option%restart_flag /= option%surf_restart_flag'

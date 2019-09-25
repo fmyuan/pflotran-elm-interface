@@ -78,6 +78,7 @@ subroutine GeomechDebugRead(debug,input,option)
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -112,6 +113,7 @@ subroutine GeomechDebugRead(debug,input,option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine GeomechDebugRead
 

@@ -100,6 +100,7 @@ subroutine GasRead(this,input,option)
   PetscInt :: i, previous_ns
   character(len=MAXWORDLENGTH) :: word
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -165,6 +166,7 @@ subroutine GasRead(this,input,option)
            'CHEMISTRY,REACTION_SANDBOX,GAS',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GasRead
 

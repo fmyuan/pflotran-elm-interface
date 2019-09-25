@@ -226,6 +226,7 @@ subroutine PMWIPPFloRead(this,input)
   error_string = 'WIPP Flow Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -473,6 +474,7 @@ subroutine PMWIPPFloRead(this,input)
         call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
     end select
   enddo  
+  call InputPopBlock(input,option)
   
   ! Check that gas_sat_thresh_force_extra_ni is smaller than 
   ! gas_sat_thresh_force_ts_cut

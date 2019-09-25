@@ -1179,6 +1179,7 @@ subroutine FlowConditionRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units = 'not_assigned'
@@ -1243,6 +1244,7 @@ subroutine FlowConditionRead(condition,input,option)
                                           option)
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -1386,6 +1388,7 @@ subroutine FlowConditionRead(condition,input,option)
               call InputKeywordUnrecognized(word,'condition bc type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('IPHASE')
         call InputReadInt(input,option,default_iphase)
         call InputErrorMsg(input,option,'IPHASE','CONDITION')
@@ -1400,6 +1403,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  condition%datum,word,internal_units)
       case('GRADIENT','GRAD')
+        call InputPushBlock(input,option)
         do
           internal_units = 'not_assigned'
           call InputReadPflotranString(input,option)
@@ -1453,6 +1457,7 @@ subroutine FlowConditionRead(condition,input,option)
                                    word,internal_units)
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('TEMPERATURE','TEMP')
         internal_units = 'C'
         call ConditionReadValues(input,option,word, &
@@ -1516,6 +1521,7 @@ subroutine FlowConditionRead(condition,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! check whether
   if (default_iphase == 0) then
@@ -1969,6 +1975,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units = 'not_assigned'
@@ -2001,6 +2008,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               INTERPOLATION_LINEAR
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2108,6 +2116,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('DATUM')
         dataset_ascii => DatasetAsciiCreate()
         call DatasetAsciiInit(dataset_ascii)
@@ -2119,6 +2128,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         call ConditionReadValues(input,option,word,condition%datum, &
                                  word,internal_units)
       case('GRADIENT')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2146,6 +2156,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                                    word,internal_units)
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
@@ -2207,6 +2218,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! datum is not required
   string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
@@ -2498,6 +2510,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     internal_units = 'not_assigned'
@@ -2530,6 +2543,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               INTERPOLATION_LINEAR
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2637,6 +2651,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('DATUM')
         dataset_ascii => DatasetAsciiCreate()
         call DatasetAsciiInit(dataset_ascii)
@@ -2648,6 +2663,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
         call ConditionReadValues(input,option,word,condition%datum, &
                                  word,internal_units)
       case('GRADIENT')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2675,6 +2691,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                                    word,internal_units)
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
@@ -2735,6 +2752,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! datum is not required
   string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
@@ -3031,6 +3049,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units = 'not_assigned'
@@ -3051,6 +3070,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     select case(trim(word))
 
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3172,8 +3192,10 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       
       case('GRADIENT','GRADIENT_D')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3203,6 +3225,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           end select
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'PRESSURE'
         select case(option%iflowmode)
@@ -3279,6 +3302,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! phase condition should never be used in TOilIms
   condition%iphase = ZERO_INTEGER
@@ -3566,6 +3590,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units_string = 'not_assigned'
@@ -3586,6 +3611,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     select case(trim(word))
 
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3686,8 +3712,10 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               call InputKeywordUnrecognized(word,'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
 
       case('GRADIENT','GRADIENT_D')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3716,6 +3744,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           end select  
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
@@ -3801,6 +3830,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         usr_tbl_press_units_found = PETSC_FALSE
         usr_tbl_z_units_found = PETSC_FALSE
         pbvz_found = PETSC_FALSE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -3857,6 +3887,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                                   'flow condition,BUBBLE_POINT_TABLE',option)
           end select
         end do
+        call InputPopBlock(input,option)
         if ( .not. usr_tbl_z_units_found ) then
           option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
             &lenght units must be entered for the z/depths'
@@ -3900,6 +3931,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   !initialise phase_state to null
   condition%iphase = TOWG_NULL_STATE
@@ -4355,6 +4387,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       !set up default units
       usr_lenght_units = 'm'
       usr_temp_units = 'C'
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
         call InputReadStringErrorMsg(input,option, &
@@ -4416,6 +4449,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
                                     'flow condition,TEMPERATURE_TABLE',option)
         end select
       end do
+      call InputPopBlock(input,option)
       !PO: consider to include a force unit check in lookup table
       if ( .not. rtempvz_z_units_found ) then
         option%io_buffer = 'TOWG condition - RTEMPVZ/RTEMPVD: &
@@ -4516,6 +4550,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input,option)
@@ -4560,6 +4595,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             call PrintErrMsg(option)
         end select
       case('CONSTRAINT_LIST')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONSTRAINT')
@@ -4639,6 +4675,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             endif
           endif
         enddo
+        call InputPopBlock(input,option)
         
       case('CONSTRAINT')
         if (associated(reaction)) then
@@ -4694,6 +4731,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   if (associated(reaction)) then
     if (.not.associated(condition%constraint_coupler_list)) then

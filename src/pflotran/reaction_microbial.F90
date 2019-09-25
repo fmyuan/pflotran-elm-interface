@@ -49,6 +49,7 @@ subroutine MicrobialRead(microbial,input,option)
   nullify(prev_monod)
   nullify(prev_inhibition)
   nullify(microbial_biomass)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -79,6 +80,7 @@ subroutine MicrobialRead(microbial,input,option)
                      'CHEMISTRY,MICROBIAL_REACTION,ACTIVATION_ENERGY',option)
       case('MONOD')
         monod => MicrobialMonodCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -107,6 +109,7 @@ subroutine MicrobialRead(microbial,input,option)
                                             option)
           end select
         enddo
+        call InputPopBlock(input,option)
         ! append to list
         if (.not.associated(microbial_rxn%monod)) then
           microbial_rxn%monod => monod
@@ -117,6 +120,7 @@ subroutine MicrobialRead(microbial,input,option)
         nullify(monod)
       case('INHIBITION')
         inhibition => MicrobialInhibitionCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -161,6 +165,7 @@ subroutine MicrobialRead(microbial,input,option)
                       'CHEMISTRY,MICROBIAL_REACTION,INHIBITION',option)
           end select        
         enddo
+        call InputPopBlock(input,option)
         if (len_trim(inhibition%species_name) < 2 .or. &
             inhibition%itype == 0 .or. &
             Uninitialized(inhibition%inhibition_constant)) then
@@ -182,6 +187,7 @@ subroutine MicrobialRead(microbial,input,option)
           call MicrobialBiomassDestroy(microbial_biomass)
         endif
         microbial_biomass => MicrobialBiomassCreate()
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -206,11 +212,13 @@ subroutine MicrobialRead(microbial,input,option)
                                             option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case default
         call InputKeywordUnrecognized(word,'CHEMISTRY,MICROBIAL_REACTION', &
                                       option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   ! add linkage to biomass if exists
   microbial_rxn%biomass => microbial_biomass

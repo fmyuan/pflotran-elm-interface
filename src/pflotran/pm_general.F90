@@ -195,6 +195,7 @@ subroutine PMGeneralRead(this,input)
   error_string = 'General Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -421,6 +422,7 @@ subroutine PMGeneralRead(this,input)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
   if (general_isothermal .and. &
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then

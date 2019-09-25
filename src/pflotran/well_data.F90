@@ -492,7 +492,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
   input%ierr = 0
 
   ! Start reading data items
-
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input, option)
@@ -704,6 +704,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WellDataRead
 

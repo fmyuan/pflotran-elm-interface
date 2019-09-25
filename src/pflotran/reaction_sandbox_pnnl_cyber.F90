@@ -185,6 +185,7 @@ subroutine CyberRead(this,input,option)
 
   error_string = 'CHEMISTRY,REACTION_SANDBOX,CYBERNETIC'
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -278,6 +279,7 @@ subroutine CyberRead(this,input,option)
         call InputKeywordUnrecognized(word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine CyberRead
 

@@ -119,7 +119,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
   nullify(rel_perm_function_ptr)
 
   input%ierr = 0
-  error_string = 'CHARACTERISTIC_CURVES'  
+  error_string = 'CHARACTERISTIC_CURVES' 
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -565,6 +566,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
         call InputKeywordUnrecognized(keyword,'CHARACTERISTIC_CURVES',option)
     end select 
   enddo
+  call InputPopBlock(input,option)
   
   select case(option%iflowmode)
     case(TOWG_MODE,TOIL_IMS_MODE) 
@@ -632,6 +634,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     class is(sat_func_IGHCC2_Comp_type)
       error_string = trim(error_string) // 'IGHCC2_COMP'
   end select
+  
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit  
@@ -969,6 +973,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
     !------------------------------------------
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (smooth) then
     call saturation_function%SetupPolynomials(option,error_string)
@@ -1106,6 +1111,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'CONSTANT'
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit  
@@ -1602,7 +1608,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
     !------------------------------------------
     end select
   enddo
-
+  call InputPopBlock(input,option)
   
   ! for functions that are not phase-specific, check if PHASE was given:
   if (StringCompare('NONE',phase_keyword)) then

@@ -119,6 +119,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   endif
 
   nullify(new_sandbox)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -158,6 +159,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     endif
     nullify(new_sandbox)
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SSSandboxRead2
 

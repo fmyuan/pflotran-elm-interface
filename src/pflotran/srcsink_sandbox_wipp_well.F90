@@ -82,6 +82,7 @@ subroutine WIPPWellRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscBool :: found
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -112,6 +113,7 @@ subroutine WIPPWellRead(this,input,option)
         call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,WIPP',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WIPPWellRead
 

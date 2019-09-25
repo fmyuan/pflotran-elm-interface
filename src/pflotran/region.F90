@@ -420,6 +420,7 @@ subroutine RegionRead(region,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -498,6 +499,7 @@ subroutine RegionRead(region,input,option)
         if (.not.associated(region%polygonal_volume)) then
           region%polygonal_volume => GeometryCreatePolygonalVolume()
         endif
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -534,6 +536,7 @@ subroutine RegionRead(region,input,option)
               call PrintErrMsg(option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('FILE')
         call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','REGION')
@@ -566,6 +569,7 @@ subroutine RegionRead(region,input,option)
         call InputKeywordUnrecognized(keyword,'REGION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
  
 end subroutine RegionRead
 
@@ -1103,6 +1107,7 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
 ! id_M x_M y_M z_M area_M
 ! -----------------------------------------------------------------
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -1151,6 +1156,7 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
                'REGION (explicit unstructured grid)',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   call InputDestroy(input)
 

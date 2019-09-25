@@ -1054,6 +1054,7 @@ subroutine PMWSSRead(this,input)
   option%io_buffer = 'pflotran card:: WIPP_SOURCE_SINK'
   call PrintMsg(option)
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -1157,6 +1158,7 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'name',error_string)
         new_waste_panel%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_waste_panel%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -1196,6 +1198,7 @@ subroutine PMWSSRead(this,input)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages ---------------------
         if (new_waste_panel%region_name == '') then
           option%io_buffer = 'ERROR: REGION must be specified in the ' // &
@@ -1260,6 +1263,7 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'name',error_string)
         new_inventory%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_inventory%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -1271,6 +1275,7 @@ subroutine PMWSSRead(this,input)
           !-----------------------------------
             case('SOLIDS','SOLID')
               error_string2 = trim(error_string) // ',SOLIDS'
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
@@ -1451,9 +1456,11 @@ subroutine PMWSSRead(this,input)
                 !-----------------------------
                 end select
               enddo
+              call InputPopBlock(input,option)
           !-----------------------------------
             case('AQUEOUS')
               error_string3 = trim(error_string) // ',AQUEOUS'
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
@@ -1478,6 +1485,7 @@ subroutine PMWSSRead(this,input)
                 !-----------------------------
                 end select
               enddo
+              call InputPopBlock(input,option)
           !-----------------------------------
             case('VREPOS')
               call InputReadDouble(input,option,double)
@@ -1491,6 +1499,7 @@ subroutine PMWSSRead(this,input)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages ---------------------
         if (Uninitialized(new_inventory%drum_conc)) then
           option%io_buffer = 'ERROR: Number of metal drums per m3 of waste &
@@ -1770,6 +1779,7 @@ subroutine PMWSSRead(this,input)
     !-----------------------------------------
     end select  
   enddo
+  call InputPopBlock(input,option)
   
   if (.not.associated(this%waste_panel_list)) then
     option%io_buffer = 'ERROR: At least one WASTE_PANEL must be specified &

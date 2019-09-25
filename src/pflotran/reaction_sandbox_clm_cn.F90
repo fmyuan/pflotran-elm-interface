@@ -128,6 +128,7 @@ subroutine CLM_CN_Read(this,input,option)
   nullify(new_reaction)
   nullify(prev_reaction)
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
@@ -140,6 +141,7 @@ subroutine CLM_CN_Read(this,input,option)
 
     select case(trim(word))
       case('POOLS')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -168,6 +170,7 @@ subroutine CLM_CN_Read(this,input,option)
           prev_pool => new_pool
           nullify(new_pool)
         enddo
+        call InputPopBlock(input,option)
       case('REACTION')
       
         allocate(new_reaction)
@@ -183,6 +186,7 @@ subroutine CLM_CN_Read(this,input,option)
         turnover_time = 0.d0
         rate_constant = 0.d0
         
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -245,6 +249,7 @@ subroutine CLM_CN_Read(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
@@ -288,6 +293,7 @@ subroutine CLM_CN_Read(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine CLM_CN_Read
 
