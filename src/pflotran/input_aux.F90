@@ -13,6 +13,7 @@ module Input_Aux_module
 
   type, public :: input_type 
     PetscInt :: fid
+    PetscInt :: line_number
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH) :: path
     character(len=MAXSTRINGLENGTH) :: filename
@@ -179,6 +180,7 @@ function InputCreate1(fid,path,filename,option)
   
   allocate(input)
   input%fid = fid
+  input%line_number = 0
   input%path = ''
   input%filename = ''
   input%ierr = 0
@@ -763,6 +765,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   word = ''
   
   do
+    input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
@@ -796,6 +799,7 @@ subroutine InputReadPflotranStringSlave(input, option)
       endif
       skip_count = 1
       do 
+        input%line_number = input%line_number + 1
         read(input%fid,'(a)',iostat=input%ierr) tempstring
         if (InputError(input)) then
           call InputPrintKeywordLog(option,PETSC_TRUE)
@@ -2097,6 +2101,7 @@ function InputGetLineCount(input,option)
   line_count = 0
   do
 #if 1
+    input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
@@ -2151,6 +2156,7 @@ subroutine InputReadToBuffer(input, buffer, option)
   line_count = 0
   do
 #if 1
+    input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
@@ -2860,6 +2866,7 @@ subroutine InputRewind(input)
 
   type(input_type), pointer :: input
 
+  input%line_number = 0
   call InputCloseNestedFiles(input)
   rewind(input%fid)
 
@@ -2914,6 +2921,7 @@ subroutine InputDestroySingleLevel(input)
   
   if (input%fid /= 0) close(input%fid)
   input%fid = 0
+  input%line_number = 0
   deallocate(input)
   nullify(input)
   
@@ -2941,6 +2949,7 @@ recursive subroutine InputDestroy(input)
   
   if (input%fid /= 0) close(input%fid)
   input%fid = 0
+  input%line_number = 0
   deallocate(input)
   nullify(input)
   
