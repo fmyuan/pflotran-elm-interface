@@ -262,13 +262,13 @@ contains
     
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
-
+    call InputPushBlock(input,'MAPPING_FILES',model%option)
     do
       call InputReadPflotranString(input, model%option)
       if (InputCheckExit(input, model%option)) exit
       if (input%ierr /= 0) exit
 
-      call InputReadWord(input, model%option, word, PETSC_TRUE)
+      call InputReadCard(input, model%option, word)
       call InputErrorMsg(input, model%option, 'keyword', 'MAPPING_FILES')
       call StringToUpper(word)
 
@@ -335,6 +335,7 @@ contains
       endif
 
     enddo
+    call InputPopBlock(input,model%option)
     call InputDestroy(input)
 
     if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &

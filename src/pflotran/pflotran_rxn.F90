@@ -174,7 +174,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
         call InputReadWord(input, option, tran_constraint%name, PETSC_TRUE)
         call InputErrorMsg(input, option, 'constraint', 'name') 
         call PrintMsg(option, tran_constraint%name)
-        call TranConstraintReadRT(tran_constraint, reaction, input, option)
+        call TranConstraintRead(tran_constraint, reaction, input, option)
         call TranConstraintAddToList(tran_constraint, transport_constraints)
         nullify(tran_constraint)
 

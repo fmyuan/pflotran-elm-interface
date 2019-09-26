@@ -198,7 +198,7 @@ class RegressionTest(object):
                     self._run_test(mpiexec, executable, restart_name, 
                                    dry_run, status, testlog)
                 elif not status.skipped:
-                    status.error = 3
+                    status.error = 1 # user error
                     message = self._txtwrap.fill(
                         "ERROR: restart test '{0}' did not generate a "
                         "required checkpoint file. This can occur if the "
@@ -286,9 +286,9 @@ class RegressionTest(object):
         if pflotran_status != self._PFLOTRAN_SUCCESS:
             if pflotran_status == self._PFLOTRAN_USER_ERROR:
                 # error was caught and the code properly shut down
-                status.error = 1
+                status.error = 1  # user error
             else:
-                status.error = 2
+                status.error = 2  # code failed
             message = self._txtwrap.fill(
                 "ERROR : {name} : pflotran returned an error "
                 "code ({status}) indicating the simulation may have "
@@ -405,7 +405,7 @@ class RegressionTest(object):
                         "'{0}'. Please check simulation output for "
                         "errors.".format(current_filename))
                     print("".join(['\n', message, '\n']), file=testlog)
-                    status.error = 3
+                    status.error = 3  # missing information
 
     def _check_gold(self, status, run_id, testlog):
         """
@@ -443,7 +443,7 @@ class RegressionTest(object):
                             "'{0}'. Please check the standard output file "
                             "for errors.".format(current_filename))
                         print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = 3
+                        status.error = 3  # missing information
                         return
                     else:
                         with open(current_filename, 'rU') as current_file:
@@ -455,7 +455,7 @@ class RegressionTest(object):
                             "FAIL: could not find ASCII output gold file "
                             "'{0}'.".format(gold_filename))
                         print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = 3
+                        status.error = 3  # missing information
                         return
                     else:
                         with open(gold_filename, 'rU') as gold_file:
@@ -485,7 +485,7 @@ class RegressionTest(object):
                     "'{0}'. If this is a new test, please create "
                     "it with '--new-test'.".format(gold_filename))
                 print("".join(['\n', message, '\n']), file=testlog)
-                status.error = 3
+                status.error = 3  # missing information
                 return
             else:
                 with open(gold_filename, 'rU') as gold_file:
@@ -497,7 +497,7 @@ class RegressionTest(object):
                     " Please check the standard output file for "
                     "errors.".format(current_filename))
                 print("".join(['\n', message, '\n']), file=testlog)
-                status.error = 3
+                status.error = 3  # missing information
                 return
             else:
                 with open(current_filename, 'rU') as current_file:
@@ -544,7 +544,7 @@ class RegressionTest(object):
             if self._num_failed > 0:
                 status.fail = 1
             if self._num_errored > 0:
-                status.error = 3
+                status.error = 3  # missing information
 
 
     def _check_restart(self, status, testlog):
@@ -1423,11 +1423,11 @@ class RegressionTestManager(object):
             elif status.error != 0:
 #                print('error {}'.format(status.error))
                 if status.error == 1:
-                    print("E", end='', file=sys.stdout)
+                    print("U", end='', file=sys.stdout)
                 elif status.error == 2:
                     print("X", end='', file=sys.stdout)
                 else:
-                    print("L", end='', file=sys.stdout)
+                    print("I", end='', file=sys.stdout)
                 print("{0}... errored.".format(name), file=testlog)
             elif status.fail != 0:
                 print("F", end='', file=sys.stdout)
@@ -1883,7 +1883,7 @@ def summary_report_by_file(report, outfile):
     """
     Summarize the results for each config file.
     """
-    print(70 * '-', file=outfile)
+    print("\n" + 80 * '-', file=outfile)
     print("Regression test file summary:", file=outfile)
     for filename in report:
         line = "    {0}... {1} tests : ".format(filename, report[filename].test_count)
@@ -1921,7 +1921,7 @@ def summary_report(run_time, report, outfile):
     """
     Overall summary of test results
     """
-    print(70 * '-', file=outfile)
+    print('\n' + 80 * '-', file=outfile)
     print("Regression test summary:", file=outfile)
     print("    Total run time: {0:4g} [s]".format(run_time), file=outfile)
     test_count = 0
@@ -1989,7 +1989,7 @@ def setup_testlog(txtwrap):
     now = datetime.datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
     filename = "pflotran-tests-{0}.testlog".format(now)
     testlog = open(filename, 'w')
-    print("  Test log file : {0}".format(filename))
+    print("\nTest log file : {0}".format(filename))
 
     print("PFLOTRAN Regression Test Log", file=testlog)
     print("Date : {0}".format(now), file=testlog)
@@ -2076,7 +2076,17 @@ def main(options):
     mpiexec = check_for_mpiexec(options, testlog)
     config_file_list = generate_config_file_list(options)
 
-    print("Running pflotran regression tests :")
+    print("\nRunning pflotran regression tests :\n")
+    print("  Legend\n")
+    print("    . - success")
+    print("    F - failed regression test (results outside error tolerances)")
+    print("    E - error in test suit scripts or config files")
+    print("    U - user error")
+    print("    X - code crashed")
+    print("    I - missing information (e.g. missing files, gold file blocks)")
+    print("    S - test skipped")
+    print("    W - warning")
+    print("    ? - unknown\n")
 
     # loop through config files, cd into the appropriate directory,
     # read the appropriate config file and run the various tests.
@@ -2114,7 +2124,7 @@ def main(options):
                                         testlog)
 
             if options.debug:
-                print(70 * '-')
+                print(80 * '-')
                 print(test_manager)
 
             if options.list_suites:
