@@ -80,6 +80,7 @@ if [ $GNU_PFLOTRAN_TEST_SUCCESS = true ] ; then
 echo "GNU Make PFLOTRAN_INTERFACE"
 
 # build PFLOTRAN_INTERFACE interface
+MAKE_LOG="make.log"
 cd $PFLOTRAN_DIR/src/clm-pflotran
 ./remove_linked_files.sh
 ./link_files.sh
