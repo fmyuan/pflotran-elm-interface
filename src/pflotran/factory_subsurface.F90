@@ -1034,14 +1034,15 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
 
   nullify(pm)
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
       case('MODE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
@@ -1083,14 +1084,14 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
           !case('TOWG')
           case('TOWG_IMMISCIBLE','TODD_LONGSTAFF','TOWG_MISCIBLE', &
                'BLACK_OIL','SOLVENT_TL')
-            pm => PMTOWGCreate(word,option)
+            pm => PMTOWGCreate(input,word,option)
           case ('RICHARDS_TS')
             pm => PMRichardsTSCreate()
           case ('TH_TS')
             pm => PMTHTSCreate()
           case default
             error_string = trim(error_string) // ',MODE'
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
         pm%option => option
       case('OPTIONS')
@@ -1101,9 +1102,10 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         endif
         call pm%ReadSimulationBlock(input)
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (.not.associated(pm)) then
     option%io_buffer = 'A flow MODE (card) must be included in the &
@@ -1211,10 +1213,11 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
   error_string = 'SIMULATION,PROCESS_MODELS,WASTE_FORM'
 
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
     found = PETSC_FALSE
@@ -1223,7 +1226,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
 
     select case(word)
       case('TYPE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
@@ -1241,6 +1244,7 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (.not.associated(pm)) then
     option%io_buffer = 'TYPE card missing in ' // trim(error_string)
@@ -1281,10 +1285,11 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
   pm%option => option
 
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
 
     found = PETSC_FALSE
@@ -1298,6 +1303,7 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine SubsurfaceReadUFDDecayPM
 
@@ -1330,10 +1336,11 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
   pm%option => option
 
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
       case default
@@ -1342,6 +1349,7 @@ subroutine SubsurfaceReadUFDBiospherePM(input,option,pm)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine SubsurfaceReadUFDBiospherePM
 
@@ -1909,6 +1917,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   wname = '<missing>'
   found = PETSC_FALSE
 
+  call InputPushBlock(input,'SUBSURFACE',option)
+
 ! Read in select required cards
 !.........................................................................
 
@@ -1917,6 +1927,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   string = "WELL_DATA"
   call InputFindStringInFile(input,option,string,PETSC_FALSE,found)
   if( found ) then
+    call InputPushBlock(input,'WELL_DATA',option)
 
 ! Read the WELL_DATA information
 
@@ -1924,11 +1935,12 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 ! Search for completion locations
 
+    call InputPushBlock(input,option)
     do
       call InputReadPflotranString(input,option)
       if (InputError(input)) exit
 
-      call InputReadWord(input,option,word,PETSC_FALSE)
+      call InputReadCard(input,option,word,PETSC_FALSE)
       call StringToUpper(word)
       card = trim(word)
 
@@ -1981,6 +1993,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call InputReadWord(input,option,wname,PETSC_TRUE)
       end select
     enddo
+    call InputPopBlock(input,option)
+    call InputPopBlock(input,option) ! for WELL_DATA
   endif
 
   ! GRID information - GRID is a required card for every simulation
@@ -1988,6 +2002,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
+  call InputPushBlock(input,'GRID',option)
   call DiscretizationReadRequiredCards(discretization,input,option)
 
   select case(discretization%itype)
@@ -2000,14 +2015,17 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
       call PatchAddToList(patch,realization%patch_list)
       realization%patch => patch
   end select
+  call InputPopBlock(input,option)
 
   ! optional required cards - yes, an oxymoron, but we need to know if
   ! these exist before we can go any further.
   call InputRewind(input)
+  call InputPushBlock(input,'REQUIRED_CARDS',option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
+    ! do not use InputReadCard here as this is a search operation
     call InputReadWord(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
@@ -2016,6 +2034,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 !....................
       case('DBASE_FILENAME')
+        call InputPushCard(input,card,option)
         call InputReadFilename(input,option,string)
         call InputErrorMsg(input,option,'filename','DBASE_FILENAME')
         if (index(string,'.h5') > 0) then
@@ -2026,16 +2045,19 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 !....................
       case('HDF5_WRITE_GROUP_SIZE')
+        call InputPushCard(input,card,option)
         call InputReadInt(input,option,option%hdf5_write_group_size)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
         call InputSkipToEnd(input,option,'HDF5_WRITE_GROUP_SIZE')
 
       case('HDF5_READ_GROUP_SIZE')
+        call InputPushCard(input,card,option)
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
 
 !....................
       case('PROC')
+        call InputPushCard(input,card,option)
         ! processor decomposition
         if (realization%discretization%itype == STRUCTURED_GRID) then
           grid => realization%patch%grid
@@ -2074,6 +2096,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
 !....................
       case('CHEMISTRY')
+        call InputPushCard(input,card,option)
         if (.not.associated(simulation%rt_process_model_coupler)) then
           option%io_buffer = 'CHEMISTRY card included when no &
             &SUBSURFACE_TRANSPORT process model included in SIMULATION block.'
@@ -2086,6 +2109,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
+        call InputPushCard(input,card,option)
         if (.not.associated(simulation%nwt_process_model_coupler)) then
           option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is &
             &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
@@ -2097,6 +2121,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         
     end select
   enddo
+  call InputPopBlock(input,option) ! REQUIRED_CARDS
+  call InputPopBlock(input,option) ! SUBSURFACE
 
 end subroutine SubsurfaceReadRequiredCards
 
@@ -2279,11 +2305,12 @@ subroutine SubsurfaceReadInput(simulation,input)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
+  call InputPushBlock(input,'SUBSURFACE',option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
 
@@ -2318,11 +2345,12 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         internal_units = 'm/sec'
         flag1 = UNINITIALIZED_INTEGER ! uniform?
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','SPECIFIED_VELOCITY')
           call StringToUpper(word)
           select case(trim(word))
@@ -2354,7 +2382,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 else
                   input%buf = string
                   input%ierr = 0
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword',error_string)
                   call StringToUpper(word)
                   select case(word)
@@ -2372,7 +2400,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                                                 temp_string,internal_units, &
                                                 error_string,option)
                     case default
-                      call InputKeywordUnrecognized(word,error_string,option)
+                      call InputKeywordUnrecognized(input,word, &
+                                                    error_string,option)
                   end select
                   if (dataset_ascii%time_storage%time_interpolation_method == &
                       INTERPOLATION_NULL) then
@@ -2397,6 +2426,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
           end select
         enddo
+        call InputPopBlock(input,option)
       case ('NONUNIFORM_VELOCITY')
         option%io_buffer = 'The NONUNIFORM_VELOCITY card within SUBSURFACE &
           &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
@@ -2693,7 +2723,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &with MULTIPLE_CONTINUUM keyword.'
           call PrintErrMsg(option)
         endif
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('KEARST')
@@ -2736,7 +2766,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputReadDouble(input,option,option%m_nacl)
         call InputDefaultMsg(input,option,'NaCl Concentration')
 
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word(1:len_trim(word)))
           case('MOLAL')
@@ -2799,7 +2829,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('TIMESTEPPER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
@@ -2817,7 +2847,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('LINEAR_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
@@ -2835,7 +2865,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('NEWTON_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
@@ -3031,11 +3061,12 @@ subroutine SubsurfaceReadInput(simulation,input)
         energy_flowrate = PETSC_FALSE
         aveg_mass_flowrate = PETSC_FALSE
         aveg_energy_flowrate = PETSC_FALSE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','OUTPUT')
           call StringToUpper(word)
         !----------------------------------------------------------------------
@@ -3113,7 +3144,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               output_option%periodic_msbl_output_ts_imod = 1
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputDefaultMsg(input,option, &
                                    'OUTPUT,MASS_BALANCE,DETAILED')
               if (len_trim(word) > 0) then
@@ -3122,7 +3153,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   case('DETAILED')
                     option%mass_bal_detailed = PETSC_TRUE
                   case default
-                    call InputKeywordUnrecognized(word, &
+                    call InputKeywordUnrecognized(input,word, &
                            'OUTPUT,MASS_BALANCE',option)
                 end select
               endif
@@ -3136,7 +3167,7 @@ subroutine SubsurfaceReadInput(simulation,input)
            case ('EXPLICIT_GRID_PRIMAL_GRID_TYPE')
              if (associated(grid%unstructured_grid)) then
                if (associated(grid%unstructured_grid%explicit_grid)) then
-                 call InputReadWord(input,option,word,PETSC_TRUE)
+                 call InputReadCard(input,option,word)
                  call InputErrorMsg(input,option,word, &
                        'EXPLICIT_GRID_PRIMAL_GRID_TYPE')
                  call PrintMsg(option,word)
@@ -3195,7 +3226,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               enddo
               call DeallocateArray(temp_real_array)
             case('OUTPUT_FILE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                                  'OUTPUT,OUTPUT_FILE')
               call StringToUpper(word)
@@ -3207,11 +3238,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,OUTPUT_FILE,PERIODIC')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,OUTPUT_FILE',option)
               end select
             case('SCREEN')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment','OUTPUT,SCREEN')
               call StringToUpper(word)
               select case(trim(word))
@@ -3222,11 +3253,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC,SCREEN')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,SCREEN',option)
               end select
             case('PERIODIC')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                                  'OUTPUT,PERIODIC')
               call StringToUpper(word)
@@ -3243,7 +3274,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                                      internal_units,option)
                   output_option%periodic_snap_output_time_incr = temp_real* &
                                                             units_conversion
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   if (input%ierr == 0) then
                     if (StringCompareIgnoreCase(word,'between')) then
                       call InputReadDouble(input,option,temp_real)
@@ -3255,7 +3286,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                       units_conversion = UnitsConvertToInternal(word, &
                                          internal_units,option)
                       temp_real = temp_real * units_conversion
-                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       if (.not.StringCompareIgnoreCase(word,'and')) then
                         input%ierr = 1
                       endif
@@ -3292,7 +3323,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,PERIODIC',option)
               end select
             case('OBSERVATION_TIMES')
@@ -3320,7 +3351,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               call DeallocateArray(temp_real_array)
             case('PERIODIC_OBSERVATION')
               output_option%print_observation = PETSC_TRUE
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                 'OUTPUT, PERIODIC_OBSERVATION')
               call StringToUpper(word)
@@ -3343,17 +3374,17 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC_OBSERVATION,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,PERIODIC_OBSERVATION',option)
               end select
             case('FORMAT')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword','OUTPUT,FORMAT')
               call StringToUpper(word)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputDefaultMsg(input,option, &
                                        'OUTPUT,FORMAT,HDF5,# FILES')
                   if (len_trim(word) > 0) then
@@ -3364,7 +3395,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                       case('MULTIPLE_FILES')
                         output_option%print_single_h5_file = PETSC_FALSE
                         output_option%times_per_h5_file = 1
-                        call InputReadWord(input,option,word,PETSC_TRUE)
+                        call InputReadCard(input,option,word)
                         if (len_trim(word)>0) then
                           select case(trim(word))
                             case('TIMES_PER_FILE')
@@ -3375,12 +3406,12 @@ subroutine SubsurfaceReadInput(simulation,input)
                                 'OUTPUT,FORMAT,HDF5,MULTIPLE_FILES,&
                                 &TIMES_PER_FILE')
                             case default
-                              call InputKeywordUnrecognized(word, &
+                              call InputKeywordUnrecognized(input,word, &
                                     'OUTPUT,FORMAT,HDF5,MULTIPLE_FILES',option)
                           end select
                         endif
                       case default
-                        call InputKeywordUnrecognized(word, &
+                        call InputKeywordUnrecognized(input,word, &
                                'OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
@@ -3388,7 +3419,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'TECPLOT','OUTPUT,FORMAT')
                   call StringToUpper(word)
                   select case(trim(word))
@@ -3399,7 +3430,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                     case('FEBRICK')
                       output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                     case default
-                      call InputKeywordUnrecognized(word, &
+                      call InputKeywordUnrecognized(input,word, &
                                'OUTPUT,FORMAT,TECPLOT',option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
@@ -3412,7 +3443,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  call InputKeywordUnrecognized(word,'OUTPUT,FORMAT',option)
+                  call InputKeywordUnrecognized(input,word, &
+                                                'OUTPUT,FORMAT',option)
               end select
             case('VELOCITY_AT_CENTER')
               vel_cent = PETSC_TRUE
@@ -3441,11 +3473,11 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('EXTEND_HDF5_TIME_FORMAT')
               output_option%extend_hdf5_time_format = PETSC_TRUE
             case default
-              call InputKeywordUnrecognized(word,'OUTPUT',option)
+              call InputKeywordUnrecognized(input,word,'OUTPUT',option)
           end select
 
         enddo
-
+        call InputPopBlock(input,option)
 
   ! If VARIABLES were not specified within the *_FILE blocks, point their
   ! variable lists to the master variable list, which can be specified within
@@ -3550,11 +3582,12 @@ subroutine SubsurfaceReadInput(simulation,input)
 !        dt_init = UNINITIALIZED_DOUBLE
         dt_init = 1.d0
         dt_min = UNINITIALIZED_DOUBLE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'word','TIME')
           select case(trim(word))
             case('SCREEN_UNITS')
@@ -3610,7 +3643,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               internal_units = 'sec'
               waypoint%dt_max = temp_real*UnitsConvertToInternal(word, &
                                           internal_units,option)
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               if (input%ierr == 0) then
                 call StringToUpper(word)
                 if (StringCompare(word,'AT',TWO_INTEGER)) then
@@ -3634,9 +3667,10 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
               call WaypointInsertInList(waypoint,waypoint_list)
             case default
-              call InputKeywordUnrecognized(word,'TIME',option)
+              call InputKeywordUnrecognized(input,word,'TIME',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (Initialized(dt_init)) then
           if (associated(flow_timestepper)) then
             flow_timestepper%dt_init = dt_init
@@ -3713,7 +3747,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('RELATIVE_PERMEABILITY_AVERAGE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
           case ('UPWIND')
@@ -3759,10 +3793,12 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('HYDRATE')
         call HydrateRead(input,patch%methanogenesis,option)
       case default
-        call InputKeywordUnrecognized(word,'SubsurfaceReadInput()',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SubsurfaceReadInput()',option)
     end select
 
   enddo
+  call InputPopBlock(input,option) ! SUBSURFACE
 
   if (associated(simulation%flow_process_model_coupler)) then
     if (option%iflowmode == RICHARDS_TS_MODE) then

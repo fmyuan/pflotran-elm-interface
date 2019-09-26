@@ -183,6 +183,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
   ierr = 0
   k = 0
   default_interpolation_method = INTERPOLATION_NULL
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     ! reach the end of file or close out block
@@ -193,6 +194,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
       string = input%buf
       ierr = 0
       call InputReadWord(string,word,PETSC_TRUE,ierr)
+      call InputPushCard(input,word,option)
       call InputErrorMsg(input,option,'KEYWORD',error_string)
       call StringToUpper(word)
       select case(word)
@@ -211,6 +213,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
           cycle
         case('INTERPOLATION')
           call InputReadWord(string,word,PETSC_TRUE,ierr)
+          call InputPushCard(input,word,option)
           input%ierr = ierr
           call InputErrorMsg(input,option,'INTERPOLATION',error_string)   
           call StringToUpper(word)
@@ -221,7 +224,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
               default_interpolation_method = INTERPOLATION_LINEAR
             case default
               error_string = trim(error_string) // 'INTERPOLATION'
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
           cycle
         case('DATA_UNITS')
@@ -263,6 +266,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
       call ReallocateArray(temp_array,max_size) 
     endif  
   enddo
+  call InputPopBlock(input,option)
   
   if (row_count == 0) then
     option%io_buffer = 'No values provided in Ascii Dataset.'

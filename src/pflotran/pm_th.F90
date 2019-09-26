@@ -141,13 +141,14 @@ subroutine PMTHRead(this,input)
   error_string = 'TH Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
@@ -234,7 +235,7 @@ subroutine PMTHRead(this,input)
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
       case('ICE_MODEL')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
           case ('PAINTER_EXPLICIT')
@@ -248,16 +249,17 @@ subroutine PMTHRead(this,input)
           case ('DALL_AMICO')
             th_ice_model = DALL_AMICO
           case default
-            option%io_buffer = 'Cannot identify the specificed ice model.' // &
-             'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
-             ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or DALL_AMICO.'
+            option%io_buffer = 'Cannot identify the specificed ice model. &
+             &Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT &
+             &or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO &
+             &or DALL_AMICO.'
             call PrintErrMsg(option)
           end select
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMTHRead
 

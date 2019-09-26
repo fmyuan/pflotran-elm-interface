@@ -266,13 +266,14 @@ subroutine MaterialPropertyRead(material_property,input,option)
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','MATERIAL_PROPERTY')
     call StringToUpper(keyword)   
       
@@ -295,9 +296,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('INACTIVE')
         material_property%active = PETSC_FALSE
       case('SATURATION_FUNCTION','CHARACTERISTIC_CURVES') 
-        call InputReadWordDbaseCompatible(input,option, &
-                           material_property%saturation_function_name, &
-                           PETSC_TRUE)
+        call InputReadCardDbaseCompatible(input,option, &
+                           material_property%saturation_function_name)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('ROCK_DENSITY') 
@@ -360,7 +360,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'thermal conductivity frozen exponent', &
                            'MATERIAL_PROPERTY')
       case('SOIL_COMPRESSIBILITY_FUNCTION')
-        call InputReadWord(input,option, &
+        call InputReadCard(input,option, &
                            material_property%soil_compressibility_function, &
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'soil compressibility function', &
@@ -388,6 +388,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'MATERIAL_PROPERTY')
         length = 16
         if (StringCompare(word,'INITIAL_PRESSURE',length)) then
+          call InputPushCard(input,word,option)
           material_property%soil_reference_pressure_initial = PETSC_TRUE
         else
           ! if not the keyword above, copy back into buffer to be read as a
@@ -435,12 +436,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call material_property%fracture%Read(input,option)
         option%flow%transient_porosity = PETSC_TRUE
       case('CREEP_CLOSURE_TABLE') 
-        call InputReadWordDbaseCompatible(input,option, &
-                           material_property%creep_closure_name, &
-                           PETSC_TRUE)
+        call InputReadCardDbaseCompatible(input,option, &
+                           material_property%creep_closure_name)
         call InputErrorMsg(input,option,'creep closure table name', &
                            'MATERIAL_PROPERTY')
       case('PERMEABILITY')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -449,7 +450,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit
           
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,PERMEABILITY')   
           select case(trim(word))
@@ -559,10 +560,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')   
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
             dabs(material_property%permeability(1,1) - &
@@ -573,6 +575,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       ! Permfactor is the multiplier to permeability to increase perm
       ! The perm increase could be due to pressure or other variable
       ! Added by Satish Karra, LANL, 1/8/12
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -581,7 +584,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit          
           
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,PERM_FACTOR')   
           select case(trim(word))
@@ -598,10 +601,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputReadDouble(input,option,material_property%max_permfactor)
               call InputErrorMsg(input,option,'max permfactor','PERM_FACTOR')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERM_FACTOR',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('PERMEABILITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%permeability_pwr)
@@ -628,6 +632,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           'reaction_aux.F90.'
           call PrintErrMsg(option)
       case('SECONDARY_CONTINUUM')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -636,7 +641,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit          
           
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,SECONDARY_CONTINUUM')   
           select case(trim(word))
@@ -732,15 +737,17 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
           end select
         enddo
+        call InputPopBlock(input,option)
 
       case default
-        call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select 
   enddo
+  call InputPopBlock(input,option)
   
   if (material_property%tortuosity_function_of_porosity) then
     if (associated(material_property%tortuosity_dataset)) then

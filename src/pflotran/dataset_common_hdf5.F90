@@ -152,23 +152,25 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   PetscBool :: found
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','DATASET')
     call StringToUpper(keyword)   
       
     call DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
 
     if (.not.found) then
-      call InputKeywordUnrecognized(keyword,'dataset',option)
+      call InputKeywordUnrecognized(input,keyword,'dataset',option)
     endif
   
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(this%hdf5_dataset_name) < 1) then
     this%hdf5_dataset_name = this%name

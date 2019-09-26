@@ -111,12 +111,13 @@ subroutine DownregRead(this,input,option)
   this%dataset => dataset_ascii
   nullify(dataset_ascii)
 
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SOURCE_SINK_SANDBOX,DOWNREG')
     call StringToUpper(word)   
@@ -166,9 +167,11 @@ subroutine DownregRead(this,input,option)
           call PrintErrMsg(option)
         endif 
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SRCSINK_SANDBOX,DOWNREG',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (associated(this%dataset%time_storage)) then
     ! for now, forcing to step, which makes sense for src/sinks.

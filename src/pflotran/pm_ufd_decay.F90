@@ -294,13 +294,14 @@ subroutine PMUFDDecayRead(this,input)
   input%ierr = 0
   nullify(prev_isotope)
   nullify(prev_element)
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
@@ -315,11 +316,12 @@ subroutine PMUFDDecayRead(this,input)
         call InputReadWord(input,option,element%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name',error_string)
         error_string = 'UFD Decay, Element, ' // trim(element%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -358,9 +360,10 @@ subroutine PMUFDDecayRead(this,input)
               allocate(element%Kd_material_name(i))
               element%Kd_material_name = Kd_material_name(1:i)
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (associated(prev_element)) then
           prev_element%next => element
         else
@@ -375,11 +378,12 @@ subroutine PMUFDDecayRead(this,input)
         call InputReadWord(input,option,isotope%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name',error_string)
         error_string = 'UFD Decay, Isotope, ' // trim(isotope%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -415,9 +419,10 @@ subroutine PMUFDDecayRead(this,input)
               prev_daughter => daughter
               nullify(daughter)
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (associated(prev_isotope)) then
           prev_isotope%next => isotope
         else
@@ -431,9 +436,10 @@ subroutine PMUFDDecayRead(this,input)
         this%print_output = PETSC_TRUE
       case default
         error_string = 'UFD Decay'
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMUFDDecayRead
 

@@ -47,13 +47,14 @@ subroutine HydrateRead(input,meth,option)
   character(len=MAXWORDLENGTH) :: word
   PetscInt :: temp_int
 
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input,option)
     if (input%ierr /= 0) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','HYDRATE')
     call StringToUpper(word)
 
@@ -62,12 +63,13 @@ subroutine HydrateRead(input,meth,option)
         if (.not. associated(meth)) then
           allocate(meth)
         endif
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (input%ierr /= 0) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','HYDRATE')
           call StringToUpper(word)
           select case(trim(word))
@@ -94,8 +96,9 @@ subroutine HydrateRead(input,meth,option)
               call InputErrorMsg(input,option,'k_alpha',error_string)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('PERM_SCALING_FUNCTION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
         call StringToUpper(word)
         select case(trim(word))
@@ -106,7 +109,8 @@ subroutine HydrateRead(input,meth,option)
     end select
 
   enddo
-
+  call InputPopBlock(input,option)
+  
 end subroutine HydrateRead
 
 ! ************************************************************************** !

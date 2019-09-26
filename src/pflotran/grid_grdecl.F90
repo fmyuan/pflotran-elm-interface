@@ -817,7 +817,7 @@ subroutine GrdeclReader(input, option)
   oldtran_force = PETSC_FALSE
 
   ! Read through items in the grdecl file
-
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranStringNotComment(input, option)
@@ -830,7 +830,7 @@ subroutine GrdeclReader(input, option)
 
   ! Keyword found
 
-    call InputReadWord(input, option, word, PETSC_TRUE)
+    call InputReadCard(input, option, word)
     call CheckError(input, 'ECLGRD subkeyword', qerr);if ( qerr ) exit
     call StringToUpper(word)
 
@@ -962,6 +962,7 @@ subroutine GrdeclReader(input, option)
 
     if (qerr) exit
   enddo
+  call InputPopBlock(input,option)
 
   !  Case in which NEWTRAN or OLDTRAN specified explicitly
 

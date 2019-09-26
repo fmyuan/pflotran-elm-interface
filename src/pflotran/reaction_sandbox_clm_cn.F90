@@ -128,18 +128,20 @@ subroutine CLM_CN_Read(this,input,option)
   nullify(new_reaction)
   nullify(prev_reaction)
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,REACTION_SANDBOX,CLM-CN')
     call StringToUpper(word)   
 
     select case(trim(word))
       case('POOLS')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
@@ -168,6 +170,7 @@ subroutine CLM_CN_Read(this,input,option)
           prev_pool => new_pool
           nullify(new_pool)
         enddo
+        call InputPopBlock(input,option)
       case('REACTION')
       
         allocate(new_reaction)
@@ -183,12 +186,13 @@ subroutine CLM_CN_Read(this,input,option)
         turnover_time = 0.d0
         rate_constant = 0.d0
         
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
           call StringToUpper(word)   
@@ -241,10 +245,11 @@ subroutine CLM_CN_Read(this,input,option)
               call InputErrorMsg(input,option,'inhibition constant', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
@@ -284,10 +289,11 @@ subroutine CLM_CN_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine CLM_CN_Read
 

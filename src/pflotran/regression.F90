@@ -119,13 +119,14 @@ subroutine RegressionRead(regression,input,option)
   regression => RegressionCreate()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGRESSION')
     call StringToUpper(keyword)   
       
@@ -133,11 +134,12 @@ subroutine RegressionRead(regression,input,option)
     
       case('VARIABLES') 
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','REGRESSION,VARIABLES')
           call StringToUpper(word)
           new_variable => RegressionVariableCreate()
@@ -149,10 +151,12 @@ subroutine RegressionRead(regression,input,option)
           endif
           cur_variable => new_variable
         enddo
+        call InputPopBlock(input,option)
       case('CELLS')
         max_cells = 100
         allocate(int_array(max_cells))
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
@@ -163,6 +167,7 @@ subroutine RegressionRead(regression,input,option)
           call InputReadInt(input,option,int_array(count))
           call InputErrorMsg(input,option,'natural cell id','REGRESSION,CELLS')
         enddo
+        call InputPopBlock(input,option)
         allocate(regression%natural_cell_ids(count))
         regression%natural_cell_ids = int_array(1:count)
         call PetscSortInt(count,regression%natural_cell_ids, &
@@ -174,10 +179,11 @@ subroutine RegressionRead(regression,input,option)
       case('ALL_CELLS')
          regression%all_cells = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'REGRESSION',option)
+        call InputKeywordUnrecognized(input,keyword,'REGRESSION',option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine RegressionRead
 

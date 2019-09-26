@@ -1652,12 +1652,13 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable  
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','VARIABLES')
     call StringToUpper(word)
     
@@ -1682,9 +1683,10 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        call InputKeywordUnrecognized(word,'SURFACE,VARIABLES',option)
+        call InputKeywordUnrecognized(input,word,'SURFACE,VARIABLES',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine OutputSurfaceVariableRead
 

@@ -97,13 +97,14 @@ subroutine DebugRead(debug,input,option)
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','DEBUG')   
     call StringToUpper(keyword)
       
@@ -130,7 +131,7 @@ subroutine DebugRead(debug,input,option)
       case('APPEND_COUNTS_TO_FILENAME','APPEND_COUNTS_TO_FILENAMES')
         debug%verbose_filename = PETSC_TRUE
       case('FORMAT')
-        call InputReadWord(input,option,keyword,PETSC_TRUE)
+        call InputReadCard(input,option,keyword)
         call InputErrorMsg(input,option,'keyword','DEBUG,FORMAT')   
         call StringToUpper(keyword)
         select case(keyword)
@@ -144,10 +145,11 @@ subroutine DebugRead(debug,input,option)
             debug%output_format = DEBUG_NATIVE_FORMAT
         end select
       case default
-        call InputKeywordUnrecognized(keyword,'DEBUG',option)
+        call InputKeywordUnrecognized(input,keyword,'DEBUG',option)
     end select 
   
-  enddo  
+  enddo
+  call InputPopBlock(input,option)
 
 end subroutine DebugRead
 

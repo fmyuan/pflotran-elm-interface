@@ -100,12 +100,13 @@ subroutine GasRead(this,input,option)
   PetscInt :: i, previous_ns
   character(len=MAXWORDLENGTH) :: word
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
          'CHEMISTRY,REACTION_SANDBOX,GAS')
     
@@ -161,10 +162,11 @@ subroutine GasRead(this,input,option)
            'CHEMISTRY,REACTION_SANDBOX,GAS')
 
     case default
-      call InputKeywordUnrecognized(word, &
+      call InputKeywordUnrecognized(input,word, &
            'CHEMISTRY,REACTION_SANDBOX,GAS',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine GasRead
 

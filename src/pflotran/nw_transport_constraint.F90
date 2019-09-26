@@ -202,6 +202,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
 
   ! read the constraint
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -303,10 +304,11 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
                
         
       case default
-        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
+        call InputKeywordUnrecognized(input,word,'CONSTRAINT',option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
   
   call PetscLogEventEnd(logging%event_tran_constraint_read,ierr);CHKERRQ(ierr)
 

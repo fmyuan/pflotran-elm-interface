@@ -838,12 +838,13 @@ subroutine PMWFRead(this,input)
   option%io_buffer = 'pflotran card:: ' // trim(error_string)
   call PrintMsg(option)
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
@@ -880,6 +881,7 @@ subroutine PMWFRead(this,input)
     if (found) cycle
    
   enddo
+  call InputPopBlock(input,option)
   
   ! Assign chosen mechanism to each criticality object
   if (associated(this%criticality_mediator)) then
@@ -1069,7 +1071,7 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   select case(trim(keyword))
   !-------------------------------------
     case('MECHANISM')
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'mechanism type',error_string)
       num_errors = 0
       call StringToUpper(word)
@@ -1118,17 +1120,18 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
       !---------------------------------
       end select
       
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(trim(word))
         !--------------------------
           case('NAME')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'mechanism name',error_string)
             call StringToUpper(word)
             new_mechanism%name = trim(word)
@@ -1487,10 +1490,11 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         !--------------------------
           case('CANISTER_DEGRADATION_MODEL')
             new_mechanism%canister_degradation_model = PETSC_TRUE
+            call InputPushBlock(input,option)
             do
               call InputReadPflotranString(input,option)
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call StringToUpper(word)
               select case(trim(word))
               case('VITALITY_LOG10_MEAN')
@@ -1521,12 +1525,14 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 call PrintErrMsg(option)
               end select
             enddo
+            call InputPopBlock(input,option)
         !--------------------------
           case default
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         !--------------------------
         end select
       enddo
+      call InputPopBlock(input,option)
 
      !----------- error messaging ----------------------------------------------
       if (new_mechanism%name == '') then
@@ -1778,11 +1784,12 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
     case('WASTE_FORM')
       allocate(new_waste_form)
       new_waste_form => PMWFWasteFormCreate()
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
         if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(trim(word))
@@ -1809,7 +1816,7 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
             new_waste_form%region_name = trim(word)
         !-----------------------------
           case('MECHANISM_NAME')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'mechanism assignment',error_string)
             call StringToUpper(word)
             new_waste_form%mech_name = trim(word)
@@ -1841,16 +1848,17 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
         !-----------------------------    
           case('CRITICALITY')
             new_criticality => CriticalityCreate()
+            call InputPushBlock(input,option)
             do
               call InputReadPflotranString(input, option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword',error_string)
               call StringToUpper(word)
               select case (trim(word))
                 case('MECH_NAME')
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'criticality mechanism assignment', &
                                      error_string)
                   call StringToUpper(word)
@@ -1872,9 +1880,10 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
                            trim(error_string)//',CRIT_END', &
                            option)
                 case default
-                  call InputKeywordUnrecognized(word,error_string,option)
+                  call InputKeywordUnrecognized(input,word,error_string,option)
               end select
-            enddo        
+            enddo      
+            call InputPopBlock(input,option)
             if (.not. associated(this%criticality_mediator)) then
               this%criticality_mediator => CriticalityMediatorCreate()
               this%criticality_mediator%criticality_list => new_criticality
@@ -1889,11 +1898,12 @@ subroutine PMWFReadWasteForm(this,input,option,keyword,error_string,found)
               enddo
             endif
           case default
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         !-----------------------------
         end select
 
       enddo
+      call InputPopBlock(input,option)
     
       
      ! ----------------- error messaging -------------------------------------
@@ -5028,16 +5038,17 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
     case('CRITICALITY_MECH')
       allocate(new_crit_mech)
       new_crit_mech => CriticalityMechCreate()
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input, option)
         if (InputError(input)) exit
         if (InputCheckExit(input,option)) exit
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case (trim(word))
           case('NAME')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             call InputErrorMsg(input,option, &
                   'criticality mechanism assignment',error_string)
             call StringToUpper(word)
@@ -5046,7 +5057,7 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
             call InputReadDouble(input,option,new_crit_mech%crit_heat)
             call InputErrorMsg(input,option,'HEAT_OF_CRITICALITY',error_string)
           case('DECAY_HEAT')
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             select case (trim(word))
               case('TOTAL')
                 new_crit_mech%heat_source_cond = 1
@@ -5055,11 +5066,12 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
               case('CYCLIC')
                 new_crit_mech%heat_source_cond = 3
             end select
+            call InputPushBlock(input,option)
             do
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_FALSE)
+              call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'MW'
@@ -5072,12 +5084,14 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
                           time_interpolation_method = 2
               end select
             enddo
+            call InputPopBlock(input,option)
           case('INVENTORY')
+            call InputPushBlock(input,option)
             do
               call InputReadPflotranString(input,option)
               if (InputError(input)) exit
               if (InputCheckExit(input,option)) exit
-              call InputReadWord(input,option,word,PETSC_FALSE)
+              call InputReadCard(input,option,word,PETSC_FALSE)
               select case(trim(word))
                 case('DATASET')
                   internal_units = 'g/g'
@@ -5090,8 +5104,10 @@ subroutine ReadCriticalityMech(this,input,option,keyword,error_string,found)
                           time_interpolation_method = 2
               end select
             enddo
+            call InputPopBlock(input,option)
         end select
       enddo
+      call InputPopBlock(input,option)
       if (.not. associated(this%crit_mech_list)) then
         this%crit_mech_list => new_crit_mech
       else
@@ -5383,6 +5399,7 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
+    call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
         StringCompare(word,'file',FOUR_INTEGER)) then
       input%err_buf2 = trim(keyword) // ', FILE'

@@ -144,12 +144,13 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%write_ecl = PETSC_TRUE
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     string = 'OUTPUT,' // trim(block_name)
     call InputErrorMsg(input,option,'keyword',string)
     call StringToUpper(word)
@@ -261,7 +262,7 @@ subroutine OutputFileRead(input,realization,output_option, &
 !.....................
       case('PERIODIC')
         string = 'OUTPUT,' // trim(block_name) // ',PERIODIC'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'periodic time increment type',string)
         call StringToUpper(word)
         select case(trim(word))
@@ -286,7 +287,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 output_option%periodic_msbl_output_time_incr = temp_real* &
                      units_conversion
             end select
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             if (input%ierr == 0) then
               if (StringCompareIgnoreCase(word,'between')) then
                 call InputReadDouble(input,option,temp_real)
@@ -296,7 +297,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                 units_conversion = UnitsConvertToInternal(word, &
                      internal_units,option) 
                 temp_real = temp_real * units_conversion
-                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 if (.not.StringCompareIgnoreCase(word,'and')) then
                   input%ierr = 1
                 endif
@@ -365,14 +366,14 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputErrorMsg(input,option,'timestep increment',string)
         !.............
           case default
-            call InputKeywordUnrecognized(word,'OUTPUT,PERIODIC',option)
+            call InputKeywordUnrecognized(input,word,'OUTPUT,PERIODIC',option)
         end select
 
       case('PERIOD_SUM','PERIOD_RST')
         is_sum=StringCompareIgnoreCase(word,'PERIOD_SUM')
         is_rst=StringCompareIgnoreCase(word,'PERIOD_RST')
         string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'periodic time increment type',string)
         call StringToUpper(word)
         select case(trim(word))
@@ -411,7 +412,7 @@ subroutine OutputFileRead(input,realization,output_option, &
 !...................
       case('SCREEN')
         string = 'OUTPUT,' // trim(block_name) // ',SCREEN'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'time increment',string)
         call StringToUpper(word)
         select case(trim(word))
@@ -422,7 +423,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             call InputReadInt(input,option,output_option%screen_imod)
             call InputErrorMsg(input,option,'timestep increment',string)
           case default
-            call InputKeywordUnrecognized(word,string,option)
+            call InputKeywordUnrecognized(input,word,string,option)
         end select
 
 !...................
@@ -440,7 +441,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                  &written in TECPLOT format only.'
             call PrintErrMsg(option)
         end select
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',string) 
         call StringToUpper(word)
         select case(trim(word))
@@ -448,7 +449,7 @@ subroutine OutputFileRead(input,realization,output_option, &
           case ('HDF5')
             string = trim(string) // ',HDF5'
             output_option%print_hdf5 = PETSC_TRUE
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             if (input%ierr /= 0) then
               call InputDefaultMsg(input,option,string)
               output_option%print_single_h5_file = PETSC_TRUE
@@ -463,7 +464,7 @@ subroutine OutputFileRead(input,realization,output_option, &
                   string = trim(string) // ',MULTIPLE_FILES'
                   output_option%print_single_h5_file = PETSC_FALSE
                   output_option%times_per_h5_file = 1
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   if (input%ierr == 0) then
                     select case(trim(word))
                       case('TIMES_PER_FILE')
@@ -473,12 +474,12 @@ subroutine OutputFileRead(input,realization,output_option, &
                         call InputErrorMsg(input,option,'timestep increment', &
                                            string)
                       case default
-                        call InputKeywordUnrecognized(word,string,option)
+                        call InputKeywordUnrecognized(input,word,string,option)
                     end select
                   endif
               !.............
                 case default
-                  call InputKeywordUnrecognized(word,string,option)
+                  call InputKeywordUnrecognized(input,word,string,option)
               end select
             endif
         !.............
@@ -488,7 +489,7 @@ subroutine OutputFileRead(input,realization,output_option, &
           case ('TECPLOT')
             string = trim(string) // ',TECPLOT'
             output_option%print_tecplot = PETSC_TRUE
-            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputReadCard(input,option,word)
             call InputErrorMsg(input,option,'TECPLOT format',string) 
             call StringToUpper(word)
             select case(trim(word))
@@ -499,7 +500,7 @@ subroutine OutputFileRead(input,realization,output_option, &
               case('FEBRICK')
                 output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
               case default
-                call InputKeywordUnrecognized(word,string,option)
+                call InputKeywordUnrecognized(input,word,string,option)
             end select
             if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
                  .and. option%mycommsize > 1) then
@@ -513,7 +514,7 @@ subroutine OutputFileRead(input,realization,output_option, &
             output_option%print_vtk = PETSC_TRUE
         !.............
           case default
-            call InputKeywordUnrecognized(word,string,option)
+            call InputKeywordUnrecognized(input,word,string,option)
         end select
 
 !...................................
@@ -576,9 +577,10 @@ subroutine OutputFileRead(input,realization,output_option, &
 !.................
       case default
         string = 'OUTPUT,' // trim(block_name)
-        call InputKeywordUnrecognized(word,string,option)
+        call InputKeywordUnrecognized(input,word,string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 
   if (vel_cent) then
@@ -665,12 +667,13 @@ subroutine OutputVariableRead(input,option,output_variable_list)
   type(output_variable_type), pointer :: output_variable
   PetscInt :: temp_int
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','VARIABLES')
     call StringToUpper(word)
     
@@ -702,7 +705,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         
       case ('LIQUID_DENSITY')
         name = 'Liquid Density'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'MOLAR')) then
             units = 'kmol/m^3'
@@ -732,7 +735,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      LIQUID_VISCOSITY)
       case ('LIQUID_ENERGY')
         name = 'Liquid Energy'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
             units = 'MJ/m^3'
@@ -763,7 +766,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      GAS_SATURATION)
       case ('GAS_DENSITY')
         name = 'Gas Density'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'MOLAR')) then
             units = 'kmol/m^3'
@@ -787,7 +790,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      GAS_MOBILITY)
       case ('GAS_ENERGY')
         name = 'Gas Energy'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
             units = 'MJ/m^3'
@@ -818,7 +821,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OIL_SATURATION)
       case ('OIL_DENSITY')
         name = 'Oil Density'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'MOLAR')) then
             units = 'kmol/m^3'
@@ -848,7 +851,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OIL_VISCOSITY)
       case ('OIL_ENERGY')
         name = 'Oil Energy'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
             units = 'MJ/m^3'
@@ -880,7 +883,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      SOLVENT_SATURATION)
       case ('SOLVENT_DENSITY')
         name = 'Solvent Density'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'MOLAR')) then
             units = 'kmol/m^3'
@@ -904,7 +907,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      SOLVENT_MOBILITY)
       case ('SOLVENT_ENERGY')
         name = 'Solvent Energy'
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
             units = 'MJ/m^3'
@@ -1228,10 +1231,11 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        call InputKeywordUnrecognized(word,'VARIABLES',option)
+        call InputKeywordUnrecognized(input,word,'VARIABLES',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine OutputVariableRead
 

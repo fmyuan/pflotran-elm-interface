@@ -13,6 +13,7 @@ module Input_Aux_module
 
   type, public :: input_type 
     PetscInt :: fid
+    PetscInt :: line_number
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH) :: path
     character(len=MAXSTRINGLENGTH) :: filename
@@ -111,6 +112,11 @@ module Input_Aux_module
     module procedure InputKeywordUnrecognized2
   end interface
   
+  interface InputPushBlock
+    module procedure InputPushBlock1
+    module procedure InputPushBlock2
+  end interface
+
   public :: InputCreate, InputDestroy, InputReadPflotranString, &
             InputReadWord, InputReadDouble, InputReadInt, InputCheckExit, &
             InputReadNDoubles, &
@@ -131,13 +137,17 @@ module Input_Aux_module
             InputCheckMandatoryUnits, &
             InputDbaseDestroy, &
             InputPushExternalFile, &
-            InputReadWordDbaseCompatible, &
+            InputReadCardDbaseCompatible, &
             InputReadAndConvertUnits, &
             InputRewind, &
             InputCloseNestedFiles, &
             InputReadFileDirNamePrefix, &
             UnitReadAndConversionFactor, &
-            InputReadFilename
+            InputReadFilename, & 
+            InputReadCard, &
+            InputPushCard, &
+            InputPushBlock, &
+            InputPopBlock
 
 contains
 
@@ -170,6 +180,7 @@ function InputCreate1(fid,path,filename,option)
   
   allocate(input)
   input%fid = fid
+  input%line_number = 0
   input%path = ''
   input%filename = ''
   input%ierr = 0
@@ -348,6 +359,7 @@ subroutine InputErrorMsg2(input,option)
   type(option_type) :: option
 
   if (InputError(input)) then
+    call InputPrintKeywordLog(input,option,PETSC_TRUE)
     option%io_buffer = 'While reading "' // trim(input%err_buf) // &
                        '" under keyword: ' // trim(input%err_buf2) // '.'
     call PrintErrMsg(option)
@@ -394,6 +406,7 @@ subroutine InputReadStringErrorMsg2(input, option)
   type(option_type) :: option
 
   if (InputError(input)) then
+    call InputPrintKeywordLog(input,option,PETSC_TRUE)
     option%io_buffer = 'While reading in string in "' // &
                        trim(input%err_buf) // '".'
     call PrintErrMsg(option)
@@ -418,6 +431,7 @@ subroutine InputFindStringErrorMsg(input, option, string)
   character(len=*) :: string
 
   if (InputError(input)) then
+    call InputPrintKeywordLog(input,option,PETSC_TRUE)
     option%io_buffer = 'Card (' // trim(string) // ') not &
                        &found in file.'
     call PrintErrMsg(option)
@@ -751,6 +765,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   word = ''
   
   do
+    input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
@@ -770,20 +785,24 @@ subroutine InputReadPflotranStringSlave(input, option)
     call StringToUpper(word)
     
     if (word(1:13) == 'EXTERNAL_FILE') then
+      call InputPushCard(input,word,option)
       ! have to strip the card 'EXTERNAL_FILE' from the buffer
       call InputReadWord(input,option,word,PETSC_TRUE)
       ! push a new input file to stack
       call InputPushExternalFile(input,option)
       cycle
     else if (word(1:4) == 'SKIP') then
+      call InputPushCard(input,word,option)
       ! to avoid keywords that start with SKIP 
       if (len_trim(word) > 4) then
         exit
       endif
       skip_count = 1
       do 
+        input%line_number = input%line_number + 1
         read(input%fid,'(a)',iostat=input%ierr) tempstring
         if (InputError(input)) then
+          call InputPrintKeywordLog(input,option,PETSC_TRUE)
           option%io_buffer = 'End of file reached in ' // &
               'InputReadPflotranStringSlave.  SKIP encountered ' // &
               'without a matching NOSKIP.'
@@ -791,8 +810,12 @@ subroutine InputReadPflotranStringSlave(input, option)
         endif
         call InputReadWord(tempstring,word,PETSC_FALSE,input%ierr)
         call StringToUpper(word)
-        if (word(1:4) == 'SKIP') skip_count = skip_count + 1
+        if (word(1:4) == 'SKIP') then
+          skip_count = skip_count + 1
+          call InputPushCard(input,word,option)
+        endif
         if (word(1:4) == 'NOSK') then
+          call InputPushCard(input,word,option)
           skip_count = skip_count - 1
           if (skip_count == 0) exit
         endif
@@ -817,6 +840,226 @@ subroutine InputReadPflotranStringSlave(input, option)
   endif
 
 end subroutine InputReadPflotranStringSlave
+
+! ************************************************************************** !
+
+subroutine InputReadCard(input, option, word, push_to_log)
+  ! 
+  ! Reads a keyword from the input deck, providing the option of logging
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/20/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=MAXWORDLENGTH) :: word
+  PetscBool, optional :: push_to_log
+  
+  if (InputError(input)) return
+  
+  call InputReadWord(input,option,word,PETSC_TRUE)
+  
+  if (present(push_to_log)) then
+    call InputPushCard(input,word,option)
+  else
+    call InputPushCard(input,word,option)
+  endif
+
+end subroutine InputReadCard
+
+! ************************************************************************** !
+
+subroutine InputPrintKeywordLog(input,option,print_error)
+  ! 
+  ! Prints the current strings stored by keyword logging.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/25/19
+  ! 
+  type(input_type) :: input
+  type(option_type) :: option
+  PetscBool, optional :: print_error
+ 
+  character(len=MAXWORDLENGTH) :: word
+
+  if (option%keyword_logging) then
+    if (present(print_error)) then
+      if (print_error) then
+        option%io_buffer = new_line('a') // &
+                           ' ---------------------------------------&
+                           &---------------------------------------' // &
+                           new_line('a')
+        call PrintMsg(option)
+        option%io_buffer = &
+           ' Helpful information for debugging the input deck:' // new_line('a')
+        call PrintMsg(option)
+        option%io_buffer = '     Filename : ' // trim(input%path) // &
+                                                trim(input%filename)
+        call PrintMsg(option)
+        write(option%io_buffer,*) input%line_number
+        option%io_buffer = '  Line Number : ' // trim(adjustl(option%io_buffer))
+        call PrintMsg(option)
+      endif
+      word = '      Keyword :'
+    else
+      word = 'KEYWORD:'
+    endif
+    if (len_trim(option%keyword_log) > 0) then
+      option%io_buffer = trim(word) // ' ' // trim(option%keyword_log) // &
+                                       ',' // trim(option%keyword_buf)
+    else
+      option%io_buffer = trim(word) // ' ' // trim(option%keyword_buf)
+    endif
+    call PrintMsg(option)
+  endif
+
+  if (option%keyword_logging .and. present(print_error)) then
+    if (print_error) then
+      option%io_buffer = new_line('a') // &
+                         ' ---------------------------------------&
+                         &---------------------------------------'
+      call PrintMsg(option)
+   endif
+ endif
+
+end subroutine InputPrintKeywordLog
+
+! ************************************************************************** !
+
+subroutine InputPushCard(input,card,option)
+  ! 
+  ! Sometimes cards are optional and cannot be registered at the time of 
+  ! being read. This routines allows  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/20/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: card
+
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  if (.not.option%keyword_logging) return
+  if (InputError(input)) return
+
+  string = ''
+  if (len_trim(option%keyword_buf) > 0) then
+    option%keyword_buf = trim(option%keyword_buf) // ',' // trim(card)
+  else
+    option%keyword_buf = trim(card)
+  endif
+
+  if (len_trim(option%keyword_buf) > 0 .and. &
+      option%keyword_logging_screen_output) then
+    call InputPrintKeywordLog(input,option)
+  endif
+
+  select case(card)
+    case('SKIP')
+      call InputPushBlock(input,option)
+    case('NOSKIP')
+      call InputPopBlock(input,option)
+  end select
+
+end subroutine InputPushCard
+
+! ************************************************************************** !
+
+subroutine InputPushBlock1(input,option)
+  ! 
+  ! Fill in  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+
+  call InputPushBlock(input,'',option)
+
+end subroutine InputPushBlock1
+
+! ************************************************************************** !
+
+subroutine InputPushBlock2(input,block_name,option)
+  ! 
+  ! Fill in  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  character(len=*) :: block_name
+  
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (.not.option%keyword_logging) return
+  
+  if (len_trim(block_name) > 0) then
+    string = block_name
+  else
+    string = option%keyword_buf
+    option%keyword_buf = ''
+  endif
+  
+  if (len_trim(option%keyword_log) > 0) then
+    string = trim(option%keyword_log) // ',' // trim(string)
+  endif
+  option%keyword_log = trim(string)
+
+  option%keyword_block_count = option%keyword_block_count + 1
+  if (option%keyword_block_count > 0) then
+    option%keyword_block_map(option%keyword_block_count) = &
+      len_trim(option%keyword_log)
+  endif
+
+end subroutine InputPushBlock2
+
+! ************************************************************************** !
+
+subroutine InputPopBlock(input,option)
+  ! 
+  ! Fill in  
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/23/19
+  ! 
+
+  implicit none
+
+  type(input_type) :: input
+  type(option_type) :: option
+  
+  PetscInt :: i
+  
+  if (.not.option%keyword_logging) return
+
+  option%keyword_buf = ''
+  option%keyword_block_count = option%keyword_block_count - 1
+  if (option%keyword_block_count > 0) then
+    i = max(option%keyword_block_count,1)
+    option%keyword_log = option%keyword_log(1:option%keyword_block_map(i))
+  elseif (option%keyword_block_count < 0) then
+    option%keyword_log = 'Negative Block Count'
+  else
+    option%keyword_log = ''
+  endif
+
+end subroutine InputPopBlock
 
 ! ************************************************************************** !
 
@@ -927,8 +1170,7 @@ end subroutine InputReadWord2
 
 ! ************************************************************************** !
 
-subroutine InputReadWordDbaseCompatible(input, option, word, &
-                                        return_blank_error)
+subroutine InputReadCardDbaseCompatible(input, option, word)
   ! 
   ! reads a word and checks whether there is an entry in the Dbase with which
   ! to swap
@@ -942,7 +1184,6 @@ subroutine InputReadWordDbaseCompatible(input, option, word, &
   type(input_type) :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: word
-  PetscBool :: return_blank_error
   
   PetscBool :: found
 
@@ -957,7 +1198,9 @@ subroutine InputReadWordDbaseCompatible(input, option, word, &
     call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
   endif
 
-end subroutine InputReadWordDbaseCompatible
+  call InputPushCard(input,word,option)
+  
+end subroutine InputReadCardDbaseCompatible
 
 ! ************************************************************************** !
 
@@ -1436,6 +1679,7 @@ function InputCheckExit(input,option)
 
   type(input_type) :: input
   type(option_type) :: option  
+
   PetscInt :: i
   character(len=1) :: tab
   
@@ -1459,6 +1703,8 @@ function InputCheckExit(input,option)
   else
     InputCheckExit = PETSC_FALSE
   endif
+
+  option%keyword_buf = ''
 
 end function InputCheckExit
 
@@ -1878,6 +2124,7 @@ function InputGetLineCount(input,option)
   line_count = 0
   do
 #if 1
+    input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
@@ -1932,6 +2179,7 @@ subroutine InputReadToBuffer(input, buffer, option)
   line_count = 0
   do
 #if 1
+    input%line_number = input%line_number + 1
     read(input%fid,'(a)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
@@ -2005,6 +2253,7 @@ subroutine InputReadASCIIDbase(filename,option)
     if (InputError(input)) exit
     call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_FALSE)
     if (len_trim(string) > MAXWORDLENGTH) then
+      call InputPrintKeywordLog(input,option,PETSC_TRUE)
       option%io_buffer = 'ASCII DBASE object names must be shorter than &
         &32 characters: ' // trim(string)
       call PrintErrMsg(option)
@@ -2038,6 +2287,7 @@ subroutine InputReadASCIIDbase(filename,option)
   value_index = 1
   if (option%id > 0) then
     if (option%id > num_values_in_dataset) then
+      call InputPrintKeywordLog(input,option,PETSC_TRUE)
       write(word,*) num_values_in_dataset
         option%io_buffer = 'Data in DBASE_FILENAME "' // &
         trim(filename) // &
@@ -2095,6 +2345,7 @@ subroutine InputReadASCIIDbase(filename,option)
           words(value_count) = word
       enddo
       if (value_count /= num_values_in_dataset) then
+        call InputPrintKeywordLog(input,option,PETSC_TRUE)
         write(word,*) value_count
         option%io_buffer = 'Data in DBASE_FILENAME "' // &
           trim(object_name) // &
@@ -2370,7 +2621,7 @@ end subroutine DbaseLookupWord
 
 ! ************************************************************************** !
 
-subroutine InputKeywordUnrecognized1(keyword,string,option)
+subroutine InputKeywordUnrecognized1(input,keyword,string,option)
   ! 
   ! Looks up double precision value in database
   ! 
@@ -2381,6 +2632,7 @@ subroutine InputKeywordUnrecognized1(keyword,string,option)
   
   implicit none
   
+  type(input_type) :: input
   character(len=*) :: keyword
   character(len=*) :: string
   type(option_type) :: option
@@ -2388,13 +2640,13 @@ subroutine InputKeywordUnrecognized1(keyword,string,option)
   character(len=1) :: null_string
 
   null_string = '' 
-  call InputKeywordUnrecognized2(keyword,string,null_string,option)
+  call InputKeywordUnrecognized2(input,keyword,string,null_string,option)
   
 end subroutine InputKeywordUnrecognized1
 
 ! ************************************************************************** !
 
-subroutine InputKeywordUnrecognized2(keyword,string,string2,option)
+subroutine InputKeywordUnrecognized2(input,keyword,string,string2,option)
   ! 
   ! Looks up double precision value in database
   ! 
@@ -2405,11 +2657,13 @@ subroutine InputKeywordUnrecognized2(keyword,string,string2,option)
   
   implicit none
   
+  type(input_type) :: input
   character(len=*) :: keyword
   character(len=*) :: string
   character(len=*) :: string2
   type(option_type) :: option
   
+  call InputPrintKeywordLog(input,option,PETSC_TRUE)
   option%io_buffer = 'Keyword "' // &
                      trim(keyword) // &
                      '" not recognized in ' // &
@@ -2439,6 +2693,7 @@ subroutine InputCheckMandatoryUnits(input,option)
   type(option_type) :: option
   
   if (input%force_units) then
+    call InputPrintKeywordLog(input,option,PETSC_TRUE)
     option%io_buffer = 'Missing units'
     if (len_trim(input%err_buf) > 1) then
       option%io_buffer = trim(option%io_buffer) // ' in ' // &
@@ -2478,6 +2733,7 @@ subroutine InputReadAndConvertUnits(input,double_value,internal_units, &
   call InputReadWord(input,option,units,PETSC_TRUE)
   if (input%ierr == 0) then
     if (len_trim(internal_units) < 1) then
+      call InputPrintKeywordLog(input,option,PETSC_TRUE)
       option%io_buffer = 'No internal units provided in &
                          &InputReadAndConvertUnits()'
       call PrintErrMsg(option)
@@ -2522,6 +2778,7 @@ function UnitReadAndConversionFactor(input,internal_units, &
   call InputReadWord(input,option,units,PETSC_TRUE)
   if (input%ierr == 0) then
     if (len_trim(internal_units) < 1) then
+      call InputPrintKeywordLog(input,option,PETSC_TRUE)
       option%io_buffer = 'No internal units provided in &
                          & UnitReadAndConversionFactor()'
       call PrintErrMsg(option)
@@ -2634,6 +2891,7 @@ subroutine InputRewind(input)
 
   type(input_type), pointer :: input
 
+  input%line_number = 0
   call InputCloseNestedFiles(input)
   rewind(input%fid)
 
@@ -2688,6 +2946,7 @@ subroutine InputDestroySingleLevel(input)
   
   if (input%fid /= 0) close(input%fid)
   input%fid = 0
+  input%line_number = 0
   deallocate(input)
   nullify(input)
   
@@ -2715,6 +2974,7 @@ recursive subroutine InputDestroy(input)
   
   if (input%fid /= 0) close(input%fid)
   input%fid = 0
+  input%line_number = 0
   deallocate(input)
   nullify(input)
   

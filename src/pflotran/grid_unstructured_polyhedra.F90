@@ -80,7 +80,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
 
     call InputReadPflotranString(input,option)
     ! read CELL card, though we already know the
-    call InputReadWord(input,option,card,PETSC_TRUE)
+    call InputReadCard(input,option,card,PETSC_FALSE)
     word = 'CELLS'
     call InputErrorMsg(input,option,word,card)
     if (.not.StringCompare(word,card)) then
@@ -238,7 +238,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   if (option%myrank == option%io_rank) then
 
     call InputReadPflotranString(input,option)
-    call InputReadWord(input,option,card,PETSC_TRUE)
+    call InputReadCard(input,option,card,PETSC_FALSE)
     word = 'FACES'
     call InputErrorMsg(input,option,word,card)
     if (.not.StringCompare(word,card)) then
@@ -377,7 +377,7 @@ subroutine UGridPolyhedraRead(ugrid, filename, option)
   call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     call InputReadPflotranString(input,option)
-    call InputReadWord(input,option,card,PETSC_TRUE)
+    call InputReadCard(input,option,card,PETSC_FALSE)
     word = 'VERTICES'
     call InputErrorMsg(input,option,word,card)
     if (.not.StringCompare(word,card)) then

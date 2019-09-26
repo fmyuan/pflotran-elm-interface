@@ -492,14 +492,14 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
   input%ierr = 0
 
   ! Start reading data items
-
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input, option)
     if (InputError(input)) exit
     if (InputCheckExit(input, option)) exit
 
-    call InputReadWord(input, option, keyword, PETSC_TRUE)
+    call InputReadCard(input, option, keyword)
     call InputErrorMsg(input, option, 'keyword', 'WELL_DATA')
     call StringToUpper(keyword)
 
@@ -566,7 +566,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
           this%w_injection_t = v
         endif
       case('WELL_TYPE')
-        call InputReadWord(input, option,  keyword , PETSC_TRUE)
+        call InputReadCard(input, option,  keyword , PETSC_FALSE)
         call InputErrorMsg(input, option, 'keyword', 'WELL_TYPE')
         call StringToUpper(keyword)
 
@@ -588,7 +588,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
         end select
       case('CONST_DRILL_DIR')
         this%w_const_drill_dir_set = PETSC_TRUE
-        call InputReadWord(input, option, keyword, PETSC_TRUE)
+        call InputReadCard(input, option, keyword, PETSC_FALSE)
         call InputErrorMsg(input, option, 'keyword', 'CONST_DRILL_DIR')
         call StringToUpper(keyword)
 
@@ -704,6 +704,7 @@ subroutine WellDataRead(this, input, option, waytime, nwaytime, mwaytime)
         call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WellDataRead
 

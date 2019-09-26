@@ -94,12 +94,13 @@ subroutine WIPPGasGenerationRead(this,input,option)
   
   error_strg = 'SRCSINK_SANDBOX,WIPP-GAS_GENERATION'
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_strg)
     call StringToUpper(word)   
 
@@ -137,10 +138,11 @@ subroutine WIPPGasGenerationRead(this,input,option)
         call InputReadDouble(input,option,this%satwick)
         call InputErrorMsg(input,option,'satwick',error_strg)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
           'SRCSINK_SANDBOX,WIPP-GAS_GENERATION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WIPPGasGenerationRead
 

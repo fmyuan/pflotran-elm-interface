@@ -216,13 +216,14 @@ subroutine GeomechRegionRead(region,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
  
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_REGION')
     call StringToUpper(keyword)   
 
@@ -252,9 +253,11 @@ subroutine GeomechRegionRead(region,input,option)
         option%io_buffer = 'GEOMECHANICS_REGION LIST currently not implemented'
         call PrintErrMsg(option)
       case default
-        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGION',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'GEOMECHANICS_REGION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
  
 end subroutine GeomechRegionRead
 

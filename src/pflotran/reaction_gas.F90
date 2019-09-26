@@ -59,12 +59,13 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     nullify(prev_gas_species)
   endif
   ! read in new gases
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     new_gas_species => GasSpeciesCreate()
-    call InputReadWord(input,option,new_gas_species%name,PETSC_TRUE)  
+    call InputReadCard(input,option,new_gas_species%name)  
     call InputErrorMsg(input,option,'keyword',error_msg)    
     new_gas_species%itype = gas_type
     if (associated(prev_gas_species)) then
@@ -76,7 +77,8 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
     endif
     prev_gas_species => new_gas_species
     nullify(new_gas_species)
-  enddo                                          
+  enddo         
+  call InputPopBlock(input,option)
                                           
 end subroutine RGasRead
 

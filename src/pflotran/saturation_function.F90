@@ -179,26 +179,27 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   end select
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
     
       case('PERMEABILITY_FUNCTION_TYPE') 
-        call InputReadWord(input,option, &
+        call InputReadCard(input,option, &
                            saturation_function%permeability_function_ctype, &
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'permeability function type', &
                            'SATURATION_FUNCTION')
       case('SATURATION_FUNCTION_TYPE') 
-        call InputReadWord(input,option, &
+        call InputReadCard(input,option, &
                            saturation_function%saturation_function_ctype, &
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'saturation function type', &
@@ -206,7 +207,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       case('PERMEABILITY_END_POINT')
         select case(option%iflowmode)
           case(FLASH2_MODE)
-            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
             call StringToUpper(keyword)   
             select case(trim(keyword))
@@ -219,7 +220,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             word = trim(keyword) // 'permeabiliy end point'
             call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
           case(MPH_MODE)
-            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
             call StringToUpper(keyword)   
             select case(trim(keyword))
@@ -232,7 +233,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             word = trim(keyword) // 'permeabiliy end point'
             call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
           case(IMS_MODE)
-            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
             call StringToUpper(keyword)   
             select case(trim(keyword))
@@ -248,7 +249,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       case('RESIDUAL_SATURATION') 
         select case(option%iflowmode)
           case(FLASH2_MODE)
-            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
             call StringToUpper(keyword)   
             select case(trim(keyword))
@@ -261,7 +262,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             word = trim(keyword) // ' residual saturation'
             call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
           case(MPH_MODE)
-            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
             call StringToUpper(keyword)   
             select case(trim(keyword))
@@ -274,7 +275,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             word = trim(keyword) // ' residual saturation'
             call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
           case(IMS_MODE)
-            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputReadCard(input,option,keyword)
             call InputErrorMsg(input,option,'keyword','SATURATION_FUNCTION')
             call StringToUpper(keyword)   
             select case(trim(keyword))
@@ -296,7 +297,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             if (input%ierr /= 0) then
               input%ierr = 0
               input%buf = string
-              call InputReadWord(input,option,keyword,PETSC_TRUE)
+              call InputReadCard(input,option,keyword)
               call InputErrorMsg(input,option,'phase', &
                                  'SATURATION_FUNCTION,RESIDUAL_SATURATION')
               call StringToUpper(keyword)   
@@ -306,7 +307,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                 case('GAS','GAS_PHASE')
                   iphase = 2
                 case default
-                  call InputKeywordUnrecognized(keyword, &
+                  call InputKeywordUnrecognized(input,keyword, &
                     'SATURATION_FUNCTION,RESIDUAL_SATURATION',option)
               end select
               call InputReadDouble(input,option,tempreal)
@@ -353,10 +354,12 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       case('VERIFY') 
         saturation_function%print_me = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'SATURATION_FUNCTION',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'SATURATION_FUNCTION',option)
     end select 
   
   enddo 
+  call InputPopBlock(input,option)
   
   if (saturation_function%m < 1.d-40 .and. &
       .not. &

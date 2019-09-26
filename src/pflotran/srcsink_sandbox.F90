@@ -119,12 +119,13 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   endif
 
   nullify(new_sandbox)
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','SOURCE_SINK_SANDBOX')
     call StringToUpper(word)   
 
@@ -140,7 +141,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
       case('MASS_BALANCE')
         print_mass_balance = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX',option)
+        call InputKeywordUnrecognized(input,word,'SRCSINK_SANDBOX',option)
     end select
     
     if (associated(new_sandbox)) then
@@ -158,6 +159,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
     endif
     nullify(new_sandbox)
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SSSandboxRead2
 

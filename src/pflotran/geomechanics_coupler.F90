@@ -209,13 +209,14 @@ subroutine GeomechCouplerRead(coupler,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS COUPLER')   
     call StringToUpper(word)      
     
@@ -227,11 +228,12 @@ subroutine GeomechCouplerRead(coupler,input,option)
         call InputReadWord(input,option,coupler%geomech_condition_name, &
                            PETSC_TRUE)
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'geomechanics coupler',option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine GeomechCouplerRead
 

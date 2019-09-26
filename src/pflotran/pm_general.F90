@@ -195,13 +195,14 @@ subroutine PMGeneralRead(this,input)
   error_string = 'General Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -356,11 +357,11 @@ subroutine PMGeneralRead(this,input)
          call InputErrorMsg(input,option,'liquid component formula wt.', &
              error_string)
       case('TWO_PHASE_ENERGY_DOF')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call GeneralAuxSetEnergyDOF(word,option)
       case('GAS_PHASE_AIR_MASS_DOF')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
         call GeneralAuxSetAirMassDOF(word,option)
         this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
@@ -417,10 +418,11 @@ subroutine PMGeneralRead(this,input)
       case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
         gen_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
   if (general_isothermal .and. &
       general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then

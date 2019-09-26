@@ -132,13 +132,14 @@ subroutine DatasetMapHDF5Read(this,input,option)
   PetscBool :: found
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','DATASET')
     call StringToUpper(keyword)   
       
@@ -152,11 +153,12 @@ subroutine DatasetMapHDF5Read(this,input,option)
           call InputReadWord(input,option,this%map_filename,PETSC_TRUE)
           call InputErrorMsg(input,option,'map filename','DATASET')
         case default
-          call InputKeywordUnrecognized(keyword,'dataset',option)
+          call InputKeywordUnrecognized(input,keyword,'dataset',option)
       end select
     endif
   
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(this%hdf5_dataset_name) < 1) then
     this%hdf5_dataset_name = this%name

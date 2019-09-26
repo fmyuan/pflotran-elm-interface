@@ -480,11 +480,12 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
       error_string = trim(error_string) // 'CONSTANT_PRESSURE_OG'
   end select
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
@@ -552,7 +553,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                                    error_string)
                 sf_sl%Sr = sf_owg%Swcr
               case default
-                call InputKeywordUnrecognized(keyword, &
+                call InputKeywordUnrecognized(input,keyword, &
                      'Van Genuchten Oil-Water saturation function',option)
             end select
         end select
@@ -574,7 +575,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                                    error_string)
                 sf_sl%Sr = sf_owg%Swcr
               case default
-                call InputKeywordUnrecognized(keyword, &
+                call InputKeywordUnrecognized(input,keyword, &
                      'Van Genuchten Oil-Water saturation function',option)
             end select
         end select          
@@ -605,7 +606,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
                                    error_string)
                 sf_sl%Sr = sf_owg%Slcr
               case default
-                call InputKeywordUnrecognized(keyword, &
+                call InputKeywordUnrecognized(input,keyword, &
                        'Van Genuchten Oil-Gas-SL saturation function',option)
             end select
         end select
@@ -621,6 +622,7 @@ subroutine SaturationFunctionOWGRead(sat_func_owg,input,option)
     end select
   !add reading instructions for other OWG saturation functions (tables etc)
   end do
+  call InputPopBlock(input,option)
 
   if ( smooth .and. associated(sat_func_owg%sat_func_sl) ) then
     call sat_func_owg%sat_func_sl%SetupPolynomials(option,error_string)
@@ -704,11 +706,12 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
       error_string = trim(error_string) // 'ECLIPSE'  
   end select
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
 
@@ -859,7 +862,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
       class is(rel_perm_oil_owg_ecl_type)
         select case(keyword)
           case('PERMEABILITY_FUNCTION_OW','KROW')
-            call InputReadWord(input,option,perm_func_ch_type,PETSC_TRUE)
+            call InputReadCard(input,option,perm_func_ch_type,PETSC_FALSE)
             call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
             perm_func_ch_type = trim(perm_func_ch_type)
             call StringToUpper(perm_func_ch_type)
@@ -867,7 +870,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_ow => RPF_ow_owg_MBC_Create()
               case default
-                call InputKeywordUnrecognized(perm_func_ch_type, &
+                call InputKeywordUnrecognized(input,perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OW',option)
             end select
             call PermeabilityFunctionOWGRead(rpf%rel_perm_ow,input,option)
@@ -877,7 +880,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
                                rpf%rel_perm_ow%table_name,PETSC_TRUE)
             call InputErrorMsg(input,option,'KROW_TABLE',error_string)
           case('PERMEABILITY_FUNCTION_OG','KROG')
-            call InputReadWord(input,option,perm_func_ch_type,PETSC_TRUE)
+            call InputReadCard(input,option,perm_func_ch_type,PETSC_FALSE)
             call InputErrorMsg(input,option,'perm_func_ch_type',error_string)
             perm_func_ch_type = trim(perm_func_ch_type)
             call StringToUpper(perm_func_ch_type)
@@ -885,7 +888,7 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
               case('MOD_BROOKS_COREY')
                 rpf%rel_perm_og => RPF_og_owg_MBC_Create()
               case default
-                call InputKeywordUnrecognized(perm_func_ch_type, &
+                call InputKeywordUnrecognized(input,perm_func_ch_type, &
                                             'PERMEABILITY_FUNCTION_OG',option)
             end select
             call PermeabilityFunctionOWGRead(rpf%rel_perm_og,input,option)
@@ -902,11 +905,12 @@ recursive subroutine PermeabilityFunctionOWGRead(permeability_function, &
             call InputErrorMsg(input,option,'KRO_TABLE',error_string)
             rpf%rel_perm_og%table_name = rpf%rel_perm_ow%table_name
           case default
-            call InputKeywordUnrecognized(keyword, &
+            call InputKeywordUnrecognized(input,keyword, &
                       'ECLIPSE relative permeability function',option)
           end select
     end select
   end do !end loop line within rel perm funct def
+  call InputPopBlock(input,option)
 
   !pass parameter to sl_functions
   select type(rpf => permeability_function)

@@ -1054,12 +1054,13 @@ subroutine PMWSSRead(this,input)
   option%io_buffer = 'pflotran card:: WIPP_SOURCE_SINK'
   call PrintMsg(option)
   
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     num_errors = 0
     error_string = 'WIPP_SOURCE_SINK'
@@ -1133,7 +1134,7 @@ subroutine PMWSSRead(this,input)
                                       // ',OUTPUT_START_TIME units',option)
         this%output_start_time = double
       case('RATE_UPDATE_FREQUENCY')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword',error_string)
         call StringToUpper(word)
         select case(trim(word))
@@ -1145,7 +1146,7 @@ subroutine PMWSSRead(this,input)
           case('NO_LAG')
             this%rate_update_frequency = NO_LAG
           case default
-            call InputKeywordUnrecognized(word,error_string,option)
+            call InputKeywordUnrecognized(input,word,error_string,option)
         end select
     !-----------------------------------------
     !-----------------------------------------
@@ -1157,11 +1158,12 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'name',error_string)
         new_waste_panel%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_waste_panel%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
@@ -1187,15 +1189,16 @@ subroutine PMWSSRead(this,input)
                 case('NO')
                   new_waste_panel%scale_by_volume = PETSC_FALSE
                 case default
-                  call InputKeywordUnrecognized(word,'SCALE_BY_VOLUME (must &
-                  &be "YES" or "NO")',option)
+                  call InputKeywordUnrecognized(input,word,'SCALE_BY_VOLUME &
+                  &(must be "YES" or "NO")',option)
               end select
           !-----------------------------------    
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages ---------------------
         if (new_waste_panel%region_name == '') then
           option%io_buffer = 'ERROR: REGION must be specified in the ' // &
@@ -1260,22 +1263,24 @@ subroutine PMWSSRead(this,input)
         call InputErrorMsg(input,option,'name',error_string)
         new_inventory%name = adjustl(trim(word))
         error_string = trim(error_string) // ' ' // trim(new_inventory%name)
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(word)
           select case(trim(word))
           !-----------------------------------
             case('SOLIDS','SOLID')
               error_string2 = trim(error_string) // ',SOLIDS'
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
-                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'keyword',error_string2)
                 call StringToUpper(word)
                 select case(trim(word))
@@ -1447,18 +1452,20 @@ subroutine PMWSSRead(this,input)
                     call InputErrorMsg(input,option,'DRMCONC',error_string2)
                 !-----------------------------
                   case default
-                    call InputKeywordUnrecognized(word,error_string2,option)
+                    call InputKeywordUnrecognized(input,word,error_string2,option)
                 !-----------------------------
                 end select
               enddo
+              call InputPopBlock(input,option)
           !-----------------------------------
             case('AQUEOUS')
               error_string3 = trim(error_string) // ',AQUEOUS'
+              call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
-                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'keyword',error_string3)
                 call StringToUpper(word)
                 select case(trim(word))
@@ -1474,10 +1481,11 @@ subroutine PMWSSRead(this,input)
                                        &(SULFATE)',error_string3)
                 !-----------------------------
                   case default
-                    call InputKeywordUnrecognized(word,error_string3,option)
+                    call InputKeywordUnrecognized(input,word,error_string3,option)
                 !-----------------------------
                 end select
               enddo
+              call InputPopBlock(input,option)
           !-----------------------------------
             case('VREPOS')
               call InputReadDouble(input,option,double)
@@ -1487,10 +1495,11 @@ subroutine PMWSSRead(this,input)
               new_inventory%vrepos = double
           !-----------------------------------    
             case default
-              call InputKeywordUnrecognized(word,error_string,option)
+              call InputKeywordUnrecognized(input,word,error_string,option)
           !----------------------------------- 
           end select
         enddo
+        call InputPopBlock(input,option)
         ! error messages ---------------------
         if (Uninitialized(new_inventory%drum_conc)) then
           option%io_buffer = 'ERROR: Number of metal drums per m3 of waste &
@@ -1766,10 +1775,11 @@ subroutine PMWSSRead(this,input)
           this%bh_material_names(spec_num) = bh_materials(spec_num)
         enddo
       case default
-        call InputKeywordUnrecognized(word,'WIPP_SOURCE_SINK',option)
+        call InputKeywordUnrecognized(input,word,'WIPP_SOURCE_SINK',option)
     !-----------------------------------------
     end select  
   enddo
+  call InputPopBlock(input,option)
   
   if (.not.associated(this%waste_panel_list)) then
     option%io_buffer = 'ERROR: At least one WASTE_PANEL must be specified &

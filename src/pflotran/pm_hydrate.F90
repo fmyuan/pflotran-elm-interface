@@ -256,13 +256,14 @@ subroutine PMHydrateRead(this,input)
   error_string = 'Hydrate Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -468,7 +469,7 @@ subroutine PMHydrateRead(this,input)
          call InputErrorMsg(input,option,'liquid component formula wt.', &
              error_string)
       case('TWO_PHASE_ENERGY_DOF')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
         call HydrateAuxSetEnergyDOF(word,option)
       case('MAXIMUM_PRESSURE_CHANGE')
@@ -519,10 +520,11 @@ subroutine PMHydrateRead(this,input)
       case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
         hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine PMHydrateRead
 

@@ -87,12 +87,13 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     
     if (InputCheckExit(input,option)) exit
   
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','SURFACE_MATERIAL_PROPERTY')
     call StringToUpper(keyword)
     
@@ -104,9 +105,11 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
         call InputReadDouble(input,option,surf_material_property%mannings)
         call InputErrorMsg(input,option,'MANNINGS','SURFACE_MATERIAL_PROPERTY')
       case default
-        call InputKeywordUnrecognized(keyword,'SURFACE_MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'SURFACE_MATERIAL_PROPERTY',option)
       end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine SurfaceMaterialPropertyRead
 

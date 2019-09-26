@@ -230,13 +230,14 @@ subroutine PMWIPPFloRead(this,input)
   error_string = 'WIPP Flow Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -340,7 +341,7 @@ subroutine PMWIPPFloRead(this,input)
         call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
                                       'sec',keyword,option)
       case('CONVERGENCE_TEST')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call StringToUpper(word)
         select case(word)
@@ -349,7 +350,7 @@ subroutine PMWIPPFloRead(this,input)
           case('EITHER')
             this%convergence_test_both = PETSC_FALSE
           case default
-            call InputKeywordUnrecognized(keyword, &
+            call InputKeywordUnrecognized(input,keyword, &
                            trim(error_string)//','//keyword,option)
         end select
       case('RESIDUAL_TEST')
@@ -480,9 +481,10 @@ subroutine PMWIPPFloRead(this,input)
           this%dirichlet_dofs = int_array(1:icount) - 1 
         endif
       case default
-        call InputKeywordUnrecognized(keyword,'WIPP Flow Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
   enddo  
+  call InputPopBlock(input,option)
   
   ! Check that gas_sat_thresh_force_extra_ni is smaller than 
   ! gas_sat_thresh_force_ts_cut

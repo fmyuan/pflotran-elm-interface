@@ -1214,6 +1214,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadIntArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
+      call InputPushCard(input,word,option)
       call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
@@ -1377,6 +1378,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadRealArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
+      call InputPushCard(input,word,option)
       call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment

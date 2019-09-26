@@ -109,13 +109,14 @@ subroutine PMTOilImsRead(this,input)
   error_string = 'TOilIms Options'  
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
 
@@ -185,10 +186,11 @@ subroutine PMTOilImsRead(this,input)
       case('FLUX_DIPC')
         call TOilImsFluxDipcSetup()
       case default
-        call InputKeywordUnrecognized(keyword,'TOIL_IMS Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'TOIL_IMS Mode',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
   
 end subroutine PMTOilImsRead
 

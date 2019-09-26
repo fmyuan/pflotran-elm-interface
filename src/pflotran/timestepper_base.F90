@@ -315,7 +315,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
         &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
       call PrintErrMsg(option)
     case default
-      call InputKeywordUnrecognized(keyword,error_string,option)
+      call InputKeywordUnrecognized(input,keyword,error_string,option)
   end select
 
 end subroutine TimestepperBaseProcessKeyword

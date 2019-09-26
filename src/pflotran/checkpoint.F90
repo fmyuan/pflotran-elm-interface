@@ -1336,18 +1336,19 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   format_binary = PETSC_FALSE
   format_hdf5 = PETSC_FALSE
   default_time_units = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CHECKPOINT')
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'checkpoint option or value', &
                         'CHECKPOINT')
     call StringToUpper(word)
     select case(trim(word))
       case ('PERIODIC')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'time increment', &
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'increment', &
                             'CHECKPOINT,PERIODIC')
         select case(trim(word))
           case('TIME')
@@ -1368,7 +1369,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
             call InputErrorMsg(input,option,'timestep increment', &
                                 'CHECKPOINT,PERIODIC,TIMESTEP')
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,PERIODIC', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,PERIODIC', &
                                           option)
         end select
       case ('TIMES')
@@ -1409,7 +1410,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
         enddo
 #endif
       case ('FORMAT')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'format type', &
                             'CHECKPOINT,FORMAT')
         call StringToUpper(word)
@@ -1419,7 +1420,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
           case('HDF5')
             format_hdf5 = PETSC_TRUE
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,FORMAT', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,FORMAT', &
                                           option)
         end select
       case ('TIME_UNITS')
@@ -1428,9 +1429,12 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
       case default
         temp_string = 'Must specify PERIODIC TIME, PERIODIC TIMESTEP, &
                       &TIMES, or FORMAT'
-        call InputKeywordUnrecognized(word,'CHECKPOINT',temp_string,option)
+        call InputKeywordUnrecognized(input,word,'CHECKPOINT', &
+                                      temp_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
+
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     units_conversion = UnitsConvertToInternal(default_time_units, &

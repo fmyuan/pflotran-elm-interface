@@ -149,13 +149,14 @@ subroutine PMRTRead(this,input)
   error_string = 'Reactive Transport Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -192,9 +193,10 @@ subroutine PMRTRead(this,input)
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMRTRead
 

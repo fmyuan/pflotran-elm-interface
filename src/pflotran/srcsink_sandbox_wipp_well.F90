@@ -82,12 +82,13 @@ subroutine WIPPWellRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscBool :: found
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SRCSINK_SANDBOX,WIPP')
     call StringToUpper(word)   
@@ -109,9 +110,10 @@ subroutine WIPPWellRead(this,input,option)
         call InputReadDouble(input,option,this%productivity_index)
         call InputErrorMsg(input,option,word,'SOURCE_SINK_SANDBOX,WIPP,WELL')
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,WIPP',option)
+        call InputKeywordUnrecognized(input,word,'SRCSINK_SANDBOX,WIPP',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine WIPPWellRead
 

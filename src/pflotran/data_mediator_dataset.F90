@@ -70,6 +70,7 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -91,10 +92,11 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'DATASET,NAME','MASS_TRANSFER')
       case default
-        call InputKeywordUnrecognized(keyword,'MASS_TRANSFER',option)
+        call InputKeywordUnrecognized(input,keyword,'MASS_TRANSFER',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine DataMediatorDatasetRead
 

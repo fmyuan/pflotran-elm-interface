@@ -72,12 +72,13 @@ subroutine MassRateRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
   PetscBool :: found
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SOURCE_SINK_SANDBOX,MASS_RATE')
     call StringToUpper(word)   
@@ -116,9 +117,11 @@ subroutine MassRateRead(this,input,option)
           endif
         enddo
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,MASS_RATE',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SRCSINK_SANDBOX,MASS_RATE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine MassRateRead
 

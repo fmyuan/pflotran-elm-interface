@@ -85,12 +85,13 @@ subroutine WastePackageRead(this,input,option)
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word, internal_units
   
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,REACTION_SANDBOX,UFD-WP')
     call StringToUpper(word)   
@@ -139,10 +140,11 @@ subroutine WastePackageRead(this,input,option)
             UnitsConvertToInternal(word,internal_units,option)
         endif
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                      'CHEMISTRY,REACTION_SANDBOX,UFD-WP',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine WastePackageRead
 

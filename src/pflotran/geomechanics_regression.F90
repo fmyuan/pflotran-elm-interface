@@ -117,13 +117,14 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
   geomechanics_regression => GeomechanicsRegressionCreate()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_REGRESSION')
     call StringToUpper(keyword)   
       
@@ -131,11 +132,12 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
     
       case('VARIABLES') 
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','GEOMECHANICS_REGRESSION,VARIABLES')
           call StringToLower(word)
           new_variable => GeomechanicsRegressionVariableCreate()
@@ -147,6 +149,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
           endif
           cur_variable => new_variable
         enddo
+        call InputPopBlock(input,option)
       case('VERTICES')
         max_vertices = 100
         allocate(int_array(max_vertices))
@@ -171,10 +174,12 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
         call InputReadInt(input,option,geomechanics_regression%num_vertices_per_process)
         call InputErrorMsg(input,option,'num vertices per process','GEOMECHANICS_REGRESSION')
       case default
-        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_REGRESSION',option)
+        call InputKeywordUnrecognized(input,keyword, &
+                                      'GEOMECHANICS_REGRESSION',option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine GeomechanicsRegressionRead
 

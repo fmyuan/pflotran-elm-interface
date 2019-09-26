@@ -93,7 +93,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
 
     call InputReadPflotranString(input,option)
     ! read CELL card, though we already know the
-    call InputReadWord(input,option,card,PETSC_TRUE)
+    call InputReadCard(input,option,card,PETSC_FALSE)
     word = 'CELLS'
     call InputErrorMsg(input,option,word,card)
     if (.not.StringCompare(word,card)) then
@@ -218,7 +218,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
   if (option%myrank == option%io_rank) then
     call InputReadPflotranString(input,option)
     ! read CONNECTIONS card, though we already know the
-    call InputReadWord(input,option,card,PETSC_TRUE)
+    call InputReadCard(input,option,card,PETSC_FALSE)
     word = 'CONNECTIONS'
     call InputErrorMsg(input,option,word,card)
     if (.not.StringCompare(word,card)) then
@@ -349,7 +349,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
     call InputReadPflotranString(input,option)
     ! read ELEMENTS card, we only use this for tecplot output
     ! not used while solving the PDEs
-    call InputReadWord(input,option,card,PETSC_TRUE)
+    call InputReadCard(input,option,card,PETSC_FALSE)
     word = 'ELEMENTS'
     if (StringCompare(word,card)) then
       card = 'Explicit Unstruct. Grid ELEMENTS'
@@ -388,7 +388,7 @@ subroutine UGridExplicitRead(unstructured_grid,filename,option)
       enddo
       call InputReadPflotranString(input,option)
       ! read VERTICES card, not used for calcuations, only tecplot output
-      call InputReadWord(input,option,card,PETSC_TRUE)
+      call InputReadCard(input,option,card,PETSC_FALSE)
       word = 'VERTICES'
       call InputErrorMsg(input,option,word,card)
       if (.not.StringCompare(word,card)) then

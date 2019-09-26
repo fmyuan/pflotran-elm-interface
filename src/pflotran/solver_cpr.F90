@@ -36,19 +36,20 @@ subroutine SolverCPRRead(stash, input, option, ierr)
   character(len=MAXSTRINGLENGTH) :: string
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','CPR OPTIONS')
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
       case('CPRT2_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cprT2_type','CPR OPTIONS')
         call StringToUpper(word)
         select case(trim(word))
@@ -76,7 +77,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
         end select
 
       case('CPRT1_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cprT1_type','CPR OPTIONS')
         call StringToUpper(word)
         select case(trim(word))
@@ -93,7 +94,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
         end select
 
       case('CPR_EXTRACTION_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cpr_extraction_type','CPR OPTIONS')
         call StringToUpper(word)
         select case(trim(word))
@@ -146,11 +147,15 @@ subroutine SolverCPRRead(stash, input, option, ierr)
       ! here is a sub card for setting boomeramg options for within
       ! the CPR PC, ONLY.
       ! Note the lack of a flow/transport prefix.
+      !TODO(geh): many of these are redundant with solver.F90. resolve by 
+      !           placing in a separate routine where non-common settings
+      !           are passed in (e.g. prefix)
       case('CPR_HYPRE_OPTIONS')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputReadCard(input,option,keyword)
           call InputErrorMsg(input,option,'keyword', &
                              'CPR OPTIONS, HYPRE options')
           call StringToUpper(keyword)
@@ -400,12 +405,14 @@ subroutine SolverCPRRead(stash, input, option, ierr)
               call PrintErrMsg(option)
           end select
         enddo
+        call InputPopBlock(input,option)
     case default
       option%io_buffer  = 'CPR preconditioner option: ' // trim(keyword) // &
                           ' unknown.'
       call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
 end subroutine SolverCPRRead
 

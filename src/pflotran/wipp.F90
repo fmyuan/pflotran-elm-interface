@@ -168,7 +168,7 @@ subroutine FractureRead(this,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   option%flow%fracture_on = PETSC_TRUE
-  
+  call InputPushBlock(input,option)
   do
       call InputReadPflotranString(input,option)
       call InputReadStringErrorMsg(input,option, &
@@ -177,7 +177,7 @@ subroutine FractureRead(this,input,option)
       if (InputCheckExit(input,option)) exit
           
       if (InputError(input)) exit
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'keyword', &
                           'MATERIAL_PROPERTY,WIPP-FRACTURE')   
       select case(trim(word))
@@ -212,10 +212,11 @@ subroutine FractureRead(this,input,option)
         case('ALTER_PERM_Z')
           this%change_perm_z = 1.d0
         case default
-          call InputKeywordUnrecognized(word, &
+          call InputKeywordUnrecognized(input,word, &
                   'MATERIAL_PROPERTY,WIPP-FRACTURE',option)
       end select
     enddo
+    call InputPopBlock(input,option)
 
 end subroutine FractureRead
 
@@ -529,12 +530,12 @@ subroutine CreepClosureRead(this,input,option)
   time_units_conversion = 1.d0
   filename = ''
   input%ierr = 0
-
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -549,9 +550,10 @@ subroutine CreepClosureRead(this,input,option)
         call InputReadDouble(input,option,this%time_closeoff)
         call InputErrorMsg(input,option,'time closeoff',error_string)
      case default
-        call InputKeywordUnrecognized(keyword,'CREEP_CLOSURE',option)
+        call InputKeywordUnrecognized(input,keyword,'CREEP_CLOSURE',option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(filename) < 1) then
     option%io_buffer = 'FILENAME must be specified for CREEP_CLOSURE.'
@@ -562,11 +564,12 @@ subroutine CreepClosureRead(this,input,option)
   error_string = 'CREEP_CLOSURE file'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
   input2%ierr = 0
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input2,option)
     if (InputError(input2)) exit
 
-    call InputReadWord(input2,option,keyword,PETSC_TRUE)
+    call InputReadCard(input2,option,keyword)
     call InputErrorMsg(input2,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -615,9 +618,10 @@ subroutine CreepClosureRead(this,input,option)
                               string,input2,option)
      case default
         error_string = trim(error_string) // ': ' // filename
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   call InputDestroy(input2)
   
   if (size(this%lookup_table%axis1%values) /= this%num_times) then
@@ -955,13 +959,14 @@ subroutine KlinkenbergRead(this,input,option)
   character(len=MAXSTRINGLENGTH) :: error_string = 'KLINKENBERG_EFFECT'
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -973,9 +978,10 @@ subroutine KlinkenbergRead(this,input,option)
         call InputReadDouble(input,option,this%b)
         call InputErrorMsg(input,option,'b',error_string)
      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
   if (Uninitialized(this%a)) then
     option%io_buffer = &
@@ -1197,13 +1203,14 @@ subroutine WIPPRead(input,option)
   wipp => WIPPGetPtr()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)   
       
@@ -1215,9 +1222,10 @@ subroutine WIPPRead(input,option)
 !        option%flow%transient_porosity = PETSC_TRUE
 !        wipp%creep_closure => creep_closure      
      case default
-        call InputKeywordUnrecognized(keyword,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine WIPPRead
 

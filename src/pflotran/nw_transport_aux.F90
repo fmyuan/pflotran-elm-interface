@@ -319,13 +319,14 @@ subroutine NWTRead(nw_trans,input,option)
   k = 0
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -343,13 +344,13 @@ subroutine NWTRead(nw_trans,input,option)
                                 &an option.')
         endif
         new_species => NWTSpeciesCreate()
-        
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
           
-          call InputReadWord(input,option,keyword,PETSC_TRUE)
+          call InputReadCard(input,option,keyword)
           call InputErrorMsg(input,option,'keyword',error_string)
           call StringToUpper(keyword)
           
@@ -372,9 +373,10 @@ subroutine NWTRead(nw_trans,input,option)
               call InputErrorMsg(input,option,'species elemental Kd', &
                                  error_string)
             case default
-              call InputKeywordUnrecognized(keyword,error_string,option)
+              call InputKeywordUnrecognized(input,keyword,error_string,option)
           end select
         enddo
+        call InputPopBlock(input,option)
         
         if (new_species%name == '') then
           option%io_buffer = 'NAME not provided in ' // trim(error_string) // &
@@ -466,10 +468,11 @@ subroutine NWTRead(nw_trans,input,option)
       case('OUTPUT')
         call NWTReadOutput(nw_trans,input,option)
       case default
-        call InputKeywordUnrecognized(keyword,error_string_base,option)
+        call InputKeywordUnrecognized(input,keyword,error_string_base,option)
     end select
             
   enddo
+  call InputPopBlock(input,option)
   
   if (k == 0) then
      option%io_buffer = 'ERROR: At least one species must be provided &
@@ -513,6 +516,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
   character(len=MAXWORDLENGTH) :: word
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -520,7 +524,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
     if (InputCheckExit(input,option)) exit
 
     error_string = 'NUCLEAR_WASTE_CHEMISTRY,OUTPUT'
-    call InputReadWord(input,option,word,PETSC_TRUE)  
+    call InputReadCard(input,option,word)  
     call InputErrorMsg(input,option,'keyword',error_string)
                      
     call StringToUpper(word)
@@ -540,10 +544,11 @@ subroutine NWTReadOutput(nw_trans,input,option)
       case('MINERAL_VOLUME_FRACTION')
         nw_trans%print_what%mnrl_vol_frac= PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
   if (nw_trans%print_what%all_concs) then
     nw_trans%print_what%total_bulk_conc= PETSC_TRUE
@@ -580,13 +585,14 @@ subroutine NWTReadPass2(nw_trans,input,option)
   error_string = 'SUBSURFACE,NUCLEAR_WASTE_CHEMISTRY'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(keyword)
     
@@ -612,10 +618,11 @@ subroutine NWTReadPass2(nw_trans,input,option)
           if (InputCheckExit(input,option)) exit
         enddo
       !case default
-      !  call InputKeywordUnrecognized(keyword,error_string,option)
+      !  call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine NWTReadPass2
 

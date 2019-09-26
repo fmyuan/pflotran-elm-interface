@@ -444,7 +444,7 @@ end function FlowTOWGConditionCreate
 
 ! ************************************************************************** !
 
-function FlowGeneralSubConditionPtr(sub_condition_name,general, &
+function FlowGeneralSubConditionPtr(input,sub_condition_name,general, &
                                     option)
   !
   ! Returns a pointer to a subcondition, creating
@@ -455,10 +455,11 @@ function FlowGeneralSubConditionPtr(sub_condition_name,general, &
   !
 
   use Option_module
-  use Input_Aux_module, only : InputKeywordUnrecognized
+  use Input_Aux_module
 
   implicit none
 
+  type(input_type) :: input
   character(len=MAXWORDLENGTH) :: sub_condition_name
   type(flow_general_condition_type) :: general
   type(option_type) :: option
@@ -538,7 +539,7 @@ function FlowGeneralSubConditionPtr(sub_condition_name,general, &
         general%rate => sub_condition_ptr
       endif
     case default
-      call InputKeywordUnrecognized(sub_condition_name, &
+      call InputKeywordUnrecognized(input,sub_condition_name, &
                                     'general condition,type',option)
   end select
 
@@ -548,7 +549,7 @@ end function FlowGeneralSubConditionPtr
 
 ! ************************************************************************** !
 
-function FlowHydrateSubConditionPtr(sub_condition_name,hydrate, &
+function FlowHydrateSubConditionPtr(input,sub_condition_name,hydrate, &
                                     option)
   !
   ! Returns a pointer to a subcondition, creating
@@ -559,10 +560,11 @@ function FlowHydrateSubConditionPtr(sub_condition_name,hydrate, &
   !
 
   use Option_module
-  use Input_Aux_module, only : InputKeywordUnrecognized
+  use Input_Aux_module
 
   implicit none
 
+  type(input_type) :: input
   character(len=MAXWORDLENGTH) :: sub_condition_name
   type(flow_hydrate_condition_type) :: hydrate
   type(option_type) :: option
@@ -656,7 +658,7 @@ function FlowHydrateSubConditionPtr(sub_condition_name,hydrate, &
         hydrate%rate => sub_condition_ptr
       endif
     case default
-      call InputKeywordUnrecognized(sub_condition_name, &
+      call InputKeywordUnrecognized(input,sub_condition_name, &
                                     'hydrate condition,type',option)
   end select
 
@@ -666,7 +668,7 @@ end function FlowHydrateSubConditionPtr
 
 ! ************************************************************************** !
 
-function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
+function FlowTOilImsSubConditionPtr(input,sub_condition_name,toil_ims, &
                                     option)
   !
   ! Returns a pointer to a subcondition, creating
@@ -677,10 +679,11 @@ function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
   !
 
   use Option_module
-  use Input_Aux_module, only : InputKeywordUnrecognized
+  use Input_Aux_module
 
   implicit none
 
+  type(input_type) :: input
   character(len=MAXWORDLENGTH) :: sub_condition_name
   type(flow_toil_ims_condition_type) :: toil_ims
   type(option_type) :: option
@@ -776,7 +779,7 @@ function FlowTOilImsSubConditionPtr(sub_condition_name,toil_ims, &
         toil_ims%pcow_owc => sub_condition_ptr
       endif
     case default
-      call InputKeywordUnrecognized(sub_condition_name, &
+      call InputKeywordUnrecognized(input,sub_condition_name, &
                                     'toil_ims condition,type',option)
   end select
 
@@ -786,8 +789,7 @@ end function FlowTOilImsSubConditionPtr
 
 ! ************************************************************************** !
 
-function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
-                                    option)
+function FlowTOWGSubConditionPtr(input,sub_condition_name,towg,option)
   !
   ! Returns a pointer to a subcondition, creating
   ! them if necessary for TOWG mode
@@ -797,10 +799,11 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
   !
 
   use Option_module
-  use Input_Aux_module, only : InputKeywordUnrecognized
+  use Input_Aux_module
 
   implicit none
 
+  type(input_type) :: input
   character(len=MAXWORDLENGTH) :: sub_condition_name
   type(flow_towg_condition_type) :: towg
   type(option_type) :: option
@@ -943,7 +946,7 @@ function FlowTOWGSubConditionPtr(sub_condition_name,towg, &
         towg%pcog_ogc => sub_condition_ptr
       endif
     case default
-      call InputKeywordUnrecognized(sub_condition_name, &
+      call InputKeywordUnrecognized(input,sub_condition_name, &
                                     'towg condition,type',option)
   end select
 
@@ -1179,6 +1182,7 @@ subroutine FlowConditionRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units = 'not_assigned'
@@ -1188,7 +1192,7 @@ subroutine FlowConditionRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
@@ -1219,7 +1223,8 @@ subroutine FlowConditionRead(condition,input,option)
             case('kJ/mol')
               enthalpy%units = trim(word)
             case default
-              call InputKeywordUnrecognized(word,'condition,units',option)
+              call InputKeywordUnrecognized(input,word,'condition,units', &
+                                            option)
           end select
         enddo
       case('CYCLIC')
@@ -1228,7 +1233,7 @@ subroutine FlowConditionRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
         call StringToUpper(word)
         select case(word)
@@ -1239,10 +1244,12 @@ subroutine FlowConditionRead(condition,input,option)
             default_time_storage%time_interpolation_method = &
               INTERPOLATION_LINEAR
           case default
-            call InputKeywordUnrecognized(word,'condition,interpolation', &
+            call InputKeywordUnrecognized(input,word, &
+                                          'condition,interpolation', &
                                           option)
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -1250,7 +1257,7 @@ subroutine FlowConditionRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(trim(word))
@@ -1275,9 +1282,9 @@ subroutine FlowConditionRead(condition,input,option)
             case('ENTHALPY')
               sub_condition_ptr => enthalpy
             case default
-              call InputKeywordUnrecognized(word,'condition,type',option)
+              call InputKeywordUnrecognized(input,word,'condition,type',option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -1315,6 +1322,7 @@ subroutine FlowConditionRead(condition,input,option)
               string = word
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -1327,7 +1335,7 @@ subroutine FlowConditionRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" ' // trim(string)
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -1382,9 +1390,10 @@ subroutine FlowConditionRead(condition,input,option)
             case('surface_spillover')
               sub_condition_ptr%itype = SURFACE_SPILLOVER
             case default
-              call InputKeywordUnrecognized(word,'condition bc type',option)
+              call InputKeywordUnrecognized(input,word,'condition bc type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('IPHASE')
         call InputReadInt(input,option,default_iphase)
         call InputErrorMsg(input,option,'IPHASE','CONDITION')
@@ -1399,6 +1408,7 @@ subroutine FlowConditionRead(condition,input,option)
         call ConditionReadValues(input,option,word, &
                                  condition%datum,word,internal_units)
       case('GRADIENT','GRAD')
+        call InputPushBlock(input,option)
         do
           internal_units = 'not_assigned'
           call InputReadPflotranString(input,option)
@@ -1407,7 +1417,7 @@ subroutine FlowConditionRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           select case(trim(word))
             case('PRES','PRESS','PRESSURE')
@@ -1438,7 +1448,7 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => enthalpy
               internal_units = 'kJ/mol-meter'
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'FLOW CONDITION,GRADIENT,TYPE',option)
           end select
           dataset_ascii => DatasetAsciiCreate()
@@ -1452,6 +1462,7 @@ subroutine FlowConditionRead(condition,input,option)
                                    word,internal_units)
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('TEMPERATURE','TEMP')
         internal_units = 'C'
         call ConditionReadValues(input,option,word, &
@@ -1511,10 +1522,11 @@ subroutine FlowConditionRead(condition,input,option)
         call InputReadDouble(input,option,pressure%aux_real(1))
         call InputErrorMsg(input,option,'CONDUCTANCE','CONDITION')
       case default
-        call InputKeywordUnrecognized(word,'flow condition',option)
+        call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! check whether
   if (default_iphase == 0) then
@@ -1968,6 +1980,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units = 'not_assigned'
@@ -1977,7 +1990,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
@@ -1988,7 +2001,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
         call StringToUpper(word)
         select case(word)
@@ -2000,6 +2013,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               INTERPOLATION_LINEAR
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2007,15 +2021,15 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
             case(G_MODE,WF_MODE)
-              sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
-                                                              option)
+              sub_condition_ptr => &
+                FlowGeneralSubConditionPtr(input,word,general,option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -2041,6 +2055,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2053,7 +2068,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_mass_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -2070,6 +2085,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2082,7 +2098,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_volumetric_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -2102,9 +2118,11 @@ subroutine FlowConditionGeneralRead(condition,input,option)
             case('heterogeneous_surface_seepage')
               sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case default
-              call InputKeywordUnrecognized(word,'flow condition,type',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('DATUM')
         dataset_ascii => DatasetAsciiCreate()
         call DatasetAsciiInit(dataset_ascii)
@@ -2116,6 +2134,7 @@ subroutine FlowConditionGeneralRead(condition,input,option)
         call ConditionReadValues(input,option,word,condition%datum, &
                                  word,internal_units)
       case('GRADIENT')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2123,13 +2142,13 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
             case(G_MODE,WF_MODE)
-              sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
-                                                              option)
+              sub_condition_ptr => &
+                FlowGeneralSubConditionPtr(input,word,general,option)
           end select
           dataset_ascii => DatasetAsciiCreate()
           call DatasetAsciiInit(dataset_ascii)
@@ -2143,12 +2162,13 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                                    word,internal_units)
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
-            sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
-                                                            option)
+            sub_condition_ptr => &
+                FlowGeneralSubConditionPtr(input,word,general,option)
         end select
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
@@ -2157,8 +2177,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
            'LIQUID_FLUX','GAS_FLUX','ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
           case(G_MODE,WF_MODE)
-            sub_condition_ptr => FlowGeneralSubConditionPtr(word,general, &
-                                                            option)
+            sub_condition_ptr => &
+                FlowGeneralSubConditionPtr(input,word,general,option)
         end select
         internal_units = 'not_assigned'
         select case(trim(word))
@@ -2200,10 +2220,11 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr%dataset%rarray(:)
         end select
       case default
-        call InputKeywordUnrecognized(word,'flow condition',option)
+        call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! datum is not required
   string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
@@ -2495,6 +2516,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     internal_units = 'not_assigned'
@@ -2504,7 +2526,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
@@ -2515,7 +2537,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
       case('SYNC_TIMESTEP_WITH_UPDATE')
         condition%sync_time_with_update = PETSC_TRUE
       case('INTERPOLATION')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
         call StringToUpper(word)
         select case(word)
@@ -2527,6 +2549,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               INTERPOLATION_LINEAR
         end select
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2534,15 +2557,15 @@ subroutine FlowConditionHydrateRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
             case(H_MODE)
-              sub_condition_ptr => FlowHydrateSubConditionPtr(word,hydrate, &
-                                                              option)
+              sub_condition_ptr => &
+                FlowHydrateSubConditionPtr(input,word,hydrate,option)
           end select
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -2568,6 +2591,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2580,7 +2604,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_mass_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -2597,6 +2621,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -2609,7 +2634,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_volumetric_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -2629,9 +2654,11 @@ subroutine FlowConditionHydrateRead(condition,input,option)
             case('heterogeneous_surface_seepage')
               sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case default
-              call InputKeywordUnrecognized(word,'flow condition,type',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('DATUM')
         dataset_ascii => DatasetAsciiCreate()
         call DatasetAsciiInit(dataset_ascii)
@@ -2643,6 +2670,7 @@ subroutine FlowConditionHydrateRead(condition,input,option)
         call ConditionReadValues(input,option,word,condition%datum, &
                                  word,internal_units)
       case('GRADIENT')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -2650,13 +2678,13 @@ subroutine FlowConditionHydrateRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
           select case(option%iflowmode)
             case(H_MODE)
-              sub_condition_ptr => FlowHydrateSubConditionPtr(word,hydrate, &
-                                                              option)
+              sub_condition_ptr => &
+                FlowHydrateSubConditionPtr(input,word,hydrate,option)
           end select
           dataset_ascii => DatasetAsciiCreate()
           call DatasetAsciiInit(dataset_ascii)
@@ -2670,12 +2698,13 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                                    word,internal_units)
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
         select case(option%iflowmode)
           case(H_MODE)
-            sub_condition_ptr => FlowHydrateSubConditionPtr(word,hydrate, &
-                                                            option)
+            sub_condition_ptr => &
+              FlowHydrateSubConditionPtr(input,word,hydrate,option)
         end select
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
@@ -2685,8 +2714,8 @@ subroutine FlowConditionHydrateRead(condition,input,option)
            'ENERGY_FLUX','RELATIVE_HUMIDITY')
         select case(option%iflowmode)
           case(H_MODE)
-            sub_condition_ptr => FlowHydrateSubConditionPtr(word,hydrate, &
-                                                            option)
+            sub_condition_ptr => &
+              FlowHydrateSubConditionPtr(input,word,hydrate,option)
         end select
         internal_units = 'not_assigned'
         select case(trim(word))
@@ -2726,10 +2755,11 @@ subroutine FlowConditionHydrateRead(condition,input,option)
               sub_condition_ptr%dataset%rarray(:)
         end select
       case default
-        call InputKeywordUnrecognized(word,'flow condition',option)
+        call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! datum is not required
   string = 'SUBSURFACE/FLOW_CONDITION' // trim(condition%name) // '/Datum'
@@ -3026,6 +3056,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units = 'not_assigned'
@@ -3035,7 +3066,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     !reads cards common to all modes
@@ -3046,6 +3077,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
     select case(trim(word))
 
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3053,7 +3085,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
 
@@ -3063,13 +3095,13 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                  'LIQUID_FLUX','OIL_FLUX', 'ENERGY_FLUX','ENTHALPY','OWC', &
                  'WATER_PRESSURE_GRAD')
 
-              sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims, &
-                                                              option)
+              sub_condition_ptr => &
+                FlowTOilImsSubConditionPtr(input,word,toil_ims,option)
             case default
-              call InputKeywordUnrecognized(word,'flow condition',option)
+              call InputKeywordUnrecognized(input,word,'flow condition',option)
           end select
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
 
@@ -3095,6 +3127,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = &
                       trim(sub_condition_ptr%ctype) // word
@@ -3108,7 +3141,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                 case default
                   string = 'flow condition "' // trim(condition%name) // &
                     '" scaled_mass_rate type'
-                  call InputKeywordUnrecognized(word,string,option)
+                  call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -3125,6 +3158,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3137,7 +3171,7 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_volumetric_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -3162,11 +3196,14 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
             case('bhp_max')
               sub_condition_ptr%itype = WELL_BHP_MAX
             case default
-              call InputKeywordUnrecognized(word,'flow condition,type',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       
       case('GRADIENT','GRADIENT_D')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3174,11 +3211,11 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,sub_word,PETSC_TRUE)
+          call InputReadCard(input,option,sub_word)
           call InputErrorMsg(input,option,'keyword','GRADIENT,TYPE')
           call StringToUpper(sub_word)
           sub_condition_ptr => &
-                    FlowTOilImsSubConditionPtr(sub_word,toil_ims,option)
+            FlowTOilImsSubConditionPtr(input,sub_word,toil_ims,option)
           dataset_ascii => DatasetAsciiCreate()
           call DatasetAsciiInit(dataset_ascii)
           dataset_ascii%array_width = 3
@@ -3196,12 +3233,13 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
           end select
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'PRESSURE'
         select case(option%iflowmode)
           case(TOIL_IMS_MODE)
-            sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims, &
-                                                            option)
+            sub_condition_ptr => &
+              FlowTOilImsSubConditionPtr(input,word,toil_ims,option)
         end select
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
@@ -3210,7 +3248,8 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
            'OIL_SATURATION','TEMPERATURE','RATE', 'LIQUID_FLUX','OIL_FLUX', &
            'ENERGY_FLUX','ENTHALPY','WATER_PRESSURE_GRAD','OWC','OWC_Z', &
             'OWC_D','RTEMP','TEMPERATURE_AT_DATUM','PCOW_OWC')
-        sub_condition_ptr => FlowTOilImsSubConditionPtr(word,toil_ims,option)
+        sub_condition_ptr => &
+          FlowTOilImsSubConditionPtr(input,word,toil_ims,option)
 
         select case(trim(word))
         !give a type to pass FlowSubConditionVerify.
@@ -3268,10 +3307,11 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                                      sub_condition_ptr%dataset%rarray(:)
         end select
       case default
-        call InputKeywordUnrecognized(word,'flow condition',option)
+        call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   ! phase condition should never be used in TOilIms
   condition%iphase = ZERO_INTEGER
@@ -3559,6 +3599,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     internal_units_string = 'not_assigned'
@@ -3568,7 +3609,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     !reads cards common to all modes
@@ -3579,6 +3620,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
     select case(trim(word))
 
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3586,13 +3628,14 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(word)
-          sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
+          sub_condition_ptr => &
+            FlowTOWGSubConditionPtr(input,word,towg,option)
           !when refactoring
           !sub_condition_ptr => FlowPMSubConditionPtr(word,condition,option)
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
           call StringToLower(word)
           sub_condition_ptr%ctype = word
@@ -3615,6 +3658,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3627,7 +3671,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_mass_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -3644,6 +3688,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
+                call InputPushCard(input,word,option)
                 call StringToLower(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
@@ -3656,7 +3701,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
                       '" scaled_volumetric_rate type'
-                    call InputKeywordUnrecognized(word,string,option)
+                    call InputKeywordUnrecognized(input,word,string,option)
                 end select
               else
                 option%io_buffer = 'Specify one of NEIGHBOR_PERM, &
@@ -3674,11 +3719,14 @@ subroutine FlowConditionTOWGRead(condition,input,option)
             case('heterogeneous_dirichlet')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case default
-              call InputKeywordUnrecognized(word,'flow condition,type',option)
+              call InputKeywordUnrecognized(input,word, &
+                                            'flow condition,type',option)
           end select
         enddo
+        call InputPopBlock(input,option)
 
       case('GRADIENT','GRADIENT_D')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONDITION')
@@ -3686,10 +3734,11 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,sub_word,PETSC_TRUE)
+          call InputReadCard(input,option,sub_word)
           call InputErrorMsg(input,option,'keyword','CONDITION,TYPE')
           call StringToUpper(sub_word)
-          sub_condition_ptr => FlowTOWGSubConditionPtr(sub_word,towg,option)
+          sub_condition_ptr => &
+            FlowTOWGSubConditionPtr(input,sub_word,towg,option)
           dataset_ascii => DatasetAsciiCreate()
           call DatasetAsciiInit(dataset_ascii)
           dataset_ascii%array_width = 3
@@ -3707,9 +3756,11 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           end select  
           nullify(sub_condition_ptr)
         enddo
+        call InputPopBlock(input,option)
       case('CONDUCTANCE')
         word = 'LIQUID_PRESSURE'
-        sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
+        sub_condition_ptr => &
+          FlowTOWGSubConditionPtr(input,word,towg,option)
         call InputReadDouble(input,option,sub_condition_ptr%aux_real(1))
         call InputErrorMsg(input,option,'LIQUID_CONDUCTANCE','CONDITION')
       case('WATER_GAS_EQUILIBRATION')
@@ -3720,7 +3771,8 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           'SOLVENT_FLUX','ENERGY_FLUX','ENTHALPY', &
           'OWC_Z','OWC_D','PCOW_OWC', 'OGC_Z','OGC_D', 'PCOG_OGC', &
           'WGC_Z','WGC_D','PCWG_WGC','RTEMP','TEMPERATURE_AT_DATUM')
-        sub_condition_ptr => FlowTOWGSubConditionPtr(word,towg,option)
+        sub_condition_ptr => &
+          FlowTOWGSubConditionPtr(input,word,towg,option)
         select case(trim(word))
           case('PRESSURE','OIL_PRESSURE','GAS_PRESSURE','BHP_PRESSURE', &
                'BUBBLE_POINT','PCOW_OWC','PCOG_OGC','PCWG_WGC')
@@ -3792,6 +3844,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
         usr_tbl_press_units_found = PETSC_FALSE
         usr_tbl_z_units_found = PETSC_FALSE
         pbvz_found = PETSC_FALSE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -3799,7 +3852,7 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           if (InputCheckExit(input,option)) exit
 
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                                                'CONDITION,BUBBLE_POINT_TABLE')
           call StringToUpper(word)
@@ -3844,10 +3897,11 @@ subroutine FlowConditionTOWGRead(condition,input,option)
 
               pbvz_found = PETSC_TRUE
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                                   'flow condition,BUBBLE_POINT_TABLE',option)
           end select
         end do
+        call InputPopBlock(input,option)
         if ( .not. usr_tbl_z_units_found ) then
           option%io_buffer = 'TOWG condition - BUBBLE_POINT_TABLE: &
             &lenght units must be entered for the z/depths'
@@ -3887,10 +3941,11 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           call PrintErrMsg(option)
         end if
       case default
-        call InputKeywordUnrecognized(word,'flow condition',option)
+        call InputKeywordUnrecognized(input,word,'flow condition',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   !initialise phase_state to null
   condition%iphase = TOWG_NULL_STATE
@@ -4288,7 +4343,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       
     case('INTERPOLATION')
       card_found = PETSC_TRUE
-      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputReadCard(input,option,word)
       call InputErrorMsg(input,option,'INTERPOLATION','CONDITION')
       call StringToUpper(word)
       select case(word)
@@ -4346,6 +4401,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
       !set up default units
       usr_lenght_units = 'm'
       usr_temp_units = 'C'
+      call InputPushBlock(input,option)
       do
         call InputReadPflotranString(input,option)
         call InputReadStringErrorMsg(input,option, &
@@ -4353,7 +4409,7 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
         if (InputCheckExit(input,option)) exit
 
         if (InputError(input)) exit
-        call InputReadWord(input,option,sub_word,PETSC_TRUE)
+        call InputReadCard(input,option,sub_word,PETSC_FALSE)
         call InputErrorMsg(input,option,'keyword', &
                                                 'CONDITION,TEMPERATURE_TABLE')
         call StringToUpper(sub_word)
@@ -4403,10 +4459,11 @@ subroutine FlowConditionCommonRead(condition,input,word,default_time_storage, &
 
             rtempvz_found = PETSC_TRUE
           case default
-            call InputKeywordUnrecognized(sub_word, &
+            call InputKeywordUnrecognized(input,sub_word, &
                                     'flow condition,TEMPERATURE_TABLE',option)
         end select
       end do
+      call InputPopBlock(input,option)
       !PO: consider to include a force unit check in lookup table
       if ( .not. rtempvz_z_units_found ) then
         option%io_buffer = 'TOWG condition - RTEMPVZ/RTEMPVD: &
@@ -4507,6 +4564,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
   ! read the condition
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
 
     call InputReadPflotranString(input,option)
@@ -4514,13 +4572,13 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','CONDITION')
 
     select case(trim(word))
 
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'TYPE','CONDITION')
         call StringToLower(word)
         select case(word)
@@ -4537,7 +4595,8 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             case('zero_gradient')
               condition%itype = ZERO_GRADIENT_BC
             case default
-              call InputKeywordUnrecognized(word,'transport condition type', &
+              call InputKeywordUnrecognized(input,word, &
+                                            'transport condition type', &
                                             option)
         end select
       case('TIME_UNITS')
@@ -4551,6 +4610,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             call PrintErrMsg(option)
         end select
       case('CONSTRAINT_LIST')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,'CONSTRAINT')
@@ -4630,6 +4690,7 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
             endif
           endif
         enddo
+        call InputPopBlock(input,option)
         
       case('CONSTRAINT')
         if (associated(reaction)) then
@@ -4681,10 +4742,11 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
         endif
 
       case default
-        call InputKeywordUnrecognized(word,'transport condition',option)
+        call InputKeywordUnrecognized(input,word,'transport condition',option)
     end select
 
   enddo
+  call InputPopBlock(input,option)
 
   if (associated(reaction)) then
     if (.not.associated(condition%constraint_coupler_list)) then
@@ -4807,6 +4869,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   call StringToLower(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
+    call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
         StringCompare(word,'file',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'

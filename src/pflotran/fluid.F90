@@ -89,13 +89,14 @@ subroutine FluidPropertyRead(fluid_property,input,option)
   character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','FLUID_PROPERTY')
     call StringToUpper(keyword)   
       
@@ -125,10 +126,11 @@ subroutine FluidPropertyRead(fluid_property,input,option)
         call InputErrorMsg(input,option,'gas diffusion coefficient', &
                            'FLUID_PROPERTY')
       case default
-        call InputKeywordUnrecognized(keyword,'FLUID_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword,'FLUID_PROPERTY',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
   if (.not.(StringCompareIgnoreCase(fluid_property%phase_name,'LIQUID') .or. &
             StringCompareIgnoreCase(fluid_property%phase_name,'GAS'))) then
