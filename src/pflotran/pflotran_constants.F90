@@ -48,6 +48,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
   ! HHISTORY_LENGTH is the length of the array used to store the differencing
   ! values h.
+
+  ! EXIT codes
+  PetscInt, parameter, public :: EXIT_SUCCESS = 0
+  PetscInt, parameter, public :: EXIT_USER_ERROR = 87
   
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0
