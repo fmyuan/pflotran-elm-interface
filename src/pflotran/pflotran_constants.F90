@@ -186,7 +186,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SCALED_VOLUMETRIC_RATE_SS = 10
   PetscInt, parameter, public :: CONCENTRATION_SS = 11
   PetscInt, parameter, public :: EQUILIBRIUM_SS = 12
-  PetscInt, parameter, public :: CONDUCTANCE_BC = 13
+  PetscInt, parameter, public :: HYDROSTATIC_CONDUCTANCE_BC = 13
   PetscInt, parameter, public :: UNIT_GRADIENT_BC = 14
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
@@ -210,9 +210,10 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
   PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 36
-  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
+  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 37
   PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
   PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
+  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 39
   
   PetscInt, parameter, public :: WELL_SS = 100
   

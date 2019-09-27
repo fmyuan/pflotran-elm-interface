@@ -2767,14 +2767,15 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
     bc_type = ibndtype(iphase)
     select case(bc_type)
       ! figure out the direction of flow
-      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
+      case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+           HYDROSTATIC_CONDUCTANCE_BC)
 
         ! dist(0) = scalar - magnitude of distance
         ! gravity = vector(3)
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-        if (bc_type == CONDUCTANCE_BC) then
+        if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
 
 ! The values at TOWG_LIQ_CONDUCTANCE_INDEX etc are not actually set
          option%io_buffer = 'Boundary conductances are not available'
@@ -2886,7 +2887,7 @@ subroutine TOWGImsTLBOBCFlux(ibndtype,bc_auxvar_mapping,bc_auxvars, &
 
           ! PO CONDUCTANCE_BC and HYDROSTATIC_SEEPAGE_BC to be implemented/tested
           if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-              bc_type == CONDUCTANCE_BC) then
+              bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
                 ! flow in         ! boundary cell is <= pref
             if (delta_pressure > 0.d0 .and. &
                 auxvar_up%pres(iphase) - &

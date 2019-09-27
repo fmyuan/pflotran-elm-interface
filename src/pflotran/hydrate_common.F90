@@ -2301,7 +2301,8 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   bc_type = ibndtype(iphase)
   select case(bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+         HYDROSTATIC_CONDUCTANCE_BC)
       if (hyd_auxvar_up%mobility(iphase) + &
           hyd_auxvar_dn%mobility(iphase) > eps) then
 
@@ -2310,7 +2311,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
       
-        if (bc_type == CONDUCTANCE_BC) then
+        if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
           select case(iphase)
             case(LIQUID_PHASE)
               idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
@@ -2350,15 +2351,15 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                  hyd_auxvar_dn%d%denl_T * fmw_comp(iphase)
         endif
         if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-            bc_type == CONDUCTANCE_BC) then
+            bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               hyd_auxvar_up%pres(iphase) - &
                 option%reference_pressure < eps) then
             delta_pressure = 0.d0
             if (analytical_derivatives) then
-              option%io_buffer = 'CONDUCTANCE_BC and HYDROSTATIC_SEEPAGE_BC need to be &
-                &Verified in HydrateBCFlux().'
+              option%io_buffer = 'HYDROSTATIC_CONDUCTANCE_BC and &
+                &HYDROSTATIC_SEEPAGE_BC need to be verified in HydrateBCFlux().'
               call PrintErrMsg(option)
               ddelta_pressure_dpdn = 0.d0
               ddelta_pressure_dTdn = 0.d0
@@ -2640,7 +2641,8 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   xmol_bool = 1.d0
   bc_type = ibndtype(iphase)
   select case(bc_type)
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+         HYDROSTATIC_CONDUCTANCE_BC)
       if (hyd_auxvar_up%mobility(iphase) + &
           hyd_auxvar_dn%mobility(iphase) > eps) then
 
@@ -2649,7 +2651,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! dist(1:3) = vector(3) - unit vector
         dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
       
-        if (bc_type == CONDUCTANCE_BC) then
+        if (bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
           select case(iphase)
             case(LIQUID_PHASE)
               idof = auxvar_mapping(HYDRATE_LIQUID_CONDUCTANCE_INDEX)
@@ -2691,7 +2693,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                                  hyd_auxvar_dn%d%deng_T * fmw_comp(iphase)
         endif
         if (bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-            bc_type == CONDUCTANCE_BC) then
+            bc_type == HYDROSTATIC_CONDUCTANCE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (delta_pressure > 0.d0 .and. &
               hyd_auxvar_up%pres(iphase) - &

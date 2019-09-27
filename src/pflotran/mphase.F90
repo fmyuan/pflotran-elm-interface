@@ -1937,7 +1937,8 @@ subroutine MphaseBCFlux(ibndtype,auxvars,auxvar_up,auxvar_dn, &
 !         print *,'Seepage BC: press ',np,auxvar_up%pres,auxvar_dn%pres,dphi,gravity
 
           if ((pressure_bc_type == HYDROSTATIC_SEEPAGE_BC .or. &
-            pressure_bc_type == CONDUCTANCE_BC ) .and. np == 2) then
+               pressure_bc_type == HYDROSTATIC_CONDUCTANCE_BC ) .and. &
+              np == 2) then
               ! flow in         ! boundary cell is <= pref
             if (dphi > 0.d0) then
               dphi = 0.d0

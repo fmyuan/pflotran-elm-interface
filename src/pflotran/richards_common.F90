@@ -515,17 +515,20 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC, &
-         DIRICHLET_SEEPAGE_BC,HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
-         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+    case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+         HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+         HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+         HET_HYDROSTATIC_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3) = vector(3) - unit vector
       dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-      if (pressure_bc_type == CONDUCTANCE_BC .or. &
-          pressure_bc_type == HET_CONDUCTANCE_BC) then
+      if (pressure_bc_type == HYDROSTATIC_CONDUCTANCE_BC .or. &
+          pressure_bc_type == DIRICHLET_CONDUCTANCE_BC .or. &
+          pressure_bc_type == HET_HYDROSTATIC_CONDUCTANCE_BC) then
         Dq = auxvars(RICHARDS_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dist(0)
@@ -553,9 +556,10 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
         dphi_dp_dn = -1.d0 + dgravity_dden_dn*rich_auxvar_dn%dden_dp
 
         select case(pressure_bc_type)
-          case(HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+          case(HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+               DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
                HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
-               HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+               HET_HYDROSTATIC_SEEPAGE_BC,HET_HYDROSTATIC_CONDUCTANCE_BC)
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
@@ -791,17 +795,20 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC, &
-         DIRICHLET_SEEPAGE_BC,HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
-         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+    case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+         HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+         HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+         HET_HYDROSTATIC_CONDUCTANCE_BC)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
       ! dist(1:3) = vector(3) - unit vector
       dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-      if (pressure_bc_type == CONDUCTANCE_BC .or. &
-          pressure_bc_type == HET_CONDUCTANCE_BC) then
+      if (pressure_bc_type == HYDROSTATIC_CONDUCTANCE_BC .or. &
+          pressure_bc_type == DIRICHLET_CONDUCTANCE_BC .or. &
+          pressure_bc_type == HET_HYDROSTATIC_CONDUCTANCE_BC) then
         Dq = auxvars(RICHARDS_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dist(0)
@@ -824,9 +831,10 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
 
         select case(pressure_bc_type)
-          case(HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+          case(HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+               DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
                HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
-               HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+               HET_HYDROSTATIC_SEEPAGE_BC,HET_HYDROSTATIC_CONDUCTANCE_BC)
                 ! flow in
             if (dphi > 0.d0 .and. &
                 ! boundary cell is <= pref
