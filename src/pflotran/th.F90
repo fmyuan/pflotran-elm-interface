@@ -764,10 +764,12 @@ subroutine THUpdateAuxVarsPatch(realization)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-               CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
+          case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+               HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+               HYDROSTATIC_CONDUCTANCE_BC, &
                HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
-               HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+               HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+               HET_HYDROSTATIC_CONDUCTANCE_BC)
             xxbc(idof) = boundary_condition%flow_aux_real_var(idof,iconn)
           case(NEUMANN_BC,ZERO_GRADIENT_BC)
             xxbc(idof) = xx_loc_p((ghosted_id-1)*option%nflowdof+idof)
@@ -775,9 +777,10 @@ subroutine THUpdateAuxVarsPatch(realization)
       enddo
       
       select case(boundary_condition%flow_condition%itype(TH_PRESSURE_DOF))
-        case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
-             CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
-             HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+        case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+             HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+             HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+             HET_HYDROSTATIC_CONDUCTANCE_BC)
           iphasebc = boundary_condition%flow_aux_int_var(1,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphasebc = global_auxvars(ghosted_id)%istate
@@ -2602,11 +2605,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   diffdp = por_dn*tor_dn/dd_dn*area
   select case(ibndtype(TH_PRESSURE_DOF))
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC, &
-         DIRICHLET_SEEPAGE_BC,HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
-         HET_CONDUCTANCE_BC)
-      if (ibndtype(TH_PRESSURE_DOF) == CONDUCTANCE_BC .or. &
-          ibndtype(TH_PRESSURE_DOF) == HET_CONDUCTANCE_BC) then
+    case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+         HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+         HET_HYDROSTATIC_CONDUCTANCE_BC)
+      if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_CONDUCTANCE_BC .or. &
+          ibndtype(TH_PRESSURE_DOF) == HYDROSTATIC_CONDUCTANCE_BC .or. &
+          ibndtype(TH_PRESSURE_DOF) == HET_HYDROSTATIC_CONDUCTANCE_BC) then
         Dq = auxvars(TH_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dd_dn
@@ -2661,8 +2666,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         endif
 
         select case(ibndtype(TH_PRESSURE_DOF))
-          case(HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
-               HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+          case(HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+               DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+               HET_HYDROSTATIC_SEEPAGE_BC,HET_HYDROSTATIC_CONDUCTANCE_BC)
             ! boundary cell is <= pref 
             if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
               ! skip thermal conduction whenever water table is lower than cell
@@ -3344,10 +3350,13 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   ! Flow
   diffdp = por_dn*tor_dn/dd_dn*area
   select case(ibndtype(TH_PRESSURE_DOF))
-    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC, &
-         DIRICHLET_SEEPAGE_BC,HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
-         HET_CONDUCTANCE_BC)
-      if (ibndtype(TH_PRESSURE_DOF) == CONDUCTANCE_BC) then
+    case(DIRICHLET_BC,DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+         HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+         HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+         HET_HYDROSTATIC_CONDUCTANCE_BC)
+      if (ibndtype(TH_PRESSURE_DOF) == DIRICHLET_CONDUCTANCE_BC .or. &
+          ibndtype(TH_PRESSURE_DOF) == HYDROSTATIC_CONDUCTANCE_BC .or. &
+          ibndtype(TH_PRESSURE_DOF) == HET_HYDROSTATIC_CONDUCTANCE_BC) then
         Dq = auxvars(TH_CONDUCTANCE_DOF)
       else
         Dq = perm_dn / dd_dn
@@ -3389,8 +3398,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         endif
 
         select case(ibndtype(TH_PRESSURE_DOF))
-          case(HYDROSTATIC_SEEPAGE_BC,CONDUCTANCE_BC,DIRICHLET_SEEPAGE_BC, &
-               HET_HYDROSTATIC_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+          case(HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC, &
+               DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC, &
+               HET_HYDROSTATIC_SEEPAGE_BC,HET_HYDROSTATIC_CONDUCTANCE_BC)
             ! boundary cell is <= pref 
             if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
               ! skip thermal conduction whenever water table is lower than cell

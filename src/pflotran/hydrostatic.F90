@@ -557,7 +557,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%reference_pressure)
-        else if (condition%pressure%itype == CONDUCTANCE_BC) then
+        else if (condition%pressure%itype == HYDROSTATIC_CONDUCTANCE_BC) then
+           ! add the conductance
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%reference_pressure)
           select case(option%iflowmode)
