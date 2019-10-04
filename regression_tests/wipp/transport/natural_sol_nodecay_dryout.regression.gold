@@ -29,15 +29,15 @@
      Mean:   1.2254827182586E+00
         3:   1.2254819388742E+00
 -- CONCENTRATION: Total Bulk Conc. AM241L --
-      Max:   3.0045364234025E-02
-      Min:   2.9813964413317E-02
-     Mean:   2.9860244933571E-02
-        3:   2.9813965355966E-02
+      Max:   2.9813969285345E-02
+      Min:   2.9813964287654E-02
+     Mean:   2.9813965923728E-02
+        3:   2.9813965360191E-02
 -- CONCENTRATION: Total Bulk Conc. PU239L --
-      Max:   3.0045364234025E-02
-      Min:   2.9599396931617E-02
-     Mean:   2.9688591463872E-02
-        3:   2.9599398748347E-02
+      Max:   2.9599406321276E-02
+      Min:   2.9599396689434E-02
+     Mean:   2.9599399842571E-02
+        3:   2.9599398756489E-02
 -- CONCENTRATION: Aq. Conc. AM241L --
       Max:   3.0853184768064E-03
       Min:   3.0853184768064E-03
@@ -49,15 +49,15 @@
      Mean:   5.9462066736121E-03
         3:   5.9462066736121E-03
 -- CONCENTRATION: Mnrl. Conc. AM241L --
-      Max:   3.0045364205608E-02
-      Min:   2.9813964413301E-02
-     Mean:   2.9860244926076E-02
-        3:   2.9813965354476E-02
+      Max:   2.9813969256928E-02
+      Min:   2.9813964287638E-02
+     Mean:   2.9813965916233E-02
+        3:   2.9813965358701E-02
 -- CONCENTRATION: Mnrl. Conc. PU239L --
-      Max:   3.0045364179258E-02
-      Min:   2.9599396931587E-02
-     Mean:   2.9688591449428E-02
-        3:   2.9599398745476E-02
+      Max:   2.9599406266509E-02
+      Min:   2.9599396689403E-02
+     Mean:   2.9599399828127E-02
+        3:   2.9599398753618E-02
 -- CONCENTRATION: Sorb. Conc. AM241L --
       Max:   0.0000000000000E+00
       Min:   0.0000000000000E+00
@@ -69,22 +69,22 @@
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. AM241L --
-      Max:   2.5939205984728E-06
-      Min:   2.5739462663185E-06
-     Mean:   2.5779447975490E-06
-        3:   2.5739493239302E-06
+      Max:   2.5739554135816E-06
+      Min:   2.5739434692340E-06
+     Mean:   2.5739493699654E-06
+        3:   2.5739493242950E-06
 -- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
-      Max:   2.5939205961980E-06
-      Min:   2.5554219980485E-06
-     Mean:   2.5631253124489E-06
-        3:   2.5554249991177E-06
+      Max:   2.5554309588755E-06
+      Min:   2.5554195013862E-06
+     Mean:   2.5554250901411E-06
+        3:   2.5554249998207E-06
 -- DISCRETE: Material ID --
       Max:         3
       Min:         3
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   7.9117536544800E-02
+   Time (seconds):   3.8457393646240E-02
    Time Steps:          111
    Newton Iterations:          167
    Solver Iterations:          167
@@ -92,10 +92,10 @@
    Solution 2-Norm:   3.3697420348111E+06
    Residual 2-Norm:   2.7767149169039E-15
 -- SOLUTION: Transport --
-   Time (seconds):   2.9522633552551E-01
-   Time Steps:          179
-   Newton Iterations:          823
-   Solver Iterations:          823
-   Time Step Cuts:            7
-   Solution 2-Norm:   9.4156441085907E-02
-   Residual 2-Norm:   4.1144046482477E-13
+   Time (seconds):   1.3171863555908E-01
+   Time Steps:          194
+   Newton Iterations:          898
+   Solver Iterations:          898
+   Time Step Cuts:            5
+   Solution 2-Norm:   9.3941392238502E-02
+   Residual 2-Norm:   6.7562449451030E-12
