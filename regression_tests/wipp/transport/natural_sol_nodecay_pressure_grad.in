@@ -201,7 +201,7 @@ END
 
 BOUNDARY_CONDITION
   FLOW_CONDITION bc
-  TRANSPORT_CONDITION transport_initial_condition
+  TRANSPORT_CONDITION transport_bc_condition
   REGION bc_face_west
 END
 
@@ -212,7 +212,7 @@ BOUNDARY_CONDITION
 END
 
 !=========================== solver options ===================================
-skip
+
 NEWTON_SOLVER TRANSPORT
   RTOL 1.0d-06
   ATOL 1.0d-25
@@ -222,12 +222,12 @@ TIMESTEPPER TRANSPORT
   TS_ACCELERATION 30
   DT_FACTOR 2. 2. 2. 2. 2. 2. 2. 2. 2. 2. 1.8 1.6 1.4 1.2 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1.
 END
-noskip
+
 !=========================== times ============================================
 
 TIME
-  FINAL_TIME 550.d0 yr
-  INITIAL_TIMESTEP_SIZE 1.d0 sec
+  FINAL_TIME 55.d0 yr
+  INITIAL_TIMESTEP_SIZE 1.d0 yr
   MAXIMUM_TIMESTEP_SIZE 55.d0 yr
 END
 
@@ -237,7 +237,7 @@ OBSERVATION
   REGION rgs_repo
 END
 
-
+skip
 OUTPUT 
   OBSERVATION_FILE
     NO_PRINT_INITIAL
@@ -252,7 +252,7 @@ OUTPUT
     FORMAT HDF5
   /
 END
-
+noskip
 
 !=============================== transport ====================================
 
@@ -288,8 +288,8 @@ CONSTRAINT constraint_chemistry_initial
    ! AQ is for aqueous concentration [mol/m^3-liq]
    ! Cell volume is 100.0 x 100.0 x 4.38406d1 m^3 = 438406.0 m^3
 
-    AM241L    1.d-8    AQ  # [mol/m^3-liq]
-    PU239L    1.d-8    AQ  # [mol/m^3-liq]
+    AM241L    1.d-20    AQ  # [mol/m^3-liq]
+    PU239L    1.d-20    AQ  # [mol/m^3-liq]
   /
 END
 
