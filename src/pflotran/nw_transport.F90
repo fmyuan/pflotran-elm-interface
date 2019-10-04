@@ -747,7 +747,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
                       material_auxvars(ghosted_id), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
-                      realization%patch%internal_velocities(:,sum_connection), &
+                      realization%patch%boundary_velocities(:,sum_connection), &
                       nw_trans,option,bc,Res_up,Res_dn)
                             
       offset = (local_id-1)*nspecies
@@ -1448,7 +1448,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
                       material_auxvars(ghosted_id), &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
-                      realization%patch%internal_velocities(:,sum_connection), &
+                      realization%patch%boundary_velocities(:,sum_connection), &
                       nw_trans,option,JacUp,JacDn)
       
       ! PETSc uses 0-based indexing so the position must be (ghosted_id-1)              
