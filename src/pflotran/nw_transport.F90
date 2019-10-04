@@ -278,6 +278,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   PetscInt :: offset
   PetscErrorCode :: ierr
   type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(global_auxvar_type), pointer :: global_auxvars_bc(:)  
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
@@ -294,6 +295,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   nwt_auxvars => realization%patch%aux%NWT%auxvars
   nwt_auxvars_bc => realization%patch%aux%NWT%auxvars_bc
   global_auxvars => realization%patch%aux%Global%auxvars
+  global_auxvars_bc => realization%patch%aux%Global%auxvars_bc
 
   
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
@@ -336,7 +338,32 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
                                   cur_nwt_constraint_coupler
       do iconn = 1, cur_connection_set%num_connections
         sum_connection = sum_connection + 1 
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
         
+!geh: Since a minimum precipitate concentration of 1.d-20 is always present
+!     (see NWTEqDissPrecipSorb), we must NWTAuxVarCompute() based on the
+!     total bulk concentration at each boundary connection just like we do
+!     for each internal grid cell above. Otherwise, the precipitate
+!     concentation of 1.d-20 is not factored into the boundary concentration
+!     for pure aqueous boundaries, and this generates error. To prove this
+!     change #if 0 -> #if 1 below and run a transport simulation with a
+!     single aqueous constraint (not concentration gradient). You will see
+!     that the Newton solve struggles because slightly different aqueous
+!     concentrations are assigned to the boundary faces than the internal
+!     cell centers.
+
+!     ***I propose that we do away with the minimum sorbed and precipitate
+!        concentrations altogether as they add artificial mass to the system.***
+
+#if 1
+        nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
+                        nwt_constraint_coupler%nwt_auxvar%total_bulk_conc(:)
+        call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
+                              global_auxvars_bc(sum_connection), &
+                              material_auxvars(ghosted_id), &
+                              nw_trans,option)
+#else
         nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
                           nwt_constraint_coupler%nwt_auxvar%total_bulk_conc(:)
         nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(:) = &
@@ -347,6 +374,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
                              nwt_constraint_coupler%nwt_auxvar%mnrl_eq_conc(:)
         nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(:) = &
                             nwt_constraint_coupler%nwt_auxvar%mnrl_vol_frac(:)
+#endif
           
       enddo ! iconn
       
@@ -1189,7 +1217,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   ! units of unit_n = [-] unitless
   unit_n_up = -1  
   unit_n_dn = +1  
-  
+
   ! upstream weighting
   if (.not.bc) then
     if (q > 0.d0) then ! q flows from _up to _dn (think: upstream to downstream)
