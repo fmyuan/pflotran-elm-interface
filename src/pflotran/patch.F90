@@ -4618,6 +4618,10 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   PetscReal :: dum1
   PetscErrorCode :: ierr
 
+  nullify(global_auxvar)
+  nullify(rt_auxvar)
+  nullify(nwt_auxvar)
+
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
   material_auxvar%porosity = option%reference_porosity
@@ -4708,6 +4712,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
                                   constraint_coupler%num_iterations, &
                                   PETSC_FALSE,option)
         class is(tran_constraint_coupler_nwt_type)
+          nwt_auxvar => constraint_coupler%nwt_auxvar
           call NWTEquilibrateConstraint(nw_trans, &
                         TranConstraintNWTCast(constraint_coupler%constraint), &
                                       nwt_auxvar,global_auxvar, &
