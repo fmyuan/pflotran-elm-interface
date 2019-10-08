@@ -80,7 +80,6 @@ subroutine NWTSetup(realization)
   use Condition_module
   use Connection_module
   use Fluid_module
-  use Transport_Constraint_module
   use Output_Aux_module
   
   implicit none
@@ -237,6 +236,71 @@ subroutine NWTSetup(realization)
   
 end subroutine NWTSetup
 
+! ************************************************************************** ! 
+
+subroutine NWTProcessConstraint(nw_trans,constraint_name, &
+                                nwt_species_constraint,option)
+  ! 
+  ! Ensures ordering of species is consistant between the nw_trans object
+  ! and the constraint object. 
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/22/2019
+  ! 
+  use Option_module
+  use String_module
+  use Utility_module
+  
+  implicit none
+  
+  type(nw_trans_realization_type), pointer :: nw_trans
+  character(len=MAXWORDLENGTH) :: constraint_name
+  type(nwt_species_constraint_type), pointer :: nwt_species_constraint
+  type(option_type) :: option
+  
+  PetscBool :: found
+  PetscInt :: ispecies, jspecies
+  PetscReal :: constraint_conc(nw_trans%params%nspecies)
+  PetscInt :: constraint_type(nw_trans%params%nspecies)
+  character(len=MAXWORDLENGTH) :: constraint_species_names( &
+                                                     nw_trans%params%nspecies)
+  
+  constraint_conc = 0.d0
+  constraint_type = 0
+  constraint_species_names = ''
+  
+  do ispecies = 1, nw_trans%params%nspecies
+    found = PETSC_FALSE
+    do jspecies = 1, nw_trans%params%nspecies
+      if (StringCompare(nwt_species_constraint%names(ispecies), &
+                        nw_trans%species_names(jspecies),MAXWORDLENGTH)) then
+        found = PETSC_TRUE
+        exit
+      endif
+    enddo
+    if (.not.found) then
+      option%io_buffer = &
+               'Species ' // trim(nwt_species_constraint%names(ispecies)) // &
+               ' from CONSTRAINT ' // trim(constraint_name) // &
+               ' not found among species.'
+      call PrintErrMsg(option)
+    else
+      constraint_conc(jspecies) = &
+                               nwt_species_constraint%constraint_conc(ispecies)
+      constraint_type(jspecies) = &
+                               nwt_species_constraint%constraint_type(ispecies)
+      constraint_species_names(jspecies) = &
+                                         nwt_species_constraint%names(ispecies)
+    endif
+  enddo
+  
+  ! place ordered constraint parameters back in original arrays
+  nwt_species_constraint%constraint_conc = constraint_conc
+  nwt_species_constraint%constraint_type = constraint_type
+  nwt_species_constraint%names = constraint_species_names
+    
+end subroutine NWTProcessConstraint
+
 ! ************************************************************************** !
 
 subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
@@ -256,7 +320,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   use Field_module
   use Logging_module
   use Global_Aux_module
-  use NWT_Constraint_module
+  use Transport_Constraint_NWT_module
   
   implicit none
 
@@ -282,7 +346,8 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
-  type(nwt_constraint_coupler_type), pointer :: nwt_constraint_coupler
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvar
+  class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
   PetscInt, save :: icall
   
   data icall/0/
@@ -334,8 +399,9 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
     do 
       if (.not.associated(boundary_condition)) exit
       cur_connection_set => boundary_condition%connection_set
-      nwt_constraint_coupler => boundary_condition%tran_condition% &
-                                  cur_nwt_constraint_coupler
+      nwt_auxvar => &
+        TranConstraintNWTGetAuxVar(boundary_condition%tran_condition% &
+                                   cur_constraint_coupler)
       do iconn = 1, cur_connection_set%num_connections
         sum_connection = sum_connection + 1 
         local_id = cur_connection_set%id_dn(iconn)
@@ -358,22 +424,22 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
 
 #if 1
         nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
-                        nwt_constraint_coupler%nwt_auxvar%total_bulk_conc(:)
+                       nwt_auxvar%total_bulk_conc(:)
         call NWTAuxVarCompute(nwt_auxvars_bc(sum_connection), &
                               global_auxvars_bc(sum_connection), &
                               material_auxvars(ghosted_id), &
                               nw_trans,option)
 #else
         nwt_auxvars_bc(sum_connection)%total_bulk_conc(:) = &
-                          nwt_constraint_coupler%nwt_auxvar%total_bulk_conc(:)
+                       nwt_auxvar%total_bulk_conc(:)
         nwt_auxvars_bc(sum_connection)%aqueous_eq_conc(:) = &
-                          nwt_constraint_coupler%nwt_auxvar%aqueous_eq_conc(:)
+                       nwt_auxvar%aqueous_eq_conc(:)
         nwt_auxvars_bc(sum_connection)%sorb_eq_conc(:) = &
-                             nwt_constraint_coupler%nwt_auxvar%sorb_eq_conc(:)
+                       nwt_auxvar%sorb_eq_conc(:)
         nwt_auxvars_bc(sum_connection)%mnrl_eq_conc(:) = &
-                             nwt_constraint_coupler%nwt_auxvar%mnrl_eq_conc(:)
+                       nwt_auxvar%mnrl_eq_conc(:)
         nwt_auxvars_bc(sum_connection)%mnrl_vol_frac(:) = &
-                            nwt_constraint_coupler%nwt_auxvar%mnrl_vol_frac(:)
+                       nwt_auxvar%mnrl_vol_frac(:)
 #endif
           
       enddo ! iconn
@@ -978,8 +1044,8 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   ! Author: Jenn Frederick
   ! Date: 05/08/2019
   ! 
-
   use Coupler_module
+  use Transport_Constraint_NWT_module
 
   implicit none
   
@@ -988,6 +1054,8 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
   type(nw_trans_realization_type), pointer :: nw_trans
+  type(tran_constraint_coupler_nwt_type) :: constraint_coupler
+  type(nw_transport_auxvar_type), pointer :: nwt_auxvar_out
   PetscReal :: Res(nw_trans%params%nspecies)
   
   PetscInt :: istart, iend, iphase
@@ -996,6 +1064,10 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   
   iphase = LIQUID_PHASE
   Res = 0.d0
+
+  nwt_auxvar_out => &
+    TranConstraintNWTGetAuxVar(source_sink%tran_condition% &
+                                   cur_constraint_coupler)
   
   if (associated(ss_flow_vol_fluxes)) then
     ! qsrc = [m^3-liq/sec] 
@@ -1028,14 +1100,12 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   ! units of aqueous_eq_conc = [mol-species/m^3-liq]
   ! units of residual entries = [mol-species/sec]
   Res(istart:iend) = (coef_in*nwt_auxvar%aqueous_eq_conc(:)) + &
-                     (coef_out*source_sink%tran_condition% &
-                               cur_nwt_constraint_coupler%nwt_auxvar% &
-                               aqueous_eq_conc(:))
+                     (coef_out*nwt_auxvar_out%aqueous_eq_conc(:))
   !WRITE(*,*)  '      coef_in = ', coef_in
   !WRITE(*,*)  '   in aq_conc = ', nwt_auxvar%aqueous_eq_conc(:)
   !WRITE(*,*)  '     coef_out = ', coef_out
   !WRITE(*,*)  '  out aq_conc = ', source_sink%tran_condition% &
-  !                                cur_nwt_constraint_coupler%nwt_auxvar% &
+  !                                cur_constraint_coupler%nwt_auxvar% &
   !                                aqueous_eq_conc(:)
                                
   ! -- Precipitated-Component -----------------------------------

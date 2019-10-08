@@ -510,6 +510,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
+  use Transport_Constraint_RT_module
   
   use EOS_Water_module
   
@@ -523,7 +524,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   class(material_auxvar_type), allocatable :: material_auxvar
-  type(tran_constraint_type), pointer :: constraint
+  type(tran_constraint_rt_type), pointer :: constraint
   type(flow_condition_type), pointer :: initial_flow_condition
   
 
@@ -649,13 +650,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
                       
     call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                           material_auxvar, &
-                          reaction,constraint%name, &
-                          constraint%aqueous_species, &
-                          constraint%free_ion_guess, &
-                          constraint%minerals, &
-                          constraint%surface_complexes, &
-                          constraint%colloids, &
-                          constraint%immobile_species, &
+                          reaction,constraint, &
                           num_iterations, &
                           PETSC_FALSE,option)   
                           

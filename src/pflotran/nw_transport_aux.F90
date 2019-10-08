@@ -104,6 +104,14 @@ module NW_Transport_Aux_module
     PetscBool :: print_me
     type(radioactive_decay_rxn_type), pointer :: next
   end type radioactive_decay_rxn_type
+
+  type, public :: nwt_species_constraint_type
+    ! Any changes here must be incorporated within NWTProcessConstraint(),
+    ! where constraints are reordered
+    character(len=MAXWORDLENGTH), pointer :: names(:)
+    PetscReal, pointer :: constraint_conc(:)
+    PetscInt, pointer :: constraint_type(:)
+  end type nwt_species_constraint_type
   
   ! this is the equivalent to reaction_type as in realization%reaction
   type, public :: nw_trans_realization_type
@@ -127,6 +135,7 @@ module NW_Transport_Aux_module
   
   public :: NWTAuxCreate, &
             NWTSpeciesCreate, &
+            NWTSpeciesConstraintCreate, &
             NWTRadDecayRxnCreate, &
             NWTRealizCreate, &
             NWTRead, &
@@ -139,6 +148,7 @@ module NW_Transport_Aux_module
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
             NWTransDestroy
+            
             
 contains
 
@@ -775,6 +785,37 @@ function NWTRadDecayRxnCreate()
   NWTRadDecayRxnCreate => rxn
   
 end function NWTRadDecayRxnCreate
+
+! ************************************************************************** !
+
+function NWTSpeciesConstraintCreate(nw_trans,option)
+  ! 
+  ! Creates a nuclear waste transport species constraint object
+  ! 
+  ! Author: Jenn Frederick      
+  ! Date: 03/21/2019
+  ! 
+  use Option_module
+
+  implicit none
+
+  type(nw_trans_realization_type) :: nw_trans
+  type(option_type) :: option
+  type(nwt_species_constraint_type), pointer :: NWTSpeciesConstraintCreate
+
+  type(nwt_species_constraint_type), pointer :: constraint
+
+  allocate(constraint)
+  allocate(constraint%names(nw_trans%params%nspecies))
+  constraint%names = ''
+  allocate(constraint%constraint_conc(nw_trans%params%nspecies))
+  constraint%constraint_conc = 0.d0
+  allocate(constraint%constraint_type(nw_trans%params%nspecies))
+  constraint%constraint_type = 0
+
+  NWTSpeciesConstraintCreate => constraint
+
+end function NWTSpeciesConstraintCreate
 
 ! ************************************************************************** !
 

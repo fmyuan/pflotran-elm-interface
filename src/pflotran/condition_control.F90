@@ -967,7 +967,8 @@ subroutine CondControlAssignTranInitCond(realization)
   use Field_module
   use Coupler_module
   use Condition_module
-  use Transport_Constraint_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
   use Grid_module
   use Dataset_Base_class
   use Patch_module
@@ -1002,7 +1003,8 @@ subroutine CondControlAssignTranInitCond(realization)
   type(reaction_type), pointer :: reaction
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
+  class(tran_constraint_rt_type), pointer :: constraint
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: iphase
@@ -1053,21 +1055,23 @@ subroutine CondControlAssignTranInitCond(realization)
       if (.not.associated(initial_condition)) exit
         
       constraint_coupler => &
-        initial_condition%tran_condition%cur_constraint_coupler
+        TranConstraintCouplerRTCast(initial_condition%tran_condition% &
+                                      cur_constraint_coupler)
+      constraint => TranConstraintRTCast(constraint_coupler%constraint)
 
       equilibrate_at_each_cell = constraint_coupler%equilibrate_at_each_cell
       use_aq_dataset = PETSC_FALSE
       num_aq_datasets = 0
       aq_dataset_to_idof = 0
       do idof = 1, reaction%naqcomp ! primary aqueous concentrations
-        if (constraint_coupler%aqueous_species%external_dataset(idof)) then
+        if (constraint%aqueous_species%external_dataset(idof)) then
           num_aq_datasets = num_aq_datasets + 1
           aq_dataset_to_idof(num_aq_datasets) = idof
           equilibrate_at_each_cell = PETSC_TRUE
           use_aq_dataset = PETSC_TRUE
-          string = 'constraint ' // trim(constraint_coupler%constraint_name)
+          string = 'constraint ' // trim(constraint%name)
           dataset => DatasetBaseGetPointer(realization%datasets, &
-                        constraint_coupler%aqueous_species%constraint_aux_string(idof), &
+                        constraint%aqueous_species%constraint_aux_string(idof), &
                         string,option)
           call ConditionControlMapDatasetToVec(realization,dataset,idof, &
                                                 field%tran_xx_loc,LOCAL)
@@ -1075,13 +1079,13 @@ subroutine CondControlAssignTranInitCond(realization)
       enddo
 
       ! read in heterogeneous mineral volume fractions
-      if (associated(constraint_coupler%minerals)) then
+      if (associated(constraint%minerals)) then
         do imnrl = 1, reaction%mineral%nkinmnrl
-          if (constraint_coupler%minerals%external_vol_frac_dataset(imnrl)) then
+          if (constraint%minerals%external_vol_frac_dataset(imnrl)) then
             equilibrate_at_each_cell = PETSC_TRUE
-            string = 'constraint ' // trim(constraint_coupler%constraint_name)
+            string = 'constraint ' // trim(constraint%name)
             dataset => DatasetBaseGetPointer(realization%datasets, &
-                          constraint_coupler%minerals% &
+                          constraint%minerals% &
                             constraint_vol_frac_string(imnrl), &
                           string,option)
             if (vec1_loc == PETSC_NULL_VEC) then
@@ -1105,13 +1109,13 @@ subroutine CondControlAssignTranInitCond(realization)
       endif
           
       ! read in heterogeneous mineral surface area
-      if (associated(constraint_coupler%minerals)) then
+      if (associated(constraint%minerals)) then
         do imnrl = 1, reaction%mineral%nkinmnrl
-          if (constraint_coupler%minerals%external_area_dataset(imnrl)) then
+          if (constraint%minerals%external_area_dataset(imnrl)) then
             equilibrate_at_each_cell = PETSC_TRUE
-            string = 'constraint ' // trim(constraint_coupler%constraint_name)
+            string = 'constraint ' // trim(constraint%name)
             dataset => DatasetBaseGetPointer(realization%datasets, &
-                          constraint_coupler%minerals% &
+                          constraint%minerals% &
                           constraint_area_string(imnrl), &
                           string,option)
             if (vec1_loc == PETSC_NULL_VEC) then
@@ -1122,14 +1126,14 @@ subroutine CondControlAssignTranInitCond(realization)
             idof = ONE_INTEGER
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
                                                  vec1_loc,LOCAL)
-            call VecScale(vec1_loc,constraint_coupler%minerals% &
+            call VecScale(vec1_loc,constraint%minerals% &
                             constraint_area_conv_factor(imnrl), &
                           ierr);CHKERRQ(ierr)
-            if (constraint_coupler%minerals%area_per_unit_mass(imnrl)) then
-              if (constraint_coupler%minerals% &
+            if (constraint%minerals%area_per_unit_mass(imnrl)) then
+              if (constraint%minerals% &
                     external_vol_frac_dataset(imnrl)) then
                 dataset => DatasetBaseGetPointer(realization%datasets, &
-                              constraint_coupler%minerals% &
+                              constraint%minerals% &
                                 constraint_vol_frac_string(imnrl), &
                               string,option)
                 if (vec2_loc == PETSC_NULL_VEC) then
@@ -1143,7 +1147,7 @@ subroutine CondControlAssignTranInitCond(realization)
                                       vec2_loc,ierr);CHKERRQ(ierr)
               else
                 call VecScale(vec1_loc, &
-                              constraint_coupler%minerals% &
+                              constraint%minerals% &
                                 constraint_vol_frac(imnrl), &
                               ierr);CHKERRQ(ierr)
               endif
@@ -1161,13 +1165,13 @@ subroutine CondControlAssignTranInitCond(realization)
       endif
           
       ! read in heterogeneous immobile
-      if (associated(constraint_coupler%immobile_species)) then
+      if (associated(constraint%immobile_species)) then
         do iimmobile = 1, reaction%immobile%nimmobile
-          if (constraint_coupler%immobile_species%external_dataset(iimmobile)) then
+          if (constraint%immobile_species%external_dataset(iimmobile)) then
             ! no need to requilibrate at each cell
-            string = 'constraint ' // trim(constraint_coupler%constraint_name)
+            string = 'constraint ' // trim(constraint%name)
             dataset => DatasetBaseGetPointer(realization%datasets, &
-                constraint_coupler%immobile_species%constraint_aux_string(iimmobile), &
+                constraint%immobile_species%constraint_aux_string(iimmobile), &
                 string,option)
             if (vec1_loc == PETSC_NULL_VEC) then
               ! cannot use field%work_loc as it is used within ConditionCo...
@@ -1215,7 +1219,7 @@ subroutine CondControlAssignTranInitCond(realization)
               ! remember that xx_loc_p holds the data set values that 
               ! were read in
               temp_int = aq_dataset_to_idof(iaqdataset)
-              constraint_coupler%aqueous_species%constraint_conc(temp_int) = &
+              constraint%aqueous_species%constraint_conc(temp_int) = &
                 xx_loc_p(offset+temp_int)
             enddo
           endif
@@ -1227,14 +1231,7 @@ subroutine CondControlAssignTranInitCond(realization)
           endif
           call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
             global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
-            reaction, &
-            constraint_coupler%constraint_name, &
-            constraint_coupler%aqueous_species, &
-            constraint_coupler%free_ion_guess, &
-            constraint_coupler%minerals, &
-            constraint_coupler%surface_complexes, &
-            constraint_coupler%colloids, &
-            constraint_coupler%immobile_species, &
+            reaction,constraint, &
             constraint_coupler%num_iterations, &
             (prev_equilibrated_ghosted_id > 0),option)
           option%iflag = 0
@@ -1265,41 +1262,41 @@ subroutine CondControlAssignTranInitCond(realization)
         ! primary aqueous concentrations
         do idof = 1, reaction%naqcomp 
           xx_p(offset+idof) = &
-            constraint_coupler%aqueous_species%basis_molarity(idof) / &
+            constraint%aqueous_species%basis_molarity(idof) / &
             global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 ! convert molarity -> molality
         enddo
         ! mineral volume fractions
-        if (associated(constraint_coupler%minerals)) then
+        if (associated(constraint%minerals)) then
           do imnrl = 1, reaction%mineral%nkinmnrl
             ! if read from a dataset, the vol frac was set above.  Don't want to
             ! overwrite
-            if (.not.constraint_coupler%minerals% &
+            if (.not.constraint%minerals% &
                   external_vol_frac_dataset(imnrl)) then
               rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl) = &
-                constraint_coupler%minerals%constraint_vol_frac(imnrl)
+                constraint%minerals%constraint_vol_frac(imnrl)
               rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) = &
-                constraint_coupler%minerals%constraint_vol_frac(imnrl)
+                constraint%minerals%constraint_vol_frac(imnrl)
             endif
-            if (.not.constraint_coupler%minerals% &
+            if (.not.constraint%minerals% &
                   external_area_dataset(imnrl)) then
               rt_auxvars(ghosted_id)%mnrl_area0(imnrl) = &
-                constraint_coupler%minerals%constraint_area(imnrl)
+                constraint%minerals%constraint_area(imnrl)
               rt_auxvars(ghosted_id)%mnrl_area(imnrl) = &
-                constraint_coupler%minerals%constraint_area(imnrl)
+                constraint%minerals%constraint_area(imnrl)
             endif
           enddo
         endif
         ! kinetic surface complexes
-        if (associated(constraint_coupler%surface_complexes)) then
+        if (associated(constraint%surface_complexes)) then
           do idof = 1, reaction%surface_complexation%nkinsrfcplx
             rt_auxvars(ghosted_id)%kinsrfcplx_conc(idof,-1) = & !geh: to catch bug
-              constraint_coupler%surface_complexes%constraint_conc(idof)
+              constraint%surface_complexes%constraint_conc(idof)
           enddo
           do ikinrxn = 1, reaction%surface_complexation%nkinsrfcplxrxn
             irxn = reaction%surface_complexation%kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
             isite = reaction%surface_complexation%srfcplxrxn_to_surf(irxn)
             rt_auxvars(ghosted_id)%kinsrfcplx_free_site_conc(isite) = &
-              constraint_coupler%surface_complexes%basis_free_site_conc(isite)
+              constraint%surface_complexes%basis_free_site_conc(isite)
           enddo
         endif
         ! this is for the multi-rate surface complexation model
@@ -1315,29 +1312,29 @@ subroutine CondControlAssignTranInitCond(realization)
             constraint_coupler%rt_auxvar%srfcplxrxn_free_site_conc
         endif
         ! colloids fractions
-        if (associated(constraint_coupler%colloids)) then
+        if (associated(constraint%colloids)) then
           offset = ibegin + reaction%offset_colloid - 1
           do idof = 1, reaction%ncoll ! primary aqueous concentrations
             xx_p(offset+idof) = &
-              constraint_coupler%colloids%basis_conc_mob(idof) / &
+              constraint%colloids%basis_conc_mob(idof) / &
               global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 ! convert molarity -> molality
             rt_auxvars(ghosted_id)%colloid%conc_imb(idof) = &
-              constraint_coupler%colloids%basis_conc_imb(idof)
+              constraint%colloids%basis_conc_imb(idof)
           enddo
         endif
         ! immobile
-        if (associated(constraint_coupler%immobile_species)) then
+        if (associated(constraint%immobile_species)) then
           offset = ibegin + reaction%offset_immobile - 1
           do iimmobile = 1, reaction%immobile%nimmobile
-            if (constraint_coupler%immobile_species%external_dataset(iimmobile)) then
+            if (constraint%immobile_species%external_dataset(iimmobile)) then
               ! already read into rt_auxvars above.
               xx_p(offset+iimmobile) = &
                 rt_auxvars(ghosted_id)%immobile(iimmobile)
             else
               xx_p(offset+iimmobile) = &
-                constraint_coupler%immobile_species%constraint_conc(iimmobile)
+                constraint%immobile_species%constraint_conc(iimmobile)
               rt_auxvars(ghosted_id)%immobile(iimmobile) = &
-                constraint_coupler%immobile_species%constraint_conc(iimmobile)
+                constraint%immobile_species%constraint_conc(iimmobile)
             endif
           enddo
         endif
@@ -1459,12 +1456,11 @@ subroutine CondControlAssignNWTranInitCond(realization)
   use Field_module
   use Coupler_module
   use Condition_module
-  use Transport_Constraint_module
+  use Transport_Constraint_NWT_module
   use Grid_module
   use Patch_module
   use NW_Transport_module
   use NW_Transport_Aux_module
-  use NWT_Constraint_module
   use NWT_Equilibrium_module
   use Material_Aux_class
   use HDF5_module
@@ -1488,7 +1484,8 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(patch_type), pointer :: cur_patch
   type(nw_trans_realization_type), pointer :: nw_trans
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(nwt_constraint_coupler_type), pointer :: constraint_coupler
+  class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
+  class(tran_constraint_nwt_type), pointer :: constraint
 
   PetscInt :: iphase
   PetscInt :: offset
@@ -1521,14 +1518,16 @@ subroutine CondControlAssignNWTranInitCond(realization)
       if (.not.associated(initial_condition)) exit
         
       constraint_coupler => &
-        initial_condition%tran_condition%cur_nwt_constraint_coupler
+        TranConstraintCouplerNWTCast(initial_condition%tran_condition% &
+                                       cur_constraint_coupler)
+      constraint => TranConstraintNWTCast(constraint_coupler%constraint)
         
       do icell=1,initial_condition%region%num_cells
       
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
 
-        call NWTEquilibrateConstraint(nw_trans,constraint_coupler%nwt_species, &
+        call NWTEquilibrateConstraint(nw_trans,constraint, &
                                       constraint_coupler%nwt_auxvar, &
                                       constraint_coupler%global_auxvar, &
                                       material_auxvars(ghosted_id), &
@@ -1547,7 +1546,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
         ! species concentrations
         do idof = 1, nw_trans%params%nspecies 
           xx_p(offset+idof) = &
-                           constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
+            constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
         enddo
 
       enddo ! icell=1,initial_condition%region%num_cells

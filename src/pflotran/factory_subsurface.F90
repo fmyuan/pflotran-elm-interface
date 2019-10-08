@@ -1145,6 +1145,7 @@ subroutine SubsurfaceReadRTPM(input,option,pm)
 
   pm => PMRTCreate()
   pm%option => option
+  option%itranmode = RT_MODE
 
   call pm%ReadSimulationBlock(input)
 
@@ -1180,7 +1181,7 @@ subroutine SubsurfaceReadNWTPM(input,option,pm)
 
   pm => PMNWTCreate()
   pm%option => option
-  option%itranmode = NW_TRANSPORT
+  option%itranmode = NWT_MODE
 
   call pm%ReadSimulationBlock(input)
 
@@ -2155,6 +2156,9 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Realization_Base_class
   use Region_module
   use Condition_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
+  use Transport_Constraint_NWT_module
   use Transport_Constraint_module
   use Coupler_module
   use Strata_module
@@ -2167,7 +2171,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Reaction_Aux_module
   use NW_Transport_module
   use NW_Transport_Aux_module
-  use NWT_Constraint_module
   use Discretization_module
   use Input_Aux_module
   use String_module
@@ -2231,9 +2234,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(flow_condition_type), pointer :: flow_condition
   class(well_data_type), pointer :: well_data
   type(tran_condition_type), pointer :: tran_condition
-  type(tran_constraint_type), pointer :: tran_constraint
-  type(nwt_constraint_type), pointer :: nwt_constraint
-  type(tran_constraint_type), pointer :: sec_tran_constraint
+  class(tran_constraint_base_type), pointer :: tran_constraint
+  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
@@ -2517,8 +2519,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('TRANSPORT_CONDITION')
-        if ( (.not.associated(reaction)) .and. &
-             (.not.associated(realization%nw_trans)) ) then
+        if (option%itranmode == NULL_MODE) then
           option%io_buffer = 'TRANSPORT_CONDITIONs not supported without &
                              &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call PrintErrMsg(option)
@@ -2529,7 +2530,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call PrintMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
                                realization%transport_constraints, &
-                               realization%nwt_constraints, &
                                reaction,realization%nw_trans,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
@@ -2537,34 +2537,28 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case('CONSTRAINT')
-        if ( (.not.associated(reaction)) .and. &
-             (.not.associated(realization%nw_trans)) ) then
-          option%io_buffer = 'CONSTRAINTs not supported without &
-                             &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
+        select case(option%itranmode)
+          case(RT_MODE)
+            tran_constraint => TranConstraintRTCreate(option)
+          case(NWT_MODE)
+            tran_constraint => TranConstraintNWTCreate(option)
+          case default
+            option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY &
+                               &or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
           call PrintErrMsg(option)
-        endif
-        
-        if (associated(reaction)) then
-          tran_constraint => TranConstraintCreate(option)
-          call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'constraint','name')
-          call PrintMsg(option,tran_constraint%name)
-          call TranConstraintRead(tran_constraint,reaction,input,option)
-          call TranConstraintAddToList(tran_constraint, &
-                                       realization%transport_constraints)
-          nullify(tran_constraint)
-        endif
-        if (associated(realization%nw_trans)) then
-          nwt_constraint => NWTConstraintCreate(option)
-          call InputReadWord(input,option,nwt_constraint%name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'constraint','name')
-          call PrintMsg(option,nwt_constraint%name)
-          call NWTConstraintRead(nwt_constraint,realization%nw_trans, &
-                                 input,option)
-          call NWTConstraintAddToList(nwt_constraint, &
-                                      realization%nwt_constraints)
-          nullify(nwt_constraint)
-        endif
+        end select
+        call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'constraint','name')
+        call PrintMsg(option,tran_constraint%name)
+        select type(tc=>tran_constraint)
+          class is(tran_constraint_rt_type)
+            call TranConstraintRTRead(tc,reaction,input,option)
+          class is(tran_constraint_nwt_type)
+            call TranConstraintNWTRead(tc,realization%nw_trans,input,option)
+        end select
+        call TranConstraintAddToList(tran_constraint, &
+                                     realization%transport_constraints)
+        nullify(tran_constraint)
 
 !....................
       case ('BOUNDARY_CONDITION')
@@ -2751,11 +2745,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &CHEMISTRY.'
           call PrintErrMsg(option)
         endif
-        sec_tran_constraint => TranConstraintCreate(option)
+        sec_tran_constraint => TranConstraintRTCreate(option)
         call InputReadWord(input,option,sec_tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'secondary constraint','name')
         call PrintMsg(option,sec_tran_constraint%name)
-        call TranConstraintRead(sec_tran_constraint,reaction,input,option)
+        call TranConstraintRTRead(sec_tran_constraint,reaction,input,option)
         realization%sec_transport_constraint => sec_tran_constraint
         nullify(sec_tran_constraint)
 

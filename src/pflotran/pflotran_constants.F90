@@ -169,8 +169,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
 
   ! transport modes
-  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
-  PetscInt, parameter, public :: NW_TRANSPORT = 2
+  PetscInt, parameter, public :: RT_MODE = 1
+  PetscInt, parameter, public :: NWT_MODE = 2
+  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
   
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0

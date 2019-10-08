@@ -140,9 +140,9 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
 
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word
-  type(tran_constraint_type), pointer :: tran_constraint
+  class(tran_constraint_type), pointer :: tran_constraint
   type(tran_constraint_list_type), pointer :: transport_constraints
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler 
+  class(tran_constraint_coupler_type), pointer :: constraint_coupler 
   PetscBool :: use_prev_soln_as_guess
   PetscInt :: num_iterations
   
@@ -280,7 +280,7 @@ program pflotran_rxn
   character(len=MAXWORDLENGTH) :: card
   character(len=MAXWORDLENGTH) :: word
   type(tran_constraint_list_type), pointer :: transport_constraints
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler 
+  class(tran_constraint_coupler_type), pointer :: constraint_coupler 
 
   option => OptionCreate()
   option%fid_out = OUT_UNIT

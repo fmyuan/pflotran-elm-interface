@@ -1145,7 +1145,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
 
   if (option%ntrandof > 0) then
     select case(option%itranmode)
-      case(NULL_MODE,EXPLICIT_ADVECTION)
+      case(RT_MODE,EXPLICIT_ADVECTION)
         ! remove ndof above if this is moved
         if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
           ndof = realization%reaction%ncomp
@@ -1161,7 +1161,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%RT%inactive_cells_exist, &
                       option)
         deallocate(dof_is_active)
-      case(NW_TRANSPORT)
+      case(NWT_MODE)
         if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
           ndof = realization%nw_trans%params%nspecies
         else
