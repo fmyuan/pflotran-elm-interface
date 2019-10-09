@@ -299,7 +299,9 @@ subroutine InitCommonReadRegionFiles(realization)
         region%def_type = DEFINED_BY_FACE_UGRID_EXP
         call RegionReadFromFile(region%explicit_faceset,region%cell_ids, &
                                 region%filename,realization%option)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       else
         call RegionReadFromFile(region,realization%option, &
                                 region%filename)
