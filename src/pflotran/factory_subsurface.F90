@@ -2796,7 +2796,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
          ! Saturated molality is ~6.16, so above 10 is suspicious
          ! May be units error, so warn user
-         if( option%m_nacl > 10.0 ) then
+         if ( option%m_nacl > 10.0 ) then
            option%io_buffer = &
            'More that 10 mols/Kg ~ 584 gms/Kg '// &
            'is an unusually high brine molality'
