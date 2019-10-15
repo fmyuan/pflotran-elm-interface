@@ -1827,6 +1827,7 @@ subroutine OutputMAD(realization_base)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then 
+    ! if the file does not exist, create it
     call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err,H5P_DEFAULT_F, &
                      prop_id)
   endif
