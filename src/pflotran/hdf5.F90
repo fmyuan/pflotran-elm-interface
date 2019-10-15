@@ -1490,9 +1490,9 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
-    call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
-    call h5dcreate_f(file_id,name,data_type,file_space_id, &
-                     data_set_id,hdf5_err,prop_id)
+    option%io_buffer = 'Dataset "' // trim(name) // '" does not exist &
+      &in the current open HDF5 file.'
+    call PrintErrMsg(option)
   else
     call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
   endif
