@@ -30,6 +30,7 @@ module String_module
             StringNull, &
             StringFindEntryInList, &
             StringSplit, &
+            StringsMerge, &
             StringSwapChar, &
             StringFormatInt, &
             StringFormatDouble, &
@@ -629,6 +630,35 @@ function StringSplit(string,chars)
   StringSplit => strings
   
 end function StringSplit
+
+! ************************************************************************** !
+
+function StringsMerge(strings,chars)
+  ! 
+  ! Merges a list of strings into a single string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/16/19
+  ! 
+      
+  implicit none
+
+  character(len=*) :: strings(:)
+  character(len=*) :: chars
+
+  character(len=MAXSTRINGLENGTH) :: StringsMerge
+
+  PetscInt :: i
+
+  StringsMerge = ''
+  do i = 1, size(strings)
+    StringsMerge = trim(StringsMerge) // trim(strings(i))
+    if (len_trim(chars) > 0 .and. i < size(strings)) then
+      StringsMerge = trim(StringsMerge) // trim(chars)
+    endif
+  enddo
+  
+end function StringsMerge
 
 ! ************************************************************************** !
 
