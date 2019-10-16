@@ -568,7 +568,11 @@ subroutine PFLOTRANInitCommandLineSettings(option)
     call PrintErrMsg(option)
   else if (pflotranin_option_found) then
     strings => StringSplit(option%input_filename,'.')
-    option%input_prefix = StringsMerge(strings(1:size(strings)-1),'.')
+    if (size(strings) > 1) then
+      option%input_prefix = StringsMerge(strings(1:size(strings)-1),'.')
+    else
+      option%input_prefix = strings(1)
+    endif
     deallocate(strings)
     nullify(strings)
   else if (input_prefix_option_found) then
