@@ -555,7 +555,7 @@ subroutine PMNWTUpdateSolution(this)
   
   class(pm_nwt_type) :: this
     
-  call NWTConditionUpdate(this%realization%transport_conditions, &
+  call TranConditionUpdate(this%realization%transport_conditions, &
                            this%realization%option)
                            
   if (associated(this%realization%uniform_velocity_dataset)) then

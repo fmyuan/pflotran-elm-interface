@@ -85,6 +85,7 @@ module Patch_module
     ! Pointers to objects in mother realization object
     type(field_type), pointer :: field
     type(reaction_type), pointer :: reaction
+    ! if this is removed, remove the NW_Tran use statement above
     type(nw_trans_realization_type), pointer :: nw_trans
     class(dataset_base_type), pointer :: datasets
 

@@ -531,7 +531,8 @@ pflotran_provenance.o :
 pflotran_rxn.o : global_aux.o input_aux.o material_aux.o option.o \
                  pflotran_constants.o reaction.o reaction_aux.o \
                  reaction_database.o reactive_transport_aux.o string.o \
-                 transport_constraint.o
+                 transport_constraint.o transport_constraint_base.o \
+                 transport_constraint_rt.o
 pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
                  input_aux.o option.o pflotran_constants.o pm_base.o \
                  reaction_aux.o reactive_transport_aux.o \
@@ -850,17 +851,16 @@ realization_subsurface.o : characteristic_curves.o communicator_structured.o \
                            communicator_unstructured.o condition.o coupler.o \
                            data_mediator_base.o data_mediator_dataset.o \
                            dataset.o dataset_base.o dataset_common_hdf5.o \
-                           debug.o discretization.o dm_kludge.o field.o \
-                           fluid.o grid.o grid_grdecl.o grid_structured.o \
-                           grid_unstructured.o grid_unstructured_aux.o \
-                           grid_unstructured_cell.o input_aux.o material.o \
-                           material_aux.o nw_transport_aux.o option.o \
-                           output_aux.o output_eclipse.o patch.o \
-                           pflotran_constants.o reaction.o reaction_aux.o \
-                           reactive_transport_aux.o realization_base.o \
-                           region.o saturation_function.o strata.o string.o \
-                           time_storage.o transport_constraint.o \
-                           transport_constraint_base.o \
+                           discretization.o dm_kludge.o field.o fluid.o grid.o \
+                           grid_grdecl.o grid_structured.o grid_unstructured.o \
+                           grid_unstructured_aux.o grid_unstructured_cell.o \
+                           input_aux.o material.o material_aux.o \
+                           nw_transport_aux.o option.o output_aux.o \
+                           output_eclipse.o patch.o pflotran_constants.o \
+                           reaction.o reaction_aux.o reactive_transport_aux.o \
+                           realization_base.o region.o saturation_function.o \
+                           strata.o string.o time_storage.o \
+                           transport_constraint.o transport_constraint_base.o \
                            transport_constraint_nwt.o \
                            transport_constraint_rt.o variables.o waypoint.o \
                            well_data.o

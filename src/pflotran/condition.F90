@@ -183,7 +183,6 @@ module Condition_module
             TranConditionDestroyList, TranConditionGetPtrFromList, &
             TranConditionRead, &
             TranConditionUpdate, &
-            NWTConditionUpdate, &
             FlowConditionIsTransient, &
             ConditionReadValues, &
             GetSubConditionName, &
@@ -5190,47 +5189,6 @@ subroutine TranConditionUpdate(condition_list,option)
   enddo
 
 end subroutine TranConditionUpdate
-
-! ************************************************************************** !
-
-subroutine NWTConditionUpdate(condition_list,option)
-  ! 
-  ! Updates a transient transport condition for NW Transport.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 06/26/2019
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(tran_condition_list_type) :: condition_list
-  type(option_type) :: option
-
-  type(tran_condition_type), pointer :: condition
-
-  condition => condition_list%first
-  do
-    if (.not.associated(condition)) exit
-
-    do
-      if (associated(condition%cur_constraint_coupler%next)) then
-        if (option%time >= condition%cur_constraint_coupler%next%time) then
-          condition%cur_constraint_coupler => &
-            condition%cur_constraint_coupler%next
-        else
-          exit
-        endif
-      else
-        exit
-      endif
-    enddo
-    condition => condition%next
-
-  enddo
-
-end subroutine NWTConditionUpdate
 
 ! ************************************************************************** !
 

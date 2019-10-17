@@ -16,7 +16,7 @@ module Condition_Control_module
   private
 
   public :: CondControlAssignFlowInitCond, &
-            CondControlAssignTranInitCond, &
+            CondControlAssignRTTranInitCond, &
             CondControlAssignNWTranInitCond, &
             CondControlAssignFlowInitCondSurface, &
             CondControlScaleSourceSink
@@ -950,7 +950,7 @@ end subroutine CondControlAssignFlowInitCond
 
 ! ************************************************************************** !
 
-subroutine CondControlAssignTranInitCond(realization)
+subroutine CondControlAssignRTTranInitCond(realization)
   ! 
   ! Assigns transport initial conditions to model
   ! 
@@ -1435,7 +1435,7 @@ subroutine CondControlAssignTranInitCond(realization)
     call VecDestroy(vec2_loc,ierr);CHKERRQ(ierr)
   endif
 
-end subroutine CondControlAssignTranInitCond
+end subroutine CondControlAssignRTTranInitCond
 
 ! ************************************************************************** !
 

@@ -1445,12 +1445,7 @@ subroutine SubsurfaceInitSimulation(simulation)
   ! set if no flow exists
   call InitSubsurfFlowSetupRealization(realization)
   if (option%ntrandof > 0) then
-    if (associated(simulation%rt_process_model_coupler)) then
-      call InitSubsurfTranSetupRealization(realization)
-    endif
-    if (associated(simulation%nwt_process_model_coupler)) then
-      call InitNWTranSetupRealization(realization)
-    endif
+    call InitSubsurfTranSetupRealization(realization)
   endif
   ! InitSubsurfaceSetupZeroArray must come after InitSubsurfaceXXXRealization
   call InitSubsurfaceSetupZeroArrays(realization)
@@ -1882,7 +1877,6 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use General_module
   use Reaction_module
   use Reaction_Aux_module
-  use NW_Transport_module
   use NW_Transport_Aux_module
   use Init_Common_module
 

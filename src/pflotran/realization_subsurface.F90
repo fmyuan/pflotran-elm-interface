@@ -1,11 +1,11 @@
 module Realization_Subsurface_class
   
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Realization_Base_class
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
+  use PFLOTRAN_Constants_module
+  use Realization_Base_class
   use Option_module
-  use Output_Aux_module
   use Input_Aux_module
   use Region_module
   use Condition_module
@@ -17,15 +17,8 @@ module Realization_Subsurface_class
   use Characteristic_Curves_module
   use Dataset_Base_class
   use Fluid_module
-  use Discretization_module
-  use Field_module
-  use Debug_module
-  use Output_Aux_module
   use Patch_module
-  use Reaction_Aux_module
-  use NW_Transport_Aux_module
   
-  use PFLOTRAN_Constants_module
 
   implicit none
 
@@ -179,6 +172,7 @@ subroutine RealizationCreateDiscretization(realization)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
+  use Field_module
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_module, only : UGridEnsureRightHandRule
@@ -1064,10 +1058,12 @@ subroutine RealProcessTranConditions(realization)
   ! Date: 10/14/08
   ! 
 
-  use String_module
   use Reaction_module
+  use String_module
+  use Transport_Constraint_Base_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_RT_module
+  use Transport_Constraint_module
   
   implicit none
   
@@ -1224,6 +1220,7 @@ subroutine RealizationPrintCouplers(realization)
   ! 
 
   use Coupler_module
+  use Reaction_Aux_module
   
   implicit none
   
@@ -1280,6 +1277,8 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   ! 
   use Coupler_module
   use Reaction_module
+  use Reaction_Aux_module
+  use Transport_Constraint_Base_module
   use Transport_Constraint_RT_module
   
   implicit none
@@ -1366,12 +1365,8 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
   !     Otherwise, datasets will not have been read for routines such as
   !     hydrostatic and auxvars will be initialized to garbage.
   call FlowConditionUpdate(realization%flow_conditions,realization%option)
-  if (associated(realization%reaction)) &
-    call TranConditionUpdate(realization%transport_conditions, &
-                             realization%option)
-  if (associated(realization%nw_trans)) &
-    call NWTConditionUpdate(realization%transport_conditions, &
-                            realization%option)
+  call TranConditionUpdate(realization%transport_conditions, &
+                           realization%option)
   call PatchInitAllCouplerAuxVars(realization%patch,realization%option)
    
 end subroutine RealizationInitAllCouplerAuxVars
@@ -1753,9 +1748,14 @@ subroutine RealizationUpdatePropertiesTS(realization)
   ! Date: 08/05/09
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Discretization_module
+  use Field_module
   use Grid_module
-  use Reactive_Transport_Aux_module
   use Material_Aux_class
+  use Reaction_Aux_module
+  use Reactive_Transport_Aux_module
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
  
@@ -2027,7 +2027,10 @@ subroutine RealizationUpdatePropertiesNI(realization)
   ! Date: 08/05/09
   ! 
 
+  use Discretization_module
+  use Field_module
   use Grid_module
+  use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
@@ -2085,7 +2088,10 @@ subroutine RealizationCalcMineralPorosity(realization)
   ! Date: 11/03/14
   !
 
+  use Discretization_module
+  use Field_module
   use Grid_module
+  use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY
@@ -2158,6 +2164,8 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
   ! Date: 06/09/11
   ! 
 
+  use Discretization_module
+  use Field_module
   use Grid_module
 
   implicit none
@@ -2546,6 +2554,8 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   ! Date: 07/06/16
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Field_module
   use Patch_module
@@ -2646,6 +2656,8 @@ subroutine RealizationStrip(this)
   ! 
 
   use Dataset_module
+  use Reaction_Aux_module
+  use NW_Transport_Aux_module
   use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none
