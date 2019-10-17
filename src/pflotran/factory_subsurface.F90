@@ -2267,7 +2267,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   PetscInt::iwaytime,nwaytime,mwaytime
   PetscReal,dimension(:),pointer :: waytime
-  PetscReal wtime
+  PetscReal :: wtime, msfsalt, msfwatr, mlfsalt, mlfwatr
 
   internal_units = 'not_assigned'
 
@@ -2759,14 +2759,38 @@ subroutine SubsurfaceReadInput(simulation,input)
         select case(word(1:len_trim(word)))
           case('MOLAL')
           case('MASS')
-            option%m_nacl = option%m_nacl /FMWNACL/(1.D0-option%m_nacl)
+            msfsalt = option%m_nacl
+            msfwatr = 1.0 - msfsalt
+            ! Convert mass salt (kg)/mass water(kg) to Kg-moles = kmol
+            ! by dividing mass of salt by molecular weight salt
+            ! Then factor of 1000 to convert Kg-mol to mol
+            option%m_nacl = (1000.0*msfsalt/FMWNACL)/msfwatr
           case('MOLE')
-            option%m_nacl = option%m_nacl /FMWH2O/(1.D0-option%m_nacl)
+            ! Convert Kg-mole salt (kg)/Kg mole water(kg) to Kg-mol/Kg water
+            ! by multiplying mass of water by molecular weight water
+            ! Then factor of 1000 to convert Kg-mol to mol
+            mlfsalt = option%m_nacl
+            mlfwatr = 1.0 - mlfsalt
+            option%m_nacl = 1000.0*mlfsalt/(mlfwatr*FMWH2O)
           case default
             print *, 'Wrong unit: ', word(1:len_trim(word))
             stop
          end select
-         if (OptionPrintToScreen(option)) print *, option%m_nacl
+
+         ! Report to screen with units
+         if (OptionPrintToScreen(option)) then
+           print *,'Molality is ',option%m_nacl,' mol/Kg'
+         endif
+
+         ! Saturated molality is ~6.16, so above 10 is suspicious
+         ! May be units error, so warn user
+         if ( option%m_nacl > 10.0 ) then
+           option%io_buffer = &
+           'More that 10 mols/Kg ~ 584 gms/Kg '// &
+           'is an unusually high brine molality'
+           call PrintWrnMsg(option)
+         endif
+
 !......................
 
       case ('RESTART')

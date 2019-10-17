@@ -670,7 +670,9 @@ subroutine GridLocalizeRegions(grid,region_list,option)
                              region%sideset%face_vertices, &
                              region%sideset%nfaces,region%name, &
                              option,region%cell_ids,region%faces)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       case (DEFINED_BY_FACE_UGRID_EXP)
         call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
                                          option)
@@ -696,13 +698,17 @@ subroutine GridLocalizeRegions(grid,region_list,option)
                                         region%polygonal_volume, &
                                         region%name,option, &
                                         region%cell_ids,region%faces)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       case (DEFINED_BY_POLY_CELL_CENTER)
         call GridMapCellsInPolVol(grid, &
                                   region%polygonal_volume, &
                                   region%name,option, &
                                   region%cell_ids)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       case default
         option%io_buffer = 'GridLocalizeRegions: Region definition not recognized'
         call PrintErrMsg(option)

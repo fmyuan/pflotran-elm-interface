@@ -653,10 +653,11 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5eset_auto_f(ON, hdf5_err)
 
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5pcreate_f(H5P_DATASET_CREATE_F, prop_id, hdf5_err)
     call h5screate_simple_f(dataset_rank, dims, grp_space_id, hdf5_err, dims)
-    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_INTEGER, grp_space_id, &
-                     data_set_id, hdf5_err, prop_id)
+    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_INTEGER, &
+                     grp_space_id, data_set_id, hdf5_err, prop_id)
     call h5pclose_f(prop_id, hdf5_err)
   else
     call h5dget_space_f(data_set_id, grp_space_id, hdf5_err)
@@ -735,10 +736,11 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   call h5eset_auto_f(ON, hdf5_err)
 
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5pcreate_f(H5P_DATASET_CREATE_F, prop_id, hdf5_err)
     call h5screate_simple_f(dataset_rank, dims, grp_space_id, hdf5_err, dims)
-    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_DOUBLE, grp_space_id, &
-                     data_set_id, hdf5_err, prop_id)
+    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_DOUBLE, &
+                     grp_space_id, data_set_id, hdf5_err, prop_id)
     call h5pclose_f(prop_id, hdf5_err)
   else
     call h5dget_space_f(data_set_id, grp_space_id, hdf5_err)
