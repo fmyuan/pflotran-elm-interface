@@ -90,7 +90,7 @@ subroutine ReactionInit(reaction,input,option)
   
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -136,7 +136,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   
   implicit none
   
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1006,7 +1006,7 @@ subroutine ReactionReadPass2(reaction,input,option)
   
   implicit none
 
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1132,7 +1132,7 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
   
   implicit none
   
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1189,7 +1189,7 @@ subroutine ReactionProcessConstraint(reaction,constraint,option)
   
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   class(tran_constraint_rt_type) :: constraint
   type(option_type) :: option
   
@@ -1407,7 +1407,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   class(tran_constraint_rt_type) :: constraint
   PetscInt :: num_iterations
   PetscBool :: use_prev_soln_as_guess
@@ -2146,7 +2146,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   
   type(option_type) :: option
   class(tran_constraint_coupler_rt_type) :: constraint_coupler
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   
   class(tran_constraint_rt_type), pointer :: constraint
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
@@ -2860,7 +2860,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   
   type(option_type) :: option
   class(tran_constraint_coupler_rt_type) :: constraint_coupler
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
@@ -3105,7 +3105,7 @@ subroutine ReactionReadOutput(reaction,input,option)
                                TOTAL_MOLALITY, TOTAL_MOLARITY  
   implicit none
   
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -3382,7 +3382,7 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3425,7 +3425,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3618,7 +3618,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
  
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3691,7 +3691,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(reactive_transport_auxvar_type) :: rt_auxvar_pert
   type(global_auxvar_type) :: global_auxvar
@@ -3790,7 +3790,7 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
    
   PetscReal :: m_na, m_cl, tc, co2aqact, lngamco2, henry, xphico2, pco2
@@ -3835,7 +3835,7 @@ function RSumMoles(rt_auxvar,reaction,option)
   implicit none
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscReal :: RSumMoles
 
@@ -3868,7 +3868,7 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscReal :: RCO2MoleFraction
 
@@ -3917,7 +3917,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: icplx, icomp, it, j, jcomp, ncomp
@@ -4164,7 +4164,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -4205,7 +4205,7 @@ subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: i, j, icplx, icomp, jcomp, ncomp
@@ -4321,7 +4321,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4361,7 +4361,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn
@@ -4443,7 +4443,7 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: i, j, k, icplx, icomp, jcomp, iphase, ncomp, ncplx
@@ -4679,7 +4679,7 @@ subroutine RAccumulationSorb(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
 !  PetscReal :: v_t
@@ -4712,7 +4712,7 @@ subroutine RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   
   PetscInt :: icomp
@@ -4745,7 +4745,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
   implicit none
   
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -4848,7 +4848,7 @@ subroutine RGeneral(Res,Jac,compute_derivative,rt_auxvar,global_auxvar, &
   implicit none
   
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -5042,7 +5042,7 @@ subroutine ReactionComputeKd(icomp,retardation,rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscReal :: bulk_vol_to_fluid_vol
@@ -5089,7 +5089,7 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
   type(global_auxvar_type) :: global_auxvar 
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscInt, parameter :: iphase = 1
   
@@ -5123,7 +5123,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   implicit none
   
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -5223,7 +5223,7 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
   PetscInt :: iphase
@@ -5306,7 +5306,7 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar  
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   
   PetscInt :: icomp, iphase
@@ -5392,7 +5392,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
 
   implicit none
   
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
 
   PetscInt :: dfill(reaction%ncomp,reaction%ncomp)
@@ -5479,7 +5479,7 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar  
   class(material_auxvar_type) :: material_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: imnrl, iaqspec, ncomp, icomp
@@ -5590,7 +5590,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
   implicit none
   
   type(global_auxvar_type) :: global_auxvar  
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: update_mnrl
   type(option_type) :: option
   
@@ -5683,7 +5683,7 @@ subroutine RTPrintAuxVar(rt_auxvar,reaction,option)
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -5818,7 +5818,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   implicit none
   
   type(output_variable_list_type), pointer :: list
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: time_unit
   

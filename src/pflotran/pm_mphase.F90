@@ -159,7 +159,7 @@ subroutine PMMphasePreSolve(this)
   
   class(pm_mphase_type) :: this
 
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid

@@ -1000,7 +1000,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
@@ -1482,7 +1482,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: reaction_nw
   class(material_auxvar_type), pointer :: material_auxvars(:)
   class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
   class(tran_constraint_nwt_type), pointer :: constraint
@@ -1495,7 +1495,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   option => realization%option
   discretization => realization%discretization
   field => realization%field
-  nw_trans => realization%nw_trans
+  reaction_nw => realization%reaction_nw
   
   iphase = 1
   vec1_loc = PETSC_NULL_VEC
@@ -1527,7 +1527,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
 
-        call NWTEquilibrateConstraint(nw_trans,constraint, &
+        call NWTEquilibrateConstraint(reaction_nw,constraint, &
                                       constraint_coupler%nwt_auxvar, &
                                       constraint_coupler%global_auxvar, &
                                       material_auxvars(ghosted_id), &
@@ -1544,7 +1544,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
         offset = ibegin - 1
         
         ! species concentrations
-        do idof = 1, nw_trans%params%nspecies 
+        do idof = 1, reaction_nw%params%nspecies 
           xx_p(offset+idof) = &
             constraint_coupler%nwt_auxvar%total_bulk_conc(idof)
         enddo
@@ -1571,7 +1571,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
                         ierr);CHKERRQ(ierr)
       if (tempreal <= 0.d0) then
         write(string,*) tempreal
-        string2 = '  Species "' // trim(nw_trans%species_names(idof))
+        string2 = '  Species "' // trim(reaction_nw%species_names(idof))
         string2 = trim(string2) // '" has zero concentration (' // &
                   trim(adjustl(string)) // ').'
         call PrintMsg(option,string2)
@@ -1880,7 +1880,7 @@ subroutine CondControlReadTransportIC(realization,filename)
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(patch_type), pointer :: cur_patch
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
 
   option => realization%option
   discretization => realization%discretization
@@ -1903,8 +1903,8 @@ subroutine CondControlReadTransportIC(realization,filename)
       group_name = ''
       if (associated(reaction)) &
         dataset_name = reaction%primary_species_names(idof)
-      if (associated(realization%nw_trans)) &
-        dataset_name = realization%nw_trans%species_names(idof)
+      if (associated(realization%reaction_nw)) &
+        dataset_name = realization%reaction_nw%species_names(idof)
       call HDF5ReadCellIndexedRealArray(realization,field%work, &
                                         filename,group_name, &
                                         dataset_name,option%id>0)

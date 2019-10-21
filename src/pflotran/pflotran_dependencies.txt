@@ -436,8 +436,8 @@ nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  option.o output_aux.o pflotran_constants.o \
                  realization_subsurface.o string.o transport_constraint_nwt.o \
                  utility.o
-nw_transport_aux.o : input_aux.o matrix_block_aux.o option.o output_aux.o \
-                     pflotran_constants.o string.o utility.o variables.o
+nw_transport_aux.o : input_aux.o option.o output_aux.o pflotran_constants.o \
+                     reaction_base.o string.o utility.o variables.o
 nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
                              option.o pflotran_constants.o \
                              transport_constraint_nwt.o
@@ -738,6 +738,7 @@ reaction_aux.o : generic.o option.o pflotran_constants.o reaction_base.o \
                  reaction_immobile_aux.o reaction_microbial_aux.o \
                  reaction_mineral_aux.o reaction_solid_solution_aux.o \
                  reaction_surf_complex_aux.o string.o utility.o
+reaction_base.o :
 reaction_clm.o : global_aux.o input_aux.o material_aux.o option.o \
                  pflotran_constants.o reaction_aux.o reaction_immobile_aux.o \
                  reactive_transport_aux.o string.o units.o utility.o

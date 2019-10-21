@@ -312,8 +312,8 @@ subroutine RealizationCreateDiscretization(realization)
                                              field%tran_work_loc)
         endif
       endif
-      if (associated(realization%nw_trans)) then
-        if (realization%nw_trans%use_log_formulation) then
+      if (associated(realization%reaction_nw)) then
+        if (realization%reaction_nw%use_log_formulation) then
           call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                              field%tran_log_xx)
           call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
@@ -542,7 +542,7 @@ subroutine RealizationPassPtrsToPatches(realization)
   realization%patch%field => realization%field
   realization%patch%datasets => realization%datasets
   realization%patch%reaction => realization%reaction
-  realization%patch%nw_trans => realization%nw_trans
+  realization%patch%reaction_nw => realization%reaction_nw
   
 end subroutine RealizationPassPtrsToPatches
 
@@ -1111,7 +1111,7 @@ subroutine RealProcessTranConditions(realization)
         call ReactionProcessConstraint(realization%reaction, &
                                        constraint,realization%option)
       class is (tran_constraint_nwt_type)
-        call NWTConstraintProcess(realization%nw_trans, &
+        call NWTConstraintProcess(realization%reaction_nw, &
                                   constraint,realization%option)
     end select
     cur_constraint => cur_constraint%next
@@ -1203,7 +1203,7 @@ subroutine RealizationInitConstraints(realization)
   do
     if (.not.associated(cur_patch)) exit
     call PatchInitConstraints(cur_patch,realization%reaction, &
-                              realization%nw_trans,realization%option)
+                              realization%reaction_nw,realization%option)
     cur_patch => cur_patch%next
   enddo
  
@@ -1229,7 +1229,7 @@ subroutine RealizationPrintCouplers(realization)
   type(patch_type), pointer :: cur_patch
   type(coupler_type), pointer :: cur_coupler
   type(option_type), pointer :: option
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
  
   option => realization%option
   reaction => realization%reaction
@@ -1285,7 +1285,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   
   type(coupler_type) :: coupler
   type(option_type) :: option
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   
   character(len=MAXSTRINGLENGTH) :: string
   
@@ -1766,7 +1766,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2044,7 +2044,7 @@ subroutine RealizationUpdatePropertiesNI(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2103,7 +2103,7 @@ subroutine RealizationCalcMineralPorosity(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
   type(discretization_type), pointer :: discretization
@@ -2693,7 +2693,7 @@ subroutine RealizationStrip(this)
   
   call ReactionDestroy(this%reaction,this%option)
   
-  call NWTReactionDestroy(this%nw_trans,this%option)
+  call NWTReactionDestroy(this%reaction_nw,this%option)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   

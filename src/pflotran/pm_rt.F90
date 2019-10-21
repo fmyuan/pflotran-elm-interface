@@ -780,7 +780,7 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal, pointer :: C_p(:)
   PetscReal, pointer :: dC_p(:)
   type(grid_type), pointer :: grid
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string

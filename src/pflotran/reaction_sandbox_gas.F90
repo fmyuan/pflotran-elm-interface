@@ -181,7 +181,7 @@ subroutine GasSetup(this,reaction,option)
   ! Date: July 2018
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Reaction_Gas_Aux_module, only : GasGetIDFromName  
   use Option_module
@@ -189,7 +189,7 @@ subroutine GasSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_gas_type) :: this
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: i
@@ -230,7 +230,7 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_gas_type) :: this  
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
 
   ! the following arrays must be declared after reaction

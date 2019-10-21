@@ -42,7 +42,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      class(reaction_type) :: reaction
+      class(reaction_rt_type) :: reaction
       type(option_type) :: option
   
     end subroutine Base_Setup 
@@ -97,7 +97,7 @@ module CLM_Rxn_Base_class
   
       class(clm_rxn_base_type) :: this
       type(option_type) :: option
-      class(reaction_type) :: reaction
+      class(reaction_rt_type) :: reaction
       PetscBool :: compute_derivative
       PetscReal :: Res(reaction%ncomp)
       PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -143,7 +143,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    class(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     type(option_type) :: option
   
   end subroutine Base_Setup 
@@ -197,7 +197,7 @@ contains
   
     class(clm_rxn_base_type) :: this
     type(option_type) :: option
-    class(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     PetscBool :: compute_derivative
     PetscReal :: Residual(reaction%ncomp)
     PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
@@ -403,7 +403,7 @@ module CLM_Rxn_Decomp_class
     PetscBool :: is_NO3_aqueous
 
     type(pool_type), pointer :: pools
-    type(clmdec_reaction_type), pointer :: reactions
+    type(clmdec_reaction_rt_type), pointer :: reactions
   contains
     procedure, public :: ReadInput => CLMDec_Read
     procedure, public :: Setup => CLMDec_Setup
@@ -418,12 +418,12 @@ module CLM_Rxn_Decomp_class
     type(pool_type), pointer :: next
   end type pool_type
   
-  type :: clmdec_reaction_type
+  type :: clmdec_reaction_rt_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
-    type(clmdec_reaction_type), pointer :: next
-  end type clmdec_reaction_type
+    type(clmdec_reaction_rt_type), pointer :: next
+  end type clmdec_reaction_rt_type
   
   public :: CLMDec_Create
 
@@ -535,7 +535,7 @@ subroutine CLMDec_Read(this,input,option)
   
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
-  type(clmdec_reaction_type), pointer :: new_reaction, prev_reaction
+  type(clmdec_reaction_rt_type), pointer :: new_reaction, prev_reaction
   
   PetscReal :: rate_constant, turnover_time
   PetscReal :: temp_real
@@ -813,7 +813,7 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   
   character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
@@ -826,7 +826,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   PetscReal :: stoich_c, stoich_n
 
   type(pool_type), pointer :: cur_pool
-  type(clmdec_reaction_type), pointer :: cur_rxn
+  type(clmdec_reaction_rt_type), pointer :: cur_rxn
   
   ! count # pools
   icount = 0
@@ -1189,7 +1189,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3059,7 +3059,7 @@ subroutine CLMDec_Destroy(this)
   class(clm_rxn_clmdec_type) :: this
   
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(clmdec_reaction_type), pointer :: cur_reaction, prev_reaction
+  type(clmdec_reaction_rt_type), pointer :: cur_reaction, prev_reaction
   
   cur_pool => this%pools
   do
@@ -3359,7 +3359,7 @@ subroutine PlantNSetup(this,reaction,option)
   implicit none
   
   class(clm_rxn_plantn_type) :: this
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -3446,7 +3446,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   class(clm_rxn_plantn_type) :: this  
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3960,14 +3960,14 @@ subroutine NitrSetup(this,reaction,option)
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
 
   implicit none
   
   class(clm_rxn_nitr_type) :: this
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -4061,7 +4061,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
 
   class(clm_rxn_nitr_type) :: this  
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -4654,14 +4654,14 @@ subroutine DeniSetup(this,reaction,option)
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
 
   implicit none
   
   class(clm_rxn_deni_type) :: this
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -4719,7 +4719,7 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
 
   class(clm_rxn_deni_type) :: this
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -4974,11 +4974,11 @@ subroutine RCLMRxnSetup(reaction,option)
   ! 
 
   use Option_module
-  use Reaction_Aux_module, only : reaction_type 
+  use Reaction_Aux_module, only : reaction_rt_type 
   
   implicit none
   
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   class(clm_rxn_base_type), pointer :: cur_clmrxn  
@@ -5163,7 +5163,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   implicit none
 
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar

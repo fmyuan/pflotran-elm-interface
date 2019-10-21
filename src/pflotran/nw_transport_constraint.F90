@@ -142,7 +142,7 @@ end function NWTConstraintCouplerCreate
 
 ! ************************************************************************** !
 
-function NWTSpeciesConstraintCreate(nw_trans,option)
+function NWTSpeciesConstraintCreate(reaction_nw,option)
   ! 
   ! Creates a nuclear waste transport species constraint object
   ! 
@@ -152,18 +152,18 @@ function NWTSpeciesConstraintCreate(nw_trans,option)
   
   implicit none
   
-  class(reaction_nw_type) :: nw_trans
+  class(reaction_nw_type) :: reaction_nw
   type(option_type) :: option
   type(nwt_species_constraint_type), pointer :: NWTSpeciesConstraintCreate
 
   type(nwt_species_constraint_type), pointer :: constraint
   
   allocate(constraint)
-  allocate(constraint%names(nw_trans%params%nspecies))
+  allocate(constraint%names(reaction_nw%params%nspecies))
   constraint%names = ''
-  allocate(constraint%constraint_conc(nw_trans%params%nspecies))
+  allocate(constraint%constraint_conc(reaction_nw%params%nspecies))
   constraint%constraint_conc = 0.d0
-  allocate(constraint%constraint_type(nw_trans%params%nspecies))
+  allocate(constraint%constraint_type(reaction_nw%params%nspecies))
   constraint%constraint_type = 0
 
   NWTSpeciesConstraintCreate => constraint
@@ -172,7 +172,7 @@ end function NWTSpeciesConstraintCreate
 
 ! ************************************************************************** !
 
-subroutine NWTConstraintRead(constraint,nw_trans,input,option)
+subroutine NWTConstraintRead(constraint,reaction_nw,input,option)
   ! 
   ! Reads a transport constraint from the input file
   ! 
@@ -187,7 +187,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
   implicit none
   
   type(nwt_constraint_type) :: constraint
-  class(reaction_nw_type) :: nw_trans
+  class(reaction_nw_type) :: reaction_nw
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -218,7 +218,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
       case('CONC','CONCENTRATIONS')
 
         nwt_species_constraint => &
-          NWTSpeciesConstraintCreate(nw_trans,option)
+          NWTSpeciesConstraintCreate(reaction_nw,option)
 
         block_string = 'CONSTRAINT, CONCENTRATIONS'
         icomp = 0
@@ -230,7 +230,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
           
           icomp = icomp + 1        
           
-          if (icomp > nw_trans%params%nspecies) then
+          if (icomp > reaction_nw%params%nspecies) then
             option%io_buffer = 'Number of concentration constraints exceeds &
                                &the number of species given in the &
                                &NUCLEAR_WASTE_CHEMISTRY block. &
@@ -285,13 +285,13 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
           endif
         enddo  
         
-        if (icomp < nw_trans%params%nspecies) then
+        if (icomp < reaction_nw%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
                    'number of species in species constraint.'
           call PrintErrMsg(option)
         endif
-        if (icomp > nw_trans%params%nspecies) then
+        if (icomp > reaction_nw%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is greater than ' // &
                    'number of species in species constraint.'
@@ -316,10 +316,10 @@ end subroutine NWTConstraintRead
 
 ! ************************************************************************** ! 
 
-subroutine NWTConstraintProcess(nw_trans,constraint_name, &
+subroutine NWTConstraintProcess(reaction_nw,constraint_name, &
                                 nwt_species_constraint,option)
   ! 
-  ! Ensures ordering of species is consistant between the nw_trans object
+  ! Ensures ordering of species is consistant between the reaction_nw object
   ! and the constraint object. 
   ! 
   ! Author: Jenn Frederick
@@ -333,27 +333,27 @@ subroutine NWTConstraintProcess(nw_trans,constraint_name, &
   
   implicit none
   
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: reaction_nw
   character(len=MAXWORDLENGTH) :: constraint_name
   type(nwt_species_constraint_type), pointer :: nwt_species_constraint
   type(option_type) :: option
   
   PetscBool :: found
   PetscInt :: ispecies, jspecies
-  PetscReal :: constraint_conc(nw_trans%params%nspecies)
-  PetscInt :: constraint_type(nw_trans%params%nspecies)
+  PetscReal :: constraint_conc(reaction_nw%params%nspecies)
+  PetscInt :: constraint_type(reaction_nw%params%nspecies)
   character(len=MAXWORDLENGTH) :: constraint_species_names( &
-                                                     nw_trans%params%nspecies)
+                                                     reaction_nw%params%nspecies)
   
   constraint_conc = 0.d0
   constraint_type = 0
   constraint_species_names = ''
   
-  do ispecies = 1, nw_trans%params%nspecies
+  do ispecies = 1, reaction_nw%params%nspecies
     found = PETSC_FALSE
-    do jspecies = 1, nw_trans%params%nspecies
+    do jspecies = 1, reaction_nw%params%nspecies
       if (StringCompare(nwt_species_constraint%names(ispecies), &
-                        nw_trans%species_names(jspecies),MAXWORDLENGTH)) then
+                        reaction_nw%species_names(jspecies),MAXWORDLENGTH)) then
         found = PETSC_TRUE
         exit
       endif

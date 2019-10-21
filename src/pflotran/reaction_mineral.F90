@@ -643,7 +643,7 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
   implicit none
   
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -1075,7 +1075,7 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
   implicit none
   
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(mineral_type) :: mineral
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -1245,7 +1245,7 @@ function RMineralSaturationIndex(imnrl,rt_auxvar,global_auxvar,reaction,option)
   
   type(option_type) :: option
   PetscInt :: imnrl
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   

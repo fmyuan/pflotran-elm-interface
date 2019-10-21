@@ -51,7 +51,7 @@ subroutine OutputVTK(realization_base)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch 
-  class(reaction_type), pointer :: reaction 
+  class(reaction_rt_type), pointer :: reaction 
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
   PetscReal, pointer :: vec_ptr(:)

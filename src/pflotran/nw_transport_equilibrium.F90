@@ -15,7 +15,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine NWTEquilibrateConstraint(nw_trans,constraint,nwt_auxvar, &
+subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                                     global_auxvar,material_auxvar, &
                                     option)
   ! 
@@ -32,7 +32,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,constraint,nwt_auxvar, &
   
   implicit none
   
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: reaction_nw
   class(tran_constraint_nwt_type) :: constraint
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -44,9 +44,9 @@ subroutine NWTEquilibrateConstraint(nw_trans,constraint,nwt_auxvar, &
   PetscInt :: ispecies
   PetscInt :: c_type
   PetscBool :: dry_out
-  PetscReal :: solubility(nw_trans%params%nspecies)  ! [mol/m^3-liq]
-  PetscReal :: mnrl_molar_density(nw_trans%params%nspecies)  ! [mol/m^3-mnrl]
-  PetscReal :: ele_kd(nw_trans%params%nspecies)  ! [m^3-water/m^3-bulk]
+  PetscReal :: solubility(reaction_nw%params%nspecies)  ! [mol/m^3-liq]
+  PetscReal :: mnrl_molar_density(reaction_nw%params%nspecies)  ! [mol/m^3-mnrl]
+  PetscReal :: ele_kd(reaction_nw%params%nspecies)  ! [m^3-water/m^3-bulk]
   PetscReal :: ppt_mass    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass   ! [mol/m^3-bulk]
   PetscReal :: sat, por
@@ -56,7 +56,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,constraint,nwt_auxvar, &
   sat = global_auxvar%sat(LIQUID_PHASE)
   por = material_auxvar%porosity
 
-  cur_species => nw_trans%species_list
+  cur_species => reaction_nw%species_list
   do 
     if (.not.associated(cur_species)) exit
     solubility(cur_species%id) = cur_species%solubility_limit
@@ -72,7 +72,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,constraint,nwt_auxvar, &
     dry_out = PETSC_TRUE
   endif
   
-  do ispecies = 1,nw_trans%params%nspecies
+  do ispecies = 1,reaction_nw%params%nspecies
   
     c_type = nwt_species%constraint_type(ispecies)
     select case(c_type)

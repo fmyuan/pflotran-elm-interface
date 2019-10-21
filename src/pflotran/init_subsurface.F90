@@ -1163,7 +1163,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         deallocate(dof_is_active)
       case(NWT_MODE)
         if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
-          ndof = realization%nw_trans%params%nspecies
+          ndof = realization%reaction_nw%params%nspecies
         else
           ndof = 1
         endif

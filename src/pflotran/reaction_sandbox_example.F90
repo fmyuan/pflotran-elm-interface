@@ -164,13 +164,13 @@ subroutine ExampleSetup(this,reaction,option)
   ! Date: 00/00/00
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
 
   implicit none
   
   class(reaction_sandbox_example_type) :: this
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
 ! 9. Add code to initialize 
@@ -199,7 +199,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_example_type) :: this  
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

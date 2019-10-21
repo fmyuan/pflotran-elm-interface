@@ -4505,7 +4505,7 @@ end subroutine FlowConditionCommonRead
 ! ************************************************************************** !
 
 subroutine TranConditionRead(condition,constraint_list, &
-                             reaction,nw_trans,input,option)
+                             reaction,reaction_nw,input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -4530,8 +4530,8 @@ subroutine TranConditionRead(condition,constraint_list, &
 
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: constraint_list
-  class(reaction_type), pointer :: reaction
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -4668,7 +4668,7 @@ subroutine TranConditionRead(condition,constraint_list, &
           class is(tran_constraint_rt_type)
             call TranConstraintRTRead(c,reaction,input,option)
           class is(tran_constraint_nwt_type)
-            call TranConstraintNWTRead(c,nw_trans,input,option)
+            call TranConstraintNWTRead(c,reaction_nw,input,option)
         end select
         call TranConstraintAddToList(constraint,constraint_list)
         constraint_coupler%constraint => constraint

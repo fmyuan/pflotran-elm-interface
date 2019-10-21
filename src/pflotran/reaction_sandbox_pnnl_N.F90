@@ -204,14 +204,14 @@ subroutine PNNL_NSetup(this,reaction,option)
   ! Date: 10/01/15
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
 
   implicit none
   
   class(reaction_sandbox_pnnl_n_type) :: this
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -389,7 +389,7 @@ subroutine PNNL_NReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_pnnl_n_type) :: this  
   type(option_type) :: option
-  class(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

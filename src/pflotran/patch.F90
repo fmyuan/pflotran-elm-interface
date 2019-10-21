@@ -84,9 +84,9 @@ module Patch_module
 
     ! Pointers to objects in mother realization object
     type(field_type), pointer :: field
-    class(reaction_type), pointer :: reaction
+    class(reaction_rt_type), pointer :: reaction
     ! if this is removed, remove the NW_Tran use statement above
-    class(reaction_nw_type), pointer :: nw_trans
+    class(reaction_nw_type), pointer :: reaction_nw
     class(dataset_base_type), pointer :: datasets
 
     type(auxiliary_type) :: aux
@@ -218,7 +218,7 @@ function PatchCreate()
 
   nullify(patch%field)
   nullify(patch%reaction)
-  nullify(patch%nw_trans)
+  nullify(patch%reaction_nw)
   nullify(patch%datasets)
 
   nullify(patch%next)
@@ -1106,7 +1106,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             if (.not.associated(cur_constraint_coupler%nwt_auxvar)) then
               allocate(cur_constraint_coupler%nwt_auxvar)
               call NWTAuxVarInit(cur_constraint_coupler%nwt_auxvar, &
-                                 patch%nw_trans,option)
+                                 patch%reaction_nw,option)
             endif
         end select
         cur_constraint_coupler => cur_constraint_coupler%next
@@ -4548,7 +4548,7 @@ end subroutine PatchCreateFlowConditionDatasetMap
 
 ! ************************************************************************** !
 
-subroutine PatchInitConstraints(patch,reaction,nw_trans,option)
+subroutine PatchInitConstraints(patch,reaction,reaction_nw,option)
   !
   ! Initializes constraint concentrations
   !
@@ -4562,24 +4562,24 @@ subroutine PatchInitConstraints(patch,reaction,nw_trans,option)
   implicit none
 
   type(patch_type) :: patch
-  class(reaction_type), pointer :: reaction
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(option_type) :: option
 
   call PatchInitCouplerConstraints(patch%initial_condition_list, &
-                                   reaction,nw_trans,option)
+                                   reaction,reaction_nw,option)
 
   call PatchInitCouplerConstraints(patch%boundary_condition_list, &
-                                   reaction,nw_trans,option)
+                                   reaction,reaction_nw,option)
 
   call PatchInitCouplerConstraints(patch%source_sink_list, &
-                                   reaction,nw_trans,option)
+                                   reaction,reaction_nw,option)
 
 end subroutine PatchInitConstraints
 
 ! ************************************************************************** !
 
-subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
+subroutine PatchInitCouplerConstraints(coupler_list,reaction,reaction_nw,option)
   !
   ! Initializes constraint concentrations
   ! for a given coupler
@@ -4606,8 +4606,8 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   implicit none
 
   type(coupler_list_type), pointer :: coupler_list
-  class(reaction_type), pointer :: reaction
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(option_type) :: option
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
@@ -4714,7 +4714,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
                                   PETSC_FALSE,option)
         class is(tran_constraint_coupler_nwt_type)
           nwt_auxvar => constraint_coupler%nwt_auxvar
-          call NWTEquilibrateConstraint(nw_trans, &
+          call NWTEquilibrateConstraint(reaction_nw, &
                         TranConstraintNWTCast(constraint_coupler%constraint), &
                                       nwt_auxvar,global_auxvar, &
                                       material_auxvar,option)
@@ -4814,7 +4814,7 @@ end subroutine PatchUpdateUniformVelocity
 
 ! ************************************************************************** !
 
-subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
+subroutine PatchGetVariable1(patch,field,reaction,reaction_nw,option, &
                              output_option,vec,ivar,isubvar,isubvar2)
   !
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
@@ -4849,8 +4849,8 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
   implicit none
 
   type(option_type), pointer :: option
-  class(reaction_type), pointer :: reaction
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -6854,7 +6854,7 @@ end subroutine PatchGetVariable1
 
 ! ************************************************************************** !
 
-function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
+function PatchGetVariableValueAtCell(patch,field,reaction,reaction_nw,option, &
                                      output_option,ghosted_id, &
                                      ivar,isubvar,isubvar2)
   !
@@ -6893,8 +6893,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
 
   PetscReal :: PatchGetVariableValueAtCell
   type(option_type), pointer :: option
-  class(reaction_type), pointer :: reaction
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -9419,7 +9419,7 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   implicit none
 
   type(option_type), pointer :: option
-  !class(reaction_type), pointer :: reaction
+  !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(surface_field_type), pointer :: surf_field
   type(patch_type), pointer :: patch
@@ -10092,7 +10092,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   PetscReal :: aq_species_mass    ! [mol]
   PetscReal :: sorb_species_mass  ! [mol]
   PetscReal :: ppt_species_mass   ! [mol]

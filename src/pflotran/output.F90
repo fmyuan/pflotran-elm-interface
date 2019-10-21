@@ -1782,7 +1782,7 @@ subroutine OutputMAD(realization_base)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   
   Vec :: global_vec

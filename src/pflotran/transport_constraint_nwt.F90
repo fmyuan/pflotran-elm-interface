@@ -177,7 +177,7 @@ end function TranConstraintNWTGetAuxVar
 
 ! ************************************************************************** !
 
-subroutine TranConstraintNWTRead(constraint,nw_trans,input,option)
+subroutine TranConstraintNWTRead(constraint,reaction_nw,input,option)
   ! 
   ! Reads a transport constraint from the input file
   ! 
@@ -193,7 +193,7 @@ subroutine TranConstraintNWTRead(constraint,nw_trans,input,option)
   implicit none
   
   class(tran_constraint_nwt_type) :: constraint
-  class(reaction_nw_type) :: nw_trans
+  class(reaction_nw_type) :: reaction_nw
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -224,7 +224,7 @@ subroutine TranConstraintNWTRead(constraint,nw_trans,input,option)
       case('CONC','CONCENTRATIONS')
 
         nwt_species_constraint => &
-          NWTSpeciesConstraintCreate(nw_trans,option)
+          NWTSpeciesConstraintCreate(reaction_nw,option)
 
         block_string = 'CONSTRAINT, CONCENTRATIONS'
         icomp = 0
@@ -236,7 +236,7 @@ subroutine TranConstraintNWTRead(constraint,nw_trans,input,option)
           
           icomp = icomp + 1        
           
-          if (icomp > nw_trans%params%nspecies) then
+          if (icomp > reaction_nw%params%nspecies) then
             option%io_buffer = 'Number of concentration constraints exceeds &
                                &the number of species given in the &
                                &NUCLEAR_WASTE_CHEMISTRY block. &
@@ -291,13 +291,13 @@ subroutine TranConstraintNWTRead(constraint,nw_trans,input,option)
           endif
         enddo  
         
-        if (icomp < nw_trans%params%nspecies) then
+        if (icomp < reaction_nw%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is less than ' // &
                    'number of species in species constraint.'
           call PrintErrMsg(option)
         endif
-        if (icomp > nw_trans%params%nspecies) then
+        if (icomp > reaction_nw%params%nspecies) then
           option%io_buffer = &
                    'Number of concentration constraints is greater than ' // &
                    'number of species in species constraint.'
@@ -322,9 +322,9 @@ end subroutine TranConstraintNWTRead
 
 ! ************************************************************************** ! 
 
-subroutine NWTConstraintProcess(nw_trans,constraint,option)
+subroutine NWTConstraintProcess(reaction_nw,constraint,option)
   ! 
-  ! Ensures ordering of species is consistant between the nw_trans object
+  ! Ensures ordering of species is consistant between the reaction_nw object
   ! and the constraint object. 
   ! 
   ! Author: Jenn Frederick
@@ -338,17 +338,17 @@ subroutine NWTConstraintProcess(nw_trans,constraint,option)
 
   implicit none
 
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: reaction_nw
   class(tran_constraint_nwt_type) :: constraint
   type(option_type) :: option
 
   PetscBool :: found
   PetscInt :: ispecies, jspecies
-  PetscReal :: constraint_conc(nw_trans%params%nspecies)
-  PetscInt :: constraint_type(nw_trans%params%nspecies)
+  PetscReal :: constraint_conc(reaction_nw%params%nspecies)
+  PetscInt :: constraint_type(reaction_nw%params%nspecies)
   type(nwt_species_constraint_type), pointer :: nwt_species_constraint
   character(len=MAXWORDLENGTH) :: constraint_species_names( &
-                                                     nw_trans%params%nspecies)
+                                                     reaction_nw%params%nspecies)
 
   constraint_conc = 0.d0
   constraint_type = 0
@@ -356,11 +356,11 @@ subroutine NWTConstraintProcess(nw_trans,constraint,option)
 
   nwt_species_constraint => constraint%nwt_species
 
-  do ispecies = 1, nw_trans%params%nspecies
+  do ispecies = 1, reaction_nw%params%nspecies
     found = PETSC_FALSE
-    do jspecies = 1, nw_trans%params%nspecies
+    do jspecies = 1, reaction_nw%params%nspecies
       if (StringCompare(nwt_species_constraint%names(ispecies), &
-                        nw_trans%species_names(jspecies),MAXWORDLENGTH)) then
+                        reaction_nw%species_names(jspecies),MAXWORDLENGTH)) then
         found = PETSC_TRUE
         exit
       endif

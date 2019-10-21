@@ -1576,7 +1576,7 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
         call cur_pm%SetRealization(realization)
         
       class is(pm_nwt_type)
-        if (.not.associated(realization%nw_trans)) then
+        if (.not.associated(realization%reaction_nw)) then
           option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
             &process model in the SIMULATION block without the corresponding &
             &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
@@ -2111,8 +2111,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             &in the SIMULATION block.'
           call PrintErrMsg(option)
         endif     
-        realization%nw_trans => NWTReactionCreate()
-        call NWTRead(realization%nw_trans,input,option)
+        realization%reaction_nw => NWTReactionCreate()
+        call NWTRead(realization%reaction_nw,input,option)
         
     end select
   enddo
@@ -2248,7 +2248,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  class(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
   class(dataset_ascii_type), pointer :: dataset_ascii
@@ -2330,7 +2330,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
           call PrintErrMsg(option)
         endif
-        call NWTReadPass2(realization%nw_trans,input,option)
+        call NWTReadPass2(realization%reaction_nw,input,option)
 
 !....................
       case ('SPECIFIED_VELOCITY')
@@ -2524,7 +2524,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call PrintMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
                                realization%transport_constraints, &
-                               reaction,realization%nw_trans,input,option)
+                               reaction,realization%reaction_nw,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
         nullify(tran_condition)
@@ -2548,7 +2548,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           class is(tran_constraint_rt_type)
             call TranConstraintRTRead(tc,reaction,input,option)
           class is(tran_constraint_nwt_type)
-            call TranConstraintNWTRead(tc,realization%nw_trans,input,option)
+            call TranConstraintNWTRead(tc,realization%reaction_nw,input,option)
         end select
         call TranConstraintAddToList(tran_constraint, &
                                      realization%transport_constraints)

@@ -2315,7 +2315,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   type(grid_type), pointer :: grid
   type(sec_transport_type), pointer :: rt_sec_tranport_vars(:)
   type(sec_heat_type), pointer :: sec_heat_vars(:)
-  class(reaction_type), pointer :: reaction   
+  class(reaction_rt_type), pointer :: reaction   
   PetscReal :: value
   PetscInt :: ivar, isubvar, var_type
   PetscErrorCode :: ierr  
@@ -2614,7 +2614,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  class(reaction_type), pointer :: reaction 
+  class(reaction_rt_type), pointer :: reaction 
   PetscBool :: print_secondary_data(5)
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn

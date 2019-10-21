@@ -246,18 +246,18 @@ subroutine PMNWTSetup(this)
   
   class(pm_nwt_type) :: this
     
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: reaction_nw
   
-  nw_trans => this%realization%nw_trans
+  reaction_nw => this%realization%reaction_nw
   
-  this%params%nphase = nw_trans%params%nphase
-  this%params%ncomp = nw_trans%params%ncomp
-  this%params%nspecies = nw_trans%params%nspecies
-  this%params%nauxiliary = nw_trans%params%nauxiliary
+  this%params%nphase = reaction_nw%params%nphase
+  this%params%ncomp = reaction_nw%params%ncomp
+  this%params%nspecies = reaction_nw%params%nspecies
+  this%params%nauxiliary = reaction_nw%params%nauxiliary
   this%params%calculate_transverse_dispersion = &
-                               nw_trans%params%calculate_transverse_dispersion
+                               reaction_nw%params%calculate_transverse_dispersion
   this%params%temperature_dependent_diffusion = &
-                               nw_trans%params%temperature_dependent_diffusion
+                               reaction_nw%params%temperature_dependent_diffusion
         
   ! set the communicator
   this%comm1 => this%realization%comm1
@@ -283,7 +283,7 @@ subroutine PMNWTSetRealization(this,realization)
   this%realization => realization
   this%realization_base => realization
   
-  if (this%realization%nw_trans%use_log_formulation) then
+  if (this%realization%reaction_nw%use_log_formulation) then
     this%solution_vec = realization%field%tran_log_xx
   else
     this%solution_vec = realization%field%tran_xx
@@ -512,7 +512,7 @@ subroutine PMNWTPreSolve(this)
                                this%realization%field,this%comm1)
   endif
 
-  if (this%realization%nw_trans%use_log_formulation) then
+  if (this%realization%reaction_nw%use_log_formulation) then
     call VecCopy(this%realization%field%tran_xx, &
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
@@ -668,29 +668,29 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal, pointer :: C_p(:)  ! CURRENT SOLUTION
   PetscReal, pointer :: dC_p(:) ! SOLUTION UPDATE STEP
   type(grid_type), pointer :: grid
-  class(reaction_nw_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: i, n
   
   grid => this%realization%patch%grid
-  nw_trans => this%realization%nw_trans
+  reaction_nw => this%realization%reaction_nw
   
   call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
   
   !WRITE(*,*)  '         dC_p = ', dC_p(:)
 
-  if (nw_trans%use_log_formulation) then
+  if (reaction_nw%use_log_formulation) then
     ! C and dC are actually lnC and dlnC
     dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),this%controls%max_dlnC)
     ! at this point, it does not matter whether "changed" is set to true, 
     ! since it is not checkied in PETSc.  Thus, I don't want to spend 
     ! time checking for changes and performing an allreduce for log 
     ! formulation.
-    if (Initialized(nw_trans%params%truncated_concentration)) then
+    if (Initialized(reaction_nw%params%truncated_concentration)) then
       call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
-      dC_p = min(C_p-log(nw_trans%params%truncated_concentration),dC_p)
+      dC_p = min(C_p-log(reaction_nw%params%truncated_concentration),dC_p)
       call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
     endif
   else
@@ -699,8 +699,8 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     
     !WRITE(*,*)  '          C_p = ', C_p(:)
     
-    if (Initialized(nw_trans%params%truncated_concentration)) then
-      dC_p = min(dC_p,C_p-nw_trans%params%truncated_concentration)
+    if (Initialized(reaction_nw%params%truncated_concentration)) then
+      dC_p = min(dC_p,C_p-reaction_nw%params%truncated_concentration)
     else
       ! C^p+1 = C^p - dC^p
       ! if dC is positive and abs(dC) larger than C

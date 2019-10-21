@@ -571,7 +571,7 @@ subroutine GeomechPatchGetDataset(patch,geomech_field,option,output_option, &
   implicit none
 
   type(option_type), pointer :: option
-  !class(reaction_type), pointer :: reaction
+  !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(geomech_field_type), pointer :: geomech_field
   type(geomech_patch_type), pointer :: patch  
