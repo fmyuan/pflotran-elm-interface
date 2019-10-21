@@ -246,7 +246,7 @@ subroutine PMNWTSetup(this)
   
   class(pm_nwt_type) :: this
     
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   
   nw_trans => this%realization%nw_trans
   
@@ -668,7 +668,7 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal, pointer :: C_p(:)  ! CURRENT SOLUTION
   PetscReal, pointer :: dC_p(:) ! SOLUTION UPDATE STEP
   type(grid_type), pointer :: grid
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string

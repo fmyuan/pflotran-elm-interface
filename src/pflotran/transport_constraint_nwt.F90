@@ -193,7 +193,7 @@ subroutine TranConstraintNWTRead(constraint,nw_trans,input,option)
   implicit none
   
   class(tran_constraint_nwt_type) :: constraint
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -338,7 +338,7 @@ subroutine NWTConstraintProcess(nw_trans,constraint,option)
 
   implicit none
 
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   class(tran_constraint_nwt_type) :: constraint
   type(option_type) :: option
 

@@ -86,7 +86,7 @@ subroutine NWTSetup(realization)
 
   type(realization_subsurface_type) :: realization
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(material_property_type), pointer :: cur_material_property
@@ -253,7 +253,7 @@ subroutine NWTProcessConstraint(nw_trans,constraint_name, &
   
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   character(len=MAXWORDLENGTH) :: constraint_name
   type(nwt_species_constraint_type), pointer :: nwt_species_constraint
   type(option_type) :: option
@@ -331,7 +331,7 @@ subroutine NWTUpdateAuxVars(realization,update_cells,update_bcs)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -476,7 +476,7 @@ subroutine NWTAuxVarCompute(nwt_auxvar,global_auxvar,material_auxvar, &
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(option_type) :: option
   
   type(species_type), pointer :: cur_species
@@ -593,7 +593,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_ss(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
@@ -924,7 +924,7 @@ subroutine NWTUpdateFixedAccumulation(realization)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   PetscReal, pointer :: xx_p(:), fixed_accum_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: dof_offset, istart, iend
@@ -994,7 +994,7 @@ subroutine NWTResidualAccum(nwt_auxvar,global_auxvar,material_auxvar, &
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   PetscReal :: Res(nw_trans%params%nspecies)
   
   PetscInt :: istart, iend
@@ -1053,7 +1053,7 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   type(coupler_type), pointer :: source_sink
   PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(tran_constraint_coupler_nwt_type) :: constraint_coupler
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar_out
   PetscReal :: Res(nw_trans%params%nspecies)
@@ -1133,7 +1133,7 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,nw_trans,Res)
   
   type(nw_transport_auxvar_type) :: nwt_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   PetscReal :: Res(nw_trans%params%nspecies)
   
   PetscInt :: iphase, parent_id
@@ -1215,7 +1215,7 @@ subroutine NWTResidualFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscReal :: area, dist(-1:3)
   PetscReal :: velocity(*)
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type) :: option
   PetscBool :: bc
   PetscReal :: Res_up(nw_trans%params%nspecies)
@@ -1351,7 +1351,7 @@ subroutine NWTJacobian(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: work_loc_p(:) 
   type(option_type), pointer :: option
   type(grid_type),  pointer :: grid
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -1624,7 +1624,7 @@ subroutine NWTJacobianAccum(material_auxvar,nw_trans,option,Jac)
   implicit none
   
   class(material_auxvar_type) :: material_auxvar
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(option_type) :: option
   PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
   
@@ -1667,7 +1667,7 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   type(coupler_type), pointer :: source_sink
   PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
   
   PetscInt :: istart, iend, ispecies
@@ -1760,7 +1760,7 @@ subroutine NWTJacobianRx(material_auxvar,nw_trans,Jac)
   implicit none
   
   class(material_auxvar_type) :: material_auxvar
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   PetscReal :: Jac(nw_trans%params%nspecies,nw_trans%params%nspecies)
   
   type(radioactive_decay_rxn_type), pointer :: rad_rxn
@@ -1835,7 +1835,7 @@ subroutine NWTJacobianFlux(nwt_auxvar_up,nwt_auxvar_dn, &
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscReal :: area, dist(-1:3)
   PetscReal :: velocity(*) ! at connection, not at cell center
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type) :: option
   PetscReal :: Jac_up(nw_trans%params%nspecies,nw_trans%params%nspecies)
   PetscReal :: Jac_dn(nw_trans%params%nspecies,nw_trans%params%nspecies)
@@ -1989,7 +1989,7 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(nw_transport_auxvar_type), pointer :: nwt_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
 
   PetscReal :: sum_mol_tot(max_size)
   PetscReal :: sum_mol_aq(max_size)

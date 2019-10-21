@@ -4531,7 +4531,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: constraint_list
   class(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(input_type), pointer :: input
   type(option_type) :: option
 

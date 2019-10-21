@@ -1482,7 +1482,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   class(material_auxvar_type), pointer :: material_auxvars(:)
   class(tran_constraint_coupler_nwt_type), pointer :: constraint_coupler
   class(tran_constraint_nwt_type), pointer :: constraint

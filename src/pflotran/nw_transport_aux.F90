@@ -1,18 +1,14 @@
 module NW_Transport_Aux_module
 
-  ! this module cannot depend on any other modules besides Option_module
-  ! and Matrix_Block_Aux_module
-  ! At this point I am violating this rule.
-  use Matrix_Block_Aux_module
-
-  use PFLOTRAN_Constants_module
+#include "petsc/finclude/petscsys.h"
   use petscsys
+  use PFLOTRAN_Constants_module
+  use Reaction_Base_module
 
   implicit none
   
   private 
 
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, public :: nwt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: nwt_itol_rel_update = UNINITIALIZED_DOUBLE
@@ -114,7 +110,7 @@ module NW_Transport_Aux_module
   end type nwt_species_constraint_type
   
   ! this is the equivalent to reaction_type as in realization%reaction
-  type, public :: nw_trans_realization_type
+  type, public, extends(reaction_base_type) :: reaction_nw_type
     PetscInt :: offset_auxiliary
     PetscBool :: use_log_formulation
     PetscReal, pointer :: diffusion_coefficient(:,:)
@@ -126,7 +122,7 @@ module NW_Transport_Aux_module
     type(nwt_params_type), pointer :: params
     type(nwt_print_type), pointer :: print_what 
     PetscBool :: nw_trans_on
-  end type nw_trans_realization_type
+  end type reaction_nw_type
 
   interface NWTAuxVarDestroy
     module procedure NWTAuxVarSingleDestroy
@@ -201,7 +197,7 @@ subroutine NWTAuxVarInit(auxvar,nw_trans,option)
   implicit none
   
   type(nw_transport_auxvar_type) :: auxvar
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(option_type) :: option
   
   PetscInt :: nspecies, nauxiliary, nphase
@@ -251,9 +247,9 @@ function NWTRealizCreate()
   ! 
   implicit none
   
-  type(nw_trans_realization_type), pointer :: NWTRealizCreate
+  class(reaction_nw_type), pointer :: NWTRealizCreate
   
-  type(nw_trans_realization_type), pointer :: nwtr 
+  class(reaction_nw_type), pointer :: nwtr 
 
   allocate(nwtr)
   nwtr%offset_auxiliary = 0
@@ -306,7 +302,7 @@ subroutine NWTRead(nw_trans,input,option)
  
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(input_type), pointer :: input
   type(option_type), pointer :: option
   
@@ -518,7 +514,7 @@ subroutine NWTReadOutput(nw_trans,input,option)
   
   implicit none
   
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -585,7 +581,7 @@ subroutine NWTReadPass2(nw_trans,input,option)
  
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(input_type), pointer :: input
   type(option_type), pointer :: option
   
@@ -653,7 +649,7 @@ subroutine NWTSetPlotVariables(list,nw_trans,option,time_unit)
   implicit none
   
   type(output_variable_list_type), pointer :: list
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: time_unit
   
@@ -799,7 +795,7 @@ function NWTSpeciesConstraintCreate(nw_trans,option)
 
   implicit none
 
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(option_type) :: option
   type(nwt_species_constraint_type), pointer :: NWTSpeciesConstraintCreate
 
@@ -1085,7 +1081,7 @@ subroutine NWTransDestroy(nw_trans,option)
   
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type) :: option
   
   type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn,prev_rad_decay_rxn

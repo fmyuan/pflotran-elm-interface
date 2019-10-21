@@ -86,7 +86,7 @@ module Patch_module
     type(field_type), pointer :: field
     class(reaction_type), pointer :: reaction
     ! if this is removed, remove the NW_Tran use statement above
-    type(nw_trans_realization_type), pointer :: nw_trans
+    class(reaction_nw_type), pointer :: nw_trans
     class(dataset_base_type), pointer :: datasets
 
     type(auxiliary_type) :: aux
@@ -4563,7 +4563,7 @@ subroutine PatchInitConstraints(patch,reaction,nw_trans,option)
 
   type(patch_type) :: patch
   class(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type) :: option
 
   call PatchInitCouplerConstraints(patch%initial_condition_list, &
@@ -4607,7 +4607,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
 
   type(coupler_list_type), pointer :: coupler_list
   class(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(option_type) :: option
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
@@ -4850,7 +4850,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
 
   type(option_type), pointer :: option
   class(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -6894,7 +6894,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
   PetscReal :: PatchGetVariableValueAtCell
   type(option_type), pointer :: option
   class(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch

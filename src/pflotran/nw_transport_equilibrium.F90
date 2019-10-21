@@ -32,7 +32,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,constraint,nwt_auxvar, &
   
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   class(tran_constraint_nwt_type) :: constraint
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar

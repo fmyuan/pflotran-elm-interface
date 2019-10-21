@@ -152,7 +152,7 @@ function NWTSpeciesConstraintCreate(nw_trans,option)
   
   implicit none
   
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(option_type) :: option
   type(nwt_species_constraint_type), pointer :: NWTSpeciesConstraintCreate
 
@@ -187,7 +187,7 @@ subroutine NWTConstraintRead(constraint,nw_trans,input,option)
   implicit none
   
   type(nwt_constraint_type) :: constraint
-  type(nw_trans_realization_type) :: nw_trans
+  class(reaction_nw_type) :: nw_trans
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -333,7 +333,7 @@ subroutine NWTConstraintProcess(nw_trans,constraint_name, &
   
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_nw_type), pointer :: nw_trans
   character(len=MAXWORDLENGTH) :: constraint_name
   type(nwt_species_constraint_type), pointer :: nwt_species_constraint
   type(option_type) :: option
