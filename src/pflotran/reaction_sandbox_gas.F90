@@ -189,7 +189,7 @@ subroutine GasSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_gas_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: i
@@ -230,7 +230,7 @@ subroutine GasReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_gas_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscBool :: compute_derivative
 
   ! the following arrays must be declared after reaction

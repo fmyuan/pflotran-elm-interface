@@ -398,7 +398,7 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
+  class(reaction_type), pointer :: reaction 
   PetscBool :: print_velocities
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -721,7 +721,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
+  class(reaction_type), pointer :: reaction 
   PetscBool :: print_secondary_data(5)
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -825,7 +825,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   PetscInt :: i
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction 
+  class(reaction_type), pointer :: reaction 
   
   option => realization_base%option
   reaction => realization_base%reaction
@@ -885,7 +885,7 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option  
   type(output_variable_type), pointer :: cur_variable
   
@@ -954,7 +954,7 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
     
@@ -1078,7 +1078,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   PetscReal :: sum_solute_flux(realization_base%option%ntrandof)
   PetscReal :: sum_solute_flux_global(realization_base%option%ntrandof)
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscErrorCode :: ierr
   
   option => realization_base%option
@@ -1549,7 +1549,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option 
-  type(reaction_type), pointer :: reaction   
+  class(reaction_type), pointer :: reaction   
   PetscInt :: ivar
   
   option => realization_base%option
@@ -1646,7 +1646,7 @@ subroutine OutputIntegralFlux(realization_base)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(output_option_type), pointer :: output_option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word, units
@@ -1957,7 +1957,7 @@ subroutine OutputMassBalance(realization_base)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word, units

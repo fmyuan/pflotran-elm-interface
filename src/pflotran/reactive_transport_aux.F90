@@ -230,7 +230,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   implicit none
   
   type(reactive_transport_auxvar_type) :: auxvar
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   type(surface_complexation_type), pointer :: surface_complexation

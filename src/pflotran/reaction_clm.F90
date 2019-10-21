@@ -42,7 +42,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      type(reaction_type) :: reaction
+      class(reaction_type) :: reaction
       type(option_type) :: option
   
     end subroutine Base_Setup 
@@ -97,7 +97,7 @@ module CLM_Rxn_Base_class
   
       class(clm_rxn_base_type) :: this
       type(option_type) :: option
-      type(reaction_type) :: reaction
+      class(reaction_type) :: reaction
       PetscBool :: compute_derivative
       PetscReal :: Res(reaction%ncomp)
       PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -143,7 +143,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    type(reaction_type) :: reaction
+    class(reaction_type) :: reaction
     type(option_type) :: option
   
   end subroutine Base_Setup 
@@ -197,7 +197,7 @@ contains
   
     class(clm_rxn_base_type) :: this
     type(option_type) :: option
-    type(reaction_type) :: reaction
+    class(reaction_type) :: reaction
     PetscBool :: compute_derivative
     PetscReal :: Residual(reaction%ncomp)
     PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
@@ -813,7 +813,7 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   
   character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
@@ -1189,7 +1189,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3359,7 +3359,7 @@ subroutine PlantNSetup(this,reaction,option)
   implicit none
   
   class(clm_rxn_plantn_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -3446,7 +3446,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   class(clm_rxn_plantn_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3967,7 +3967,7 @@ subroutine NitrSetup(this,reaction,option)
   implicit none
   
   class(clm_rxn_nitr_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -4061,7 +4061,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
 
   class(clm_rxn_nitr_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -4661,7 +4661,7 @@ subroutine DeniSetup(this,reaction,option)
   implicit none
   
   class(clm_rxn_deni_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
@@ -4719,7 +4719,7 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
 
   class(clm_rxn_deni_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -4978,7 +4978,7 @@ subroutine RCLMRxnSetup(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   class(clm_rxn_base_type), pointer :: cur_clmrxn  
@@ -5163,7 +5163,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   implicit none
 
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar

@@ -165,7 +165,7 @@ subroutine WastePackageSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_ufd_wp_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   this%aqueous_species_id = &
@@ -197,7 +197,7 @@ subroutine WastePackageReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_ufd_wp_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

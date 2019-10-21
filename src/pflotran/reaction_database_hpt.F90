@@ -36,7 +36,7 @@ subroutine DatabaseRead_hpt(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec, cur_aq_spec2
@@ -669,7 +669,7 @@ subroutine BasisInit_hpt(reaction,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec

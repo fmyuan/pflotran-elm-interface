@@ -125,7 +125,7 @@ subroutine RTSetup(realization)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(output_variable_list_type), pointer :: list
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(fluid_property_type), pointer :: cur_fluid_property
@@ -444,7 +444,7 @@ subroutine RTComputeMassBalance(realization,max_size,sum_mol)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
 
   PetscReal :: sum_mol_tot(max_size)
   PetscReal :: sum_mol_aq(max_size)
@@ -724,7 +724,7 @@ subroutine RTUpdateEquilibriumState(realization)
 
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
@@ -812,7 +812,7 @@ subroutine RTUpdateKineticState(realization)
 
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
@@ -898,7 +898,7 @@ subroutine RTUpdateFixedAccumulation(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscReal, pointer :: xx_p(:), accum_p(:)
   PetscInt :: local_id, ghosted_id
@@ -1255,7 +1255,7 @@ subroutine RTCalculateRHS_t0(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscReal, pointer :: rhs_coef_p(:)
   PetscReal, pointer :: rhs_p(:)
   PetscInt :: local_id, ghosted_id
@@ -1325,7 +1325,7 @@ subroutine RTCalculateRHS_t1(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscReal, pointer :: rhs_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: iphase
@@ -1803,7 +1803,7 @@ subroutine RTReact(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(option_type), pointer :: option
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   PetscInt :: local_id, ghosted_id
@@ -2008,7 +2008,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar_out
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -2365,7 +2365,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
@@ -2673,7 +2673,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar_out
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -3015,7 +3015,7 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscErrorCode :: ierr
     
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -3235,7 +3235,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(reactive_transport_param_type), pointer :: rt_parameter
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
       
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:), rt_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
@@ -3499,7 +3499,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: tran_pc
     
@@ -3754,7 +3754,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscErrorCode :: ierr
     
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -3843,7 +3843,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -3942,7 +3942,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
 
@@ -4349,7 +4349,7 @@ subroutine RTMaxChange(realization,dcmax,dvfmax)
   
   type(option_type), pointer :: option
   type(field_type), pointer :: field 
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -4418,7 +4418,7 @@ subroutine RTJumpStartKineticSorption(realization)
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
 
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
@@ -4467,7 +4467,7 @@ subroutine RTCheckpointKineticSorptionBinary(realization,viewer,checkpoint)
   PetscBool :: checkpoint
   
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -4561,7 +4561,7 @@ subroutine RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, checkpoint)
   PetscBool :: checkpoint
 
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -4694,7 +4694,7 @@ subroutine RTExplicitAdvection(realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(discretization_type), pointer :: discretization
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar_out
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)

@@ -99,7 +99,7 @@ subroutine RTotalGas(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   PetscInt, parameter :: iphase = 2
@@ -187,7 +187,7 @@ subroutine RTotalCO2(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   PetscErrorCode :: ierr

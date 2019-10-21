@@ -34,7 +34,7 @@ private
     type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    type(reaction_type), pointer :: surf_reaction
+    class(reaction_type), pointer :: surf_reaction
     character(len=MAXSTRINGLENGTH) :: surf_filename
     character(len=MAXSTRINGLENGTH) :: subsurf_filename
 

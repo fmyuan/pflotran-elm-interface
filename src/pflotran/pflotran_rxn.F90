@@ -72,7 +72,7 @@ subroutine BatchChemInitializeReactions(option, input, reaction)
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   character(len=MAXSTRINGLENGTH) :: string
 
   ! check for a chemistry block in the  input file
@@ -134,7 +134,7 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
 
   type(option_type), pointer :: option
   type(input_type), pointer :: input
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(global_auxvar_type), pointer :: global_auxvars
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars
   class(material_auxvar_type), pointer :: material_auxvars
@@ -266,7 +266,7 @@ program pflotran_rxn
   PetscBool :: option_found  
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: filename_out
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(option_type), pointer :: option
   type(input_type), pointer :: input
 

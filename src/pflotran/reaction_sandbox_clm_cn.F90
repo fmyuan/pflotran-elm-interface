@@ -313,7 +313,7 @@ subroutine CLM_CN_Setup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_clm_cn_type) :: this
-  type(reaction_type) :: reaction  
+  class(reaction_type) :: reaction  
   type(option_type) :: option
   
   call CLM_CN_Map(this,reaction,option)
@@ -340,7 +340,7 @@ subroutine CLM_CN_Map(this,reaction,option)
 
   class(reaction_sandbox_clm_cn_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   
   character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
@@ -496,7 +496,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   
   class(reaction_sandbox_clm_cn_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

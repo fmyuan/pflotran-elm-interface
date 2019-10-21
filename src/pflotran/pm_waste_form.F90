@@ -2261,7 +2261,7 @@ subroutine PMWFSetup(this)
 ! ranks(:): array of size(mycommsize) used to find local waste form objects
 ! -------------------------------------------------------  
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXWORDLENGTH), pointer :: names(:)
   class(waste_form_base_type), pointer :: cur_waste_form

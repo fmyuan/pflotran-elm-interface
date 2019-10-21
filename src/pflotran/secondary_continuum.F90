@@ -460,7 +460,7 @@ subroutine SecondaryRTTimeCut(realization)
   
   implicit none
   class(realization_subsurface_type) :: realization
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(grid_type), pointer :: grid
   
@@ -518,7 +518,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   
   type(sec_transport_type) :: rt_sec_transport_vars
   type(material_property_type), pointer :: ptr
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(coupler_type), pointer :: initial_condition
   type(option_type), pointer :: option
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
@@ -702,7 +702,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   type(reactive_transport_auxvar_type) :: auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(option_type) :: option
   PetscReal :: coeff_left(reaction%naqcomp,reaction%naqcomp, &
                           sec_transport_vars%ncells)
@@ -1419,7 +1419,7 @@ subroutine SecondaryRTUpdateIterate(line_search,P0,dP,P1,dX_changed, &
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscInt :: local_id, ghosted_id
   PetscReal :: sec_diffusion_coefficient
   PetscReal :: sec_porosity
@@ -1498,7 +1498,7 @@ subroutine SecondaryRTUpdateEquilState(sec_transport_vars,global_auxvars, &
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
   type(global_auxvar_type) :: global_auxvars
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscInt :: ngcells,ncomp
   PetscInt :: i,j
   
@@ -1545,7 +1545,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
   type(option_type), pointer :: option
   type(sec_transport_type) :: sec_transport_vars
   type(global_auxvar_type) :: global_auxvars
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscReal :: porosity
   PetscInt :: ngcells
   PetscReal :: vol(sec_transport_vars%ncells)
@@ -1618,7 +1618,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
   type(reactive_transport_auxvar_type) :: auxvar
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(option_type) :: option
   
   PetscReal :: res(sec_transport_vars%ncells*reaction%naqcomp)
@@ -1789,7 +1789,7 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
   implicit none
   
   type(sec_transport_type) :: sec_transport_vars
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(option_type) :: option
   PetscReal :: coeff_left(reaction%naqcomp,reaction%naqcomp, &
                  sec_transport_vars%ncells)
@@ -2180,7 +2180,7 @@ subroutine SecondaryRTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -2217,7 +2217,7 @@ subroutine SecondaryRTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reactio
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn

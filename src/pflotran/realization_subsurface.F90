@@ -1229,7 +1229,7 @@ subroutine RealizationPrintCouplers(realization)
   type(patch_type), pointer :: cur_patch
   type(coupler_type), pointer :: cur_coupler
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
  
   option => realization%option
   reaction => realization%reaction
@@ -1285,7 +1285,7 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   
   type(coupler_type) :: coupler
   type(option_type) :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   
   character(len=MAXSTRINGLENGTH) :: string
   
@@ -1766,7 +1766,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2044,7 +2044,7 @@ subroutine RealizationUpdatePropertiesNI(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2103,7 +2103,7 @@ subroutine RealizationCalcMineralPorosity(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
   type(discretization_type), pointer :: discretization

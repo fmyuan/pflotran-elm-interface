@@ -211,7 +211,7 @@ subroutine PNNL_NSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_pnnl_n_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -389,7 +389,7 @@ subroutine PNNL_NReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_pnnl_n_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

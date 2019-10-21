@@ -2934,7 +2934,7 @@ subroutine StepperSandbox(realization)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(option_type), pointer :: option
 
   PetscReal, pointer :: tran_xx_p(:)

@@ -133,6 +133,7 @@ chem_obj = \
 	${common_src}reaction_mineral.o \
 	${common_src}reaction_mineral_aux.o \
 	${common_src}reaction.o \
+	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
 	${common_src}reaction_sandbox.o \

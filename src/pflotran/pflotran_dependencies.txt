@@ -733,7 +733,7 @@ reaction.o : co2_span_wagner.o co2eos.o eos_water.o generic.o global_aux.o \
              reactive_transport_aux.o string.o transport_constraint_rt.o \
              units.o utility.o variables.o
 endif
-reaction_aux.o : generic.o option.o pflotran_constants.o \
+reaction_aux.o : generic.o option.o pflotran_constants.o reaction_base.o \
                  reaction_database_aux.o reaction_gas_aux.o \
                  reaction_immobile_aux.o reaction_microbial_aux.o \
                  reaction_mineral_aux.o reaction_solid_solution_aux.o \

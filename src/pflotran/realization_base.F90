@@ -36,7 +36,7 @@ module Realization_Base_class
     class(data_mediator_base_type), pointer :: flow_data_mediator_list
     class(data_mediator_base_type), pointer :: tran_data_mediator_list
     
-    type(reaction_type), pointer :: reaction
+    class(reaction_type), pointer :: reaction
     type(nw_trans_realization_type), pointer :: nw_trans
     
   end type realization_base_type

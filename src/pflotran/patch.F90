@@ -84,7 +84,7 @@ module Patch_module
 
     ! Pointers to objects in mother realization object
     type(field_type), pointer :: field
-    type(reaction_type), pointer :: reaction
+    class(reaction_type), pointer :: reaction
     ! if this is removed, remove the NW_Tran use statement above
     type(nw_trans_realization_type), pointer :: nw_trans
     class(dataset_base_type), pointer :: datasets
@@ -4562,7 +4562,7 @@ subroutine PatchInitConstraints(patch,reaction,nw_trans,option)
   implicit none
 
   type(patch_type) :: patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(nw_trans_realization_type), pointer :: nw_trans
   type(option_type) :: option
 
@@ -4606,7 +4606,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   implicit none
 
   type(coupler_list_type), pointer :: coupler_list
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(nw_trans_realization_type), pointer :: nw_trans
   type(option_type) :: option
 
@@ -4849,7 +4849,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
   implicit none
 
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(nw_trans_realization_type), pointer :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
@@ -6893,7 +6893,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
 
   PetscReal :: PatchGetVariableValueAtCell
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(nw_trans_realization_type), pointer :: nw_trans
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
@@ -9419,7 +9419,7 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   implicit none
 
   type(option_type), pointer :: option
-  !type(reaction_type), pointer :: reaction
+  !class(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(surface_field_type), pointer :: surf_field
   type(patch_type), pointer :: patch
@@ -10092,7 +10092,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   PetscReal :: aq_species_mass    ! [mol]
   PetscReal :: sorb_species_mass  ! [mol]
   PetscReal :: ppt_species_mass   ! [mol]

@@ -64,7 +64,7 @@ subroutine SimpleSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_simple_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -122,7 +122,7 @@ subroutine SimpleReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_simple_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

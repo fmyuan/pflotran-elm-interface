@@ -302,7 +302,7 @@ subroutine CyberSetup(this,reaction,option)
   implicit none
   
   class(reaction_sandbox_cyber_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -492,7 +492,7 @@ subroutine CyberAuxiliaryPlotVariables(this,list,reaction,option)
   class(reaction_sandbox_cyber_type) :: this
   type(output_variable_list_type), pointer :: list
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   
   character(len=MAXWORDLENGTH) :: names(6)
   character(len=MAXWORDLENGTH) :: word
@@ -551,7 +551,7 @@ subroutine CyberReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_cyber_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
@@ -904,7 +904,7 @@ subroutine CyberUpdateKineticState(this,rt_auxvar,global_auxvar, &
 
   class(reaction_sandbox_cyber_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar

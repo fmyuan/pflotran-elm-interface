@@ -1,5 +1,6 @@
 module Reaction_Aux_module
   
+  use Reaction_Base_module
   use Reaction_Database_Aux_module
   use Reaction_Mineral_Aux_module
   use Reaction_Microbial_Aux_module
@@ -141,7 +142,7 @@ module Reaction_Aux_module
     PetscReal, pointer :: basis_conc_imb(:)
   end type colloid_constraint_type
 
-  type, public :: reaction_type
+  type, public, extends(reaction_base_type) :: reaction_type
     character(len=MAXSTRINGLENGTH) :: database_filename
     PetscBool :: use_full_geochemistry
     PetscBool :: use_log_formulation ! flag for solving for the change in the log of the concentration
@@ -410,11 +411,12 @@ function ReactionCreate()
   ! 
   implicit none
   
-  type(reaction_type), pointer :: ReactionCreate
+  class(reaction_type), pointer :: ReactionCreate
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
 
   allocate(reaction)  
+  call ReactionBaseInit(reaction)
 
   reaction%database_filename = ''
   reaction%num_dbase_temperatures = 0
@@ -844,7 +846,7 @@ function AqueousSpeciesConstraintCreate(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   type(aq_species_constraint_type), pointer :: AqueousSpeciesConstraintCreate
 
@@ -885,7 +887,7 @@ function GuessConstraintCreate(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   type(guess_constraint_type), pointer :: GuessConstraintCreate
 
@@ -915,7 +917,7 @@ function ColloidConstraintCreate(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   type(colloid_constraint_type), pointer :: ColloidConstraintCreate
 
@@ -950,7 +952,7 @@ function GetPrimarySpeciesNames(reaction)
   implicit none
   
   character(len=MAXWORDLENGTH), pointer :: GetPrimarySpeciesNames(:)
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
@@ -985,7 +987,7 @@ function GetPrimarySpeciesCount(reaction)
   implicit none
   
   PetscInt :: GetPrimarySpeciesCount
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
@@ -1014,7 +1016,7 @@ function GetPrimarySpeciesIDFromName1(name,reaction,option)
   implicit none
   
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: GetPrimarySpeciesIDFromName1
@@ -1040,7 +1042,7 @@ function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
   implicit none
   
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: GetPrimarySpeciesIDFromName2
@@ -1095,7 +1097,7 @@ function GetSecondarySpeciesNames(reaction)
   implicit none
   
   character(len=MAXWORDLENGTH), pointer :: GetSecondarySpeciesNames(:)
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
@@ -1130,7 +1132,7 @@ function GetSecondarySpeciesCount(reaction)
   implicit none
   
   PetscInt :: GetSecondarySpeciesCount
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   type(aq_species_type), pointer :: species
 
@@ -1157,7 +1159,7 @@ function GetSecondarySpeciesIDFromName1(name,reaction,option)
   use String_module
   implicit none
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
 
   PetscInt :: GetSecondarySpeciesIDFromName1
@@ -1179,7 +1181,7 @@ function GetSecondarySpeciesIDFromName2(name,reaction,return_error,option)
   use String_module
   implicit none
   character(len=MAXWORDLENGTH) :: name
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   PetscInt :: GetSecondarySpeciesIDFromName2
   type(aq_species_type), pointer :: species
@@ -1233,7 +1235,7 @@ function GetColloidIDFromName(reaction,name)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   character(len=MAXWORDLENGTH) :: name
 
   PetscInt :: GetColloidIDFromName
@@ -1266,7 +1268,7 @@ function GetColloidNames(reaction)
   implicit none
   
   character(len=MAXWORDLENGTH), pointer :: GetColloidNames(:)
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   PetscInt :: count
   character(len=MAXWORDLENGTH), pointer :: names(:)
@@ -1301,7 +1303,7 @@ function GetColloidCount(reaction)
   implicit none
   
   PetscInt :: GetColloidCount
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   type(colloid_type), pointer :: colloid
 
@@ -1328,7 +1330,7 @@ function GetImmobileCount(reaction)
   implicit none
   
   PetscInt :: GetImmobileCount
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
 
   GetImmobileCount = ImmobileGetCount(reaction%immobile)
   
@@ -1350,7 +1352,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscReal :: coefs(FIVE_INTEGER)
   character(len=MAXWORDLENGTH) :: name 
   PetscReal :: logK(reaction%num_dbase_temperatures)
@@ -1424,7 +1426,7 @@ subroutine ReactionInitializeLogK(logKcoef,logKs,logK,option,reaction)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscReal :: logKcoef(FIVE_INTEGER)
   PetscReal :: logKs(reaction%num_dbase_temperatures)
   PetscReal :: logK, logK_1D_Array(ONE_INTEGER)
@@ -1504,7 +1506,7 @@ subroutine ReactionInitializeLogK_hpt(logKcoef,logK,option,reaction)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscReal :: logKcoef(17)
   PetscReal :: logK, logK_1D_Array(ONE_INTEGER)
   type(option_type) :: option
@@ -1612,7 +1614,7 @@ subroutine ReactionInputRecord(rxn)
 
   implicit none
 
-  type(reaction_type), pointer :: rxn
+  class(reaction_type), pointer :: rxn
   
   type(aq_species_type), pointer :: cur_aq_species
   type(gas_species_type), pointer :: cur_gas_species
@@ -2060,7 +2062,7 @@ subroutine ReactionDestroy(reaction,option)
   
   implicit none
 
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   
   type(aq_species_type), pointer :: aq_species, prev_aq_species
   type(gas_species_type), pointer :: gas_species, prev_gas_species
@@ -2075,6 +2077,8 @@ subroutine ReactionDestroy(reaction,option)
   type(option_type) :: option
 
   if (.not.associated(reaction)) return
+
+  call ReactionBaseStrip(reaction)
   
   !species index
   call SpeciesIndexDestroy(reaction%species_idx)

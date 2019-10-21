@@ -210,7 +210,7 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   implicit none
   
   class(tran_constraint_rt_type) :: constraint
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   

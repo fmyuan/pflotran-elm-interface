@@ -1000,7 +1000,7 @@ subroutine CondControlAssignRTTranInitCond(realization)
   type(discretization_type), pointer :: discretization
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
@@ -1880,7 +1880,7 @@ subroutine CondControlReadTransportIC(realization,filename)
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
   type(patch_type), pointer :: cur_patch
-  type(reaction_type), pointer :: reaction
+  class(reaction_type), pointer :: reaction
 
   option => realization%option
   discretization => realization%discretization

@@ -47,7 +47,7 @@ subroutine DatabaseRead(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec, cur_aq_spec2
@@ -819,7 +819,7 @@ subroutine BasisInit(reaction,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec
@@ -3985,7 +3985,7 @@ function GetSpeciesBasisID(reaction,option,ncomp_h2o,reaction_name, &
 
   implicit none
 
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   type(option_type) :: option
   PetscInt :: ncomp_h2o
   character(len=MAXWORDLENGTH) :: reaction_name
@@ -4054,7 +4054,7 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   PetscInt :: num_logKs
   type(option_type) :: option
   PetscInt :: h2o_id
@@ -4203,7 +4203,7 @@ subroutine BasisPrint(reaction,title,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_type) :: reaction
   character(len=*) :: title
   type(option_type) :: option
   
