@@ -2111,7 +2111,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             &in the SIMULATION block.'
           call PrintErrMsg(option)
         endif     
-        realization%nw_trans => NWTRealizCreate()
+        realization%nw_trans => NWTReactionCreate()
         call NWTRead(realization%nw_trans,input,option)
         
     end select

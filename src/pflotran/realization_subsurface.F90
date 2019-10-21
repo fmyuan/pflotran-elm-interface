@@ -2693,7 +2693,7 @@ subroutine RealizationStrip(this)
   
   call ReactionDestroy(this%reaction,this%option)
   
-  call NWTransDestroy(this%nw_trans,this%option)
+  call NWTReactionDestroy(this%nw_trans,this%option)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   

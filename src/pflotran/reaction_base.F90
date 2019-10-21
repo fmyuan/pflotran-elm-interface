@@ -15,7 +15,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine ReactionBaseInit(reaction)
+subroutine ReactionBaseInit(reaction_base)
   ! 
   ! Initialize base reaction object
   ! 
@@ -24,13 +24,13 @@ subroutine ReactionBaseInit(reaction)
   ! 
   implicit none
   
-  class(reaction_base_type) :: reaction
+  class(reaction_base_type) :: reaction_base
 
 end subroutine ReactionBaseInit
 
 ! ************************************************************************** !
 
-subroutine ReactionBaseStrip(reaction)
+subroutine ReactionBaseStrip(reaction_base)
   ! 
   ! Deallocates members of a base reaction object
   ! 
@@ -39,7 +39,7 @@ subroutine ReactionBaseStrip(reaction)
   ! 
   implicit none
 
-  class(reaction_base_type) :: reaction
+  class(reaction_base_type) :: reaction_base
 
 end subroutine ReactionBaseStrip
 

@@ -600,6 +600,29 @@ end function ReactionCreate
 
 ! ************************************************************************** !
 
+function ReactionCast(reaction_base)
+  ! 
+  ! Casts a reaction_base type to reaction_nw type if applicable.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/21/19
+  ! 
+  implicit none
+
+  class(reaction_base_type), pointer :: reaction_base
+
+  class(reaction_type), pointer :: ReactionCast
+
+  nullify(ReactionCast)
+  select type(r=>reaction_base)
+    class is(reaction_type)
+      ReactionCast => r
+  end select
+
+end function ReactionCast
+
+! ************************************************************************** !
+
 function SpeciesIndexCreate()
   ! 
   ! Allocate and initialize a species index object

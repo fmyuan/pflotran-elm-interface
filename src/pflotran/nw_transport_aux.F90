@@ -133,7 +133,8 @@ module NW_Transport_Aux_module
             NWTSpeciesCreate, &
             NWTSpeciesConstraintCreate, &
             NWTRadDecayRxnCreate, &
-            NWTRealizCreate, &
+            NWTReactionCreate, &
+            NWTReactionCast, &
             NWTRead, &
             NWTReadPass2, &
             NWTSetPlotVariables, &
@@ -143,7 +144,7 @@ module NW_Transport_Aux_module
             NWTAuxDestroy, &
             NWTAuxVarDestroy, &
             NWTAuxVarStrip, &
-            NWTransDestroy
+            NWTReactionDestroy
             
             
 contains
@@ -238,7 +239,7 @@ end subroutine NWTAuxVarInit
 
 ! ************************************************************************** !
 
-function NWTRealizCreate()
+function NWTReactionCreate()
   ! 
   ! Allocates and initializes a NWT realization object
   ! 
@@ -247,45 +248,70 @@ function NWTRealizCreate()
   ! 
   implicit none
   
-  class(reaction_nw_type), pointer :: NWTRealizCreate
+  class(reaction_nw_type), pointer :: NWTReactionCreate
   
-  class(reaction_nw_type), pointer :: nwtr 
+  class(reaction_nw_type), pointer :: reaction_nw 
 
-  allocate(nwtr)
-  nwtr%offset_auxiliary = 0
-  nwtr%use_log_formulation = PETSC_FALSE
-  nullify(nwtr%diffusion_coefficient)
-  nullify(nwtr%diffusion_activation_energy)
-  nullify(nwtr%species_names)
-  nullify(nwtr%species_list)
-  nullify(nwtr%species_print)
-  nullify(nwtr%rad_decay_rxn_list)
-  nwtr%nw_trans_on = PETSC_TRUE
-  
-  nullify(nwtr%params)
-  allocate(nwtr%params)
-  nwtr%params%ncomp = 0
-  nwtr%params%nphase = 0
-  nwtr%params%nspecies = 0
-  nwtr%params%nauxiliary = 0
-  nwtr%params%calculate_transverse_dispersion = PETSC_FALSE
-  nwtr%params%temperature_dependent_diffusion = PETSC_FALSE
-  nwtr%params%truncated_concentration = UNINITIALIZED_DOUBLE
-  
-  nullify(nwtr%print_what)
-  allocate(nwtr%print_what)
-  nwtr%print_what%aqueous_eq_conc = PETSC_FALSE
-  nwtr%print_what%mnrl_eq_conc = PETSC_FALSE
-  nwtr%print_what%mnrl_vol_frac = PETSC_FALSE
-  nwtr%print_what%sorb_eq_conc = PETSC_FALSE
-  nwtr%print_what%total_bulk_conc = PETSC_FALSE
-  nwtr%print_what%all_species = PETSC_FALSE
-  nwtr%print_what%all_concs = PETSC_FALSE
-  
-  NWTRealizCreate => nwtr
+  allocate(reaction_nw)
+  call ReactionBaseInit(reaction_nw)
 
-end function NWTRealizCreate
+  reaction_nw%offset_auxiliary = 0
+  reaction_nw%use_log_formulation = PETSC_FALSE
+  nullify(reaction_nw%diffusion_coefficient)
+  nullify(reaction_nw%diffusion_activation_energy)
+  nullify(reaction_nw%species_names)
+  nullify(reaction_nw%species_list)
+  nullify(reaction_nw%species_print)
+  nullify(reaction_nw%rad_decay_rxn_list)
+  reaction_nw%nw_trans_on = PETSC_TRUE
+  
+  nullify(reaction_nw%params)
+  allocate(reaction_nw%params)
+  reaction_nw%params%ncomp = 0
+  reaction_nw%params%nphase = 0
+  reaction_nw%params%nspecies = 0
+  reaction_nw%params%nauxiliary = 0
+  reaction_nw%params%calculate_transverse_dispersion = PETSC_FALSE
+  reaction_nw%params%temperature_dependent_diffusion = PETSC_FALSE
+  reaction_nw%params%truncated_concentration = UNINITIALIZED_DOUBLE
+  
+  nullify(reaction_nw%print_what)
+  allocate(reaction_nw%print_what)
+  reaction_nw%print_what%aqueous_eq_conc = PETSC_FALSE
+  reaction_nw%print_what%mnrl_eq_conc = PETSC_FALSE
+  reaction_nw%print_what%mnrl_vol_frac = PETSC_FALSE
+  reaction_nw%print_what%sorb_eq_conc = PETSC_FALSE
+  reaction_nw%print_what%total_bulk_conc = PETSC_FALSE
+  reaction_nw%print_what%all_species = PETSC_FALSE
+  reaction_nw%print_what%all_concs = PETSC_FALSE
+  
+  NWTReactionCreate => reaction_nw
 
+end function NWTReactionCreate
+
+! ************************************************************************** !
+
+function NWTReactionCast(reaction_base)
+  ! 
+  ! Casts a reaction_base type to reaction_nw type if applicable.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/21/19
+  ! 
+  implicit none
+  
+  class(reaction_base_type), pointer :: reaction_base
+
+  class(reaction_nw_type), pointer :: NWTReactionCast
+
+  nullify(NWTReactionCast)
+  select type(r=>reaction_base)
+    class is(reaction_nw_type)
+      NWTReactionCast => r
+  end select
+
+end function NWTReactionCast
+  
 ! ************************************************************************** !
 
 subroutine NWTRead(nw_trans,input,option)
@@ -1068,7 +1094,7 @@ end subroutine NWTAuxDestroy
 
 ! ************************************************************************** !
 
-subroutine NWTransDestroy(nw_trans,option)
+subroutine NWTReactionDestroy(nw_trans,option)
   ! 
   ! Deallocates a nuclear waste transport realization object.
   ! 
@@ -1088,6 +1114,8 @@ subroutine NWTransDestroy(nw_trans,option)
   type(species_type), pointer :: species, prev_species
   
   if (.not.associated(nw_trans)) return
+
+  call ReactionBaseStrip(nw_trans)
   
   call DeallocateArray(nw_trans%diffusion_coefficient)
   call DeallocateArray(nw_trans%diffusion_activation_energy)
@@ -1124,7 +1152,7 @@ subroutine NWTransDestroy(nw_trans,option)
   deallocate(nw_trans)
   nullify(nw_trans)
 
-end subroutine NWTransDestroy
+end subroutine NWTReactionDestroy
 
 ! ************************************************************************** !
 
