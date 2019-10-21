@@ -4558,7 +4558,6 @@ subroutine PatchInitConstraints(patch,reaction_base,option)
   ! Date: 12/04/08
   !
   use Reaction_Base_module
-  use NW_Transport_Aux_module
 
   implicit none
 
@@ -4845,7 +4844,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   use Reaction_Mineral_module
   use Reaction_module
   use Reactive_Transport_Aux_module
-  use NW_Transport_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
@@ -6886,7 +6884,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   use Richards_Aux_module
   use Miscible_Aux_module
   use Reactive_Transport_Aux_module
-  use NW_Transport_Aux_module
   use Reaction_Mineral_module
   use Reaction_module
   use Reaction_Mineral_Aux_module
