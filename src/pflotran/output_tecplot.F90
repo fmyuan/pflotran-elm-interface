@@ -2334,7 +2334,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   if (option%use_mc) then
     if (option%ntrandof > 0) then
       rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
-      reaction => realization_base%reaction
+      reaction => ReactionCast(realization_base%reaction_base)
     endif
     if (option%iflowmode == TH_MODE &
         .or. option%iflowmode == TH_TS_MODE &
@@ -2639,7 +2639,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   
   ! add secondary concentrations to header
   if (option%ntrandof > 0) then 
-    reaction => realization_base%reaction
+    reaction => ReactionCast(realization_base%reaction_base)
     if (print_secondary_data(2)) then
       do j = 1, reaction%naqcomp
         string = 'Free ion ' // trim(reaction%primary_species_names(j))

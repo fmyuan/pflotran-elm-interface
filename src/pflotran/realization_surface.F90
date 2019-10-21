@@ -34,7 +34,6 @@ private
     type(tran_condition_list_type),pointer :: surf_transport_conditions
     type(surface_material_property_type), pointer :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    class(reaction_rt_type), pointer :: surf_reaction
     character(len=MAXSTRINGLENGTH) :: surf_filename
     character(len=MAXSTRINGLENGTH) :: subsurf_filename
 
@@ -123,7 +122,6 @@ function RealizSurfCreate(option)
   allocate(surf_realization%surf_transport_conditions)
   call TranConditionInitList(surf_realization%surf_transport_conditions)
   
-  nullify(surf_realization%surf_reaction)
   nullify(surf_realization%datasets)
 
   surf_realization%iter_count = 0
@@ -1354,8 +1352,6 @@ subroutine RealizSurfStrip(surf_realization)
   
   call DiscretizationDestroy(surf_realization%discretization)
 
-  call ReactionDestroy(surf_realization%reaction,surf_realization%option)
-
 end subroutine RealizSurfStrip
 
 ! ************************************************************************** !
@@ -1409,7 +1405,6 @@ subroutine RealizSurfGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
 
   call PatchGetVariable(surf_realization%patch, &
                        surf_realization%surf_field, &
-                       !surf_realization%reaction, &
                        surf_realization%option, &
                        surf_realization%output_option, &
                        vec,ivar,isubvar,isubvar1)

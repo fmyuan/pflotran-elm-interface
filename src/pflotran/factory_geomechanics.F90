@@ -751,8 +751,6 @@ subroutine GeomechanicsInitReadInput(simulation,geomech_solver, &
                         call PrintErrMsg(option)
                     end select
                   endif
-                case ('MAD')
-                  output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
                   call InputReadCard(input,option,word)

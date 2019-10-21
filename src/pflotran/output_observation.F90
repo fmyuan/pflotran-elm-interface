@@ -392,13 +392,11 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
                                   
   use Realization_Base_class, only : realization_base_type
   use Option_module
-  use Reaction_Aux_module
 
   implicit none
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  class(reaction_rt_type), pointer :: reaction 
   PetscBool :: print_velocities
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -749,7 +747,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   
   ! add secondary concentrations to header
   if (option%ntrandof > 0) then 
-    reaction => realization_base%reaction
+    reaction => ReactionCast(realization_base%reaction_base)
     if (print_secondary_data(2)) then
       do j = 1, reaction%naqcomp
         do i = 1, option%nsec_cells
@@ -828,7 +826,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   class(reaction_rt_type), pointer :: reaction 
   
   option => realization_base%option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
   
   select case(option%iflowmode)
     case(FLASH2_MODE)
@@ -871,7 +869,6 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
   use Variables_module
   
   implicit none
@@ -885,7 +882,6 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option  
   type(output_variable_type), pointer :: cur_variable
   
@@ -936,7 +932,6 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
   use Variables_module
   
   use Grid_Structured_module
@@ -954,7 +949,6 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
     
@@ -1082,7 +1076,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   PetscErrorCode :: ierr
   
   option => realization_base%option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
 
 110 format(es14.6)
  
@@ -1574,7 +1568,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
         end select
      endif
     if (option%ntrandof > 0) then
-      reaction => realization_base%reaction 
+      reaction => ReactionCast(realization_base%reaction_base)
       if (ivar == PRINT_SEC_CONC) then
         do naqcomp = 1, reaction%naqcomp
           do i = 1, option%nsec_cells 
@@ -1668,7 +1662,7 @@ subroutine OutputIntegralFlux(realization_base)
   grid => patch%grid
   option => realization_base%option
   output_option => realization_base%output_option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
 
   if (.not.associated(patch%integral_flux_list%first)) return
 
@@ -1995,7 +1989,7 @@ subroutine OutputMassBalance(realization_base)
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
-  reaction => realization_base%reaction
+  reaction => ReactionCast(realization_base%reaction_base)
   output_option => realization_base%output_option
 
   if (option%ntrandof > 0) then

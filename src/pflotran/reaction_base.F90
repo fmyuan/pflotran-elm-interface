@@ -6,6 +6,8 @@ module Reaction_Base_module
   private 
 
   type, public :: reaction_base_type
+    ! flag for solving for the change in the log of the concentration
+    PetscBool :: use_log_formulation 
   end type reaction_base_type
 
   public :: ReactionBaseInit, &
@@ -25,6 +27,8 @@ subroutine ReactionBaseInit(reaction_base)
   implicit none
   
   class(reaction_base_type) :: reaction_base
+
+  reaction_base%use_log_formulation = PETSC_FALSE
 
 end subroutine ReactionBaseInit
 

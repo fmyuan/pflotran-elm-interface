@@ -2101,6 +2101,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         !     multicontinuum
  !       option%use_mc = PETSC_TRUE
         call ReactionInit(realization%reaction,input,option)  
+        realization%reaction_base => realization%reaction
         
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
@@ -2112,6 +2113,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           call PrintErrMsg(option)
         endif     
         realization%reaction_nw => NWTReactionCreate()
+        realization%reaction_base => realization%reaction_nw
         call NWTRead(realization%reaction_nw,input,option)
         
     end select
@@ -2524,7 +2526,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call PrintMsg(option,tran_condition%name)
         call TranConditionRead(tran_condition, &
                                realization%transport_constraints, &
-                               reaction,realization%reaction_nw,input,option)
+                               realization%reaction_base,input,option)
         call TranConditionAddToList(tran_condition, &
                                     realization%transport_conditions)
         nullify(tran_condition)
@@ -3427,8 +3429,6 @@ subroutine SubsurfaceReadInput(simulation,input)
                                'OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
-                case ('MAD')
-                  output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
                   call InputReadCard(input,option,word)
@@ -3567,8 +3567,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         if (associated(grid%unstructured_grid)) then
           if (associated(grid%unstructured_grid%explicit_grid)) then
             if( output_option%write_ecl .or. option%linerept ) then
-              unsupported_output =       output_option%print_mad &
-                                    .or. output_option%print_tecplot &
+              unsupported_output = output_option%print_tecplot &
                                     .or. output_option%print_vtk
             else
               unsupported_output = .not.output_option%print_hdf5

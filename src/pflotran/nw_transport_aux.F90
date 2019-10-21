@@ -112,7 +112,6 @@ module NW_Transport_Aux_module
   ! this is the equivalent to reaction_rt_type as in realization%reaction
   type, public, extends(reaction_base_type) :: reaction_nw_type
     PetscInt :: offset_auxiliary
-    PetscBool :: use_log_formulation
     PetscReal, pointer :: diffusion_coefficient(:,:)
     PetscReal, pointer :: diffusion_activation_energy(:,:)
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
@@ -256,7 +255,6 @@ function NWTReactionCreate()
   call ReactionBaseInit(reaction_nw)
 
   reaction_nw%offset_auxiliary = 0
-  reaction_nw%use_log_formulation = PETSC_FALSE
   nullify(reaction_nw%diffusion_coefficient)
   nullify(reaction_nw%diffusion_activation_energy)
   nullify(reaction_nw%species_names)

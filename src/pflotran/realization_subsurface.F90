@@ -18,6 +18,8 @@ module Realization_Subsurface_class
   use Dataset_Base_class
   use Fluid_module
   use Patch_module
+  use Reaction_Aux_module
+  use NW_Transport_Aux_module
   
 
   implicit none
@@ -42,6 +44,9 @@ private
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
+
+    class(reaction_rt_type), pointer :: reaction
+    class(reaction_nw_type), pointer :: reaction_nw
     
   end type realization_subsurface_type
 
@@ -154,6 +159,8 @@ function RealizationCreate2(option)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
+  nullify(realization%reaction)
+  nullify(realization%reaction_nw)
   realization%nonuniform_velocity_filename = ''
 
   RealizationCreate2 => realization
@@ -304,16 +311,8 @@ subroutine RealizationCreateDiscretization(realization)
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx_loc, &
                                       LOCAL,option)
       
-      if (associated(realization%reaction)) then
-        if (realization%reaction%use_log_formulation) then
-          call DiscretizationDuplicateVector(discretization,field%tran_xx, &
-                                             field%tran_log_xx)
-          call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
-                                             field%tran_work_loc)
-        endif
-      endif
-      if (associated(realization%reaction_nw)) then
-        if (realization%reaction_nw%use_log_formulation) then
+      if (associated(realization%reaction_base)) then
+        if (realization%reaction_base%use_log_formulation) then
           call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                              field%tran_log_xx)
           call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
@@ -543,6 +542,7 @@ subroutine RealizationPassPtrsToPatches(realization)
   realization%patch%datasets => realization%datasets
   realization%patch%reaction => realization%reaction
   realization%patch%reaction_nw => realization%reaction_nw
+  realization%patch%reaction_base => realization%reaction_base
   
 end subroutine RealizationPassPtrsToPatches
 
@@ -1202,8 +1202,8 @@ subroutine RealizationInitConstraints(realization)
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
-    call PatchInitConstraints(cur_patch,realization%reaction, &
-                              realization%reaction_nw,realization%option)
+    call PatchInitConstraints(cur_patch,realization%reaction_base, &
+                              realization%option)
     cur_patch => cur_patch%next
   enddo
  
@@ -2690,10 +2690,10 @@ subroutine RealizationStrip(this)
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)
-  
-  call ReactionDestroy(this%reaction,this%option)
-  
-  call NWTReactionDestroy(this%reaction_nw,this%option)
+
+  ! nullify since they are pointers to reaction_base in realization_base
+  nullify(this%reaction)
+  nullify(this%reaction_nw)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   

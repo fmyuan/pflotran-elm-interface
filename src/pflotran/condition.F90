@@ -4505,7 +4505,7 @@ end subroutine FlowConditionCommonRead
 ! ************************************************************************** !
 
 subroutine TranConditionRead(condition,constraint_list, &
-                             reaction,reaction_nw,input,option)
+                             reaction_base,input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -4523,6 +4523,7 @@ subroutine TranConditionRead(condition,constraint_list, &
   use Transport_Constraint_RT_module
   use Transport_Constraint_NWT_module
   use Transport_Constraint_module
+  use Reaction_Base_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
 
@@ -4530,8 +4531,7 @@ subroutine TranConditionRead(condition,constraint_list, &
 
   type(tran_condition_type) :: condition
   type(tran_constraint_list_type) :: constraint_list
-  class(reaction_rt_type), pointer :: reaction
-  class(reaction_nw_type), pointer :: reaction_nw
+  class(reaction_base_type), pointer :: reaction_base
   type(input_type), pointer :: input
   type(option_type) :: option
 
@@ -4541,6 +4541,8 @@ subroutine TranConditionRead(condition,constraint_list, &
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   PetscInt :: default_itype
   PetscBool :: found
   PetscInt :: icomp
@@ -4550,6 +4552,13 @@ subroutine TranConditionRead(condition,constraint_list, &
 
   call PetscLogEventBegin(logging%event_tran_condition_read, &
                           ierr);CHKERRQ(ierr)
+
+  select type(r=>reaction_base)
+    class is(reaction_rt_type)
+      reaction => r
+    class is(reaction_nw_type)
+      reaction_nw => r
+  end select
 
   default_time_units = ''
 

@@ -145,7 +145,6 @@ module Reaction_Aux_module
   type, public, extends(reaction_base_type) :: reaction_rt_type
     character(len=MAXSTRINGLENGTH) :: database_filename
     PetscBool :: use_full_geochemistry
-    PetscBool :: use_log_formulation ! flag for solving for the change in the log of the concentration
     PetscReal :: truncated_concentration
     PetscBool :: check_update
     PetscBool :: print_all_species
@@ -353,6 +352,7 @@ module Reaction_Aux_module
   end interface  
 
   public :: ReactionCreate, &
+            ReactionCast, &
             SpeciesIndexCreate, &
             GasSpeciesCreate, &
             GetPrimarySpeciesCount, &
@@ -438,7 +438,6 @@ function ReactionCreate()
   reaction%print_total_sorb_mobile = PETSC_FALSE
   reaction%print_colloid = PETSC_FALSE
   reaction%print_act_coefs = PETSC_FALSE
-  reaction%use_log_formulation = PETSC_FALSE
   reaction%truncated_concentration = UNINITIALIZED_DOUBLE
   reaction%check_update = PETSC_TRUE
   reaction%use_full_geochemistry = PETSC_FALSE

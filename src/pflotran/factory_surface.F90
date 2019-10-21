@@ -672,8 +672,6 @@ subroutine SurfaceReadInput(surf_realization,surf_flow_solver,waypoint_list, &
                           'SURF_OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
-                case ('MAD')
-                  output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
                   call InputReadCard(input,option,word)
