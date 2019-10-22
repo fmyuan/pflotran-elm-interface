@@ -577,6 +577,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal :: Phiref2
   PetscReal :: rhob
   PetscReal :: Pb
+  PetscBool :: found
   PetscReal, parameter :: gravity = 9.80665d0
 
   patch => this%realization%patch
@@ -820,6 +821,20 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   if (associated(this%dirichlet_dofs)) then
     call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
                       PETSC_FALSE,ierr);CHKERRQ(ierr)
+  endif
+
+  ! prevent use of block Jacobi preconditioning in parallel
+  if (this%solver%pc_type == PCILU .or. &
+      this%solver%pc_type == PCBJACOBI) then
+    call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
+                             PETSC_NULL_CHARACTER,"-bypass_wipp_pc_check", &
+                             found,ierr);CHKERRQ(ierr)
+    if (.not.found) then
+      option%io_buffer = 'Block Jacobi or ILU preconditioning is not allowed &
+        &with WIPP_FLOW due to excessive error in the solvers. Please use &
+        &a direct solver or FGMRES-CPR.'
+      call PrintErrMsg(option)
+    endif
   endif
   
 end subroutine PMWIPPFloInitializeRun
