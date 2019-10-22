@@ -100,10 +100,6 @@ ifdef condnr
   MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
 endif
 
-ifdef temp
-  MYFLAGS += ${FC_DEFINE_FLAG}TEMP_DEPENDENT_LOGK
-endif
-
 ifdef remove_sat
   MYFLAGS += ${FC_DEFINE_FLAG}REMOVE_SATURATION
 endif
