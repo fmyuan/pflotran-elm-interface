@@ -1149,6 +1149,9 @@ subroutine NWTResidualRx(nwt_auxvar,material_auxvar,reaction_nw,Res)
   ! volume in [m^3-bulk]
   vol = material_auxvar%volume
   
+  !TODO(jenn): convert to compressed arrays instead of tranversing a linked
+  !            list, which is much less efficient for memory access. see
+  !            'do icplx' loop in RTotalAqueous for an example.
   species => reaction_nw%species_list
   do 
     if (.not.associated(species)) exit
@@ -1777,6 +1780,7 @@ subroutine NWTJacobianRx(material_auxvar,reaction_nw,Jac)
   
   istart = 1
   iend = reaction_nw%params%nspecies
+  !TODO(jenn): convert from linked list to array format
   do ispecies=istart,iend
     decay_rate = 0.d0
     parent_decay_rate = 0.d0
@@ -2017,6 +2021,8 @@ subroutine NWTComputeMassBalance(realization,max_size,sum_mol)
   sum_mol_sb = 0.d0
   sum_mol_mnrl = 0.d0
 
+  !TODO(jenn): Add MASS_BALANCE to OUTPUT block and you will see that the
+  !            code fails
   ncomp = reaction_nw%params%ncomp
 
   do local_id = 1, grid%nlmax

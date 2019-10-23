@@ -110,15 +110,17 @@ module NW_Transport_Aux_module
   end type nwt_species_constraint_type
   
   ! this is the equivalent to reaction_rt_type as in realization%reaction
+  !TODO(jenn): need to place transport-related variables in nwt_params_type
+  !            only reaction-related variables should be in reaction_nw_type
   type, public, extends(reaction_base_type) :: reaction_nw_type
-    PetscInt :: offset_auxiliary
-    PetscReal, pointer :: diffusion_coefficient(:,:)
-    PetscReal, pointer :: diffusion_activation_energy(:,:)
+    PetscInt :: offset_auxiliary ! even used?
+    PetscReal, pointer :: diffusion_coefficient(:,:) !TODO(jenn): move to nwt_params_type
+    PetscReal, pointer :: diffusion_activation_energy(:,:) !TODO(jenn): move to nwt_params_type
     character(len=MAXWORDLENGTH), pointer :: species_names(:)
     type(species_type), pointer :: species_list
     PetscBool, pointer :: species_print(:)
     type(radioactive_decay_rxn_type), pointer :: rad_decay_rxn_list
-    type(nwt_params_type), pointer :: params
+    type(nwt_params_type), pointer :: params !TODO(jenn): move to nw_transport_type
     type(nwt_print_type), pointer :: print_what 
     PetscBool :: reaction_nw_on
   end type reaction_nw_type

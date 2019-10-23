@@ -6,8 +6,6 @@ module Transport_Constraint_module
   use PFLOTRAN_Constants_module
 
   use Transport_Constraint_Base_module
-  use Transport_Constraint_RT_module
-  use Transport_Constraint_NWT_module
 
   implicit none
 
