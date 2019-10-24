@@ -1143,7 +1143,10 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call VecGetArrayF90(field%vx_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
-  vec_ptr2 = vec_ptr
+  !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
+  do i = 1, size(vec_ptr)
+    vec_ptr2(i) = vec_ptr(i)
+  enddo
   call VecRestoreArrayF90(natural_vx_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vx_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
@@ -1152,7 +1155,10 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call VecGetArrayF90(field%vy_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
-  vec_ptr2 = vec_ptr
+  !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
+  do i = 1, size(vec_ptr)
+    vec_ptr2(i) = vec_ptr(i)
+  enddo
   call VecRestoreArrayF90(natural_vy_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vy_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
@@ -1161,7 +1167,10 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call VecGetArrayF90(field%vz_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
-  vec_ptr2 = vec_ptr
+  !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
+  do i = 1, size(vec_ptr)
+    vec_ptr2(i) = vec_ptr(i)
+  enddo
   call VecRestoreArrayF90(natural_vz_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vz_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
