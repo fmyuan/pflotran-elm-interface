@@ -1020,14 +1020,18 @@ subroutine OutputGetFaceVelUGrid(realization_base)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn)
-      do iface_up = 1,MAX_FACE_PER_CELL
-        if (face_id==ugrid%cell_to_face_ghosted(iface_up,local_id_up)) exit
-      enddo
+
+      iface_up=-1
+      if (local_id_up>0) then
+        do iface_up = 1,MAX_FACE_PER_CELL
+          if (face_id==ugrid%cell_to_face_ghosted(iface_up,ghosted_id_up)) exit
+        enddo
+      endif
 
       iface_dn=-1
       if (local_id_dn>0) then
         do iface_dn = 1,MAX_FACE_PER_CELL
-          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
         enddo
       endif
 
@@ -1037,15 +1041,17 @@ subroutine OutputGetFaceVelUGrid(realization_base)
         vel_vector = cur_connection_set%dist(1:3,iconn)* &
                      patch%internal_velocities(dof,sum_connection)
 
-        vx(dof,iface_up,local_id_up) = vel_vector(1)
-        vy(dof,iface_up,local_id_up) = vel_vector(2)
-        vz(dof,iface_up,local_id_up) = vel_vector(3)
+        if (iface_up>0) then
+          vx(dof,iface_up,local_id_up) = vel_vector(1)
+          vy(dof,iface_up,local_id_up) = vel_vector(2)
+          vz(dof,iface_up,local_id_up) = vel_vector(3)
 
-        idx = (local_id_up-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_up + 1
+          idx = (local_id_up-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_up + 1
 
-        vx_ptr(idx) = vel_vector(1)
-        vy_ptr(idx) = vel_vector(2)
-        vz_ptr(idx) = vel_vector(3)
+          vx_ptr(idx) = vel_vector(1)
+          vy_ptr(idx) = vel_vector(2)
+          vz_ptr(idx) = vel_vector(3)
+        endif
 
         if (iface_dn>0) then
 
@@ -1058,8 +1064,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
           vz(dof,iface_dn,local_id_dn) = -vel_vector(3)
 
           vx_ptr(idx) = -vel_vector(1)
-          vx_ptr(idx) = -vel_vector(2)
-          vx_ptr(idx) = -vel_vector(3)
+          vy_ptr(idx) = -vel_vector(2)
+          vz_ptr(idx) = -vel_vector(3)
 
         endif
 
@@ -1083,11 +1089,11 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
       sum_connection = sum_connection + 1
       face_id = cur_connection_set%face_id(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-      local_id_dn = grid%nG2L(ghosted_id_dn)
+      local_id_dn = cur_connection_set%id_dn(iconn)
+      ghosted_id_dn = grid%nL2G(local_id_dn)
 
       do iface_dn = 1,MAX_FACE_PER_CELL
-        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
       enddo
 
       do dof=1,option%nflowspec
@@ -1103,8 +1109,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
         vz(dof,iface_dn,local_id_dn) = -vel_vector(3)
 
         vx_ptr(idx) = -vel_vector(1)
-        vx_ptr(idx) = -vel_vector(2)
-        vx_ptr(idx) = -vel_vector(3)
+        vy_ptr(idx) = -vel_vector(2)
+        vz_ptr(idx) = -vel_vector(3)
 
       enddo ! dof-loop
 
