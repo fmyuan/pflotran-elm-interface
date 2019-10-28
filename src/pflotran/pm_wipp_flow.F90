@@ -480,6 +480,8 @@ subroutine PMWIPPFloRead(this,input)
           allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
           this%dirichlet_dofs = int_array(1:icount) - 1 
         endif
+      case('WITH_RADIOLYSIS')
+        wippflo_radiolysis = PETSC_TRUE  
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
