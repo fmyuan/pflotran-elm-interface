@@ -29,6 +29,14 @@ module Output_HDF5_module
             OutputHDF5OpenFile, &
             OutputHDF5CloseFile
 
+  public :: OutputH5OpenFile, &
+            OutputH5CloseFile, &
+            OutputH5OpenGroup, &
+            OutputH5CloseGroup, &
+            OutputXMFOpenFile, &
+            DetermineNumVertices, &
+            WriteHDF5CoordinatesUGridXDMF
+
 contains
 
 ! ************************************************************************** !
@@ -1590,6 +1598,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1692,6 +1701,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then 
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_INTEGER,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1871,6 +1881,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1975,6 +1986,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_INTEGER,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -2115,6 +2127,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -2170,6 +2183,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -2225,6 +2239,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -2443,6 +2458,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -2527,6 +2543,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_INTEGER,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -2770,6 +2787,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     hdf5_flag = hdf5_err
     call h5eset_auto_f(ON,hdf5_err)
     if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
       call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
       call h5dcreate_f(file_id,trim(string),H5T_NATIVE_DOUBLE,file_space_id, &
                       data_set_id,hdf5_err,prop_id)
@@ -3000,6 +3018,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
       hdf5_flag = hdf5_err
       call h5eset_auto_f(ON,hdf5_err)
       if (hdf5_flag < 0) then
+        ! if the dataset does not exist, create it
         call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
         call h5dcreate_f(file_id,trim(string),H5T_NATIVE_DOUBLE,file_space_id, &
                         data_set_id,hdf5_err,prop_id)
@@ -3386,5 +3405,161 @@ subroutine OutputHDF5WriteSnapShotAtts(parent_id,option)
   call h5sclose_f(dataspace_id, hdf5_err)
 
 end subroutine OutputHDF5WriteSnapShotAtts
+
+! ************************************************************************** !
+
+subroutine OutputH5OpenFile(option, h5obj, filename, file_id)
+  !
+  ! Opens an HDF5 file, creating it if the first time
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  !
+  use hdf5
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  type(output_h5_type) :: h5obj
+  character(len=MAXSTRINGLENGTH) :: filename
+  integer(HID_T), intent(out) :: file_id
+
+  integer(HID_T) :: prop_id
+  PetscMPIInt :: hdf5_err
+
+    ! initialize fortran interface
+  call h5open_f(hdf5_err)
+
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
+#endif
+  if (.not.h5obj%first_write) then
+    call h5eset_auto_f(OFF,hdf5_err)
+    call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
+    if (hdf5_err /= 0) h5obj%first_write = PETSC_TRUE
+    call h5eset_auto_f(ON,hdf5_err)
+  endif
+  if (h5obj%first_write) then
+    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err, &
+                      H5P_DEFAULT_F,prop_id)
+  endif
+  call h5pclose_f(prop_id,hdf5_err)
+
+  if (h5obj%first_write) then
+    option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
+  else
+    option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
+  endif
+  call PrintMsg(option)
+
+end subroutine OutputH5OpenFile
+
+! ************************************************************************** !
+
+subroutine OutputH5CloseFile(option, h5file, file_id)
+  !
+  ! Closes an HDF5 file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  !
+  use hdf5
+  use Option_module
+
+  implicit none
+
+  type(option_type), intent(in) :: option
+  type(output_h5_type) :: h5file
+  integer(HID_T), intent(in) :: file_id
+
+  integer :: hdf5_err
+  PetscErrorCode :: ierr
+
+  call h5fclose_f(file_id, hdf5_err)
+  call h5close_f(hdf5_err)
+  h5file%first_write = PETSC_FALSE
+
+end subroutine OutputH5CloseFile
+
+! ************************************************************************** !
+
+subroutine OutputXMFOpenFile(option, filename, fid)
+  !
+  ! Opens an XMF file
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  !
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: filename
+  PetscInt :: fid
+
+  if (option%myrank == option%io_rank) then
+    option%io_buffer = '--> write xmf output file: ' // trim(filename)
+    call PrintMsg(option)
+    open(unit=fid,file=filename,action="write")
+  endif
+
+end subroutine OutputXMFOpenFile
+
+! ************************************************************************** !
+
+subroutine OutputH5OpenGroup(option, group_name, file_id, grp_id)
+  !
+  ! Opens an HDF5 group, creating it if it does not exist
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  !
+  use hdf5
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: group_name
+  integer(HID_T) :: file_id
+  integer(HID_T) :: grp_id
+
+  PetscMPIInt :: hdf5_err
+
+  call h5eset_auto_f(OFF,hdf5_err)
+  call h5gopen_f(file_id,group_name,grp_id,hdf5_err)
+  if (hdf5_err /= 0) then
+    call h5gcreate_f(file_id,group_name,grp_id,hdf5_err, &
+                     OBJECT_NAMELEN_DEFAULT_F)
+  endif
+  call h5eset_auto_f(ON,hdf5_err)
+
+end subroutine OutputH5OpenGroup
+
+! ************************************************************************** !
+
+subroutine OutputH5CloseGroup(option,grp_id)
+  !
+  ! Closes an HDF5 group
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  !
+  use hdf5
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  integer(HID_T) :: grp_id
+
+  PetscMPIInt :: hdf5_err
+
+  call h5gclose_f(grp_id,hdf5_err)
+
+end subroutine OutputH5CloseGroup
 
 end module Output_HDF5_module

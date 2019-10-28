@@ -36,6 +36,7 @@ module Output_module
             Output, &
             OutputPrintCouplers, &
             OutputPrintRegions, &
+            OutputPrintRegionsH5, &
             OutputVariableRead, &
             OutputFileRead, &
             OutputInputRecord, &
@@ -1827,6 +1828,7 @@ subroutine OutputMAD(realization_base)
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then 
+    ! if the file does not exist, create it
     call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err,H5P_DEFAULT_F, &
                      prop_id)
   endif
@@ -2299,13 +2301,14 @@ subroutine OutputPrintRegions(realization_base)
   ! Author: Glenn Hammond
   ! Date: 10/03/16
   ! 
-
   use Realization_Base_class, only : realization_base_type
   use Option_module
   use Debug_module
   use Field_module
   use Patch_module
   use Region_module
+
+  implicit none
 
   class(realization_base_type) :: realization_base
   
@@ -2340,6 +2343,166 @@ subroutine OutputPrintRegions(realization_base)
   enddo
   
 end subroutine OutputPrintRegions
+
+! ************************************************************************** !
+
+subroutine OutputPrintRegionsH5(realization_base)
+  ! 
+  ! Prints out the number of connections to each cell in a region in HDF5.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/19/19
+  ! 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use hdf5
+  use HDF5_module
+  use Realization_Base_class, only : realization_base_type
+  use Discretization_module
+  use Option_module
+  use Field_module
+  use Patch_module
+  use Grid_module
+  use Region_module
+  use Output_Aux_module
+  use String_module
+  use Output_Common_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+  
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(region_type), pointer :: cur_region
+  type(output_option_type), pointer :: output_option
+  type(discretization_type), pointer :: discretization
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH), pointer :: strings(:)
+  character(len=MAXSTRINGLENGTH) :: h5_filename
+  character(len=MAXSTRINGLENGTH) :: xmf_filename
+  character(len=MAXSTRINGLENGTH) :: h5_filename_without_path
+
+  Vec :: natural_vec
+  Vec :: one_vec
+  Vec :: all_vec
+
+  type(output_h5_type), pointer :: h5obj
+  integer(HID_T) :: h5file_id
+  integer(HID_T) :: grp_id
+
+  PetscReal, pointer :: one_ptr(:)
+  PetscReal, pointer :: all_ptr(:)
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  option => realization_base%option
+  field => realization_base%field
+  grid => realization_base%patch%grid
+  discretization => realization_base%discretization
+  output_option => realization_base%output_option
+
+  h5obj => OutputH5Create()
+
+  string = trim(option%global_prefix) // '_regions'
+  h5_filename = trim(string) // '.h5'
+  xmf_filename = trim(string) // '.xmf'
+  strings => StringSplit(h5_filename,'/')
+  h5_filename_without_path = strings(size(strings))
+  deallocate(strings)
+
+  call OutputH5OpenFile(option,h5obj,h5_filename,h5file_id)
+  call OutputXMFOpenFile(option,xmf_filename,OUTPUT_UNIT)
+
+  if (Uninitialized(output_option%xmf_vert_len)) then
+    call DetermineNumVertices(realization_base,option)
+  endif
+
+  !TODO(geh): move conditional inside of OutputXMFHeader
+  if (option%myrank == option%io_rank) then
+    call OutputXMFHeader(OUTPUT_UNIT, &
+                         option%time/output_option%tconv, &
+                         grid%nmax, &
+                         output_option%xmf_vert_len, &
+                         grid%unstructured_grid%num_vertices_global,&
+                         h5_filename_without_path,PETSC_TRUE)
+  endif
+
+  ! create a group for the coordinates data set
+  group_name = "Domain"
+  call OutputH5OpenGroup(option,group_name,h5file_id,grp_id)
+  call WriteHDF5CoordinatesUGridXDMF(realization_base,option,grp_id)
+  call OutputH5CloseGroup(option,grp_id)
+
+  group_name = '0 Time 0.'
+  call OutputH5OpenGroup(option,group_name,h5file_id,grp_id)
+
+  call DiscretizationCreateVector(discretization,ONEDOF,natural_vec,NATURAL, &
+                                  option)
+  call DiscretizationCreateVector(discretization,ONEDOF,one_vec,GLOBAL, &
+                                  option)
+  call DiscretizationCreateVector(discretization,ONEDOF,all_vec,GLOBAL, &
+                                  option)
+
+  cur_region => realization_base%patch%region_list%first
+  call VecZeroEntries(all_vec,ierr);CHKERRQ(ierr)
+  do
+    if (.not.associated(cur_region)) exit
+    call VecZeroEntries(one_vec,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(one_vec,one_ptr,ierr);CHKERRQ(ierr)
+    do i = 1, cur_region%num_cells
+      one_ptr(cur_region%cell_ids(i)) = one_ptr(cur_region%cell_ids(i)) + 1.d0
+    enddo
+    call VecRestoreArrayF90(one_vec,one_ptr,ierr);CHKERRQ(ierr)
+    call VecAXPY(all_vec,1.d0,one_vec,ierr);CHKERRQ(ierr)
+
+    string = cur_region%name
+
+    call DiscretizationGlobalToNatural(discretization,one_vec, &
+                                       natural_vec,ONEDOF)
+    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                                 H5T_NATIVE_DOUBLE)
+    string2 = trim(h5_filename_without_path) // &
+                   ":/" // trim(group_name) // "/" // trim(string)
+    !TODO(geh): move conditional inside of OutputXMFAttribute
+    if (option%myrank == option%io_rank) then
+      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
+                              CELL_CENTERED_OUTPUT_MESH)
+    endif
+    cur_region => cur_region%next
+  enddo
+  call VecGetArrayF90(all_vec,one_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(all_vec,one_ptr,ierr);CHKERRQ(ierr)
+  call DiscretizationGlobalToNatural(discretization,all_vec, &
+                                     natural_vec,ONEDOF)
+  string = 'All Regions'
+  call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
+                               H5T_NATIVE_DOUBLE)
+  string2 = trim(h5_filename_without_path) // &
+                 ":/" // trim(group_name) // "/" // trim(string)
+  !TODO(geh): move conditional inside of OutputXMFAttribute
+  if (option%myrank == option%io_rank) then
+    call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,string2, &
+                            CELL_CENTERED_OUTPUT_MESH)
+  endif
+
+  !TODO(geh): move conditional inside of OutputXMFFooter
+  if (option%myrank == option%io_rank) then
+    call OutputXMFFooter(OUTPUT_UNIT)
+    close(OUTPUT_UNIT)
+  endif
+
+  call OutputH5CloseGroup(option,grp_id)
+  call OutputH5CloseFile(option,h5obj,h5file_id)
+
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(one_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(all_vec,ierr);CHKERRQ(ierr)
+  call OutputH5Destroy(h5obj)
+  
+end subroutine OutputPrintRegionsH5
 
 ! ************************************************************************** !
 

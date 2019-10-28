@@ -2169,16 +2169,6 @@ subroutine BasisInit_hpt(reaction,option)
     allocate(reaction%kinsrfcplx_backward_rate(reaction%nkinsrfcplx))
     reaction%kinsrfcplx_backward_rate = 0.d0
 
-!    allocate(reaction%kinsrfcplx_logK(reaction%nkinsrfcplx))
-!    reaction%kinsrfcplx_logK = 0.d0
-!#if TEMP_DEPENDENT_LOGK
-!    allocate(reaction%kinsrfcplx_logKcoef(FIVE_INTEGER,reaction%nkinsrfcplx))
-!    reaction%kinsrfcplx_logKcoef = 0.d0
-!#else
-!    allocate(reaction%kinsrfcplx_logKcoef(reaction%num_dbase_temperatures, &
-!                                           reaction%nkinsrfcplx))
-!    reaction%kinsrfcplx_logKcoef = 0.d0
-!#endif
     allocate(reaction%kinsrfcplx_Z(reaction%nkinsrfcplx))
     reaction%kinsrfcplx_Z = 0.d0
 
@@ -2295,21 +2285,6 @@ subroutine BasisInit_hpt(reaction,option)
           reaction%kinsrfcplxspecid(0,isrfcplx) = ispec
 !  Chuan added, for surface complex reaction, the new data base 
           cur_srfcplx%dbaserxn%logK(:) = cur_srfcplx%dbaserxn%logKCoeff_hpt(:)
-!  #if TEMP_DEPENDENT_LOGK
-!        call ReactionFitLogKCoef(reaction%kinsrfcplx_logKcoef(:,isrfcplx),cur_srfcplx%dbaserxn%logK, &
-!                                 reaction%kinsrfcplx_names(isrfcplx), &
-!                                 option,reaction)
-!        call ReactionInitializeLogK(reaction%kinsrfcplx_logKcoef(:,isrfcplx), &
-!                                    cur_srfcplx%dbaserxn%logK, &
-!                                    reaction%kinsrfcplx_logK(isrfcplx), &
-!                                    option,reaction)
-!  #else
-!          call Interpolate(temp_high,temp_low,option%reference_temperature, &
-!                           cur_srfcplx%dbaserxn%logK(itemp_high), &
-!                           cur_srfcplx%dbaserxn%logK(itemp_low), &
-!                           reaction%kinsrfcplx_logK(isrfcplx))
-!          !reaction%kinsrfcplx_logK(isrfcplx) = cur_srfcplx%dbaserxn%logK(option%itemp_ref)
-!  #endif
           reaction%kinsrfcplx_Z(isrfcplx) = cur_srfcplx%Z
 
           cur_srfcplx => cur_srfcplx%next

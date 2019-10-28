@@ -831,7 +831,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
     ! create a group for the coordinates data set
     string = "Domain"
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
-    call WriteHDF5CoordinatesUGridXDMF(surf_realization,realization,option,grp_id)
+    call WriteHDF5CoordinatesUGridXDMFSurf(surf_realization,realization,option,grp_id)
     call h5gclose_f(grp_id,hdf5_err)
   endif
 
@@ -963,7 +963,7 @@ end subroutine OutputSurfaceHDF5UGridXDMF
 
 ! ************************************************************************** !
 
-subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
+subroutine WriteHDF5CoordinatesUGridXDMFSurf(surf_realization,realization, &
                                           option,file_id)
   ! 
   ! This routine writes unstructured coordinates to HDF5 file in XDMF format
@@ -1074,6 +1074,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1173,6 +1174,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_INTEGER,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1303,6 +1305,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1358,6 +1361,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1413,6 +1417,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   hdf5_flag = hdf5_err
   call h5eset_auto_f(ON,hdf5_err)
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
     call h5dcreate_f(file_id,string,H5T_NATIVE_DOUBLE,file_space_id, &
                      data_set_id,hdf5_err,prop_id)
@@ -1461,7 +1466,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   call VecDestroy(natural_y_cell_vec,ierr);CHKERRQ(ierr)
   call VecDestroy(natural_z_cell_vec,ierr);CHKERRQ(ierr)
 
-end subroutine WriteHDF5CoordinatesUGridXDMF
+end subroutine WriteHDF5CoordinatesUGridXDMFSurf
 
 ! ************************************************************************** !
 
@@ -2127,6 +2132,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
     hdf5_flag = hdf5_err
     call h5eset_auto_f(ON,hdf5_err)
     if (hdf5_flag < 0) then
+      ! if the dataset does not exist, create it
       call h5screate_simple_f(rank_mpi,dims,file_space_id,hdf5_err,dims)
       call h5dcreate_f(file_id,trim(string),H5T_NATIVE_DOUBLE,file_space_id, &
                       data_set_id,hdf5_err,prop_id)

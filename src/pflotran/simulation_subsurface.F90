@@ -331,6 +331,10 @@ subroutine SubsurfaceSimulationJumpStart(this)
   
   if (this%realization%debug%print_regions) then
     call OutputPrintRegions(this%realization)
+    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
+        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+      call OutputPrintRegionsH5(this%realization)
+    endif
   endif  
 
   if (this%realization%debug%print_couplers) then
