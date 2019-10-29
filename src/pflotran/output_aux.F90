@@ -148,6 +148,10 @@ module Output_Aux_module
     PetscInt  :: write_ecl_rst_lasts
   end type
 
+  type, public :: output_h5_type
+    PetscBool :: first_write
+  end type output_h5_type
+
 !  type, public, EXTENDS (output_variable_type) :: aveg_output_variable_type
 !    PetscReal :: time_interval
 !  end type aveg_output_variable_type
@@ -193,7 +197,9 @@ module Output_Aux_module
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
             CheckpointOptionDestroy, &
-            CreateOutputOptionEclipse
+            CreateOutputOptionEclipse, &
+            OutputH5Create, &
+            OutputH5Destroy
 
 contains
 
@@ -277,6 +283,22 @@ function OutputOptionCreate()
   OutputOptionCreate => output_option
   
 end function OutputOptionCreate
+
+! ************************************************************************** !
+
+function OutputH5Create()
+  ! 
+  ! Initializes module variables for H5 output
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/18/19
+  ! 
+  type(output_h5_type), pointer :: OutputH5Create
+
+  allocate(OutputH5Create)
+  OutputH5Create%first_write = PETSC_TRUE
+
+end function OutputH5Create
 
 ! ************************************************************************** !
 
@@ -1123,6 +1145,27 @@ subroutine DestroyOutputOptionEclipse(eclipse_options)
   endif
 
 end subroutine DestroyOutputOptionEclipse
+
+! ************************************************************************** !
+
+subroutine OutputH5Destroy(output_h5)
+  !
+  ! Deallocates an output_h5 object
+  !
+  ! Author: Dave Ponting
+  ! Date: 10/19/19
+  !
+
+  implicit none
+
+  type(output_h5_type), pointer :: output_h5
+
+  if (.not.associated(output_h5)) return
+
+  deallocate(output_h5)
+  nullify(output_h5)
+
+end subroutine OutputH5Destroy
 
 ! ************************************************************************** !
 

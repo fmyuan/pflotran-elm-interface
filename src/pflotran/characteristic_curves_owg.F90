@@ -4360,7 +4360,7 @@ subroutine RPFOilOWGBaseTest(this,cc_name,option)
     end do 
   end do
 
-  write(string,*) trim(cc_name) // '_oil_rel_perm.dat'  
+  string = trim(cc_name) // '_oil_rel_perm.dat'  
 
   open(unit=86,file=string)
   write(86,*) '"oil_saturation", "gas_saturation", "oil_rel_perm", &

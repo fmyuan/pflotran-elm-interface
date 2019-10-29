@@ -32,6 +32,7 @@ module Field_module
     Vec :: volume0
     Vec :: compressibility0
     
+    !TODO(geh): move these Vecs into their respective pms
     ! residual vectors
     Vec :: flow_r          
     Vec :: tran_r
