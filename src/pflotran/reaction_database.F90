@@ -1,5 +1,8 @@
 module Reaction_Database_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_Aux_module
@@ -10,8 +13,6 @@ module Reaction_Database_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: DatabaseRead, BasisInit
   
   public :: GetSpeciesBasisID, &
@@ -30,8 +31,6 @@ subroutine DatabaseRead(reaction,option)
   ! Date: 09/01/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -47,7 +46,7 @@ subroutine DatabaseRead(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec, cur_aq_spec2
@@ -798,8 +797,6 @@ subroutine BasisInit(reaction,option)
   ! Date: 09/01/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Utility_module
@@ -819,7 +816,7 @@ subroutine BasisInit(reaction,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec
@@ -3985,7 +3982,7 @@ function GetSpeciesBasisID(reaction,option,ncomp_h2o,reaction_name, &
 
   implicit none
 
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscInt :: ncomp_h2o
   character(len=MAXWORDLENGTH) :: reaction_name
@@ -4046,15 +4043,13 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   ! Author: Glenn Hammond
   ! Date: 08/10/16
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Reaction_Gas_Aux_module
   use Utility_module
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscInt :: num_logKs
   type(option_type) :: option
   PetscInt :: h2o_id
@@ -4203,7 +4198,7 @@ subroutine BasisPrint(reaction,title,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   character(len=*) :: title
   type(option_type) :: option
   

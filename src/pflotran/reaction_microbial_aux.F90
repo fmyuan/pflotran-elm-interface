@@ -1,5 +1,8 @@
 module Reaction_Microbial_Aux_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Database_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Microbial_Aux_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: INHIBITION_THRESHOLD = 1
   PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2
@@ -142,8 +143,6 @@ function MicrobialRxnCreate()
   ! Author: Glenn Hammond
   ! Date: 10/30/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(microbial_rxn_type), pointer :: MicrobialRxnCreate

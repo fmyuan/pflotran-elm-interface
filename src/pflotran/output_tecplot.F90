@@ -2315,7 +2315,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
   type(grid_type), pointer :: grid
   type(sec_transport_type), pointer :: rt_sec_tranport_vars(:)
   type(sec_heat_type), pointer :: sec_heat_vars(:)
-  type(reaction_type), pointer :: reaction   
+  class(reaction_rt_type), pointer :: reaction   
   PetscReal :: value
   PetscInt :: ivar, isubvar, var_type
   PetscErrorCode :: ierr  
@@ -2333,8 +2333,11 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
 
   if (option%use_mc) then
     if (option%ntrandof > 0) then
-      rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
-      reaction => realization_base%reaction
+      select case(option%itranmode)
+        case(RT_MODE)
+          rt_sec_tranport_vars => patch%aux%SC_RT%sec_transport_vars
+          reaction => ReactionCast(realization_base%reaction_base)
+      end select
     endif
     if (option%iflowmode == TH_MODE &
         .or. option%iflowmode == TH_TS_MODE &
@@ -2614,7 +2617,7 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   
   PetscInt :: fid
   class(realization_base_type) :: realization_base
-  type(reaction_type), pointer :: reaction 
+  class(reaction_rt_type), pointer :: reaction 
   PetscBool :: print_secondary_data(5)
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
@@ -2639,46 +2642,46 @@ subroutine WriteTecplotHeaderSec(fid,realization_base,cell_string, &
   
   ! add secondary concentrations to header
   if (option%ntrandof > 0) then 
-    reaction => realization_base%reaction
-    if (print_secondary_data(2)) then
-      do j = 1, reaction%naqcomp
-        string = 'Free ion ' // trim(reaction%primary_species_names(j))
-        call OutputWriteToHeader(fid,string,'molal',cell_string,icolumn)
-      enddo
-    endif
-  
-  
-    ! add secondary mineral volume fractions to header
-    if (print_secondary_data(3)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' VF'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-    
-     ! add secondary mineral rates to header
-    if (print_secondary_data(4)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' Rate'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
+    select case(option%itranmode)
+      case(RT_MODE)
+        reaction => ReactionCast(realization_base%reaction_base)
+        if (print_secondary_data(2)) then
+          do j = 1, reaction%naqcomp
+            string = 'Free ion ' // trim(reaction%primary_species_names(j))
+            call OutputWriteToHeader(fid,string,'molal',cell_string,icolumn)
+          enddo
+        endif
 
-    ! add secondary mineral SI to header
-    if (print_secondary_data(5)) then
-      if (reaction%mineral%nkinmnrl > 0) then
-        do j = 1, reaction%mineral%nkinmnrl
-          string = trim(reaction%mineral%mineral_names(j)) // ' SI'
-          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
-        enddo
-      endif
-    endif
-   
-    
+        ! add secondary mineral volume fractions to header
+        if (print_secondary_data(3)) then
+          if (reaction%mineral%nkinmnrl > 0) then
+            do j = 1, reaction%mineral%nkinmnrl
+              string = trim(reaction%mineral%mineral_names(j)) // ' VF'
+            call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+            enddo
+          endif
+        endif
+
+       ! add secondary mineral rates to header
+        if (print_secondary_data(4)) then
+          if (reaction%mineral%nkinmnrl > 0) then
+            do j = 1, reaction%mineral%nkinmnrl
+              string = trim(reaction%mineral%mineral_names(j)) // ' Rate'
+              call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+            enddo
+          endif
+        endif
+
+        ! add secondary mineral SI to header
+        if (print_secondary_data(5)) then
+          if (reaction%mineral%nkinmnrl > 0) then
+            do j = 1, reaction%mineral%nkinmnrl
+              string = trim(reaction%mineral%mineral_names(j)) // ' SI'
+              call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+            enddo
+          endif
+        endif
+    end select 
   endif 
   
 end subroutine WriteTecplotHeaderSec

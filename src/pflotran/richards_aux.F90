@@ -1,5 +1,8 @@
 module Richards_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
 #ifdef BUFFER_MATRIX
   use Matrix_Buffer_module
 #endif
@@ -9,8 +12,6 @@ module Richards_Aux_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, public :: richards_itol_scaled_res = 1.d-5
   PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
@@ -82,8 +83,6 @@ function RichardsAuxCreate()
   ! Author: Glenn Hammond
   ! Date: 02/14/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
 
@@ -214,8 +213,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ! Date: 02/22/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Global_Aux_module
   
@@ -388,8 +385,6 @@ subroutine RichardsAuxVarCompute2ndOrderDeriv(rich_auxvar,global_auxvar, &
   ! Date: 07/02/18, 06/26/19
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Global_Aux_module
   

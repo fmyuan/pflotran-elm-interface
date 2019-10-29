@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Example_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
 ! 1. Change all references to "Example" as desired to rename the module and
 !    and subroutines within the module. 
 
@@ -14,8 +17,6 @@ module Reaction_Sandbox_Example_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
 ! 2. Add module variables here.  Note that one must use the PETSc data types 
 !    PetscInt, PetscReal, PetscBool to declare variables of type integer
 !    float/real*8, and logical respectively.  E.g.
@@ -72,8 +73,6 @@ subroutine ExampleRead(this,input,option)
   ! Author: John Doe
   ! Date: 00/00/00
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -164,13 +163,13 @@ subroutine ExampleSetup(this,reaction,option)
   ! Date: 00/00/00
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
 
   implicit none
   
   class(reaction_sandbox_example_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
 ! 9. Add code to initialize 
@@ -199,7 +198,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_example_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

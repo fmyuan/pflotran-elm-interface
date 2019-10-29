@@ -7,8 +7,8 @@ module Well_Solver_module
   ! Solution results are stored in the Well_Data class
 
 #include "petsc/finclude/petscsys.h"
-
   use petscsys
+
   use PFLOTRAN_Constants_module
   use Well_Type_class
   use Well_Data_class
@@ -502,8 +502,6 @@ subroutine SolveWell(aux, option, well_data, r_p)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Well_Data_class
   use EOS_Oil_module
   use EOS_Gas_module
@@ -3447,8 +3445,6 @@ subroutine wellSolverLoaderTOWG(aux, option)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Auxiliary_module
   use PM_TOWG_Aux_module
 
@@ -3482,8 +3478,6 @@ subroutine wellSolverLoaderTOIL(aux, option)
   ! Author: Dave Ponting
   ! Date  : 09/19/18
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Auxiliary_module
   use PM_TOilIms_Aux_module
 

@@ -2,6 +2,7 @@ module Communicator_Base_module
 
 #include "petsc/finclude/petscvec.h"
    use petscvec
+
    use PFLOTRAN_Constants_module
 
   implicit none
@@ -29,6 +30,7 @@ module Communicator_Base_module
       class(communicator_type) :: this
 #else
     subroutine SetDM(this,dm_ptr)
+#include "petsc/finclude/petscdm.h"
       use petscdm
       use DM_Kludge_module
       import communicator_type
@@ -77,8 +79,6 @@ subroutine CommCreateProcessorGroups(option,num_groups)
   ! Author: Glenn Hammond
   ! Date: 08/11/09
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none

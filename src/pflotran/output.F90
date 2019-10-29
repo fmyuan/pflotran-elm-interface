@@ -483,9 +483,6 @@ subroutine OutputFileRead(input,realization,output_option, &
                   call InputKeywordUnrecognized(input,word,string,option)
               end select
             endif
-        !.............
-          case ('MAD')
-            output_option%print_mad = PETSC_TRUE
         !.................
           case ('TECPLOT')
             string = trim(string) // ',TECPLOT'
@@ -1350,18 +1347,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call PrintMsg(option)
     endif
       
-    if (realization_base%output_option%print_mad) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_mad,ierr);CHKERRQ(ierr)
-      call OutputMAD(realization_base)
-
-      call PetscLogEventEnd(logging%event_output_mad,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to MAD HDF5 &
-                             &file(s)")') tend-tstart
-      call PrintMsg(option)
-    endif
-    
     ! Print secondary continuum variables vs sec. continuum dist.
     if (option%use_mc) then
       if (realization_base%output_option%print_tecplot) then
@@ -1561,10 +1546,6 @@ subroutine OutputInputRecord(output_option,waypoint_list)
       write(id,'(a)') 'explicit flow rate'
     endif
   endif
-  if (output_option%print_mad) then
-    write(id,'(a29)',advance='no') 'format: '
-    write(id,'(a)') 'mad'
-  endif
   if (output_option%print_vtk) then
     write(id,'(a29)',advance='no') 'format: '
     write(id,'(a)') 'vtk'
@@ -1732,143 +1713,6 @@ subroutine OutputInputRecord(output_option,waypoint_list)
   
 
 end subroutine OutputInputRecord
-
-! ************************************************************************** !
-
-subroutine OutputMAD(realization_base)
-  ! 
-  ! Print to HDF5 file for MAD final output
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/25/07
-  ! 
-
-  use Realization_Base_class, only : realization_base_type, &
-                                     RealizationGetVariable
-  use Discretization_module
-  use Option_module
-  use Grid_module
-  use Field_module
-  use Patch_module
-  use Reaction_Aux_module
-  use Variables_module
-  use Output_Common_module, only : OutputGetVariableArray
- 
-! 64-bit stuff
-#ifdef PETSC_USE_64BIT_INDICES
-!#define HDF_NATIVE_INTEGER H5T_STD_I64LE
-#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
-#else
-#define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
-#endif
-
-  use hdf5
-  use HDF5_module
-  
-  implicit none
-
-  class(realization_base_type) :: realization_base
-
-  integer(HID_T) :: file_id
-  integer(HID_T) :: grp_id
-  integer(HID_T) :: file_space_id
-  integer(HID_T) :: realization_set_id
-  integer(HID_T) :: prop_id
-  PetscMPIInt :: rank
-  PetscMPIInt, parameter :: ON=1, OFF=0
-  integer(HSIZE_T) :: dims(3)
-  
-  type(grid_type), pointer :: grid
-  type(discretization_type), pointer :: discretization
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: patch  
-  type(reaction_type), pointer :: reaction
-  type(output_option_type), pointer :: output_option
-  
-  Vec :: global_vec
-  Vec :: natural_vec
-  PetscReal, pointer :: v_ptr
-  
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscReal, pointer :: array(:)
-  PetscInt :: i
-  PetscInt :: nviz_flow, nviz_tran, nviz_dof
-  PetscInt :: current_component
-  PetscFortranAddr :: app_ptr
-  PetscMPIInt :: hdf5_flag 
-  PetscMPIInt :: hdf5_err
-  PetscErrorCode :: ierr
-
-  discretization => realization_base%discretization
-  patch => realization_base%patch
-  grid => patch%grid
-  option => realization_base%option
-  field => realization_base%field
-  reaction => realization_base%reaction
-  output_option => realization_base%output_option
-
-#define ALL
-#ifdef ALL
-  write(string,'(i6)') option%mygroup_id
-  filename = trim(option%global_prefix) // '-MAD-G' // trim(adjustl(string)) // '.h5'
-!  filename = trim(option%global_prefix) // '-MAD.h5'
-
-  ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  ! turn off error reporting
-  call h5eset_auto_f(OFF,hdf5_err)
-  call h5fopen_f(filename,H5F_ACC_RDWR_F,file_id,hdf5_err,prop_id)
-  hdf5_flag = hdf5_err
-  call h5eset_auto_f(ON,hdf5_err)
-  if (hdf5_flag < 0) then 
-    ! if the file does not exist, create it
-    call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err,H5P_DEFAULT_F, &
-                     prop_id)
-  endif
-  call h5pclose_f(prop_id,hdf5_err)
-#else
-  filename = trim(option%global_prefix) // trim(option%group_prefix) // '.h5'
-
-  ! initialize fortran interface
-  call h5open_f(hdf5_err)
-
-  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
-#endif
-  call h5fcreate_f(filename,H5F_ACC_TRUNC_F,file_id,hdf5_err,H5P_DEFAULT_F, &
-                   prop_id)
-  call h5pclose_f(prop_id,hdf5_err)
-#endif
-
-  ! write out data sets 
-  call DiscretizationCreateVector(discretization,ONEDOF,global_vec,GLOBAL, &
-                                  option)   
-
-  ! pressure
-  call RealizationGetVariable(realization_base,global_vec,LIQUID_PRESSURE, &
-                              ZERO_INTEGER)
-#ifdef ALL
-  string = 'Pressure' // trim(option%group_prefix)
-#else
-  string = 'Pressure'
-#endif
-  call HDF5WriteStructDataSetFromVec(string,realization_base,global_vec, &
-                                     file_id,H5T_NATIVE_DOUBLE)
-
-  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
-
-  call h5fclose_f(file_id,hdf5_err)
-  call h5close_f(hdf5_err)
-
-end subroutine OutputMAD
 
 ! ************************************************************************** !
 

@@ -2,6 +2,9 @@ module SrcSink_Sandbox_WIPP_Well_class
 
 ! Sandbox srcsink for WIPP well source terms
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   
@@ -9,8 +12,6 @@ module SrcSink_Sandbox_WIPP_Well_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter, public :: WIPP_WELL_LIQUID_MOBILITY = 1
   PetscInt, parameter, public :: WIPP_WELL_GAS_MOBILITY = 2
   PetscInt, parameter, public :: WIPP_WELL_LIQUID_PRESSURE = 3
@@ -66,8 +67,6 @@ subroutine WIPPWellRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

@@ -1,5 +1,8 @@
 module Reaction_Microbial_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Microbial_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Microbial_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: MicrobialRead, &
             RMicrobial
@@ -24,8 +25,6 @@ subroutine MicrobialRead(microbial,input,option)
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -257,13 +256,13 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   use Reactive_Transport_Aux_module, only : reactive_transport_auxvar_type
   use Global_Aux_module, only : global_auxvar_type
   use Material_Aux_class, only : material_auxvar_type
-  use Reaction_Aux_module, only : reaction_type
+  use Reaction_Aux_module, only : reaction_rt_type
   use Reaction_Immobile_Aux_module, only : immobile_type
   
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)

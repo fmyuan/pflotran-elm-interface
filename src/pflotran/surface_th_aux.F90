@@ -1,12 +1,13 @@
 module Surface_TH_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: Surface_TH_auxvar_type
     PetscReal :: h        ! enthalpy -- not currently used
@@ -55,8 +56,6 @@ function SurfaceTHAuxCreate(option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/07/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -156,8 +155,6 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/07/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Surface_Global_Aux_module
   

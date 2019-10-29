@@ -121,7 +121,6 @@ shared_mode_aux_obj = \
 # DO NOT place any object files that depend on the discretization within 
 # util_obj
 chem_obj = \
-	${common_src}transport_constraint.o \
 	${common_src}reaction_database.o \
 	${common_src}reaction_database_aux.o \
 	${common_src}reaction_database_hpt.o \
@@ -134,6 +133,7 @@ chem_obj = \
 	${common_src}reaction_mineral.o \
 	${common_src}reaction_mineral_aux.o \
 	${common_src}reaction.o \
+	${common_src}reaction_base.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
 	${common_src}reaction_sandbox.o \
@@ -149,7 +149,10 @@ chem_obj = \
 	${common_src}reaction_surf_complex.o \
 	${common_src}reaction_surf_complex_aux.o \
 	${common_src}nw_transport_equilibrium.o \
-	${common_src}nw_transport_constraint.o 
+	${common_src}transport_constraint.o \
+	${common_src}transport_constraint_base.o \
+	${common_src}transport_constraint_rt.o \
+	${common_src}transport_constraint_nwt.o
 
 grid_obj = \
 	${common_src}connection.o \

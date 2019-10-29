@@ -1090,16 +1090,17 @@ subroutine Flash2Accumulation(auxvar,global_auxvar,por,vol,rock_dencpr,option,ii
  
 ! Reaction terms here
 ! Note if iireac > 0, then it is the node global index
-  if (option%ntrandof > 0) then
-    if (iireac > 0) then
-!     H2O
-      mol(1) = mol(1) + vol * global_auxvar%reaction_rate_store(1) &
-        *option%flow_dt*1.D-3
-!     CO2
-      mol(2) = mol(2) + vol * global_auxvar%reaction_rate_store(2) &
-        *option%flow_dt*1.D-3
-    endif
-  endif
+  select case(option%itranmode)
+    case(RT_MODE)
+      if (iireac > 0) then
+  !     H2O
+        mol(1) = mol(1) + vol * global_auxvar%reaction_rate_store(1) &
+          *option%flow_dt*1.D-3
+  !     CO2
+        mol(2) = mol(2) + vol * global_auxvar%reaction_rate_store(2) &
+          *option%flow_dt*1.D-3
+      endif
+  end select
 ! if (option%use_isothermal) then
 !   Res(1:option%nflowdof) = mol(:)
 ! else

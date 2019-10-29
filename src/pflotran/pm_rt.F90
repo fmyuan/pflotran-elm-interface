@@ -1,6 +1,8 @@
 module PM_RT_class
+
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
+
   use PM_Base_class
 !geh: using Reactive_Transport_module here fails with gfortran (internal 
 !     compiler error)
@@ -707,7 +709,6 @@ subroutine PMRTResidual(this,snes,xx,r,ierr)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
   use Reactive_Transport_module, only : RTResidual
 
   implicit none
@@ -733,7 +734,6 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
   use Reactive_Transport_module, only : RTJacobian
 
   implicit none
@@ -762,7 +762,6 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! Author: Glenn Hammond
   ! Date: 03/16/09
   ! 
-
   use Realization_Subsurface_class
   use Grid_module
   use Option_module
@@ -780,7 +779,7 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal, pointer :: C_p(:)
   PetscReal, pointer :: dC_p(:)
   type(grid_type), pointer :: grid
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
@@ -1227,8 +1226,6 @@ subroutine PMRTCheckpointBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/29/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1245,12 +1242,7 @@ subroutine PMRTCheckpointBinary(this,viewer)
   implicit none
 
   interface PetscBagGetData
-
-! ************************************************************************** !
-
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: pm_rt_header_type
       implicit none
       PetscBag :: bag
@@ -1371,8 +1363,6 @@ subroutine PMRTRestartBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/29/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1390,12 +1380,7 @@ subroutine PMRTRestartBinary(this,viewer)
   implicit none
 
   interface PetscBagGetData
-
-! ************************************************************************** !
-
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: pm_rt_header_type
       implicit none
       PetscBag :: bag
@@ -1528,8 +1513,6 @@ subroutine PMRTCheckpointHDF5(this, pm_grp_id)
   ! Date: 07/30/15
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class
@@ -1711,8 +1694,6 @@ subroutine PMRTRestartHDF5(this, pm_grp_id)
   ! Date: 07/30/15
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Realization_Base_class

@@ -1,6 +1,8 @@
 module Data_Mediator_Dataset_class
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
+
   use PFLOTRAN_Constants_module
   use Data_Mediator_Base_class
   use Dataset_Global_HDF5_class
@@ -111,8 +113,6 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   ! Author: Glenn Hammond
   ! Date: 05/09/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Discretization_module
   use Dataset_Base_class
   use Dataset_Common_HDF5_class
@@ -177,8 +177,6 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   ! Author: Glenn Hammond
   ! Date: 05/01/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none

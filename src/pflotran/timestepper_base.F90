@@ -1,6 +1,8 @@
 module Timestepper_Base_class
  
 #include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Waypoint_module 
   use Solver_module
  
@@ -137,8 +139,6 @@ subroutine TimestepperBaseInit(this)
   ! Date: 07/01/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   class(timestepper_base_type) :: this
@@ -249,8 +249,6 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   ! Date: 03/20/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -356,8 +354,6 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   ! Date: 03/20/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -652,8 +648,6 @@ subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -724,8 +718,6 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   ! Author: Glenn Hammond
   ! Date: 07/30/13
   ! 
-#include "petsc/finclude/petscsys.h"  
-  use petscsys
   use Option_module
 
   implicit none
@@ -766,8 +758,6 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -804,8 +794,6 @@ subroutine TimestepperBaseRestartBinary(this,viewer,option)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -829,8 +817,6 @@ subroutine TimestepperBaseGetHeader(this,header)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -860,8 +846,6 @@ subroutine TimestepperBaseReset(this)
   ! Date: 01/20/14
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
 
@@ -887,8 +871,6 @@ function TimestepperBaseWallClockStop(this,option)
   ! Author: Glenn Hammond
   ! Date: 08/08/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -945,8 +927,6 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   ! Date: 07/22/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none

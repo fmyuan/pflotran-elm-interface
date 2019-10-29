@@ -1,5 +1,8 @@
 module Reaction_Database_hpt_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
@@ -14,8 +17,6 @@ module Reaction_Database_hpt_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: DatabaseRead_hpt, BasisInit_hpt
             
 contains
@@ -36,7 +37,7 @@ subroutine DatabaseRead_hpt(reaction,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec, cur_aq_spec2
@@ -669,7 +670,7 @@ subroutine BasisInit_hpt(reaction,option)
 
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(aq_species_type), pointer :: cur_aq_spec

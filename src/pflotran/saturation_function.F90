@@ -1,5 +1,7 @@
 module Saturation_Function_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use PFLOTRAN_Constants_module
 
@@ -7,8 +9,6 @@ module Saturation_Function_module
 
   private
 
-#include "petsc/finclude/petscsys.h"
- 
   type, public :: saturation_function_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: name
@@ -98,8 +98,6 @@ function SaturationFunctionCreate(option)
   ! Date: 11/02/07
   ! 
   
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -153,8 +151,6 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   ! Date: 01/21/09
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -463,8 +459,6 @@ subroutine SatFunctionComputePolynomial(option,saturation_function)
   ! Date: 02/27/08
   ! 
   
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Utility_module
   
@@ -767,8 +761,6 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
   ! Author: Glenn Hammond
   ! Date: 12/11/07
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Utility_module, only:CubicPolynomialEvaluate
   
@@ -2565,8 +2557,6 @@ function SaturationFunctionGetID(saturation_function_list, &
   ! Date: 01/12/11
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   
@@ -2612,8 +2602,6 @@ subroutine SaturationFunctionVerify(saturation_function,option)
   ! Date: 04/28/14
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none

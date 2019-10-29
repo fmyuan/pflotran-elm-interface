@@ -54,8 +54,6 @@ recursive subroutine DataMediatorVecUpdate(this,data_mediator_vec,option)
   ! Author: Glenn Hammond
   ! Date: 03/24/15
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none
