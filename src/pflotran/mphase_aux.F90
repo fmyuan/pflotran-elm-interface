@@ -391,12 +391,13 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
     endif
 
     m_na=option%m_nacl; m_cl=m_na; m_nacl=m_na 
-    if (option%ntrandof > 0) then
-      m_na = global_auxvar%m_nacl(1)
-      m_cl = global_auxvar%m_nacl(2)
-      m_nacl = m_na
-      if (m_cl > m_na) m_nacl = m_cl
-    endif  
+    select case(option%itranmode)
+      case(RT_MODE)
+        m_na = global_auxvar%m_nacl(1)
+        m_cl = global_auxvar%m_nacl(2)
+        m_nacl = m_na
+        if (m_cl > m_na) m_nacl = m_cl
+    end select
 
 
     call Henry_duan_sun(t,p2*1.D-5,henry,lngamco2,m_na,m_cl)

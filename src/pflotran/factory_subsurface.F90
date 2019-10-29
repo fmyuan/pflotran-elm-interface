@@ -1672,31 +1672,30 @@ subroutine SubsurfaceSetupRealization(simulation)
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
 
-
-  ! read reaction database
-  if (associated(realization%reaction)) then
-    if (realization%reaction%use_full_geochemistry) then
+  select case(option%itranmode) 
+    case(RT_MODE)
+      ! read reaction database
+      if (realization%reaction%use_full_geochemistry) then
         call DatabaseRead(realization%reaction,option)
         call BasisInit(realization%reaction,option)
-    else
-      ! turn off activity coefficients since the database has not been read
-      realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-      ! jenn:todo Should I turn on print here too?
-      allocate(realization%reaction%primary_species_print(option%ntrandof))
-      realization%reaction%primary_species_print = PETSC_TRUE
-    endif
-  endif
+      else
+        ! turn off activity coefficients since the database has not been read
+        realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
+        ! jenn:todo Should I turn on print here too?
+        allocate(realization%reaction%primary_species_print(option%ntrandof))
+        realization%reaction%primary_species_print = PETSC_TRUE
+      endif
 
-  ! SK 09/30/13, Added to check if Mphase is called with OS
-  if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
-      option%iflowmode == MPH_MODE) then
-    option%io_buffer = 'Operator split not implemented with MPHASE. &
-                       &Switching to Global Implicit.'
-    !geh: We should force the user to switch without automatically switching
-!    call PrintWrnMsg(option)
-    call PrintErrMsg(option)
-    option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
-  endif
+      ! SK 09/30/13, Added to check if Mphase is called with OS
+      if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
+          option%iflowmode == MPH_MODE) then
+        option%io_buffer = 'Operator split not implemented with MPHASE. &
+                           &Switching to Global Implicit.'
+        call PrintErrMsg(option)
+        option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
+      endif
+    case(NWT_MODE)
+  end select
 
   ! create grid and allocate vectors
   call RealizationCreateDiscretization(realization)

@@ -1031,6 +1031,7 @@ subroutine PMNWTMaxChange(this)
   
   class(pm_nwt_type) :: this
 
+  !TODO(jenn)
   print *, 'PMNWTMaxChange not implemented.'
   stop
 
@@ -1049,6 +1050,7 @@ subroutine PMNWTCheckpointBinary(this,viewer)
   class(pm_nwt_type) :: this
   PetscViewer :: viewer
 
+  !TODO(jenn)
   print *, 'PMNWTCheckpointBinary not yet implemented.'
   stop
 
@@ -1069,6 +1071,7 @@ subroutine PMNWTCheckpointHDF5(this,pm_grp_id)
   class(pm_nwt_type) :: this
   integer(HID_T) :: pm_grp_id
 
+  !TODO(jenn)
   print *, 'PMNWTCheckpointHDF5 not yet implemented.'
   stop
 
@@ -1087,6 +1090,7 @@ subroutine PMNWTRestartBinary(this,viewer)
   class(pm_nwt_type) :: this
   PetscViewer :: viewer
 
+  !TODO(jenn)
   print *, 'PMNWTRestartBinary not yet implemented.'
   stop
 
@@ -1107,6 +1111,7 @@ subroutine PMNWTRestartHDF5(this,pm_grp_id)
   class(pm_nwt_type) :: this
   integer(HID_T) :: pm_grp_id
 
+  !TODO(jenn)
   print *, 'PMNWTRestartHDF5 not yet implemented.'
   stop
 

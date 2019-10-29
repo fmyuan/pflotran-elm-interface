@@ -112,7 +112,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
   ! Ensure that transport is not being simulated as we have no way for 
   ! introducting solutes.
   if (option%ntrandof > 0) then
-    option%io_buffer = 'Reactive transport may not be simulated when a &
+    option%io_buffer = 'Transport may not be simulated when a &
       &SOURCE_SINK_SANDBOX exists in the input file since no source/sink &
       &capability exists in the source/sink sandbox for solute mass.'
     call PrintErrMsg(option)
