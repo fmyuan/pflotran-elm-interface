@@ -4,6 +4,9 @@ module SrcSink_Sandbox_Mass_Rate_class
 ! to the standard mass rate source/sink in PFLOTRAN, but is more for 
 ! illustrative purposes
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   
@@ -11,8 +14,6 @@ module SrcSink_Sandbox_Mass_Rate_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_mass_rate_type
     PetscReal, pointer :: rate(:)
@@ -55,8 +56,6 @@ subroutine MassRateRead(this,input,option)
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/06/14
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

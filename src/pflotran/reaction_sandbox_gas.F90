@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Gas_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_Gas_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
        extends(reaction_sandbox_base_type) :: reaction_sandbox_gas_type
     PetscInt :: nspecies
@@ -83,8 +84,6 @@ subroutine GasRead(this,input,option)
   ! Author: Kris Kuhlman
   ! Date: July 2018
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

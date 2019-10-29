@@ -1,5 +1,8 @@
 module Reaction_Immobile_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Immobile_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Immobile_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: ImmobileRead, &
             ImmobileDecayRxnRead, &
@@ -26,8 +27,6 @@ subroutine ImmobileRead(immobile,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/02/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -88,8 +87,6 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -185,8 +182,6 @@ subroutine ImmobileProcessConstraint(immobile,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 01/07/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys 
   use Option_module
   use Input_Aux_module
   use String_module

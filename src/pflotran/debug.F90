@@ -165,8 +165,7 @@ subroutine DebugCreateViewer(debug,viewer_name_prefix,option,viewer)
   !
 
   use Option_module
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+
   implicit none
 
   type(debug_type), pointer :: debug

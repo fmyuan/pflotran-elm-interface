@@ -32,8 +32,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Discretization_module
   use Region_module
@@ -957,8 +955,6 @@ subroutine CondControlAssignRTTranInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
 
   use Realization_Subsurface_class
   use Discretization_module
@@ -1447,8 +1443,6 @@ subroutine CondControlAssignNWTranInitCond(realization)
   ! Author: Jenn Frederick
   ! Date: 04/02/2019
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
 
   use Realization_Subsurface_class
   use Discretization_module
@@ -1501,7 +1495,7 @@ subroutine CondControlAssignNWTranInitCond(realization)
   vec1_loc = PETSC_NULL_VEC
   vec2_loc = PETSC_NULL_VEC
   
-  ! jenn:todo Do not allow MPH_MODE or FLASH2_MODE with NW Transport. 
+  !TODO(jenn) Do not allow MPH_MODE or FLASH2_MODE with NW Transport. 
   
   cur_patch => realization%patch_list%first
   do
@@ -1624,8 +1618,6 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   ! Author: Glenn Hammond
   ! Date: 03/23/12
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -1850,8 +1842,6 @@ subroutine CondControlReadTransportIC(realization,filename)
   ! Date: 03/05/10
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -1938,8 +1928,6 @@ end subroutine CondControlReadTransportIC
 
 subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Surface_class
   use Discretization_module
   use Region_module

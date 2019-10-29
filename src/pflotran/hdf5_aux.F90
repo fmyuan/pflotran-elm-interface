@@ -1,12 +1,13 @@
 module HDF5_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use hdf5
   use Logging_module
   use PFLOTRAN_Constants_module
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
   private
 
   PetscInt, parameter, public :: HDF5_READ_BUFFER_SIZE = 1000000
@@ -44,11 +45,7 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   ! Author: Glenn Hammond
   ! Date: 01/13/10
   ! 
-
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use hdf5
-  
   use Option_module
   
   implicit none
@@ -228,8 +225,6 @@ subroutine HDF5GroupOpen(parent_id,group_name,group_id,option)
   ! Date: 06/28/18
   ! 
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use hdf5
   use Option_module
   
@@ -262,8 +257,6 @@ function HDF5GroupExists(filename,group_name,option)
   ! Date: 03/26/2012
   ! 
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use hdf5
   use Option_module
   
@@ -328,8 +321,6 @@ function HDF5DatasetExists(filename,group_name,dataset_name,option)
   ! Date: 04/30/2015
   !
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use hdf5
   use Option_module
 
@@ -431,8 +422,6 @@ subroutine HDF5ReadDbase(filename,option)
   ! Author: Glenn Hammond
   ! Date: 08/19/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module, only : dbase

@@ -330,8 +330,6 @@ subroutine NWTConstraintProcess(reaction_nw,constraint,option)
   ! Author: Jenn Frederick
   ! Date: 03/22/2019
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Utility_module

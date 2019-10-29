@@ -1,7 +1,8 @@
 module Patch_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use Option_module
   use Grid_module
   use Coupler_module
@@ -4416,8 +4417,6 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   ! Author: Gautam Bisht, LBL
   ! Date: 10/26/12
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Dataset_Map_HDF5_class
   use Option_module
@@ -4728,7 +4727,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
       end select
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
-      ! jenn:todo Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
+      ! TODO(jenn) Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
         case(MPH_MODE,FLASH2_MODE)
           if ( (cur_coupler%flow_condition%iphase == 1) .and. &
                (associated(reaction)) ) then
@@ -4830,8 +4829,6 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -6873,8 +6870,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
   ! Date: 02/11/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -8148,8 +8143,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -9222,8 +9215,6 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   ! Date: 10/06/11
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Connection_module
   use Coupler_module
@@ -9416,8 +9407,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Output_Aux_module

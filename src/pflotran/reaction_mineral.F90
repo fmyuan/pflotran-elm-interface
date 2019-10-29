@@ -1,6 +1,8 @@
 module Reaction_Mineral_module
 
+#include "petsc/finclude/petscsys.h"
   use petscsys  
+
   use Reaction_Mineral_Aux_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
@@ -10,8 +12,6 @@ module Reaction_Mineral_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   

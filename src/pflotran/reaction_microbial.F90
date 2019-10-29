@@ -1,5 +1,8 @@
 module Reaction_Microbial_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Microbial_Aux_module
   
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Microbial_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: MicrobialRead, &
             RMicrobial
@@ -24,8 +25,6 @@ subroutine MicrobialRead(microbial,input,option)
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

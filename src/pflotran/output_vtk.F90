@@ -1,7 +1,7 @@
 module Output_VTK_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Logging_module 
   use Output_Aux_module
   use Output_Common_module
@@ -23,8 +23,6 @@ contains
 
 subroutine OutputVTK(realization_base)
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -166,8 +164,6 @@ subroutine OutputVelocitiesVTK(realization_base)
   ! 
   ! Print velocities to Tecplot file in BLOCK format
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type, &
                                      RealizationGetVariable
   use Discretization_module
@@ -304,8 +300,6 @@ subroutine WriteVTKGrid(fid,realization_base)
   ! Writes a grid in VTK format
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
@@ -414,8 +408,7 @@ subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype
   ! 
 
   use Realization_Base_class, only : realization_base_type
-#include "petsc/finclude/petscvec.h"
-  use petscvec
+
   implicit none
 
   PetscInt :: fid

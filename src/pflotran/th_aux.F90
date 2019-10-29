@@ -1,12 +1,13 @@
 module TH_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, public :: TH_ni_count
   PetscInt, public :: TH_ts_cut_count
@@ -145,8 +146,6 @@ function THAuxCreate(option)
   ! Author: ???
   ! Date: 02/14/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
 
@@ -200,8 +199,6 @@ subroutine THAuxVarInit(auxvar,option)
   ! Author: ???
   ! Date: 02/14/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
@@ -620,8 +617,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! 
 
 !sk: Not sure if we need por, perm
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use Global_Aux_module
@@ -922,8 +917,6 @@ subroutine THAuxVarCompute2ndOrderDeriv(TH_auxvar,global_auxvar, &
   ! Date: 06/06/2019
   ! 
   
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Global_Aux_module
   

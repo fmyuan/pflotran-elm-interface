@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Cyber_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_Cyber_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter :: DOC_MASS_STORAGE_INDEX = 1
   PetscInt, parameter :: NH4_MASS_STORAGE_INDEX = 2
   PetscInt, parameter :: O2_MASS_STORAGE_INDEX = 3
@@ -95,8 +96,6 @@ function CyberCreate()
   ! Author: Glenn Hammond
   ! Date: 10/01/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   class(reaction_sandbox_cyber_type), pointer :: CyberCreate
@@ -167,8 +166,6 @@ subroutine CyberRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/01/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

@@ -152,7 +152,7 @@ subroutine NWTSetup(realization)
     call PrintErrMsg(option)
   endif
   
-  ! jenn:todo Should we make this compatible with secondary continuum?
+  !TODO(jenn) Should we make this compatible with secondary continuum?
   ! Look at reactive_transport.F90 lines 254-271.
   
   ! allocate auxvar data structures for all grid cells
@@ -220,7 +220,7 @@ subroutine NWTSetup(realization)
     cur_fluid_property => cur_fluid_property%next
   enddo
   
-  ! jenn:todo Will we support species-dependent diffusion coefficients?
+  !TODO(jenn) Will we support species-dependent diffusion coefficients?
   ! If so, look at reactive_transport.F90, beginning line 338 in RTSetup().
   
   ! setup output
@@ -755,7 +755,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
 #if 1
   !== Fluxes ==================================================
   if (option%compute_mass_balance_new) then
-    ! jenn:todo Create NWTZeroMassBalanceDelta(realization)
+    !TODO(jenn) Create NWTZeroMassBalanceDelta(realization)
     !call RTZeroMassBalanceDelta(realization)
   endif
   
@@ -804,7 +804,7 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       endif
       
       if (associated(realization%patch%internal_tran_fluxes)) then
-      ! jenn:todo Not sure how to handle internal_tran_fluxes = Res, because
+      !TODO(jenn) Not sure how to handle internal_tran_fluxes = Res, because
       ! I have a Res_up and Res_dn, not just Res.
       !  realization%patch%internal_tran_fluxes(1:reaction_nw%params%nspecies,iconn) = &
       !      Res(1:reaction_nw%params%nspecies)
@@ -853,14 +853,14 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       
       if (option%compute_mass_balance_new) then
       ! contribution to boundary
-      ! jenn:todo Not sure how to handle mass_balance_delta = Res, because
+      !TODO(jenn) Not sure how to handle mass_balance_delta = Res, because
       ! I have a Res_up and Res_dn, not just Res.
       !  nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
       !    nwt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
       endif  
                  
       if (associated(realization%patch%boundary_tran_fluxes)) then
-      ! jenn:todo Not sure how to handle boundary_tran_fluxes = Res, because
+      !TODO(jenn) Not sure how to handle boundary_tran_fluxes = Res, because
       ! I have a Res_up and Res_dn, not just Res.
       !  realization%patch%boundary_tran_fluxes(1:reaction_nw%params%nspecies,sum_connection) = &
       !      Res(1:reaction_nw%params%nspecies)
@@ -1080,9 +1080,9 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   ! -- Aqueous-Component ----------------------------------------
   select case(source_sink%tran_condition%itype)
     case(EQUILIBRIUM_SS)
-      ! jenn:todo What is EQUILIBRIUM_SS option?
+      !TODO(jenn) What is EQUILIBRIUM_SS option?
     case(MASS_RATE_SS)
-      ! jenn:todo What is MASS_RATE_SS option?
+      !TODO(jenn) What is MASS_RATE_SS option?
     case default
       if (qsrc > 0.d0) then ! source of fluid flux
         ! represents inside of the domain
@@ -1710,9 +1710,9 @@ subroutine NWTJacobianSrcSink(material_auxvar,global_auxvar,source_sink, &
   ! -- Aqueous-Component ----------------------------------------
   select case(source_sink%tran_condition%itype)
     case(EQUILIBRIUM_SS)
-      ! jenn:todo What is EQUILIBRIUM_SS option?
+      !TODO(jenn) What is EQUILIBRIUM_SS option?
     case(MASS_RATE_SS)
-      ! jenn:todo What is MASS_RATE_SS option?
+      !TODO(jenn) What is MASS_RATE_SS option?
     case default
       ! Note: We only care about coef_in here, because the Jac is a derivative
       ! w.r.t. total_bulk_conc, which only exists in the inside of the domain.

@@ -159,9 +159,6 @@ function NWTAuxCreate()
   ! Author: Jenn Frederick
   ! Date: 03/11/2019
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   implicit none
   
   type(nw_transport_type), pointer :: NWTAuxCreate
@@ -682,7 +679,7 @@ subroutine NWTSetPlotVariables(list,reaction_nw,option,time_unit)
   character(len=MAXWORDLENGTH) :: name,  units
   PetscInt :: i
   
-  ! jenn:todo Right now, this assumes ALL_SPECIES are printed by default.
+  !TODO(jenn) Right now, this assumes ALL_SPECIES are printed by default.
   do i=1,reaction_nw%params%nspecies
     reaction_nw%species_print(i) = PETSC_TRUE
   enddo

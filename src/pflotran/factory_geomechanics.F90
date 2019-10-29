@@ -1,8 +1,9 @@
 
 module Factory_Geomechanics_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscsnes.h"
+  use petscsnes
+
   use Simulation_Geomechanics_class
   use PFLOTRAN_Constants_module
 
@@ -42,8 +43,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
   ! Author: Gautam Bisht, LBNL and Satish Karra, LANL
   ! Date: 01/01/14, 02/10/15
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Simulation_Geomechanics_class
   use Simulation_Subsurface_class
   use Factory_Subsurface_module
@@ -800,8 +799,6 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   ! Author: Satish Karra, LANL
   ! Date: 06/17/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Discretization_module
   use Geomechanics_Strata_module
@@ -1015,8 +1012,6 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Realization_Subsurface_class
   use Geomechanics_Realization_class
   use Option_module

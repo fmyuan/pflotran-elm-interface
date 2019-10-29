@@ -1,5 +1,8 @@
 module Strata_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Region_module
   use Material_module
   use Surface_Material_module
@@ -9,9 +12,6 @@ module Strata_module
   implicit none
 
   private
- 
-#include "petsc/finclude/petscsys.h"
-
  
   type, public :: strata_type
     PetscInt :: id                                       ! id of strata
@@ -69,8 +69,6 @@ function StrataCreate1()
   ! Author: Glenn Hammond
   ! Date: 10/23/07
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   implicit none
 
   type(strata_type), pointer :: StrataCreate1
@@ -171,8 +169,6 @@ subroutine StrataRead(strata,input,option)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -299,8 +295,6 @@ function StrataWithinTimePeriod(strata,time)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   implicit none
 
   type(strata_type) :: strata
@@ -325,8 +319,6 @@ function StrataEvolves(strata_list)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   implicit none
 
   type(strata_list_type) :: strata_list

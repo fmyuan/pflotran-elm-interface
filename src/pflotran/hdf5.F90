@@ -1,7 +1,8 @@
 module HDF5_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use Logging_module
 
   use PFLOTRAN_Constants_module
@@ -448,8 +449,6 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   ! Author: Glenn Hammond
   ! Date: 01/12/08
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Option_module
@@ -679,8 +678,6 @@ subroutine HDF5ReadRegionFromFile(grid,region,filename,option)
   ! Date: 1/3/08
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Realization_Subsurface_class
@@ -789,8 +786,6 @@ subroutine HDF5ReadRegionDefinedByVertex(option,region,filename)
   ! Date: 10/21/11
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
 
   use Realization_Subsurface_class
@@ -963,8 +958,6 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   ! Date: 1/3/08; 02/18/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Realization_Subsurface_class
@@ -1102,8 +1095,6 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   ! Date: 01/16/09, 02/18/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   
   use Realization_Subsurface_class
@@ -1237,8 +1228,6 @@ subroutine HDF5WriteStructDataSetFromVec(name,realization_base,vec,file_id,data_
   ! Date: 10/25/07
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use Realization_Base_class, only : realization_base_type
   use Grid_module
@@ -1293,8 +1282,6 @@ subroutine HDF5WriteDataSetFromVec(name,option,vec,file_id,data_type)
   ! Date: 05/31/12
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use Realization_Subsurface_class
   use Grid_module
@@ -1433,8 +1420,6 @@ subroutine HDF5ReadDataSetInVec(name, option, vec, file_id, data_type)
   ! Date: 08/16/2015
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use Realization_Subsurface_class
   use Grid_module

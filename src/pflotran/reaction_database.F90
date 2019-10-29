@@ -1,5 +1,8 @@
 module Reaction_Database_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_Aux_module
@@ -10,8 +13,6 @@ module Reaction_Database_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: DatabaseRead, BasisInit
   
   public :: GetSpeciesBasisID, &
@@ -30,8 +31,6 @@ subroutine DatabaseRead(reaction,option)
   ! Date: 09/01/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -798,8 +797,6 @@ subroutine BasisInit(reaction,option)
   ! Date: 09/01/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Utility_module
@@ -4046,8 +4043,6 @@ subroutine ReactionDatabaseSetupGases(reaction,num_logKs,option,h2o_id, &
   ! Author: Glenn Hammond
   ! Date: 08/10/16
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Reaction_Gas_Aux_module
   use Utility_module

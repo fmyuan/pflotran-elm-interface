@@ -1,5 +1,8 @@
 module SrcSink_Sandbox_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use SrcSink_Sandbox_Base_class
   use SrcSink_Sandbox_WIPP_Gas_class
   use SrcSink_Sandbox_Mass_Rate_class
@@ -11,8 +14,6 @@ module SrcSink_Sandbox_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   class(srcsink_sandbox_base_type), pointer, public :: ss_sandbox_list
   PetscBool :: print_mass_balance
 
@@ -44,8 +45,6 @@ subroutine SSSandboxInit(option)
   ! Author: Glenn Hammond
   ! Date: 04/11/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   implicit none
   type(option_type) :: option

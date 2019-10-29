@@ -1,4 +1,7 @@
 module Reaction_Aux_module
+
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   
   use Reaction_Base_module
   use Reaction_Database_Aux_module
@@ -14,13 +17,10 @@ module Reaction_Aux_module
 
   use PFLOTRAN_Constants_module
   use Generic_module
-  use petscsys
 
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   ! activity coefficients
   PetscInt, parameter, public :: ACT_COEF_FREQUENCY_OFF = 0

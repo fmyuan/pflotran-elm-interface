@@ -1,13 +1,14 @@
 module Surface_Material_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public :: surface_material_property_type
     
     character(len=MAXWORDLENGTH) :: name
@@ -72,8 +73,6 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/09/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -178,8 +177,6 @@ subroutine SurfaceMaterialPropConvertListToArray(list,array,option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/11/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
 

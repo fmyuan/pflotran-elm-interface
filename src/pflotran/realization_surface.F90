@@ -1,5 +1,8 @@
 module Realization_Surface_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Realization_Base_class
   
   use Condition_module
@@ -21,8 +24,6 @@ module Realization_Surface_class
   
 private
 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: eps       = 1.D-8
 
@@ -91,8 +92,6 @@ function RealizSurfCreate(option)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
 
   type(option_type), pointer :: option
@@ -333,8 +332,6 @@ subroutine RealizSurfCreateDiscretization(surf_realization)
   ! Author: Gautam Bisht, ORNL
   ! Date: 02/17/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Grid_module
   use Grid_Unstructured_Aux_module, only : UGridMapIndices
   use Grid_Unstructured_module, only     : UGridEnsureRightHandRule
@@ -1363,8 +1360,6 @@ subroutine RealizSurfUpdate(surf_realization)
   ! Author: Gautam Bisht, ORNL
   ! Date: 05/22/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   class(realization_surface_type) :: surf_realization
@@ -1421,8 +1416,6 @@ subroutine RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
   ! Author: Gautam Bisht, LBNL
   ! Date: 03/15/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Waypoint_module
   use Time_Storage_module  

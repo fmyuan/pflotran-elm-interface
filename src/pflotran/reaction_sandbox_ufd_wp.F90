@@ -1,5 +1,8 @@
 module Reaction_Sandbox_UFD_WP_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
 ! Sandbox reaction for waste packages in the DOE-NE UFD
   
 ! 1. Change all references to "WastePackage" as desired to rename the module and
@@ -16,8 +19,6 @@ module Reaction_Sandbox_UFD_WP_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_ufd_wp_type
     character(len=MAXWORDLENGTH) :: aqueous_species_name
@@ -69,8 +70,6 @@ subroutine WastePackageRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/27/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

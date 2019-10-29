@@ -5,10 +5,8 @@ module PMC_Subsurface_class
 
   use PFLOTRAN_Constants_module
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscts.h"
+  use petscts
 
   implicit none
 
@@ -124,8 +122,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   ! 
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
   use Convergence_module
   use Discretization_module
   use Realization_Subsurface_class
@@ -571,10 +567,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
   ! Author: Gautam Bisht
   ! Date: 06/20/2018
   ! 
-#include "petsc/finclude/petscts.h"
-#include "petsc/finclude/petscsnes.h"
-  use petscts
-  use petscsnes
   use Convergence_module
   use Discretization_module
   use Option_module
@@ -733,8 +725,6 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
   ! Date: 08/22/13
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Connection_module
   use Coupler_module
   use Field_module
@@ -990,8 +980,6 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
   ! Date: 08/21/13
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use String_module
   use Realization_Subsurface_class
@@ -1112,8 +1100,6 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/04/14
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Discretization_module, only : DiscretizationLocalToGlobal
   use Field_module
   use Grid_module
@@ -1199,8 +1185,6 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
   ! Author: Gautam Bisht, LBNL
   ! Date: 01/04/14
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Grid_module

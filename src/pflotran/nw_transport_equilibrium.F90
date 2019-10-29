@@ -65,7 +65,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
     cur_species => cur_species%next
   enddo
   
-  ! jenn:todo Why do I get weird PETSC_FALSE/TRUE compile error here?
+  !TODO(jenn) Why do I get weird PETSC_FALSE/TRUE compile error here?
   if (sat > 0.d0) then
     dry_out = PETSC_FALSE
   else

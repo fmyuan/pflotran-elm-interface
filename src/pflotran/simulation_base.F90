@@ -112,8 +112,6 @@ subroutine SimulationBaseInitializeRun(this)
   ! Date: 06/11/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Logging_module
   use Option_module
   use hdf5
@@ -135,7 +133,7 @@ subroutine SimulationBaseInitializeRun(this)
   ! the requested process models; this routine should catch such issues.
   call OutputEnsureVariablesExist(this%output_option,this%option)
   if (associated(this%process_model_coupler_list)) then
-    ! jenn:todo Set up restart for NW Transport.
+    !TODO(jenn) Set up restart for NW Transport.
     if (this%option%restart_flag) then
       if (index(this%option%restart_filename,'.chk') > 0) then
         call this%process_model_coupler_list%RestartBinary(viewer)
@@ -309,8 +307,6 @@ subroutine RunToTime(this,target_time)
   ! Date: 06/11/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Simulation_Aux_module
 

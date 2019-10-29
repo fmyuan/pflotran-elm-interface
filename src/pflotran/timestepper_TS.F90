@@ -47,8 +47,6 @@ module Timestepper_TS_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: timestepper_surface_header_type
       implicit none
       PetscBag :: bag
@@ -393,8 +391,6 @@ subroutine TimestepperTSRegisterHeader(this,bag,header)
   ! Date: 06/19/18
   !
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none

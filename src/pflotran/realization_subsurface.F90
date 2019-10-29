@@ -2656,8 +2656,6 @@ subroutine RealizationStrip(this)
   ! 
 
   use Dataset_module
-  use Reaction_Aux_module
-  use NW_Transport_Aux_module
   use Output_Eclipse_module, only : ReleaseEwriterBuffers
 
   implicit none

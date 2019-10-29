@@ -1,5 +1,8 @@
 module Reaction_Sandbox_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
@@ -16,8 +19,6 @@ module Reaction_Sandbox_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   class(reaction_sandbox_base_type), pointer, public :: rxn_sandbox_list
 
   interface RSandboxRead
@@ -125,8 +126,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   ! Author: Glenn Hammond
   ! Date: 11/08/12
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

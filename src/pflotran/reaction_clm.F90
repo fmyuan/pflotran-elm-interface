@@ -3,14 +3,15 @@ module CLM_Rxn_Base_class
   ! extended from reaction_sandbox_base to implement demand based 
   ! down regulation for use in CLM_Rxn t6g 10/06/2014 
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, abstract, public :: clm_rxn_base_type
     class(clm_rxn_base_type), pointer :: next
   contains
@@ -232,12 +233,13 @@ end module CLM_Rxn_Base_class
 
 module CLM_Rxn_Common_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: CalNLimitFunc
 
 contains
@@ -318,12 +320,13 @@ module CLM_Rxn_Decomp_class
 ! Date:   07/08/14 
 ! -----------------------------------------------------------------------------
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter :: LITTER_DECOMP_CLMCN = 1 
   PetscInt, parameter :: LITTER_DECOMP_CLMMICROBE = 2 
 
@@ -433,8 +436,6 @@ contains
 
 function CLMDec_Create()
   ! Allocates CLMDec reaction sandbox object.
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -516,8 +517,6 @@ subroutine CLMDec_Read(this,input,option)
   ! 
   ! Reads input deck for reaction sandbox parameters
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use String_module
@@ -801,8 +800,6 @@ subroutine CLMDec_Setup(this,reaction,option)
   ! Sets up CLMDec reaction after it has been read from input
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Reaction_Aux_module
   use Option_module
   use String_module
@@ -3130,12 +3127,13 @@ module CLM_Rxn_PlantN_class
 ! Date:   07/08/14 
 ! -----------------------------------------------------------------------------
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_plantn_type
     PetscReal :: rate_plantntake
@@ -3185,8 +3183,6 @@ contains
 !
 ! **************************************************************************** !
 function PlantNCreate()
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -3233,8 +3229,6 @@ end function PlantNCreate
 !
 ! **************************************************************************** !
 subroutine PlantNRead(this,input,option)
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use String_module
@@ -3349,8 +3343,6 @@ end subroutine PlantNRead
 !
 ! **************************************************************************** !
 subroutine PlantNSetup(this,reaction,option)
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Reaction_Aux_module
   use Option_module
@@ -3736,6 +3728,9 @@ module CLM_Rxn_Nitr_class
 ! by t6g 2/13/2015
 ! ------------------------------------------------------------------------------
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use CLM_Rxn_Base_class
   
   use Global_Aux_module
@@ -3746,8 +3741,6 @@ module CLM_Rxn_Nitr_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
 
@@ -3796,8 +3789,6 @@ contains
 !
 ! ************************************************************************** !
 function NitrCreate()
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -3836,8 +3827,6 @@ end function NitrCreate
 !
 ! ************************************************************************** !
 subroutine NitrRead(this,input,option)
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use String_module
@@ -3958,8 +3947,6 @@ end subroutine NitrRead
 ! ************************************************************************** !
 subroutine NitrSetup(this,reaction,option)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
@@ -4464,6 +4451,8 @@ module CLM_Rxn_Deni_class
 ! kmax   = 2.5e-5
 ! by t6g 10/06/2014 
 ! ------------------------------------------------------------------------------
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use CLM_Rxn_Base_class
   use Global_Aux_module
@@ -4474,7 +4463,6 @@ module CLM_Rxn_Deni_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
@@ -4513,8 +4501,6 @@ contains
 !
 ! ************************************************************************** !
 function DeniCreate()
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   implicit none
   
@@ -4547,8 +4533,6 @@ end function DeniCreate
 ! ************************************************************************** !
 subroutine DeniRead(this,input,option)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -4652,8 +4636,6 @@ end subroutine DeniRead
 ! ************************************************************************** !
 subroutine DeniSetup(this,reaction,option)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Option_module
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
@@ -4886,6 +4868,9 @@ end module CLM_Rxn_Deni_class
 
 module CLM_Rxn_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   ! extended from reaction_sandbox to implement demand based down regulation
   ! in RCLMRxn t6g 10/06/2014 
 
@@ -4901,8 +4886,6 @@ module CLM_Rxn_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   class(clm_rxn_base_type), pointer, public :: clmrxn_list
 
   PetscBool :: bdownreg
@@ -4941,8 +4924,6 @@ subroutine RCLMRxnInit(option)
   ! 
   ! Initializes the clmrxn list
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   implicit none
   type(option_type) :: option
@@ -5023,8 +5004,6 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   ! 
   ! RCLMRxnRead: Reads input deck for reaction clmrxn parameters
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -5151,8 +5130,6 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module

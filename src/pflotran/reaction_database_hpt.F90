@@ -1,5 +1,8 @@
 module Reaction_Database_hpt_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
@@ -14,8 +17,6 @@ module Reaction_Database_hpt_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   public :: DatabaseRead_hpt, BasisInit_hpt
             
 contains

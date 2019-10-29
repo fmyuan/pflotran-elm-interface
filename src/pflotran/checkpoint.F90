@@ -1,6 +1,8 @@
 module Checkpoint_module
-#include "petsc/finclude/petscdm.h"
-  use petscdm
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -30,8 +32,6 @@ module Checkpoint_module
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: checkpoint_header_type
       implicit none
       PetscBag :: bag
@@ -160,9 +160,6 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -217,8 +214,6 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -272,8 +267,6 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -336,8 +329,6 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -430,8 +421,6 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
       
   use Option_module
   use Realization_Subsurface_class
@@ -699,8 +688,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   ! Author: Gautam Bisht
   ! Date: 07/30/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
@@ -1043,8 +1030,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1171,8 +1156,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/2015
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module

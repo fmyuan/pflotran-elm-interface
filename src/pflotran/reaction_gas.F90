@@ -1,5 +1,8 @@
 module Reaction_Gas_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module  
   use Global_Aux_module
@@ -10,8 +13,6 @@ module Reaction_Gas_module
   implicit none
  
   private
-
-#include "petsc/finclude/petscsys.h"
 
   
   public :: RGasRead, &
@@ -29,8 +30,6 @@ subroutine RGasRead(gas_species_list,gas_type,error_msg,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/02/13/ 08/01/16
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

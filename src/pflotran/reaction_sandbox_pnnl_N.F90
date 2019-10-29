@@ -1,5 +1,8 @@
 module Reaction_Sandbox_PNNL_N_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_PNNL_N_class
   
   private
   
-#include "finclude/petscsys.h"
-
   PetscReal, parameter :: d_to_s = 1.d0 / 3600.d0 / 24.d0
   PetscReal, parameter :: mM_to_M = 1.d-3
   PetscReal, parameter :: mM_g_d_to_M_g_s = mM_to_M * d_to_s

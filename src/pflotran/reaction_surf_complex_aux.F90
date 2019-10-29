@@ -1,5 +1,8 @@
 module Reaction_Surface_Complexation_Aux_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  
   use Reaction_Database_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -8,8 +11,6 @@ module Reaction_Surface_Complexation_Aux_module
   
   private 
 
-#include "petsc/finclude/petscsys.h"
-  
   PetscInt, parameter, public :: SRFCMPLX_RXN_NULL = 0
   PetscInt, parameter, public :: SRFCMPLX_RXN_EQUILIBRIUM = 1
   PetscInt, parameter, public :: SRFCMPLX_RXN_MULTIRATE_KINETIC = 2
@@ -227,8 +228,6 @@ function SurfaceComplexationRxnCreate()
   ! Date: 10/21/08
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
     
   type(surface_complexation_rxn_type), pointer :: SurfaceComplexationRxnCreate
@@ -266,8 +265,6 @@ function SurfaceComplexCreate()
   ! Author: Peter Lichtner
   ! Date: 10/21/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
     
   type(surface_complex_type), pointer :: SurfaceComplexCreate

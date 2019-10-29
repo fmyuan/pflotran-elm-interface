@@ -447,7 +447,7 @@ option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
 option_flow.o : pflotran_constants.o
 option_transport.o : pflotran_constants.o
 output.o : connection.o coupler.o debug.o discretization.o field.o \
-           general_aux.o grid.o hydrate_aux.o input_aux.o logging.o \
+           general_aux.o grid.o hdf5.o hydrate_aux.o input_aux.o logging.o \
            material_aux.o option.o output_aux.o output_common.o output_ekg.o \
            output_hdf5.o output_observation.o output_tecplot.o output_vtk.o \
            patch.o pflotran_constants.o realization_base.o \
@@ -1034,8 +1034,7 @@ towg.o : auxvars_flow.o auxvars_towg.o condition.o connection.o coupler.o \
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
               option.o pflotran_constants.o reactive_transport_aux.o
 transport_constraint.o : option.o pflotran_constants.o string.o \
-                         transport_constraint_base.o \
-                         transport_constraint_nwt.o transport_constraint_rt.o
+                         transport_constraint_base.o
 transport_constraint_base.o : global_aux.o input_aux.o logging.o option.o \
                               pflotran_constants.o string.o units.o
 transport_constraint_nwt.o : input_aux.o logging.o nw_transport_aux.o option.o \

@@ -58,9 +58,6 @@ contains
 
 subroutine BatchChemInitializeReactions(option, input, reaction)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module
@@ -114,8 +111,6 @@ subroutine BatchChemProcessConstraints(option, input, reaction, &
      global_auxvars, rt_auxvars, material_auxvars, transport_constraints, &
      constraint_coupler)
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Reaction_module
   use Reaction_Aux_module
   use Reaction_Database_module

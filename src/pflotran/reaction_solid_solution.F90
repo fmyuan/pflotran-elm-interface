@@ -1,5 +1,8 @@
 module Reaction_Solid_Solution_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Mineral_Aux_module
   use Reaction_Aux_module
   use Reaction_Solid_Soln_Aux_module
@@ -9,8 +12,6 @@ module Reaction_Solid_Solution_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   public :: SolidSolutionReadFromInputFile, &
             SolidSolutionLinkNamesToIDs
@@ -27,8 +28,6 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   ! Author: Glenn Hammond
   ! Date: 08/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -187,8 +186,6 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
   ! Author: Glenn Hammond
   ! Date: 08/20/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

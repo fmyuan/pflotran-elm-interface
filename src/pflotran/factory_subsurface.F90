@@ -63,24 +63,15 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   use Option_module
   use PM_Subsurface_Flow_class
-  use PM_Base_class
   use PM_RT_class
   use PM_NWT_class
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
   use PM_Auxiliary_class
-  use Timestepper_BE_class
   use Realization_Subsurface_class
-  use Logging_module
   use Simulation_Subsurface_class
-  use Solver_module
   use Waypoint_module
-  use Init_Common_module
-  use Init_Subsurface_module
-  use Input_Aux_module
-  use String_module
-  use Checkpoint_module
 
   implicit none
 
@@ -218,7 +209,6 @@ subroutine SetupPMCLinkages(simulation,pm_flow,pm_rt,pm_nwt,pm_waste_form,&
   !
 
   use PM_Subsurface_Flow_class
-  use PM_Base_class
   use PM_RT_class
   use PM_NWT_class
   use PM_Waste_Form_class
@@ -295,7 +285,6 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   use PM_Subsurface_Flow_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
 
@@ -344,7 +333,6 @@ subroutine AddPMCSubsurfaceRT(simulation,pm_rt,pmc_name,realization,option)
   use PM_RT_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
 
@@ -401,7 +389,6 @@ subroutine AddPMCSubsurfaceNWT(simulation,pm_nwt,pmc_name,realization,option)
   use PM_NWT_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
 
@@ -459,7 +446,6 @@ subroutine AddPMCWasteForm(simulation,pm_waste_form,pmc_name,&
   use PMC_Third_Party_class
   use PM_Waste_Form_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
   use Input_Aux_module
@@ -538,7 +524,6 @@ subroutine AddPMCUDFDecay(simulation,pm_ufd_decay,pmc_name,&
   use PMC_Third_Party_class
   use PM_UFD_Decay_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
   use Input_Aux_module
@@ -603,7 +588,6 @@ subroutine AddPMCUDFBiosphere(simulation,pm_ufd_biosphere,pmc_name,&
   use PMC_Third_Party_class
   use PM_UFD_Biosphere_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
   use Input_Aux_module
@@ -674,8 +658,8 @@ subroutine AddPMCAuxiliary(simulation,pm_auxiliary,pmc_name, &
   use PMC_Auxiliary_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
+  use String_module
   use Logging_module
   use Input_Aux_module
 
@@ -1524,23 +1508,15 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  !TODO(geh): are these needed
-  use PM_General_class
-  use PM_Hydrate_class
-  use PM_WIPP_Flow_class
-  use PM_Richards_class
-  use PM_TH_class
   use PM_RT_class
   use PM_NWT_class
   use PM_Waste_Form_class
   use PM_WIPP_SrcSink_class
   use PM_UFD_Decay_class
   use PM_UFD_Biosphere_class
-  use PM_TOilIms_class
   use Option_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
-  use Timestepper_BE_class
 
   implicit none
 
@@ -1681,7 +1657,7 @@ subroutine SubsurfaceSetupRealization(simulation)
       else
         ! turn off activity coefficients since the database has not been read
         realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-        ! jenn:todo Should I turn on print here too?
+        !TODO(jenn) Should I turn on print here too?
         allocate(realization%reaction%primary_species_print(option%ntrandof))
         realization%reaction%primary_species_print = PETSC_TRUE
       endif

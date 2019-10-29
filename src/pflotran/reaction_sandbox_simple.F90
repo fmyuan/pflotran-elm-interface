@@ -1,5 +1,8 @@
 module Reaction_Sandbox_Simple_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   use PFLOTRAN_Constants_module
 
@@ -7,8 +10,6 @@ module Reaction_Sandbox_Simple_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_simple_type
     ! Aqueous species

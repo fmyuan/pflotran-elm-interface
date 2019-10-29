@@ -1,7 +1,7 @@
 module Init_Subsurface_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   !geh: there can be no dependencies on simulation object in this file
   use PFLOTRAN_Constants_module
 
@@ -234,8 +234,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Grid_module
   use Discretization_module
@@ -601,8 +599,6 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   ! Date: 1/03/08
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -698,8 +694,6 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   ! Date: 01/19/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -848,9 +842,6 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   ! Author: Glenn Hammond
   ! Date: 01/19/2016
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-
   use Realization_Subsurface_class
   use Field_module
   use Grid_module

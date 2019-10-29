@@ -1,5 +1,8 @@
 module Realization_Base_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Patch_module
 
   use Discretization_module
@@ -19,7 +22,6 @@ module Realization_Base_class
 
   private
 
-#include "petsc/finclude/petscsys.h"
   type, public :: realization_base_type
 
     PetscInt :: id
@@ -278,11 +280,13 @@ subroutine RealizationBaseStrip(this)
   call DataMediatorDestroy(this%flow_data_mediator_list)
   call DataMediatorDestroy(this%tran_data_mediator_list)
 
+  ! Intel does not accept r=>this%reaction_base as it says it is not a 
+  ! pointer; therefore, have to cast below
   select type(r=>this%reaction_base)
     class is(reaction_rt_type)
-      call ReactionDestroy(r,this%option)
+      call ReactionDestroy(ReactionCast(this%reaction_base),this%option)
     class is(reaction_nw_type)
-      call NWTReactionDestroy(r,this%option)
+      call NWTReactionDestroy(NWTReactionCast(this%reaction_base),this%option)
   end select
 
 end subroutine RealizationBaseStrip
