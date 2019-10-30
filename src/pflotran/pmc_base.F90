@@ -698,9 +698,12 @@ subroutine SetOutputFlags(this)
   
   output_option => this%pm_list%output_option
 
-  if (OptionPrintToScreen(this%option) .and. &
-      mod(this%timestepper%steps,output_option%screen_imod) == 0) then
-    this%option%print_screen_flag = PETSC_TRUE
+  if (OptionPrintToScreen(this%option) .and. output_option%screen_imod > 0) then
+    if (mod(this%timestepper%steps,output_option%screen_imod) == 0) then
+      this%option%print_screen_flag = PETSC_TRUE
+    else
+      this%option%print_screen_flag = PETSC_FALSE
+    endif
   else
     this%option%print_screen_flag = PETSC_FALSE
   endif
