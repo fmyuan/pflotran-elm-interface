@@ -13,7 +13,7 @@ module Transport_Constraint_module
   
   
   type, public :: tran_constraint_ptr_type
-    type(tran_constraint_base_type), pointer :: ptr
+    class(tran_constraint_base_type), pointer :: ptr
   end type tran_constraint_ptr_type
   
   type, public :: tran_constraint_list_type

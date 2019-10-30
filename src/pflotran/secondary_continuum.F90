@@ -524,7 +524,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   class(material_auxvar_type), allocatable :: material_auxvar
-  type(tran_constraint_rt_type), pointer :: constraint
+  class(tran_constraint_rt_type), pointer :: constraint
   type(flow_condition_type), pointer :: initial_flow_condition
   
 

@@ -131,7 +131,7 @@ subroutine RTSetup(realization)
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(coupler_type), pointer :: initial_condition
-  type(tran_constraint_rt_type), pointer :: sec_tran_constraint
+  class(tran_constraint_rt_type), pointer :: sec_tran_constraint
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_property_type), pointer :: cur_material_property
   type(reactive_transport_param_type), pointer :: rt_parameter
@@ -3967,8 +3967,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
-  type(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
-  type(tran_constraint_rt_type), pointer :: constraint
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
+  class(tran_constraint_rt_type), pointer :: constraint
   PetscInt, save :: icall
   
 #ifdef XINGYUAN_BC

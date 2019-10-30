@@ -1054,7 +1054,6 @@ subroutine NWTResidualSrcSink(nwt_auxvar,source_sink,ss_flow_vol_fluxes, &
   PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
   PetscInt :: sum_connection
   class(reaction_nw_type), pointer :: reaction_nw
-  type(tran_constraint_coupler_nwt_type) :: constraint_coupler
   type(nw_transport_auxvar_type), pointer :: nwt_auxvar_out
   PetscReal :: Res(reaction_nw%params%nspecies)
   
