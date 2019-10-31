@@ -1216,7 +1216,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     ! that holds variables derived from the primary ones via the translator.
     dataset_name = "State" // CHAR(0)
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE)
       case default
         call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
              pm_grp_id, H5T_NATIVE_DOUBLE)
