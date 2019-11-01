@@ -69,6 +69,7 @@ module PM_WIPP_Flow_class
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
     PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
+    PetscBool, pointer :: dirichlet_dofs_flags(:) ! this array is zero-based indexing
   contains
     procedure, public :: ReadSimulationBlock => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -213,7 +214,7 @@ subroutine PMWIPPFloRead(this,input)
   
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
@@ -222,6 +223,7 @@ subroutine PMWIPPFloRead(this,input)
   PetscBool :: found
   PetscInt, parameter :: max_dirichlet_bc = 1000
   PetscInt :: int_array(max_dirichlet_bc)
+  PetscBool :: bool_array(2,max_dirichlet_bc)
   PetscInt :: icount
   PetscInt :: temp_int
 
@@ -451,6 +453,7 @@ subroutine PMWIPPFloRead(this,input)
       case('2D_FLARED_DIRICHLET_BCS')
         icount = 0
         int_array = 0.d0
+        bool_array = PETSC_FALSE
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,keyword)
@@ -464,22 +467,22 @@ subroutine PMWIPPFloRead(this,input)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'pressure', &
                              '2D_FLARED_DIRICHLET_BCS')
-          if (StringYesNoOther(word) == STRING_YES) then
-            icount = icount + 1
-            int_array(icount) = (temp_int-1)*2+1
-          endif
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadWord(input,option,word2,PETSC_TRUE)
           call InputErrorMsg(input,option,'saturation', &
                              '2D_FLARED_DIRICHLET_BCS')
-          if (StringYesNoOther(word) == STRING_YES) then
+                             
+          if (StringYesNoOther(word) == STRING_YES .or. &
+              StringYesNoOther(word2) == STRING_YES) then
             icount = icount + 1
-            int_array(icount) = (temp_int-1)*2+2
+            int_array(icount) = temp_int
+            if (StringYesNoOther(word) == STRING_YES) then
+              bool_array(1,icount) = PETSC_TRUE
+            endif
+            if (StringYesNoOther(word2) == STRING_YES) then
+              bool_array(2,icount) = PETSC_TRUE
+            endif
           endif
         enddo
-        if (icount > 0) then
-          allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
-          this%dirichlet_dofs = int_array(1:icount) - 1 
-        endif
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
