@@ -28,6 +28,11 @@ module PM_WIPP_Flow_class
   ! these must be the last two due to the need to calculate the minimum
   PetscInt, parameter :: MIN_LIQ_PRES = 14
   PetscInt, parameter :: MIN_GAS_PRES = 15
+  PetscInt, parameter :: max_dirichlet_bc = 1000
+  PetscInt :: int_array(max_dirichlet_bc)
+  PetscBool :: bool_array(max_dirichlet_bc,2)
+  PetscInt :: int_array_count
+  PetscBool :: using_cell_centered_dirichlet_BC = PETSC_FALSE
 
   type, public, extends(pm_subsurface_flow_type) :: pm_wippflo_type
     PetscInt, pointer :: max_change_ivar(:)
@@ -221,9 +226,6 @@ subroutine PMWIPPFloRead(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
-  PetscInt, parameter :: max_dirichlet_bc = 1000
-  PetscInt :: int_array(max_dirichlet_bc)
-  PetscBool :: bool_array(2,max_dirichlet_bc)
   PetscInt :: icount
   PetscInt :: temp_int
 
@@ -451,9 +453,11 @@ subroutine PMWIPPFloRead(this,input)
       case('DO_NOT_SCALE_JACOBIAN')
         this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
+        using_cell_centered_dirichlet_BC = PETSC_TRUE
         icount = 0
-        int_array = 0.d0
-        bool_array = PETSC_FALSE
+        int_array(:) = 0.d0
+        int_array_count = 0
+        bool_array(:,:) = PETSC_FALSE
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,keyword)
@@ -475,11 +479,12 @@ subroutine PMWIPPFloRead(this,input)
               StringYesNoOther(word2) == STRING_YES) then
             icount = icount + 1
             int_array(icount) = temp_int
+            int_array_count = int_array_count + 1
             if (StringYesNoOther(word) == STRING_YES) then
-              bool_array(1,icount) = PETSC_TRUE
+              bool_array(icount,1) = PETSC_TRUE
             endif
             if (StringYesNoOther(word2) == STRING_YES) then
-              bool_array(2,icount) = PETSC_TRUE
+              bool_array(icount,2) = PETSC_TRUE
             endif
           endif
         enddo
@@ -564,8 +569,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal, pointer :: flow_xx_p(:)
   PetscReal :: h
   PetscReal :: x, z
-  PetscInt :: idof, icell, iregion
-  PetscInt :: ghosted_id, local_id
+  PetscInt :: idof, icell, iregion, icount, jcount
+  PetscInt :: ghosted_id, local_id, natural_id
   PetscInt :: imat, nmat_id, ndof
   ! for auto pressure
   PetscReal :: rhob0
@@ -582,6 +587,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal :: Pb
   PetscBool :: found
   PetscReal, parameter :: gravity = 9.80665d0
+  PetscInt :: temp_array(max_dirichlet_bc*2)
 
   patch => this%realization%patch
   grid => patch%grid
@@ -821,7 +827,32 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                     ierr);CHKERRQ(ierr)
 
   ! if using Dirichlet cell-centered BC, set option for matrix
-  if (associated(this%dirichlet_dofs)) then
+  if (using_cell_centered_dirichlet_BC) then
+    jcount = 0
+    temp_array = 0
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      do icount = 1, int_array_count
+        if (natural_id == int_array(icount)) then
+          if (bool_array(icount,1)) then
+            jcount = jcount + 1
+            ! zero based indexing
+            temp_array(jcount) = (local_id - 1)*2 
+          endif
+          if (bool_array(icount,2)) then
+            jcount = jcount + 1
+            ! zero based indexing
+            temp_array(jcount) = (local_id - 1)*2+1
+          endif
+          EXIT
+        endif   
+      enddo 
+    enddo
+    if (jcount > 0) then
+      allocate(this%dirichlet_dofs(jcount))
+      this%dirichlet_dofs = temp_array(1:jcount)
+    endif
     call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
                       PETSC_FALSE,ierr);CHKERRQ(ierr)
   endif
