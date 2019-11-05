@@ -28,12 +28,6 @@ module PM_WIPP_Flow_class
   ! these must be the last two due to the need to calculate the minimum
   PetscInt, parameter :: MIN_LIQ_PRES = 14
   PetscInt, parameter :: MIN_GAS_PRES = 15
-  PetscInt, parameter :: max_dirichlet_bc = 1000
-  !TODO(heeho): move all this into the class
-  PetscInt :: int_array(max_dirichlet_bc)
-  PetscBool :: bool_array(2,max_dirichlet_bc)
-  PetscInt :: int_array_count
-  PetscBool :: using_cell_centered_dirichlet_BC = PETSC_FALSE
 
   type, public, extends(pm_subsurface_flow_type) :: pm_wippflo_type
     PetscInt, pointer :: max_change_ivar(:)
@@ -74,8 +68,14 @@ module PM_WIPP_Flow_class
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
+    ! When reading Dirichlet 2D Flared BC
     PetscInt, pointer :: dirichlet_dofs_ghosted(:) ! this array is zero-based indexing
+    ! int_array has a natural_id and 1,2, or 3 that indicates
+    ! pressure, satruation, or both to be zerod in the residual
+    PetscInt, pointer :: dirichlet_dof_ints(:,:)
     PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
+    PetscBool :: using_cell_centered_dirichlet_BC = PETSC_FALSE
+ 
   contains
     procedure, public :: ReadSimulationBlock => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -230,7 +230,11 @@ subroutine PMWIPPFloRead(this,input)
   PetscBool :: found
   PetscInt :: icount
   PetscInt :: temp_int
-
+  ! temp_int_array has a natural_id and 1,2, or 3 that indicates
+  ! pressure, satruation, or both to be zerod in the residual
+  PetscInt, parameter :: max_dirichlet_bc = 1000 ! capped at 1000
+  PetscInt :: temp_int_array(2,max_dirichlet_bc) 
+  
   option => this%option
 
   error_string = 'WIPP Flow Options'
@@ -455,11 +459,8 @@ subroutine PMWIPPFloRead(this,input)
       case('DO_NOT_SCALE_JACOBIAN')
         this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
-        using_cell_centered_dirichlet_BC = PETSC_TRUE
+        this%using_cell_centered_dirichlet_BC = PETSC_TRUE
         icount = 0
-        int_array(:) = 0.d0
-        int_array_count = 0
-        bool_array(:,:) = PETSC_FALSE
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,keyword)
@@ -477,19 +478,25 @@ subroutine PMWIPPFloRead(this,input)
           call InputErrorMsg(input,option,'saturation', &
                              '2D_FLARED_DIRICHLET_BCS')
                              
-          if (StringYesNoOther(word) == STRING_YES .or. &
+          if (StringYesNoOther(word) == STRING_YES .and. &
               StringYesNoOther(word2) == STRING_YES) then
             icount = icount + 1
-            int_array(icount) = temp_int
-            int_array_count = int_array_count + 1
-            if (StringYesNoOther(word) == STRING_YES) then
-              bool_array(1,icount) = PETSC_TRUE
-            endif
-            if (StringYesNoOther(word2) == STRING_YES) then
-              bool_array(2,icount) = PETSC_TRUE
-            endif
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 3
+          else if (StringYesNoOther(word) == STRING_YES .and. &
+                   StringYesNoOther(word2) == STRING_NO) then
+            icount = icount + 1
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 1
+          else if (StringYesNoOther(word) == STRING_NO .and. &
+                   StringYesNoOther(word2) == STRING_YES) then
+            icount = icount + 1
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 2
           endif
         enddo
+        allocate(this%dirichlet_dof_ints(2,icount))
+        this%dirichlet_dof_ints = temp_int_array(1:2,1:icount)
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -828,17 +835,19 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                     ierr);CHKERRQ(ierr)
 
   ! if using Dirichlet cell-centered BC, set option for matrix
-  if (using_cell_centered_dirichlet_BC) then
+  if (this%using_cell_centered_dirichlet_BC) then
     jcount = 0
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       natural_id = grid%nG2A(ghosted_id)
-      do icount = 1, int_array_count
-        if (natural_id == int_array(icount)) then
-          if (bool_array(1,icount)) then
+      do icount = 1, size(this%dirichlet_dof_ints)
+        if (natural_id == this%dirichlet_dof_ints(1,icount)) then
+           if (this%dirichlet_dof_ints(2,icount) == 1 .or. &
+               this%dirichlet_dof_ints(2,icount) == 3) then
             jcount = jcount + 1
           endif
-          if (bool_array(2,icount)) then
+          if (this%dirichlet_dof_ints(2,icount) == 2 .or. &
+              this%dirichlet_dof_ints(2,icount) == 3) then
             jcount = jcount + 1
           endif
           exit
@@ -847,19 +856,22 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     enddo
     allocate(this%dirichlet_dofs_ghosted(jcount))
     allocate(this%dirichlet_dofs_local(jcount))
+
     jcount = 0
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       natural_id = grid%nG2A(ghosted_id)
-      do icount = 1, int_array_count
-        if (natural_id == int_array(icount)) then
-          if (bool_array(1,icount)) then
+      do icount = 1, size(this%dirichlet_dof_ints)
+        if (natural_id == this%dirichlet_dof_ints(1,icount)) then
+           if (this%dirichlet_dof_ints(2,icount) == 1 .or. &
+               this%dirichlet_dof_ints(2,icount) == 3) then
             jcount = jcount + 1
             this%dirichlet_dofs_local(jcount) = (local_id-1)*2+1
             ! zero based indexing
             this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2
           endif
-          if (bool_array(2,icount)) then
+          if (this%dirichlet_dof_ints(2,icount) == 2 .or. &
+              this%dirichlet_dof_ints(2,icount) == 3) then
             jcount = jcount + 1
             this%dirichlet_dofs_local(jcount) = (local_id-1)*2+2
             ! zero based indexing
@@ -870,7 +882,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
       enddo 
     enddo
     call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-                      PETSC_FALSE,ierr);CHKERRQ(ierr)
+         PETSC_FALSE,ierr);CHKERRQ(ierr)
+    deallocate(this%dirichlet_dof_ints)
   endif
 
   ! prevent use of block Jacobi preconditioning in parallel
