@@ -1085,7 +1085,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! that indicates what phases are present, as well as the 'var' vector
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE)
       case default
         call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
                                    STATE,ZERO_INTEGER)
