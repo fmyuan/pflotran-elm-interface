@@ -1166,23 +1166,15 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   PetscInt :: matsize
   PetscInt :: i, irow
   PetscReal, pointer :: vec_p(:)
-  
+
+
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs)) then
-    call VecDuplicate(this%stored_residual_vec,diagonal_vec,ierr);CHKERRQ(ierr)
-    call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
-    do i = 1, size(this%dirichlet_dofs)
-      irow = this%dirichlet_dofs(i)
-               ! increment irow due to zero-based indexing in dirichlet_dofs
-      norm = vec_p(irow+1) * 1.d8 + 1.d8
-      call MatZeroRowsLocal(A,1,irow,norm,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                            ierr);CHKERRQ(ierr)
-    enddo
-    call VecRestoreArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
-    call VecDestroy(diagonal_vec,ierr);CHKERRQ(ierr)
+    call MatZeroRowsLocal(A,size(this%dirichlet_dofs),this%dirichlet_dofs, &
+                          1.d20,PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
   endif
 
   if (this%realization%debug%matview_Jacobian) then
