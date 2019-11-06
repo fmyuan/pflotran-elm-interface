@@ -80,15 +80,15 @@ STANDARD_CFG = \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg \
         wipp/transport/batch/wipp_batch.cfg \
-        wipp/transport/wipp_regular.cfg 
+        wipp/transport/wipp_regular.cfg \
+	toil_ims/toil_ims.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
 	CPR_preconditioner/CPR_preconditioner.cfg
 endif
 

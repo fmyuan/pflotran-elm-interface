@@ -5,7 +5,7 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TOIL_IMS
       OPTIONS
-       RESERVOIR_DEFAULTS
+       ANALYTICAL_JACOBIAN
       /
     / ! end of subsurface_flow
   / ! end of process models
