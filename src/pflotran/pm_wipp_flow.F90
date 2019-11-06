@@ -72,9 +72,8 @@ module PM_WIPP_Flow_class
     PetscInt, pointer :: dirichlet_dofs_ghosted(:) ! this array is zero-based indexing
     ! int_array has a natural_id and 1,2, or 3 that indicates
     ! pressure, satruation, or both to be zerod in the residual
-    PetscInt, pointer :: dirichlet_dof_ints(:,:)
+    PetscInt, pointer :: dirichlet_dofs_ints(:,:)
     PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
-    PetscBool :: using_cell_centered_dirichlet_BC = PETSC_FALSE
  
   contains
     procedure, public :: ReadSimulationBlock => PMWIPPFloRead
@@ -194,6 +193,7 @@ subroutine PMWIPPFloInitObject(this)
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
   nullify(this%dirichlet_dofs_ghosted)
+  nullify(this%dirichlet_dofs_ints)
   nullify(this%dirichlet_dofs_local)
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
@@ -459,7 +459,6 @@ subroutine PMWIPPFloRead(this,input)
       case('DO_NOT_SCALE_JACOBIAN')
         this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
-        this%using_cell_centered_dirichlet_BC = PETSC_TRUE
         icount = 0
         do
           call InputReadPflotranString(input,option)
@@ -495,8 +494,8 @@ subroutine PMWIPPFloRead(this,input)
             temp_int_array(2,icount) = 2
           endif
         enddo
-        allocate(this%dirichlet_dof_ints(2,icount))
-        this%dirichlet_dof_ints = temp_int_array(1:2,1:icount)
+        allocate(this%dirichlet_dofs_ints(2,icount))
+        this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -835,19 +834,19 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                     ierr);CHKERRQ(ierr)
 
   ! if using Dirichlet cell-centered BC, set option for matrix
-  if (this%using_cell_centered_dirichlet_BC) then
+  if (associated(this%dirichlet_dofs_ints)) then
     jcount = 0
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       natural_id = grid%nG2A(ghosted_id)
-      do icount = 1, size(this%dirichlet_dof_ints)
-        if (natural_id == this%dirichlet_dof_ints(1,icount)) then
-           if (this%dirichlet_dof_ints(2,icount) == 1 .or. &
-               this%dirichlet_dof_ints(2,icount) == 3) then
+      do icount = 1, size(this%dirichlet_dofs_ints)
+        if (natural_id == this%dirichlet_dofs_ints(1,icount)) then
+           if (this%dirichlet_dofs_ints(2,icount) == 1 .or. &
+               this%dirichlet_dofs_ints(2,icount) == 3) then
             jcount = jcount + 1
           endif
-          if (this%dirichlet_dof_ints(2,icount) == 2 .or. &
-              this%dirichlet_dof_ints(2,icount) == 3) then
+          if (this%dirichlet_dofs_ints(2,icount) == 2 .or. &
+              this%dirichlet_dofs_ints(2,icount) == 3) then
             jcount = jcount + 1
           endif
           exit
@@ -861,17 +860,17 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       natural_id = grid%nG2A(ghosted_id)
-      do icount = 1, size(this%dirichlet_dof_ints)
-        if (natural_id == this%dirichlet_dof_ints(1,icount)) then
-           if (this%dirichlet_dof_ints(2,icount) == 1 .or. &
-               this%dirichlet_dof_ints(2,icount) == 3) then
+      do icount = 1, size(this%dirichlet_dofs_ints)
+        if (natural_id == this%dirichlet_dofs_ints(1,icount)) then
+           if (this%dirichlet_dofs_ints(2,icount) == 1 .or. &
+               this%dirichlet_dofs_ints(2,icount) == 3) then
             jcount = jcount + 1
             this%dirichlet_dofs_local(jcount) = (local_id-1)*2+1
             ! zero based indexing
             this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2
           endif
-          if (this%dirichlet_dof_ints(2,icount) == 2 .or. &
-              this%dirichlet_dof_ints(2,icount) == 3) then
+          if (this%dirichlet_dofs_ints(2,icount) == 2 .or. &
+              this%dirichlet_dofs_ints(2,icount) == 3) then
             jcount = jcount + 1
             this%dirichlet_dofs_local(jcount) = (local_id-1)*2+2
             ! zero based indexing
@@ -883,7 +882,7 @@ recursive subroutine PMWIPPFloInitializeRun(this)
     enddo
     call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
          PETSC_FALSE,ierr);CHKERRQ(ierr)
-    deallocate(this%dirichlet_dof_ints)
+    deallocate(this%dirichlet_dofs_ints)
   endif
 
   ! prevent use of block Jacobi preconditioning in parallel
@@ -1206,7 +1205,7 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
 
   ! cell-centered dirichlet BCs
   if (associated(this%dirichlet_dofs_ghosted)) then
-    allocate(diagonal_values(size(this%dirichlet_dofs_ghosted)))
+    allocate(diagonal_values(size(this%dirichlet_dofs_local)))
     call VecDuplicate(this%stored_residual_vec,diagonal_vec,ierr);CHKERRQ(ierr)
     call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
@@ -1217,6 +1216,8 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
     call VecDestroy(diagonal_vec,ierr);CHKERRQ(ierr)
     i = size(this%dirichlet_dofs_ghosted)
     norm = 1.d0
+    ! replace all the rows with zero and the diagonals to 1
+    ! on the location of dirchlet_dofs_ghosted indices
     call MatZeroRowsLocal(A,i,this%dirichlet_dofs_ghosted,norm, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
