@@ -3787,12 +3787,15 @@ subroutine SubsurfaceReadInput(simulation,input)
   call InputPopBlock(input,option) ! SUBSURFACE
 
   if (associated(simulation%flow_process_model_coupler)) then
-    if (option%iflowmode == RICHARDS_TS_MODE) then
-       if (option%steady_state) then
-         option%io_buffer = 'Steady state not supported with PETSC TS'
-         call PrintErrMsg(option)
-       endif
-    endif
+    select case(option%iflowmode)
+      case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE,MIS_MODE,TH_MODE,WF_MODE, &
+           TOIL_IMS_MODE,TOWG_MODE,RICHARDS_TS_MODE,TH_TS_MODE,H_MODE)
+        if (option%steady_state) then
+          option%io_buffer = 'Steady state solution is not supported with &
+            &the current flow mode.'
+          call PrintErrMsg(option)
+        endif
+    end select
     flow_timestepper%name = 'FLOW'
     if (option%steady_state) then
       !geh: This is a workaround for the Intel compiler which thinks that

@@ -296,11 +296,16 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputErrorMsg(input,option,'timestep overstep tolerance', &
                          error_string)
     case('INITIALIZE_TO_STEADY_STATE')
+      option%io_buffer = 'INITIALIZE_TO_STEADY_STATE capability has been &
+                         &disabled.'
+      call PrintErrMsg(option)
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)
       call InputErrorMsg(input,option,'steady state convergence relative &
                          &tolerance',error_string)
     case('RUN_AS_STEADY_STATE')
+      option%io_buffer = 'RUN_AS_STEADY_STATE capability has been disabled.'
+      call PrintErrMsg(option)
       this%run_as_steady_state = PETSC_TRUE
     case('PRINT_EKG')
       this%print_ekg = PETSC_TRUE
