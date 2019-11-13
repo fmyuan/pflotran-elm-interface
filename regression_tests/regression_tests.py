@@ -218,6 +218,18 @@ class RegressionTest(object):
           to catch hanging jobs, but for python < 3.3 we have to
           manually manage the timeout...?
         """
+        if dry_run:
+            print("    cd {0}".format(os.getcwd()), file=testlog)
+            filename = test_name
+            if self._input_arg == '-input_prefix':
+                filename += '.' + self._input_suffix
+            if not os.path.isfile(filename):
+                status.fail = 1
+                print('    Input file "{0}" not found.'.format(filename), file=testlog)
+            else:
+                print('    Input file "{0}" found.'.format(filename), file=testlog)
+            return None
+
         # TODO(bja) : need to think more about the desired behavior if
         # mpiexec is passed for a serial test or not passed for a
         # parallel test.
@@ -259,28 +271,27 @@ class RegressionTest(object):
 
         #geh: must initialize for check below when dry run scenario
         pflotran_status = self._PFLOTRAN_SUCCESS
-        if not dry_run:
-            print("    cd {0}".format(os.getcwd()), file=testlog)
-            print("    {0}".format(" ".join(command)), file=testlog)
-            run_stdout = open(test_name + ".stdout", 'w')
-            start = time.time()
-            proc = subprocess.Popen(command,
-                                    shell=False,
-                                    stdout=run_stdout,
-                                    stderr=subprocess.STDOUT)
-            while proc.poll() is None:
+        print("    cd {0}".format(os.getcwd()), file=testlog)
+        print("    {0}".format(" ".join(command)), file=testlog)
+        run_stdout = open(test_name + ".stdout", 'w')
+        start = time.time()
+        proc = subprocess.Popen(command,
+                                shell=False,
+                                stdout=run_stdout,
+                                stderr=subprocess.STDOUT)
+        while proc.poll() is None:
+            time.sleep(0.1)
+            if time.time() - start > self._timeout:
+                proc.kill()
                 time.sleep(0.1)
-                if time.time() - start > self._timeout:
-                    proc.kill()
-                    time.sleep(0.1)
-                    message = self._txtwrap.fill(
-                        "ERROR: job '{0}' has exceeded timeout limit of "
-                        "{1} seconds.".format(test_name, self._timeout))
-                    print(''.join(['\n', message, '\n']), file=testlog)
-            finish = time.time()
-            print("    # {0} : run time : {1:.2f} seconds".format(test_name, finish - start), file=testlog)
-            pflotran_status = abs(proc.returncode)
-            run_stdout.close()
+                message = self._txtwrap.fill(
+                    "ERROR: job '{0}' has exceeded timeout limit of "
+                    "{1} seconds.".format(test_name, self._timeout))
+                print(''.join(['\n', message, '\n']), file=testlog)
+        finish = time.time()
+        print("    # {0} : run time : {1:.2f} seconds".format(test_name, finish - start), file=testlog)
+        pflotran_status = abs(proc.returncode)
+        run_stdout.close()
         # pflotran returns 0 on an error (e.g. can't find an input
         # file), 86 on success. 59 for timeout errors?
         if pflotran_status != self._PFLOTRAN_SUCCESS:
@@ -1307,8 +1318,6 @@ class RegressionTestManager(object):
         """
         Run the test and check the results.
         """
-        if dry_run:
-            print("Dry run:")
         print("Running tests from '{0}':".format(self._config_filename), file=testlog)
         print(50 * '-', file=testlog)
 
@@ -1323,7 +1332,7 @@ class RegressionTestManager(object):
 
             self._add_to_file_status(status)
 
-            self._test_summary(test.name(), status, dry_run,
+            self._test_summary(test.name(), status,
                                "passed", "failed", testlog)
 
         self._print_file_summary(dry_run, "passed", "failed", testlog)
@@ -1332,8 +1341,6 @@ class RegressionTestManager(object):
         """
         Recheck the regression files from a previous run.
         """
-        if dry_run:
-            print("Dry run:")
         print("Checking existing test results from '{0}':".format(
             self._config_filename), file=testlog)
         print(50 * '-', file=testlog)
@@ -1347,7 +1354,7 @@ class RegressionTestManager(object):
 
             self._add_to_file_status(status)
 
-            self._test_summary(test.name(), status, dry_run,
+            self._test_summary(test.name(), status,
                                "passed", "failed", testlog)
 
         self._print_file_summary(dry_run, "passed", "failed", testlog)
@@ -1356,9 +1363,6 @@ class RegressionTestManager(object):
         """
         Run the tests and create new gold files.
         """
-        if dry_run:
-            print("Dry run:")
-
         print("New tests from '{0}':".format(self._config_filename), file=testlog)
         print(50 * '-', file=testlog)
 
@@ -1371,7 +1375,7 @@ class RegressionTestManager(object):
             if not dry_run and status.skipped == 0:
                 test.new_test(status, testlog)
             self._add_to_file_status(status)
-            self._test_summary(test.name(), status, dry_run,
+            self._test_summary(test.name(), status,
                                "created", "error creating new test files.", testlog)
 
         self._print_file_summary(dry_run, "created", "could not be created", testlog)
@@ -1380,8 +1384,6 @@ class RegressionTestManager(object):
         """
         Run the tests and update the gold file with the current output
         """
-        if dry_run:
-            print("Dry run:")
         print("Updating tests from '{0}':".format(self._config_filename), file=testlog)
         print(50 * '-', file=testlog)
 
@@ -1393,7 +1395,7 @@ class RegressionTestManager(object):
             if not dry_run and status.skipped == 0:
                 test.update(status, testlog)
             self._add_to_file_status(status)
-            self._test_summary(test.name(), status, dry_run,
+            self._test_summary(test.name(), status, 
                                "updated", "error updating test.", testlog)
 
         self._print_file_summary(dry_run, "updated", "could not be updated", testlog)
@@ -1405,40 +1407,36 @@ class RegressionTestManager(object):
         print(40 * '-', file=testlog)
         print("{0}... ".format(name), file=testlog)
 
-    def _test_summary(self, name, status, dry_run,
+    def _test_summary(self, name, status,
                       success_message, fail_message, testlog):
         """
         Write the test status information to stdout and the test log.
         """
-        if dry_run:
-            print("D", end='', file=sys.stdout)
-            print(" dry run.", file=testlog)
-        else:
-            if (status.fail == 0 and
-                status.warning == 0 and
-                status.error == 0 and
-                status.skipped == 0):
-                print(".", end='', file=sys.stdout)
-                print("{0}... {1}.".format(name, success_message), file=testlog)
-            elif status.error != 0:
-#                print('error {}'.format(status.error))
-                if status.error == 1:
-                    print("U", end='', file=sys.stdout)
-                elif status.error == 2:
-                    print("X", end='', file=sys.stdout)
-                else:
-                    print("I", end='', file=sys.stdout)
-                print("{0}... errored.".format(name), file=testlog)
-            elif status.fail != 0:
-                print("F", end='', file=sys.stdout)
-                print("{0}... {1}.".format(name, fail_message), file=testlog)
-            elif status.warning != 0:
-                print("W", end='', file=sys.stdout)
-            elif status.skipped != 0:
-                print("S", end='', file=sys.stdout)
-                print("{0}... skipped.".format(name), file=testlog)
+        if (status.fail == 0 and
+            status.warning == 0 and
+            status.error == 0 and
+            status.skipped == 0):
+            print(".", end='', file=sys.stdout)
+            print("{0}... {1}.".format(name, success_message), file=testlog)
+        elif status.error != 0:
+#            print('error {}'.format(status.error))
+            if status.error == 1:
+                print("U", end='', file=sys.stdout)
+            elif status.error == 2:
+                print("X", end='', file=sys.stdout)
             else:
-                print("?", end='', file=sys.stdout)
+                print("I", end='', file=sys.stdout)
+            print("{0}... errored.".format(name), file=testlog)
+        elif status.fail != 0:
+            print("F", end='', file=sys.stdout)
+            print("{0}... {1}.".format(name, fail_message), file=testlog)
+        elif status.warning != 0:
+            print("W", end='', file=sys.stdout)
+        elif status.skipped != 0:
+            print("S", end='', file=sys.stdout)
+            print("{0}... skipped.".format(name), file=testlog)
+        else:
+            print("?", end='', file=sys.stdout)
 
         sys.stdout.flush()
 
@@ -1917,7 +1915,7 @@ def summary_report_by_file(report, outfile):
     print("\n", file=outfile)
 
 
-def summary_report(run_time, report, outfile):
+def summary_report(run_time, report, dry_run, outfile):
     """
     Overall summary of test results
     """
@@ -1960,7 +1958,11 @@ def summary_report(run_time, report, outfile):
     if success:
         print("    All tests passed.", file=outfile)
 
+    if dry_run:
+        print("\nNOTE --> This was a DRY RUN!!!",file=outfile)
+
     print("\n", file=outfile)
+
     return num_failures
 
 
@@ -2077,6 +2079,8 @@ def main(options):
     config_file_list = generate_config_file_list(options)
 
     print("\nRunning pflotran regression tests :\n")
+    if options.dry_run:
+      print("NOTE --> This was a DRY RUN!!!\n")
     print("  Legend\n")
     print("    . - success")
     print("    F - failed regression test (results outside error tolerances)")
@@ -2166,12 +2170,12 @@ def main(options):
 
     stop = time.time()
     status = 0
-    if not options.dry_run and not options.update:
+    if not options.update:
         print("")
         run_time = stop - start
         summary_report_by_file(report, testlog)
-        summary_report(run_time, report, testlog)
-        status = summary_report(run_time, report, sys.stdout)
+        summary_report(run_time, report, options.dry_run, testlog)
+        status = summary_report(run_time, report, options.dry_run, sys.stdout)
 
     if options.update:
         message = txtwrap.fill(
