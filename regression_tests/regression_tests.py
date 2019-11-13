@@ -105,6 +105,7 @@ class RegressionTest(object):
         self._input_suffix = "in"
         self._np = None
         self._pflotran_args = None
+        self._python_setup_script = None
         self._stochastic_realizations = None
         # restart_file is a tuple ['filename',format=(Binary,HDF5)]
         self._restart_tuple = None
@@ -142,6 +143,7 @@ class RegressionTest(object):
         message += "    pflotran args :\n"
         message += "        input : {0}\n".format(self._input_arg)
         message += "        optional : {0}\n".format(self._pflotran_args)
+        message += "    setup script : {0}\n".format(self._python_setup_script)
         message += "    test criteria :\n"
         for k in self._tolerance:
             message += "        {0} : {1} [{2}] : {3} <= abs(value) <= {4}\n".format(
@@ -230,9 +232,57 @@ class RegressionTest(object):
                 print('    Input file "{0}" found.'.format(filename), file=testlog)
             return None
 
+        if self._python_setup_script is not None:
+            print("\n  Setup script... ", file=testlog)
+            command = []
+            command.append(sys.executable)
+            command.append(self._python_setup_script)
+            print("    cd {0}".format(os.getcwd()), file=testlog)
+            print("    {0}".format(" ".join(command)), file=testlog)
+            setup_name = test_name + '-setup'
+            setup_script_stdout_filename = setup_name + ".stdout"
+            setup_script_stdout = open(setup_script_stdout_filename, 'w')
+            start = time.time()
+            proc = subprocess.Popen(command,
+                                    shell=False,
+                                    stdout=setup_script_stdout,
+                                    stderr=subprocess.STDOUT)
+            while proc.poll() is None:
+                time.sleep(0.01)
+                if time.time() - start > self._timeout:
+                    proc.kill()
+                    time.sleep(0.01)
+                    message = self._txtwrap.fill(
+                        "ERROR: job '{0}' has exceeded timeout limit of "
+                        "{1} seconds.".format(setup_name, self._timeout))
+                    print(''.join(['\n', message, '\n']), file=testlog)
+            setup_script_stdout.close()
+            finish = time.time()
+            print("    # {0} : run time : {1:.2f} seconds\n".
+                           format(setup_name, finish - start), file=testlog)
+            if proc.returncode != 0:
+                status.error = 4  # pre pflotran python script failed
+                message = self._txtwrap.fill(
+                "ERROR : {name} : The python_setup_script returned an error "
+                "code ({status}) indicating the script may have failed. "
+                "Please check '{name}.stdout' for error messages (included "
+                "below).".format(
+                    name=setup_script_stdout_filename, status=proc.returncode))
+                print("".join(['\n', message, '\n']), file=testlog)
+                print("~~~~~ {0} ~~~~~".format(setup_script_stdout_filename),
+                      file=testlog)
+                try:
+                    with open(setup_script_stdout_filename, 'r') as tempfile:
+                        shutil.copyfileobj(tempfile, testlog)
+                except Exception as e:
+                    print("   Error opening file: {0}\n    {1}".
+                          format(setup_script_stdout_filename, e))
+                return None
+
         # TODO(bja) : need to think more about the desired behavior if
         # mpiexec is passed for a serial test or not passed for a
         # parallel test.
+        print("\n  Run... ", file=testlog)
         command = []
         if self._np is not None:
             if mpiexec:
@@ -1052,6 +1102,7 @@ class RegressionTest(object):
         """
         self._np = test_data.pop('np', None)
 
+        self._python_setup_script = test_data.pop('python_setup_script', None)
         self._pflotran_args = test_data.pop('input_arguments', None)
         if self._pflotran_args is not None:
             # save the arg list so we can append it to the run command
