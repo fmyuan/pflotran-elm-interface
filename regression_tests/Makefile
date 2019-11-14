@@ -95,6 +95,10 @@ endif
 ifneq ($(strip $(PARMETIS_LIB)),)
 STANDARD_CFG += \
 	default/discretization/discretization.cfg \
+	default/materials/materials_ug.cfg \
+	default/output/output_ug.cfg \
+	default/regions/regions_ug.cfg \
+	default/regions/cell_mapping/cell_mapping_ug.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
         geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
