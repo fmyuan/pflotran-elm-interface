@@ -40,9 +40,6 @@ NEWTON_SOLVER FLOW
 END
 
 LINEAR_SOLVER FLOW
-  KSP_TYPE FGMRES
-  PC_TYPE CPR
-  RTOL 1e-5
 END
 
 #=========================== times ============================================
