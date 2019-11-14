@@ -68,7 +68,13 @@ module PM_WIPP_Flow_class
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system
     Vec :: scaling_vec
-    PetscInt, pointer :: dirichlet_dofs(:) ! this array is zero-based indexing
+    ! When reading Dirichlet 2D Flared BC
+    PetscInt, pointer :: dirichlet_dofs_ghosted(:) ! this array is zero-based indexing
+    ! int_array has a natural_id and 1,2, or 3 that indicates
+    ! pressure, satruation, or both to be zerod in the residual
+    PetscInt, pointer :: dirichlet_dofs_ints(:,:)
+    PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
+ 
   contains
     procedure, public :: ReadSimulationBlock => PMWIPPFloRead
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
@@ -186,7 +192,9 @@ subroutine PMWIPPFloInitObject(this)
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_TRUE
   this%scaling_vec = PETSC_NULL_VEC
-  nullify(this%dirichlet_dofs)
+  nullify(this%dirichlet_dofs_ghosted)
+  nullify(this%dirichlet_dofs_ints)
+  nullify(this%dirichlet_dofs_local)
   this%convergence_test_both = PETSC_TRUE
   this%convergence_flags = 0
   this%convergence_reals = 0.d0
@@ -213,18 +221,20 @@ subroutine PMWIPPFloRead(this,input)
   
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, word2
   class(pm_wippflo_type) :: this
   type(option_type), pointer :: option
   PetscReal :: tempreal
   character(len=MAXSTRINGLENGTH) :: error_string
   character(len=MAXSTRINGLENGTH), pointer :: strings(:)
   PetscBool :: found
-  PetscInt, parameter :: max_dirichlet_bc = 1000
-  PetscInt :: int_array(max_dirichlet_bc)
   PetscInt :: icount
   PetscInt :: temp_int
-
+  ! temp_int_array has a natural_id and 1,2, or 3 that indicates
+  ! pressure, satruation, or both to be zerod in the residual
+  PetscInt, parameter :: max_dirichlet_bc = 1000 ! capped at 1000
+  PetscInt :: temp_int_array(2,max_dirichlet_bc) 
+  
   option => this%option
 
   error_string = 'WIPP Flow Options'
@@ -450,7 +460,6 @@ subroutine PMWIPPFloRead(this,input)
         this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
         icount = 0
-        int_array = 0.d0
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,keyword)
@@ -464,22 +473,29 @@ subroutine PMWIPPFloRead(this,input)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'pressure', &
                              '2D_FLARED_DIRICHLET_BCS')
-          if (StringYesNoOther(word) == STRING_YES) then
-            icount = icount + 1
-            int_array(icount) = (temp_int-1)*2+1
-          endif
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadWord(input,option,word2,PETSC_TRUE)
           call InputErrorMsg(input,option,'saturation', &
                              '2D_FLARED_DIRICHLET_BCS')
-          if (StringYesNoOther(word) == STRING_YES) then
+                             
+          if (StringYesNoOther(word) == STRING_YES .and. &
+              StringYesNoOther(word2) == STRING_YES) then
             icount = icount + 1
-            int_array(icount) = (temp_int-1)*2+2
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 3
+          else if (StringYesNoOther(word) == STRING_YES .and. &
+                   StringYesNoOther(word2) == STRING_NO) then
+            icount = icount + 1
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 1
+          else if (StringYesNoOther(word) == STRING_NO .and. &
+                   StringYesNoOther(word2) == STRING_YES) then
+            icount = icount + 1
+            temp_int_array(1,icount) = temp_int
+            temp_int_array(2,icount) = 2
           endif
         enddo
-        if (icount > 0) then
-          allocate(this%dirichlet_dofs(icount))       ! convert to zero-based
-          this%dirichlet_dofs = int_array(1:icount) - 1 
-        endif
+        allocate(this%dirichlet_dofs_ints(2,icount))
+        this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -561,8 +577,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   PetscReal, pointer :: flow_xx_p(:)
   PetscReal :: h
   PetscReal :: x, z
-  PetscInt :: idof, icell, iregion
-  PetscInt :: ghosted_id, local_id
+  PetscInt :: idof, icell, iregion, icount, jcount
+  PetscInt :: ghosted_id, local_id, natural_id
   PetscInt :: imat, nmat_id, ndof
   ! for auto pressure
   PetscReal :: rhob0
@@ -818,9 +834,55 @@ recursive subroutine PMWIPPFloInitializeRun(this)
                     ierr);CHKERRQ(ierr)
 
   ! if using Dirichlet cell-centered BC, set option for matrix
-  if (associated(this%dirichlet_dofs)) then
+  if (associated(this%dirichlet_dofs_ints)) then
+    jcount = 0
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      do icount = 1, size(this%dirichlet_dofs_ints)
+        if (natural_id == this%dirichlet_dofs_ints(1,icount)) then
+           if (this%dirichlet_dofs_ints(2,icount) == 1 .or. &
+               this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+          endif
+          if (this%dirichlet_dofs_ints(2,icount) == 2 .or. &
+              this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+          endif
+          exit
+        endif   
+      enddo 
+    enddo
+    allocate(this%dirichlet_dofs_ghosted(jcount))
+    allocate(this%dirichlet_dofs_local(jcount))
+
+    jcount = 0
+    do local_id = 1, grid%nlmax  ! For each local node do...
+      ghosted_id = grid%nL2G(local_id)
+      natural_id = grid%nG2A(ghosted_id)
+      do icount = 1, size(this%dirichlet_dofs_ints)
+        if (natural_id == this%dirichlet_dofs_ints(1,icount)) then
+           if (this%dirichlet_dofs_ints(2,icount) == 1 .or. &
+               this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+            this%dirichlet_dofs_local(jcount) = (local_id-1)*2+1
+            ! zero based indexing
+            this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2
+          endif
+          if (this%dirichlet_dofs_ints(2,icount) == 2 .or. &
+              this%dirichlet_dofs_ints(2,icount) == 3) then
+            jcount = jcount + 1
+            this%dirichlet_dofs_local(jcount) = (local_id-1)*2+2
+            ! zero based indexing
+            this%dirichlet_dofs_ghosted(jcount) = (ghosted_id-1)*2+1
+          endif
+          EXIT
+        endif   
+      enddo 
+    enddo
     call MatSetOption(this%solver%J,MAT_NEW_NONZERO_ALLOCATION_ERR, &
-                      PETSC_FALSE,ierr);CHKERRQ(ierr)
+         PETSC_FALSE,ierr);CHKERRQ(ierr)
+    deallocate(this%dirichlet_dofs_ints)
   endif
 
   ! prevent use of block Jacobi preconditioning in parallel
@@ -1057,6 +1119,7 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
   ! 
   use WIPP_Flow_module, only : WIPPFloResidual
   use Debug_module
+  use Grid_module
 
   implicit none
   
@@ -1068,20 +1131,22 @@ subroutine PMWIPPFloResidual(this,snes,xx,r,ierr)
 
   PetscViewer :: viewer
   character(len=MAXSTRINGLENGTH) :: string
+  type(grid_type), pointer :: grid
   PetscReal, pointer :: r_p(:)
   PetscInt :: i, idof
   
+  grid => this%realization%patch%grid
+
   call PMSubsurfaceFlowUpdatePropertiesNI(this)
 
   ! calculate residual
   call WIPPFloResidual(snes,xx,r,this%realization,this%pmwss_ptr,ierr)
 
   ! cell-centered dirichlet BCs
-  if (associated(this%dirichlet_dofs)) then
+  if (associated(this%dirichlet_dofs_local)) then
     call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-    do i = 1, size(this%dirichlet_dofs)
-                         ! add 1 as dirichlet_dofs is zero-based indexing
-      r_p(this%dirichlet_dofs(i)+1) = 0.d0
+    do i = 1, size(this%dirichlet_dofs_local)
+      r_p(this%dirichlet_dofs_local(i)) = 0.d0
     enddo
     call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   endif
@@ -1131,24 +1196,40 @@ subroutine PMWIPPFloJacobian(this,snes,xx,A,B,ierr)
   PetscReal :: norm
   PetscInt :: matsize
   PetscInt :: i, irow
+  PetscReal, allocatable :: diagonal_values(:)
+  PetscReal :: array(1,1)
   PetscReal, pointer :: vec_p(:)
-  
+
+
   call WIPPFloJacobian(snes,xx,A,B,this%realization,this%pmwss_ptr,ierr)
 
   ! cell-centered dirichlet BCs
-  if (associated(this%dirichlet_dofs)) then
+  if (associated(this%dirichlet_dofs_ghosted)) then
+    allocate(diagonal_values(size(this%dirichlet_dofs_local)))
     call VecDuplicate(this%stored_residual_vec,diagonal_vec,ierr);CHKERRQ(ierr)
     call MatGetDiagonal(A,diagonal_vec,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
-    do i = 1, size(this%dirichlet_dofs)
-      irow = this%dirichlet_dofs(i)
-               ! increment irow due to zero-based indexing in dirichlet_dofs
-      norm = vec_p(irow+1) * 1.d8 + 1.d8
-      call MatZeroRowsLocal(A,1,irow,norm,PETSC_NULL_VEC,PETSC_NULL_VEC, &
-                            ierr);CHKERRQ(ierr)
+    do i = 1, size(this%dirichlet_dofs_local)
+      diagonal_values(i) = vec_p(this%dirichlet_dofs_local(i)) * 1.d8 + 1.d8
     enddo
     call VecRestoreArrayReadF90(diagonal_vec,vec_p,ierr);CHKERRQ(ierr)
     call VecDestroy(diagonal_vec,ierr);CHKERRQ(ierr)
+    i = size(this%dirichlet_dofs_ghosted)
+    norm = 1.d0
+    ! replace all the rows with zero and the diagonals to 1
+    ! on the location of dirchlet_dofs_ghosted indices
+    call MatZeroRowsLocal(A,i,this%dirichlet_dofs_ghosted,norm, &
+                          PETSC_NULL_VEC,PETSC_NULL_VEC, &
+                          ierr);CHKERRQ(ierr)
+    do i = 1, size(this%dirichlet_dofs_ghosted)
+      irow = this%dirichlet_dofs_ghosted(i)
+      array(1,1) = diagonal_values(i)
+      call MatSetValuesLocal(A,1,irow,1,irow,array,INSERT_VALUES, &
+                             ierr);CHKERRQ(ierr)
+    enddo
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+    deallocate(diagonal_values)
   endif
 
   if (this%realization%debug%matview_Jacobian) then
@@ -2304,9 +2385,13 @@ subroutine PMWIPPFloDestroy(this)
   if (this%scaling_vec /= PETSC_NULL_VEC) then
     call VecDestroy(this%scaling_vec,ierr);CHKERRQ(ierr)
   endif
-  if (associated(this%dirichlet_dofs)) then
-    deallocate(this%dirichlet_dofs)
-    nullify(this%dirichlet_dofs)
+  if (associated(this%dirichlet_dofs_ghosted)) then
+    deallocate(this%dirichlet_dofs_ghosted)
+    nullify(this%dirichlet_dofs_ghosted)
+  endif
+  if (associated(this%dirichlet_dofs_local)) then
+    deallocate(this%dirichlet_dofs_local)
+    nullify(this%dirichlet_dofs_local)
   endif
 
   ! preserve this ordering
