@@ -20,6 +20,22 @@ ifdef PERFORMANCE
 	TEST_OPTIONS += --check-performance
 endif
 
+ifdef DRYRUN
+	TEST_OPTIONS += --dry-run
+endif
+
+ifdef UPDATE
+	TEST_OPTIONS += --update
+endif
+
+ifdef CHECK
+	TEST_OPTIONS += --check-only
+endif
+
+ifdef NEW
+	TEST_OPTIONS += --new-tests
+endif
+
 ifdef BACKTRACE
 	TEST_OPTIONS += --backtrace
 endif
