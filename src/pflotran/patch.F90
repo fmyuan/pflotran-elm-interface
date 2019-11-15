@@ -2109,7 +2109,8 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   PetscBool :: dof1, dof2, dof3
   PetscReal :: temperature, p_sat, p_cap, s_liq, xmol
   PetscReal :: relative_humidity
-  PetscReal :: gas_sat, hyd_sat, air_pressure, gas_pressure, liq_pressure
+  PetscReal :: liq_sat, gas_sat, hyd_sat, ice_sat, air_pressure, gas_pressure, &
+               liq_pressure
   PetscReal :: dummy_real
   PetscReal :: x(option%nflowdof)
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -2205,13 +2206,6 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           call DatasetUnknownClass(dataset,option, &
                                    'PatchUpdateCouplerAuxVarsH')
       end select
-    case(GA_STATE)
-      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
-        GA_STATE
-        ! no need to loop in the next do loop if its all the same state, which 
-        ! you know from flow_condition%iphase
-    case(HA_STATE)
-      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = HA_STATE
     case(L_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
         L_STATE
@@ -2252,6 +2246,66 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     case(G_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
         G_STATE
+    case(H_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        H_STATE
+    case(I_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        I_STATE
+    case(GA_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        GA_STATE
+        ! no need to loop in the next do loop if its all the same state, which 
+        ! you know from flow_condition%iphase
+    case(HG_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        HG_STATE
+    case(HA_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = HA_STATE
+      if (associated(hydrate%liquid_pressure) .and.  hydrate% &
+                              liquid_pressure%itype == HYDROSTATIC_BC) then
+        if (hydrate%temperature%itype /= DIRICHLET_BC) then
+          option%io_buffer = 'Hydrostatic hydrate-aq. state pressure BC for &
+            &flow condition "' // trim(flow_condition%name) // &
+            '" requires a temperature BC of type DIRICHLET.'
+          call PrintErrMsg(option)
+        endif
+        call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+        do iconn = 1, num_connections
+          if (coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn) /= &
+              L_STATE .and. coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn)&
+              /= HA_STATE) then
+            string = 'Non L or HA state'
+            option%io_buffer = 'A ' // trim(string) // ' cell was found &
+              &within a HYDROSTATIC_BC boundary condition for HYDRATE mode. &
+              &A hydrostatic boundary condition may not be used to set &
+              &state variables in the vadose zone for HYDRATE mode.'
+            call PrintErrMsg(option)
+          endif
+        enddo
+        dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
+      endif
+    case(HI_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        HI_STATE
+    case(GI_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        GI_STATE
+    case(HGA_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        HGA_STATE
+    case(HAI_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        HAI_STATE
+    case(GAI_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        GAI_STATE
+    case(HGI_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        HGI_STATE
+    case(QUAD_STATE)
+      coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
+        QUAD_STATE
     case(HYD_ANY_STATE)
       if (associated(coupler%flow_aux_int_var)) then ! not used with rate
         coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
@@ -2268,105 +2322,8 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
     do iconn = 1, num_connections
       select case(coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,iconn))
       ! ---------------------------------------------------------------------- !
-        case(HA_STATE)
-          ! gas pressure; 1st dof ------------------------ !
-          select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
-              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
-              dof1 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(hydrate%gas_pressure%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'HYDRATE MODE HA-state gas pressure ',string)
-              call PrintErrMsg(option)
-          end select
-          ! hydrate saturation; 2nd dof ---------------------- !
-          select case(hydrate%hydrate_saturation%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                        patch%grid,hydrate%hydrate_saturation%dataset,iconn, &
-                        hyd_sat)
-              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = hyd_sat
-              dof2 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(hydrate%hydrate_saturation%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'HYDRATE MODE HA-state hydrate saturation ',string)
-              call PrintErrMsg(option)
-          end select
-          ! temperature; 3rd dof ------------------------- !  
-          select case(hydrate%temperature%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
-              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
-              dof3 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(hydrate%temperature%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'HYDRATE MODE HA-state temperature ',string)
-              call PrintErrMsg(option)
-          end select
-        case(GA_STATE)
-          ! gas pressure; 1st dof ------------------------ !
-          select case(hydrate%gas_pressure%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
-              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
-              dof1 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(hydrate%gas_pressure%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'HYDRATE MODE GA-State gas pressure ',string)
-              call PrintErrMsg(option)
-          end select
-          ! temperature; 2nd dof ------------------------- !  
-          select case(hydrate%temperature%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
-              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
-              dof2 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(hydrate%temperature%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'HYDRATE MODE two phase state temperature ',string)
-              call PrintErrMsg(option)
-          end select
-          ! gas saturation; 3rd dof ---------------------- !
-          select case(hydrate%gas_saturation%itype)
-            case(DIRICHLET_BC)
-              call PatchGetCouplerValueFromDataset(coupler,option, &
-                        patch%grid,hydrate%gas_saturation%dataset,iconn,gas_sat)
-              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = gas_sat
-              dof3 = PETSC_TRUE
-              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
-            case default
-              string = GetSubConditionName(hydrate%gas_saturation%itype)
-              option%io_buffer = &
-                FlowConditionUnknownItype(coupler%flow_condition, &
-                  'HYDRATE MODE two phase state gas saturation ',string)
-              call PrintErrMsg(option)
-          end select
-      ! ---------------------------------------------------------------------- !
         case(L_STATE)
           if (hydrate%liquid_pressure%itype == HYDROSTATIC_BC) then
-  !         option%io_buffer = 'Hydrostatic BC for general phase cannot possibly ' // &
-  !           'be set up correctly. - GEH'
-  !         call PrintErrMsg(option)
             if (hydrate%mole_fraction%itype /= DIRICHLET_BC) then
               option%io_buffer = 'Hydrostatic liquid state pressure BC for &
                 &flow condition "' // trim(flow_condition%name) // &
@@ -2536,6 +2493,532 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
                 call PrintErrMsg(option)
             end select
           endif
+    ! ---------------------------------------------------------------------- !
+        case(H_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          select case(hydrate%gas_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE H-state gas pressure ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !
+          select case(hydrate%temperature%itype)
+              case(DIRICHLET_BC)
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+                coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+                dof2 = PETSC_TRUE
+                coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = &
+                                                                    DIRICHLET_BC
+              case default
+                string = GetSubConditionName(hydrate%temperature%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE H-state state temperature ',string)
+                call PrintErrMsg(option)
+            end select
+          ! mole fraction; 3rd dof ----------------------- !
+            select case(hydrate%mole_fraction%itype)
+              case(DIRICHLET_BC)
+                xmol = MOL_RATIO_METH
+                coupler%flow_aux_real_var(THREE_INTEGER,iconn) = xmol
+                dof3 = PETSC_TRUE
+                coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              case default
+                string = GetSubConditionName(hydrate%mole_fraction%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE H-state mole fraction ',string)
+                call PrintErrMsg(option)
+            end select
+    ! ---------------------------------------------------------------------- !
+        case(I_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          select case(hydrate%gas_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE I-state gas pressure ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !
+            select case(hydrate%temperature%itype)
+              case(DIRICHLET_BC)
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+                coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+                dof2 = PETSC_TRUE
+                coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = &
+                                                                    DIRICHLET_BC
+              case default
+                string = GetSubConditionName(hydrate%temperature%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE I-state state temperature ',string)
+                call PrintErrMsg(option)
+            end select
+          ! mole fraction; 3rd dof ----------------------- !
+            select case(hydrate%mole_fraction%itype)
+              case(DIRICHLET_BC)
+                xmol = 0.d0
+                coupler%flow_aux_real_var(THREE_INTEGER,iconn) = xmol
+                dof3 = PETSC_TRUE
+                coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+              case default
+                string = GetSubConditionName(hydrate%mole_fraction%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE I-state mole fraction ',string)
+                call PrintErrMsg(option)
+            end select
+    ! ---------------------------------------------------------------------- !
+        case(GA_STATE, HG_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          select case(hydrate%gas_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE GA-State gas pressure ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !  
+          select case(hydrate%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE GA-State temperature ',string)
+              call PrintErrMsg(option)
+          end select
+          ! gas saturation; 3rd dof ---------------------- !
+          select case(hydrate%gas_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%gas_saturation%dataset,iconn,gas_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = gas_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE GA-State gas saturation ',string)
+              call PrintErrMsg(option)
+          end select
+    ! ---------------------------------------------------------------------- !
+        case(HA_STATE, HI_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          if (associated(hydrate%gas_pressure)) then
+            select case(hydrate%gas_pressure%itype)
+              case(DIRICHLET_BC)
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+                coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+                dof1 = PETSC_TRUE
+                coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = &
+                                                                  DIRICHLET_BC
+              case default
+                string = GetSubConditionName(hydrate%gas_pressure%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                    'HYDRATE MODE HA-state gas pressure ',string)
+                call PrintErrMsg(option)
+            end select
+            ! temperature; 2nd dof ------------------------- !  
+            select case(hydrate%temperature%itype)
+              case(DIRICHLET_BC)
+                call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+                coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+                dof3 = PETSC_TRUE
+                coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = &
+                                                                 DIRICHLET_BC
+              case default
+                string = GetSubConditionName(hydrate%temperature%itype)
+                option%io_buffer = &
+                  FlowConditionUnknownItype(coupler%flow_condition, &
+                    'HYDRATE MODE HA-state temperature ',string)
+                call PrintErrMsg(option)
+            end select
+
+          else
+            if (hydrate%liquid_pressure%itype == HYDROSTATIC_BC) then
+              if (hydrate%temperature%itype /= DIRICHLET_BC) then
+                option%io_buffer = 'Hydrostatic HA state pressure BC for &
+                  &flow condition "' // trim(flow_condition%name) // &
+                  '" requires a temperature BC of type DIRICHLET.'
+                call PrintErrMsg(option)
+              endif
+              ! ---> see code that just prints error
+              coupler%flow_bc_type(1) = HYDROSTATIC_BC
+              coupler%flow_bc_type(2:3) = DIRICHLET_BC
+            else
+            ! liquid pressure; 1st dof --------------------- !
+              select case(hydrate%liquid_pressure%itype)
+                case(DIRICHLET_BC)
+                  call PatchGetCouplerValueFromDataset(coupler,option,patch% &
+                      grid,hydrate%liquid_pressure%dataset,iconn,liq_pressure)
+                  coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_pressure
+                  dof1 = PETSC_TRUE
+                  coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = &
+                                                                  DIRICHLET_BC
+                case default
+                  string = GetSubConditionName(hydrate%liquid_pressure%itype)
+                  option%io_buffer = &
+                    FlowConditionUnknownItype(coupler%flow_condition, &
+                    'HYDRATE MODE HA-state liquid pressure ',string)
+                  call PrintErrMsg(option)
+              end select
+            ! temperature; 2nd dof ------------------------- !
+              select case(hydrate%temperature%itype)
+                case(DIRICHLET_BC)
+                  call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+                  coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+                  dof3 = PETSC_TRUE
+                  coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = &
+                                                                    DIRICHLET_BC
+                case default
+                  string = GetSubConditionName(hydrate%temperature%itype)
+                  option%io_buffer = &
+                    FlowConditionUnknownItype(coupler%flow_condition, &
+                    'HYDRATE MODE HA-state temperature ',string)
+                  call PrintErrMsg(option)
+              end select
+            endif
+          endif
+          ! hydrate saturation; 3rd dof ---------------------- !
+          select case(hydrate%hydrate_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%hydrate_saturation%dataset,iconn, &
+                        hyd_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = hyd_sat
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%hydrate_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HA-state hydrate saturation ',string)
+              call PrintErrMsg(option)
+          end select
+      ! ---------------------------------------------------------------------- !
+        case(GI_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          select case(hydrate%gas_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE GI-State gas pressure ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !  
+          select case(hydrate%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE GI-state temperature ',string)
+              call PrintErrMsg(option)
+          end select
+          ! ice saturation; 3rd dof ---------------------- !
+          select case(hydrate%gas_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%ice_saturation%dataset,iconn,ice_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = ice_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%ice_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE GI-state gas saturation ',string)
+              call PrintErrMsg(option)
+          end select
+      ! ---------------------------------------------------------------------- !
+        case(AI_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          select case(hydrate%gas_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE AI-State gas pressure ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !  
+          select case(hydrate%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE AI-state temperature ',string)
+              call PrintErrMsg(option)
+          end select
+          ! liquid saturation; 3rd dof ---------------------- !
+          select case(hydrate%gas_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%liquid_saturation%dataset,iconn, &
+                        liq_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = liq_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%liquid_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE AI-state liquid saturation ',string)
+              call PrintErrMsg(option)
+          end select
+      ! ---------------------------------------------------------------------- !
+        case(HGA_STATE)
+          ! gas saturation; 1st dof ------------------------ !
+          select case(hydrate%gas_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_saturation%dataset,iconn,gas_sat)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_sat
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HGA-State gas saturation ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !  
+          select case(hydrate%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HGA-state temperature ',string)
+              call PrintErrMsg(option)
+          end select
+          ! hydrate saturation; 3rd dof ---------------------- !
+          select case(hydrate%hydrate_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%hydrate_saturation%dataset,iconn, &
+                        hyd_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = hyd_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%hydrate_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HGA-state hydrate saturation ',string)
+              call PrintErrMsg(option)
+          end select
+      ! ---------------------------------------------------------------------- !
+        case(HAI_STATE, GAI_STATE)
+          ! gas pressure; 1st dof ------------------------ !
+          select case(hydrate%gas_pressure%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%gas_pressure%dataset,iconn,gas_pressure)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = gas_pressure
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_pressure%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HAI-State gas pressure ',string)
+              call PrintErrMsg(option)
+          end select
+          ! ice saturation; 2nd dof ------------------------- !  
+          select case(hydrate%ice_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%ice_saturation%dataset,iconn,ice_sat)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = ice_sat
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%ice_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HAI-state ice saturation ',string)
+              call PrintErrMsg(option)
+          end select
+          ! hydrate saturation; 3rd dof ---------------------- !
+          select case(hydrate%hydrate_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%hydrate_saturation%dataset,iconn, &
+                        hyd_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = hyd_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%hydrate_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HAI-state hydrate saturation ',string)
+              call PrintErrMsg(option)
+          end select
+      ! ---------------------------------------------------------------------- !
+        case(HGI_STATE)
+          ! ice saturation; 1st dof ------------------------ !
+          select case(hydrate%ice_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%ice_saturation%dataset,iconn,ice_sat)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = ice_sat
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%ice_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HGI-State ice saturation ',string)
+              call PrintErrMsg(option)
+          end select
+          ! temperature; 2nd dof ------------------------- !  
+          select case(hydrate%temperature%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%temperature%dataset,iconn,temperature)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = temperature
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%temperature%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HGI-state temperature ',string)
+              call PrintErrMsg(option)
+          end select
+          ! hydrate saturation; 3rd dof ---------------------- !
+          select case(hydrate%hydrate_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%hydrate_saturation%dataset,iconn, &
+                        hyd_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = hyd_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%hydrate_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE HGI-state hydrate saturation ',string)
+              call PrintErrMsg(option)
+          end select
+      ! ---------------------------------------------------------------------- !
+        case(QUAD_STATE)
+          ! liquid saturation; 1st dof ------------------------ !
+          select case(hydrate%liquid_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                     patch%grid,hydrate%liquid_saturation%dataset,iconn,liq_sat)
+              coupler%flow_aux_real_var(ONE_INTEGER,iconn) = liq_sat
+              dof1 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_LIQUID_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%liquid_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE QUAD-State liquid saturation ',string)
+              call PrintErrMsg(option)
+          end select
+          ! ice satuation; 2nd dof ------------------------- !  
+          select case(hydrate%ice_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                       patch%grid,hydrate%ice_saturation%dataset,iconn,ice_sat)
+              coupler%flow_aux_real_var(TWO_INTEGER,iconn) = ice_sat
+              dof2 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_ENERGY_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%ice_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE QUAD-state ice saturation ',string)
+              call PrintErrMsg(option)
+          end select
+          ! gas saturation; 3rd dof ---------------------- !
+          select case(hydrate%gas_saturation%itype)
+            case(DIRICHLET_BC)
+              call PatchGetCouplerValueFromDataset(coupler,option, &
+                        patch%grid,hydrate%gas_saturation%dataset,iconn, &
+                        gas_sat)
+              coupler%flow_aux_real_var(THREE_INTEGER,iconn) = gas_sat
+              dof3 = PETSC_TRUE
+              coupler%flow_bc_type(HYDRATE_GAS_EQUATION_INDEX) = DIRICHLET_BC
+            case default
+              string = GetSubConditionName(hydrate%gas_saturation%itype)
+              option%io_buffer = &
+                FlowConditionUnknownItype(coupler%flow_condition, &
+                  'HYDRATE MODE QUAD-state gas saturation ',string)
+              call PrintErrMsg(option)
+          end select
       ! ---------------------------------------------------------------------- !
         case(HYD_ANY_STATE)
           ! temperature; 2nd dof ------------------------- !
@@ -2637,7 +3120,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
   ! boundary condition might be split up on 2 or more processes  
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
     if (coupler%itype .ne. SRC_SINK_COUPLER_TYPE) then
-      option%io_buffer = 'Error with GENERAL_MODE phase boundary condition: &
+      option%io_buffer = 'Error with HYDRATE_MODE phase boundary condition: &
                           &Missing dof.'
       call PrintErrMsg(option)
     endif

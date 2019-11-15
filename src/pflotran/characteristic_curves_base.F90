@@ -43,6 +43,7 @@ module Characteristic_Curves_Base_module
   type, public :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
     PetscReal :: Sr
+    PetscReal :: Srg
     PetscBool :: analytical_derivative_available
   contains
     procedure, public :: Init => RPFBaseInit
