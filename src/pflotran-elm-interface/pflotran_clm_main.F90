@@ -199,6 +199,8 @@ contains
   !  Get CLM final timestep and converts it to PFLOTRAN final way point.
   !  And also set an option for turning on/off PF printing
 
+  ! note: 2019-11-14: not work anymore - cause waypointlist totally messy up ( to be DEPRECATED)
+
   subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, waypoint_dtmax, isprintout)
 
     use Simulation_Base_class, only : simulation_base_type
@@ -222,7 +224,7 @@ contains
     PetscBool, intent(in)              :: isprintout
 
     type(waypoint_list_type), pointer  :: waypoint_list
-    type(waypoint_type), pointer       :: waypoint, waypoint1
+    type(waypoint_type), pointer       :: waypoint!, waypoint1
     character(len=MAXWORDLENGTH)       :: word, internal_units
 
     class(simulation_subsurface_type), pointer  :: simulation
@@ -243,17 +245,23 @@ contains
     end select
 
     ! new final waypoint
-    word = 's'
-    internal_units = 'sec'
-    waypoint1 => WaypointCreate()
-    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
-    waypoint1%print_snap_output = PETSC_TRUE
-    waypoint1%print_checkpoint  = PETSC_FALSE
-    waypoint1%final             = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
 
     ! update subsurface-realization final waypoint
     if (associated(realization) .and. associated(simulation)) then
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for subsurface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_snap_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
       ! remove original final waypoint
       waypoint => waypoint_list%first
       do
@@ -268,24 +276,7 @@ contains
       enddo
 
       ! insert new final waypoint
-      call WaypointInsertInList(waypoint1, waypoint_list)
-      call RealizationAddWaypointsToList(realization, waypoint_list)
-      call WaypointListFillIn(waypoint_list, option)
-      call WaypointListRemoveExtraWaypnts(waypoint_list, option)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for subsurface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_snap_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
+      call pflotranModelInsertWaypoint(model, waypoint_time, waypoint_dtmax, PETSC_TRUE, isprintout)
 
     endif
 
@@ -336,13 +327,18 @@ contains
     internal_units = 'sec'
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
-    waypoint%update_conditions = PETSC_TRUE
+    waypoint%update_conditions = PETSC_FALSE
     waypoint%print_snap_output = isprintout
     waypoint%print_obs_output  = PETSC_FALSE
     waypoint%print_checkpoint  = PETSC_FALSE
     waypoint%print_msbl_output = PETSC_FALSE
     waypoint%final             = waypoint_final
     waypoint%dt_max            = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
+
+    if(waypoint_final) then
+      waypoint%print_snap_output = PETSC_TRUE
+      waypoint%print_checkpoint  = PETSC_FALSE
+    end if
 
     select type (modsim => model%simulation)
       class is (simulation_subsurface_type)
@@ -492,12 +488,15 @@ contains
       endif
     endif
 
-    pause_time1 = pause_time + dtime
-    call pflotranModelInsertWaypoint(model, pause_time1, dtime, PETSC_FALSE, isprintout)
+    pause_time1 = pause_time - dtime
+
+    ! both 'InsertWaypoint' and 'DelteWaypoint' may cause list messy or computationally cost,
+    ! AND not really needed, as long as setting 'pause_time' correctly ('final_time' and 'dtime' as well)
+    !call pflotranModelInsertWaypoint(model, pause_time, dtime, PETSC_FALSE, isprintout)
 
     call model%simulation%RunToTime(pause_time)
 
-    call pflotranModelDeleteWaypoint(model, pause_time)
+    !call pflotranModelDeleteWaypoint(model, pause_time1)  ! has issue
 
   end subroutine pflotranModelStepperRunTillPauseTime
 
