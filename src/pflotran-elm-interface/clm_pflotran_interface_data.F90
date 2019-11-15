@@ -24,6 +24,9 @@ module clm_pflotran_interface_data
 
   !------------------- A few global constants --------------------------------------------
   
+  ! final time of pflotran run (i.e. stop) in seconds, assuming (re-)starting from zero
+  PetscReal :: final_time
+
   ! numbers of CLM soil layers, grids that are mapped to/from PFLOTRAN (global constants, not local copy)
   PetscInt :: nzclm_mapped
   PetscInt :: nxclm_mapped
