@@ -17,7 +17,7 @@ SUBSURFACE
 #=========================== regression =======================================
 REGRESSION
   CELLS
-    5
+    8
   /
 END
 
