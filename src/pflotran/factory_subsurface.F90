@@ -3654,7 +3654,11 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
               waypoint => WaypointCreate()
               waypoint%final = PETSC_TRUE
+#ifdef CLM_PFLOTRAN
+              waypoint%time = clm_pf_idata%final_time   ! must be in seconds
+#else
               waypoint%time = temp_real*temp_real2
+#endif
               waypoint%print_snap_output = PETSC_TRUE
               call WaypointInsertInList(waypoint,waypoint_list)
             case('INITIAL_TIMESTEP_SIZE')
