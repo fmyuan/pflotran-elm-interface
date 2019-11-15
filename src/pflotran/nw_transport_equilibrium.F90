@@ -15,8 +15,8 @@ contains
 
 ! ************************************************************************** !
 
-subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
-                                    nwt_auxvar,global_auxvar,material_auxvar, &
+subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
+                                    global_auxvar,material_auxvar, &
                                     option)
   ! 
   ! Calculates the transport constraints based on equilibrium conditions.
@@ -28,32 +28,35 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
   use Option_module
   use Global_Aux_module
   use Material_Aux_class
-  use NWT_Constraint_module
+  use Transport_Constraint_NWT_module
   
   implicit none
   
-  type(nw_trans_realization_type), pointer :: nw_trans
-  type(nwt_species_constraint_type), pointer :: nwt_species_constraint
+  class(reaction_nw_type), pointer :: reaction_nw
+  class(tran_constraint_nwt_type) :: constraint
   type(nw_transport_auxvar_type) :: nwt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   
   type(species_type), pointer :: cur_species
+  type(nwt_species_constraint_type), pointer :: nwt_species
   PetscInt :: ispecies
   PetscInt :: c_type
   PetscBool :: dry_out
-  PetscReal :: solubility(nw_trans%params%nspecies)  ! [mol/m^3-liq]
-  PetscReal :: mnrl_molar_density(nw_trans%params%nspecies)  ! [mol/m^3-mnrl]
-  PetscReal :: ele_kd(nw_trans%params%nspecies)  ! [m^3-water/m^3-bulk]
+  PetscReal :: solubility(reaction_nw%params%nspecies)  ! [mol/m^3-liq]
+  PetscReal :: mnrl_molar_density(reaction_nw%params%nspecies)  ! [mol/m^3-mnrl]
+  PetscReal :: ele_kd(reaction_nw%params%nspecies)  ! [m^3-water/m^3-bulk]
   PetscReal :: ppt_mass    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass   ! [mol/m^3-bulk]
   PetscReal :: sat, por
+
+  nwt_species => constraint%nwt_species
   
   sat = global_auxvar%sat(LIQUID_PHASE)
   por = material_auxvar%porosity
-  
-  cur_species => nw_trans%species_list
+
+  cur_species => reaction_nw%species_list
   do 
     if (.not.associated(cur_species)) exit
     solubility(cur_species%id) = cur_species%solubility_limit
@@ -62,21 +65,21 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
     cur_species => cur_species%next
   enddo
   
-  ! jenn:todo Why do I get weird PETSC_FALSE/TRUE compile error here?
+  !TODO(jenn) Why do I get weird PETSC_FALSE/TRUE compile error here?
   if (sat > 0.d0) then
     dry_out = PETSC_FALSE
   else
     dry_out = PETSC_TRUE
   endif
   
-  do ispecies = 1,nw_trans%params%nspecies
+  do ispecies = 1,reaction_nw%params%nspecies
   
-    c_type = nwt_species_constraint%constraint_type(ispecies)
+    c_type = nwt_species%constraint_type(ispecies)
     select case(c_type)
     !---------------------------------------
       case(CONSTRAINT_T_EQUILIBRIUM)
         nwt_auxvar%total_bulk_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+                              nwt_species%constraint_conc(ispecies)
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
                             (nwt_auxvar%total_bulk_conc(ispecies)/(sat*por))* &
                             (1.d0/(1.d0+(ele_kd(ispecies)/(sat*por))))
@@ -93,7 +96,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
     !---------------------------------------
       case(CONSTRAINT_AQ_EQUILIBRIUM)
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+                              nwt_species%constraint_conc(ispecies)
         ! check aqueous concentration against solubility limit and update
         call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
                                  global_auxvar,dry_out,ele_kd(ispecies), &
@@ -112,7 +115,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
     !---------------------------------------
       case(CONSTRAINT_PPT_EQUILIBRIUM)
         nwt_auxvar%mnrl_eq_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+                              nwt_species%constraint_conc(ispecies)
         nwt_auxvar%mnrl_vol_frac(ispecies) = &
                                       nwt_auxvar%mnrl_eq_conc(ispecies)/ &
                                       (por*mnrl_molar_density(ispecies))
@@ -131,7 +134,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
     !---------------------------------------
       case(CONSTRAINT_MNRL_VOL_FRAC_EQ)
         nwt_auxvar%mnrl_vol_frac(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+                              nwt_species%constraint_conc(ispecies)
         nwt_auxvar%mnrl_eq_conc(ispecies) = &
                           nwt_auxvar%mnrl_vol_frac(ispecies)* &
                           material_auxvar%porosity*mnrl_molar_density(ispecies)
@@ -155,7 +158,7 @@ subroutine NWTEquilibrateConstraint(nw_trans,nwt_species_constraint, &
           call PrintErrMsg(option)
         endif
         nwt_auxvar%sorb_eq_conc(ispecies) = &
-                              nwt_species_constraint%constraint_conc(ispecies)
+                              nwt_species%constraint_conc(ispecies)
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
                             nwt_auxvar%sorb_eq_conc(ispecies)/ele_kd(ispecies)
         ! check aqueous concentration against solubility limit and update

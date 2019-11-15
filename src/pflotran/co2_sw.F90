@@ -349,11 +349,8 @@ subroutine interp(x1,x2,y)
   ! 
 
       use co2_span_wagner_module, only: vappr, co2_span_wagner
-#include "petsc/finclude/petscsys.h"
-     use petscsys
-     implicit none 
-  
 
+     implicit none 
   
       PetscReal :: x1,x2,y(15)   
       

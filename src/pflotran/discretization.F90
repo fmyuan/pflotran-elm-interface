@@ -1,6 +1,8 @@
 module Discretization_module
+
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
+
   use Grid_module
   use Grid_Structured_module
   use Grid_Unstructured_module
@@ -880,8 +882,6 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none
@@ -1010,8 +1010,6 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none
@@ -1483,11 +1481,7 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   ! Author: Glenn Hammond
   ! Date: 10/12/12
   ! 
-#include "petsc/finclude/petscdmda.h"
-  use petscdmda
   implicit none
-  
-
   
   type(discretization_type) :: discretization
   PetscInt :: int_array(:)

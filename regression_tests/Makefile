@@ -20,6 +20,22 @@ ifdef PERFORMANCE
 	TEST_OPTIONS += --check-performance
 endif
 
+ifdef DRYRUN
+	TEST_OPTIONS += --dry-run
+endif
+
+ifdef UPDATE
+	TEST_OPTIONS += --update
+endif
+
+ifdef CHECK
+	TEST_OPTIONS += --check-only
+endif
+
+ifdef NEW
+	TEST_OPTIONS += --new-tests
+endif
+
 ifdef BACKTRACE
 	TEST_OPTIONS += --backtrace
 endif
@@ -80,21 +96,25 @@ STANDARD_CFG = \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
 	wipp/nuts/nuts.cfg \
         wipp/transport/batch/wipp_batch.cfg \
-        wipp/transport/wipp_regular.cfg 
+        wipp/transport/wipp_regular.cfg \
+	toil_ims/toil_ims.cfg \
+	towg/ims/towg_ims.cfg \
+	towg/tl/towg_tl.cfg \
+	towg/bo/towg_bo.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
-	toil_ims/toil_ims.cfg \
-	towg/ims/towg_ims.cfg \
-	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg \
 	CPR_preconditioner/CPR_preconditioner.cfg
 endif
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 STANDARD_CFG += \
 	default/discretization/discretization.cfg \
+	default/materials/materials_ug.cfg \
+	default/output/output_ug.cfg \
+	default/regions/regions_ug.cfg \
+	default/regions/cell_mapping/cell_mapping_ug.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
         geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \

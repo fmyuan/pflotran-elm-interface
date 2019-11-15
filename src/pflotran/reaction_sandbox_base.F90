@@ -1,13 +1,14 @@
 module Reaction_Sandbox_Base_class
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, abstract, public :: reaction_sandbox_base_type
     class(reaction_sandbox_base_type), pointer :: next
   contains
@@ -41,7 +42,7 @@ module Reaction_Sandbox_Base_class
       implicit none
   
       class(reaction_sandbox_base_type) :: this
-      type(reaction_type) :: reaction
+      class(reaction_rt_type) :: reaction
       type(option_type) :: option
   
     end subroutine Base_Setup 
@@ -91,7 +92,7 @@ module Reaction_Sandbox_Base_class
   
       class(reaction_sandbox_base_type) :: this
       type(option_type) :: option
-      type(reaction_type) :: reaction
+      class(reaction_rt_type) :: reaction
       PetscBool :: compute_derivative
       ! the following arrays must be declared after reaction
       PetscReal :: Res(reaction%ncomp)
@@ -128,7 +129,7 @@ contains
     implicit none
   
     class(reaction_sandbox_base_type) :: this
-    type(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     type(option_type) :: option
   
   end subroutine Base_Setup 
@@ -176,7 +177,7 @@ contains
     class(reaction_sandbox_base_type) :: this
     type(output_variable_list_type), pointer :: list
     type(option_type) :: option
-    type(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
   
   end subroutine Base_AuxiliaryPlotVariables
 
@@ -194,7 +195,7 @@ contains
   
     class(reaction_sandbox_base_type) :: this
     type(option_type) :: option
-    type(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     PetscBool :: compute_derivative
     ! the following arrays must be declared after reaction
     PetscReal :: Residual(reaction%ncomp)
@@ -219,7 +220,7 @@ contains
   
     class(reaction_sandbox_base_type) :: this
     type(option_type) :: option
-    type(reaction_type) :: reaction
+    class(reaction_rt_type) :: reaction
     type(reactive_transport_auxvar_type) :: rt_auxvar
     type(global_auxvar_type) :: global_auxvar
     class(material_auxvar_type) :: material_auxvar

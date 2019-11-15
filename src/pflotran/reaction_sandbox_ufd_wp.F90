@@ -1,5 +1,8 @@
 module Reaction_Sandbox_UFD_WP_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
 ! Sandbox reaction for waste packages in the DOE-NE UFD
   
 ! 1. Change all references to "WastePackage" as desired to rename the module and
@@ -16,8 +19,6 @@ module Reaction_Sandbox_UFD_WP_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_ufd_wp_type
     character(len=MAXWORDLENGTH) :: aqueous_species_name
@@ -69,8 +70,6 @@ subroutine WastePackageRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/27/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -158,14 +157,14 @@ subroutine WastePackageSetup(this,reaction,option)
   ! Date: 02/27/14
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
 
   implicit none
   
   class(reaction_sandbox_ufd_wp_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   this%aqueous_species_id = &
@@ -197,7 +196,7 @@ subroutine WastePackageReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_ufd_wp_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

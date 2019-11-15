@@ -10,8 +10,9 @@ module PM_Waste_Form_class
 ! form before and after waste package breach.  
 ! ===========================================================================
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use PM_Base_class
   use Realization_Subsurface_class
   use Option_module
@@ -2261,7 +2262,7 @@ subroutine PMWFSetup(this)
 ! ranks(:): array of size(mycommsize) used to find local waste form objects
 ! -------------------------------------------------------  
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   character(len=MAXWORDLENGTH) :: species_name
   character(len=MAXWORDLENGTH), pointer :: names(:)
   class(waste_form_base_type), pointer :: cur_waste_form
@@ -2498,8 +2499,6 @@ end subroutine PMWFSetup
   ! 
   ! Author: Glenn Hammond
   ! Date: 08/25/15
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Reaction_Aux_module
   use Realization_Base_class
   
@@ -2615,8 +2614,6 @@ subroutine PMWFInitializeTimestep(this)
   ! Date: 08/26/15
   ! Notes: Modified by Jenn Frederick 03/28/2016
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Utility_module
   use Global_Aux_module
   use Material_Aux_class
@@ -3115,8 +3112,6 @@ subroutine PMWFSolve(this,time,ierr)
   ! Notes: The species loop must be the inner loop, while the grid cell loop
   ! must be the outer loop, in order for the vec_p(i) indexing to work.
   
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Global_Aux_module
   use Material_Aux_class
   use Reactive_Transport_Aux_module, only : rt_min_saturation
@@ -4094,8 +4089,6 @@ subroutine PMWFCheckpointHDF5(this,pm_grp_id)
   ! Date: 09/21/18
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use hdf5
@@ -4248,8 +4241,6 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
   ! Author: Michael Nole
   ! Date: 10/03/18
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use hdf5
@@ -4550,8 +4541,6 @@ subroutine PMWFRestartBinary(this, viewer)
   ! Author: Michael Nole
   ! Date: 10/09/18
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use hdf5
@@ -5180,8 +5169,6 @@ subroutine CriticalityInitializeRun(this, realization, option)
   ! Author: Michael Nole
   ! Date: 11/01/18
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Realization_Base_class
   use Option_module
@@ -5283,8 +5270,6 @@ subroutine CriticalitySolve(this,realization,time,scaling_factor,ierr)
   !Author: Michael Nole
   !Date: 11/05/18
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
 
   implicit none

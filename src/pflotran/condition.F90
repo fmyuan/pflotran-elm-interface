@@ -3,18 +3,12 @@ module Condition_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
-!  use Reaction_Aux_module
-!  use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Dataset_Base_class
   use Dataset_Ascii_class
   use Time_Storage_module
   use Lookup_Table_module
-  use NWT_Constraint_module
-
-  use Transport_Constraint_module
-!  use Reaction_Surface_Complexation_Aux_module
-!  use Reaction_Mineral_Aux_module
+  use Transport_Constraint_Base_module
 
   use PFLOTRAN_Constants_module
 
@@ -161,10 +155,8 @@ module Condition_module
     PetscInt :: itype                  ! integer describing type of condition
     PetscBool :: is_transient
     character(len=MAXWORDLENGTH) :: name  ! name of condition (e.g. initial, recharge)
-    type(tran_constraint_coupler_type), pointer :: constraint_coupler_list
-    type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-    type(nwt_constraint_coupler_type), pointer :: nwt_constraint_coupler_list
-    type(nwt_constraint_coupler_type), pointer :: cur_nwt_constraint_coupler
+    class(tran_constraint_coupler_base_type), pointer :: constraint_coupler_list
+    class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
     type(tran_condition_type), pointer :: next
   end type tran_condition_type
 
@@ -191,7 +183,6 @@ module Condition_module
             TranConditionDestroyList, TranConditionGetPtrFromList, &
             TranConditionRead, &
             TranConditionUpdate, &
-            NWTConditionUpdate, &
             FlowConditionIsTransient, &
             ConditionReadValues, &
             GetSubConditionName, &
@@ -276,8 +267,6 @@ function TranConditionCreate(option)
   allocate(condition)
   nullify(condition%constraint_coupler_list)
   nullify(condition%cur_constraint_coupler)
-  nullify(condition%nwt_constraint_coupler_list)
-  nullify(condition%cur_nwt_constraint_coupler)
   nullify(condition%next)
   condition%id = 0
   condition%itype = 0
@@ -4515,9 +4504,8 @@ end subroutine FlowConditionCommonRead
 
 ! ************************************************************************** !
 
-subroutine TranConditionRead(condition,tran_constraint_list, &
-                             nwt_constraint_list,reaction,nw_trans, &
-                             input,option)
+subroutine TranConditionRead(condition,constraint_list, &
+                             reaction_base,input,option)
   !
   ! Reads a transport condition from the input file
   !
@@ -4530,29 +4518,31 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
   use String_module
   use Logging_module
   use Units_module
+
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_module
+  use Reaction_Base_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
-  use NWT_Constraint_module
 
   implicit none
 
   type(tran_condition_type) :: condition
-  type(tran_constraint_list_type) :: tran_constraint_list
-  type(nwt_constraint_list_type) :: nwt_constraint_list
-  type(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  type(tran_constraint_list_type) :: constraint_list
+  class(reaction_base_type), pointer :: reaction_base
   type(input_type), pointer :: input
   type(option_type) :: option
 
-  type(tran_constraint_type), pointer :: tran_constraint
-  type(tran_constraint_coupler_type), pointer :: tran_constraint_coupler 
-  type(tran_constraint_coupler_type), pointer :: cur_tran_coupler
-  type(nwt_constraint_type), pointer :: nwt_constraint
-  type(nwt_constraint_coupler_type), pointer :: nwt_constraint_coupler 
-  type(nwt_constraint_coupler_type), pointer :: cur_nwt_coupler
+  class(tran_constraint_base_type), pointer :: constraint
+  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler 
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word, internal_units
   character(len=MAXWORDLENGTH) :: default_time_units
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   PetscInt :: default_itype
   PetscBool :: found
   PetscInt :: icomp
@@ -4562,6 +4552,13 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
   call PetscLogEventBegin(logging%event_tran_condition_read, &
                           ierr);CHKERRQ(ierr)
+
+  select type(r=>reaction_base)
+    class is(reaction_rt_type)
+      reaction => r
+    class is(reaction_nw_type)
+      reaction_nw => r
+  end select
 
   default_time_units = ''
 
@@ -4620,130 +4617,82 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
 
           if (InputCheckExit(input,option)) exit
 
-          if (associated(reaction)) then
-            tran_constraint_coupler => TranConstraintCouplerCreate(option)
-            call InputReadDouble(input,option,tran_constraint_coupler%time)
-            call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
-            ! time units are optional
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
-            ! read constraint name
-            call InputReadWord(input,option, &
-                               tran_constraint_coupler%constraint_name, &
-                               PETSC_TRUE)
-            if (InputError(input)) then
-              tran_constraint_coupler%time_units = default_time_units
-              tran_constraint_coupler%constraint_name = trim(word)
-            else
-              tran_constraint_coupler%time_units = word
-            endif
-            ! convert time units
-            if (len_trim(tran_constraint_coupler%time_units) > 0) then
-              internal_units = 'sec'
-              tran_constraint_coupler%time = tran_constraint_coupler%time* &
-                UnitsConvertToInternal(tran_constraint_coupler%time_units, &
-                                       internal_units,option)
-            endif
-            ! add to end of list
-            if (.not.associated(condition%constraint_coupler_list)) then
-              condition%constraint_coupler_list => tran_constraint_coupler
-            else
-              cur_tran_coupler => condition%constraint_coupler_list
-              do
-                if (.not.associated(cur_tran_coupler%next)) exit
-                cur_tran_coupler => cur_tran_coupler%next
-              enddo
-              cur_tran_coupler%next => tran_constraint_coupler
-            endif
+          select case(option%itranmode)
+            case(RT_MODE)
+              constraint_coupler => TranConstraintCouplerRTCreate(option)
+            case(NWT_MODE)
+              constraint_coupler => TranConstraintCouplerNWTCreate(option)
+          end select
+          call InputReadDouble(input,option,constraint_coupler%time)
+          call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
+          ! time units are optional
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
+          ! read constraint name
+          call InputReadWord(input,option, &
+                             constraint_coupler%constraint_name, &
+                             PETSC_TRUE)
+          if (InputError(input)) then
+            constraint_coupler%time_units = default_time_units
+            constraint_coupler%constraint_name = trim(word)
+          else
+            constraint_coupler%time_units = word
           endif
-          if (associated(nw_trans)) then
-            nwt_constraint_coupler => NWTConstraintCouplerCreate(option)
-            call InputReadDouble(input,option,nwt_constraint_coupler%time)
-            call InputErrorMsg(input,option,'time','CONSTRAINT_LIST')
-            ! time units are optional
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'constraint name','CONSTRAINT_LIST')
-            ! read constraint name
-            call InputReadWord(input,option, &
-                               nwt_constraint_coupler%constraint_name, &
-                               PETSC_TRUE)
-            if (InputError(input)) then
-              nwt_constraint_coupler%time_units = default_time_units
-              nwt_constraint_coupler%constraint_name = trim(word)
-            else
-              nwt_constraint_coupler%time_units = word
-            endif
-            ! convert time units
-            if (len_trim(nwt_constraint_coupler%time_units) > 0) then
-              internal_units = 'sec'
-              nwt_constraint_coupler%time = nwt_constraint_coupler%time* &
-                UnitsConvertToInternal(nwt_constraint_coupler%time_units, &
-                                       internal_units,option)
-            endif
-            ! add to end of list
-            if (.not.associated(condition%nwt_constraint_coupler_list)) then
-              condition%nwt_constraint_coupler_list => nwt_constraint_coupler
-            else
-              cur_nwt_coupler => condition%nwt_constraint_coupler_list
-              do
-                if (.not.associated(cur_nwt_coupler%next)) exit
-                cur_nwt_coupler => cur_nwt_coupler%next
-              enddo
-              cur_nwt_coupler%next => nwt_constraint_coupler
-            endif
+          ! convert time units
+          if (len_trim(constraint_coupler%time_units) > 0) then
+            internal_units = 'sec'
+            constraint_coupler%time = constraint_coupler%time* &
+              UnitsConvertToInternal(constraint_coupler%time_units, &
+                                     internal_units,option)
+          endif
+          ! add to end of list
+          if (.not.associated(condition%constraint_coupler_list)) then
+            condition%constraint_coupler_list => constraint_coupler
+          else
+            cur_constraint_coupler => condition%constraint_coupler_list
+            do
+              if (.not.associated(cur_constraint_coupler%next)) exit
+              cur_constraint_coupler => cur_constraint_coupler%next
+            enddo
+            cur_constraint_coupler%next => constraint_coupler
           endif
         enddo
         call InputPopBlock(input,option)
         
       case('CONSTRAINT')
-        if (associated(reaction)) then
-          tran_constraint => TranConstraintCreate(option)
-          tran_constraint_coupler => TranConstraintCouplerCreate(option)
-          call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'constraint','name')
-          option%io_buffer = 'Constraint: ' // trim(tran_constraint%name)
-          call PrintMsg(option)
-          call TranConstraintRead(tran_constraint,reaction,input,option)
-          call TranConstraintAddToList(tran_constraint,tran_constraint_list)
-          call TranConstraintMapToCoupler(tran_constraint_coupler, &
-                                          tran_constraint)
-          tran_constraint_coupler%time = 0.d0
-          ! add to end of coupler list
-          if (.not.associated(condition%constraint_coupler_list)) then
-            condition%constraint_coupler_list => tran_constraint_coupler
-          else
-            cur_tran_coupler => condition%constraint_coupler_list
-            do
-              if (.not.associated(cur_tran_coupler%next)) exit
-              cur_tran_coupler => cur_tran_coupler%next
-            enddo
-            cur_tran_coupler%next => tran_constraint_coupler
-          endif
+        select case(option%itranmode)
+          case(RT_MODE)
+            constraint_coupler => TranConstraintCouplerRTCreate(option)
+            constraint => TranConstraintRTCreate(option)
+          case(NWT_MODE)
+            constraint_coupler => TranConstraintCouplerNWTCreate(option)
+            constraint => TranConstraintNWTCreate(option)
+        end select
+        call InputReadWord(input,option,constraint%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'constraint','name')
+        option%io_buffer = 'Constraint: ' // trim(constraint%name)
+        call PrintMsg(option)
+        ! have to leave this select type as the argument lists differ
+        select type(c=>constraint)
+          class is(tran_constraint_rt_type)
+            call TranConstraintRTRead(c,reaction,input,option)
+          class is(tran_constraint_nwt_type)
+            call TranConstraintNWTRead(c,reaction_nw,input,option)
+        end select
+        call TranConstraintAddToList(constraint,constraint_list)
+        constraint_coupler%constraint => constraint
+        constraint_coupler%time = 0.d0
+        ! add to end of coupler list
+        if (.not.associated(condition%constraint_coupler_list)) then
+          condition%constraint_coupler_list => constraint_coupler
+        else
+          cur_constraint_coupler => condition%constraint_coupler_list
+          do
+            if (.not.associated(cur_constraint_coupler%next)) exit
+            cur_constraint_coupler => cur_constraint_coupler%next
+          enddo
+          cur_constraint_coupler%next => constraint_coupler
         endif
-        if (associated(nw_trans)) then
-          nwt_constraint => NWTConstraintCreate(option)
-          nwt_constraint_coupler => NWTConstraintCouplerCreate(option)
-          call InputReadWord(input,option,nwt_constraint%name,PETSC_TRUE)
-          call InputErrorMsg(input,option,'constraint','name')
-          option%io_buffer = 'Constraint: ' // trim(nwt_constraint%name)
-          call PrintMsg(option)
-          call NWTConstraintRead(nwt_constraint,nw_trans,input,option)
-          call NWTConstraintAddToList(nwt_constraint,nwt_constraint_list)
-          call NWTConstraintMapToCoupler(nwt_constraint_coupler,nwt_constraint)
-          nwt_constraint_coupler%time = 0.d0
-          ! add to end of coupler list
-          if (.not.associated(condition%nwt_constraint_coupler_list)) then
-            condition%nwt_constraint_coupler_list => nwt_constraint_coupler
-          else
-            cur_nwt_coupler => condition%nwt_constraint_coupler_list
-            do
-              if (.not.associated(cur_nwt_coupler%next)) exit
-              cur_nwt_coupler => cur_nwt_coupler%next
-            enddo
-            cur_nwt_coupler%next => nwt_constraint_coupler
-          endif
-        endif
-
       case default
         call InputKeywordUnrecognized(input,word,'transport condition',option)
     end select
@@ -4751,46 +4700,24 @@ subroutine TranConditionRead(condition,tran_constraint_list, &
   enddo
   call InputPopBlock(input,option)
 
-  if (associated(reaction)) then
-    if (.not.associated(condition%constraint_coupler_list)) then
-      option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
-                         &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsg(option)
-    endif
+  if (.not.associated(condition%constraint_coupler_list)) then
+    option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
+                       &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
+    call PrintErrMsg(option)
   endif
-  if (associated(nw_trans)) then
-    if (.not.associated(condition%nwt_constraint_coupler_list)) then
-      option%io_buffer = 'No CONSTRAINT or CONSTRAINT_LIST defined in &
-                         &TRANSPORT_CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsg(option)
-    endif
-  endif
-  
   
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     conversion = UnitsConvertToInternal(default_time_units,internal_units, &
                                         option)
-    if (associated(reaction)) then
-      cur_tran_coupler => condition%constraint_coupler_list
-      do
-        if (.not.associated(cur_tran_coupler)) exit
-        if (len_trim(cur_tran_coupler%time_units) == 0) then
-          cur_tran_coupler%time = cur_tran_coupler%time*conversion
-        endif
-        cur_tran_coupler => cur_tran_coupler%next
-      enddo
-    endif
-    if (associated(nw_trans)) then
-      cur_nwt_coupler => condition%nwt_constraint_coupler_list
-      do
-        if (.not.associated(cur_nwt_coupler)) exit
-        if (len_trim(cur_nwt_coupler%time_units) == 0) then
-          cur_nwt_coupler%time = cur_nwt_coupler%time*conversion
-        endif
-        cur_nwt_coupler => cur_nwt_coupler%next
-      enddo
-    endif
+    cur_constraint_coupler => condition%constraint_coupler_list
+    do
+      if (.not.associated(cur_constraint_coupler)) exit
+      if (len_trim(cur_constraint_coupler%time_units) == 0) then
+        cur_constraint_coupler%time = cur_constraint_coupler%time*conversion
+      endif
+      cur_constraint_coupler => cur_constraint_coupler%next
+    enddo
   endif
 
   call PetscLogEventEnd(logging%event_tran_condition_read,ierr);CHKERRQ(ierr)
@@ -5241,7 +5168,6 @@ subroutine TranConditionUpdate(condition_list,option)
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   !
-
   use Option_module
 
   implicit none
@@ -5272,47 +5198,6 @@ subroutine TranConditionUpdate(condition_list,option)
   enddo
 
 end subroutine TranConditionUpdate
-
-! ************************************************************************** !
-
-subroutine NWTConditionUpdate(condition_list,option)
-  ! 
-  ! Updates a transient transport condition for NW Transport.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 06/26/2019
-  !
-
-  use Option_module
-
-  implicit none
-
-  type(tran_condition_list_type) :: condition_list
-  type(option_type) :: option
-
-  type(tran_condition_type), pointer :: condition
-
-  condition => condition_list%first
-  do
-    if (.not.associated(condition)) exit
-
-    do
-      if (associated(condition%cur_nwt_constraint_coupler%next)) then
-        if (option%time >= condition%cur_nwt_constraint_coupler%next%time) then
-          condition%cur_nwt_constraint_coupler => &
-            condition%cur_nwt_constraint_coupler%next
-        else
-          exit
-        endif
-      else
-        exit
-      endif
-    enddo
-    condition => condition%next
-
-  enddo
-
-end subroutine NWTConditionUpdate
 
 ! ************************************************************************** !
 
@@ -5756,14 +5641,16 @@ subroutine TranCondInputRecord(tran_condition_list,option)
   use Option_module
   use Dataset_Base_class
   Use Transport_Constraint_module
+  Use Transport_Constraint_RT_module
 
   implicit none
 
   type(tran_condition_list_type), pointer :: tran_condition_list
   type(option_type), pointer :: option
 
-  type(tran_constraint_coupler_type), pointer :: cur_tcon_coupler
-  type(tran_condition_type), pointer :: cur_tc
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
+  class(tran_constraint_base_type), pointer :: constraint
+  type(tran_condition_type), pointer :: cur_condition
   character(len=MAXWORDLENGTH) :: word1, word2
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: k
@@ -5775,13 +5662,13 @@ subroutine TranCondInputRecord(tran_condition_list,option)
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'TRANSPORT CONDITIONS'
 
-  cur_tc => tran_condition_list%first
+  cur_condition => tran_condition_list%first
   do
-    if (.not.associated(cur_tc)) exit
+    if (.not.associated(cur_condition)) exit
     write(id,'(a29)',advance='no') 'transport condition name: '
-    write(id,'(a)') adjustl(trim(cur_tc%name))
+    write(id,'(a)') adjustl(trim(cur_condition%name))
     write(id,'(a29)',advance='no') 'transport condition type: '
-    select case (cur_tc%itype)
+    select case (cur_condition%itype)
       case(DIRICHLET_BC)
         write(id,'(a)') 'dirichlet'
       case(DIRICHLET_ZERO_GRADIENT_BC)
@@ -5796,118 +5683,125 @@ subroutine TranCondInputRecord(tran_condition_list,option)
         write(id,'(a)') 'zero_gradient'
     end select
     write(id,'(a29)',advance='no') 'is transient?: '
-    if (cur_tc%is_transient) then
+    if (cur_condition%is_transient) then
       write(id,'(a)') 'YES'
     else
       write(id,'(a)') 'NO'
     endif
-    cur_tcon_coupler => cur_tc%constraint_coupler_list
+    cur_constraint_coupler => cur_condition%constraint_coupler_list
     do
-      if (.not.associated(cur_tcon_coupler)) exit
+      if (.not.associated(cur_constraint_coupler)) exit
       write(id,'(a29)',advance='no') 'transport constraint name: '
-      write(id,'(a)') adjustl(trim(cur_tcon_coupler%constraint_name))
+      write(id,'(a)') adjustl(trim(cur_constraint_coupler%constraint_name))
 
-      ! aqueous species concentraion constraint
-      if (associated(cur_tcon_coupler%aqueous_species)) then
-        do k = 1,size(cur_tcon_coupler%aqueous_species%names)
-          write(id,'(a29)',advance='no') 'aqueous species constraint: '
-          write(string,*) trim(cur_tcon_coupler%aqueous_species%names(k))
-          select case (cur_tcon_coupler%aqueous_species%constraint_type(k))
-            case(CONSTRAINT_FREE)
-              string = trim(string) // ', free'
-            case(CONSTRAINT_TOTAL)
-              string = trim(string) // ', total'
-            case(CONSTRAINT_TOTAL_SORB)
-              string = trim(string) // ', total_sorb'
-            case(CONSTRAINT_PH)
-              string = trim(string) // ', ph'
-            case(CONSTRAINT_LOG)
-              string = trim(string) // ', log'
-            case(CONSTRAINT_MINERAL)
-              string = trim(string) // ', mineral'
-            case(CONSTRAINT_GAS)
-              string = trim(string) // ', gas'
-            case(CONSTRAINT_SUPERCRIT_CO2)
-              string = trim(string) // ', super critical CO2'
-            case(CONSTRAINT_CHARGE_BAL)
-              string = trim(string) // ', charge balance'
-          end select
-          write(word1,*) cur_tcon_coupler%aqueous_species%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-        enddo
-      endif
+      constraint => cur_constraint_coupler%constraint
 
-      ! free-ion guess constraint
-      if (associated(cur_tcon_coupler%free_ion_guess)) then
-        do k = 1,size(cur_tcon_coupler%free_ion_guess%names)
-          write(id,'(a29)',advance='no') 'free ion guess constraint: '
-          write(string,*) trim(cur_tcon_coupler%free_ion_guess%names(k))
-          write(word1,*) cur_tcon_coupler%free_ion_guess%conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-        enddo
-      endif
+      select type(c=>constraint)
+        class is(tran_constraint_rt_type)
+          ! aqueous species concentraion constraint
+          if (associated(c%aqueous_species)) then
+            do k = 1,size(c%aqueous_species%names)
+              write(id,'(a29)',advance='no') 'aqueous species constraint: '
+              write(string,*) trim(c%aqueous_species%names(k))
+              select case (c%aqueous_species%constraint_type(k))
+                case(CONSTRAINT_FREE)
+                  string = trim(string) // ', free'
+                case(CONSTRAINT_TOTAL)
+                  string = trim(string) // ', total'
+                case(CONSTRAINT_TOTAL_SORB)
+                  string = trim(string) // ', total_sorb'
+                case(CONSTRAINT_PH)
+                  string = trim(string) // ', ph'
+                case(CONSTRAINT_LOG)
+                  string = trim(string) // ', log'
+                case(CONSTRAINT_MINERAL)
+                  string = trim(string) // ', mineral'
+                case(CONSTRAINT_GAS)
+                  string = trim(string) // ', gas'
+                case(CONSTRAINT_SUPERCRIT_CO2)
+                  string = trim(string) // ', super critical CO2'
+                case(CONSTRAINT_CHARGE_BAL)
+                  string = trim(string) // ', charge balance'
+              end select
+              write(word1,*) c%aqueous_species%constraint_conc(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' mol'
+            enddo
+          endif
 
-      ! mineral constraint
-      if (associated(cur_tcon_coupler%minerals)) then
-        do k = 1,size(cur_tcon_coupler%minerals%names)
-          write(id,'(a29)',advance='no') 'mineral vol. frac. constraint: '
-          write(string,*) trim(cur_tcon_coupler%minerals%names(k))
-          write(word1,*) cur_tcon_coupler%minerals%constraint_vol_frac(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' m^3/m^3'
-          write(id,'(a29)',advance='no') 'mineral area constraint: '
-          write(string,*) trim(cur_tcon_coupler%minerals%names(k))
-          write(word1,*) cur_tcon_coupler%minerals%constraint_area(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' m^2/m^3'
-        enddo
-      endif
+          ! free-ion guess constraint
+          if (associated(c%free_ion_guess)) then
+            do k = 1,size(c%free_ion_guess%names)
+              write(id,'(a29)',advance='no') 'free ion guess constraint: '
+              write(string,*) trim(c%free_ion_guess%names(k))
+              write(word1,*) c%free_ion_guess%conc(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' mol'
+            enddo
+          endif
 
-      ! surface complexes constraint
-      if (associated(cur_tcon_coupler%surface_complexes)) then
-        do k = 1,size(cur_tcon_coupler%surface_complexes%names)
-          write(id,'(a29)',advance='no') 'surface complex constraint: '
-          write(string,*) trim(cur_tcon_coupler%surface_complexes%names(k))
-          write(word1,*) cur_tcon_coupler%surface_complexes%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol/m^3'
-        enddo
-      endif
+          ! mineral constraint
+          if (associated(c%minerals)) then
+            do k = 1,size(c%minerals%names)
+              write(id,'(a29)',advance='no') 'mineral vol. frac. constraint: '
+              write(string,*) trim(c%minerals%names(k))
+              write(word1,*) c%minerals%constraint_vol_frac(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' m^3/m^3'
+              write(id,'(a29)',advance='no') 'mineral area constraint: '
+              write(string,*) trim(c%minerals%names(k))
+              write(word1,*) c%minerals%constraint_area(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' m^2/m^3'
+            enddo
+          endif
 
-      ! colloids constraint
-      if (associated(cur_tcon_coupler%colloids)) then
-        do k = 1,size(cur_tcon_coupler%colloids%names)
-          write(id,'(a29)',advance='no') 'colloid mobile constraint: '
-          write(string,*) trim(cur_tcon_coupler%colloids%names(k))
-          write(word1,*) cur_tcon_coupler%colloids%constraint_conc_mob(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-          write(id,'(a29)',advance='no') 'colloid immobile constraint: '
-          write(string,*) trim(cur_tcon_coupler%colloids%names(k))
-          write(word1,*) cur_tcon_coupler%colloids%constraint_conc_imb(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol'
-        enddo
-      endif
+          ! surface complexes constraint
+          if (associated(c%surface_complexes)) then
+            do k = 1,size(c%surface_complexes%names)
+              write(id,'(a29)',advance='no') 'surface complex constraint: '
+              write(string,*) trim(c%surface_complexes%names(k))
+              write(word1,*) c%surface_complexes% &
+                               constraint_conc(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' mol/m^3'
+            enddo
+          endif
 
-      ! immobile species constraint
-      if (associated(cur_tcon_coupler%immobile_species)) then
-        do k = 1,size(cur_tcon_coupler%immobile_species%names)
-          write(id,'(a29)',advance='no') 'immobile species constraint: '
-          write(string,*) trim(cur_tcon_coupler%immobile_species%names(k))
-          write(word1,*) cur_tcon_coupler%immobile_species%constraint_conc(k)
-          write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
-                          // ' mol/m^3'
-        enddo
-      endif
+          ! colloids constraint
+          if (associated(c%colloids)) then
+            do k = 1,size(c%colloids%names)
+              write(id,'(a29)',advance='no') 'colloid mobile constraint: '
+              write(string,*) trim(c%colloids%names(k))
+              write(word1,*) c%colloids%constraint_conc_mob(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' mol'
+              write(id,'(a29)',advance='no') 'colloid immobile constraint: '
+              write(string,*) trim(c%colloids%names(k))
+              write(word1,*) c%colloids%constraint_conc_imb(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' mol'
+            enddo
+          endif
 
-      cur_tcon_coupler => cur_tcon_coupler%next
+          ! immobile species constraint
+          if (associated(c%immobile_species)) then
+            do k = 1,size(c%immobile_species%names)
+              write(id,'(a29)',advance='no') 'immobile species constraint: '
+              write(string,*) trim(c%immobile_species%names(k))
+              write(word1,*) c%immobile_species% &
+                               constraint_conc(k)
+              write(id,'(a)') trim(string) // ', ' // adjustl(trim(word1)) &
+                              // ' mol/m^3'
+            enddo
+          endif
+      end select
+
+      cur_constraint_coupler => cur_constraint_coupler%next
     enddo
 
     write(id,'(a29)') '---------------------------: '
-    cur_tc => cur_tc%next
+    cur_condition => cur_condition%next
   enddo
 
 end subroutine TranCondInputRecord
@@ -6202,6 +6096,7 @@ subroutine TranConditionDestroy(condition)
   ! Author: Glenn Hammond
   ! Date: 10/23/07
   !
+  use Transport_Constraint_module
 
   implicit none
 

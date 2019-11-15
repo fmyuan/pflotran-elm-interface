@@ -1,5 +1,8 @@
 module Reaction_Sandbox_PNNL_N_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_PNNL_N_class
   
   private
   
-#include "finclude/petscsys.h"
-
   PetscReal, parameter :: d_to_s = 1.d0 / 3600.d0 / 24.d0
   PetscReal, parameter :: mM_to_M = 1.d-3
   PetscReal, parameter :: mM_g_d_to_M_g_s = mM_to_M * d_to_s
@@ -204,14 +205,14 @@ subroutine PNNL_NSetup(this,reaction,option)
   ! Date: 10/01/15
   ! 
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module, only : reaction_rt_type, GetPrimarySpeciesIDFromName
   use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
   use Option_module
 
   implicit none
   
   class(reaction_sandbox_pnnl_n_type) :: this
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -389,7 +390,7 @@ subroutine PNNL_NReact(this,Residual,Jacobian,compute_derivative, &
   
   class(reaction_sandbox_pnnl_n_type) :: this  
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)

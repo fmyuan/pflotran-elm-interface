@@ -1,5 +1,8 @@
 module Reaction_Sandbox_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
@@ -16,8 +19,6 @@ module Reaction_Sandbox_module
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   class(reaction_sandbox_base_type), pointer, public :: rxn_sandbox_list
 
   interface RSandboxRead
@@ -73,11 +74,11 @@ subroutine RSandboxSetup(reaction,option)
   ! 
 
   use Option_module
-  use Reaction_Aux_module, only : reaction_type 
+  use Reaction_Aux_module, only : reaction_rt_type 
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   class(reaction_sandbox_base_type), pointer :: cur_sandbox  
@@ -125,8 +126,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   ! Author: Glenn Hammond
   ! Date: 11/08/12
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -207,7 +206,7 @@ subroutine RSandboxAuxiliaryPlotVariables(list,reaction,option)
 
   type(output_variable_list_type), pointer :: list
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   
   class(reaction_sandbox_base_type), pointer :: cur_reaction
   
@@ -268,7 +267,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
   implicit none
 
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
@@ -309,7 +308,7 @@ subroutine RSandboxUpdateKineticState(rt_auxvar,global_auxvar, &
   implicit none
 
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar

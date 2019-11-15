@@ -370,9 +370,6 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   ! first time the file has been opened.
   !
   use Option_module
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use hdf5
 
   implicit none
@@ -3110,8 +3107,6 @@ subroutine OutputHDF5Provenance(option, output_option, file_id)
   use Output_Aux_module, only : output_option_type
   use PFLOTRAN_Provenance_module, only : provenance_max_str_len
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use hdf5
 
   implicit none

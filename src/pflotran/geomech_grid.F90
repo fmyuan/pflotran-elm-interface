@@ -976,8 +976,6 @@ end subroutine GeomechGridLocalizeRegFromVertIDs
 ! ************************************************************************** !
 subroutine GeomechGridCopyIntegerArrayToVec(grid,array,vector,num_values)
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
   
   type(geomech_grid_type) :: grid
@@ -1004,8 +1002,6 @@ end subroutine GeomechGridCopyIntegerArrayToVec
 ! ************************************************************************** !
 subroutine GeomechGridVecGetArrayF90(grid,vec,f90ptr,ierr)
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
 
   type(geomech_grid_type) :: grid
@@ -1026,8 +1022,6 @@ end subroutine GeomechGridVecGetArrayF90
 ! ************************************************************************** !
 subroutine GeomechGridVecRestoreArrayF90(grid,vec,f90ptr,ierr)
 
-#include "petsc/finclude/petscvec.h"
-   use petscvec
    implicit none
 
   type(geomech_grid_type) :: grid
@@ -1048,8 +1042,6 @@ end subroutine GeomechGridVecRestoreArrayF90
 !
 ! ************************************************************************** !
 subroutine GeomechGridCopyVecToIntegerArray(grid,array,vector,num_values)
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   implicit none
   
   type(geomech_grid_type) :: grid

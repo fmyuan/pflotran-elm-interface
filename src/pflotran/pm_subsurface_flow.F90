@@ -1,8 +1,9 @@
 module PM_Subsurface_Flow_class
 
 #include "petsc/finclude/petscsnes.h"
-   use petscsnes
-   use PM_Base_class
+  use petscsnes
+
+  use PM_Base_class
 !geh: using Init_Subsurface_module here fails with gfortran (internal compiler error)
 !  use Init_Subsurface_module
   use Realization_Subsurface_class
@@ -740,7 +741,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepB(this)
   
   class(pm_subsurface_flow_type) :: this
   PetscViewer :: viewer
-PetscErrorCode :: ierr
+  PetscErrorCode :: ierr
 
   if (this%option%ntrandof > 0) then ! store initial saturations for transport
     call GlobalUpdateAuxVars(this%realization,TIME_T,this%option%time)
@@ -1054,8 +1055,7 @@ subroutine PMSubsurfaceFlowCheckpointBinary(this,viewer)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+
   use Checkpoint_module
 
   implicit none
@@ -1075,8 +1075,6 @@ subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Checkpoint_module
 
   implicit none

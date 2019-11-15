@@ -1,5 +1,8 @@
 module Reaction_Gas_Aux_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Database_Aux_module
 
   use PFLOTRAN_Constants_module
@@ -7,8 +10,6 @@ module Reaction_Gas_Aux_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: NULL_GAS = 0
   PetscInt, parameter, public :: ACTIVE_GAS = 1
@@ -78,8 +79,6 @@ function GasCreate()
   ! Date: 08/01/16
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(gas_type), pointer :: GasCreate
@@ -125,8 +124,6 @@ function GasSpeciesCreate()
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(gas_species_type), pointer :: GasSpeciesCreate

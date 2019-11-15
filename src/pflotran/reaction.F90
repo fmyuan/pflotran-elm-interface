@@ -1,5 +1,8 @@
 module Reaction_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module  
   use Global_Aux_module
@@ -31,8 +34,6 @@ module Reaction_module
   implicit none
  
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
@@ -89,7 +90,7 @@ subroutine ReactionInit(reaction,input,option)
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -122,8 +123,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -137,7 +136,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1000,8 +999,6 @@ subroutine ReactionReadPass2(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/03/13
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -1009,7 +1006,7 @@ subroutine ReactionReadPass2(reaction,input,option)
   
   implicit none
 
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1129,15 +1126,13 @@ subroutine ReactionReadDecoupledSpecies(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 04/01/11
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -1178,14 +1173,7 @@ end subroutine ReactionReadDecoupledSpecies
 
 ! ************************************************************************** !
 
-subroutine ReactionProcessConstraint(reaction,constraint_name, &
-                                     aq_species_constraint, &
-                                     free_ion_guess, &
-                                     mineral_constraint, &
-                                     srfcplx_constraint, &
-                                     colloid_constraint, &
-                                     immobile_constraint, &
-                                     option)
+subroutine ReactionProcessConstraint(reaction,constraint,option)
   ! 
   ! Initializes constraints based on primary
   ! species in system
@@ -1193,26 +1181,24 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 10/14/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
   use Utility_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
-  character(len=MAXWORDLENGTH) :: constraint_name
+  class(reaction_rt_type), pointer :: reaction
+  class(tran_constraint_rt_type) :: constraint
+  type(option_type) :: option
+  
   type(aq_species_constraint_type), pointer :: aq_species_constraint
-  type(guess_constraint_type), pointer :: free_ion_guess
+  type(guess_constraint_type), pointer :: free_ion_guess_constraint
   type(mineral_constraint_type), pointer :: mineral_constraint
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
   type(colloid_constraint_type), pointer :: colloid_constraint
   type(immobile_constraint_type), pointer :: immobile_constraint
-  type(option_type) :: option
-  
   PetscBool :: found
   PetscInt :: icomp, jcomp
   PetscInt :: icoll, jcoll
@@ -1223,6 +1209,13 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   character(len=MAXWORDLENGTH) :: constraint_colloid_name(reaction%ncoll)
   PetscInt :: constraint_id(reaction%naqcomp)
   PetscBool :: external_dataset(reaction%naqcomp)
+
+  aq_species_constraint => constraint%aqueous_species
+  free_ion_guess_constraint => constraint%free_ion_guess
+  mineral_constraint => constraint%minerals
+  srfcplx_constraint => constraint%surface_complexes
+  colloid_constraint => constraint%colloids
+  immobile_constraint => constraint%immobile_species
   
   constraint_id = 0
   constraint_aux_string = ''
@@ -1244,7 +1237,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
     if (.not.found) then
       option%io_buffer = &
                'Species ' // trim(aq_species_constraint%names(icomp)) // &
-               ' from CONSTRAINT ' // trim(constraint_name) // &
+               ' from CONSTRAINT ' // trim(constraint%name) // &
                ' not found among primary species.'
       call PrintErrMsg(option)
     else
@@ -1273,7 +1266,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                      ' for aqueous species: ' // &
                      trim(reaction%primary_species_names(jcomp)) // &
                      ' in constraint: ' // &
-                     trim(constraint_name) // ' not found.' 
+                     trim(constraint%name) // ' not found.' 
             call PrintErrMsg(option)
           endif
         case(CONSTRAINT_GAS, CONSTRAINT_SUPERCRIT_CO2)
@@ -1293,7 +1286,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
                      ' for aqueous species: ' // &
                      trim(reaction%primary_species_names(jcomp)) // &
                      ' in constraint: ' // &
-                     trim(constraint_name) // ' not found.' 
+                     trim(constraint%name) // ' not found.' 
             call PrintErrMsg(option)
           endif
       end select
@@ -1324,7 +1317,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
           case default
         end select
         option%io_buffer = trim(option%io_buffer) // ' in CONSTRAINT "' // &
-          trim(constraint_name) // '".'
+          trim(constraint%name) // '".'
         call PrintErrMsg(option)
       endif
     enddo
@@ -1341,12 +1334,12 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   if (.not.reaction%use_full_geochemistry) return
   
   ! free ion guess
-  if (associated(free_ion_guess)) then
+  if (associated(free_ion_guess_constraint)) then
     constraint_conc = 0.d0
     do icomp = 1, reaction%naqcomp
       found = PETSC_FALSE
       do jcomp = 1, reaction%naqcomp
-        if (StringCompare(free_ion_guess%names(icomp), &
+        if (StringCompare(free_ion_guess_constraint%names(icomp), &
                           reaction%primary_species_names(jcomp), &
                           MAXWORDLENGTH)) then
           found = PETSC_TRUE
@@ -1355,29 +1348,30 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
       enddo
       if (.not.found) then
         option%io_buffer = &
-                 'Guess species ' // trim(free_ion_guess%names(icomp)) // &
-                 ' from CONSTRAINT ' // trim(constraint_name) // &
+                 'Guess species ' // &
+                 trim(free_ion_guess_constraint%names(icomp)) // &
+                 ' from CONSTRAINT ' // trim(constraint%name) // &
                  ' not found among primary species.'
         call PrintErrMsg(option)
       else
-        constraint_conc(jcomp) = free_ion_guess%conc(icomp)
+        constraint_conc(jcomp) = free_ion_guess_constraint%conc(icomp)
       endif
     enddo
     ! place ordered concentrations back in original array
-    free_ion_guess%conc = constraint_conc
+    free_ion_guess_constraint%conc = constraint_conc
   endif
   
   ! minerals
-  call MineralProcessConstraint(reaction%mineral,constraint_name, &
+  call MineralProcessConstraint(reaction%mineral,constraint%name, &
                                 mineral_constraint,option)
 
   ! surface complexes
   call SrfCplxProcessConstraint(reaction%surface_complexation, &
-                                constraint_name, &
+                                constraint%name, &
                                 srfcplx_constraint,option)
 
   ! microbial immobile
-  call ImmobileProcessConstraint(reaction%immobile,constraint_name, &
+  call ImmobileProcessConstraint(reaction%immobile,constraint%name, &
                                  immobile_constraint,option)
   
 end subroutine ReactionProcessConstraint
@@ -1386,13 +1380,7 @@ end subroutine ReactionProcessConstraint
 
 subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                          material_auxvar, &
-                                         reaction,constraint_name, &
-                                         aq_species_constraint, &
-                                         free_ion_guess_constraint, &
-                                         mineral_constraint, &
-                                         srfcplx_constraint, &
-                                         colloid_constraint, &
-                                         immobile_constraint, &
+                                         reaction,constraint, &
                                          num_iterations, &
                                          use_prev_soln_as_guess,option)
   ! 
@@ -1402,13 +1390,11 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 10/22/08
   !
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module  
   use Utility_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
   use EOS_Water_module
   use Material_Aux_class
 
@@ -1421,16 +1407,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type), pointer :: reaction
-  character(len=MAXWORDLENGTH) :: constraint_name
-  type(aq_species_constraint_type), pointer :: aq_species_constraint
-  type(guess_constraint_type), pointer :: free_ion_guess_constraint
-  type(mineral_constraint_type), pointer :: mineral_constraint
-  type(srfcplx_constraint_type), pointer :: srfcplx_constraint
-  type(colloid_constraint_type), pointer :: colloid_constraint
-  type(immobile_constraint_type), pointer :: immobile_constraint
+  class(reaction_rt_type), pointer :: reaction
+  class(tran_constraint_rt_type) :: constraint
   PetscInt :: num_iterations
-  
   PetscBool :: use_prev_soln_as_guess
   type(option_type) :: option
   
@@ -1445,6 +1424,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   character(len=MAXWORDLENGTH) :: constraint_aux_string(reaction%naqcomp)
   type(surface_complexation_type), pointer :: surface_complexation
   type(mineral_type), pointer :: mineral_reaction
+
+  type(aq_species_constraint_type), pointer :: aq_species_constraint
+  type(guess_constraint_type), pointer :: free_ion_guess_constraint
+  type(mineral_constraint_type), pointer :: mineral_constraint
+  type(srfcplx_constraint_type), pointer :: srfcplx_constraint
+  type(colloid_constraint_type), pointer :: colloid_constraint
+  type(immobile_constraint_type), pointer :: immobile_constraint
 
   PetscReal :: Res(reaction%naqcomp)
   PetscReal :: update(reaction%naqcomp)
@@ -1488,6 +1474,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   surface_complexation => reaction%surface_complexation
   mineral_reaction => reaction%mineral
     
+  aq_species_constraint => constraint%aqueous_species
+  free_ion_guess_constraint => constraint%free_ion_guess
+  mineral_constraint => constraint%minerals
+  srfcplx_constraint => constraint%surface_complexes
+  colloid_constraint => constraint%colloids
+  immobile_constraint => constraint%immobile_species
+
   constraint_type = aq_species_constraint%constraint_type
   constraint_aux_string = aq_species_constraint%constraint_aux_string
   constraint_id = aq_species_constraint%constraint_spec_id
@@ -1597,7 +1590,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                      string,MAXWORDLENGTH)) then
                 option%io_buffer = &
                          'pH specified as constraint (constraint =' // &
-                         trim(constraint_name) // &
+                         trim(constraint%name) // &
                          ') for species other than H+ or OH-: ' // &
                          trim(reaction%primary_species_names(icomp))
                 call PrintErrMsg(option)
@@ -1607,7 +1600,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           else
             option%io_buffer = &
                      'pH specified as constraint (constraint =' // &
-                     trim(constraint_name) // &
+                     trim(constraint%name) // &
                      '), but H+ not found in chemical species.'
             call PrintErrMsg(option)
           endif
@@ -1733,7 +1726,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                        'Charge balance species ' // &
                        trim(reaction%primary_species_names(icomp)) // &
                        ' may not satisfy constraint ' // &
-                       trim(constraint_name) // &
+                       trim(constraint%name) // &
                        '.  Molality already below 1.e-20.'
               call PrintMsg(option)
               charge_balance_warning_flag = PETSC_TRUE
@@ -1973,7 +1966,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     tempreal = minval(rt_auxvar%pri_molal)
     if (tempreal <= 0.d0) then
       option%io_buffer = 'ERROR: Zero concentrations found in ' // &
-        'constraint "' // trim(constraint_name) // '".'
+        'constraint "' // trim(constraint%name) // '".'
       call PrintMsgByRank(option)
       ! now figure out which species have zero concentrations
       do idof = 1, reaction%naqcomp
@@ -2005,7 +1998,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       idof = maxloc(rt_auxvar%pri_molal,1)
       option%io_buffer = 'ERROR: Excessively large concentration for ' // &
         'species "' // trim(reaction%primary_species_names(idof)) // &
-        '" in constraint "' // trim(constraint_name) // &
+        '" in constraint "' // trim(constraint%name) // &
         '" in ReactionEquilibrateConstraint. Email input deck to ' // &
         'pflotran-dev@googlegroups.com.'
       call PrintErrMsg(option)
@@ -2035,7 +2028,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         print *, 'constraint type:', constraint_type
         print *, 'free_conc:', free_conc
         option%io_buffer = 'Equilibration of constraint "' // &
-          trim(constraint_name) // &
+          trim(constraint%name) // &
           '" stopping due to excessive iteration count!'
         call PrintErrMsgByRank(option)
       endif
@@ -2128,7 +2121,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
 !                           global_auxvar%den_kg(option%liquid_phase)/1000.d0
 !  endif
     
-!  write(option%io_buffer,111) trim(constraint_name),num_iterations
+!  write(option%io_buffer,111) trim(constraint%name),num_iterations
 !  call PrintMsg(option)
 !111 format(' Equilibrate Constraint: ',a30,i4)
 
@@ -2144,19 +2137,18 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/28/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
 
   implicit none
   
   type(option_type) :: option
-  type(tran_constraint_coupler_type) :: constraint_coupler
-  type(reaction_type), pointer :: reaction
+  class(tran_constraint_coupler_rt_type) :: constraint_coupler
+  class(reaction_rt_type), pointer :: reaction
   
+  class(tran_constraint_rt_type), pointer :: constraint
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
   type(aq_species_constraint_type), pointer :: aq_species_constraint
@@ -2188,15 +2180,18 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   PetscReal :: ehfac,eh,pe,tk
   PetscReal :: affinity
 
-  aq_species_constraint => constraint_coupler%aqueous_species
-  mineral_constraint => constraint_coupler%minerals
+  
+  constraint => TranConstraintRTCast(constraint_coupler%constraint)
+
+  aq_species_constraint => constraint%aqueous_species
+  mineral_constraint => constraint%minerals
   
   iphase = 1
 
   90 format(2x,76('-'))
 
   write(option%fid_out,'(/,''  Constraint: '',a)') &
-    trim(constraint_coupler%constraint_name)
+    trim(constraint_coupler%constraint%name)
 
   rt_auxvar => constraint_coupler%rt_auxvar
   global_auxvar => constraint_coupler%global_auxvar
@@ -2798,7 +2793,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   ! output constraints for amanzi cfg formatted input
   if (OptionPrintToFile(option)) then
     string = trim(option%global_prefix) // '-' // &
-             trim(constraint_coupler%constraint_name) // '.txt'
+             trim(constraint_coupler%constraint%name) // '.txt'
     open(unit=86,file=trim(string))
 
     write(86,'("# pflotran constraint preprocessing :")')
@@ -2807,7 +2802,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     !write(86,'("#        date : ",a,"   ",a)') trim(word), trim(word2)
     write(86,'("#       input : ",a)') trim(option%input_filename)
     write(86,'(/,"# Constraint: ",a)') &
-         trim(constraint_coupler%constraint_name)
+         trim(constraint_coupler%constraint%name)
 
     write(86,'(/,"[total]")')
     do icomp = 1, reaction%naqcomp
@@ -2856,18 +2851,16 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   ! Author: Peter C. Lichtner
   ! Date: ???
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
-  use Transport_Constraint_module
+  use Transport_Constraint_RT_module
 
   implicit none
   
   type(option_type) :: option
-  type(tran_constraint_coupler_type) :: constraint_coupler
-  type(reaction_type), pointer :: reaction
+  class(tran_constraint_coupler_rt_type) :: constraint_coupler
+  class(reaction_rt_type), pointer :: reaction
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
   type(global_auxvar_type), pointer :: global_auxvar
@@ -3105,8 +3098,6 @@ subroutine ReactionReadOutput(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 01/24/09
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use String_module  
   use Option_module
@@ -3114,7 +3105,7 @@ subroutine ReactionReadOutput(reaction,input,option)
                                TOTAL_MOLALITY, TOTAL_MOLARITY  
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -3391,7 +3382,7 @@ subroutine RJumpStartKineticSorption(rt_auxvar,global_auxvar, &
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3430,13 +3421,11 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   ! Author: Glenn Hammond
   ! Date: 05/04/10
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3629,7 +3618,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
  
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3698,13 +3687,11 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 09/30/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(reactive_transport_auxvar_type) :: rt_auxvar_pert
   type(global_auxvar_type) :: global_auxvar
@@ -3803,7 +3790,7 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
    
   PetscReal :: m_na, m_cl, tc, co2aqact, lngamco2, henry, xphico2, pco2
@@ -3848,7 +3835,7 @@ function RSumMoles(rt_auxvar,reaction,option)
   implicit none
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscReal :: RSumMoles
 
@@ -3881,7 +3868,7 @@ function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscReal :: RCO2MoleFraction
 
@@ -3930,7 +3917,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: icplx, icomp, it, j, jcomp, ncomp
@@ -4177,7 +4164,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   call RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
@@ -4218,7 +4205,7 @@ subroutine RTotalAqueous(rt_auxvar,global_auxvar,reaction,option)
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: i, j, icplx, icomp, jcomp, ncomp
@@ -4334,7 +4321,7 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   call RZeroSorb(rt_auxvar)
@@ -4374,7 +4361,7 @@ subroutine RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn
@@ -4450,15 +4437,13 @@ subroutine RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/22/08; 05/26/09
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: i, j, k, icplx, icomp, jcomp, iphase, ncomp, ncplx
@@ -4694,7 +4679,7 @@ subroutine RAccumulationSorb(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
 !  PetscReal :: v_t
@@ -4727,7 +4712,7 @@ subroutine RAccumulationSorbDerivative(rt_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   
   PetscInt :: icomp
@@ -4760,7 +4745,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -4863,7 +4848,7 @@ subroutine RGeneral(Res,Jac,compute_derivative,rt_auxvar,global_auxvar, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
@@ -5057,7 +5042,7 @@ subroutine ReactionComputeKd(icomp,retardation,rt_auxvar,global_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscReal :: bulk_vol_to_fluid_vol
@@ -5104,7 +5089,7 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
   type(global_auxvar_type) :: global_auxvar 
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscInt, parameter :: iphase = 1
   
@@ -5138,7 +5123,7 @@ subroutine RTAuxVarCompute(rt_auxvar,global_auxvar,material_auxvar,reaction, &
   implicit none
   
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -5238,7 +5223,7 @@ subroutine RTAccumulation(rt_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   
   PetscInt :: iphase
@@ -5321,7 +5306,7 @@ subroutine RTAccumulationDerivative(rt_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar  
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: J(reaction%ncomp,reaction%ncomp)
   
   PetscInt :: icomp, iphase
@@ -5403,13 +5388,11 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 07/12/10
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
 
   implicit none
   
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type) :: option
 
   PetscInt :: dfill(reaction%ncomp,reaction%ncomp)
@@ -5489,8 +5472,6 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 01/24/13
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
 
   implicit none
@@ -5498,7 +5479,7 @@ subroutine RUpdateKineticState(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar  
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: imnrl, iaqspec, ncomp, icomp
@@ -5609,7 +5590,7 @@ subroutine RUpdateTempDependentCoefs(global_auxvar,reaction, &
   implicit none
   
   type(global_auxvar_type) :: global_auxvar  
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: update_mnrl
   type(option_type) :: option
   
@@ -5702,7 +5683,7 @@ subroutine RTPrintAuxVar(rt_auxvar,reaction,option)
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -5837,7 +5818,7 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   implicit none
   
   type(output_variable_list_type), pointer :: list
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(option_type), pointer :: option
   character(len=MAXWORDLENGTH) :: time_unit
   

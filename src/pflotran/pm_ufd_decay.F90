@@ -578,7 +578,7 @@ subroutine PMUFDDecayInit(this)
 ! g, ig, p, ip, d, id: [-] looping index integers
 ! -----------------------------------------------------------------------
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(grid_type), pointer :: grid
   type(isotope_type), pointer :: isotope, isotope2
@@ -1130,7 +1130,7 @@ subroutine PMUFDDecaySolve(this,time,ierr)
 ! it: [-] iteration number for implicit calculation
 ! -----------------------------------------------------------------------
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field

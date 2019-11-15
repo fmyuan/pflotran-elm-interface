@@ -19,6 +19,9 @@ module SrcSink_Sandbox_Downreg_class
 ! extended from srcsink_sandbox_mass_rate
 ! currently work in RICHARDS mode
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   use Dataset_Base_class
@@ -27,8 +30,6 @@ module SrcSink_Sandbox_Downreg_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_downreg_type
     PetscReal :: pressure_min       ! Pa
@@ -77,8 +78,7 @@ subroutine DownregRead(this,input,option)
   ! 
   ! Author: Guoping Tang
   ! Date: 06/03/14
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+
   use Option_module
   use String_module
   use Input_Aux_module

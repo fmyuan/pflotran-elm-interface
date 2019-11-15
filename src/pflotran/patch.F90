@@ -1,7 +1,8 @@
 module Patch_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use Option_module
   use Grid_module
   use Coupler_module
@@ -9,6 +10,7 @@ module Patch_module
   use Integral_Flux_module
   use Strata_module
   use Region_module
+  use Reaction_Base_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   use Dataset_Base_class
@@ -84,9 +86,10 @@ module Patch_module
 
     ! Pointers to objects in mother realization object
     type(field_type), pointer :: field
-    type(reaction_type), pointer :: reaction
-    type(nw_trans_realization_type), pointer :: nw_trans
     class(dataset_base_type), pointer :: datasets
+    class(reaction_rt_type), pointer :: reaction
+    class(reaction_nw_type), pointer :: reaction_nw
+    class(reaction_base_type), pointer :: reaction_base
 
     type(auxiliary_type) :: aux
 
@@ -216,9 +219,10 @@ function PatchCreate()
   call AuxInit(patch%aux)
 
   nullify(patch%field)
-  nullify(patch%reaction)
-  nullify(patch%nw_trans)
   nullify(patch%datasets)
+  nullify(patch%reaction_base)
+  nullify(patch%reaction)
+  nullify(patch%reaction_nw)
 
   nullify(patch%next)
 
@@ -859,9 +863,11 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use NW_Transport_Aux_module
-  use NWT_Constraint_module
   use Global_Aux_module
   use Condition_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_RT_module
   use Transport_Constraint_module
   use General_Aux_module
   use WIPP_Flow_Aux_module
@@ -879,8 +885,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   PetscBool :: force_update_flag
 
   type(coupler_type), pointer :: coupler
-  type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-  type(nwt_constraint_coupler_type), pointer :: cur_nwt_constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   PetscInt :: idof
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: temp_int
@@ -1078,59 +1083,38 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
     endif ! associated(coupler%connection_set)
 
     ! TRANSPORT
-    if (associated(patch%reaction)) then
-      if (associated(coupler%tran_condition)) then
-        cur_constraint_coupler => &
-                                coupler%tran_condition%constraint_coupler_list
-        do
-          if (.not.associated(cur_constraint_coupler)) exit
-          ! Setting option%iflag = 0 ensures that the "mass_balance" array
-          ! is not allocated.
-          option%iflag = 0
-          ! Only allocate the XXX_auxvar objects if they have not been allocated.
-          ! Since coupler%tran_condition is a pointer to a separate list of
-          ! tran conditions, the XXX_auxvar object may already be allocated.
-          if (.not.associated(cur_constraint_coupler%global_auxvar)) then
-            allocate(cur_constraint_coupler%global_auxvar)
-            call GlobalAuxVarInit(cur_constraint_coupler%global_auxvar,option)
-          endif
-          if (.not.associated(cur_constraint_coupler%rt_auxvar)) then
-            allocate(cur_constraint_coupler%rt_auxvar)
-            call RTAuxVarInit(cur_constraint_coupler%rt_auxvar,patch%reaction, &
-                              option)
-          endif
-          cur_constraint_coupler => cur_constraint_coupler%next
-        enddo
-      endif
+    if (associated(coupler%tran_condition)) then
+      cur_constraint_coupler => &
+                          coupler%tran_condition%constraint_coupler_list
+      do
+        if (.not.associated(cur_constraint_coupler)) exit
+        ! Setting option%iflag = 0 ensures that the "mass_balance" array
+        ! is not allocated.
+        option%iflag = 0
+        ! Only allocate the XXX_auxvar objects if they have not been allocated.
+        ! Since coupler%tran_condition is a pointer to a separate list of
+        ! tran conditions, the XXX_auxvar object may already be allocated.
+        if (.not.associated(cur_constraint_coupler%global_auxvar)) then
+          allocate(cur_constraint_coupler%global_auxvar)
+          call GlobalAuxVarInit(cur_constraint_coupler%global_auxvar,option)
+        endif
+        select type(cur_constraint_coupler)
+          class is (tran_constraint_coupler_rt_type)
+            if (.not.associated(cur_constraint_coupler%rt_auxvar)) then
+              allocate(cur_constraint_coupler%rt_auxvar)
+              call RTAuxVarInit(cur_constraint_coupler%rt_auxvar, &
+                                patch%reaction,option)
+            endif
+          class is (tran_constraint_coupler_nwt_type)
+            if (.not.associated(cur_constraint_coupler%nwt_auxvar)) then
+              allocate(cur_constraint_coupler%nwt_auxvar)
+              call NWTAuxVarInit(cur_constraint_coupler%nwt_auxvar, &
+                                 NWTReactionCast(patch%reaction_base),option)
+            endif
+        end select
+        cur_constraint_coupler => cur_constraint_coupler%next
+      enddo
     endif
-    
-    if (associated(patch%nw_trans)) then
-      if (associated(coupler%tran_condition)) then
-        cur_nwt_constraint_coupler => &
-                             coupler%tran_condition%nwt_constraint_coupler_list
-        do
-          if (.not.associated(cur_nwt_constraint_coupler)) exit
-          ! Setting option%iflag = 0 ensures that the "mass_balance" array
-          ! is not allocated.
-          option%iflag = 0
-          ! Only allocate the XXX_auxvar objects if they have not been allocated.
-          ! Since coupler%tran_condition is a pointer to a separate list of
-          ! tran conditions, the XXX_auxvar object may already be allocated.
-          if (.not.associated(cur_nwt_constraint_coupler%global_auxvar)) then
-            allocate(cur_nwt_constraint_coupler%global_auxvar)
-            call GlobalAuxVarInit(cur_nwt_constraint_coupler%global_auxvar, &
-                                  option)
-          endif
-          if (.not.associated(cur_nwt_constraint_coupler%nwt_auxvar)) then
-            allocate(cur_nwt_constraint_coupler%nwt_auxvar)
-            call NWTAuxVarInit(cur_nwt_constraint_coupler%nwt_auxvar, &
-                               patch%nw_trans,option)
-          endif
-          cur_nwt_constraint_coupler => cur_nwt_constraint_coupler%next
-        enddo
-      endif
-    endif
-    
     coupler => coupler%next
   enddo
 
@@ -4433,8 +4417,6 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   ! Author: Gautam Bisht, LBL
   ! Date: 10/26/12
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Dataset_Map_HDF5_class
   use Option_module
@@ -4567,38 +4549,35 @@ end subroutine PatchCreateFlowConditionDatasetMap
 
 ! ************************************************************************** !
 
-subroutine PatchInitConstraints(patch,reaction,nw_trans,option)
+subroutine PatchInitConstraints(patch,reaction_base,option)
   !
   ! Initializes constraint concentrations
   !
   ! Author: Glenn Hammond
   ! Date: 12/04/08
   !
-
-  use Reaction_Aux_module
-  use NW_Transport_Aux_module
+  use Reaction_Base_module
 
   implicit none
 
   type(patch_type) :: patch
-  type(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_base_type), pointer :: reaction_base
   type(option_type) :: option
 
   call PatchInitCouplerConstraints(patch%initial_condition_list, &
-                                   reaction,nw_trans,option)
+                                   reaction_base,option)
 
   call PatchInitCouplerConstraints(patch%boundary_condition_list, &
-                                   reaction,nw_trans,option)
+                                   reaction_base,option)
 
   call PatchInitCouplerConstraints(patch%source_sink_list, &
-                                   reaction,nw_trans,option)
+                                   reaction_base,option)
 
 end subroutine PatchInitConstraints
 
 ! ************************************************************************** !
 
-subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
+subroutine PatchInitCouplerConstraints(coupler_list,reaction_base,option)
   !
   ! Initializes constraint concentrations
   ! for a given coupler
@@ -4611,10 +4590,12 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   use Reactive_Transport_Aux_module
   use NW_Transport_Aux_module
   use NWT_Equilibrium_module
-  use NWT_Constraint_module
   use Reaction_Aux_module
   use Global_Aux_module
   use Material_Aux_class
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_RT_module
   use Transport_Constraint_module
   use Dataset_Ascii_class
 
@@ -4623,8 +4604,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   implicit none
 
   type(coupler_list_type), pointer :: coupler_list
-  type(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_base_type), pointer :: reaction_base
   type(option_type) :: option
 
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar
@@ -4632,14 +4612,26 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
   type(global_auxvar_type), pointer :: global_auxvar
   class(material_auxvar_type), allocatable :: material_auxvar
   type(coupler_type), pointer :: cur_coupler
-  type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-  type(nwt_constraint_coupler_type), pointer :: cur_nwt_constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
+  class(reaction_rt_type), pointer :: reaction
+  class(reaction_nw_type), pointer :: reaction_nw
   PetscReal :: dum1
   PetscErrorCode :: ierr
+
+  nullify(global_auxvar)
+  nullify(rt_auxvar)
+  nullify(nwt_auxvar)
 
   allocate(material_auxvar)
   call MaterialAuxVarInit(material_auxvar,option)
   material_auxvar%porosity = option%reference_porosity
+
+  select type(r=>reaction_base)
+    class is(reaction_rt_type)
+      reaction => r
+    class is(reaction_nw_type)
+      reaction_nw => r
+  end select
 
   cur_coupler => coupler_list%first
   do
@@ -4654,25 +4646,11 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
       call PrintErrMsg(option)
     endif
 
-    if (associated(reaction)) then
-      cur_constraint_coupler => &
+    cur_constraint_coupler => &
         cur_coupler%tran_condition%constraint_coupler_list
-    endif
-    if (associated(nw_trans)) then
-      cur_nwt_constraint_coupler => &
-        cur_coupler%tran_condition%nwt_constraint_coupler_list
-    endif
     do
-      if (associated(reaction)) then
-        if (.not.associated(cur_constraint_coupler)) exit
-        global_auxvar => cur_constraint_coupler%global_auxvar
-        rt_auxvar => cur_constraint_coupler%rt_auxvar
-      endif
-      if (associated(nw_trans)) then
-        if (.not.associated(cur_nwt_constraint_coupler)) exit
-        global_auxvar => cur_nwt_constraint_coupler%global_auxvar
-        nwt_auxvar => cur_nwt_constraint_coupler%nwt_auxvar
-      endif
+      if (.not.associated(cur_constraint_coupler)) exit
+      global_auxvar => cur_constraint_coupler%global_auxvar
       if (associated(cur_coupler%flow_condition)) then
         if (associated(cur_coupler%flow_condition%pressure)) then
           if (associated(cur_coupler%flow_condition%pressure%dataset)) then
@@ -4731,30 +4709,25 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
           1.d0 - global_auxvar%sat(option%liquid_phase)
       endif
 
-      if (associated(reaction)) then
-        call ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
-                            material_auxvar,reaction, &
-                            cur_constraint_coupler%constraint_name, &
-                            cur_constraint_coupler%aqueous_species, &
-                            cur_constraint_coupler%free_ion_guess, &
-                            cur_constraint_coupler%minerals, &
-                            cur_constraint_coupler%surface_complexes, &
-                            cur_constraint_coupler%colloids, &
-                            cur_constraint_coupler%immobile_species, &
-                            cur_constraint_coupler%num_iterations, &
-                            PETSC_FALSE,option)
-      endif
-      
-      if (associated(nw_trans)) then
-        call NWTEquilibrateConstraint(nw_trans, &
-                                      cur_nwt_constraint_coupler%nwt_species, &
+      select type(constraint_coupler=>cur_constraint_coupler)
+        class is(tran_constraint_coupler_rt_type)
+          ! set this pointer for use below in CO2
+          rt_auxvar => constraint_coupler%rt_auxvar
+          call ReactionEquilibrateConstraint(rt_auxvar, &
+                                  global_auxvar,material_auxvar,reaction, &
+                         TranConstraintRTCast(constraint_coupler%constraint), &
+                                  constraint_coupler%num_iterations, &
+                                  PETSC_FALSE,option)
+        class is(tran_constraint_coupler_nwt_type)
+          nwt_auxvar => constraint_coupler%nwt_auxvar
+          call NWTEquilibrateConstraint(reaction_nw, &
+                        TranConstraintNWTCast(constraint_coupler%constraint), &
                                       nwt_auxvar,global_auxvar, &
                                       material_auxvar,option)
-      endif
-      
+      end select
       ! update CO2 mole fraction for CO2 modes
       select case(option%iflowmode)
-      ! jenn:todo Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
+      ! TODO(jenn) Add error message saying you can't use NW Transport with MPH_MODE, FLASH2_MODE, etc. Here is not the best place, do it some where sooner in the set up.
         case(MPH_MODE,FLASH2_MODE)
           if ( (cur_coupler%flow_condition%iphase == 1) .and. &
                (associated(reaction)) ) then
@@ -4765,12 +4738,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,nw_trans,option)
             endif
           endif
       end select
-      if (associated(reaction)) then
-        cur_constraint_coupler => cur_constraint_coupler%next
-      endif
-      if (associated(nw_trans)) then
-        cur_nwt_constraint_coupler => cur_nwt_constraint_coupler%next
-      endif
+      cur_constraint_coupler => cur_constraint_coupler%next
     enddo
     cur_coupler => cur_coupler%next
   enddo
@@ -4852,7 +4820,7 @@ end subroutine PatchUpdateUniformVelocity
 
 ! ************************************************************************** !
 
-subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
+subroutine PatchGetVariable1(patch,field,reaction_base,option, &
                              output_option,vec,ivar,isubvar,isubvar2)
   !
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
@@ -4861,8 +4829,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -4875,7 +4841,6 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
   use Reaction_Mineral_module
   use Reaction_module
   use Reactive_Transport_Aux_module
-  use NW_Transport_Aux_module
   use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module, only : general_fmw => fmw_comp, &
                                  GAS_STATE, LIQUID_STATE
@@ -4883,12 +4848,12 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
+  use Reaction_Base_module
 
   implicit none
 
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_base_type), pointer :: reaction_base
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
@@ -4901,6 +4866,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  class(reaction_rt_type), pointer :: reaction
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscReal :: xmass, lnQKgas, ehfac, eh0, pe0, ph0, tk
   PetscReal :: tempreal
@@ -4912,6 +4878,7 @@ subroutine PatchGetVariable1(patch,field,reaction,nw_trans,option, &
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
+  reaction => ReactionCast(reaction_base)
 
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr(:) = UNINITIALIZED_DOUBLE
@@ -6892,7 +6859,7 @@ end subroutine PatchGetVariable1
 
 ! ************************************************************************** !
 
-function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
+function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
                                      output_option,ghosted_id, &
                                      ivar,isubvar,isubvar2)
   !
@@ -6903,8 +6870,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
   ! Date: 02/11/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -6914,7 +6879,6 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
   use Richards_Aux_module
   use Miscible_Aux_module
   use Reactive_Transport_Aux_module
-  use NW_Transport_Aux_module
   use Reaction_Mineral_module
   use Reaction_module
   use Reaction_Mineral_Aux_module
@@ -6931,12 +6895,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
 
   PetscReal :: PatchGetVariableValueAtCell
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
-  type(nw_trans_realization_type), pointer :: nw_trans
+  class(reaction_base_type), pointer :: reaction_base
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  class(reaction_rt_type), pointer :: reaction
   PetscInt :: ivar
   PetscInt :: isubvar
   PetscInt :: tempint, tempint2
@@ -6954,6 +6918,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,nw_trans,option, &
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
+  reaction => ReactionCast(reaction_base)
 
   value = UNINITIALIZED_DOUBLE
 
@@ -8178,8 +8143,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -9252,8 +9215,6 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   ! Date: 10/06/11
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Connection_module
   use Coupler_module
@@ -9446,8 +9407,6 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Output_Aux_module
@@ -9457,7 +9416,7 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec, &
   implicit none
 
   type(option_type), pointer :: option
-  !type(reaction_type), pointer :: reaction
+  !class(reaction_rt_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(surface_field_type), pointer :: surf_field
   type(patch_type), pointer :: patch
@@ -10130,7 +10089,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   PetscReal :: aq_species_mass    ! [mol]
   PetscReal :: sorb_species_mass  ! [mol]
   PetscReal :: ppt_species_mass   ! [mol]
@@ -10647,7 +10606,9 @@ subroutine PatchDestroy(patch)
   call SurfaceAuxDestroy(patch%surf_aux)
 
   ! these are solely pointers, must not destroy.
+  nullify(patch%reaction_base)
   nullify(patch%reaction)
+  nullify(patch%reaction_nw)
   nullify(patch%datasets)
   nullify(patch%field)
 

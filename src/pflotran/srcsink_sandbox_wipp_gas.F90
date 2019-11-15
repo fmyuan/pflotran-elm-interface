@@ -2,6 +2,9 @@ module SrcSink_Sandbox_WIPP_Gas_class
 
 ! Sandbox srcsink for WIPP gas generation source terms
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   
@@ -9,8 +12,6 @@ module SrcSink_Sandbox_WIPP_Gas_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   PetscInt, parameter, public :: WIPP_GAS_WATER_SATURATION_INDEX = 1
   PetscInt, parameter, public :: WIPP_GAS_TEMPERATURE_INDEX = 2
   
@@ -74,8 +75,6 @@ subroutine WIPPGasGenerationRead(this,input,option)
   ! Author: Glenn Hammond, Edit: Heeho Park, Jenn Frederick
   ! Date: 04/11/14, 05/15/14, 01/09/2017
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module

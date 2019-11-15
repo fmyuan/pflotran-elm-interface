@@ -60,8 +60,6 @@ module Output_Aux_module
     PetscBool :: print_observation 
     PetscBool :: print_column_ids
 
-    PetscBool :: print_mad 
-
     PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
     PetscBool :: print_explicit_dual_grid      ! prints voronoi (dual) grid if true
 
@@ -242,7 +240,6 @@ function OutputOptionCreate()
   output_option%print_vtk_vel_cent = PETSC_FALSE
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
-  output_option%print_mad = PETSC_FALSE
   output_option%print_explicit_primal_grid = PETSC_FALSE
   output_option%print_explicit_dual_grid = PETSC_FALSE
   output_option%print_initial_obs = PETSC_TRUE
@@ -349,7 +346,6 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_vtk_vel_cent = output_option%print_vtk_vel_cent
   output_option2%print_observation = output_option%print_observation
   output_option2%print_column_ids = output_option%print_column_ids
-  output_option2%print_mad = output_option%print_mad
   output_option2%print_initial_obs = output_option%print_initial_obs
   output_option2%print_final_obs = output_option%print_final_obs
   output_option2%print_initial_snap = output_option%print_initial_snap

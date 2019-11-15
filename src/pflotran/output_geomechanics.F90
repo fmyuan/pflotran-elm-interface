@@ -585,8 +585,6 @@ subroutine OutputGetVertexCoordinatesGeomech(grid,vec,direction,option)
   ! Date: 07/02/2013
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -663,8 +661,6 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
   ! Date: 07/3/13
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Geomechanics_Realization_class
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -1202,8 +1198,6 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
@@ -1469,8 +1463,6 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   ! Date: 07/3/13
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
   use Geomechanics_Realization_class

@@ -82,8 +82,6 @@ module PMC_Base_class
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: pmc_base_header_type
       implicit none
       PetscBag :: bag
@@ -423,8 +421,6 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Timestepper_Base_class
   use Checkpoint_module
 
@@ -698,9 +694,12 @@ subroutine SetOutputFlags(this)
   
   output_option => this%pm_list%output_option
 
-  if (OptionPrintToScreen(this%option) .and. &
-      mod(this%timestepper%steps,output_option%screen_imod) == 0) then
-    this%option%print_screen_flag = PETSC_TRUE
+  if (OptionPrintToScreen(this%option) .and. output_option%screen_imod > 0) then
+    if (mod(this%timestepper%steps,output_option%screen_imod) == 0) then
+      this%option%print_screen_flag = PETSC_TRUE
+    else
+      this%option%print_screen_flag = PETSC_FALSE
+    endif
   else
     this%option%print_screen_flag = PETSC_FALSE
   endif
@@ -754,8 +753,6 @@ recursive subroutine PMCBaseCheckpoint(this,filename_append)
   ! Author: Glenn Hammond
   ! Date: 2/2/16
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use hdf5
   use Option_module
   
@@ -788,8 +785,6 @@ recursive subroutine PMCBaseCheckpointBinary(this,viewer,append_name)
   ! Date: 07/26/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Logging_module
   use Checkpoint_module, only : CheckpointOpenFileForWriteBinary, &
                                 CheckPointWriteCompatibilityBinary
@@ -870,8 +865,6 @@ subroutine PMCBaseRegisterHeader(this,bag,header)
   ! Date: 12/02/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -900,8 +893,6 @@ subroutine PMCBaseSetHeader(this,bag,header)
   ! Date: 12/02/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -929,8 +920,6 @@ recursive subroutine PMCBaseRestartBinary(this,viewer)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Logging_module
   use Checkpoint_module, only : CheckPointReadCompatibilityBinary
 
@@ -1057,8 +1046,6 @@ subroutine PMCBaseGetHeader(this,header)
   ! Date: 12/02/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none

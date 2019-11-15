@@ -1,31 +1,26 @@
 module Realization_Subsurface_class
   
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Realization_Base_class
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
+  use PFLOTRAN_Constants_module
+  use Realization_Base_class
   use Option_module
-  use Output_Aux_module
   use Input_Aux_module
   use Region_module
   use Condition_module
   use Well_Data_class
+  use Transport_Constraint_Base_module
   use Transport_Constraint_module
-  use NWT_Constraint_module
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
   use Dataset_Base_class
   use Fluid_module
-  use Discretization_module
-  use Field_module
-  use Debug_module
-  use Output_Aux_module
   use Patch_module
   use Reaction_Aux_module
   use NW_Transport_Aux_module
   
-  use PFLOTRAN_Constants_module
 
   implicit none
 
@@ -38,9 +33,8 @@ private
     type(well_data_list_type), pointer :: well_data=>null()
     type(tran_condition_list_type), pointer :: transport_conditions
     type(tran_constraint_list_type), pointer :: transport_constraints
-    type(nwt_constraint_list_type), pointer :: nwt_constraints
     
-    type(tran_constraint_type), pointer :: sec_transport_constraint
+    class(tran_constraint_base_type), pointer :: sec_transport_constraint
     type(material_property_type), pointer :: material_properties
     type(fluid_property_type), pointer :: fluid_properties
     type(fluid_property_type), pointer :: fluid_property_array(:)
@@ -50,6 +44,9 @@ private
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
+
+    class(reaction_rt_type), pointer :: reaction
+    class(reaction_nw_type), pointer :: reaction_nw
     
   end type realization_subsurface_type
 
@@ -60,7 +57,6 @@ private
   
   public :: RealizationCreate, &
             RealizationStrip, &
-            RealizationDestroyLegacy, &
             RealizationProcessCouplers, &
             RealizationInitAllCouplerAuxVars, &
             RealizationProcessConditions, &
@@ -131,8 +127,6 @@ function RealizationCreate2(option)
   ! Date: 10/25/07
   ! 
   
-  use NWT_Constraint_module
-
   implicit none
   
   type(option_type), pointer :: option
@@ -156,8 +150,6 @@ function RealizationCreate2(option)
   call TranConditionInitList(realization%transport_conditions)
   allocate(realization%transport_constraints)
   call TranConstraintInitList(realization%transport_constraints)
-  allocate(realization%nwt_constraints)
-  call NWTConstraintInitList(realization%nwt_constraints)
 
   nullify(realization%material_properties)
   nullify(realization%fluid_properties)
@@ -167,6 +159,8 @@ function RealizationCreate2(option)
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
+  nullify(realization%reaction)
+  nullify(realization%reaction_nw)
   realization%nonuniform_velocity_filename = ''
 
   RealizationCreate2 => realization
@@ -185,6 +179,7 @@ subroutine RealizationCreateDiscretization(realization)
 
 #include "petsc/finclude/petscvec.h"
   use petscvec
+  use Field_module
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_module, only : UGridEnsureRightHandRule
@@ -316,16 +311,8 @@ subroutine RealizationCreateDiscretization(realization)
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx_loc, &
                                       LOCAL,option)
       
-      if (associated(realization%reaction)) then
-        if (realization%reaction%use_log_formulation) then
-          call DiscretizationDuplicateVector(discretization,field%tran_xx, &
-                                             field%tran_log_xx)
-          call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
-                                             field%tran_work_loc)
-        endif
-      endif
-      if (associated(realization%nw_trans)) then
-        if (realization%nw_trans%use_log_formulation) then
+      if (associated(realization%reaction_base)) then
+        if (realization%reaction_base%use_log_formulation) then
           call DiscretizationDuplicateVector(discretization,field%tran_xx, &
                                              field%tran_log_xx)
           call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
@@ -554,7 +541,8 @@ subroutine RealizationPassPtrsToPatches(realization)
   realization%patch%field => realization%field
   realization%patch%datasets => realization%datasets
   realization%patch%reaction => realization%reaction
-  realization%patch%nw_trans => realization%nw_trans
+  realization%patch%reaction_nw => realization%reaction_nw
+  realization%patch%reaction_base => realization%reaction_base
   
 end subroutine RealizationPassPtrsToPatches
 
@@ -688,10 +676,7 @@ subroutine RealizationProcessConditions(realization)
     call RealProcessFlowConditions(realization)
   endif
   if (realization%option%ntrandof > 0) then
-    if (associated(realization%reaction)) &
-      call RealProcessTranConditions(realization)
-    if (associated(realization%nw_trans)) &
-      call RealProcessNWTConditions(realization)
+    call RealProcessTranConditions(realization)
   endif
   
   ! update data mediators
@@ -1073,20 +1058,23 @@ subroutine RealProcessTranConditions(realization)
   ! Date: 10/14/08
   ! 
 
-  use String_module
   use Reaction_module
+  use String_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_NWT_module
+  use Transport_Constraint_RT_module
   use Transport_Constraint_module
   
   implicit none
   
   class(realization_subsurface_type) :: realization
   
-  
   PetscBool :: found, coupling_needed
   type(option_type), pointer :: option
   type(tran_condition_type), pointer :: cur_condition
-  type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-  type(tran_constraint_type), pointer :: cur_constraint, another_constraint
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
+  class(tran_constraint_base_type), pointer :: cur_constraint, &
+                                              another_constraint
   
   option => realization%option
   coupling_needed = PETSC_FALSE
@@ -1118,30 +1106,23 @@ subroutine RealProcessTranConditions(realization)
   cur_constraint => realization%transport_constraints%first
   do
     if (.not.associated(cur_constraint)) exit
-    if (associated(realization%reaction)) &
-      call ReactionProcessConstraint(realization%reaction, &
-                                     cur_constraint%name, &
-                                     cur_constraint%aqueous_species, &
-                                     cur_constraint%free_ion_guess, &
-                                     cur_constraint%minerals, &
-                                     cur_constraint%surface_complexes, &
-                                     cur_constraint%colloids, &
-                                     cur_constraint%immobile_species, &
-                                     realization%option)
+    select type(constraint=>cur_constraint)
+      class is (tran_constraint_rt_type)
+        call ReactionProcessConstraint(realization%reaction, &
+                                       constraint,realization%option)
+      class is (tran_constraint_nwt_type)
+        call NWTConstraintProcess(realization%reaction_nw, &
+                                  constraint,realization%option)
+    end select
     cur_constraint => cur_constraint%next
   enddo
   
   if (option%use_mc) then
-    if (associated(realization%reaction)) &
-      call ReactionProcessConstraint(realization%reaction, &
-                     realization%sec_transport_constraint%name, &
-                     realization%sec_transport_constraint%aqueous_species, &
-                     realization%sec_transport_constraint%free_ion_guess, &
-                     realization%sec_transport_constraint%minerals, &
-                     realization%sec_transport_constraint%surface_complexes, &
-                     realization%sec_transport_constraint%colloids, &
-                     realization%sec_transport_constraint%immobile_species, &
-                     realization%option)
+    select type(constraint=>realization%sec_transport_constraint)
+      class is (tran_constraint_rt_type)
+        call ReactionProcessConstraint(realization%reaction, &
+                                       constraint,realization%option)
+    end select
   endif
   
   ! tie constraints to couplers, if not already associated
@@ -1151,21 +1132,20 @@ subroutine RealProcessTranConditions(realization)
     cur_constraint_coupler => cur_condition%constraint_coupler_list
     do
       if (.not.associated(cur_constraint_coupler)) exit
-      ! if aqueous_species exists, it was coupled during the embedded read.
-      if (.not.associated(cur_constraint_coupler%aqueous_species)) then
+      ! if constraint exists, it was coupled during the embedded read.
+      if (.not.associated(cur_constraint_coupler%constraint)) then
         cur_constraint => realization%transport_constraints%first
         do
           if (.not.associated(cur_constraint)) exit
           if (StringCompare(cur_constraint%name, &
                             cur_constraint_coupler%constraint_name, &
                             MAXWORDLENGTH)) then
-            call TranConstraintMapToCoupler(cur_constraint_coupler, &
-                                            cur_constraint)
+            cur_constraint_coupler%constraint => cur_constraint
             exit
           endif
           cur_constraint => cur_constraint%next
         enddo
-        if (.not.associated(cur_constraint_coupler%aqueous_species)) then
+        if (.not.associated(cur_constraint_coupler%constraint)) then
           option%io_buffer = 'Transport constraint "' // &
                    trim(cur_constraint_coupler%constraint_name) // &
                    '" not found in input file constraints.'
@@ -1174,7 +1154,9 @@ subroutine RealProcessTranConditions(realization)
       endif
       cur_constraint_coupler => cur_constraint_coupler%next
     enddo
-    if (associated(cur_condition%constraint_coupler_list%next)) then ! more than one
+!TODO(geh) remove this?
+    if (associated(cur_condition%constraint_coupler_list%next)) then 
+      ! there are more than one
       cur_condition%is_transient = PETSC_TRUE
     else
       cur_condition%is_transient = PETSC_FALSE
@@ -1187,137 +1169,19 @@ subroutine RealProcessTranConditions(realization)
   do
     if (.not.associated(cur_condition)) exit
     ! is the condition transient?
-    if (associated(cur_condition%constraint_coupler_list%next)) then ! more than one
+    if (associated(cur_condition%constraint_coupler_list%next)) then 
+      ! there are more than one
       cur_condition%is_transient = PETSC_TRUE
     else
       cur_condition%is_transient = PETSC_FALSE
     endif
     ! set pointer to first constraint coupler
-    cur_condition%cur_constraint_coupler => cur_condition%constraint_coupler_list
-    
+    cur_condition%cur_constraint_coupler => &
+                         cur_condition%constraint_coupler_list
     cur_condition => cur_condition%next
   enddo
 
 end subroutine RealProcessTranConditions
-
-! ************************************************************************** !
-
-subroutine RealProcessNWTConditions(realization)
-  ! 
-  ! Sets up auxiliary data associated with
-  ! NW transport conditions
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 06/26/2019
-  ! 
-
-  use String_module
-  
-  implicit none
-  
-  class(realization_subsurface_type) :: realization
-  
-  
-  PetscBool :: found, coupling_needed
-  type(option_type), pointer :: option
-  type(tran_condition_type), pointer :: cur_condition
-  type(nwt_constraint_coupler_type), pointer :: cur_constraint_coupler
-  type(nwt_constraint_type), pointer :: cur_constraint, another_constraint
-  
-  option => realization%option
-  coupling_needed = PETSC_FALSE
-  
-  ! check for duplicate constraint names
-  cur_constraint => realization%nwt_constraints%first
-  do
-    if (.not.associated(cur_constraint)) exit
-      another_constraint => cur_constraint%next
-      ! now compare names
-      found = PETSC_FALSE
-      do
-        if (.not.associated(another_constraint)) exit
-        if (StringCompare(cur_constraint%name,another_constraint%name, &
-            MAXWORDLENGTH)) then
-          found = PETSC_TRUE
-        endif
-        another_constraint => another_constraint%next
-      enddo
-      if (found) then
-        option%io_buffer = 'Duplicate transport constraints named "' // &
-                 trim(cur_constraint%name) // '"'
-        call PrintErrMsg(realization%option)
-      endif
-    cur_constraint => cur_constraint%next
-  enddo
-  
-  ! initialize constraints
-  cur_constraint => realization%nwt_constraints%first
-  do
-    if (.not.associated(cur_constraint)) exit
-    call NWTConstraintProcess(realization%nw_trans,cur_constraint%name, &
-                              cur_constraint%nwt_species,realization%option)   
-    cur_constraint => cur_constraint%next
-  enddo
-  
-  ! jenn:todo Make NWT work with sec_transport_constraint?
-  
-  ! tie constraints to couplers, if not already associated
-  cur_condition => realization%transport_conditions%first
-  do
-    if (.not.associated(cur_condition)) exit
-    cur_constraint_coupler => cur_condition%nwt_constraint_coupler_list
-    do
-      if (.not.associated(cur_constraint_coupler)) exit
-
-      if (.not.associated(cur_constraint_coupler%nwt_species)) then
-        cur_constraint => realization%nwt_constraints%first
-        do
-          if (.not.associated(cur_constraint)) exit
-          if (StringCompare(cur_constraint%name, &
-                            cur_constraint_coupler%constraint_name, &
-                            MAXWORDLENGTH)) then
-            call NWTConstraintMapToCoupler(cur_constraint_coupler, &
-                                            cur_constraint)
-            exit
-          endif
-          cur_constraint => cur_constraint%next
-        enddo
-
-        if (.not.associated(cur_constraint_coupler%nwt_species)) then
-          option%io_buffer = 'Transport constraint "' // &
-                   trim(cur_constraint_coupler%constraint_name) // &
-                   '" not found in given CONSTRAINTs.'
-          call PrintErrMsg(realization%option)
-        endif
-      endif
-      cur_constraint_coupler => cur_constraint_coupler%next
-    enddo
-    if (associated(cur_condition%nwt_constraint_coupler_list%next)) then ! more than one
-      cur_condition%is_transient = PETSC_TRUE
-    else
-      cur_condition%is_transient = PETSC_FALSE
-    endif
-    cur_condition => cur_condition%next
-  enddo
- 
-  ! final details for setup
-  cur_condition => realization%transport_conditions%first
-  do
-    if (.not.associated(cur_condition)) exit
-    ! is the condition transient?
-    if (associated(cur_condition%nwt_constraint_coupler_list%next)) then ! more than one
-      cur_condition%is_transient = PETSC_TRUE
-    else
-      cur_condition%is_transient = PETSC_FALSE
-    endif
-    ! set pointer to first constraint coupler
-    cur_condition%cur_nwt_constraint_coupler => &
-                                     cur_condition%nwt_constraint_coupler_list
-    
-    cur_condition => cur_condition%next
-  enddo
-
-end subroutine RealProcessNWTConditions
 
 ! ************************************************************************** !
 
@@ -1338,8 +1202,8 @@ subroutine RealizationInitConstraints(realization)
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
-    call PatchInitConstraints(cur_patch,realization%reaction, &
-                              realization%nw_trans,realization%option)
+    call PatchInitConstraints(cur_patch,realization%reaction_base, &
+                              realization%option)
     cur_patch => cur_patch%next
   enddo
  
@@ -1356,6 +1220,7 @@ subroutine RealizationPrintCouplers(realization)
   ! 
 
   use Coupler_module
+  use Reaction_Aux_module
   
   implicit none
   
@@ -1364,7 +1229,7 @@ subroutine RealizationPrintCouplers(realization)
   type(patch_type), pointer :: cur_patch
   type(coupler_type), pointer :: cur_coupler
   type(option_type), pointer :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
  
   option => realization%option
   reaction => realization%reaction
@@ -1410,22 +1275,24 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 10/28/08
   ! 
-
   use Coupler_module
   use Reaction_module
+  use Reaction_Aux_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
   
   implicit none
   
   type(coupler_type) :: coupler
   type(option_type) :: option
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   
   character(len=MAXSTRINGLENGTH) :: string
   
   type(flow_condition_type), pointer :: flow_condition
   type(tran_condition_type), pointer :: tran_condition
   type(region_type), pointer :: region
-  type(tran_constraint_coupler_type), pointer :: constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: constraint_coupler
    
 98 format(40('=+'))
 99 format(80('-'))
@@ -1467,11 +1334,12 @@ subroutine RealizationPrintCoupler(coupler,reaction,option)
     constraint_coupler => tran_condition%cur_constraint_coupler
     write(option%fid_out,'(/,2x,''Transport Condition: '',a)') &
       trim(tran_condition%name)
-    if (associated(reaction)) then
-      call ReactionPrintConstraint(constraint_coupler,reaction,option)
-      write(option%fid_out,'(/)')
-      write(option%fid_out,99)
-    endif
+    select type(c=>constraint_coupler)
+      class is (tran_constraint_coupler_rt_type)
+        call ReactionPrintConstraint(c,reaction,option)
+        write(option%fid_out,'(/)')
+        write(option%fid_out,99)
+    end select
   endif
  
 end subroutine RealizationPrintCoupler
@@ -1497,12 +1365,8 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
   !     Otherwise, datasets will not have been read for routines such as
   !     hydrostatic and auxvars will be initialized to garbage.
   call FlowConditionUpdate(realization%flow_conditions,realization%option)
-  if (associated(realization%reaction)) &
-    call TranConditionUpdate(realization%transport_conditions, &
-                             realization%option)
-  if (associated(realization%nw_trans)) &
-    call NWTConditionUpdate(realization%transport_conditions, &
-                            realization%option)
+  call TranConditionUpdate(realization%transport_conditions, &
+                           realization%option)
   call PatchInitAllCouplerAuxVars(realization%patch,realization%option)
    
 end subroutine RealizationInitAllCouplerAuxVars
@@ -1707,7 +1571,7 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   type(flow_condition_type), pointer :: cur_flow_condition
   type(tran_condition_type), pointer :: cur_tran_condition
   type(flow_sub_condition_type), pointer :: sub_condition
-  type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
+  class(tran_constraint_coupler_base_type), pointer :: cur_constraint_coupler
   class(data_mediator_base_type), pointer :: cur_data_mediator
   type(waypoint_type), pointer :: waypoint, cur_waypoint
   type(option_type), pointer :: option
@@ -1884,9 +1748,14 @@ subroutine RealizationUpdatePropertiesTS(realization)
   ! Date: 08/05/09
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  use Discretization_module
+  use Field_module
   use Grid_module
-  use Reactive_Transport_Aux_module
   use Material_Aux_class
+  use Reaction_Aux_module
+  use Reactive_Transport_Aux_module
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
                                PERMEABILITY_Y, PERMEABILITY_Z
  
@@ -1897,7 +1766,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2158,7 +2027,10 @@ subroutine RealizationUpdatePropertiesNI(realization)
   ! Date: 08/05/09
   ! 
 
+  use Discretization_module
+  use Field_module
   use Grid_module
+  use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
@@ -2172,7 +2044,7 @@ subroutine RealizationUpdatePropertiesNI(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
@@ -2216,7 +2088,10 @@ subroutine RealizationCalcMineralPorosity(realization)
   ! Date: 11/03/14
   !
 
+  use Discretization_module
+  use Field_module
   use Grid_module
+  use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY
@@ -2228,7 +2103,7 @@ subroutine RealizationCalcMineralPorosity(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
+  class(reaction_rt_type), pointer :: reaction
   type(grid_type), pointer :: grid
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
   type(discretization_type), pointer :: discretization
@@ -2289,6 +2164,8 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
   ! Date: 06/09/11
   ! 
 
+  use Discretization_module
+  use Field_module
   use Grid_module
 
   implicit none
@@ -2677,6 +2554,8 @@ subroutine RealizUnInitializedVar1(realization,ivar,var_name)
   ! Date: 07/06/16
   ! 
 
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Option_module
   use Field_module
   use Patch_module
@@ -2768,77 +2647,6 @@ end subroutine RealizationLimitDTByCFL
 
 ! ************************************************************************** !
 
-subroutine RealizationDestroyLegacy(realization)
-  ! 
-  ! Deallocates a realization
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 11/01/07
-  ! 
-
-  use Dataset_module
-  use Output_Eclipse_module, only : ReleaseEwriterBuffers
-  use NWT_Constraint_module
-
-  implicit none
-  
-  class(realization_subsurface_type), pointer :: realization
-  
-  if (.not.associated(realization)) return
-    
-  call FieldDestroy(realization%field)
-
-  !  call OptionDestroy(realization%option) !geh it will be destroy externally
-  call OutputOptionDestroy(realization%output_option)
-  call RegionDestroyList(realization%region_list)
-  
-  call FlowConditionDestroyList(realization%flow_conditions)
-
-  !  Destroy the list of wells held by well_data
-  call WellDataDestroyList(realization%well_data, realization%option)
-  !  Release output buffers held by Output_Eclipse_module
-  if (realization%output_option%write_ecl) then
-    call ReleaseEwriterBuffers()
-  endif
-
-  call TranConditionDestroyList(realization%transport_conditions)
-  call TranConstraintDestroyList(realization%transport_constraints)
-  call NWTConstraintDestroyList(realization%nwt_constraints)
-
-  call PatchDestroyList(realization%patch_list)
-
-  if (associated(realization%debug)) deallocate(realization%debug)
-  nullify(realization%debug)
-  
-  if (associated(realization%fluid_property_array)) &
-    deallocate(realization%fluid_property_array)
-  nullify(realization%fluid_property_array)
-  call FluidPropertyDestroy(realization%fluid_properties)
-  
-  call MaterialPropertyDestroy(realization%material_properties)
-
-  call SaturationFunctionDestroy(realization%saturation_functions)
-  print *, 'RealizationDestroyLegacy cannot be removed.'
-  stop
-  call CharacteristicCurvesDestroy(realization%characteristic_curves)
-
-  call DatasetDestroy(realization%datasets)
-  
-  call DatasetDestroy(realization%uniform_velocity_dataset)
-  
-  call DiscretizationDestroy(realization%discretization)
-  
-  call ReactionDestroy(realization%reaction,realization%option)
-  
-  call TranConstraintDestroy(realization%sec_transport_constraint)
-  
-  deallocate(realization)
-  nullify(realization)
-  
-end subroutine RealizationDestroyLegacy
-
-! ************************************************************************** !
-
 subroutine RealizationStrip(this)
   ! 
   ! Deallocates a realization
@@ -2849,7 +2657,6 @@ subroutine RealizationStrip(this)
 
   use Dataset_module
   use Output_Eclipse_module, only : ReleaseEwriterBuffers
-  use NWT_Constraint_module
 
   implicit none
   
@@ -2866,8 +2673,7 @@ subroutine RealizationStrip(this)
   call ReleaseEwriterBuffers()
 
   call TranConditionDestroyList(this%transport_conditions)
-  call TranConstraintDestroyList(this%transport_constraints)
-  call NWTConstraintDestroyList(this%nwt_constraints)
+  call TranConstraintListDestroy(this%transport_constraints)
 
   if (associated(this%fluid_property_array)) &
     deallocate(this%fluid_property_array)
@@ -2882,10 +2688,10 @@ subroutine RealizationStrip(this)
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)
-  
-  call ReactionDestroy(this%reaction,this%option)
-  
-  call NWTransDestroy(this%nw_trans,this%option)
+
+  ! nullify since they are pointers to reaction_base in realization_base
+  nullify(this%reaction)
+  nullify(this%reaction_nw)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   

@@ -1413,17 +1413,18 @@ subroutine MphaseAccumulation(auxvar,global_auxvar,por,vol,rock_dencpr, &
 ! Note if iireac > 0, then it is the node global index
 
 !#if 0
-  if (option%ntrandof > 0) then
-    if (iireac > 0) then
-      !H2O
-      mol(1) = mol(1) + vol * global_auxvar%reaction_rate_store(1) &
-        *option%flow_dt*1.D-3
+  select case(option%itranmode)
+    case(RT_MODE)
+      if (iireac > 0) then
+        !H2O
+        mol(1) = mol(1) + vol * global_auxvar%reaction_rate_store(1) &
+          *option%flow_dt*1.D-3
 
-      !CO2     
-      mol(2) = mol(2) + vol * global_auxvar%reaction_rate_store(2) &
-        *option%flow_dt*1.D-3
-    endif
-  endif
+        !CO2     
+        mol(2) = mol(2) + vol * global_auxvar%reaction_rate_store(2) &
+          *option%flow_dt*1.D-3
+      endif
+  end select
 !#endif
 ! if (option%use_isothermal)then
 !   Res(1:option%nflowdof) = mol(:)

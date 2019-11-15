@@ -1,5 +1,8 @@
 module Reaction_Sandbox_CLM_CN_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Sandbox_Base_class
   
   use Global_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Sandbox_CLM_CN_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
                           ! 14.00674d0 / 12.011d0
   PetscReal, parameter :: CN_ratio_mass_to_mol = 1.16616d0 
   PetscInt, parameter :: CARBON_INDEX = 1
@@ -33,7 +34,7 @@ module Reaction_Sandbox_CLM_CN_class
     PetscInt :: C_species_id
     PetscInt :: N_species_id
     type(pool_type), pointer :: pools
-    type(clm_cn_reaction_type), pointer :: reactions
+    type(clm_cn_reaction_rt_type), pointer :: reactions
   contains
     procedure, public :: ReadInput => CLM_CN_Read
     procedure, public :: Setup => CLM_CN_Setup
@@ -47,14 +48,14 @@ module Reaction_Sandbox_CLM_CN_class
     type(pool_type), pointer :: next
   end type pool_type
   
-  type :: clm_cn_reaction_type
+  type :: clm_cn_reaction_rt_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     character(len=MAXWORDLENGTH) :: downstream_pool_name
     PetscReal :: rate_constant
     PetscReal :: respiration_fraction
     PetscReal :: inhibition_constant
-    type(clm_cn_reaction_type), pointer :: next
-  end type clm_cn_reaction_type
+    type(clm_cn_reaction_rt_type), pointer :: next
+  end type clm_cn_reaction_rt_type
   
   public :: CLM_CN_Create
 
@@ -101,8 +102,6 @@ subroutine CLM_CN_Read(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/04/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -118,7 +117,7 @@ subroutine CLM_CN_Read(this,input,option)
   character(len=MAXWORDLENGTH) :: word, internal_units
   
   type(pool_type), pointer :: new_pool, prev_pool
-  type(clm_cn_reaction_type), pointer :: new_reaction, prev_reaction
+  type(clm_cn_reaction_rt_type), pointer :: new_reaction, prev_reaction
   
   PetscReal :: rate_constant, turnover_time
   
@@ -307,13 +306,13 @@ subroutine CLM_CN_Setup(this,reaction,option)
   ! Date: 02/04/13
   ! 
 
-  use Reaction_Aux_module, only : reaction_type
+  use Reaction_Aux_module, only : reaction_rt_type
   use Option_module
   
   implicit none
   
   class(reaction_sandbox_clm_cn_type) :: this
-  type(reaction_type) :: reaction  
+  class(reaction_rt_type) :: reaction  
   type(option_type) :: option
   
   call CLM_CN_Map(this,reaction,option)
@@ -329,9 +328,7 @@ subroutine CLM_CN_Map(this,reaction,option)
   ! Author: Glenn Hammond
   ! Date: 02/04/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-  use Reaction_Aux_module, only : reaction_type
+  use Reaction_Aux_module, only : reaction_rt_type
   use Option_module
   use String_module
   use Reaction_Immobile_Aux_module
@@ -340,7 +337,7 @@ subroutine CLM_CN_Map(this,reaction,option)
 
   class(reaction_sandbox_clm_cn_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   
   character(len=MAXWORDLENGTH), allocatable :: pool_names(:)
   character(len=MAXWORDLENGTH) :: word
@@ -348,7 +345,7 @@ subroutine CLM_CN_Map(this,reaction,option)
   PetscInt :: icount
 
   type(pool_type), pointer :: cur_pool
-  type(clm_cn_reaction_type), pointer :: cur_rxn
+  type(clm_cn_reaction_rt_type), pointer :: cur_rxn
   
   ! count # pools
   icount = 0
@@ -486,17 +483,15 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 02/04/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
-  use Reaction_Aux_module, only : reaction_type
+  use Reaction_Aux_module, only : reaction_rt_type
   use Material_Aux_class, only : material_auxvar_type
   
   implicit none
   
   class(reaction_sandbox_clm_cn_type) :: this
   type(option_type) :: option
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscBool :: compute_derivative
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
@@ -821,7 +816,7 @@ subroutine CLM_CN_Destroy(this)
   class(reaction_sandbox_clm_cn_type) :: this
   
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(clm_cn_reaction_type), pointer :: cur_reaction, prev_reaction
+  type(clm_cn_reaction_rt_type), pointer :: cur_reaction, prev_reaction
   
   cur_pool => this%pools
   do

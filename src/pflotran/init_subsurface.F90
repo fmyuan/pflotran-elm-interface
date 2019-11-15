@@ -1,7 +1,7 @@
 module Init_Subsurface_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   !geh: there can be no dependencies on simulation object in this file
   use PFLOTRAN_Constants_module
 
@@ -234,8 +234,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Grid_module
   use Discretization_module
@@ -601,8 +599,6 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   ! Date: 1/03/08
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -698,8 +694,6 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   ! Date: 01/19/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -848,9 +842,6 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   ! Author: Glenn Hammond
   ! Date: 01/19/2016
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -1145,7 +1136,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
 
   if (option%ntrandof > 0) then
     select case(option%itranmode)
-      case(NULL_MODE,EXPLICIT_ADVECTION)
+      case(RT_MODE,EXPLICIT_ADVECTION)
         ! remove ndof above if this is moved
         if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
           ndof = realization%reaction%ncomp
@@ -1161,9 +1152,9 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
                       realization%patch%aux%RT%inactive_cells_exist, &
                       option)
         deallocate(dof_is_active)
-      case(NW_TRANSPORT)
+      case(NWT_MODE)
         if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
-          ndof = realization%nw_trans%params%nspecies
+          ndof = realization%reaction_nw%params%nspecies
         else
           ndof = 1
         endif

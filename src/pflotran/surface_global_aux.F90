@@ -1,12 +1,13 @@
 module Surface_Global_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: surface_global_auxvar_type
     PetscInt :: istate
@@ -76,8 +77,6 @@ subroutine SurfaceGlobalAuxVarInit(auxvar,option)
   ! Author: Gautam Bisht, LBNL
   ! Date: 02/28/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use PFLOTRAN_Constants_module, only : DUMMY_VALUE
 

@@ -12,8 +12,6 @@ module Timestepper_BE_class
 
   private
   
-#include "petsc/finclude/petscsys.h"
- 
   type, public, extends(timestepper_base_type) :: timestepper_BE_type
   
     PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
@@ -525,8 +523,6 @@ subroutine TimestepperBECheckpointBinary(this,viewer,option)
   ! Author: Glenn Hammond
   ! Date: 07/25/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none

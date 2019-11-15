@@ -2,21 +2,15 @@ module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
-#include "petsc/finclude/petscmat.h"
-  use petscmat
 #include "petsc/finclude/petscsys.h"
   use petscsys
   
   use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   implicit none
 
   private
 
-!#include "petsc/finclude/petscsys.h"
 #define VMAJOR 3
 #define VMINOR 11
 #define VSUBMINOR 3
@@ -169,8 +163,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
 
   ! transport modes
-  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
-  PetscInt, parameter, public :: NW_TRANSPORT = 2
+  PetscInt, parameter, public :: RT_MODE = 1
+  PetscInt, parameter, public :: NWT_MODE = 2
+  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
   
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
@@ -452,6 +447,9 @@ function InitializedMatType(value)
   ! Tests whether a variable is initialized based orginally being set to
   ! the value PETSC_NULL_CHARACTER.
   ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   implicit none
   
   MatType :: value
@@ -468,6 +466,9 @@ function UninitializedMatType(value)
   ! Tests whether a variable is uninitialized based orginally being set to
   ! the value PETSC_NULL_CHARACTER.
   ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
   implicit none
   
   MatType :: value

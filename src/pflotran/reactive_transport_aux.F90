@@ -1,5 +1,8 @@
 module Reactive_Transport_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   ! this module cannot depend on any other modules besides Option_module
   ! and Matrix_Block_Aux_module
   use Matrix_Block_Aux_module
@@ -9,8 +12,6 @@ module Reactive_Transport_Aux_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, public :: rt_itol_scaled_res = UNINITIALIZED_DOUBLE
   PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
@@ -154,9 +155,6 @@ function RTAuxCreate(naqcomp,nphase)
   ! Author: Glenn Hammond
   ! Date: 02/14/08
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
-
   use Option_module
 
   implicit none
@@ -230,7 +228,7 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
   implicit none
   
   type(reactive_transport_auxvar_type) :: auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   type(surface_complexation_type), pointer :: surface_complexation

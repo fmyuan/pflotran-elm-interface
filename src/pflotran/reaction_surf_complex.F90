@@ -1,5 +1,8 @@
 module Reaction_Surface_Complexation_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Reaction_Surface_Complexation_Aux_module
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
@@ -11,8 +14,6 @@ module Reaction_Surface_Complexation_module
   implicit none
   
   private 
-
-#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
@@ -34,8 +35,6 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   ! Author: Glenn Hammond
   ! Date: 05/02/08
   !
-#include "petsc/finclude/petscsys.h"
-  use petscsys 
   use Option_module
   use String_module
   use Input_Aux_module
@@ -43,7 +42,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   
   implicit none
   
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(input_type), pointer :: input
   type(option_type) :: option
   
@@ -387,8 +386,6 @@ subroutine SrfCplxProcessConstraint(surface_complexation,constraint_name, &
   ! Author: Glenn Hammond
   ! Date: 01/07/13
   !
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -467,7 +464,7 @@ subroutine RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn, ieqrxn
@@ -531,7 +528,7 @@ subroutine RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   
   PetscInt :: irxn, ikinmrrxn
@@ -592,7 +589,7 @@ subroutine RMultiRateSorption(Res,Jac,compute_derivative,rt_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(option_type) :: option
@@ -681,8 +678,6 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   ! Author: Glenn Hammond
   ! Date: 10/22/08; 05/26/09; 03/16/12
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Matrix_Block_Aux_module
   
@@ -691,7 +686,7 @@ subroutine RTotalSorbEqSurfCplx1(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   type(option_type) :: option
   PetscInt :: irxn
   PetscReal :: external_free_site_conc
@@ -965,7 +960,7 @@ subroutine RKineticSurfCplx(Res,Jac,compute_derivative,rt_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(reaction_type) :: reaction
+  class(reaction_rt_type) :: reaction
   PetscReal :: Res(reaction%ncomp)
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   type(option_type) :: option

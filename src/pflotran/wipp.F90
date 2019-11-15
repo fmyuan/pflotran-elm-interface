@@ -154,8 +154,6 @@ subroutine FractureRead(this,input,option)
   ! Author: Heeho Park
   ! Date: 4/7/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -417,14 +415,15 @@ end module Fracture_module
   
 module Creep_Closure_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use Lookup_Table_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: creep_closure_type
     character(len=MAXWORDLENGTH) :: name
@@ -505,8 +504,6 @@ subroutine CreepClosureRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -868,13 +865,14 @@ end module Creep_Closure_module
   
 module Klinkenberg_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type, public :: klinkenberg_type
     PetscReal :: a
@@ -941,8 +939,6 @@ subroutine KlinkenbergRead(this,input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
@@ -1109,14 +1105,15 @@ end module Klinkenberg_module
 
 module WIPP_module
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use Creep_Closure_module
 
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   type :: wipp_type
     class(creep_closure_type), pointer :: creep_closure_tables
@@ -1184,8 +1181,6 @@ subroutine WIPPRead(input,option)
   ! Author: Glenn Hammond
   ! Date: 10/13/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use Input_Aux_module
   use String_module
