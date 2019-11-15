@@ -451,86 +451,87 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   
   ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
   ! need to make sure this has a direction, so condition upon gravity?
+  if (HYDRATE_WITH_SEDIMENTATION) then
+    dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-  dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+    if (dabs(dist_gravity) > 0.d0) then
+      wat_mole_flux = 0.d0
+      air_mole_flux = 0.d0
 
-  if (dabs(dist_gravity) > 0.d0) then
-    wat_mole_flux = 0.d0
-    air_mole_flux = 0.d0
-
-    q = v_sed * area
+      q = v_sed * area
   
-    upwind = dist_gravity > 0.d0
+      upwind = dist_gravity > 0.d0
 
-    if (dist_gravity < 0.d0) q = -q    
+      if (dist_gravity < 0.d0) q = -q    
 
-    if (upwind) then
+      if (upwind) then
 
-      up_scale = 1.d0
+        up_scale = 1.d0
       
-      hyd_sat = hyd_auxvar_up%sat(hid)
-      gas_sat = min(hyd_auxvar_up%sat(gid),hyd_auxvar_up%srg)
-      liq_sat = min(hyd_auxvar_up%sat(lid),hyd_auxvar_up%srl)
+        hyd_sat = hyd_auxvar_up%sat(hid)
+        gas_sat = min(hyd_auxvar_up%sat(gid),hyd_auxvar_up%srg)
+        liq_sat = min(hyd_auxvar_up%sat(lid),hyd_auxvar_up%srl)
 
-      wat_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up%xmol(wat_comp_id, &
+        wat_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up%xmol(wat_comp_id, &
                         lid)*liq_sat
-      wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(gid)*hyd_auxvar_up%&
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(gid)*hyd_auxvar_up%&
                         xmol(wat_comp_id,gid)*gas_sat
-      wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(hid)*hyd_auxvar_up%&
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_up%den(hid)*hyd_auxvar_up%&
                         xmol(wat_comp_id,hid)*hyd_sat
-      wat_mole_flux = q  * wat_mole_flux
+        wat_mole_flux = q  * wat_mole_flux
 
-      air_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up%xmol(air_comp_id, &
-                      lid)*liq_sat
-      air_mole_flux = air_mole_flux + hyd_auxvar_up%den(gid)*hyd_auxvar_up% &
-                      xmol(air_comp_id,gid)*gas_sat
-      air_mole_flux = air_mole_flux + hyd_auxvar_up%den(hid)*hyd_auxvar_up% &
-                      xmol(air_comp_id,hid)*hyd_sat
-      air_mole_flux = q  * air_mole_flux
+        air_mole_flux = hyd_auxvar_up%den(lid)*hyd_auxvar_up%xmol(air_comp_id, &
+                        lid)*liq_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_up%den(gid)*hyd_auxvar_up% &
+                        xmol(air_comp_id,gid)*gas_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_up%den(hid)*hyd_auxvar_up% &
+                        xmol(air_comp_id,hid)*hyd_sat
+        air_mole_flux = q  * air_mole_flux
 
 
-      energy_flux = q * hyd_auxvar_up%effective_porosity* &
+        energy_flux = q * hyd_auxvar_up%effective_porosity* &
            (hyd_auxvar_up%den(lid) * hyd_auxvar_up%H(lid) * &
            liq_sat + hyd_auxvar_up%den(gid) * hyd_auxvar_up%H(gid) * gas_sat + &
            hyd_auxvar_up%den(hid) * hyd_auxvar_up%H(hid) * hyd_sat) 
 
-    else
-      dn_scale = 1.d0
+      else
+        dn_scale = 1.d0
 
-      hyd_sat = hyd_auxvar_dn%sat(hid)
-      gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
-      liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
+        hyd_sat = hyd_auxvar_dn%sat(hid)
+        gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
+        liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
 
-      wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id, &
+        wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id, &
                         lid)*liq_sat
-      wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
                         xmol(wat_comp_id,gid)*gas_sat
-      wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
+        wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
                         xmol(wat_comp_id,hid)*hyd_sat
-      wat_mole_flux = q  * wat_mole_flux
+        wat_mole_flux = q  * wat_mole_flux
 
-      air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id, &
-                      lid)*liq_sat
-      air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
-                      xmol(air_comp_id,gid)*gas_sat
-      air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
-                      xmol(air_comp_id,hid)*hyd_sat
-      air_mole_flux = q  * air_mole_flux
+        air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id, &
+                        lid)*liq_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
+                        xmol(air_comp_id,gid)*gas_sat
+        air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
+                        xmol(air_comp_id,hid)*hyd_sat
+        air_mole_flux = q  * air_mole_flux
 
 
-      energy_flux = q * hyd_auxvar_dn%effective_porosity * &
-         (hyd_auxvar_dn%den(lid) * hyd_auxvar_dn%H(lid) * &
-         liq_sat + hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid) * gas_sat + &
-         hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid) * hyd_sat)
+        energy_flux = q * hyd_auxvar_dn%effective_porosity * &
+                      (hyd_auxvar_dn%den(lid) * hyd_auxvar_dn%H(lid) * &
+                      liq_sat + hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid)*&
+                      gas_sat + hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid)*&
+                      hyd_sat)
+
+      endif
+
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(energy_id) = Res(energy_id) + energy_flux
 
     endif
-
-    Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-    Res(energy_id) = Res(energy_id) + energy_flux
-
   endif
-
 #ifdef DIFFUSION
   if (.not.hydrate_immiscible) then
   ! add in gas component diffusion in gas and liquid phases
@@ -1251,49 +1252,51 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
   ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
   ! need to make sure this has a direction, so condition upon gravity?
-  dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+  if (HYDRATE_WITH_SEDIMENTATION) then
+    dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
-  if (dabs(dist_gravity) > 0.d0) then
-    wat_mole_flux = 0.d0
-    air_mole_flux = 0.d0
+    if (dabs(dist_gravity) > 0.d0) then
+      wat_mole_flux = 0.d0
+      air_mole_flux = 0.d0
 
-    q = v_sed * area
+      q = v_sed * area
 
-    upwind = dist_gravity > 0.d0
+      upwind = dist_gravity > 0.d0
 
-    if (dist_gravity < 0.d0) q = -q
+      if (dist_gravity < 0.d0) q = -q
 
-    hyd_sat = hyd_auxvar_dn%sat(hid)
-    gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
-    liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
+      hyd_sat = hyd_auxvar_dn%sat(hid)
+      gas_sat = min(hyd_auxvar_dn%sat(gid),hyd_auxvar_dn%srg)
+      liq_sat = min(hyd_auxvar_dn%sat(lid),hyd_auxvar_dn%srl)
 
-    wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id, &
+      wat_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(wat_comp_id, &
                         lid)*liq_sat
-    wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
+      wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn%&
                         xmol(wat_comp_id,gid)*gas_sat
-    wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
+      wat_mole_flux = wat_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn%&
                         xmol(wat_comp_id,hid)*hyd_sat
-    wat_mole_flux = q  * wat_mole_flux
+      wat_mole_flux = q  * wat_mole_flux
 
-    air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id, &
+      air_mole_flux = hyd_auxvar_dn%den(lid)*hyd_auxvar_dn%xmol(air_comp_id, &
                       lid)*liq_sat
-    air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
+      air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(gid)*hyd_auxvar_dn% &
                       xmol(air_comp_id,gid)*gas_sat
-    air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
+      air_mole_flux = air_mole_flux + hyd_auxvar_dn%den(hid)*hyd_auxvar_dn% &
                       xmol(air_comp_id,hid)*hyd_sat
-    air_mole_flux = q  * air_mole_flux
+      air_mole_flux = q  * air_mole_flux
 
 
     ! MAN: need to mult by phi?
-    energy_flux = q*hyd_auxvar_dn%effective_porosity*(hyd_auxvar_dn%den(lid) * &
+      energy_flux = q*hyd_auxvar_dn%effective_porosity*(hyd_auxvar_dn%den(lid) * &
                      hyd_auxvar_dn%H(lid) * liq_sat + &
                      hyd_auxvar_dn%den(gid) * hyd_auxvar_dn%H(gid) * gas_sat + &
                      hyd_auxvar_dn%den(hid) * hyd_auxvar_dn%H(hid) * hyd_sat)
 
-    Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
-    Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
-    Res(energy_id) = Res(energy_id) + energy_flux
+      Res(wat_comp_id) = Res(wat_comp_id) + wat_mole_flux
+      Res(air_comp_id) = Res(air_comp_id) + air_mole_flux
+      Res(energy_id) = Res(energy_id) + energy_flux
 
+    endif
   endif
 
   

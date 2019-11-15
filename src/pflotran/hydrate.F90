@@ -59,6 +59,18 @@ subroutine HydrateRead(input,meth,option)
     call StringToUpper(word)
 
     select case(trim(word))
+      case('SCALE_PERM_BY_HYD_SAT')
+        HYDRATE_PERM_SCALING = PETSC_TRUE
+      case('EFFECTIVE_SAT_SCALING')
+        HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
+      case('WITH_GIBBS_THOMSON')
+        HYDRATE_WITH_GIBBS_THOMSON = PETSC_TRUE
+      case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
+        HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_TRUE
+      case('WITH_SEDIMENTATION')
+        HYDRATE_WITH_SEDIMENTATION = PETSC_TRUE
+      case('NO_PC')
+        HYDRATE_NO_PC = PETSC_TRUE
       case('METHANOGENESIS')
         if (.not. associated(meth)) then
           allocate(meth)
