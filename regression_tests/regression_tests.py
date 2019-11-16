@@ -531,7 +531,7 @@ class RegressionTest(object):
                     gold_filename = current_filename + ".gold"
                     if not os.path.isfile(gold_filename):
                         message = self._txtwrap.fill(
-                            "FAIL: could not find ASCII output gold file "
+                            "ERROR: could not find ASCII output gold file "
                             "'{0}'.".format(gold_filename))
                         print("".join(['\n', message, '\n']), file=testlog)
                         status.error = _MISSING_INFO_ERROR
@@ -602,7 +602,7 @@ class RegressionTest(object):
             for section in gold_sections:
                 if section not in current_sections:
                     errors.append(_MISSING_INFO_ERROR)
-                    print("    FAIL: section '{0}' is in the gold output, but "
+                    print("    ERROR: section '{0}' is in the gold output, but "
                           "not the current output.".format(section), 
                           file=testlog)
 
@@ -610,7 +610,7 @@ class RegressionTest(object):
             for section in current_sections:
                 if section not in gold_sections:
                     errors.append(_MISSING_INFO_ERROR)
-                    print("    FAIL: section '{0}' is in the current output, "
+                    print("    ERROR: section '{0}' is in the current output, "
                           "but not the gold output.".format(section), 
                           file=testlog)
     
@@ -755,7 +755,7 @@ class RegressionTest(object):
                 continue
             if len(h5_current[group].keys()) != len(h5_gold[group].keys()):
                 status.error = _POST_PROCESS_ERROR
-                print("    FAIL: group '{0}' does not have the same number of datasets!".format(group), file=testlog)
+                print("    ERROR: group '{0}' does not have the same number of datasets!".format(group), file=testlog)
                 print("    h5_gold : {0} : {1}".format(
                     group, h5_gold[group].keys()), file=testlog)
                 print("    h5_current : {0} : {1}".format(
@@ -775,7 +775,7 @@ class RegressionTest(object):
                                 h5_current[group][dataset].shape), file=testlog)
                         if h5_gold[group][dataset].dtype != h5_current[group][dataset].dtype:
                             status.error = _POST_PROCESS_ERROR
-                            print("    FAIL: current dataset '/{0}/{1}' does not have the correct data type!".format(group, dataset), file=testlog)
+                            print("    ERROR: current dataset '/{0}/{1}' does not have the correct data type!".format(group, dataset), file=testlog)
                             print("        gold : {0}".format(
                                 h5_gold[group][dataset].dtype), file=testlog)
                             print("        current : {0}".format(
@@ -935,7 +935,7 @@ class RegressionTest(object):
             for k in gold_section:
                 if k not in current_section:
                     section_num_minor_error += 1
-                    print("    FAIL: key '{0}' in section '{1}' found in gold "
+                    print("    ERROR: key '{0}' in section '{1}' found in gold "
                           "output but not current".format(
                               k, gold_section['name']), file=testlog)
 
@@ -943,7 +943,7 @@ class RegressionTest(object):
             for k in current_section:
                 if k not in gold_section:
                     section_num_minor_error += 1
-                    print("    FAIL: key '{0}' in section '{1}' found in current "
+                    print("    ERROR: key '{0}' in section '{1}' found in current "
                           "output but not gold".format(k, current_section['name']),
                           file=testlog)
 
@@ -958,7 +958,7 @@ class RegressionTest(object):
                     current = current_section[k].split()
                     if len(gold) != len(current):
                         section_num_minor_error += 1
-                        print("    FAIL: {0} : {1} : vector lengths not "
+                        print("    ERROR: {0} : {1} : vector lengths not "
                               "equal. gold {2}, current {3}".format(
                                   name, k, len(gold), len(current)), file=testlog)
                     else:
@@ -1046,14 +1046,6 @@ class RegressionTest(object):
         # is the known correct value!
         if min_threshold <= abs(previous) and abs(previous) <= max_threshold:
 
-            if delta > tolerance:
-                num_minor_fail += 1
-                print("    FAIL: {0} : {1} > {2} [{3}]".format(
-                    name, delta, tolerance, tolerance_type), file=testlog)
-            elif self._debug:
-                print("    PASS: {0} : {1} <= {2} [{3}]".format(
-                    name, delta, tolerance, tolerance_type), file=testlog)
-
             # check for major relative failure
             if previous != 0:
                 major_delta = abs((previous - current) / previous)
@@ -1064,6 +1056,19 @@ class RegressionTest(object):
                 major_delta = 0.0
             if major_delta > self._tolerance[self._MAJOR][self._TOL_VALUE]:
                 num_major_fail += 1
+
+            if delta > tolerance:
+                num_minor_fail += 1
+                
+            if num_major_fail > 0:
+                print("    MAJOR FAIL: {0} : {1} > {2} [{3}]".format(
+                    name, delta, tolerance, tolerance_type), file=testlog)
+            elif num_minor_fail > 0:
+                print("          FAIL: {0} : {1} > {2} [{3}]".format(
+                    name, delta, tolerance, tolerance_type), file=testlog)
+            elif self._debug:
+                print("          PASS: {0} : {1} <= {2} [{3}]".format(
+                    name, delta, tolerance, tolerance_type), file=testlog)
         else:
             # revert major failure if outside range
             num_major_fail = 0
