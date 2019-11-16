@@ -1046,28 +1046,28 @@ class RegressionTest(object):
         # is the known correct value!
         if min_threshold <= abs(previous) and abs(previous) <= max_threshold:
 
-            # check for major relative failure
-            if previous != 0:
-                major_delta = abs((previous - current) / previous)
-            elif current != 0:
-                major_delta = abs((previous - current) / current)
-            else:
-                # both are zero
-                major_delta = 0.0
-            if major_delta > self._tolerance[self._MAJOR][self._TOL_VALUE]:
-                num_major_fail += 1
-
             if delta > tolerance:
                 num_minor_fail += 1
                 
+                # check for major relative failure
+                if previous != 0:
+                    major_delta = abs((previous - current) / previous)
+                elif current != 0:
+                    major_delta = abs((previous - current) / current)
+                else:
+                    # both are zero
+                    major_delta = 0.0
+                if major_delta > self._tolerance[self._MAJOR][self._TOL_VALUE]:
+                    num_major_fail += 1
+
             if num_major_fail > 0:
                 print("    MAJOR FAIL: {0} : {1} > {2} [{3}]".format(
                     name, delta, tolerance, tolerance_type), file=testlog)
             elif num_minor_fail > 0:
-                print("          FAIL: {0} : {1} > {2} [{3}]".format(
+                print("    FAIL: {0} : {1} > {2} [{3}]".format(
                     name, delta, tolerance, tolerance_type), file=testlog)
             elif self._debug:
-                print("          PASS: {0} : {1} <= {2} [{3}]".format(
+                print("    PASS: {0} : {1} <= {2} [{3}]".format(
                     name, delta, tolerance, tolerance_type), file=testlog)
         else:
             # revert major failure if outside range
