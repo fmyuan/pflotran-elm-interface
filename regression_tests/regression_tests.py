@@ -142,7 +142,7 @@ class RegressionTest(object):
                                        0.0, sys.float_info.max]
         self._tolerance[self._DISCRETE] = [0, self._ABSOLUTE, 0, sys.maxsize]
         # a failure is considered major if greater than 0.1% relative
-        self._tolerance[self._MAJOR_SCALE] = [1.e3, self._RELATIVE, 
+        self._tolerance[self._MAJOR_SCALE] = [1.e6, self._RELATIVE, 
                                               0., sys.float_info.max]
         common = [self._CONCENTRATION, self._GENERIC, self._RATE, 
                   self._VOLUME_FRACTION, \
