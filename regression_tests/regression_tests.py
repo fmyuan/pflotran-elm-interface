@@ -103,7 +103,7 @@ class RegressionTest(object):
         self._STRESS = "stress"
         self._SOLUTION = "solution"
         self._RESIDUAL = "residual"
-        self._MAJOR = "major"
+        self._MAJOR_SCALE = "major_scale"
         self._TOL_VALUE = 0
         self._TOL_TYPE = 1
         self._TOL_MIN_THRESHOLD = 2
@@ -142,8 +142,8 @@ class RegressionTest(object):
                                        0.0, sys.float_info.max]
         self._tolerance[self._DISCRETE] = [0, self._ABSOLUTE, 0, sys.maxsize]
         # a failure is considered major if greater than 0.1% relative
-        self._tolerance[self._MAJOR] = [1.e-3, self._RELATIVE, 
-                                        0., sys.float_info.max]
+        self._tolerance[self._MAJOR_SCALE] = [1.e3, self._RELATIVE, 
+                                              0., sys.float_info.max]
         common = [self._CONCENTRATION, self._GENERIC, self._RATE, 
                   self._VOLUME_FRACTION, \
                   self._PRESSURE, self._SATURATION, self._RESIDUAL, \
@@ -1049,15 +1049,9 @@ class RegressionTest(object):
             if delta > tolerance:
                 num_minor_fail += 1
                 
-                # check for major relative failure
-                if previous != 0:
-                    major_delta = abs((previous - current) / previous)
-                elif current != 0:
-                    major_delta = abs((previous - current) / current)
-                else:
-                    # both are zero
-                    major_delta = 0.0
-                if major_delta > self._tolerance[self._MAJOR][self._TOL_VALUE]:
+                # check for major failure
+                if delta > tolerance * \
+                        self._tolerance[self._MAJOR_SCALE][self._TOL_VALUE]:
                     num_major_fail += 1
 
             if num_major_fail > 0:
