@@ -41,6 +41,7 @@ module PM_WIPP_SrcSink_class
   PetscReal, parameter :: MW_H2 = 2.015880d-3
   PetscReal, parameter :: MW_H2O = 1.801528d-2
   PetscReal, parameter :: MW_SALT = 5.8442d-2
+  PetscReal, parameter :: MW_O2 = 31.998d-3
   
   ! density parameters [kg/m3]
   PetscReal, parameter :: DN_FE = 7870.d0
@@ -242,6 +243,7 @@ module PM_WIPP_SrcSink_class
     PetscInt :: num_species
     character(len=MAXWORDLENGTH), pointer :: id(:)
     character(len=MAXWORDLENGTH), pointer :: daughter_id(:)
+    PetscInt, pointer :: element_id(:)
     PetscReal, pointer :: half_life(:)
     PetscReal, pointer :: atomic_wt(:)
     PetscReal, pointer :: mass(:)
@@ -250,6 +252,17 @@ module PM_WIPP_SrcSink_class
     type(rad_inventory_type), pointer :: next
   end type rad_inventory_type
 
+! -------------------------------------------
+
+  type, public :: radiolysis_parameter_type
+    PetscReal :: xlim
+    PetscReal :: halfmax
+    PetscReal :: t_scale
+    PetscReal :: srado2
+    PetscReal :: gh2avg
+    PetscReal :: gdepfac
+  end type radiolysis_parameter_type
+  
 ! -------------------------------------------
   
 ! OBJECT srcsink_panel_type:
@@ -456,6 +469,7 @@ module PM_WIPP_SrcSink_class
     type(srcsink_panel_type), pointer :: waste_panel_list
     type(pre_canister_inventory_type), pointer :: pre_canister_inventory_list
     type(rad_inventory_type), pointer :: rad_inventory_list
+    type(radiolysis_parameter_type) :: radiolysis_parameters
     class(realization_subsurface_type), pointer :: realization
   contains
     procedure, public :: PMWSSSetRealization
@@ -536,6 +550,13 @@ function PMWSSCreate()
   pm%output_start_time = 0.d0  ! [sec] default value
   pm%stoic_mat = UNINITIALIZED_DOUBLE
   pm%rate_update_frequency = NO_LAG
+  
+  pm%radiolysis_parameters%xlim = UNINITIALIZED_DOUBLE
+  pm%radiolysis_parameters%halfmax = UNINITIALIZED_DOUBLE
+  pm%radiolysis_parameters%t_scale = UNINITIALIZED_DOUBLE
+  pm%radiolysis_parameters%srado2 = UNINITIALIZED_DOUBLE
+  pm%radiolysis_parameters%gh2avg = UNINITIALIZED_DOUBLE
+  pm%radiolysis_parameters%gdepfac = UNINITIALIZED_DOUBLE
   
   call PMBaseInit(pm)
   
@@ -696,6 +717,7 @@ function PMWSSRadInventoryCreate()
   nullify(rad_inventory%next)
   nullify(rad_inventory%id)
   nullify(rad_inventory%daughter_id)
+  nullify(rad_inventory%element_id)
   nullify(rad_inventory%half_life)
   nullify(rad_inventory%atomic_wt)
   nullify(rad_inventory%mass)
@@ -785,6 +807,7 @@ subroutine PMWSSRadInventoryInit(rad_inventory)
   rad_inventory%name = ''
   nullify(rad_inventory%id)
   nullify(rad_inventory%daughter_id)
+  nullify(rad_inventory%element_id)
   nullify(rad_inventory%half_life)
   nullify(rad_inventory%atomic_wt)
   
@@ -1071,6 +1094,7 @@ subroutine PMWSSCopyRadInv(rad_inventory,wp_rad_inventory)
     
    allocate(wp_rad_inventory%id(num_species))
    allocate(wp_rad_inventory%daughter_id(num_species))
+   allocate(wp_rad_inventory%element_id(num_species))
    allocate(wp_rad_inventory%half_life(num_species))
    allocate(wp_rad_inventory%atomic_wt(num_species))
    allocate(wp_rad_inventory%mass(num_species))
@@ -1079,6 +1103,7 @@ subroutine PMWSSCopyRadInv(rad_inventory,wp_rad_inventory)
     
    wp_rad_inventory%id(:) = rad_inventory%id(:)
    wp_rad_inventory%daughter_id(:) = rad_inventory%daughter_id(:)
+   wp_rad_inventory%element_id(:) = rad_inventory%element_id(:)
    wp_rad_inventory%half_life(:) = rad_inventory%half_life(:)
    wp_rad_inventory%atomic_wt(:) = rad_inventory%atomic_wt(:)
    wp_rad_inventory%mass(:) = rad_inventory%mass(:)
@@ -1206,7 +1231,7 @@ subroutine PMWSSRead(this,input)
   type(pre_canister_inventory_type), pointer :: cur_preinventory
   type(rad_inventory_type), pointer :: new_rad_inventory, cur_rad_inventory, &
                                        temp_rad_inventory
-  PetscInt :: num_errors, k
+  PetscInt :: num_errors, k, i, input_int
   PetscInt :: rxn_num, spec_num
   PetscBool :: added
   PetscBool :: found
@@ -1427,111 +1452,183 @@ subroutine PMWSSRead(this,input)
         !if (InputCheckExit(input,option)) exit
     !-----------------------------------------
     !-----------------------------------------
-      case('RADIOLYSIS_INVENTORY') !MAN: radionuclide inventory for radiolysis
-        temp_rad_inventory => PMWSSRadInventoryCreate()
-        new_rad_inventory => PMWSSRadInventoryCreate()
-        error_string = trim(error_string) // ',RADIOLYSIS_INVENTORY'
-        allocate(temp_rad_inventory)
-        allocate(temp_rad_inventory%id(50))
-        allocate(temp_rad_inventory%daughter_id(50))
-        allocate(temp_rad_inventory%half_life(50))
-        allocate(temp_rad_inventory%atomic_wt(50))
-        allocate(temp_rad_inventory%mass(50))
-        allocate(temp_rad_inventory%solubility(50))
-        allocate(temp_rad_inventory%disintegration_energy(50))
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'name',error_string)
-        new_rad_inventory%name = adjustl(trim(word))
-        call InputErrorMsg(input,option,'keyword',error_string)
-        call InputPushBlock(input,option)
-        k = 0
+      case('RADIOLYSIS') !MAN: radionuclide inventory for radiolysis
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          k = k+1
           call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword',error_string)
+          call InputErrorMsg(input,option,'keyword',error_string2)
           call StringToUpper(word)
           select case(trim(word))
-          
-            case('ISOTOPE')
-            
-              do
-                call InputReadPflotranString(input,option)
-                if (InputError(input)) exit
-                if (InputCheckExit(input,option)) exit
-                call InputReadCard(input,option,word)
-                call InputErrorMsg(input,option,'keyword',error_string2)
-                call StringToUpper(word)
-                select case(trim(word))
-                  case('ID')
-                    call InputReadWord(input,option,word,PETSC_TRUE)
-                    call InputErrorMsg(input,option,'ID',error_string)
-                    temp_rad_inventory%id(k) = adjustl(trim(word))
-                  case('DAUGHTER')
-                    call InputReadWord(input,option,word,PETSC_TRUE)
-                    call InputErrorMsg(input,option,'DAUGHTER',error_string)
-                    temp_rad_inventory%daughter_id(k) = adjustl(trim(word))
-                  case('HALF_LIFE')
-                    call InputReadDouble(input,option,input_double)
-                    call InputErrorMsg(input,option,'HALF_LIFE',error_string2)
-                    temp_rad_inventory%half_life(k) = input_double
-                  case('ATOMIC_WT','ATOMIC_WEIGHT')
-                    call InputReadDouble(input,option,input_double)
-                    call InputErrorMsg(input,option,'ATOMIC_WT',error_string2)
-                    temp_rad_inventory%atomic_wt(k) = input_double
-                  case('MASS')
-                    call InputReadDouble(input,option,input_double)
-                    call InputErrorMsg(input,option,'MASS',error_string2)
-                    temp_rad_inventory%mass(k) = input_double
-                  case('SOLUBILITY')
-                    call InputReadDouble(input,option,input_double)
-                    call InputErrorMsg(input,option,'SOLUBILITY',error_string2)
-                    temp_rad_inventory%solubility(k) = input_double
-                  case('DISINTEGRATION_ENERGY')
-                    call InputReadDouble(input,option,input_double)
-                    call InputErrorMsg(input,option,'DISINTEGRATION_ENERGY', &
-                                       error_string2)
-                    temp_rad_inventory%disintegration_energy(k) = input_double
-                end select
-              enddo
-
-            case default
-              call InputKeywordUnrecognized(input,word,error_string,option)
-          end select
-          new_rad_inventory%num_species = k
-        enddo
-        allocate(new_rad_inventory%id(k))
-        allocate(new_rad_inventory%daughter_id(k))
-        allocate(new_rad_inventory%half_life(k))
-        allocate(new_rad_inventory%atomic_wt(k))
-        allocate(new_rad_inventory%mass(k))
-        allocate(new_rad_inventory%solubility(k))
-        allocate(new_rad_inventory%disintegration_energy(k))
-        new_rad_inventory%id(:) = temp_rad_inventory%id(1:k)
-        new_rad_inventory%daughter_id(:) = temp_rad_inventory%daughter_id(1:k)
-        new_rad_inventory%half_life(:) = temp_rad_inventory%half_life(1:k)
-        new_rad_inventory%atomic_wt(:) = temp_rad_inventory%atomic_wt(1:k)
-        new_rad_inventory%mass(:) = temp_rad_inventory%mass(1:k)
-        new_rad_inventory%solubility(:) = temp_rad_inventory%solubility(1:k)
-        new_rad_inventory%disintegration_energy(:) = &
-                                  temp_rad_inventory%disintegration_energy(1:k)
+          case('PARAMETERS')
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'keyword',error_string2)
+              call StringToUpper(word)
+              select case(trim(word))
+                case('XLIM')
+                  call InputReadDouble(input,option,input_double)
+                  call InputErrorMsg(input,option,'XLIM',error_string2)
+                  this%radiolysis_parameters%xlim = input_double
+                case('HALFMAX')
+                  call InputReadDouble(input,option,input_double)
+                  call InputErrorMsg(input,option,'HALFMAX',error_string2)
+                  this%radiolysis_parameters%halfmax = input_double
+                case('T_SCALE')
+                  call InputReadDouble(input,option,input_double)
+                  call InputErrorMsg(input,option,'T_SCALE',error_string2)
+                  this%radiolysis_parameters%t_scale = input_double
+                case('SRADO2')
+                  call InputReadDouble(input,option,input_double)
+                  call InputErrorMsg(input,option,'SRADO2',error_string2)
+                  this%radiolysis_parameters%srado2 = input_double
+                case('GH2AVG')
+                  call InputReadDouble(input,option,input_double)
+                  call InputErrorMsg(input,option,'GH2AVG',error_string2)
+                  this%radiolysis_parameters%gh2avg = input_double
+                case('GDEPFAC')
+                  call InputReadDouble(input,option,input_double)
+                  call InputErrorMsg(input,option,'GDEPFAC',error_string2)
+                  this%radiolysis_parameters%gdepfac = input_double
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              end select
+            enddo
+          case('INVENTORY')
+            cur_rad_inventory => PMWSSRadInventoryCreate()
+            allocate(cur_rad_inventory)
+            allocate(cur_rad_inventory%id(1))
+            allocate(cur_rad_inventory%daughter_id(1))
+            allocate(cur_rad_inventory%element_id(1))
+            allocate(cur_rad_inventory%half_life(1))
+            allocate(cur_rad_inventory%atomic_wt(1))
+            allocate(cur_rad_inventory%mass(1))
+            allocate(cur_rad_inventory%solubility(1))
+            allocate(cur_rad_inventory%disintegration_energy(1))
+            temp_rad_inventory => cur_rad_inventory
+            new_rad_inventory => PMWSSRadInventoryCreate()
+            error_string = trim(error_string) // ',RADIOLYSIS_INVENTORY'
         
-        if (.not.associated(this%rad_inventory_list)) then
-          this%rad_inventory_list => new_rad_inventory
-        else
-          cur_rad_inventory => this%rad_inventory_list
-          do
-            if (.not.associated(cur_rad_inventory%next)) then
-              cur_rad_inventory%next => new_rad_inventory
-              added = PETSC_TRUE
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'name',error_string)
+            new_rad_inventory%name = adjustl(trim(word))
+            call InputErrorMsg(input,option,'keyword',error_string)
+            call InputPushBlock(input,option)
+            k = 0
+            do
+              call InputReadPflotranString(input,option)
+              if (InputError(input)) exit
+              if (InputCheckExit(input,option)) exit
+              k = k+1
+              call InputReadCard(input,option,word)
+              call InputErrorMsg(input,option,'keyword',error_string)
+              call StringToUpper(word)
+              select case(trim(word))
+          
+                case('ISOTOPE')
+            
+                  do
+                    call InputReadPflotranString(input,option)
+                    if (InputError(input)) exit
+                    if (InputCheckExit(input,option)) exit
+                    call InputReadCard(input,option,word)
+                    call InputErrorMsg(input,option,'keyword',error_string2)
+                    call StringToUpper(word)
+                    select case(trim(word))
+                      case('ID')
+                        call InputReadWord(input,option, word, PETSC_TRUE)
+                        call InputErrorMsg(input,option,'ID',error_string)
+                        temp_rad_inventory%id(1) = adjustl(trim(word))
+                      case('IELEMENT','ELEMENT_ID')
+                        call InputReadInt(input,option,input_int)
+                        call InputErrorMsg(input,option,'ELEMENT_ID',error_string)
+                        temp_rad_inventory%element_id(1) = input_int
+                      case('DAUGHTER')
+                        call InputReadWord(input,option,word,PETSC_TRUE)
+                        call InputErrorMsg(input,option,'DAUGHTER',error_string)
+                        temp_rad_inventory%daughter_id(1) = adjustl(trim(word))
+                      case('HALF_LIFE')
+                        call InputReadDouble(input,option,input_double)
+                        call InputErrorMsg(input,option,'HALF_LIFE',error_string2)
+                        temp_rad_inventory%half_life(1) = input_double
+                      case('ATOMIC_WT','ATOMIC_WEIGHT')
+                        call InputReadDouble(input,option,input_double)
+                        call InputErrorMsg(input,option,'ATOMIC_WT',error_string2)
+                        temp_rad_inventory%atomic_wt(1) = input_double
+                      case('MASS')
+                        call InputReadDouble(input,option,input_double)
+                        call InputErrorMsg(input,option,'MASS',error_string2)
+                        temp_rad_inventory%mass(1) = input_double
+                      case('SOLUBILITY')
+                        call InputReadDouble(input,option,input_double)
+                        call InputErrorMsg(input,option,'SOLUBILITY',error_string2)
+                        temp_rad_inventory%solubility(1) = input_double
+                      case('DISINTEGRATION_ENERGY')
+                        call InputReadDouble(input,option,input_double)
+                        call InputErrorMsg(input,option,'DISINTEGRATION_ENERGY', &
+                                       error_string2)
+                        temp_rad_inventory%disintegration_energy(1) = input_double
+                    end select
+                  enddo
+            
+                case default
+                  call InputKeywordUnrecognized(input,word,error_string,option)
+              end select
+              allocate(temp_rad_inventory%next)
+              allocate(temp_rad_inventory%next%id(1))
+              allocate(temp_rad_inventory%next%daughter_id(1))
+              allocate(temp_rad_inventory%next%element_id(1))
+              allocate(temp_rad_inventory%next%half_life(1))
+              allocate(temp_rad_inventory%next%atomic_wt(1))
+              allocate(temp_rad_inventory%next%mass(1))
+              allocate(temp_rad_inventory%next%solubility(1))
+              allocate(temp_rad_inventory%next%disintegration_energy(1))
+              temp_rad_inventory => temp_rad_inventory%next
+            enddo
+            new_rad_inventory%num_species = k
+            allocate(new_rad_inventory%id(k))
+            allocate(new_rad_inventory%daughter_id(k))
+            allocate(new_rad_inventory%element_id(k))
+            allocate(new_rad_inventory%half_life(k))
+            allocate(new_rad_inventory%atomic_wt(k))
+            allocate(new_rad_inventory%mass(k))
+            allocate(new_rad_inventory%solubility(k))
+            allocate(new_rad_inventory%disintegration_energy(k))
+            temp_rad_inventory => cur_rad_inventory
+            do i = 1,new_rad_inventory%num_species
+              new_rad_inventory%id(i) = temp_rad_inventory%id(1)
+              new_rad_inventory%daughter_id(i) = temp_rad_inventory%daughter_id(1)
+              new_rad_inventory%element_id(i) = temp_rad_inventory%element_id(1)
+              new_rad_inventory%half_life(i) = temp_rad_inventory%half_life(1)
+              new_rad_inventory%atomic_wt(i) = temp_rad_inventory%atomic_wt(1)
+              new_rad_inventory%mass(i) = temp_rad_inventory%mass(1)
+              new_rad_inventory%solubility(i) = temp_rad_inventory%solubility(1)
+              new_rad_inventory%disintegration_energy(i) = &
+                                  temp_rad_inventory%disintegration_energy(1)
+              temp_rad_inventory => temp_rad_inventory%next
+            enddo
+            if (.not.associated(this%rad_inventory_list)) then
+              this%rad_inventory_list => new_rad_inventory
+            else
+              cur_rad_inventory => this%rad_inventory_list
+              do
+                if (.not.associated(cur_rad_inventory%next)) then
+                  cur_rad_inventory%next => new_rad_inventory
+                  added = PETSC_TRUE
+                endif
+                if (added) exit
+                cur_rad_inventory => cur_rad_inventory%next
+              enddo
             endif
-            if (added) exit
-            cur_rad_inventory => cur_rad_inventory%next
-          enddo
-        endif
-        deallocate(temp_rad_inventory)
+            deallocate(temp_rad_inventory)
+          case default
+            call InputKeywordUnrecognized(input,word,error_string,option)
+          end select
+        enddo
       case('INVENTORY') !MAN: should change to CANISTER_INVENTORY
         error_string = trim(error_string) // ',INVENTORY'
         allocate(new_canister_inventory)
@@ -3366,8 +3463,14 @@ end subroutine PMWSSUpdateChemSpecies
         brine_consumed_rad = 0.d0
         call Radiolysis(cwp,wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
                         material_auxvars(ghosted_id), option%time, dt, &
-                        wippflo_radiolysis, h2_produced_rad, &
-                        brine_consumed_rad)   
+                        wippflo_radiolysis, this%radiolysis_parameters, &
+                        this%salt_wtpercent, h2_produced_rad, &
+                        brine_consumed_rad)
+        cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
+                                     h2_produced_rad / MW_H2
+        ! MAN: need to only take water out of the brine?
+        cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
+                                        brine_consumed_rad / MW_H2O
                         
       !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
       !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
@@ -4572,7 +4675,9 @@ end subroutine PMWSSChemSpeciesDeallocate
 ! *************************************************************************** !
 
 subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
-                      with_radiolysis, h2_produced, brine_consumed)
+                      with_radiolysis, radiolysis_parameters, salt_wtpercent, &
+                      h2_produced, &
+                      brine_consumed)
 
   ! Computes H2 production and brine consumption by radiolysis, 
   ! following the RADIOLYSIS subroutine from Bragflo
@@ -4590,322 +4695,388 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   type(srcsink_panel_type) :: wp
   PetscReal :: time, dt
   PetscBool :: with_radiolysis
+  type(radiolysis_parameter_type) :: radiolysis_parameters
+  PetscReal :: salt_wtpercent, h2_produced, brine_consumed
   
-  PetscReal :: h2_produced, brine_consumed
+  type(rad_inventory_type), pointer :: rad_inventory
+
+  PetscReal :: vol_brine, n_isotopes
+  PetscInt :: i,j,im
+! 
+  PetscReal :: radiolysis_start
+
+  !MAN: Note this subroutine is called for each cell in a waste panel.
+  !     I think this looping is fine as is.
+
+  !MAN: need to make all of these variable names more descriptive and
+  !     organize them better
+  PetscReal :: wmbrrad,brine_vol
+  ! these vectors are of size nrad
+  PetscReal, pointer :: rthalf(:),radex(:)
+  PetscReal, pointer :: s_mass(:) 
+  ! radionuclide inventory, size nrad
+  PetscReal, pointer :: radin(:)
+
+  PetscReal, pointer :: xold(:), xnew(:), xavg(:), xtot(:), xmol(:)
+  PetscReal :: xmult
+  PetscReal :: h2_source
+
+  PetscInt :: nx,ny,nz
+  PetscInt :: idni,id1,id2,id3,id4,idx,idx1
+  PetscInt :: lid
+ 
+  PetscReal, pointer :: idaug(:),idion(:),thalf(:),H(:) 
+
+  PetscInt :: num_species
   
-
-  type(rad_inventory_type), pointer :: cur_inventory
-
-!   PetscReal :: vol_brine, n_isotopes
-!   PetscInt :: i,j,im
-! 
-  PetscReal :: radiolysis_start, rthalf
-! 
-!   !MAN: Note this subroutine is called for each cell in a waste panel.
-!   !     I think this looping is fine as is.
-! 
-!   !MAN: need to make all of these variable names more descriptive and
-!   !     organize them better
-!   PetscReal :: wmbrrad,brh20,wmh20,al2,nrad,delt,bvol
-!   ! these vectors are of size nrad
-!   PetscReal, pointer :: rthalf(:),radex(:)
-!   ! need to reshape these vectors
-!   PetscReal, pointer :: gridvol(:,:,:),phi(:,:,:),so(:,:,:)
-!   PetscReal, pointer :: s_mass(:,:,:,:,:) 
-!   ! radionuclide inventory, size nrad
-!   PetscReal, pointer :: radin(:)
-! 
-!   PetscReal, pointer :: xnow(:)
-!   PetscReal :: xmult,xlim
-! 
-!   PetscInt :: nx,ny,nz
-!   PetscInt :: idni,id1,id2,id3,id4,idx
-!  
-!   PetscReal, pointer :: idaug(:),xload(:),idion(:),thalf(:),H(:) 
-! 
-!   PetscReal :: halfmax
-! 
-!   PetscReal, pointer :: total_inv(:), solubility_limit(:)
-
-  !total_inv(:) = 0.d0
-  !solubility(:) = 0.d0
-  
+  rad_inventory => wp%rad_inventory
+      
   radiolysis_start = 0.d0 ! TIMEICRESET in Bragflo
+  lid = 1
   
-  cur_inventory => wp%rad_inventory
-
   if (.not. with_radiolysis .or. time < radiolysis_start .or. &
-      cur_inventory%name == '') return
+      rad_inventory%name == '') return
   
-    ! [kg brine/kg H20] * [kg H20/mol H20] = kg bring/molH20]
-!   wmbrrad = -1.d0*brh20*wmh20 
-! 
-!   rthalf = 1.d10 * log(2.d0)/cur_inventory%half_life
-! 
-!   !delt is time step size?
-! 
-!   do i = 1,nrad
-!     radex(i) = exp(-delt*rthalf(i))
-!   enddo
-! 
-!   do k = 1,nz
-!     do j = 1,ny
-!       do i = 1,nx
-!         bvol = gridvol(i,j,k)*phi(i,j,k)*so(i,j,k)
-! 
-!         radin(:) = 0.d0
-!         do ir = 1,nrad !number of radionuclide species to be tracked
-!           do m = 1,nwst !number of waste regions
-!             radin(ir) = radin(ir) + s_mass(ir,i,j,k,m)
-!           enddo
-!         enddo
-!         
-!   ! Execute RADIOLYSIS subroutine from Bragflo 
-! 
-!   ! First: Decay the radionuclide inventory: 
-!   !        execute DECAY subroutine from Bragflo
-!   
-!         xnow(:) = 0.d0
-!     
-!         do i = 1,idn
-! 
-!           if (xload(i) > 0.d0) then
-! 
-!       !execute WHICH subroutine from Bragflo
-! 
-!             id1 = i
-!             id2 = 0
-!             id3 = 0
-!             id4 = 0
-! 
-!             H(1) = thalf(id1)
-!  
-!             if (idaug(id1) /= '') then
-! 
-!         !execute WHERE(IDAUG(ID1),IDN,IDX) subroutine from Bragflo 
-!               idx = 0
-!               do i = 1,idn
-!                 if (idaug(id1) == idion(i)) then
-!                   idx = i
-!                   exit
-!                 endif
-!               enddo
-!         !end WHERE subroutine from Bragflo
-!               id2 = idx
-! 
-!               if (id2 /= 0) then
-!                 H(2) = thalf(id2)
-!         
-!                 if (idaug(id2) /= '') then
-!             !execute WHERE(IDAUG(ID2),IDN,IDX) subroutine from Bragflo
-!                   idx = 0
-!                   do i = 1,idn
-!                     if (idaug(id2) == idion(i)) then
-!                       idx = i
-!                       exit
-!                     endif 
-!                   enddo
-!             !end WHERE subroutine from Bragflo
-!                   id3 = idx
-!  
-!                   if (id3 /= 0) then
-!                     H(3) = thalf(id3)
-! 
-!                     if (idaug(id3) /= '') then
-!                 !execute WHERE(IDAUG(ID3),IDN,IDX1) subroutine from Bragflo
-!                       idx1 = 0
-!                       do i = 1,idn
-!                         if (idaug(id3) == idion(i)) then
-!                           idx = i
-!                           exit
-!                         endif
-!                       enddo
-!                 !end WHERE subroutine from Bragflo 
-!   !MAN: note 100 CONTINUE here
-!                       do
-!                         id4 = idx1
-!                         if (id4 /= 0) then
-!                           H(4) = thalf(id4)
-!   !MAN: note 110 CONTINUE here
-! 
-!                           do
-!                 !execute WHERE(IDAUG(IDX1),IDN,IDX) subroutine from Bragflo
-!                             idx = 0
-!                             do i = 1,idn
-!                               if (idaug(idx1) == idion(i) then
-!                                 idx = i
-!                                 exit
-!                               endif
-!                             enddo
-!                 !end WHERE subroutine from Bragflo 
-!                             if (idx /= 0) then
-!                               H(5) = thalf(idx)
-!                               idx1 = idx
-!                               im = ONE_INTEGER
-! 
-!                               do j = 2,5
-!                                 if (H(im) >= H(j)) im = j
-!                               enddo                    
-!                     
-!                               if (im /= 5) exit
-!                             endif
-!                           enddo
-! 
-!                           if (H(im)*25.d0 <= min(time,t_scale)) then
-! 
-!                             if (im /= 4) cycle
-!                             if (im == 3) then
-!                               id3 = id4
-!                               H(3) = H(4)
-!                               cycle
-!                             elseif (im == 2) then
-!                               id2 = id3
-!                               H(2) = H(3)
-!                               id3 = id4
-!                               H(3) = H(4)
-!                               cycle
-!                             endif
-! 
-!                             id1 = id2
-!                             H(1) = H(2)
-! 
-!                             exit                      
-! 
-!                           endif
-!                         endif
-!                       enddo
-!                     endif
-!                   endif
-!                 endif
-!               endif
-!             endif
-!      
-!             if (id4 /= 0 .and. time/thalf(id4) > halfmax) id4 = 0
-!             if (id3 /= 0 .and. time/thalf(id3) > halfmax) id3 = 0
-!             if (id2 /= 0 .and. time/thalf(id2) > halfmax) id2 = 0
-!             if (time/thalf(id1) > halfmax) id1 = 0
-! 
-!             if (id3 == 0) then
-!               id3 = id4
-!               id4 = 0
-!             endif
-! 
-!             if (id2 == 0) then
-!               id2 = id3
-!               id3 = id4
-!               id4 = 0
-!             endif
-! 
-!       !end WHICH subroutine from Bragflo
-! 
-!             if (id1 == 0) cycle
-!       
-!             xmult = radex(id1)
-!             xnow(id1) = xnow(id1) + xload(i) * xmult
-!         
-!             if (id2 == 0) cycle
-! 
-!             xmult = rthalf(id1) * (radex(id1)-radex(id2)) / &
-!                               (rthalf(id2) - rthalf(id1))
-!             xnow(id2) = xnow(id2) + xload(i) * xmult
-! 
-!             if (id3 == 0) cycle
-! 
-!             xmult = rthalf(id1) * rtralf(id2) * &
-!        (radex(id1) / ((rthalf(id2)-rthalf(id1))*(rthalf(id3)-rthalf(id1))) + &
-!         radex(id2) / ((rthalf(id1)-rthalf(id2))*(rthalf(id3)-rthalf(id2))) + &
-!         radex(id3) / ((rthalf(id1)-rthalf(id3))*(rthalf(id2)-rthalf(id3))))
-! 
-!             if (xmult < xlim) xmult = 0.d0
-! 
-!             xnow(id3) = xnow(id3) + xload(i) * xmult
-! 
-!             if (id4 == 0) cycle
-! 
-!             xmult = rthalf(id1) * rthalf(id2) * rthalf(id3) * &
-!                     (radex(id1) / ((rthalf(id2)-rthalf(id1)) * &
-!                     (rthalf(id3)-rthalf(id1))*(rthalf(id4)-rthalf(id1))) + &
-!                     radex(id2) / ((rthalf(id1)-rthalf(id2)) * &
-!                     (rthalf(id3)-rthalf(id2))*(rthalf(id4)-rthalf(id2))) + &
-!                     radex(id3) / ((rthalf(id1)-rthalf(id3)) * &
-!                     (rthalf(id2)-rthalf(id3))*(rthalf(id4)-rthalf(id3))) + &
-!                     radex(id4) / ((rthalf(id1)-rthalf(id4)) * &
-!                     (rthalf(id2)-rthalf(id4))*(rthalf(id3)-rthalf(id4))))
-! 
-!             if (xmult < xlim) xmult = 0.d0
-! 
-!             xnow(id4) = xnow(id4) + xload(i) * xmult
-! 
-!           endif
-! 
-!         enddo 
-! 
-!   ! End DECAY subroutine from Bragflo
-! 
-! 
-!   ! Second: Calculate hydrogen production through radiolysis
-! 
-!         inv_av = 0.5d0 * (isotope_inv_init + isotope_inv_new)
-!         do i = 1,num_isotopes
-!           total_inv(i_element(i)) = total_inv(i_element(i)) + inv_av(i)
-!           if (solubility(i_element(i)) == 0.d0) then
-!             solubility(i_element(i)) = solubility_limit(i)
-!           endif
-!         enddo 
-! 
-!         do i = 1,num_elements
-!           xmol(i) = solubility(i)*vol_brine
-!           if (xmol(i) > total_inv(i) * 0.9999d0) then
-!             xmol(i) = total_inv(i)
-!           endif
-!         enddo
-! 
-!         h2_produced = 0.d0
-!         inv_av = isotope_inv_new
-!         do i = 1,num_isotopes
-!           if (total_inv(i_element(i)) /= 0.d0 .and. isotope_inv_init(i) &
-!              /= 0.d0) then
-!             mf = inv_av(i)/total_inv(i_element(i))
-!             mol_isotope_in_soln = xmol(i) * mf
-!             h3_gen_rate = mol_isotope_in_soln * lambda * e_disintegration *&
-!                           g_h2_av
-!             h2_produced = h2_produced + h2_gen_rate ! mol H2 / sec
-!           endif
-!           isotope_inv_init(i) = isotope_inv_new(i)
-!         enddo
-! 
-!   ! End execute RADIOLYSIS subroutine from Bragflo
-! 
-!   ! Calculate gas produced and brine consumed
-! 
-!         do ir = 1,nrad
-!           do m = 1,nwst
-!             if (radin(ir) > 0.d0) then
-!               s_mass(ir,i,j,k,m) = radout(ir) * s_mass(ir,i,j,k,m)/radin(ir)
-!             else
-!               s_mass(ir,i,j,k,m) = radout(ir)
-!             endif 
-!           enddo
-!         enddo
-! 
-!         ! [kg H2 / solid(?) m^3] produced by radiolyis
-!         h2mass = h2prod*wmgas(ONE_INTEGER)/(delt*gridvol(i,j,k))
-!         qr(i,j,k,ONE_INTEGER) = qr(i,j,k,ONE_INTEGER) + h2mass
-!         genrat(mspec,i,j,k) = h2mass
-!         concrxn(mspec,i,j,k) = h2mass*delt
-! 
-!         ! [kg brine / solid(?) m^3] consumed by radiolysis
-!         brinrad = wmbrrad*h2prod/(delt*gridvol(i,j,k))
-!         qr(i,j,k,TWO_INTEGER) = qr(i,j,k,TWO_INTEGER) + brinrad
-! 
-!         if (igasvar /= TWO_INTEGER) then
-!           qr(i,j,k,ONE_INTEGER) = qr(i,j,k,ONE_INTEGER) + h2prod*wmgas(6)* &
-!                                   srado2/(delt*gridvol(i,j,k))
-!         endif 
-!       enddo
-!     enddo
-!   enddo
+  num_species = rad_inventory%num_species
+  
+  allocate(rthalf(num_species))
+  allocate(radex(num_species))
+  allocate(xnew(num_species))
+  allocate(xold(num_species))
+  allocate(xavg(num_species))
+  allocate(xtot(num_species))
+  allocate(xmol(num_species))
+  allocate(s_mass(num_species))
+  allocate(H(num_species))
+  
+  xold(:) = rad_inventory%mass(:)
+  xnew(:) = xold(:)
+  
+    ! [kg brine/kg H20] * [kg H20/mol H20] = kg brine/molH20]
+  wmbrrad = -1.d0*salt_wtpercent*MW_H2O 
 
+  rthalf = 1.d10 * log(2.d0)/rad_inventory%half_life
+
+  radex = exp(-dt*rthalf)
+  
+  brine_vol = material_auxvar%volume * material_auxvar%porosity * &
+         wippflo_auxvar%sat(lid)
+  
+         
+   ! Execute RADIOLYSIS subroutine from Bragflo 
+ 
+   ! First: Decay the radionuclide inventory: 
+   !        execute DECAY subroutine from Bragflo:
+   ! CALL DECAY(DT,XLOAD,XNOW,NRAD)
+   ! NRAD (or IDN): number of radionuclide species
+   ! DT: time step [s]
+   ! XLOAD: initial moles of radionuclide [mol
+   ! XNEW: moles of radionuclide after decay/generation [mol]
+   
+  
+  xnew(:) = 0.d0
+  
+  do i = 1,num_species
+  
+    if (rad_inventory%mass(i) > 0.d0) then
+    
+      ! Execute WHICH subroutine in Bragflo
+      ! CALL WHICH(TIME, I, IDN, ID1, ID2, ID3, ID4)
+      ! TIME: time step [s]
+      ! I (or ID): parent species ID
+      ! IDN: number of radionuclide species
+      ! ID1: first generation daughter ID
+      ! ID2: second generation daughter ID
+      ! ID3: third generation daughter ID
+      ! ID4: fourth generation daughter ID
+      
+    
+      id1 = i
+      id2 = 0
+      id3 = 0
+      id4 = 0
+      
+      H(1) = rad_inventory%half_life(id1)
+      
+      
+      if (rad_inventory%daughter_id(id1) /= '') then
+      
+        ! Execute WHERE subroutine in Bragflo
+        ! CALL WHERE(IDAUG(ID1),IDN,IDX): identifies stable isotope that
+        ! terminates decay chain
+        ! ID1 (or ION): current species ID 
+        ! IDN: number of radionuclides
+        ! IDX: decay chain terminator
+      
+        idx = 0
+        do j = 1,num_species
+        
+          if (rad_inventory%daughter_id(id1) == rad_inventory%id(j)) then
+            idx = j
+            exit
+          endif
+          
+        enddo
+        
+        ! End WHERE
+        
+        id2 = idx
+        
+        if (id2 /= 0) then
+        
+          H(2) = rad_inventory%half_life(id2)
+          
+          if (rad_inventory%daughter_id(id2) /= '') then
+            
+            ! CALL WHERE(IDAUG(ID2),IDN,IDX)
+            
+            idx = 0
+            
+            do j = 1,num_species
+            
+              if (rad_inventory%daughter_id(id2) == rad_inventory%id(j)) then
+                idx = j
+                exit
+              endif
+            
+            enddo
+            
+            ! End WHERE
+            
+            id3 = idx
+            
+            if (id3 /= 0) then
+              H(3) = rad_inventory%half_life(id3)
+              
+              if (rad_inventory%daughter_id(id3) /= '') then
+              
+                ! CALL WHERE(IDAUG(ID3), IDN, IDX1)
+              
+                idx1 = 0
+                
+                do j = 1,num_species
+                
+                  if (rad_inventory%daughter_id(id3) == &
+                      rad_inventory%id(j)) then
+                    idx1 = j
+                    exit
+                  endif
+                  
+                enddo
+                
+                ! End WHERE
+                
+                do
+                  id4 = idx1
+                  if (id4 /= 0) then
+                    H(4) = rad_inventory%half_life(id4)
+                    
+                    do
+                    
+                      ! CALL WHERE(IDAUG(IDX1),IDN,IDX)
+                      
+                      idx = 0
+                      do j = 1,num_species
+                        if (rad_inventory%daughter_id(idx1) == &
+                            rad_inventory%id(j)) then
+                          idx = j
+                          exit
+                        endif
+                      enddo
+                      
+                      ! End WHERE
+                      
+                      if (idx /= 0) then
+                        H(5) = rad_inventory%half_life(idx)
+                        idx1 = idx
+                        im = ONE_INTEGER
+
+                        do j = 2,5
+                          if (H(im) >= H(j)) im = j
+                        enddo                    
+                    
+                        if (im == 5) cycle
+                        
+                      else
+                        exit
+                      endif
+                      
+                    enddo
+                    
+                    if (idx == 0) exit
+                    
+                    if (H(im)*25.d0 <= min(dt,radiolysis_parameters%&
+                                           t_scale)) then
+                      if (im /= 4) cycle
+                      if (im == 3) then
+                        id3 = id4
+                        H(3) = H(4)
+                        cycle
+                      elseif (im == 2) then
+                        id2 = id3
+                        H(2) = H(3)
+                        id3 = id4
+                        H(3) = H(4)
+                        cycle
+                      endif
+
+                      id1 = id2
+                      H(1) = H(2)
+
+                      exit                      
+
+                    endif
+                  else
+                    exit
+                  endif
+                enddo
+              endif
+            endif
+          endif
+        endif
+      endif
+      if (id4 /= 0 .and. dt/rad_inventory%half_life(id4) > &
+          radiolysis_parameters%halfmax) id4 = 0
+      if (id3 /= 0 .and. dt/rad_inventory%half_life(id3) > &
+          radiolysis_parameters%halfmax) id3 = 0
+      if (id2 /= 0 .and. dt/rad_inventory%half_life(id2) > &
+          radiolysis_parameters%halfmax) id2 = 0
+      if (dt/rad_inventory%half_life(id1) > &
+          radiolysis_parameters%halfmax) id1 = 0
+
+      if (id3 == 0) then
+        id3 = id4
+        id4 = 0
+      endif
+
+      if (id2 == 0) then
+        id2 = id3
+        id3 = id4
+        id4 = 0
+      endif
+      
+      if (id1 == 0) then
+        id1 = id2
+        id2 = id3
+        id3 = id4
+        id4 = 0.d0
+      endif
+      
+      if (id1 == 0) cycle
+      
+      xmult = radex(id1)
+      xnew(id1) = xnew(id1) + xold(i) * xmult
+        
+      if (id2 == 0) cycle
+
+      xmult = rthalf(id1) * (radex(id1)-radex(id2)) / &
+             (rthalf(id2) - rthalf(id1))
+      xnew(id2) = xnew(id2) + xold(i) * xmult
+
+      if (id3 == 0) cycle
+
+      xmult = rthalf(id1) * rthalf(id2) * &
+       (radex(id1) / ((rthalf(id2)-rthalf(id1))* &
+       (rthalf(id3)-rthalf(id1))) + &
+       radex(id2) / ((rthalf(id1)- &
+       rthalf(id2))*(rthalf(id3)- rthalf(id2))) + &
+       radex(id3) / ((rthalf(id1)-rthalf(id3)) * &
+       (rthalf(id2)-rthalf(id3))))
+
+      if (xmult < radiolysis_parameters%xlim) xmult = 0.d0
+
+      xnew(id3) = xnew(id3) + xold(i) * xmult
+
+      if (id4 == 0) cycle
+
+      xmult = rthalf(id1) * rthalf(id2) * &
+              rthalf(id3) * (radex(id1) / &
+              ((rthalf(id2)-rthalf(id1)) * &
+               (rthalf(id3)-rthalf(id1)) * &
+               (rthalf(id4)-rthalf(id1))) + &
+              radex(id2) / ((rthalf(id1) - &
+              rthalf(id2)) * (rthalf(id3) - &
+              rthalf(id2)) * (rthalf(id4) - &
+              rthalf(id2))) + radex(id3) / &
+              ((rthalf(id1) - rthalf(id3)) * &
+               (rthalf(id2) - rthalf(id3)) * &
+               (rthalf(id4) - rthalf(id3))) + &
+              radex(id4) / ((rthalf(id1) - &
+              rthalf(id4)) * (rthalf(id2) - &
+              rthalf(id4)) * (rthalf(id3) - &
+              rthalf(id4))))
+
+      if (xmult < radiolysis_parameters%xlim) xmult = 0.d0
+
+      xnew(id4) = xnew(id4) + xold(i) * xmult
+    endif
+  
+  enddo
+! End DECAY subroutine from Bragflo
+
+! Second: Calculate hydrogen production through radiolysis
+
+  xavg = 0.5d0 * (xold + xnew)
+  xtot = 0.d0 !total moles of each element (TLELS in BRAGFLO)
+  
+  do i = 1,num_species
+    xtot(rad_inventory%element_id(i)) = xtot(rad_inventory%element_id(i)) + &
+                                      xavg(i)
+  enddo
+
+  !Compute amount of each element in solution
+  
+  xmol = rad_inventory%solubility*brine_vol ! [mol] (ASOL in BRAGFLO)
+  where (xmol > xtot*0.9999d0) xmol=xtot
+  
+  h2_source = 0.d0
+  xavg = xnew
+  
+  do i = 1,num_species
+  
+    if (xtot(rad_inventory%element_id(i)) > 0.d0 .and. rad_inventory% &
+        mass(i) > 0.d0) then
+      
+      ! total amount of H2 produced over a time step [mol]
+      
+      h2_source = h2_source + xavg(i)/xtot(rad_inventory%element_id(i)) * &
+                  xmol(rad_inventory%element_id(i)) * &
+                  log(2.d0)/rad_inventory%half_life(i) * &
+                  rad_inventory%disintegration_energy(i) * &
+                  radiolysis_parameters%gh2avg * dt
+    
+    endif
+  
+  enddo
+  
+  ! BRAGFLO does this here (doesn't make sense given what comes later): 
+  ! xold = xnew
+ 
+  ! End of RADIOLYSIS subroutine execution from Bragflo
+ 
+  ! Calculate gas produced and brine consumed
+  
+  ! MAN: need to be able to revert to inventories at previous time step
+  ! when N-R doesn't converge
+  
+  where (xold>0.d0) 
+    rad_inventory%mass=xnew*rad_inventory%mass/xold
+  elsewhere
+    rad_inventory%mass=xnew
+  end where
+  
+  xold = xnew
+  
+  h2_produced = 0.d0
+  brine_consumed = 0.d0
+  
+  ! kg H2/m^3 bulk/sec
+  h2_produced = h2_source * MW_H2 / (dt * material_auxvar%volume)
+  h2_produced = h2_produced + h2_source * MW_O2 * radiolysis_parameters% &
+                srado2 / (dt * material_auxvar%volume)
+  ! kg H20/m^3 bulk/sec
+  brine_consumed = wmbrrad * h2_source / (dt * material_auxvar%volume)
+  
 end subroutine Radiolysis
 
 ! *************************************************************************** !
