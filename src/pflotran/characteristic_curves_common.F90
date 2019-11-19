@@ -1924,7 +1924,6 @@ subroutine RPF_Mualem_VG_Gas_Init(this)
   class(rpf_Mualem_VG_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2264,7 +2263,6 @@ subroutine RPF_Burdine_BC_Gas_Init(this)
   class(rpf_Burdine_BC_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2386,7 +2384,6 @@ subroutine RPF_IGHCC2_Comp_Gas_Init(this)
   class(rpf_IGHCC2_Comp_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
 
   this%analytical_derivative_available = PETSC_TRUE
 
@@ -2611,7 +2608,6 @@ subroutine RPF_Mualem_BC_Gas_Init(this)
   class(rpf_Mualem_BC_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2844,7 +2840,6 @@ subroutine RPF_Burdine_VG_Gas_Init(this)
   class(rpf_Burdine_VG_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -3088,7 +3083,6 @@ subroutine RPF_Mualem_Linear_Gas_Init(this)
   class(rpf_Mualem_Linear_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   this%alpha = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
   
@@ -3315,7 +3309,6 @@ subroutine RPF_Burdine_Linear_Gas_Init(this)
   class(rpf_Burdine_Linear_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   

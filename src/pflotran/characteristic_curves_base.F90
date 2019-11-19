@@ -142,6 +142,7 @@ subroutine RPFBaseInit(this)
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%poly)
   this%Sr = UNINITIALIZED_DOUBLE
+  this%Srg = UNINITIALIZED_DOUBLE
   this%analytical_derivative_available = PETSC_FALSE
   
 end subroutine RPFBaseInit
