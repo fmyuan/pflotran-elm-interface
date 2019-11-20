@@ -57,6 +57,7 @@ _CONFIG_ERROR = 4
 _MISSING_INFO_ERROR = 5
 _PRE_PROCESS_ERROR = 6
 _POST_PROCESS_ERROR = 7
+_TIMEOUT_ERROR = 8
 
 class TestStatus(object):
     """
@@ -251,6 +252,7 @@ class RegressionTest(object):
             return None
 
         if self._python_setup_script is not None:
+            timeout_error = False
             print("\n  Setup script... ", file=testlog)
             command = []
             command.append(sys.executable)
@@ -268,6 +270,7 @@ class RegressionTest(object):
             while proc.poll() is None:
                 time.sleep(0.01)
                 if time.time() - start > self._timeout:
+                    timeout_error = True
                     proc.kill()
                     time.sleep(0.01)
                     message = self._txtwrap.fill(
@@ -279,22 +282,27 @@ class RegressionTest(object):
             print("    # {0} : run time : {1:.2f} seconds\n".
                            format(setup_name, finish - start), file=testlog)
             if proc.returncode != 0:
-                status.error = _PRE_PROCESS_ERROR
-                message = self._txtwrap.fill(
-                "ERROR : {name} : The python_setup_script returned an error "
-                "code ({status}) indicating the script may have failed. "
-                "Please check '{name}' for error messages (included "
-                "below).".format(
-                    name=setup_script_stdout_filename, status=proc.returncode))
-                print("".join(['\n', message, '\n']), file=testlog)
-                print("~~~~~ {0} ~~~~~".format(setup_script_stdout_filename),
-                      file=testlog)
-                try:
-                    with open(setup_script_stdout_filename, 'r') as tempfile:
-                        shutil.copyfileobj(tempfile, testlog)
-                except Exception as e:
-                    print("   Error opening file: {0}\n    {1}".
-                          format(setup_script_stdout_filename, e))
+                if timeout_error:
+                    status.error = _TIMEOUT_ERROR
+                else:
+                    status.error = _PRE_PROCESS_ERROR
+                    message = self._txtwrap.fill(
+                    "ERROR : {name} : The python_setup_script returned an "
+                    "error code ({status}) indicating the script may have "
+                    "failed. Please check '{name}' for error messages "
+                    "(included below).".format(
+                        name=setup_script_stdout_filename, 
+                        status=proc.returncode))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    print("~~~~~ {0} ~~~~~".format(
+                          setup_script_stdout_filename),file=testlog)
+                    try:
+                        with open(setup_script_stdout_filename, 'r') as \
+                              tempfile:
+                            shutil.copyfileobj(tempfile, testlog)
+                    except Exception as e:
+                        print("   Error opening file: {0}\n    {1}".
+                              format(setup_script_stdout_filename, e))
                 return None
 
         # TODO(bja) : need to think more about the desired behavior if
@@ -311,8 +319,8 @@ class RegressionTest(object):
                 # parallel test, but don't have mpiexec, we mark the
                 # test as skipped and bail....
                 message = self._txtwrap.fill(
-                    "WARNING : mpiexec was not provided for a parallel test '{0}'.\n"
-                    "This test was skipped!".format(self.name()))
+                    "WARNING : mpiexec was not provided for a parallel "
+                    "test '{0}'.\n This test was skipped!".format(self.name()))
                 print(message, file=testlog)
                 status.skipped = 1
                 return None
@@ -350,6 +358,7 @@ class RegressionTest(object):
         while proc.poll() is None:
             time.sleep(0.1)
             if time.time() - start > self._timeout:
+                timeout_error = True
                 proc.kill()
                 time.sleep(0.1)
                 message = self._txtwrap.fill(
@@ -363,31 +372,36 @@ class RegressionTest(object):
         # pflotran returns 0 on an error (e.g. can't find an input
         # file), 86 on success. 59 for timeout errors?
         if pflotran_status != self._PFLOTRAN_SUCCESS:
-            if pflotran_status == self._PFLOTRAN_USER_ERROR:
-                # error was caught and the code properly shut down
-                status.error = _USER_ERROR
+            if timeout_error:
+                status.error = _TIMEOUT_ERROR
             else:
-                status.error = _CODE_CRASH_ERROR
-            message = self._txtwrap.fill(
-                "ERROR : {name} : pflotran returned an error "
-                "code ({status}) indicating the simulation may have "
-                "failed. Please check '{name}.out' and '{name}.stdout' "
-                "for error messages (included below).".format(
-                    name=test_name, status=pflotran_status))
-            print("".join(['\n', message, '\n']), file=testlog)
-            print("~~~~~ {0}.stdout ~~~~~".format(test_name), file=testlog)
-            try:
-                with open("{0}.stdout".format(test_name), 'r') as tempfile:
-                    shutil.copyfileobj(tempfile, testlog)
-            except Exception as e:
-                print("   Error opening file: {0}.stdout\n    {1}".format(test_name, e))
-            print("~~~~~ {0}.out ~~~~~".format(test_name), file=testlog)
-            try:
-                with open("{0}.out".format(test_name), 'r') as tempfile:
-                    shutil.copyfileobj(tempfile, testlog)
-            except Exception as e:
-                print("   Error opening file: {0}.out\n    {1}".format(test_name, e))
-            print("~~~~~~~~~~", file=testlog)
+                if pflotran_status == self._PFLOTRAN_USER_ERROR:
+                    # error was caught and the code properly shut down
+                    status.error = _USER_ERROR
+                else:
+                    status.error = _CODE_CRASH_ERROR
+                message = self._txtwrap.fill(
+                    "ERROR : {name} : pflotran returned an error "
+                    "code ({status}) indicating the simulation may have "
+                    "failed. Please check '{name}.out' and '{name}.stdout' "
+                    "for error messages (included below).".format(
+                        name=test_name, status=pflotran_status))
+                print("".join(['\n', message, '\n']), file=testlog)
+                print("~~~~~ {0}.stdout ~~~~~".format(test_name), file=testlog)
+                try:
+                    with open("{0}.stdout".format(test_name), 'r') as tempfile:
+                        shutil.copyfileobj(tempfile, testlog)
+                except Exception as e:
+                    print("   Error opening file: {0}.stdout\n    {1}".format(
+                          test_name, e))
+                print("~~~~~ {0}.out ~~~~~".format(test_name), file=testlog)
+                try:
+                    with open("{0}.out".format(test_name), 'r') as tempfile:
+                        shutil.copyfileobj(tempfile, testlog)
+                except Exception as e:
+                    print("   Error opening file: {0}.out\n    {1}".format(
+                          test_name, e))
+                print("~~~~~~~~~~", file=testlog)
 
     def _cleanup_generated_files(self):
         """Cleanup old generated files that may be hanging around from a
@@ -745,7 +759,8 @@ class RegressionTest(object):
 
         if len(h5_current.keys()) != len(h5_gold.keys()):
             status.error = _POST_PROCESS_ERROR
-            print("    ERROR: current and gold hdf5 files do not have the same number of groups!", file=testlog)
+            print("    ERROR: current and gold hdf5 files do not "
+                  "have the same number of groups!", file=testlog)
             print("    h5_gold : {0}".format(h5_gold.keys()), file=testlog)
             print("    h5_current : {0}".format(h5_current.keys()), file=testlog)
             return
@@ -755,7 +770,8 @@ class RegressionTest(object):
                 continue
             if len(h5_current[group].keys()) != len(h5_gold[group].keys()):
                 status.error = _POST_PROCESS_ERROR
-                print("    ERROR: group '{0}' does not have the same number of datasets!".format(group), file=testlog)
+                print("    ERROR: group '{0}' does not have the same "
+                      "number of datasets!".format(group), file=testlog)
                 print("    h5_gold : {0} : {1}".format(
                     group, h5_gold[group].keys()), file=testlog)
                 print("    h5_current : {0} : {1}".format(
@@ -764,18 +780,26 @@ class RegressionTest(object):
                 for dataset in h5_gold[group].keys():
                     if not h5_current[group].get(dataset):
                         status.error = _POST_PROCESS_ERROR
-                        print("    ERROR: current group '{0}' does not have dataset '{1}'!".format(group, dataset), file=testlog)
+                        print("    ERROR: current group '{0}' does not "
+                              "have dataset '{1}'!".format(group, dataset), 
+                              file=testlog)
                     else:
-                        if h5_gold[group][dataset].shape != h5_current[group][dataset].shape:
+                        if h5_gold[group][dataset].shape != \
+                               h5_current[group][dataset].shape:
                             status.error = _POST_PROCESS_ERROR
-                            print("    ERROR: current dataset '/{0}/{1}' does not have the correct shape!".format(group, dataset), file=testlog)
+                            print("    ERROR: current dataset '/{0}/{1}' "
+                                  "does not have the correct shape!".format(
+                                  group, dataset), file=testlog)
                             print("        gold : {0}".format(
                                 h5_gold[group][dataset].shape), file=testlog)
                             print("        current : {0}".format(
                                 h5_current[group][dataset].shape), file=testlog)
-                        if h5_gold[group][dataset].dtype != h5_current[group][dataset].dtype:
+                        if h5_gold[group][dataset].dtype != \
+                               h5_current[group][dataset].dtype:
                             status.error = _POST_PROCESS_ERROR
-                            print("    ERROR: current dataset '/{0}/{1}' does not have the correct data type!".format(group, dataset), file=testlog)
+                            print("    ERROR: current dataset '/{0}/{1}' "
+                                  "does not have the correct data type!".
+                                  format(group, dataset), file=testlog)
                             print("        gold : {0}".format(
                                 h5_gold[group][dataset].dtype), file=testlog)
                             print("        current : {0}".format(
@@ -1541,6 +1565,8 @@ class RegressionTestManager(object):
                 print("B", end='', file=sys.stdout)
             elif status.error == _POST_PROCESS_ERROR:
                 print("A", end='', file=sys.stdout)
+            elif status.error == _TIMEOUT_ERROR:
+                print("T", end='', file=sys.stdout)
             else:
                 print("Unknown error type in regression.py", file=testlog)
                 sys.exit(0)
@@ -2209,6 +2235,7 @@ def main(options):
     print("    G - general error")
     print("    U - user error")
     print("    X - code crashed")
+    print("    T - time out error")
     print("    C - configuration file [.cfg] error")
     print("    I - missing information (e.g. missing files)")
     print("    A - pre-processing error (e.g. error in simulation setup scripts")
