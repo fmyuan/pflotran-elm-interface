@@ -413,3 +413,7 @@ src/pflotran-elm-interface/reaction_sandbox_microbial.F90
 src/pflotran-elm-interface/reaction_sandbox_nitrif.F90
 src/pflotran-elm-interface/reaction_sandbox_plantn.F90
 src/pflotran-elm-interface/reaction_sandbox_somdec.F90
+src/pflotran-elm-interface/matrix_zeroing.F90
+src/pflotran-elm-interface/pm_osrt.F90
+src/pflotran-elm-interface/pmc_subsurface_osrt.F90
+src/pflotran-elm-interface/timestepper_KSP.F90
