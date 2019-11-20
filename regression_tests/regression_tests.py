@@ -300,9 +300,9 @@ class RegressionTest(object):
                 return None
 
         command.append(executable)
-        #geh: kludge for -malloc 0
-        command.append("-malloc")
-        command.append("0")
+        # turn off MEMCHK in PETSc to save time
+        command.append("-malloc_debug")
+        command.append("no")
         #geh: we now set the successful exit code through the command line
         #     so that users are not confused by any error codes reported by
         #     wrapper libraries (e.g. MPICH2) due to the non-zero
