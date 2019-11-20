@@ -69,9 +69,9 @@ STANDARD_CFG = \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
-        ngee/ngee.cfg \
 	ngee/ngee.cfg \
 	ngee/CLMCNplus/clmcn.cfg \
+	ngee/CLMCNplus/TAI/tai_tests.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
@@ -116,7 +116,7 @@ GEOCHEMISTRY_CFG = \
 	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
-        ngee/ngee.cfg \
+	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	ufd/ufd.cfg \

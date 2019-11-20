@@ -59,22 +59,44 @@ CHEMISTRY
         UPSTREAM_POOL Lit1
         DOWNSTREAM_POOL SOM 0.61d0
         TURNOVER_TIME 20. h
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5 ! unit: moles/m3
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5 ! unit: moles/m3
+        /
       /
 
       REACTION
         UPSTREAM_POOL Lit2
         DOWNSTREAM_POOL SOM 0.61d0
         TURNOVER_TIME 20. d
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5 ! unit: moles/m3
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5 ! unit: moles/m3
+        /
       /
 
       REACTION
         UPSTREAM_POOL Lit3
         DOWNSTREAM_POOL SOM 0.61d0
         TURNOVER_TIME 20. y
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5
+        /
       /
 
-      AMMONIUM_HALF_SATURATION 1.0d-5          ! unit: moles/m3 (default: 1.d-15)
-      NITRATE_HALF_SATURATION 1.0d-5           ! unit: moles/m3 (default: 1.d-15)
       AMMONIUM_INHIBITION_NITRATE 1.0d0        ! ratio of NH4/NO3
 
     /
