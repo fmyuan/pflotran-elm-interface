@@ -410,13 +410,13 @@ noskip
 
     # CLM-CN SOM decomposition sandboxes
     SOMDECOMP
-      #Abiotic_Factors
-      #  TEMPERATURE_RESPONSE_FUNCTION
-      #    Q10 1.5d0
-      #  /
+      Abiotic_Factors
+        TEMPERATURE_RESPONSE_FUNCTION
+          Q10 1.5d0
+        /
 
-      #  DECOMP_DEPTH_EFOLDING 0.50d0
-      #/
+        DECOMP_DEPTH_EFOLDING 0.50d0
+      /
       
       
       POOLS   ! CN ratio if constant
