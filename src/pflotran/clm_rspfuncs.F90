@@ -12,17 +12,21 @@ module CLM_RspFuncs_module
   PetscReal, parameter, public :: rpi = 3.14159265358979323846d0
 
 ! temperature response function
-  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_CLMCN = 1
+  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_OFF  = 0
+  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_CLMCN= 1
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_Q10  = 2
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_DLEM = 3
+  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_ARRHENIUS = 4
 
 ! moisture response function
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_OFF   = 0
   PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_CLMCN = 1
-  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_DLEM = 2
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_DLEM  = 2
 
 ! pH response function
+  PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_OFF     = 0
   PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_CENTURY = 1 
-  PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_DLEM = 2
+  PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_DLEM    = 2
 
 ! molecular weight
   PetscReal, parameter, public :: N_molecular_weight = 14.0067d0
@@ -31,21 +35,35 @@ module CLM_RspFuncs_module
   ! A NOTE here: when coupled with CLM-CN, make sure that the above constants ARE consistent with CLM
   ! otherwise may cause some tiny but detectable mass-balance errors due to unit conversion.
 
+  ! aerobic condition function TYPE
+  PetscInt, parameter, public :: Ox_RESPONSE_FUNCTION_OFF   = 0   !
+  PetscInt, parameter, public :: Ox_RESPONSE_FUNCTION_MONOD = 1   ! O2 concentration based Monod function
+  PetscInt, parameter, public :: Ox_RESPONSE_FUNCTION_WFPS  = 2   ! Water-Filled-Pore-Space (Parton et al. 1998, CENTURY)
+
+  PetscInt, parameter, public :: INHIBITION_THRESHOLD     = 1
+  PetscInt, parameter, public :: INHIBITION_THERMODYNAMIC = 2   ! (TODO)
+  PetscInt, parameter, public :: INHIBITION_MONOD         = 3   ! this is actually an 'inhibition' equation: k/(k+s)
+  PetscInt, parameter, public :: INHIBITION_INVERSE_MONOD = 4   ! this is actually a 'MONOD' equation: s/(k+s)
+
   public :: GetTemperatureResponse, &
             GetMoistureResponse, &
             GetpHResponse, &
-            FuncMonod
+            GetAerobicCondition, &
+            FuncMonod, &
+            FuncInhibition
 
 contains
 ! ************************************************************************** !
 ! temperature response function 
 
-function GetTemperatureResponse(tc, itype, Q10)
+function GetTemperatureResponse(tc, itype, Q10orEA)
 
   implicit none
   
   PetscInt  :: itype
-  PetscReal :: Ft, tc, Q10, tk
+  PetscReal :: tc
+  PetscReal :: Q10orEA   ! it's upon 'itype'
+  PetscReal :: Ft, tk, Q10, EA
 
   PetscReal, parameter :: one_over_71_02 = 1.408054069d-2
   PetscReal :: GetTemperatureResponse
@@ -54,6 +72,7 @@ function GetTemperatureResponse(tc, itype, Q10)
   select case(itype)
 !     CLM4.5 temperature response function
       case(TEMPERATURE_RESPONSE_FUNCTION_Q10)
+        Q10 = Q10orEA
         if(tc>0.d0) then
           Ft = Q10 ** ((tc - 25.0d0) / 10.0d0)
         else
@@ -64,26 +83,36 @@ function GetTemperatureResponse(tc, itype, Q10)
 !     Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
       case(TEMPERATURE_RESPONSE_FUNCTION_CLMCN)
   
-          tk = tc + 273.15d0
+        tk = tc + 273.15d0
 
-          if(tk > 227.15d0) then
-              Ft = exp(308.56d0*(one_over_71_02 - 1.d0/(tk - 227.13d0)))
-          else
-              Ft = 0.d0
-          endif
+        if(tk > 227.15d0) then
+          Ft = exp(308.56d0*(one_over_71_02 - 1.d0/(tk - 227.13d0)))
+        else
+          Ft = 0.d0
+        endif
 !     DLEM temperature response function for methane oxidation
 !     Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 12
       case(TEMPERATURE_RESPONSE_FUNCTION_DLEM)
-          if(tc < -5.0d0) then
-            Ft = 0.0d0
-          elseif(tc >= 30.0d0) then
-            Ft = 1.0d0
-          else
-            Ft = Q10 ** ((tc - 30.0d0) / 10.0d0)
-          endif
-       case default
-            Ft = 1.0d0
+        Q10 = Q10orEA
+        if(tc < -5.0d0) then
+          Ft = 0.0d0
+        elseif(tc >= 30.0d0) then
+          Ft = 1.0d0
+        else
+          Ft = Q10 ** ((tc - 30.0d0) / 10.0d0)
+        endif
+
+      ! Arrhenius equation
+      case(TEMPERATURE_RESPONSE_FUNCTION_ARRHENIUS)
+        EA = Q10orEA
+        Ft = exp(EA/IDEAL_GAS_CONSTANT* &
+                (1.d0/298.15d0-1.d0/(tc+273.15d0)))
+
+      ! no temperature dependence
+      case default
+        Ft = 1.0d0
   end select
+
   GetTemperatureResponse = Ft 
 
 end function GetTemperatureResponse
@@ -104,12 +133,12 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
   PetscReal :: F_theta
   ! theta IS soil VWC: 0 - porosity (not adjusted)
   PetscReal :: theta
+  PetscInt  :: ghosted_id, itype
   PetscReal :: GetMoistureResponse
-  PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
-  PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
-  PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
 
-  PetscInt :: ghosted_id, itype
+  PetscReal, parameter :: theta_min = 0.01d0
+  PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
+
   PetscReal :: maxpsi, psi, lsat
   PetscReal, parameter :: minpsi = -10.0d6    ! Pa
 
@@ -249,23 +278,99 @@ Function GetpHResponse(pH, itype)
 end function GetpHResponse
 
 ! ************************************************************************** !
+Function GetAerobicCondition(OXorWFPS, K_Ox, itype, compute_derivative)
+
+  implicit none
+
+  PetscReal :: F_Ox    ! 0 - 1
+  PetscReal :: OXorWFPS  ! upon 'itype', oxidizer concentration or equavalent (as long as its unit consistent with K_Ox)
+                         ! OR, water filled pore space (WFPS), i.e. liquid water saturation
+  PetscInt  :: itype
+  PetscReal :: K_Ox    ! O2 or other alternative oxidier effect expressed as Ox/(K_Ox+Ox), i.e. Monod function
+  PetscBool :: compute_derivative
+
+  PetscReal :: GetAerobicCondition
+
+  !PetscReal :: Sg_crit = 0.10d0    ! critical level of air saturation below which anaerobic getting strong
+  !
+  select case(itype)
+    case(Ox_RESPONSE_FUNCTION_MONOD)
+      F_Ox = FuncMonod(OXorWFPS, K_Ox, compute_derivative)
+
+    case(Ox_RESPONSE_FUNCTION_WFPS)
+      F_Ox = ((1.27d0 - OXorWFPS)/0.67d0)**(3.1777d0) * &
+        ((OXorWFPS - 0.0012d0)/0.5988d0)**2.84d0
+
+      if(compute_derivative) F_Ox = 0.d0  ! independent of Ox species on saturation
+
+    case default
+      !
+      F_Ox = 1.d0
+      if(compute_derivative) F_Ox = 0.d0
+
+  end select
+
+  GetAerobicCondition = F_Ox
+
+end function GetAerobicCondition
+
+! ************************************************************************** !
 ! Monod function
-Function funcMonod(conc, conc_halfsat, compute_derivative)
+Function FuncMonod(conc, monod_k, compute_derivative)
 
   implicit none
 
   PetscBool :: compute_derivative
-  PetscReal :: conc, conc_halfsat
-  PetscReal :: funcMonod
+  PetscReal :: conc, monod_k
+  PetscReal :: FuncMonod
 
   !----------------------------------------------------------
   if (.not.compute_derivative) then
-    funcMonod = conc/(conc+conc_halfsat)
+    FuncMonod = conc/(conc+monod_k)
   else
-    funcMonod = conc_halfsat/(conc+conc_halfsat)/(conc+conc_halfsat)
+    FuncMonod = monod_k/(conc+monod_k)/(conc+monod_k)
   endif
 
-end function funcMonod
+end function FuncMonod
+! ************************************************************************** !
+  ! Microbial-type inhibition function
+  ! Followed what in 'reaction_microbial.F90', excluding 'INVERSE_MONOD' which actually is 'MONOD' as above
+  function FuncInhibition(compute_derivative, conc, inhibition_C, inhibition_C2)
+    implicit none
+
+    PetscReal :: FuncInhibition
+    PetscBool :: compute_derivative
+    PetscReal :: conc
+    PetscReal :: inhibition_C
+    PetscReal, optional:: inhibition_C2
+    PetscReal :: tempreal
+
+    ! no inhibition
+    FuncInhibition = 1.d0
+    if(compute_derivative) FuncInhibition = 0.d0
+
+    ! typical inhibition function
+    if (.not.present(inhibition_C2)) then
+      FuncInhibition = inhibition_C / (conc + inhibition_C)
+
+      if(compute_derivative) then
+        FuncInhibition = -inhibition_C                                    &
+                        / (conc + inhibition_C) / (conc + inhibition_C)
+      endif
+
+     ! THRESHOLD inhibition function
+     else
+       FuncInhibition = 0.5d0 + &
+                   atan((conc - inhibition_C) * inhibition_C2) / PI
+
+       if(compute_derivative) then
+         tempreal = (conc - inhibition_C) * inhibition_C2
+         FuncInhibition = (inhibition_C2 / (1.d0 + tempreal*tempreal)) / PI
+       endif
+
+    end if
+
+  end function FuncInhibition
 
 ! ************************************************************************** !
 
