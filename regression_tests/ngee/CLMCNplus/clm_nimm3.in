@@ -53,8 +53,15 @@ CHEMISTRY
         UPSTREAM_POOL Lit1
         DOWNSTREAM_POOL SOM1 0.61d0
         TURNOVER_TIME 20. h
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-15
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-15
+        /
       /
-
  
     /
 

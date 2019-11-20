@@ -1,0 +1,340 @@
+#Description: Microbial decomposition and mineral protection network, with same approximate structure as CORPSE model
+# Rate constants estimated to show different processes
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+      NUMERICAL_JACOBIAN
+    /
+  /
+
+END
+
+
+
+SUBSURFACE
+
+#=========================== useful transport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    DOM1
+    DOM2
+    DOM3
+    CO2(aq)
+    NH4+
+  /
+  DECOUPLED_EQUILIBRIUM_REACTIONS
+    CO2(aq)
+    NH4+
+  /
+  
+  IMMOBILE_SPECIES
+    LABILE_POM
+    RESISTANT_POM
+    MAOM
+    SOIL_MICROBES
+    NECROMASS
+  /
+  GAS_SPECIES
+    CO2(g)*
+  /
+  REACTION_SANDBOX
+    SOMDECOMP
+      POOLS
+        LABILE_POM    15.d0
+        RESISTANT_POM 15.d0
+        DOM1    15.d0
+        DOM2 15.d0
+        SOIL_MICROBES 10.d0
+        NECROMASS     10.d0
+        DOM3 10.d0
+        MAOM          10.d0
+      /
+      # POM decomposition
+      REACTION
+        UPSTREAM_POOL LABILE_POM
+        DOWNSTREAM_POOL SOIL_MICROBES 0.6d0
+        TURNOVER_TIME 0.1d0 y
+!skip
+        MONOD # Note, in my experience a modified monod function that normalizes by substrate biomass works better
+          SPECIES_NAME SOIL_MICROBES 
+          HALF_SATURATION_CONSTANT 0.1d-15
+        /
+!noskip
+
+      /
+      REACTION
+        UPSTREAM_POOL RESISTANT_POM
+        DOWNSTREAM_POOL SOIL_MICROBES 0.1d0
+        TURNOVER_TIME 10.d0 y
+!skip
+        MONOD # Note, in my experience a modified monod function that normalizes by substrate biomass works better
+          SPECIES_NAME SOIL_MICROBES 
+          HALF_SATURATION_CONSTANT 0.1d-3
+        /
+!noskip
+      /
+      
+      # Turnover of microbial biomass
+      REACTION
+        UPSTREAM_POOL SOIL_MICROBES
+        DOWNSTREAM_POOL NECROMASS 0.6d0
+        TURNOVER_TIME 0.1d0 y
+!skip
+        # Inhibit turnover at very small concentrations so some residual biomass remains under adverse conditions
+        INHIBITION
+          SPECIES_NAME SOIL_MICROBES
+          TYPE INVERSE_MONOD
+          INHIBITION_CONSTANT 1.0d-5
+        /
+!noskip
+      /
+      
+      # Physical protection of necromass
+      # This is CORPSE style where necromass can be decomposed before being protected
+      # In MIMICS, microbes would decompose straight into MAOM
+      # Not sure about MEND
+      REACTION
+        UPSTREAM_POOL NECROMASS
+        DOWNSTREAM_POOL MAOM 1.0d0
+        TURNOVER_TIME 0.01d0 y
+!skip
+        INHIBITION # Protected pool can get saturated at some level
+          SPECIES_NAME MAOM
+          TYPE MONOD
+          INHIBITION_CONSTANT 1.0d-7
+        /
+!noskip
+      /
+      
+      # Abiotic release of necromass from protected pool, first order
+      # But we need to be able to specify different temperature and moisture sensitivities
+      # Alternatively this could be defined as a slow biotic process
+      # Potentially it should have a pH or redox dependence since mineral bonds are sensitive to those factors
+      REACTION
+        UPSTREAM_POOL MAOM
+        DOWNSTREAM_POOL NECROMASS 1.0d0
+        TURNOVER_TIME 50.d0 y
+      /
+      # Microbial decomposition of necromass
+      REACTION
+        UPSTREAM_POOL NECROMASS
+        DOWNSTREAM_POOL SOIL_MICROBES 0.6d0
+        TURNOVER_TIME 0.1d0 y
+!skip
+        MONOD 
+          SPECIES_NAME SOIL_MICROBES
+          HALF_SATURATION_CONSTANT 0.1d-3
+        /
+!noskip
+      /
+      # Dissolution into DOM
+      REACTION
+        UPSTREAM_POOL LABILE_POM
+        DOWNSTREAM_POOL DOM1 1.0d0
+        TURNOVER_TIME 0.1d0 y
+!skip
+        INHIBITION # High DOM accumulation will stop the dissolving process (reaching equilibrium)
+          SPECIES_NAME DOM1
+          TYPE MONOD
+          INHIBITION_CONSTANT 1.d-12
+        /
+!noskip
+      /
+      
+      REACTION
+        UPSTREAM_POOL RESISTANT_POM
+        DOWNSTREAM_POOL DOM2 1.0d0
+        TURNOVER_TIME 0.1d0 y
+!skip
+        INHIBITION # High DOM accumulation will stop the dissolving process (reaching equilibrium)
+          SPECIES_NAME DOM2
+          TYPE MONOD
+          INHIBITION_CONSTANT 1.d-12
+        /
+!noskip
+      /
+      
+      REACTION
+        UPSTREAM_POOL NECROMASS
+        DOWNSTREAM_POOL DOM3 1.0d0
+        TURNOVER_TIME 0.1d0 y
+!skip
+        INHIBITION # High DOM accumulation will stop the dissolving process (reaching equilibrium)
+          SPECIES_NAME DOM3
+          TYPE MONOD
+          INHIBITION_CONSTANT 1.d-12
+        /
+!noskip
+      /
+    
+    /
+  /
+  
+
+  TRUNCATE_CONCENTRATION 1.d-15
+
+
+ # LOG_FORMULATION
+  DATABASE ./TAI_database.dat
+
+  OUTPUT
+    !PH
+    TOTAL
+    PRIMARY_SPECIES
+    SECONDARY_SPECIES
+    GASES
+    MINERALS
+    IMMOBILE
+
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS 
+    DOM1        1.d-15     T
+    DOM2        1.d-15     T
+    DOM3        1.d-15     T
+    CO2(aq)     1.d-15     T
+    NH4+        1.d-15     T
+    /
+  IMMOBILE     # [mol/m^3 bulk]
+    LABILE_POM     1.d-8
+    RESISTANT_POM  1.d-8
+    SOIL_MICROBES  1.d-10
+    NECROMASS      1.d-13
+    MAOM           1.d-13
+    /
+  
+END
+
+#=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  !SOLVER DIRECT
+  SOLVER ITERATIVE     ! default: ITERATIVE or KRYLOV: KSP_TYPE of BCGS and PC_TYPE of BJACOBI, if not modified below
+  PC_TYPE JACOBI       ! default (iterative): BJACOBI. 
+  KSP_TYPE fgmres      ! default: BCGS. NOT much difference 
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-20
+  RTOL 1.d-15
+  STOL 1.d-10
+  ITOL 1.d-10
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 1 1 1
+  DXYZ
+    1.d0
+    1.d0
+    10.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE gas
+  DIFFUSION_COEFFICIENT 1.000d-05
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  SATURATION_FUNCTION default
+END
+
+# == saturation / permeability functions ======================================
+SATURATION_FUNCTION HD
+SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+RESIDUAL_SATURATION 0.115
+LAMBDA 0.286
+ALPHA 1.9401d-4
+/
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  SCREEN PERIODIC 10
+  PERIODIC TIMESTEP 1
+  FORMAT HDF5
+  #FORMAT TECPLOT POINT
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 2.d0 y
+  INITIAL_TIMESTEP_SIZE 0.5d0 h
+  MAXIMUM_TIMESTEP_SIZE 12.d0 h
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 10.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 5.0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+END_SUBSURFACE

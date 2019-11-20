@@ -1,0 +1,533 @@
+# Description: Simple microbial decomposition and dissolution to DOM network
+# Rate constants estimated to show different processes
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+      NUMERICAL_JACOBIAN
+    /
+  /
+
+END
+
+
+
+SUBSURFACE
+
+#=========================== useful transport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+
+#=========================== chemistry ========================================
+CHEMISTRY
+PRIMARY_SPECIES
+  #### NOTE: Beginning of auto-inserted primary species ####
+  DOM1
+  H+
+  O2(aq)
+  HCO3-
+  Fe+++
+  Fe++
+  NH4+
+  Tracer
+  CH4(aq)
+  Acetate-
+  #### NOTE: End of auto-inserted primary species ####
+/
+DECOUPLED_EQUILIBRIUM_REACTIONS
+  #### NOTE: Beginning of auto-inserted primary species ####
+  DOM1
+  H+
+  O2(aq)
+  HCO3-
+  Fe+++
+  Fe++
+  NH4+
+  Tracer
+  CH4(aq)
+  Acetate-
+  #### NOTE: End of auto-inserted primary species ####
+/
+SECONDARY_SPECIES
+  #### NOTE: Beginning of auto-inserted secondary species ####
+  CO2(aq)
+  OH-
+  FeCO3+
+  Fe(OH)4-
+  Acetic_acid(aq)
+  FeCH3COO+
+  #### NOTE: End of auto-inserted secondary species ####
+/
+MINERALS
+  #### NOTE: Beginning of auto-inserted secondary species ####
+  Fe(OH)3
+  Fe(OH)2
+  Rock(s)
+  #### NOTE: End of auto-inserted secondary species ####
+/
+MINERAL_KINETICS
+  #### NOTE: Beginning of auto-inserted secondary species ####
+  Fe(OH)3
+    RATE_CONSTANT  1.d-5 mol/m^2-sec
+  /
+  Fe(OH)2
+    RATE_CONSTANT  1.d-7 mol/m^2-sec
+  /
+  Rock(s)
+    RATE_CONSTANT  0.0 mol/m^2-sec
+  /
+  #### NOTE: End of auto-inserted secondary species ####
+/
+IMMOBILE_SPECIES
+  #### NOTE: Beginning of auto-inserted immobile species ####
+  SOIL1
+  SOIL2
+  SOIL3
+  SOIL4
+  LITR1C
+  LITR1N
+  LITR2C
+  LITR2N
+  LITR3C
+  LITR3N
+  CWDC
+  CWDN
+  HRimm
+  #### NOTE: End of auto-inserted immobile species ####
+/
+GAS_SPECIES
+  #### NOTE: Beginning of auto-inserted gas species ####
+  CO2(g)
+  O2(g)
+  #### NOTE: End of auto-inserted gas species ####
+/
+SORPTION
+  #### NOTE: Beginning of auto-inserted sorption sites ####
+  SURFACE_COMPLEXATION_RXN
+    EQUILIBRIUM
+    MINERAL Rock(s)
+    SITE >Carboxylate- 1.00e+03
+    COMPLEXES
+      >Carboxylic_acid
+    /
+  /
+/
+#### NOTE: End of auto-inserted sorption sites ####
+#### NOTE: Beginning of auto-inserted reactions ####
+  # DOM aerobic respiration
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 DOM1  + 1.0e+00 O2(aq)  -> 1.0e+00 HCO3-  + 1.0e+00 H+  + 1.0e+00 Tracer 
+    RATE_CONSTANT       1.0e-09
+    MONOD
+      SPECIES_NAME        O2(aq)
+      HALF_SATURATION_CONSTANT 1.0e-05
+      THRESHOLD_CONCENTRATION 1.1e-12
+    /
+    MONOD
+      SPECIES_NAME        DOM1
+      HALF_SATURATION_CONSTANT 1.0e-08
+      THRESHOLD_CONCENTRATION 1.1e-14
+    /
+  /
+  # fermentation
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 DOM1  -> 3.3e-01 Acetate-  + 3.3e-01 HCO3-  + 2.0e+00 H+  + 3.3e-01 Tracer 
+    RATE_CONSTANT       1.0e-10
+    MONOD
+      SPECIES_NAME        DOM1
+      HALF_SATURATION_CONSTANT 1.0e-05
+      THRESHOLD_CONCENTRATION 1.1e-15
+    /
+    INHIBITION
+      SPECIES_NAME        O2(aq)
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.2e-08
+    /
+    INHIBITION
+      SPECIES_NAME        Acetate-
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.2e-08
+    /
+  /
+  # Acetate aerobic respiration
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 Acetate-  + 2.0e+00 O2(aq)  -> 2.0e+00 HCO3-  + 2.0e+00 H+  + 2.0e+00 Tracer 
+    RATE_CONSTANT       1.0e-09
+    MONOD
+      SPECIES_NAME        O2(aq)
+      HALF_SATURATION_CONSTANT 1.0e-05
+      THRESHOLD_CONCENTRATION 1.1e-12
+    /
+    MONOD
+      SPECIES_NAME        Acetate-
+      HALF_SATURATION_CONSTANT 1.0e-08
+      THRESHOLD_CONCENTRATION 1.1e-14
+    /
+  /
+  # Fe reduction
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 Acetate-  + 8.0e+00 Fe+++  -> 2.0e+00 HCO3-  + 8.0e+00 Fe++  + 9.0e+00 H+  + 2.0e+00 Tracer 
+    RATE_CONSTANT       2.0e-10
+    MONOD
+      SPECIES_NAME        Acetate-
+      HALF_SATURATION_CONSTANT 2.0e-03
+      THRESHOLD_CONCENTRATION 1.1e-15
+    /
+    MONOD
+      SPECIES_NAME        Fe+++
+      HALF_SATURATION_CONSTANT 1.3e-12
+      THRESHOLD_CONCENTRATION 1.1e-15
+    /
+    INHIBITION
+      SPECIES_NAME        O2(aq)
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.2e-08
+    /
+  /
+  # Methanogenesis
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 Acetate-  -> 1.0e+00 CH4(aq)  + 1.0e+00 HCO3-  + 1.0e+00 Tracer 
+    RATE_CONSTANT       1.0e-10
+    MONOD
+      SPECIES_NAME        Acetate-
+      HALF_SATURATION_CONSTANT 2.0e-03
+      THRESHOLD_CONCENTRATION 1.1e-15
+    /
+    INHIBITION
+      SPECIES_NAME        O2(aq)
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.2e-08
+    /
+    INHIBITION
+      SPECIES_NAME        Fe+++
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.2e-09
+    /
+  /
+  REACTION_SANDBOX
+    SOMDECOMP
+      POOLS
+        DOM1                50.0
+        LITR3               # Variable C:N pool
+        SOIL1               12.0
+        SOIL4               10.0
+        LITR2               # Variable C:N pool
+        SOIL3               10.0
+        SOIL2               12.0
+        LITR1               # Variable C:N pool
+        CWD                 # Variable C:N pool
+      /
+    # LITR3 decomposition
+    REACTION
+      UPSTREAM_POOL       LITR3
+      DOWNSTREAM_POOL     SOIL3               7.1e-01
+      RATE_DECOMPOSITION  1.4e-02 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # SOIL1 decomp
+    REACTION
+      UPSTREAM_POOL       SOIL1
+      DOWNSTREAM_POOL     SOIL2               7.2e-01
+      RATE_DECOMPOSITION  7.3e-02 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # SOIL4 decomp
+    REACTION
+      UPSTREAM_POOL       SOIL4
+      RATE_DECOMPOSITION  1.0e-04 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # LITR2 decomposition
+    REACTION
+      UPSTREAM_POOL       LITR2
+      DOWNSTREAM_POOL     SOIL2               4.5e-01
+      RATE_DECOMPOSITION  7.3e-02 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # SOIL3 decomp
+    REACTION
+      UPSTREAM_POOL       SOIL3
+      DOWNSTREAM_POOL     SOIL4               4.5e-01
+      RATE_DECOMPOSITION  1.4e-03 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # SOIL2 decomp
+    REACTION
+      UPSTREAM_POOL       SOIL2
+      DOWNSTREAM_POOL     SOIL3               5.4e-01
+      RATE_DECOMPOSITION  1.4e-02 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # LITR1 decomposition
+    REACTION
+      UPSTREAM_POOL       LITR1
+      DOWNSTREAM_POOL     SOIL1               6.1e-01
+      RATE_DECOMPOSITION  1.2e+00 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+    # hydrolysis
+    REACTION
+      UPSTREAM_POOL       LITR1
+      DOWNSTREAM_POOL     DOM1                1.0e+00
+      TURNOVER_TIME       1.0e-01 y
+      INHIBITION
+        SPECIES_NAME        DOM1
+        TYPE MONOD
+        INHIBITION_CONSTANT 1.0e-05
+      /
+      INHIBITION
+        SPECIES_NAME        O2(aq)
+        TYPE MONOD
+        INHIBITION_CONSTANT 6.2e-08
+      /
+    /
+    # CWD fragmentation
+    REACTION
+      UPSTREAM_POOL       CWD
+      DOWNSTREAM_POOL     LITR2               7.6e-01
+      DOWNSTREAM_POOL     LITR3               2.4e-01
+      RATE_DECOMPOSITION  1.0e-04 1/d
+      MONOD
+        SPECIES_NAME        O2(aq)
+        HALF_SATURATION_CONSTANT 1.0e-08
+        THRESHOLD_CONCENTRATION 1.0e-12
+      /
+    /
+      CO2_SPECIES_NAME HCO3-
+      O2_SPECIES_NAME O2(aq)
+    /
+  /
+  #### NOTE: End of auto-inserted reactions ####
+
+
+  TRUNCATE_CONCENTRATION 1.d-30
+
+
+  LOG_FORMULATION
+  DATABASE ./hanford.dat
+
+  OUTPUT
+    !PH
+    TOTAL
+    FREE_ION
+    PRIMARY_SPECIES
+    SECONDARY_SPECIES
+    GASES
+    MINERALS
+    IMMOBILE
+    TOTAL_SORBED
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  IMMOBILE
+    #### NOTE: Beginning of auto-inserted immobile species ####
+    SOIL1                1.0e-10
+    SOIL2                1.0e-10
+    SOIL3                1.0e-10
+    SOIL4                1.0e-10
+    LITR1C              1.0e+02
+    LITR1N              5.0e+00
+    LITR2C              1.0e-10
+    LITR2N              5.0e-12
+    LITR3C              1.0e-10
+    LITR3N              5.0e-12
+    CWDC                1.0e-10
+    CWDN                5.0e-12
+    HRimm                1.0e-20
+    #### NOTE: End of auto-inserted immobile species ####
+  /
+  CONCENTRATIONS
+    #### NOTE: Beginning of auto-inserted concentration constraints ####
+    DOM1                1.0e-30
+    H+                  4.0 P
+    O2(aq)              1.0e+01
+    HCO3-               400e-6 G CO2(g)
+    Fe+++               .37e-3 M Fe(OH)3
+    Fe++                0.37e-3
+    NH4+                1.0e-15
+    Tracer              1.0e-15
+    CH4(aq)             1.0e-15
+    Acetate-            1.0e-15
+    #### NOTE: End of auto-inserted concentration constraints ####
+  /
+  MINERALS
+    #### NOTE: Beginning of auto-inserted mineral constraints ####
+    Fe(OH)3             1.75d-1  1.d2 m^2/m^3
+    Fe(OH)2             0.0e-20  1.e-10 m^2/m^3
+    Rock(s)             0.5  5.0e3 m^2/m^3
+    #### NOTE: End of auto-inserted mineral constraints ####
+  /
+
+  
+END
+
+#=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+  !SOLVER ITERATIVE     ! default: ITERATIVE or KRYLOV: KSP_TYPE of BCGS and PC_TYPE of BJACOBI, if not modified below
+  PC_TYPE JACOBI       ! default (iterative): BJACOBI. 
+  KSP_TYPE fgmres      ! default: BCGS. NOT much difference 
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-20
+  RTOL 1.d-15
+  STOL 1.d-10
+  ITOL 1.d-10
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 1 1 1
+  DXYZ
+    1.d0
+    1.d0
+    10.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE gas
+  DIFFUSION_COEFFICIENT 1.000d-05
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  SATURATION_FUNCTION default
+END
+
+# == saturation / permeability functions ======================================
+SATURATION_FUNCTION HD
+SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+RESIDUAL_SATURATION 0.115
+LAMBDA 0.286
+ALPHA 1.9401d-4
+/
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  #SCREEN PERIODIC 10
+  #PERIODIC TIMESTEP 1
+  #FORMAT HDF5
+  VARIABLES
+    POROSITY
+    /
+  FORMAT TECPLOT POINT
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 3.6e+03 d
+
+  INITIAL_TIMESTEP_SIZE 0.5d0 h
+  MAXIMUM_TIMESTEP_SIZE 12.d0 h
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 10.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 5.0
+END
+
+REGION top
+COORDINATES
+  0.d0 0.d0 0.d0
+  1.d0 1.d0 10.d0
+  /
+  FACE TOP
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+END_SUBSURFACE
