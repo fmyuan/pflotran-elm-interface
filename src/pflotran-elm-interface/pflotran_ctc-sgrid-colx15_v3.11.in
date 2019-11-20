@@ -1,5 +1,5 @@
 #
-#Description - 1D BGC (CLM-CTC) reaction network for global run (COLOMN MODE)
+#Description - 1D BGC (CLM-CTC) reaction network for stand-alone pflotran test
 #
 
 SIMULATION
@@ -8,7 +8,7 @@ SIMULATION
 
     SUBSURFACE_TRANSPORT transport
       GLOBAL_IMPLICIT
-      
+      NUMERICAL_JACOBIAN            ! This is for testing analytical Jacobian in Sandboxes 
     /
 
   /
@@ -27,12 +27,6 @@ END
 #
 #+++++++++++++++++++++++ I. DOMAINS +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 #
-skip    ! if skipped, CLM grids will be enforced to replace PF-mesh defined below (discretization/region) 
-#======================= I-0. CLM <==> PFLOTRAN domain mapping files ==========
-MAPPING_FILES                   
-  !
-END
-noskip
 
 #======================= I-1. discretization ===================================
 # NOTE: the following ONLY provides required data initialization, and will be 
@@ -42,8 +36,8 @@ GRID
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 1 1 15
   DXYZ 
-     2.0d20 
-     2.0d20 
+     1.0d0 
+     1.0d0 
      13.851152141963599d0 \ 
      11.126150294204420d0 \ 
      6.7483512780057175d0 \ 
@@ -119,23 +113,6 @@ INITIAL_CONDITION initial_coupler
   REGION all
 END
 
-!SOURCE_SINK clm_et_ss
-!  TRANSPORT_CONDITION zero_bcs
-!  REGION all
-!END
-!
-!BOUNDARY_CONDITION clm_gwflux_bc
-!  TRANSPORT_CONDITION zero_bcs
-!  REGION top
-!END
-!
-!BOUNDARY_CONDITION clm_bflux_bc
-!  TRANSPORT_CONDITION zero_bcs
-!  REGION bottom
-!END
-
-
-
 #===================== II-2. stratigraphy couplers ============================
 
 STRATA
@@ -167,8 +144,8 @@ END
 NEWTON_SOLVER TRANSPORT
   ATOL 1.0D-20
   RTOL 1.0D-15
-  STOL 1.0D-10         ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
-  ITOL 1.0D-08
+  STOL 1.0D-10        ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
+  ITOL 1.0D-10
 
   MAXIT 30
   MAXF 100
@@ -178,7 +155,7 @@ END
 #
 #===================== IV-1. timer options ===================================
 TIME
-  FINAL_TIME 0.0208333d-2 d
+  FINAL_TIME 365.d0 d
   INITIAL_TIMESTEP_SIZE 1800.0 s
   MINIMUM_TIMESTEP_SIZE 1.0d1 s   ! this should be the min. with a few steps, otherwise trouble
   MAXIMUM_TIMESTEP_SIZE 1800.0 s
@@ -189,12 +166,12 @@ END
 #
 #==================== V-1. output options ===================================
 OUTPUT
-  !SCREEN OFF 
+  !SCREEN OFF             ! totally shut off screen printing of running information
   SCREEN PERIODIC 48
   !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
-  !PERIODIC TIMESTEP 1   ! this is good for checking PF each time-step
-  !FORMAT HDF5
-  NO_INITIAL
+  PERIODIC TIMESTEP 48     ! this is good for checking PF each time-step
+  FORMAT HDF5
+  !NO_INITIAL
 END
 
 #
@@ -262,7 +239,7 @@ END
 
 MATERIAL_PROPERTY soil03
   ID 3
-  POROSITY 0.55676865928547548d-50
+  POROSITY 0.55676865928547548d-5               ! purposely set a very small porosity for rock-like soil-bed, but not too tiny (math issue)
   SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
   SOIL_COMPRESSIBILITY 1.d-7
   SOIL_REFERENCE_PRESSURE 101325.d0
@@ -427,13 +404,16 @@ noskip
 
     # CLM-CN SOM decomposition sandboxes
     SOMDECOMP
-      TEMPERATURE_RESPONSE_FUNCTION
-         Q10 1.5d0
+      Abiotic_Factors
+        TEMPERATURE_RESPONSE_FUNCTION
+          Q10 1.5d0
+        /
+
+        DECOMP_DEPTH_EFOLDING 0.50d0
       /
       
-      DECOMP_DEPTH_EFOLDING 0.50d0
       
-      POOLS   ! CN ratio
+      POOLS   ! CN ratio if constant
         SOIL1  12.d0 
         SOIL2  12.d0
         SOIL3  10.d0
@@ -455,18 +435,42 @@ noskip
         UPSTREAM_POOL LITR1
         DOWNSTREAM_POOL SOIL1 0.61d0
         RATE_DECOMPOSITION 1.204 1/d           ! CLM-CN dec. rate k:
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
       /
 
       REACTION
         UPSTREAM_POOL LITR2    
         DOWNSTREAM_POOL SOIL2 0.45d0
         RATE_DECOMPOSITION 0.0726 1/d          ! CLM-CN dec. rate k: 
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
       /
 
       REACTION
         UPSTREAM_POOL LITR3
         DOWNSTREAM_POOL SOIL3 0.71d0
         RATE_DECOMPOSITION 0.0141 1/d          ! CLM-CN dec. rate k: 
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
       /
 
       REACTION
@@ -491,28 +495,12 @@ noskip
         RATE_AD_FACTOR 100.0d0                 ! Accelerated decomposition factor
       END
       
-      AMMONIUM_HALF_SATURATION 1.0d-5          ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
-      NITRATE_HALF_SATURATION 1.0d-5
       AMMONIUM_INHIBITION_NITRATE 10.0d0        ! ratio of NH4/NO3
 
       N2O_FRAC_MINERALIZATION 0.02d0            ! max. fraction of net mineralization for gaseous emission
             
     END
    
-    #gaseous emission when gas-species's aqueous phase over-saturation
-    DEGAS
-      KINETIC_CONSTANT_CO2  1.d-5   
-      KINETIC_CONSTANT_N2O  1.d-5   
-      KINETIC_CONSTANT_N2  1.d-5   
-    END
-
-    # inorganic N process sandboxes
-    PLANTN
-      AMMONIUM_HALF_SATURATION 1.0d-05
-      NITRATE_HALF_SATURATION 1.0d-05
-      AMMONIUM_INHIBITION_NITRATE 10.0d0
-    END
-
     NITRIFICATION
       NITRIFICATION_RATE_COEF 1.d-5         ! max. nitrification rate (1/s)
       N2O_RATE_COEF_NITRIFICATION 3.5d-8    ! max. n2o production rate during nitrification (1/s)
@@ -524,20 +512,12 @@ noskip
       NITRATE_HALF_SATURATION 1.0d-05
     END
 
-skip   !issue not yet solved here (tiny time-step)
-    LANGMUIR
-      NAME_AQ   NH4+                       ! de-absorbed specie name in aqueous species list
-      NAME_SORB NH4sorb                    ! absorbed specie name in immobile species list
-      EQUILIBRIUM_CONSTANT 1.0d5           ! Ka/Kd (Kl in Langmuir isotherm model), with Ceq in moles/L and Csorbed in moles/m3 
-      KINETIC_CONSTANT 1.0d0               ! 1/s (cannot over 1)
-      S_MAX 1.0d-1                         ! sorption capacity (moles/m3)
-    END
-noskip
-
   END
 
 # output list will be turned off, if coupled with CLM
   OUTPUT
+    all
+    total
 skip
     NO3-
     NH4+
@@ -548,10 +528,10 @@ skip
     LITR1C
     LITR2C
     LITR3C
-    CWDC
     LITR1N
     LITR2N
     LITR3N
+    CWDC
     CWDN
     Plantndemand
     Plantnh4uptake
@@ -598,18 +578,18 @@ CONSTRAINT initial_constraint
     H+         6.0    PH
   /
   IMMOBILE
-    SOIL1       1.d-20 ! moles C/m^3
+    SOIL1       1.d-20                  ! moles C/m^3
     SOIL2       1.d-20
     SOIL3       1.d-20
-    SOIL4       1.d-20
-    CWDC       1.d-20
-    LITR1C     0.1852d-3
-    LITR2C     0.4578d-3
-    LITR3C     0.2662d-3
-    LITR1N     0.00508954d-3
-    LITR2N     0.01258096d-3
-    LITR3N     0.00731553d-3
-    CWDN       0.2d-22
+    SOIL4       0.83256340619939118d0
+    LITR1C      0.1852d-3
+    LITR2C      0.4578d-3
+    LITR3C      0.2662d-3
+    LITR1N      0.00508954d-3
+    LITR2N      0.01258096d-3
+    LITR3N      0.00731553d-3
+    CWDC        1.0d-20
+    CWDN        0.2d-22
     NH4sorb     1.d-20
     PlantN      1.d-20
     Plantndemand   1.d-20     ! 0-resetting its value at end of a CLM time-step, when coupled
@@ -674,153 +654,10 @@ CONSTRAINT zero_trans
     N2O(aq)    1.d-20 T
     N2(aq)     1.d-20 T
     NH4+       1.d-20 T
-    H+         6.0    PH
+    H+         7.0    PH
   /
 END
 
-#=========================== VII-5. mass transfer species ==========================
-RT_MASS_TRANSFER NO3-
-  IDOF 4
-  DATASET NO3-
-END
-
-RT_MASS_TRANSFER NH4+
-  IDOF 8
-  DATASET NH4+
-END
-
-RT_MASS_TRANSFER SOIL1
-  IDOF 10
-  DATASET SOIL1
-END
-
-RT_MASS_TRANSFER SOIL2
-  IDOF 11
-  DATASET SOIL2
-END
-
-RT_MASS_TRANSFER SOIL3
-  IDOF 12
-  DATASET SOIL3
-END
-
-RT_MASS_TRANSFER SOIL4
-  IDOF 13
-  DATASET SOIL4
-END
-
-RT_MASS_TRANSFER LITR1C
-  IDOF 14
-  DATASET LITR1C
-END
-
-RT_MASS_TRANSFER LITR2C
-  IDOF 15
-  DATASET LITR2C
-END
-
-RT_MASS_TRANSFER LITR3C
-  IDOF 16
-  DATASET LITR3C
-END
-
-RT_MASS_TRANSFER LITR1N
-  IDOF 17
-  DATASET LITR1N
-END
-
-RT_MASS_TRANSFER LITR2N
-  IDOF 18
-  DATASET LITR2N
-END
-
-RT_MASS_TRANSFER LITR3N
-  IDOF 19
-  DATASET LITR3N
-END
-
-RT_MASS_TRANSFER CWDC
-  IDOF 20
-  DATASET CWDC
-END
-
-RT_MASS_TRANSFER CWDN
-  IDOF 21
-  DATASET CWDN
-END
-
-#=================== VII-6. mass-transfer datasets ===============================
-DATASET GLOBAL NH4+
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME NH4+
-END
-
-DATASET GLOBAL NO3-
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME NO3-
-END
-
-DATASET GLOBAL SOIL1
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME SOIL1
-END
-
-DATASET GLOBAL SOIL2
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME SOIL2
-END
-
-DATASET GLOBAL SOIL3
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME SOIL3
-END
-
-DATASET GLOBAL SOIL4
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME SOIL4
-END
-
-DATASET GLOBAL LITR1C
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME LITR1C
-END
-
-DATASET GLOBAL LITR2C
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME LITR2C
-END
-
-DATASET GLOBAL LITR3C
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME LITR3C
-END
-
-DATASET GLOBAL LITR1N
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME LITR1N
-END
-
-DATASET GLOBAL LITR2N
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME LITR2N
-END
-
-DATASET GLOBAL LITR3N
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME LITR3N
-END
-
-DATASET GLOBAL CWDC
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME CWDC
-END
-
-DATASET GLOBAL CWDN
-  FILENAME dummy.h5
-  HDF5_DATASET_NAME CWDN
-END
-
-#
 
 END_SUBSURFACE
 
