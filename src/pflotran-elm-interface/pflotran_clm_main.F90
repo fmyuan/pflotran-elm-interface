@@ -85,9 +85,7 @@ module pflotran_clm_main_module
        pflotranModelDeleteWaypoint
 
 !------------------------------------------------------------
-
-  PetscReal, parameter :: xeps0_c = 1.0d-50
-  PetscReal, parameter :: xeps0_n = 1.0d-51
+  PetscReal :: zeroing_conc = 1.0d-50
 
   character(len=MAXWORDLENGTH) :: subname = ""
 
@@ -2958,6 +2956,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     global_auxvars  => patch%aux%Global%auxvars
 
+    ! using user-input zeroing concentration, if available
+    if (realization%reaction%truncated_concentration /= UNINITIALIZED_DOUBLE) then
+      zeroing_conc = max(zeroing_conc, realization%reaction%truncated_concentration)
+    endif
+
     !-----------------------------------------------------------------
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
@@ -3135,23 +3138,23 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       den_kg_per_L = global_auxvars(ghosted_id)%den_kg(1)*xmass*1.d-3
 
       if(clm_pf_idata%ispec_no3 > 0) then
-         xx_p(offset + clm_pf_idata%ispec_no3) = max(xeps0_n,                     &      ! from 'ghosted_id' to field%xx_p's local
+         xx_p(offset + clm_pf_idata%ispec_no3) = max(zeroing_conc,                     &      ! from 'ghosted_id' to field%xx_p's local
                                                 smin_no3_vr_pf_loc(veclocal_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
 
       elseif (clm_pf_idata%ispec_no3s > 0) then  ! in immobile form
-         xx_p(offsetim + clm_pf_idata%ispec_no3s) = max(xeps0_n,                  &
+         xx_p(offsetim + clm_pf_idata%ispec_no3s) = max(zeroing_conc,                  &
                                         smin_no3_vr_pf_loc(veclocal_id) )
 
       endif
 
       if(clm_pf_idata%ispec_nh4 > 0) then
-         xx_p(offset + clm_pf_idata%ispec_nh4) = max(xeps0_n,                     &
+         xx_p(offset + clm_pf_idata%ispec_nh4) = max(zeroing_conc,                     &
                                                 smin_nh4_vr_pf_loc(veclocal_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )
 
       elseif (clm_pf_idata%ispec_nh4s > 0) then  ! in immobile form
-         xx_p(offsetim + clm_pf_idata%ispec_nh4s) = max(xeps0_n,                  &
+         xx_p(offsetim + clm_pf_idata%ispec_nh4s) = max(zeroing_conc,                  &
                                         smin_nh4_vr_pf_loc(veclocal_id) )
 
       endif
@@ -3160,7 +3163,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       offsetim = offset + realization%reaction%offset_immobile
 
       if(clm_pf_idata%ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
-         xx_p(offsetim + clm_pf_idata%ispec_nh4sorb) = max(xeps0_n,               &
+         xx_p(offsetim + clm_pf_idata%ispec_nh4sorb) = max(zeroing_conc,               &
                                         smin_nh4sorb_vr_pf_loc(veclocal_id) )
       endif
 
@@ -3169,12 +3172,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
 
         if(clm_pf_idata%ispec_decomp_c(k) > 0) then
-          xx_p(offsetim + clm_pf_idata%ispec_decomp_c(k)) = max( xeps0_c,    &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+          xx_p(offsetim + clm_pf_idata%ispec_decomp_c(k)) = max( zeroing_conc,    &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
                        decomp_cpools_vr_pf_loc(vec_offset+veclocal_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         endif
 
         if(clm_pf_idata%ispec_decomp_n(k) > 0) then
-          xx_p(offsetim + clm_pf_idata%ispec_decomp_n(k)) = max( xeps0_n,    &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+          xx_p(offsetim + clm_pf_idata%ispec_decomp_n(k)) = max( zeroing_conc,    &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
                        decomp_npools_vr_pf_loc(vec_offset+veclocal_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
         endif
 
@@ -3804,6 +3807,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     global_auxvars  => patch%aux%Global%auxvars
 
+    ! using user-input zeroing concentration, if available
+    if (realization%reaction%truncated_concentration /= UNINITIALIZED_DOUBLE) then
+      zeroing_conc = max(zeroing_conc, realization%reaction%truncated_concentration)
+    endif
+
     !-----------------------------------------------------------------
 
     ! mapping CLM vecs to PF vecs
@@ -3857,15 +3865,15 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                 + realization%reaction%offset_immobile
 
         if(clm_pf_idata%ispec_co2 > 0) then
-            xx_p(offset + clm_pf_idata%ispec_co2) = max(gco2_vr_pf_loc(veclocal_id), xeps0_c)
+            xx_p(offset + clm_pf_idata%ispec_co2) = max(gco2_vr_pf_loc(veclocal_id), zeroing_conc)
         endif
 
         if(clm_pf_idata%ispec_n2 > 0) then
-            xx_p(offset + clm_pf_idata%ispec_n2) = max(gn2_vr_pf_loc(veclocal_id), xeps0_n)
+            xx_p(offset + clm_pf_idata%ispec_n2) = max(gn2_vr_pf_loc(veclocal_id), zeroing_conc)
         endif
 
         if(clm_pf_idata%ispec_n2o > 0) then
-            xx_p(offset + clm_pf_idata%ispec_n2o) = max(gn2o_vr_pf_loc(veclocal_id), xeps0_n)
+            xx_p(offset + clm_pf_idata%ispec_n2o) = max(gn2o_vr_pf_loc(veclocal_id), zeroing_conc)
         endif
 
     enddo
@@ -3964,8 +3972,6 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     PetscScalar, pointer :: array_pfp(:), array_clms(:), array_temp(:)
     PetscInt             :: j, k, vec_offset
 
-    PetscReal :: zeroing_conc = 1.0d-50
-
     !-------------------------------------------------------------------------
     subname = 'ModelSetBgcVariablesFromPF'
     !-------------------------------------------------------------------------
@@ -3988,8 +3994,8 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     reaction => realization%reaction
 
     ! using user-input zeroing concentration, if available
-    if (Initialized(reaction%truncated_concentration)) then
-      zeroing_conc = reaction%truncated_concentration
+    if (reaction%truncated_concentration /= UNINITIALIZED_DOUBLE) then
+      zeroing_conc = max(zeroing_conc, reaction%truncated_concentration)
     endif
 
     !-----------------------------------------------------------------
