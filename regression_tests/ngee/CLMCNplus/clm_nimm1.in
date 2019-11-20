@@ -67,10 +67,14 @@ CHEMISTRY
         UPSTREAM_POOL Lit1
         DOWNSTREAM_POOL SOM1 0.61d0
         TURNOVER_TIME 20. h
+
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5
+        /
+
       /
       
-      AMMONIUM_HALF_SATURATION 1.0d-5      ! unit: moles/m3 (default: 1.d-15)
-
     /
 
   /
