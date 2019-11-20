@@ -727,27 +727,25 @@ function PMWFMechanismFMDMSurrogateCreate()
   surrfmdm%mapping_surrfmdm = [surrfmdm%iO2,surrfmdm%iCO3_2n, &
                                surrfmdm%iH2,surrfmdm%iFe_2p]
 
-  print*, "made it to read in"
-
   allocate(surrfmdm%outer_weights(101))
-  open(12,file="ann_surrogate/outer_weights.txt")
-  read(12,*) surrfmdm%outer_weights
-  close(12)
+  open(IUNIT_TEMP,file="ann_surrogate/outer_weights.txt")
+  read(IUNIT_TEMP,*) surrfmdm%outer_weights
+  close(IUNIT_TEMP)
 
   allocate(surrfmdm%inner_weights(7,100))
-  open(12,file="ann_surrogate/inner_weights.txt")
-  read(12,*) surrfmdm%inner_weights
-  close(12)
+  open(IUNIT_TEMP,file="ann_surrogate/inner_weights.txt")
+  read(IUNIT_TEMP,*) surrfmdm%inner_weights
+  close(IUNIT_TEMP)
 
   allocate(surrfmdm%scaler_means(6))
-  open(12,file="ann_surrogate/means.txt")
-  read(12,*) surrfmdm%scaler_means
-  close(12)
+  open(IUNIT_TEMP,file="ann_surrogate/means.txt")
+  read(IUNIT_TEMP,*) surrfmdm%scaler_means
+  close(IUNIT_TEMP)
 
   allocate(surrfmdm%scaler_variances(6))
-  open(12,file="ann_surrogate/vars.txt")
-  read(12,*) surrfmdm%scaler_variances
-  close(12)
+  open(IUNIT_TEMP,file="ann_surrogate/vars.txt")
+  read(IUNIT_TEMP,*) surrfmdm%scaler_variances
+  close(IUNIT_TEMP)
 
   PMWFMechanismFMDMSurrogateCreate => surrfmdm
 
@@ -5796,34 +5794,34 @@ subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
                                scaler_means, scaler_variances, &
                                fuelDisRate)
   implicit none
-  real ( kind = 8 ), intent( in )  :: sTme
-  real ( kind = 8 ), intent( in )  :: burnup
-  real ( kind = 8 ), intent( in )  :: current_temp_C 
-  real ( kind = 8 ), intent( in)   :: decay_time
+  PetscReal, intent(in) :: sTme
+  PetscReal, intent(in) :: burnup
+  PetscReal, intent(in) :: current_temp_C 
+  PetscReal, intent(in) :: decay_time
   ! four environmental concentrations
-  real ( kind = 8 ), intent( in ), dimension (:) :: conc
+  PetscReal, intent(in) :: conc(:)
   ! ANN weights
-  real (kind = 8), intent ( in ), dimension(:) :: outer_weights
-  real (kind = 8), intent ( in ), dimension(:,:) :: inner_weights
+  PetscReal, intent(in) :: outer_weights(:)
+  PetscReal, intent(in) :: inner_weights(:,:)
   ! standardization scaler parameters
-  real (kind = 8), intent ( in ), dimension(:) :: scaler_means
-  real (kind = 8), intent ( in ), dimension(:) :: scaler_variances
+  PetscReal, intent(in) :: scaler_means(:)
+  PetscReal, intent(in) :: scaler_variances(:)
   ! output
-  real ( kind = 8 ), intent( out ) :: fuelDisRate ! g/m2/yr
+  PetscReal, intent(out) :: fuelDisRate ! g/m2/yr
   
   ! local variables
-  real ( kind = 8 ) :: yTme
-  real ( kind = 8 ) :: f1, f2, f3, f4, f5
-  real ( kind = 8 ) :: AOF, rad0a, rad0
-  real ( kind = 8 ) :: node_sum
-  integer ( kind = 4 ) :: i
-  integer ( kind = 4 ) :: N ! number of nodes in ANN
+  PetscReal :: yTme
+  PetscReal :: f1, f2, f3, f4, f5
+  PetscReal :: AOF, rad0a, rad0
+  PetscReal :: node_sum
+  PetscInt :: i
+  PetscInt :: N ! number of nodes in ANN
   ! features
-  real ( kind = 8), dimension(6) :: f
+  PetscReal, dimension(6) :: f
   ! hidden layer nodes values
-  real ( kind = 8 ), dimension(100) :: h
+  PetscReal, dimension(100) :: h
   ! constants
-  real ( kind = 8), parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
 
   yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
 
