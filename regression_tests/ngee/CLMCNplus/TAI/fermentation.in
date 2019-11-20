@@ -1,0 +1,379 @@
+# Description: Simple microbial decomposition and dissolution to DOM network
+# Rate constants estimated to show different processes
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+      OPTIONS
+      /
+    /
+  /
+
+END
+
+
+
+SUBSURFACE
+
+#=========================== useful transport parameters =======================
+SPECIFIED_VELOCITY
+  UNIFORM? YES
+  DATASET 0.d0 0.d0 0.d0
+END
+
+REFERENCE_LIQUID_DENSITY 1.d3
+
+
+#=========================== chemistry ========================================
+CHEMISTRY
+PRIMARY_SPECIES
+  #### NOTE: Beginning of auto-inserted primary species ####
+  DOM1
+  H+
+  O2(aq)
+  HCO3-
+  Fe+++
+  Fe++
+  NH4+
+  Tracer
+  CH4(aq)
+  #### NOTE: End of auto-inserted primary species ####
+/
+DECOUPLED_EQUILIBRIUM_REACTIONS
+  #### NOTE: Beginning of auto-inserted primary species ####
+  DOM1
+  H+
+  O2(aq)
+  HCO3-
+  Fe+++
+  Fe++
+  NH4+
+  Tracer
+  CH4(aq)
+  #### NOTE: End of auto-inserted primary species ####
+/
+SECONDARY_SPECIES
+  #### NOTE: Beginning of auto-inserted secondary species ####
+  CO2(aq)
+  OH-
+  FeCO3+
+  #### NOTE: End of auto-inserted secondary species ####
+/
+MINERALS
+  #### NOTE: Beginning of auto-inserted secondary species ####
+  Fe(OH)3
+  FeO
+  #### NOTE: End of auto-inserted secondary species ####
+/
+MINERAL_KINETICS
+  #### NOTE: Beginning of auto-inserted secondary species ####
+  Fe(OH)3
+    RATE_CONSTANT  1.d-7 mol/m^2-sec
+  /
+  FeO
+    RATE_CONSTANT  1.d-7 mol/m^2-sec
+  /
+  #### NOTE: End of auto-inserted secondary species ####
+/
+IMMOBILE_SPECIES
+  #### NOTE: Beginning of auto-inserted immobile species ####
+  cellulose
+  HRimm
+  #### NOTE: End of auto-inserted immobile species ####
+/
+PASSIVE_GAS_SPECIES
+  #### NOTE: Beginning of auto-inserted gas species ####
+  CO2(g)
+  O2(g)
+  #### NOTE: End of auto-inserted gas species ####
+/
+#### NOTE: Beginning of auto-inserted reactions ####
+  # DOM aerobic respiration
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 DOM1  + 1.0e+00 O2(aq)  -> 1.0e+00 HCO3-  + 1.0e+00 H+  + 1.0e+00 Tracer 
+    RATE_CONSTANT       1.0e-05
+    MONOD
+      SPECIES_NAME        O2(aq)
+      HALF_SATURATION_CONSTANT 1.0e-08
+      THRESHOLD_CONCENTRATION 1.0e-12
+    /
+    MONOD
+      SPECIES_NAME        DOM1
+      HALF_SATURATION_CONSTANT 1.0e-08
+      THRESHOLD_CONCENTRATION 1.0e-14
+    /
+  /
+  # Fe reduction
+  MICROBIAL_REACTION
+    REACTION 1.0e+00 DOM1  + 3.0e+00 Fe+++  -> 1.0e+00 HCO3-  + 3.0e+00 Fe++  + 1.5e+01 H+  + 1.0e+00 Tracer 
+    RATE_CONSTANT       2.0e-06
+    MONOD
+      SPECIES_NAME        DOM1
+      HALF_SATURATION_CONSTANT 2.0e-03
+      THRESHOLD_CONCENTRATION 1.0e-15
+    /
+    MONOD
+      SPECIES_NAME        Fe+++
+      HALF_SATURATION_CONSTANT 1.3e-03
+      THRESHOLD_CONCENTRATION 1.0e-15
+    /
+    INHIBITION
+      SPECIES_NAME        O2(aq)
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.2e-08
+    /
+  /
+  REACTION_SANDBOX
+    SOMDECOMP
+      POOLS
+        cellulose           50.0
+        DOM1                50.0
+      /
+    # Fermentation hydrolysis
+    REACTION
+      UPSTREAM_POOL       cellulose
+      DOWNSTREAM_POOL     DOM1                6.7e-01
+      TURNOVER_TIME       1.0e-01 y
+      INHIBITION
+        SPECIES_NAME        DOM1
+        TYPE MONOD
+        INHIBITION_CONSTANT 1.0e-05
+      /
+    /
+      CO2_SPECIES_NAME HCO3-
+      
+      O2_SPECIES_NAME O2(aq)
+      
+    /
+  /
+  #### NOTE: End of auto-inserted reactions ####
+
+
+  TRUNCATE_CONCENTRATION 1.d-80
+
+
+  LOG_FORMULATION
+  DATABASE ./hanford.dat
+
+  OUTPUT
+    !PH
+    TOTAL
+    FREE_ION
+    PRIMARY_SPECIES
+    SECONDARY_SPECIES
+    GASES
+    MINERALS
+    IMMOBILE
+
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  IMMOBILE
+    #### NOTE: Beginning of auto-inserted immobile species ####
+    cellulose            1.0e+03
+    HRimm                1.0e-20
+    #### NOTE: End of auto-inserted immobile species ####
+  /
+  CONCENTRATIONS
+    #### NOTE: Beginning of auto-inserted concentration constraints ####
+    DOM1                1.0e-03
+    H+                  5.9 P
+    O2(aq)              1.0e-12
+    HCO3-               400e-6 G CO2(g)
+    Fe+++               0.37e-3 M Fe(OH)3
+    Fe++                0.37e-10
+    NH4+                1.0e-15
+    Tracer              1.0e-15
+    CH4(aq)             1.0e-15
+    #### NOTE: End of auto-inserted concentration constraints ####
+  /
+  MINERALS
+    #### NOTE: Beginning of auto-inserted mineral constraints ####
+    Fe(OH)3             1.d-5  1.e2 m^2/m^3
+    FeO                 0.0  1. m^2/m^3
+    #### NOTE: End of auto-inserted mineral constraints ####
+  /
+
+  
+END
+
+CONSTRAINT bc
+  IMMOBILE
+    #### NOTE: Beginning of auto-inserted immobile species ####
+    cellulose            1.0e-20
+    HRimm                1.0e-20
+    #### NOTE: End of auto-inserted immobile species ####
+  /
+  CONCENTRATIONS
+    #### NOTE: Beginning of auto-inserted concentration constraints ####
+    DOM1                1.0e-20
+    H+                  1.0e-20
+    O2(aq)              1.0e-20
+    HCO3-               1.0e-20
+    Fe+++               1.0e-20
+    Fe++                1.0e-20
+    NH4+                1.0e-20
+    Tracer              1.0e-20
+    CH4(aq)             1.0e-20
+    #### NOTE: End of auto-inserted concentration constraints ####
+  /
+  MINERALS
+    #### NOTE: Beginning of auto-inserted mineral constraints ####
+    Fe(OH)3             1.0e-20 1.0
+    FeO                 1.0e-20 1.0
+    #### NOTE: End of auto-inserted mineral constraints ####
+  /
+
+END
+
+#=========================== solver options ===================================
+NUMERICAL_METHODS TRANSPORT
+  LINEAR_SOLVER
+    SOLVER DIRECT
+    !SOLVER ITERATIVE     ! default: ITERATIVE or KRYLOV: KSP_TYPE of BCGS and PC_TYPE of BJACOBI, if not modified below
+    PC_TYPE JACOBI       ! default (iterative): BJACOBI. 
+    KSP_TYPE fgmres      ! default: BCGS. NOT much difference 
+  /
+
+  NEWTON_SOLVER TRANSPORT
+    NUMERICAL_JACOBIAN
+    ATOL 1.d-20
+    RTOL 1.d-15
+    STOL 1.d-10
+    ITOL 1.d-10
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 1 1 1
+  DXYZ
+    1.d0
+    1.d0
+    10.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+FLUID_PROPERTY
+  PHASE gas
+  DIFFUSION_COEFFICIENT 1.000d-05
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  SATURATION_FUNCTION default
+END
+
+# == saturation / permeability functions ======================================
+SATURATION_FUNCTION HD
+SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+RESIDUAL_SATURATION 0.115
+LAMBDA 0.286
+ALPHA 1.9401d-4
+/
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  SCREEN PERIODIC 10
+  #PERIODIC TIMESTEP 1
+  #FORMAT HDF5
+  VARIABLES
+    POROSITY
+    /
+  FORMAT TECPLOT POINT
+  MASS_BALANCE_FILE
+    PERIODIC TIMESTEP 1
+  /
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 3.6e+02 d
+
+  INITIAL_TIMESTEP_SIZE 0.5d0 h
+  MAXIMUM_TIMESTEP_SIZE 12.d0 h
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 10.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 5.0
+END
+
+REGION top
+COORDINATES
+  0.d0 0.d0 0.d0
+  1.d0 1.d0 10.d0
+  /
+  FACE TOP
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE DIRICHLET
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+TRANSPORT_CONDITION bc_transport
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 bc
+  /
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+skip
+BOUNDARY_CONDITION edge
+  TRANSPORT_CONDITION bc_transport
+  REGION top
+END
+noskip
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
+END
+
+END_SUBSURFACE
