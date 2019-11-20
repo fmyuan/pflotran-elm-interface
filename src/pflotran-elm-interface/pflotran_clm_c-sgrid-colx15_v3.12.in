@@ -7,8 +7,10 @@ SIMULATION
   PROCESS_MODELS
 
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
-      
+      MODE GIRT                       ! pflotran has been refactored 'RT' since 2020-04
+      OPTIONS
+        NUMERICAL_JACOBIAN            ! This is for testing analytical Jacobian in Sandboxes
+      / 
     /
 
   /
@@ -42,8 +44,8 @@ GRID
   ORIGIN 0.d0 0.d0 0.d0
   NXYZ 1 1 15
   DXYZ 
-     2.0d20 
-     2.0d20 
+     1.0d0 
+     1.0d0 
      13.851152141963599d0 \ 
      11.126150294204420d0 \ 
      6.7483512780057175d0 \ 
@@ -119,23 +121,6 @@ INITIAL_CONDITION initial_coupler
   REGION all
 END
 
-!SOURCE_SINK clm_et_ss
-!  TRANSPORT_CONDITION zero_bcs
-!  REGION all
-!END
-!
-!BOUNDARY_CONDITION clm_gwflux_bc
-!  TRANSPORT_CONDITION zero_bcs
-!  REGION top
-!END
-!
-!BOUNDARY_CONDITION clm_bflux_bc
-!  TRANSPORT_CONDITION zero_bcs
-!  REGION bottom
-!END
-
-
-
 #===================== II-2. stratigraphy couplers ============================
 
 STRATA
@@ -167,8 +152,8 @@ END
 NEWTON_SOLVER TRANSPORT
   ATOL 1.0D-20
   RTOL 1.0D-15
-  STOL 1.0D-10         ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
-  ITOL 1.0D-08
+  STOL 1.0D-10        ! at least 1.0d-8, better 1.d-10 for convergency (otherwise N Balance issue, especially N Half_saturations are very small!)
+  ITOL 1.0D-10
 
   MAXIT 30
   MAXF 100
@@ -178,7 +163,7 @@ END
 #
 #===================== IV-1. timer options ===================================
 TIME
-  FINAL_TIME 0.0208333d-2 d
+  FINAL_TIME 0.0208333d3 d
   INITIAL_TIMESTEP_SIZE 1800.0 s
   MINIMUM_TIMESTEP_SIZE 1.0d1 s   ! this should be the min. with a few steps, otherwise trouble
   MAXIMUM_TIMESTEP_SIZE 1800.0 s
@@ -189,12 +174,12 @@ END
 #
 #==================== V-1. output options ===================================
 OUTPUT
-  !SCREEN OFF 
+  !SCREEN OFF             ! totally shut off screen printing of running information
   SCREEN PERIODIC 48
   !PERIODIC TIME 1800 s   ! this is good for directly comparing two outputs
-  !PERIODIC TIMESTEP 1   ! this is good for checking PF each time-step
-  !FORMAT HDF5
-  NO_INITIAL
+  PERIODIC TIMESTEP 1     ! this is good for checking PF each time-step
+  FORMAT HDF5
+  !NO_INITIAL
 END
 
 #
@@ -262,7 +247,7 @@ END
 
 MATERIAL_PROPERTY soil03
   ID 3
-  POROSITY 0.55676865928547548d-50
+  POROSITY 0.55676865928547548d-5               ! purposely set a very small porosity for rock-like soil-bed, but not too tiny (math issue)
   SOIL_COMPRESSIBILITY_FUNCTION DEFAULT
   SOIL_COMPRESSIBILITY 1.d-7
   SOIL_REFERENCE_PRESSURE 101325.d0
@@ -427,13 +412,16 @@ noskip
 
     # CLM-CN SOM decomposition sandboxes
     SOMDECOMP
-      TEMPERATURE_RESPONSE_FUNCTION
-         Q10 1.5d0
+      Abiotic_Factors
+        TEMPERATURE_RESPONSE_FUNCTION
+          Q10 1.5d0
+        /
+
+        DECOMP_DEPTH_EFOLDING 0.50d0
       /
       
-      DECOMP_DEPTH_EFOLDING 0.50d0
       
-      POOLS   ! CN ratio
+      POOLS   ! CN ratio if constant
         SOIL1  12.d0 
         SOIL2  12.d0
         SOIL3  10.d0
@@ -455,18 +443,42 @@ noskip
         UPSTREAM_POOL LITR1
         DOWNSTREAM_POOL SOIL1 0.61d0
         RATE_DECOMPOSITION 1.204 1/d           ! CLM-CN dec. rate k:
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
       /
 
       REACTION
         UPSTREAM_POOL LITR2    
         DOWNSTREAM_POOL SOIL2 0.45d0
         RATE_DECOMPOSITION 0.0726 1/d          ! CLM-CN dec. rate k: 
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
       /
 
       REACTION
         UPSTREAM_POOL LITR3
         DOWNSTREAM_POOL SOIL3 0.71d0
         RATE_DECOMPOSITION 0.0141 1/d          ! CLM-CN dec. rate k: 
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-5       ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
+        /
       /
 
       REACTION
@@ -491,8 +503,6 @@ noskip
         RATE_AD_FACTOR 100.0d0                 ! Accelerated decomposition factor
       END
       
-      AMMONIUM_HALF_SATURATION 1.0d-5          ! unit: moles/m3 soil - much faster if <1.d-5 (~1.d-10 g/gsoil)
-      NITRATE_HALF_SATURATION 1.0d-5
       AMMONIUM_INHIBITION_NITRATE 10.0d0        ! ratio of NH4/NO3
 
       N2O_FRAC_MINERALIZATION 0.02d0            ! max. fraction of net mineralization for gaseous emission
@@ -538,6 +548,8 @@ noskip
 
 # output list will be turned off, if coupled with CLM
   OUTPUT
+    all
+    total
 skip
     NO3-
     NH4+
@@ -548,10 +560,10 @@ skip
     LITR1C
     LITR2C
     LITR3C
-    CWDC
     LITR1N
     LITR2N
     LITR3N
+    CWDC
     CWDN
     Plantndemand
     Plantnh4uptake
@@ -598,18 +610,18 @@ CONSTRAINT initial_constraint
     H+         6.0    PH
   /
   IMMOBILE
-    SOIL1       1.d-20 ! moles C/m^3
+    SOIL1       1.d-20                  ! moles C/m^3
     SOIL2       1.d-20
     SOIL3       1.d-20
-    SOIL4       1.d-20
-    CWDC       1.d-20
-    LITR1C     0.1852d-3
-    LITR2C     0.4578d-3
-    LITR3C     0.2662d-3
-    LITR1N     0.00508954d-3
-    LITR2N     0.01258096d-3
-    LITR3N     0.00731553d-3
-    CWDN       0.2d-22
+    SOIL4       0.83256340619939118d0
+    LITR1C      0.1852d-3
+    LITR2C      0.4578d-3
+    LITR3C      0.2662d-3
+    LITR1N      0.00508954d-3
+    LITR2N      0.01258096d-3
+    LITR3N      0.00731553d-3
+    CWDC        1.0d-20
+    CWDN        0.2d-22
     NH4sorb     1.d-20
     PlantN      1.d-20
     Plantndemand   1.d-20     ! 0-resetting its value at end of a CLM time-step, when coupled
@@ -679,6 +691,7 @@ CONSTRAINT zero_trans
 END
 
 #=========================== VII-5. mass transfer species ==========================
+
 RT_MASS_TRANSFER NO3-
   IDOF 4
   DATASET NO3-
@@ -750,6 +763,7 @@ RT_MASS_TRANSFER CWDN
 END
 
 #=================== VII-6. mass-transfer datasets ===============================
+
 DATASET GLOBAL NH4+
   FILENAME dummy.h5
   HDF5_DATASET_NAME NH4+
