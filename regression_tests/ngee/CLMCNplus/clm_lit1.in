@@ -63,6 +63,15 @@ CHEMISTRY
         UPSTREAM_POOL Labile
         DOWNSTREAM_POOL SOM1 0.61d0
         RATE_CONSTANT 0.7 unitless/d
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-15
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-15
+        /
+
       /
     /
   /
