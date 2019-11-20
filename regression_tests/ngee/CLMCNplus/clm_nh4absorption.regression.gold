@@ -1,0 +1,23 @@
+-- CONCENTRATION: Total NH4+ --
+      Max:   9.6037258538491E-03
+      Min:   9.6037258538491E-03
+     Mean:   9.6037258538491E-03
+        1:   9.6037258538491E-03
+-- CONCENTRATION: NH4sorb --
+      Max:   9.9068536537735E-02
+      Min:   9.9068536537735E-02
+     Mean:   9.9068536537735E-02
+        1:   9.9068536537735E-02
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.3865375518799E-01
+   Time Steps:          483
+   Newton Iterations:          834
+   Linear Solver Iterations:          834
+   Time Step Cuts:            0
+   Solution 2-Norm:   9.9532941692710E-02
+   Residual 2-Norm:   6.3171688767355E-19

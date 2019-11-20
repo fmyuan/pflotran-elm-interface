@@ -90,6 +90,7 @@ STANDARD_CFG = \
 	general/hydrate/hydrate.cfg \
 	ngee/ngee.cfg \
 	ngee/CLMCNplus/clmcn.cfg \
+	ngee/CLMCNplus/TAI/tai_tests.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \

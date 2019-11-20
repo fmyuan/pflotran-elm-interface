@@ -25,7 +25,12 @@ NUMERICAL_METHODS TRANSPORT
   LINEAR_SOLVER
     SOLVER DIRECT
   /
-
+END
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+  /
 END
 
 #=========================== useful tranport parameters =======================
@@ -35,13 +40,6 @@ SPECIFIED_VELOCITY
 END
 
 REFERENCE_LIQUID_DENSITY 1.d3
-
-#=========================== regression =======================================
-REGRESSION
-  CELL_IDS
-    1
-  /
-END
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -68,8 +66,16 @@ CHEMISTRY
         UPSTREAM_POOL Lit1
         DOWNSTREAM_POOL SOM1 0.61d0
         TURNOVER_TIME 20. h
+        MONOD
+          SPECIES_NAME NH4+
+          HALF_SATURATION_CONSTANT 1.d-15
+        /
+        MONOD
+          SPECIES_NAME NO3-
+          HALF_SATURATION_CONSTANT 1.d-15
+        /
       /
-
+ 
     /
 
   /
@@ -77,6 +83,7 @@ CHEMISTRY
   !LOG_FORMULATION
 
   DATABASE ./CLM-CN_database.dat
+
   OUTPUT
     ALL
     TOTAL
@@ -175,4 +182,3 @@ END
 
 
 END_SUBSURFACE
-
