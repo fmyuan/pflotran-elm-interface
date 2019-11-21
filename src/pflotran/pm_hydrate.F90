@@ -4,7 +4,8 @@ module PM_Hydrate_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  
+  use Hydrate_Aux_module  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -20,6 +21,7 @@ module PM_Hydrate_class
   type, public, extends(pm_subsurface_flow_type) :: pm_hydrate_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
+    type(methanogenesis_type), pointer :: methanogenesis
     PetscBool :: converged_flag(3,15,MAX_INDEX)
     PetscInt :: converged_cell(3,15,MAX_INDEX)
     PetscReal :: converged_real(3,15,MAX_INDEX)
@@ -53,7 +55,9 @@ module PM_Hydrate_class
   end type pm_hydrate_type
   
   public :: PMHydrateCreate, &
-            PMHydrateSetFlowMode
+            PMHydrateSetFlowMode, &
+            PMHydrateSubsurfaceRead, &
+            PMHydrateAssignParams
   
 contains
 
@@ -177,6 +181,8 @@ function PMHydrateCreate()
   this%converged_real(:,:,:) = 0.d0
   this%converged_cell(:,:,:) = 0
 
+  nullify(this%methanogenesis)
+
   PMHydrateCreate => this
   
 end function PMHydrateCreate
@@ -221,6 +227,125 @@ end subroutine PMHydrateSetFlowMode
 
 ! ************************************************************************** !
 
+subroutine PMHydrateSubsurfaceRead(input,pm_hydrate,option)
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(pm_hydrate_type), pointer :: pm_hydrate
+  type(option_type), pointer :: option
+
+  type(methanogenesis_type), pointer :: methanogenesis
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: temp_int
+
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+    if (input%ierr /= 0) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword','HYDRATE')
+    call StringToUpper(word)
+
+    select case(trim(word))
+      case('SCALE_PERM_BY_HYD_SAT')
+        HYDRATE_PERM_SCALING = PETSC_TRUE
+      case('EFFECTIVE_SAT_SCALING')
+        HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
+      case('WITH_GIBBS_THOMSON')
+        HYDRATE_WITH_GIBBS_THOMSON = PETSC_TRUE
+      case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
+        HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_TRUE
+      case('WITH_SEDIMENTATION')
+        HYDRATE_WITH_SEDIMENTATION = PETSC_TRUE
+      case('NO_PC')
+        HYDRATE_NO_PC = PETSC_TRUE
+      case('METHANOGENESIS')
+        HYDRATE_WITH_METHANOGENESIS = PETSC_TRUE
+        if (.not. associated(pm_hydrate%methanogenesis)) then
+          allocate(pm_hydrate%methanogenesis)
+        endif
+        methanogenesis => pm_hydrate%methanogenesis
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (input%ierr /= 0) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadCard(input,option,word)
+          call InputErrorMsg(input,option,'keyword','HYDRATE')
+          call StringToUpper(word)
+          select case(trim(word))
+            case('NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'methanogenesis source name', &
+                                 error_string)
+              call StringToUpper(word)
+              methanogenesis%source_name = trim(word)
+            case('ALPHA')
+              call InputReadDouble(input,option,methanogenesis%alpha)
+              call InputErrorMsg(input,option,'alpha',error_string)
+            case('LAMBDA')
+              call InputReadDouble(input,option,methanogenesis%lambda)
+              call InputErrorMsg(input,option,'lambda',error_string)
+            case('V_SED')
+              call InputReadDouble(input,option,methanogenesis%omega)
+              call InputErrorMsg(input,option,'v_sed',error_string)
+            case('SMT_DEPTH')
+              call InputReadDouble(input,option,methanogenesis%z_smt)
+              call InputErrorMsg(input,option,'smt_depth',error_string)
+            case('K_ALPHA')
+              call InputReadDouble(input,option,methanogenesis%k_alpha)
+              call InputErrorMsg(input,option,'k_alpha',error_string)
+          end select
+        enddo
+        call InputPopBlock(input,option)
+      case('PERM_SCALING_FUNCTION')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('DAI_AND_SEOL')
+            temp_int = 1
+            HYDRATE_PERM_SCALING_FUNCTION = temp_int
+        end select
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PMHydrateSubsurfaceRead
+
+! ************************************************************************** !
+
+subroutine PMHydrateAssignParams(hydrate_parameter,pm)
+
+  ! Points hydrate parameters to those read into the PM.
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/20/19
+  !
+
+  use Hydrate_Aux_module
+
+  implicit none
+
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
+  class(pm_hydrate_type), pointer ::pm
+
+  hydrate_parameter%methanogenesis => pm%methanogenesis 
+
+end subroutine PMHydrateAssignParams
+
+! ************************************************************************** !
 subroutine PMHydrateRead(this,input)
   ! 
   ! Sets up SNES solvers.
@@ -228,7 +353,6 @@ subroutine PMHydrateRead(this,input)
   ! Author: Michael Nole
   ! Date: 07/23/19
   !
-  use Hydrate_module
   use Hydrate_Aux_module
   use Input_Aux_module
   use String_module
@@ -1691,11 +1815,17 @@ subroutine PMHydrateDestroy(this)
   nullify(this%max_change_ivar)
   deallocate(this%max_change_isubvar)
   nullify(this%max_change_isubvar)
-
+  
+  if (associated(this%methanogenesis)) then
+    deallocate(this%methanogenesis)
+    nullify(this%methanogenesis)
+  endif
   ! preserve this ordering
   call HydrateDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
   
 end subroutine PMHydrateDestroy
+
+
   
 end module PM_Hydrate_class

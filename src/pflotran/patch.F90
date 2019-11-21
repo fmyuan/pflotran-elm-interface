@@ -102,8 +102,6 @@ module Patch_module
     type(surface_field_type), pointer :: surf_field
     type(surface_auxiliary_type) :: surf_aux
 
-    type(methanogenesis_type), pointer :: methanogenesis
-
   end type patch_type
 
   ! pointer data structure required for making an array of patch pointers in F90
@@ -230,9 +228,6 @@ function PatchCreate()
   nullify(patch%surf_material_property_array)
   nullify(patch%surf_field)
   call SurfaceAuxInit(patch%surf_aux)
-
-  nullify(patch%methanogenesis)
-
 
   PatchCreate => patch
 

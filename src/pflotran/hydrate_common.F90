@@ -47,7 +47,7 @@ contains
 ! ************************************************************************** !
 
 subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
-                               z,offset,meth,soil_heat_capacity, &
+                               z,offset,methanogenesis,soil_heat_capacity, &
                                option,Res,Jac,analytical_derivatives,debug_cell)
   !
   ! Computes the non-fixed portion of the accumulation
@@ -66,7 +66,7 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: z, offset
-  type(methanogenesis_type), pointer :: meth
+  type(methanogenesis_type), pointer :: methanogenesis
   PetscReal :: soil_heat_capacity
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof)
@@ -124,9 +124,9 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
                     soil_heat_capacity * hyd_auxvar%temp) * volume_over_dt
 
   q_meth = 0.d0
-  if (associated(meth) .and. offset > 0.d0) then
+  if (associated(methanogenesis) .and. offset > 0.d0) then
     if (material_auxvar%id /= 1000) then
-      call Methanogenesis(z, offset, meth, q_meth)
+      call HydrateMethanogenesis(z, offset, methanogenesis, q_meth)
       !kmol/m^3/s to kmol/s
       q_meth = q_meth*(1.d0 - porosity)*volume
       Res(air_comp_id) = Res(air_comp_id) + q_meth
@@ -266,8 +266,6 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   energy_id = option%energy_id
-
-  v_sed = methanogenesis%omega
 
   call ConnectionCalculateDistances(dist,option%gravity,dist_up,dist_dn, &
                                     dist_gravity,upweight)
@@ -451,7 +449,9 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   
   ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
   ! need to make sure this has a direction, so condition upon gravity?
-  if (HYDRATE_WITH_SEDIMENTATION) then
+  ! sedimentation and methanogenesis are linked right now
+  if (HYDRATE_WITH_SEDIMENTATION .and. HYDRATE_WITH_METHANOGENESIS) then
+    v_sed = methanogenesis%omega
     dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
     if (dabs(dist_gravity) > 0.d0) then
@@ -931,8 +931,6 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   J = 0.d0
   v_darcy = 0.d0  
 
-  v_sed = methanogenesis%omega
-
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
 #if 0
@@ -1251,8 +1249,10 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! Sedimentation flux: hydrate
 
   ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
-  ! need to make sure this has a direction, so condition upon gravity?
-  if (HYDRATE_WITH_SEDIMENTATION) then
+  ! need to make sure this has a direction, so condition upon gravity
+  ! sedimentation and methanogenesis are linked right now.
+  if (HYDRATE_WITH_SEDIMENTATION .and. HYDRATE_WITH_METHANOGENESIS) then
+    v_sed = methanogenesis%omega
     dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
     if (dabs(dist_gravity) > 0.d0) then

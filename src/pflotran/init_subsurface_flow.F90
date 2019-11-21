@@ -15,13 +15,15 @@ contains
 
 ! ************************************************************************** !
 
-subroutine InitSubsurfFlowSetupRealization(realization)
+subroutine InitSubsurfFlowSetupRealization(simulation)
   ! 
   ! Initializes material property data structres and assign them to the domain.
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
+  use Simulation_Subsurface_class
+  use PM_Base_class
   use Realization_Subsurface_class
   use Patch_module
   use Option_module
@@ -43,15 +45,21 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use TOWG_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
-  
+  use PM_Hydrate_class 
+ 
   implicit none
-  
-  class(realization_subsurface_type) :: realization
-  
+
+  class(simulation_subsurface_type) :: simulation  
+
+  class(realization_subsurface_type), pointer :: realization
+
+  class(pm_base_type), pointer :: pm 
+ 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   PetscErrorCode :: ierr
   
+  realization => simulation%realization
   option => realization%option
   patch => realization%patch
   
@@ -88,6 +96,16 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         call GeneralSetup(realization)
       case(H_MODE)
         call HydrateSetup(realization)
+        pm => simulation%flow_process_model_coupler%pm_list
+        do
+          if (.not. associated(pm)) exit
+          select type (pm)
+            class is (pm_hydrate_type)
+              call PMHydrateAssignParams(realization%patch%aux%hydrate% &
+                     hydrate_parameter,pm)
+          end select
+          pm => pm%next
+        enddo
       case(TOIL_IMS_MODE)
         call TOilImsSetup(realization)
       case(TOWG_MODE)
