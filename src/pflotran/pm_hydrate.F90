@@ -1848,10 +1848,8 @@ subroutine PMHydrateDestroy(this)
   deallocate(this%max_change_isubvar)
   nullify(this%max_change_isubvar)
   
-  if (associated(this%hydrate_parameters%methanogenesis)) then
-    deallocate(this%hydrate_parameters%methanogenesis)
-    nullify(this%hydrate_parameters%methanogenesis)
-  endif
+  deallocate(this%hydrate_parameters)
+  nullify(this%hydrate_parameters)
 
   ! preserve this ordering
   call HydrateDestroy(this%realization)
