@@ -56,8 +56,8 @@ module PM_Hydrate_class
   
   public :: PMHydrateCreate, &
             PMHydrateSetFlowMode, &
-            PMHydrateSubsurfaceRead, &
-            PMHydrateAssignParams
+            PMHydrateReadParameters, &
+            PMHydrateAssignParameters
   
 contains
 
@@ -227,7 +227,7 @@ end subroutine PMHydrateSetFlowMode
 
 ! ************************************************************************** !
 
-subroutine PMHydrateSubsurfaceRead(input,pm_hydrate,option)
+subroutine PMHydrateReadParameters(input,pm_hydrate,option)
 
   use Input_Aux_module
   use Option_module
@@ -271,7 +271,8 @@ subroutine PMHydrateSubsurfaceRead(input,pm_hydrate,option)
       case('METHANOGENESIS')
         HYDRATE_WITH_METHANOGENESIS = PETSC_TRUE
         if (.not. associated(pm_hydrate%hydrate_parameters%methanogenesis)) then
-          allocate(pm_hydrate%hydrate_parameters%methanogenesis)
+          pm_hydrate%hydrate_parameters%methanogenesis => &
+                     HydrateMethanogenesisCreate()
         endif
         methanogenesis => pm_hydrate%hydrate_parameters%methanogenesis
         call InputPushBlock(input,option)
@@ -322,11 +323,11 @@ subroutine PMHydrateSubsurfaceRead(input,pm_hydrate,option)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine PMHydrateSubsurfaceRead
+end subroutine PMHydrateReadParameters
 
 ! ************************************************************************** !
 
-subroutine PMHydrateAssignParams(realization, pm)
+subroutine PMHydrateAssignParameters(realization, pm)
 
   ! Points hydrate parameters to those read into the PM.
   ! 
@@ -375,7 +376,7 @@ subroutine PMHydrateAssignParams(realization, pm)
 
   realization%patch%aux%hydrate%hydrate_parameter => pm%hydrate_parameters 
 
-end subroutine PMHydrateAssignParams
+end subroutine PMHydrateAssignParameters
 
 ! ************************************************************************** !
 subroutine PMHydrateRead(this,input)
@@ -1848,7 +1849,6 @@ subroutine PMHydrateDestroy(this)
   deallocate(this%max_change_isubvar)
   nullify(this%max_change_isubvar)
   
-  deallocate(this%hydrate_parameters)
   nullify(this%hydrate_parameters)
 
   ! preserve this ordering

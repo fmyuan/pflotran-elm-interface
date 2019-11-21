@@ -270,6 +270,7 @@ module Hydrate_Aux_module
   end interface HydrateOutputAuxVars
   
   public :: HydrateAuxCreate, &
+            HydrateMethanogenesisCreate, &
             HydrateAuxDestroy, &
             HydrateAuxSetEnergyDOF, &
             HydrateAuxVarCompute, &
@@ -370,6 +371,32 @@ end function HydrateAuxCreate
 
 ! ************************************************************************** !
 
+function HydrateMethanogenesisCreate()
+
+  ! 
+  ! Allocate and initialize methanogenesis object
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/21/19
+  ! 
+
+  type(methanogenesis_type), pointer :: HydrateMethanogenesisCreate
+  type(methanogenesis_type), pointer :: methanogenesis
+
+  allocate(methanogenesis)
+
+  methanogenesis%source_name = ''
+  methanogenesis%alpha = UNINITIALIZED_DOUBLE
+  methanogenesis%k_alpha = UNINITIALIZED_DOUBLE
+  methanogenesis%lambda = UNINITIALIZED_DOUBLE
+  methanogenesis%omega = UNINITIALIZED_DOUBLE
+  methanogenesis%z_smt = UNINITIALIZED_DOUBLE
+
+  HydrateMethanogenesisCreate => methanogenesis
+
+end function HydrateMethanogenesisCreate
+
+! ************************************************************************** !
 subroutine HydrateAuxVarInit(auxvar,allocate_derivative,option)
   ! 
   ! Initialize auxiliary object
@@ -3459,7 +3486,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
 end subroutine HydratePE
 
 ! ************************************************************************** !
-subroutine HydrateMethanogenesis(z,offset,methanogenesis,q_meth)
+subroutine HydrateMethanogenesis(z,offset,hydrate_parameter,q_meth)
 
   ! A simple methanogenesis source parameterized as a function of depth
   ! assuming top of domain is the seafloor
@@ -3470,10 +3497,13 @@ subroutine HydrateMethanogenesis(z,offset,methanogenesis,q_meth)
   implicit none
 
   PetscReal :: z, offset
-  type(methanogenesis_type), pointer :: methanogenesis
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   PetscReal :: q_meth
 
+  type(methanogenesis_type), pointer :: methanogenesis
   PetscReal :: alpha, k_alpha, lambda, omega, z_smt
+
+  methanogenesis => hydrate_parameter%methanogenesis
 
   alpha = methanogenesis%alpha
   k_alpha = methanogenesis%k_alpha

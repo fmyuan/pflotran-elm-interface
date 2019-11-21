@@ -3781,15 +3781,14 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('HYDRATE')
         pm_flow => simulation%flow_process_model_coupler%pm_list
-        do
-          if (.not. associated(pm_flow)) exit
-          select type (pm_flow)
-            class is (pm_hydrate_type)
-              call PMHydrateSubsurfaceRead(input,pm_flow,option)
-              exit
-          end select
-          pm_flow => pm_flow%next
-        enddo
+        select type (pm_flow)
+          class is (pm_hydrate_type)
+            call PMHydrateReadParameters(input,pm_flow,option)
+          class default
+            option%io_buffer = 'Keyword HYDRATE not recognized for the ' // &
+                               trim(option%flowmode) // 'flow process model.'
+            call PrintErrMsg(option)
+        end select
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'SubsurfaceReadInput()',option)

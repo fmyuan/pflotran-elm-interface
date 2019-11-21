@@ -101,7 +101,7 @@ subroutine InitSubsurfFlowSetupRealization(simulation)
           if (.not. associated(pm)) exit
           select type (pm)
             class is (pm_hydrate_type)
-              call PMHydrateAssignParams(realization,pm)
+              call PMHydrateAssignParameters(realization,pm)
           end select
           pm => pm%next
         enddo

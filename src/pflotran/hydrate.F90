@@ -1068,7 +1068,7 @@ subroutine HydrateUpdateFixedAccum(realization)
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
                              z(ghosted_id),maxval(grid%z), &
-                             hydrate_parameter%methanogenesis,&
+                             hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
@@ -1232,7 +1232,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
                              z(ghosted_id),0.d0,&
-                             hydrate_parameter%methanogenesis,&
+                             hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy,&
                              hydrate_analytical_derivatives, &
@@ -1275,7 +1275,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        patch%flow_upwind_direction(:,iconn), &
-                       hydrate_parameter%methanogenesis, &
                        hydrate_parameter,option,v_darcy,Res, &
                        Jac_dummy,Jac_dummy, &
                        hydrate_analytical_derivatives, &
@@ -1341,7 +1340,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction_bc(:,iconn), &
-                     hydrate_parameter%methanogenesis, &
                      hydrate_parameter,option, &
                      v_darcy,Res,Jac_dummy, &
                      hydrate_analytical_derivatives, &
@@ -1593,7 +1591,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               grid%z(ghosted_id),maxval(grid%z), &
-                              hydrate_parameter%methanogenesis, &
+                              hydrate_parameter, &
                               material_parameter%soil_heat_capacity(imat), &
                               option,Jup) 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
@@ -1645,7 +1643,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
-                     hydrate_parameter%methanogenesis, &
                      hydrate_parameter,option,&
                      Jup,Jdn)
       if (local_id_up > 0) then
@@ -1713,7 +1710,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
-                      hydrate_parameter%methanogenesis, &
                       hydrate_parameter,option, &
                       Jdn)
 

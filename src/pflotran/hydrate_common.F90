@@ -47,7 +47,7 @@ contains
 ! ************************************************************************** !
 
 subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
-                               z,offset,methanogenesis,soil_heat_capacity, &
+                               z,offset,hydrate_parameter,soil_heat_capacity, &
                                option,Res,Jac,analytical_derivatives,debug_cell)
   !
   ! Computes the non-fixed portion of the accumulation
@@ -66,7 +66,7 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: z, offset
-  type(methanogenesis_type), pointer :: methanogenesis
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   PetscReal :: soil_heat_capacity
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof)
@@ -124,9 +124,9 @@ subroutine HydrateAccumulation(hyd_auxvar,global_auxvar,material_auxvar, &
                     soil_heat_capacity * hyd_auxvar%temp) * volume_over_dt
 
   q_meth = 0.d0
-  if (associated(methanogenesis) .and. offset > 0.d0) then
+  if (associated(hydrate_parameter%methanogenesis) .and. offset > 0.d0) then
     if (material_auxvar%id /= 1000) then
-      call HydrateMethanogenesis(z, offset, methanogenesis, q_meth)
+      call HydrateMethanogenesis(z, offset, hydrate_parameter, q_meth)
       !kmol/m^3/s to kmol/s
       q_meth = q_meth*(1.d0 - porosity)*volume
       Res(air_comp_id) = Res(air_comp_id) + q_meth
@@ -144,7 +144,6 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area, dist, upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,Res,Jup,Jdn, &
                        analytical_derivatives, &
@@ -174,7 +173,6 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
-  type(methanogenesis_type) :: methanogenesis
   type(hydrate_parameter_type) :: hydrate_parameter
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
@@ -186,6 +184,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
 
+  type(methanogenesis_type), pointer :: methanogenesis
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: dist_up, dist_dn
   PetscReal :: upweight
@@ -451,6 +450,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   ! need to make sure this has a direction, so condition upon gravity?
   ! sedimentation and methanogenesis are linked right now
   if (HYDRATE_WITH_SEDIMENTATION .and. HYDRATE_WITH_METHANOGENESIS) then
+    methanogenesis => hydrate_parameter%methanogenesis
     v_sed = methanogenesis%omega
     dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
@@ -798,7 +798,6 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
                          area,dist,upwind_direction_, &
-                         methanogenesis, &
                          hydrate_parameter, &
                          option,v_darcy,Res,J, &
                          analytical_derivatives, &
@@ -829,7 +828,6 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
-  type(methanogenesis_type) :: methanogenesis
   type(hydrate_parameter_type) :: hydrate_parameter
   PetscReal :: v_darcy(option%nphase)
   PetscReal :: Res(1:option%nflowdof)
@@ -839,7 +837,8 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscBool :: update_upwind_direction_
   PetscBool :: count_upwind_direction_flip_
   PetscBool :: debug_connection
-  
+ 
+  type(methanogenesis_type), pointer :: methanogenesis 
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscInt :: icomp, iphase
   PetscInt :: bc_type
@@ -1252,6 +1251,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! need to make sure this has a direction, so condition upon gravity
   ! sedimentation and methanogenesis are linked right now.
   if (HYDRATE_WITH_SEDIMENTATION .and. HYDRATE_WITH_METHANOGENESIS) then
+    methanogenesis => hydrate_parameter%methanogenesis
     v_sed = methanogenesis%omega
     dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
 
@@ -1722,7 +1722,8 @@ end subroutine HydrateSrcSink
 ! ************************************************************************** !
 
 subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
-                                  z,offset,meth,soil_heat_capacity,option,J)
+                                  z,offset,hydrate_parameter, &
+                                  soil_heat_capacity,option,J)
   ! 
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -1740,7 +1741,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   PetscReal :: z,offset
-  type(methanogenesis_type), pointer :: meth
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   type(option_type) :: option
   PetscReal :: soil_heat_capacity
   PetscReal :: J(option%nflowdof,option%nflowdof)
@@ -1753,9 +1754,9 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
  
   if (.not. hydrate_central_diff_jacobian) then
     call HydrateAccumulation(hyd_auxvar(ZERO_INTEGER),global_auxvar, &
-                           material_auxvar,z,offset,meth,soil_heat_capacity, &
-                           option,res,jac,hydrate_analytical_derivatives, &
-                           PETSC_FALSE)
+                           material_auxvar,z,offset,hydrate_parameter, &
+                           soil_heat_capacity,option,res,jac, &
+                           hydrate_analytical_derivatives, PETSC_FALSE)
   endif
 
   if (hydrate_analytical_derivatives) then
@@ -1764,13 +1765,13 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
     if (hydrate_central_diff_jacobian) then
       do idof = 1, option%nflowdof
         call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
-                               material_auxvar,z,offset,meth, &
+                               material_auxvar,z,offset,hydrate_parameter, &
                                soil_heat_capacity,option, &
                                res_pert_plus,jac_pert,PETSC_FALSE,PETSC_FALSE)
       
         call HydrateAccumulation(hyd_auxvar(idof+option%nflowdof), &
-                               global_auxvar,material_auxvar,z,offset,meth, &
-                               soil_heat_capacity,option, &
+                               global_auxvar,material_auxvar,z,offset,&
+                               hydrate_parameter,soil_heat_capacity,option, &
                                res_pert_minus,jac_pert,PETSC_FALSE,PETSC_FALSE)
       
         do irow = 1, option%nflowdof
@@ -1781,7 +1782,7 @@ subroutine HydrateAccumDerivative(hyd_auxvar,global_auxvar,material_auxvar, &
     else
       do idof = 1, option%nflowdof
         call HydrateAccumulation(hyd_auxvar(idof),global_auxvar, &
-                               material_auxvar,z,offset,meth, &
+                               material_auxvar,z,offset,hydrate_parameter, &
                                soil_heat_capacity,option, &
                                res_pert_plus,jac_pert,PETSC_FALSE,PETSC_FALSE)
 
@@ -1804,7 +1805,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                                  material_auxvar_dn, &
                                  thermal_conductivity_dn, &
                                  area, dist, upwind_direction_, &
-                                 methanogenesis, &
                                  hydrate_parameter, &
                                  option,Jup,Jdn)
   ! 
@@ -1829,7 +1829,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
-  type(methanogenesis_type) :: methanogenesis
   type(hydrate_parameter_type) :: hydrate_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
@@ -1856,7 +1855,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                    material_auxvar_dn, &
                    thermal_conductivity_dn, &
                    area,dist,upwind_direction_, &
-                   methanogenesis, &
                    hydrate_parameter, &
                    option,v_darcy,res,Janal_up,Janal_dn,&
                    hydrate_analytical_derivatives, &
@@ -1879,7 +1877,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
@@ -1894,7 +1891,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
@@ -1915,7 +1911,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
@@ -1941,7 +1936,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
@@ -1956,7 +1950,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,res_pert_minus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
@@ -1979,7 +1972,6 @@ subroutine HydrateFluxDerivative(hyd_auxvar_up,global_auxvar_up, &
                        material_auxvar_dn, &
                        thermal_conductivity_dn, &
                        area,dist,upwind_direction_, &
-                       methanogenesis, &
                        hydrate_parameter, &
                        option,v_darcy,res_pert_plus,Jdummy,Jdummy, &
                        PETSC_FALSE, & ! analytical derivatives
@@ -2006,7 +1998,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                                    material_auxvar_dn, &
                                    thermal_conductivity_dn, &
                                    area,dist,upwind_direction_, &
-                                   methanogenesis, &
                                    hydrate_parameter, &
                                    option,Jdn)
   ! 
@@ -2034,7 +2025,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: area
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
-  type(methanogenesis_type) :: methanogenesis
   type(hydrate_parameter_type) :: hydrate_parameter
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
 
@@ -2056,7 +2046,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      material_auxvar_dn, &
                      thermal_conductivity_dn, &
                      area,dist,upwind_direction_, &
-                     methanogenesis, &
                      hydrate_parameter, &
                      option,v_darcy,res,Jdum, &
                      hydrate_analytical_derivatives, &
@@ -2078,7 +2067,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
                          area,dist,upwind_direction_, &
-                         methanogenesis, &
                          hydrate_parameter, &
                          option,v_darcy,res_pert_plus,Jdum, &
                          PETSC_FALSE, & ! analytical derivatives
@@ -2092,7 +2080,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
                          area,dist,upwind_direction_, &
-                         methanogenesis, &
                          hydrate_parameter, &
                          option,v_darcy,res_pert_minus,Jdum, &
                          PETSC_FALSE, & ! analytical derivatives
@@ -2114,7 +2101,6 @@ subroutine HydrateBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                          material_auxvar_dn, &
                          thermal_conductivity_dn, &
                          area,dist,upwind_direction_, &
-                         methanogenesis, &
                          hydrate_parameter, &
                          option,v_darcy,res_pert_plus,Jdum, &
                          PETSC_FALSE, & ! analytical derivatives
