@@ -21,7 +21,7 @@ module PM_Hydrate_class
   type, public, extends(pm_subsurface_flow_type) :: pm_hydrate_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
-    type(methanogenesis_type), pointer :: methanogenesis
+    type(hydrate_parameter_type), pointer :: hydrate_parameters
     PetscBool :: converged_flag(3,15,MAX_INDEX)
     PetscInt :: converged_cell(3,15,MAX_INDEX)
     PetscReal :: converged_real(3,15,MAX_INDEX)
@@ -181,7 +181,7 @@ function PMHydrateCreate()
   this%converged_real(:,:,:) = 0.d0
   this%converged_cell(:,:,:) = 0
 
-  nullify(this%methanogenesis)
+  allocate(this%hydrate_parameters)
 
   PMHydrateCreate => this
   
@@ -270,10 +270,10 @@ subroutine PMHydrateSubsurfaceRead(input,pm_hydrate,option)
         HYDRATE_NO_PC = PETSC_TRUE
       case('METHANOGENESIS')
         HYDRATE_WITH_METHANOGENESIS = PETSC_TRUE
-        if (.not. associated(pm_hydrate%methanogenesis)) then
-          allocate(pm_hydrate%methanogenesis)
+        if (.not. associated(pm_hydrate%hydrate_parameters%methanogenesis)) then
+          allocate(pm_hydrate%hydrate_parameters%methanogenesis)
         endif
-        methanogenesis => pm_hydrate%methanogenesis
+        methanogenesis => pm_hydrate%hydrate_parameters%methanogenesis
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -326,7 +326,7 @@ end subroutine PMHydrateSubsurfaceRead
 
 ! ************************************************************************** !
 
-subroutine PMHydrateAssignParams(hydrate_parameter,pm)
+subroutine PMHydrateAssignParams(realization, pm)
 
   ! Points hydrate parameters to those read into the PM.
   ! 
@@ -334,14 +334,46 @@ subroutine PMHydrateAssignParams(hydrate_parameter,pm)
   ! Date: 11/20/19
   !
 
+  use Realization_Subsurface_class
   use Hydrate_Aux_module
+  use Fluid_module
+  use Option_module
 
   implicit none
 
-  type(hydrate_parameter_type), pointer :: hydrate_parameter
+  class(realization_subsurface_type), pointer :: realization
   class(pm_hydrate_type), pointer ::pm
 
-  hydrate_parameter%methanogenesis => pm%methanogenesis 
+  type(fluid_property_type), pointer :: cur_fluid_property
+  type(option_type), pointer :: option
+
+  option => realization%option
+
+  ! initialize parameters
+  allocate(pm%hydrate_parameters%diffusion_coefficient(option%nphase))
+  cur_fluid_property => realization%fluid_properties
+  do
+    if (.not.associated(cur_fluid_property)) exit
+    pm%hydrate_parameters% &
+      diffusion_coefficient(cur_fluid_property%phase_id) = &
+        cur_fluid_property%diffusion_coefficient
+    cur_fluid_property => cur_fluid_property%next
+  enddo
+  ! check whether diffusion coefficients are initialized.
+  if (Uninitialized(pm%hydrate_parameters% &
+      diffusion_coefficient(LIQUID_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Liquid phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(pm%hydrate_parameters% &
+      diffusion_coefficient(GAS_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Gas phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+
+  realization%patch%aux%hydrate%hydrate_parameter => pm%hydrate_parameters 
 
 end subroutine PMHydrateAssignParams
 
@@ -1816,16 +1848,15 @@ subroutine PMHydrateDestroy(this)
   deallocate(this%max_change_isubvar)
   nullify(this%max_change_isubvar)
   
-  if (associated(this%methanogenesis)) then
-    deallocate(this%methanogenesis)
-    nullify(this%methanogenesis)
+  if (associated(this%hydrate_parameters%methanogenesis)) then
+    deallocate(this%hydrate_parameters%methanogenesis)
+    nullify(this%hydrate_parameters%methanogenesis)
   endif
+
   ! preserve this ordering
   call HydrateDestroy(this%realization)
   call PMSubsurfaceFlowDestroy(this)
   
 end subroutine PMHydrateDestroy
-
-
   
 end module PM_Hydrate_class

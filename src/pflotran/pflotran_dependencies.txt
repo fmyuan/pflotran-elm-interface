@@ -560,12 +560,12 @@ pm_geomechanics_force.o : checkpoint.o communicator_base.o \
                           geomechanics_discretization.o geomechanics_force.o \
                           geomechanics_realization.o global.o grid.o option.o \
                           pflotran_constants.o pm_base.o
-pm_hydrate.o : checkpoint.o convergence.o field.o global.o global_aux.o grid.o \
-               hydrate.o hydrate_aux.o input_aux.o material.o option.o patch.o \
-               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
-               realization_base.o realization_subsurface.o \
-               saturation_function.o string.o upwind_direction.o utility.o \
-               variables.o
+pm_hydrate.o : checkpoint.o convergence.o field.o fluid.o global.o \
+               global_aux.o grid.o hydrate.o hydrate_aux.o input_aux.o \
+               material.o option.o patch.o pflotran_constants.o pm_base.o \
+               pm_subsurface_flow.o realization_base.o \
+               realization_subsurface.o saturation_function.o string.o \
+               upwind_direction.o utility.o variables.o
 pm_immis.o : eos_water.o immis.o immis_aux.o input_aux.o option.o \
              pflotran_constants.o pm_base.o pm_subsurface_flow.o \
              realization_subsurface.o string.o utility.o

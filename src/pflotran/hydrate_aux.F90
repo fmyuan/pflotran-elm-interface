@@ -232,8 +232,6 @@ module Hydrate_Aux_module
   type, public :: hydrate_parameter_type
     PetscReal, pointer :: diffusion_coefficient(:) ! (iphase)
     type(methanogenesis_type), pointer :: methanogenesis
-    PetscReal :: newton_inf_scaled_res_tol
-    PetscBool :: check_post_converged
   end type hydrate_parameter_type
 
   type, public :: methanogenesis_type
@@ -364,17 +362,7 @@ function HydrateAuxCreate(option)
   nullify(aux%inactive_rows_local_ghosted)
   nullify(aux%row_zeroing_array)
 
-  allocate(aux%hydrate_parameter)
-  allocate(aux%hydrate_parameter%diffusion_coefficient(option%nphase))
-  !geh: there is no point in setting default lquid diffusion coeffcient values 
-  !     here as they will be overwritten by the fluid property defaults.
-  aux%hydrate_parameter%diffusion_coefficient(LIQUID_PHASE) = &
-                                                           UNINITIALIZED_DOUBLE
-  aux%hydrate_parameter%diffusion_coefficient(GAS_PHASE) = 2.13d-5
-  aux%hydrate_parameter%newton_inf_scaled_res_tol = 1.d-50
-  aux%hydrate_parameter%check_post_converged = PETSC_FALSE 
-
-  nullify(aux%hydrate_parameter%methanogenesis)
+  nullify(aux%hydrate_parameter)
  
   HydrateAuxCreate => aux
   

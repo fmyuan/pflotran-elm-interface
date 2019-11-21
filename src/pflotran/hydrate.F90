@@ -68,7 +68,6 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
@@ -176,29 +175,6 @@ subroutine HydrateSetup(realization)
   allocate(patch%aux%Hydrate%row_zeroing_array(grid%nlmax))
   patch%aux%Hydrate%row_zeroing_array = 0
   
-  ! initialize parameters
-  cur_fluid_property => realization%fluid_properties
-  do 
-    if (.not.associated(cur_fluid_property)) exit
-    patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(cur_fluid_property%phase_id) = &
-        cur_fluid_property%diffusion_coefficient
-    cur_fluid_property => cur_fluid_property%next
-  enddo  
-  ! check whether diffusion coefficients are initialized.
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(LIQUID_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Liquid phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(GAS_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Gas phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-
   list => realization%output_option%output_snap_variable_list
   call HydrateSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
