@@ -171,7 +171,9 @@ subroutine GeneralSetup(realization)
   if (sum_connection > 0) then
     allocate(gen_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
-      call GeneralAuxVarInit(gen_auxvars_ss(iconn),PETSC_FALSE,option)
+      call GeneralAuxVarInit(gen_auxvars_ss(iconn), &
+                             general_analytical_derivatives, &
+                             option)
     enddo
     patch%aux%General%auxvars_ss => gen_auxvars_ss
   endif
@@ -666,15 +668,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   type(connection_set_type), pointer :: cur_connection_set
   type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
                                         gen_auxvars_ss(:)
-  type(general_auxvar_type) :: gen_auxvar, gen_auxvar_ss
-  type(global_auxvar_type) :: global_auxvar_ss, global_auxvar
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
   
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end, ssn, i
+  PetscInt :: ghosted_start, ghosted_end, i
   PetscInt :: iphasebc, iphase
   PetscInt :: offset
   PetscInt :: istate
@@ -914,67 +914,76 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
+
   source_sink => patch%source_sink_list%first
-  ssn = 0
+  sum_connection = 0
   do
-  
     if (.not.associated(source_sink)) exit
-    do i = 1,source_sink%region%num_cells
-      
-      ssn = ssn+1
-      qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
-      gen_auxvar = gen_auxvars(ZERO_INTEGER,source_sink%region%cell_ids(i))
-      global_auxvar = global_auxvars(source_sink%region%cell_ids(i))
-      gen_auxvar_ss = gen_auxvars_ss(ssn)
-      global_auxvar_ss = global_auxvars_ss(ssn)
-    
-      if (associated(gen_auxvar%d)) then
-        allocate(gen_auxvar_ss%d)
-      endif
-    
+    if (.not.general_analytical_derivatives) then
+      option%io_buffer = 'The use of GENERAL mode with source/sinks and &
+        &numerical derivatives has been disabled due to incorrect &
+        &implementation. Please use analytical derivatives for the &
+        &time being.'
+      call PrintErrMsg(option)
+    endif
+
+!geh: the use of gen_auxvars(ZERO_INTEGER,ghosted_id) must be replaced
+!     by the numerical derivative equivalents in the derivative calculations.
+
+    qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+
       flow_src_sink_type = source_sink%flow_condition%general%rate%itype
     
       if (associated(source_sink%flow_condition%general%temperature)) then
-        gen_auxvar_ss%temp = source_sink%flow_condition%general% &
-                           temperature%dataset%rarray(1)
+        gen_auxvars_ss(sum_connection)%temp = &
+          source_sink%flow_condition%general%temperature%dataset%rarray(1)
       else
-        gen_auxvar_ss%temp = gen_auxvar%temp
+        gen_auxvars_ss(sum_connection)%temp = &
+          gen_auxvars(ZERO_INTEGER,ghosted_id)%temp
       endif
     
       ! Check if liquid pressure is set
       if (associated(source_sink%flow_condition%general%liquid_pressure)) then
-        gen_auxvar_ss%pres(wat_comp_id) = source_sink%flow_condition% &
-                                    general%liquid_pressure%dataset%rarray(1)
+        gen_auxvars_ss(sum_connection)%pres(wat_comp_id) = &
+          source_sink%flow_condition%general%liquid_pressure%dataset%rarray(1)
       else
-        gen_auxvar_ss%pres(wat_comp_id) = gen_auxvar%pres(option%liquid_phase)
+        gen_auxvars_ss(sum_connection)%pres(wat_comp_id) = &
+          gen_auxvars(ZERO_INTEGER,ghosted_id)%pres(option%liquid_phase)
       endif
     
       ! Check if gas pressure is set
       if (associated(source_sink%flow_condition%general%gas_pressure)) then
-        gen_auxvar_ss%pres(air_comp_id) = source_sink%flow_condition% &
-                               general%gas_pressure%dataset%rarray(1)
+        gen_auxvars_ss(sum_connection)%pres(air_comp_id) = &
+          source_sink%flow_condition%general%gas_pressure%dataset%rarray(1)
       else
-        gen_auxvar_ss%pres(air_comp_id) = gen_auxvar%pres(option%gas_phase)
+        gen_auxvars_ss(sum_connection)%pres(air_comp_id) = &
+          gen_auxvars(ZERO_INTEGER,ghosted_id)%pres(option%gas_phase)
       endif
     
       select case(flow_src_sink_type)
       case(MASS_RATE_SS)
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
-                              gen_auxvar%den(air_comp_id))
+                        gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))
         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
-                              gen_auxvar%den(wat_comp_id))
+                        gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
-                              gen_auxvar%den(air_comp_id))*scale 
+                  gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))*scale 
         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
-                              gen_auxvar%den(wat_comp_id))*scale 
+                  gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))*scale 
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
       ! qsrc1 = m^3/sec             ! den = kmol/m^3
         qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
       end select
     
-      xxss(1) = maxval(gen_auxvar_ss%pres(option% &
+      xxss(1) = maxval(gen_auxvars_ss(sum_connection)%pres(option% &
                      liquid_phase:option%gas_phase))
       if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
           dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
@@ -983,48 +992,48 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
         xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
                 + qsrc_vol(air_comp_id))
       endif
-      xxss(3) = gen_auxvar_ss%temp
+      xxss(3) = gen_auxvars_ss(sum_connection)%temp
     
-      cell_pressure = maxval(gen_auxvar%pres(option% &
-                           liquid_phase:option%gas_phase))    
+      cell_pressure = maxval(gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+                             pres(option%liquid_phase:option%gas_phase))    
     
       if (cell_pressure>xxss(1) .or. qsrc(wat_comp_id)<0 .or. &
          qsrc(air_comp_id)<0.d0) then
         xxss(1) = cell_pressure
-        xxss(2) = gen_auxvar%sat(air_comp_id)
-        xxss(3) = gen_auxvar%temp
+        xxss(2) = gen_auxvars(ZERO_INTEGER,ghosted_id)%sat(air_comp_id)
+        xxss(3) = gen_auxvars(ZERO_INTEGER,ghosted_id)%temp
       endif
     
       if (dabs(qsrc(wat_comp_id)) > 0.d0 .and. &
           dabs(qsrc(air_comp_id)) > 0.d0) then
-        global_auxvar_ss%istate = TWO_PHASE_STATE
+        global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       elseif (dabs(qsrc(wat_comp_id)) > 0.d0) then
-        global_auxvar_ss%istate = LIQUID_STATE
+        global_auxvars_ss(sum_connection)%istate = LIQUID_STATE
       elseif (dabs(qsrc(air_comp_id)) > 0.d0) then
-        global_auxvar_ss%istate = GAS_STATE
+        global_auxvars_ss(sum_connection)%istate = GAS_STATE
       else
-        global_auxvar_ss%istate = TWO_PHASE_STATE
+        global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       endif
     
-      if (global_auxvar_ss%istate /= global_auxvar%istate) then
-        global_auxvar_ss%istate = TWO_PHASE_STATE
+      if (global_auxvars_ss(sum_connection)%istate /= &
+          global_auxvars(ghosted_id)%istate) then
+        global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       endif
     
-      allocate(global_auxvar_ss%m_nacl(1))
-      global_auxvar_ss%m_nacl(1) = 0.d0
+!geh: m_nacl should be allocated in GlobalAuxVarInit based on flag
+!     option%flow%density_depends_on_salinity
+!      allocate(global_auxvars_ss(sum_connection)%m_nacl(1))
+!      global_auxvars_ss(sum_connection)%m_nacl(1) = 0.d0
+
       option%iflag = GENERAL_UPDATE_FOR_SS
     
       ! Compute state variables 
-      call GeneralAuxVarCompute(xxss,gen_auxvar_ss, &
-                                global_auxvar_ss, &
-                                material_auxvars(source_sink% &
-                                region%cell_ids(1)), &
+      call GeneralAuxVarCompute(xxss,gen_auxvars_ss(sum_connection), &
+                                global_auxvars_ss(sum_connection), &
+                                material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
-                                patch%sat_func_id(source_sink%region% &
-                                cell_ids(1)))%ptr, &
-                                source_sink%region%cell_ids(1), &
-                                option)
-      gen_auxvars_ss(ssn) = gen_auxvar_ss
+                                patch%sat_func_id(ghosted_id))%ptr, &
+                                grid%nG2A(ghosted_id),option)
     enddo
     source_sink => source_sink%next
   enddo
@@ -1194,7 +1203,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: vec_p(:)
   
   PetscReal :: qsrc(3)
-  PetscInt :: ssn
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -1430,10 +1438,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
   sum_connection = 0
-  ssn=0
   do 
     if (.not.associated(source_sink)) exit
-    ssn=ssn+1
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
@@ -1455,7 +1461,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       flow_src_sink_type=source_sink%flow_condition%general%rate%itype
       
       call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                          gen_auxvars_ss(ssn), &
+                          gen_auxvars_ss(sum_connection), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
@@ -1605,7 +1611,6 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection 
-  PetscInt :: ssn
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
   PetscInt, pointer :: zeros(:)
@@ -1824,14 +1829,14 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   ! Source/sinks
   source_sink => patch%source_sink_list%first 
-  ssn=0
+  sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections
-      ssn = ssn+1
+      sum_connection = sum_connection + 1
       
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
@@ -1845,7 +1850,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       endif
       
       Jup = 0.d0
-      call GeneralSrcSinkDerivative(option,source_sink,gen_auxvars_ss(ssn), &
+      call GeneralSrcSinkDerivative(option,source_sink, &
+                        gen_auxvars_ss(sum_connection), &
                         gen_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         scale,Jup)
