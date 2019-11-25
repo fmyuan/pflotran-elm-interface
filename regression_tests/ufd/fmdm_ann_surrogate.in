@@ -161,8 +161,8 @@ WASTE_FORM_GENERAL
   MECHANISM FMDMSURROGATE
     NAME fmdm01
     MATRIX_DENSITY 10.97d3 kg/m^3
-    BURNUP 60 #MWd/MTHM
-    DECAY_TIME 100
+    BURNUP 60 #GWd/MTHM
+    DECAY_TIME 100 day
     SPECIFIC_SURFACE_AREA 2.78d-3 cm^2/g
     SPECIES
      #name,   MW[g/mol],dcy[1/s], initMF, inst_rel_frac, daughter             
