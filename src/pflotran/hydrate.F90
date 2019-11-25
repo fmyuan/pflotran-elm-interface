@@ -59,6 +59,18 @@ subroutine HydrateRead(input,meth,option)
     call StringToUpper(word)
 
     select case(trim(word))
+      case('SCALE_PERM_BY_HYD_SAT')
+        HYDRATE_PERM_SCALING = PETSC_TRUE
+      case('EFFECTIVE_SAT_SCALING')
+        HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
+      case('WITH_GIBBS_THOMSON')
+        HYDRATE_WITH_GIBBS_THOMSON = PETSC_TRUE
+      case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
+        HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_TRUE
+      case('WITH_SEDIMENTATION')
+        HYDRATE_WITH_SEDIMENTATION = PETSC_TRUE
+      case('NO_PC')
+        HYDRATE_NO_PC = PETSC_TRUE
       case('METHANOGENESIS')
         if (.not. associated(meth)) then
           allocate(meth)
@@ -221,11 +233,7 @@ subroutine HydrateSetup(realization)
   endif
   
   ! allocate auxvar data structures for all grid cells  
-  if (hydrate_analytical_derivatives) then
-    ndof = 0
-  else
-    ndof = option%nflowdof
-  endif
+  ndof = option%nflowdof
   allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, 2 * ndof
@@ -299,6 +307,11 @@ subroutine HydrateSetup(realization)
 
 
   call PatchSetupUpwindDirection(patch,option)
+
+  if (.not. associated(patch%methanogenesis)) then
+    allocate(patch%methanogenesis)
+  endif
+
 
 end subroutine HydrateSetup
 
@@ -1385,6 +1398,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        patch%flow_upwind_direction(:,iconn), &
+                       patch%methanogenesis, &
                        hydrate_parameter,option,v_darcy,Res, &
                        Jac_dummy,Jac_dummy, &
                        hydrate_analytical_derivatives, &
@@ -1450,6 +1464,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction_bc(:,iconn), &
+                     patch%methanogenesis, &
                      hydrate_parameter,option, &
                      v_darcy,Res,Jac_dummy, &
                      hydrate_analytical_derivatives, &
@@ -1753,6 +1768,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
+                     patch%methanogenesis, &
                      hydrate_parameter,option,&
                      Jup,Jdn)
       if (local_id_up > 0) then
@@ -1820,6 +1836,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
+                      patch%methanogenesis, &
                       hydrate_parameter,option, &
                       Jdn)
 

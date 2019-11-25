@@ -117,7 +117,6 @@ module Characteristic_Curves_WIPP_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP1_liq_type
     PetscReal :: m
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP1_Liq_Init
     procedure, public :: Verify => RPF_KRP1_Liq_Verify
@@ -126,7 +125,6 @@ module Characteristic_Curves_WIPP_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP1_gas_type
     PetscReal :: m
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP1_Gas_Init
     procedure, public :: Verify => RPF_KRP1_Gas_Verify
@@ -151,7 +149,6 @@ module Characteristic_Curves_WIPP_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP3_liq_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP3_Liq_Init
     procedure, public :: Verify => RPF_KRP3_Liq_Verify
@@ -160,7 +157,6 @@ module Characteristic_Curves_WIPP_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP3_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP3_Gas_Init
     procedure, public :: Verify => RPF_KRP3_Gas_Verify
@@ -179,7 +175,6 @@ module Characteristic_Curves_WIPP_module
   end type rpf_KRP4_gas_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP5_liq_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP5_Liq_Init
     procedure, public :: Verify => RPF_KRP5_Liq_Verify
@@ -187,7 +182,6 @@ module Characteristic_Curves_WIPP_module
   end type rpf_KRP5_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP5_gas_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP5_Gas_Init
     procedure, public :: Verify => RPF_KRP5_Gas_Verify
@@ -226,7 +220,6 @@ module Characteristic_Curves_WIPP_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_KRP11_liq_type
     PetscReal :: tolc
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_KRP11_Liq_Init
     procedure, public :: Verify => RPF_KRP11_Liq_Verify
@@ -256,7 +249,6 @@ module Characteristic_Curves_WIPP_module
   ! Mualem-based  liquid relative permeability when Srg = 0., we extend 
   ! the rpf_Mualem_type to save code
   type, public, extends(rpf_Mualem_VG_liq_type) :: rpf_TOUGH2_IRP7_gas_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_TOUGH2_IRP7_Gas_Init
     procedure, public :: Verify => RPF_TOUGH2_IRP7_Gas_Verify

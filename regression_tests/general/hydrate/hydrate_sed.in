@@ -1,4 +1,4 @@
-#Description: Gas hydrate regression test: 1D Radial Depressurization
+#Description: Gas hydrate regression test: sedimentation and methanogenesis
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
@@ -17,25 +17,39 @@ SUBSURFACE
 #=========================== regression =======================================
 REGRESSION
   CELLS
-    2
+    8
   /
 END
 
 #=========================== hydrate ==========================================
 HYDRATE
+  SCALE_PERM_BY_HYD_SAT
+  EFFECTIVE_SAT_SCALING
+  WITH_GIBBS_THOMSON
   ADJUST_SOLUBILITY_WITHIN_GHSZ
+  WITH_SEDIMENTATION
+
+  METHANOGENESIS
+    NAME ss_methanogenesis
+    ALPHA 5.d-3
+    K_ALPHA 2241
+    LAMBDA 5.d-14
+    V_SED 3.17d-11
+    SMT_DEPTH 15.d0
+  /
+  PERM_SCALING_FUNCTION DAI_AND_SEOL
 END
 #=========================== discretization ===================================
 GRID
-  TYPE STRUCTURED CYLINDRICAL
-  NXYZ 3 1 1
-  DXYZ  
-    3@1.d1
+  TYPE STRUCTURED CARTESIAN
+  NXYZ 1 1 10
+  DXYZ
     1@1.d0
     1@1.d0
+    10@1.d2
   /
+ GRAVITY 0.d0 0.d0 -9.8d0
 END
-
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   PHASE LIQUID
@@ -59,7 +73,6 @@ EOS GAS
   DENSITY PR_METHANE
   ENTHALPY IDEAL_METHANE
   VISCOSITY DEFAULT
-  HENRYS_CONSTANT DEFAULT
 END
 
 
@@ -68,28 +81,25 @@ MATERIAL_PROPERTY soil1
   ID 1
   CHARACTERISTIC_CURVES default
   POROSITY 0.3
-  TORTUOSITY 1.d0
+  TORTUOSITY 1.0
   ROCK_DENSITY 2600.d0
   THERMAL_CONDUCTIVITY_DRY 2.d0 #W/m-C
   THERMAL_CONDUCTIVITY_WET 2.18d0 #W/m-C
   HEAT_CAPACITY 1000 J/kg-C
   PERMEABILITY
-    PERM_ISO 3.d-13
+    PERM_ISO 1.d-13
   /
-  POROSITY_COMPRESSIBILITY 1.d-9
   SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  POROSITY_COMPRESSIBILITY 1.d-9
 END
-
-
 #=========================== characteristic curves ============================
-
 CHARACTERISTIC_CURVES default
   SATURATION_FUNCTION IGHCC2_COMP #VAN_GENUCHTEN
     ALPHA 8.d-5
     M 0.45
     LIQUID_RESIDUAL_SATURATION 0.12d0
-    MAX_CAPILLARY_PRESSURE 5.d6
-    CALCULATE_INTERFACIAL_TENSION
+    MAX_CAPILLARY_PRESSURE 0.d0
+    #CALCULATE_INTERFACIAL_TENSION
   /
   PERMEABILITY_FUNCTION IGHCC2_COMP_LIQ #BURDINE_BC_LIQ
     PHASE LIQUID
@@ -100,14 +110,13 @@ CHARACTERISTIC_CURVES default
     PHASE GAS
     LAMBDA 3
     LIQUID_RESIDUAL_SATURATION 0.12
-    GAS_RESIDUAL_SATURATION 0.02
+    GAS_RESIDUAL_SATURATION 1.d0 #0.02
   /
 END
-
 #=========================== output options ===================================
 OUTPUT
   UNFILTER_NON_STATE_VARIABLES
-  
+
   VARIABLES
    TEMPERATURE
    LIQUID_PRESSURE
@@ -123,79 +132,94 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 10 d 
-  INITIAL_TIMESTEP_SIZE 1.d-6 h
-  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+  FINAL_TIME 100000 y
+  INITIAL_TIMESTEP_SIZE 1.d-6 y
+  MAXIMUM_TIMESTEP_SIZE 1.d3 y
 END
 
 #=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
-    3.d1 1.d0 1.d0
+    1.d0 1.d0 1.d3
   /
 END
 
-REGION edge
-  FACE EAST
+REGION top
+  FACE TOP
   COORDINATES
-    3.d1 0.d0 0.d0 
-    3.d1 1.d0 1.d0 
+    0.0d0 0.d0 1.d3
+    1.0d0 1.d0 1.d3
   /
 END
 
-REGION center
-  COORDINATE 0.d0 0.d0 0.d0
+REGION bottom
+  FACE BOTTOM
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 0.d0
+  /
 END
-
 #=========================== flow conditions ==================================
-
 FLOW_CONDITION initial
   TYPE
-    GAS_PRESSURE DIRICHLET
-    HYDRATE_SATURATION DIRICHLET
+    LIQUID_PRESSURE HYDROSTATIC
+    MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  GAS_PRESSURE 9.5d6
-  HYDRATE_SATURATION 4.d-1
-  TEMPERATURE 12.d0 
+  DATUM 0.d0 0.d0 1.d0
+  GRADIENT
+    TEMPERATURE 0.d0 0.d0 -0.019d0
+  /
+  LIQUID_PRESSURE 30.d6
+  MOLE_FRACTION 2.d-3 
+  TEMPERATURE 22.d0 
 END
 
-FLOW_CONDITION edge
+FLOW_CONDITION top
   TYPE
-    GAS_PRESSURE DIRICHLET
-    HYDRATE_SATURATION DIRICHLET
+    LIQUID_PRESSURE HYDROSTATIC
+    MOLE_FRACTION DIRICHLET
     TEMPERATURE DIRICHLET
   /
-  GAS_PRESSURE 9.5d6
-  HYDRATE_SATURATION 4.d-1
-  TEMPERATURE 12.d0
-END
-
-FLOW_CONDITION center
-  SYNC_TIMESTEP_WITH_UPDATE
-  TYPE
-    RATE TOTAL_MASS_RATE
+  DATUM 0.d0 0.d0 1.d0
+  GRADIENT
+    TEMPERATURE 0.d0 0.d0 -0.019d0
   /
-  RATE -1.d2 0.d0 0.d0 g/s g/s W
+  LIQUID_PRESSURE 30.d6
+  MOLE_FRACTION 0.d0 
+  TEMPERATURE 22.d0 
 END
 
+FLOW_CONDITION bottom
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0.d0 0.d0 1.d0
+  GRADIENT
+    TEMPERATURE 0.d0 0.d0 -0.019d0
+  /
+  LIQUID_PRESSURE 30.d6
+  MOLE_FRACTION 2.d-3
+  TEMPERATURE 22.d0 
+END
 
 #=========================== condition couplers ===============================
-# initial condition
 INITIAL_CONDITION all
   FLOW_CONDITION initial
   REGION all
 END
 
-SOURCE_SINK center
-  FLOW_CONDITION center
-  REGION center
+BOUNDARY_CONDITION top
+  FLOW_CONDITION top
+  REGION top
 END
 
-BOUNDARY_CONDITION edge
-  FLOW_CONDITION edge
-  REGION edge
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION bottom
+  REGION bottom
 END
 
 #=========================== stratigraphy couplers ============================
