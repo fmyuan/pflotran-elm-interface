@@ -1222,8 +1222,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           allocate(new_mechanism)
           new_mechanism => PMWFMechanismFMDMCreate()
       !---------------------------------
-        case('FMDMSURROGATE')
-          error_string = trim(error_string) // ' FMDMSURROGATE'
+        case('FMDM_SURROGATE')
+          error_string = trim(error_string) // ' FMDM_SURROGATE'
           allocate(new_mechanism)
           new_mechanism => PMWFMechanismFMDMSurrogateCreate()
       !---------------------------------
