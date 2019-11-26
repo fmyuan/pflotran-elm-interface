@@ -1222,8 +1222,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           allocate(new_mechanism)
           new_mechanism => PMWFMechanismFMDMCreate()
       !---------------------------------
-        case('FMDMSURROGATE')
-          error_string = trim(error_string) // ' FMDMSURROGATE'
+        case('FMDM_SURROGATE')
+          error_string = trim(error_string) // ' FMDM_SURROGATE'
           allocate(new_mechanism)
           new_mechanism => PMWFMechanismFMDMSurrogateCreate()
       !---------------------------------
@@ -1541,8 +1541,11 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
               type is(wf_mechanism_fmdm_surrogate_type)
                 call InputReadDouble(input,option, &
                                      new_mechanism%decay_time)
-                call InputErrorMsg(input,option,'decay_time', &
+                call InputErrorMsg(input,option,'DECAY_TIME', &
                                    error_string)
+                call InputReadAndConvertUnits(input, &
+                  new_mechanism%decay_time,'day','DECAY_TIME', &
+                  option)
               class default
                 option%io_buffer = 'ERROR: DECAY_TIME cannot be &
                                    &specified for ' // trim(error_string)
