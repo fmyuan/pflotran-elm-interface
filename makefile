@@ -7,7 +7,6 @@ include makefile.inc
 TEST_LOG="${PFLOTRAN_DIR_LOC}/src/pflotran/test.log"
 PFLOTRAN_EXE="${PFLOTRAN_DIR_LOC}/src/pflotran/pflotran"
 PFLOTRAN_LIB="${PFLOTRAN_DIR_LOC}/src/pflotran/libpflotran.a"
-PFLOTRANCHEM_LIB="${PFLOTRAN_DIR_LOC}/src/pflotran/libpflotranchem.a"
 
 # build pflotran and libpflotran.a
 all:

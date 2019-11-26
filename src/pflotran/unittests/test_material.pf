@@ -49,7 +49,7 @@ contains
 
   subroutine setUp(this)
 
-    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH, RICHARDS_MODE
+    use PFLOTRAN_Constants_module, only : MAXSTRINGLENGTH, G_MODE
 
     implicit none
 
@@ -57,7 +57,7 @@ contains
     character(len=MAXSTRINGLENGTH) :: error_string
 
     this%option => OptionCreate()
-    this%option%iflowmode = RICHARDS_MODE
+    this%option%iflowmode = G_MODE
 
     soil_compressibility_index = 1
     soil_reference_pressure_index = 2
