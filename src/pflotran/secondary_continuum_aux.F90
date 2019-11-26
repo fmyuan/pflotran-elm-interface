@@ -2,8 +2,6 @@
 
 module Secondary_Continuum_Aux_module
 
-  use Reactive_Transport_Aux_module
-
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -49,39 +47,11 @@ module Secondary_Continuum_Aux_module
     PetscReal :: outer_spacing                 ! value of the outer most grid cell spacing
   end type sec_heat_type  
  
-  type, public :: sec_transport_type  
-    PetscInt :: ncells                         ! number of secondary grid cells
-    PetscReal :: aperture                      ! fracture aperture
-    PetscReal :: epsilon                       ! vol. frac. of primary continuum
-    type(sec_continuum_type) :: sec_continuum
-    type(reactive_transport_auxvar_type), pointer :: sec_rt_auxvar(:)  ! for each secondary grid cell
-    PetscReal, pointer :: area(:)              ! surface area
-    PetscReal, pointer :: vol(:)               ! volume     face      node       face
-    PetscReal, pointer :: dm_plus(:)           ! see fig.    |----------o----------|
-    PetscReal, pointer :: dm_minus(:)          ! see fig.      <dm_minus> <dm_plus>
-    PetscReal :: interfacial_area              ! interfacial area between prim. and sec. per unit volume of prim.+sec.
-    PetscBool :: log_spacing                   ! flag to check if log spacing is set
-    PetscReal :: outer_spacing                 ! value of the outer most grid cell spacing
-    PetscReal, pointer :: sec_jac(:,:)         ! stores the secondary continuum jacobian value (naqcomp x naqcomp)
-    PetscBool :: sec_jac_update                ! flag to check if secondary jacobian is updated
-    PetscReal, pointer :: cxm(:,:,:)           ! stores the coeff of left diag in block triag system (ncomp x ncomp x ncells-1)
-    PetscReal, pointer :: cxp(:,:,:)           ! stores the coeff of right diag in block triag system (ncomp x ncomp x ncells-1)
-    PetscReal, pointer :: cdl(:,:,:)           ! stores the coeff of central diag in block triag system (ncomp x ncomp x ncells)
-    PetscReal, pointer :: r(:)                 ! stores the solution of the forward solve
-    PetscReal, pointer :: updated_conc(:,:)    ! stores the update of molalities at end of each primary iteration       
-  end type sec_transport_type  
-        
-
   type, public :: sc_heat_type
     type(sec_heat_type), pointer :: sec_heat_vars(:)
   end type sc_heat_type
 
-  type, public :: sc_rt_type
-    type(sec_transport_type), pointer :: sec_transport_vars(:)
-  end type sc_rt_type
-
-  public :: SecondaryAuxHeatCreate, SecondaryAuxHeatDestroy, &
-            SecondaryAuxRTCreate, SecondaryAuxRTDestroy
+  public :: SecondaryAuxHeatCreate, SecondaryAuxHeatDestroy
             
 contains
 
@@ -136,87 +106,6 @@ end subroutine SecondaryAuxHeatDestroy
 
 ! ************************************************************************** !
 
-function SecondaryAuxRTCreate(option)
-  ! 
-  ! Allocate and initialize secondary continuum
-  ! reactive transport auxiliary object
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 01/10/13
-  ! 
-
-  use Option_module
-
-  implicit none
-  
-  type(option_type) :: option
-  type(sc_rt_type), pointer :: SecondaryAuxRTCreate
-  
-  type(sc_rt_type), pointer :: aux
-
-  allocate(aux) 
-  nullify(aux%sec_transport_vars)
-  
-  SecondaryAuxRTCreate => aux
-  
-end function SecondaryAuxRTCreate  
-
-! ************************************************************************** !
-
-subroutine SecondaryAuxVarRTDestroy(auxvar)
-  ! 
-  ! Deallocates a secondary continuum reactive
-  ! transport auxiliary variable object
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 02/10/13
-  ! 
-
-  use Utility_module, only: DeallocateArray
-
-  implicit none
-  
-  type(sec_transport_type) :: auxvar
-  
-  call RTAuxVarDestroy(auxvar%sec_rt_auxvar)
-  call DeallocateArray(auxvar%area)
-  call DeallocateArray(auxvar%vol)
-  call DeallocateArray(auxvar%dm_plus)
-  call DeallocateArray(auxvar%dm_minus)
-  call DeallocateArray(auxvar%sec_jac)
-  call DeallocateArray(auxvar%cxm)
-  call DeallocateArray(auxvar%cxp)
-  call DeallocateArray(auxvar%cdl)
-  call DeallocateArray(auxvar%r)
-  
-end subroutine SecondaryAuxVarRTDestroy
-
-! ************************************************************************** !
-
-subroutine SecondaryAuxRTDestroy(aux)
-  ! 
-  ! Deallocates a secondary continuum reactive
-  ! transport auxiliary object
-  ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 01/10/13
-  ! 
-
-  implicit none
-
-  type(sc_rt_type), pointer :: aux
-  PetscInt :: iaux
-   
-  if (.not.associated(aux)) return
-  
-  do iaux = 1, size(aux%sec_transport_vars)
-    call SecondaryAuxVarRTDestroy(aux%sec_transport_vars(iaux))
-  enddo
-  
-  deallocate(aux)
-  nullify(aux)  
-
-end subroutine SecondaryAuxRTDestroy
 
 end module Secondary_Continuum_Aux_module
             

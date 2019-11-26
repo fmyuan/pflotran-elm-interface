@@ -1679,8 +1679,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Field_module
   use Connection_module
   use Global_Aux_module
-  use Richards_Aux_module
-  use TH_Aux_module
   use Material_Aux_class
 
   implicit none
@@ -1695,8 +1693,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
   type(material_parameter_type), pointer :: material_parameter
-  type(TH_auxvar_type), pointer :: th_auxvars(:)
-  type(richards_auxvar_type), pointer :: rich_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscReal, pointer :: flowrates(:,:)
@@ -1745,21 +1741,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
 
-        select case (option%iflowmode)
-           case(TH_MODE,TH_TS_MODE)
-              th_auxvars => patch%aux%TH%auxvars
-              if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
-                  th_auxvars(ghosted_id_dn)%kvr > eps ) then
-                is_flowing = PETSC_TRUE
-              endif   
-           case(RICHARDS_MODE, RICHARDS_TS_MODE)
-              rich_auxvars => patch%aux%Richards%auxvars
-              if(rich_auxvars(ghosted_id_up)%kvr > eps .or. &
-                 rich_auxvars(ghosted_id_dn)%kvr > eps ) then
-                is_flowing = PETSC_TRUE
-              endif
-        end select
-           
         if (is_flowing) then
           if (global_auxvar(ghosted_id_up)%sat(1) <eps) then 
             upweight = 0.d0

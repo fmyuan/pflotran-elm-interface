@@ -477,20 +477,7 @@ subroutine SFConstantVerify(this,name,option)
   endif
   call SFBaseVerify(this,string,option)
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE,TH_MODE,TH_TS_MODE)
-      if (Initialized(this%constant_capillary_pressure)) then
-        option%io_buffer = 'CONSTANT_CAPILLARY_PRESSURE is not supported for &
-          &Richards or TH flow modes as CONSTANT_SATURATION must be applied. &
-          &See ' // trim(string) // '.'
-        call PrintErrMsg(option)
-      endif
-      if (Uninitialized(this%constant_saturation)) then
-        option%io_buffer = 'CONSTANT_SATURATION must be specified for ' // &
-          trim(string) // '.'
-        call PrintErrMsg(option)
-      endif
-    case(WF_MODE,G_MODE,TOIL_IMS_MODE,IMS_MODE,MIS_MODE,MPH_MODE,FLASH2_MODE, &
-         H_MODE)
+    case(TH_MODE)
       if (Initialized(this%constant_saturation)) then
         option%io_buffer = 'CONSTANT_SATURATION is not supported for &
           &multiphase flow modes as CONSTANT_CAPILLARY_PRESSURE must be &

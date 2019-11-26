@@ -8,11 +8,9 @@ module Init_Common_module
   private
 
   public :: &
-!            Init, &
             InitCommonReadRegionFiles, &
             InitCommonReadVelocityField, &
             InitCommonVerifyAllCouplers, &
-            setSurfaceFlowMode, &
             InitCommonAddOutputWaypoints
 
 contains
@@ -87,35 +85,6 @@ end subroutine InitReadInputFilenames
 
 ! ************************************************************************** !
 
-subroutine setSurfaceFlowMode(option)
-  ! 
-  ! Sets the flow mode for surface (richards, th, etc.)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/30/14
-  ! 
-
-  use Option_module
-  use String_module
-
-  implicit none 
-
-  type(option_type) :: option
-  
-  select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      option%nsurfflowdof = ONE_INTEGER
-    case(TH_MODE,TH_TS_MODE)
-      option%nsurfflowdof = TWO_INTEGER
-    case default
-      write(option%io_buffer,*) option%iflowmode
-      option%io_buffer = 'Flow Mode ' // &
-        trim(option%io_buffer) // ' not recognized in setSurfaceFlowMode().'
-      call PrintErrMsg(option)
-  end select
-  
-end subroutine setSurfaceFlowMode
-
 ! ************************************************************************** !
 
 subroutine InitCommonVerifyAllCouplers(realization)
@@ -169,7 +138,7 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
   use Condition_module
   use Grid_module
   use Output_module
-  use Output_Tecplot_module, only : OutputVectorTecplot  
+
   use Patch_module
 
   implicit none
@@ -227,13 +196,6 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
     else if (len_trim(coupler%tran_condition_name) > 0) then
       dataset_name = coupler%tran_condition_name
     endif
-    write(word,*) patch%id
-    dataset_name = trim(dataset_name) // '_' // &
-                   trim(coupler%region%name) // '_' // &
-                   trim(adjustl(word))
-    dataset_name = dataset_name(1:28)
-    filename = trim(dataset_name) // '.tec'
-    call OutputVectorTecplot(filename,dataset_name,realization,global_vec)
 
     coupler => coupler%next
   enddo
@@ -499,7 +461,7 @@ subroutine InitCommonReadVelocityField(realization)
   option => realization%option
   discretization => realization%discretization
   
-  filename = realization%nonuniform_velocity_filename
+
 
   group_name = ''
   do idir = 1, 3

@@ -51,63 +51,38 @@ module Option_module
     character(len=MAXWORDLENGTH) :: flowmode
     PetscInt :: iflowmode
     PetscInt :: iflow_sub_mode
-    character(len=MAXWORDLENGTH) :: tranmode
-    PetscInt :: itranmode
 
-    PetscInt :: nphase
-    PetscInt :: liquid_phase
-    PetscInt :: gas_phase
-    PetscInt :: oil_phase
-    PetscInt :: solvent_phase
-    PetscInt :: hydrate_phase
-    PetscInt :: ice_phase
+    PetscInt :: nfluids   ! or flow phases, like liq water, air (gas), oil, etc.
+    PetscInt :: liq_fluid
+    PetscInt :: gas_fluid
+    PetscInt :: oil_fluid ! or more generally non-newtonean fluid?
     PetscInt :: phase_map(MAX_PHASE)
-    PetscInt :: nflowdof
-    PetscInt :: nflowspec
-    PetscInt :: nmechdof
+
+    PetscInt :: nflowspec   ! species in fluids (transportants+fluids itself)
+    PetscInt :: nflowdof    ! independent variables in flow process, such as saturation/pressure (or potential), temperature/energy, conductance,
     PetscInt :: nsec_cells
     PetscInt :: num_table_indices
 
+    PetscInt :: ntrandof
+
+#if 0
 ! Indicates request for one-line-per-step console output
     PetscBool :: linerept
     PetscInt  :: linpernl,nchperst,nnl
-
-    PetscBool :: surf_flow_on
-    PetscInt :: nsurfflowdof
-    PetscInt :: subsurf_surf_coupling
-    PetscInt :: surface_flow_formulation
-    PetscReal :: surf_flow_time, surf_flow_dt
-    PetscReal :: surf_subsurf_coupling_time
-    PetscReal :: surf_subsurf_coupling_flow_dt
-    PetscReal :: surf_restart_time
-    PetscBool :: surf_restart_flag
-    character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
-    character(len=MAXSTRINGLENGTH) :: surf_restart_filename
-
-    PetscBool :: geomech_on
-    PetscBool :: geomech_initial
-    PetscInt :: ngeomechdof
-    PetscInt :: n_stress_strain_dof
-    PetscReal :: geomech_time
-    PetscInt :: geomech_subsurf_coupling
-    PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
-    PetscInt :: saturation_pressure_id
-    PetscInt :: water_id  ! index of water component dof
-    PetscInt :: air_id  ! index of air component dof
-    PetscInt :: oil_id  ! index of oil component dof
-    PetscInt :: energy_id  ! index of energy dof
+    PetscInt :: liquid_pressure_id
+#endif
 
-    PetscInt :: ntrandof
+    PetscInt :: energy_id  ! index of energy dof
+    PetscInt :: water_id   ! index of water component dof
+    PetscInt :: air_id     ! index of air component dof
 
     PetscInt :: iflag
     PetscInt :: status
     PetscBool :: input_record
-    !geh: remove once legacy code is gone.
-!    PetscBool :: init_stage
     ! these flags are for printing outside of time step loop
     PetscBool :: print_to_screen
     PetscBool :: print_to_file
@@ -133,8 +108,7 @@ module Option_module
 
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure
 
-    PetscBool :: th_use_freezing
-    PetscInt  :: th_ice_model         ! specify water/ice/vapor phase partitioning model
+    PetscInt  :: th_ice_model            ! specify water/ice/vapor phase partitioning model
     PetscReal :: th_frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
       
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
@@ -462,62 +436,35 @@ subroutine OptionInitRealization(option)
   option%iflowmode = NULL_MODE
   option%iflow_sub_mode = NULL_MODE
   option%nflowdof = 0
-  option%nmechdof = 0
   option%nsec_cells = 0
   option%num_table_indices = 0
-  option%th_use_freezing = PETSC_FALSE
 
+  option%ntrandof = 0
+
+#if 0
   option%linerept = PETSC_FALSE
   option%linpernl = 0
   option%nchperst = 0
   option%nnl      = 0
-
-  option%nsurfflowdof = 0
-  option%surf_flow_on = PETSC_FALSE
-  option%subsurf_surf_coupling = DECOUPLED
-  option%surface_flow_formulation = DIFFUSION_WAVE
-  option%surf_flow_dt = 0.d0
-  option%surf_flow_time =0.d0
-  option%surf_subsurf_coupling_time = 0.d0
-  option%surf_subsurf_coupling_flow_dt = 0.d0
-  option%surf_initialize_flow_filename = ""
-  option%surf_restart_filename = ""
-  option%surf_restart_flag = PETSC_FALSE
-  option%surf_restart_time = UNINITIALIZED_DOUBLE
-
-  option%geomech_on = PETSC_FALSE
-  option%geomech_initial = PETSC_FALSE
-  option%ngeomechdof = 0
-  option%n_stress_strain_dof = 0
-  option%geomech_time = 0.d0
-  option%geomech_subsurf_coupling = 0
-  option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -1.d0*EARTH_GRAVITY    ! m/s^2
-
-  option%tranmode = ""
-  option%itranmode = NULL_MODE
-  option%ntrandof = 0
+#endif
 
   option%phase_map = UNINITIALIZED_INTEGER
 
-  option%nphase = 0
+  option%nfluids = 0
+  option%liq_fluid  = UNINITIALIZED_INTEGER
+  option%gas_fluid     = UNINITIALIZED_INTEGER
+  !option%oil_fluid   = UNINITIALIZED_INTEGER
 
-  option%liquid_phase  = UNINITIALIZED_INTEGER
-  option%oil_phase     = UNINITIALIZED_INTEGER
-  option%gas_phase     = UNINITIALIZED_INTEGER
-  option%solvent_phase = UNINITIALIZED_INTEGER
-  option%hydrate_phase = UNINITIALIZED_INTEGER
-  option%ice_phase = UNINITIALIZED_INTEGER
-
+#if 0
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
   option%vapor_pressure_id = 0
-  option%saturation_pressure_id = 0
+  option%liquid_pressure_id = 0
 
   option%water_id = 0
   option%air_id = 0
   option%energy_id = 0
-
+#endif
 
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
@@ -539,24 +486,10 @@ subroutine OptionInitRealization(option)
 
   option%minimum_hydrostatic_pressure = -1.d20
 
-  !set scale factor for heat equation, i.e. use units of MJ for energy
-  option%scale = 1.d-6
-
   option%ideriv = 1
 
   option%gravity(:) = 0.d0
   option%gravity(3) = -1.d0*EARTH_GRAVITY ! m/s^2
-
-  !physical constants and defult variables
-!  option%difaq = 1.d-9 ! m^2/s read from input file
-!  option%difaq = 0.d0
-!  option%delhaq = 12.6d0 ! kJ/mol read from input file
-!  option%eqkair = 1.d10 ! Henry's constant for air: Xl = eqkair * pa
-
-  ! default brine concentrations
-  option%m_nacl = 0.d0
-
-!  option%disp = 0.d0
 
   option%restart_flag = PETSC_FALSE
   option%restart_filename = ""
@@ -599,17 +532,12 @@ subroutine OptionInitRealization(option)
   option%steady_state = PETSC_FALSE
 
   option%itable = 0
-  option%co2eos = EOS_SPAN_WAGNER
-  option%co2_database_filename = ''
 
-! option%idt_switch = 1
   option%idt_switch = -1
 
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED
   option%force_newton_iteration = PETSC_FALSE
-  !option%print_explicit_primal_grid = PETSC_FALSE
-  !option%print_explicit_dual_grid = PETSC_FALSE
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
@@ -665,27 +593,6 @@ subroutine OptionCheckCommandLine(option)
   call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
                              '-restart', option%restart_filename, &
                              option%restart_flag, ierr);CHKERRQ(ierr)
-  ! check on possible modes
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_richards", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "richards"
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_thc", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "thc"
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_mph", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "mph"
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_flash2", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "flash2"
 
 end subroutine OptionCheckCommandLine
 
@@ -1482,6 +1389,7 @@ subroutine OptionEndTiming(option)
         (timex_wall-option%start_time)/60.d0, &
         (timex_wall-option%start_time)/3600.d0
     endif
+#if 0
     if (option%linerept) then
 100 format('------ -------- -------- -------- -------- -------- ', &
            '-------- -------- -------- ------- -------- -------- -- -- --')
@@ -1489,6 +1397,7 @@ subroutine OptionEndTiming(option)
       write(*,100)
       write(*,101) timex_wall-option%start_time, (timex_wall-option%start_time)/60.d0
     endif
+#endif
   endif
 
 end subroutine OptionEndTiming

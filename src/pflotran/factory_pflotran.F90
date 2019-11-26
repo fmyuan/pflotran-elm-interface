@@ -62,16 +62,10 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Multi_Simulation_module
   use Simulation_Base_class
   use Simulation_Subsurface_class
-  use Simulation_Surface_class
-  use Simulation_Surf_Subsurf_class
-  use Simulation_Geomechanics_class
   use Output_Aux_module
   use Logging_module
   use EOS_module
-  use PM_Surface_class
-  use PM_Geomechanics_Force_class
   use PM_Subsurface_Flow_class
-  use PM_RT_class
   
   implicit none
   
@@ -130,10 +124,6 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
         if (s%realization%patch%grid%itype /= STRUCTURED_GRID) then
           flag = PETSC_TRUE
         endif
-      class is(simulation_surface_type) 
-        if (s%surf_realization%patch%grid%itype /= STRUCTURED_GRID) then
-          flag = PETSC_TRUE
-        endif
       class default
         option%io_buffer = 'Unknown simulation class in &
           &PFLOTRANInitializePostPetsc'
@@ -162,13 +152,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   
   use Simulation_Base_class
   use Simulation_Subsurface_class
-  use Simulation_Surf_Subsurf_class
-  use Simulation_Geomechanics_class
+
   use PM_Base_class
-  use PM_Surface_Flow_class
-  use PM_Surface_TH_class
-  use PM_Geomechanics_Force_class
-  use PM_Auxiliary_class
   use PMC_Base_class
   use Checkpoint_module
   use Output_Aux_module
@@ -176,8 +161,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Units_module
   
   use Factory_Subsurface_module
-  use Factory_Surf_Subsurf_module
-  use Factory_Geomechanics_module
   
   implicit none
   
@@ -251,34 +234,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           select case(trim(word))
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
-            case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input,option,new_pm)
-            case('NUCLEAR_WASTE_TRANSPORT')
-              call SubsurfaceReadNWTPM(input,option,new_pm)
-            case('WASTE_FORM')
-              call SubsurfaceReadWasteFormPM(input,option,new_pm)
-            case('UFD_DECAY')
-              call SubsurfaceReadUFDDecayPM(input,option,new_pm)
-            case('UFD_BIOSPHERE')
-              call SubsurfaceReadUFDBiospherePM(input,option,new_pm)
-            case('WIPP_SOURCE_SINK')
-              option%io_buffer = 'Do not include the WIPP_SOURCE_SINK block &
-                &unless you are running in WIPP_FLOW mode and intend to &
-                &include gas generation.'
-              call PrintErrMsg(option)
-            case('SURFACE_SUBSURFACE')
-              call SurfSubsurfaceReadFlowPM(input,option,new_pm)
-            case('GEOMECHANICS_SUBSURFACE')
-              option%geomech_on = PETSC_TRUE
-              new_pm => PMGeomechForceCreate()
-            case('AUXILIARY')
-              if (len_trim(pm_name) < 1) then
-                option%io_buffer = 'AUXILIARY process models must have a name.'
-                call PrintErrMsg(option)
-              endif
-              new_pm => PMAuxiliaryCreate()
-              input%buf = pm_name
-              call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
               call InputKeywordUnrecognized(input,word, &
                      'SIMULATION,PROCESS_MODELS',option)            
@@ -387,10 +342,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select case(simulation_type)
     case('SUBSURFACE')
       simulation => SubsurfaceSimulationCreate(option)
-    case('SURFACE_SUBSURFACE')
-      simulation => SurfSubsurfaceSimulationCreate(option)
-    case('GEOMECHANICS_SUBSURFACE')
-      simulation => GeomechanicsSimulationCreate(option)
     case default
       if (len_trim(simulation_type) == 0) then
         option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
@@ -407,10 +358,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   select type(simulation)
     class is(simulation_subsurface_type)
       call SubsurfaceInitialize(simulation)  
-    class is(simulation_surfsubsurface_type)
-      call SurfSubsurfaceInitialize(simulation)
-    class is(simulation_geomechanics_type)
-      call GeomechanicsInitialize(simulation)
   end select
   
 end subroutine PFLOTRANReadSimulation

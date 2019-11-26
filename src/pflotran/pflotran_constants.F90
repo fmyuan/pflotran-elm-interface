@@ -73,11 +73,12 @@ module PFLOTRAN_Constants_module
   ! constants
                              ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
   PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
-!to match BRAGFLO  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31451 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
   PetscReal, parameter, public :: EARTH_GRAVITY = 9.8068d0 ! m/s^2
+
+  PetscReal, parameter, public :: TC2TK = 273.15d0
   
   PetscInt, parameter, public :: ZERO_INTEGER = 0
   PetscInt, parameter, public :: ONE_INTEGER = 1
@@ -116,11 +117,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TIME_NULL = 0
   PetscInt, parameter, public :: TIME_T = 1
   PetscInt, parameter, public :: TIME_TpDT = 2
-  
-  PetscInt, parameter, public :: SORPTION_LINEAR = 1
-  PetscInt, parameter, public :: SORPTION_LANGMUIR = 2
-  PetscInt, parameter, public :: SORPTION_FREUNDLICH  = 3
-  
+
   ! Classes
   PetscInt, parameter, public :: NULL_CLASS = 0
   PetscInt, parameter, public :: FLOW_CLASS = 1
@@ -132,40 +129,29 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: THREENPDOF = 3
   PetscInt, parameter, public :: NFLOWDOF = 4
   PetscInt, parameter, public :: NTRANDOF = 5
-  PetscInt, parameter, public :: SURF_ONEDOF = 6
-  PetscInt, parameter, public :: NGEODOF = 7
+  !PetscInt, parameter, public :: SURF_ONEDOF = 6
   
   PetscInt, parameter, public :: GLOBAL = 1
   PetscInt, parameter, public :: LOCAL = 2
   PetscInt, parameter, public :: NATURAL = 3
   
-  PetscInt, parameter, public :: NULL_MODE = 0
   
   ! flow modes
-  PetscInt, parameter, public :: MPH_MODE = 1
-  PetscInt, parameter, public :: RICHARDS_MODE = 2
-  PetscInt, parameter, public :: IMS_MODE = 3
-  PetscInt, parameter, public :: FLASH2_MODE = 4
-  PetscInt, parameter, public :: G_MODE = 5
-  PetscInt, parameter, public :: MIS_MODE = 6
-  PetscInt, parameter, public :: TH_MODE = 7
-  PetscInt, parameter, public :: TOIL_IMS_MODE = 8
-  PetscInt, parameter, public :: TOWG_MODE = 9
-  PetscInt, parameter, public :: WF_MODE = 10
-  PetscInt, parameter, public :: RICHARDS_TS_MODE = 11
-  PetscInt, parameter, public :: TH_TS_MODE = 12
-  PetscInt, parameter, public :: H_MODE = 13
+  PetscInt, parameter, public :: NULL_MODE = 0
+  PetscInt, parameter, public :: TH_MODE = 1
 
-  ! flow sub-modes
-  PetscInt, parameter, public :: TOWG_IMMISCIBLE = 1
-  PetscInt, parameter, public :: TOWG_TODD_LONGSTAFF = 2
-  PetscInt, parameter, public :: TOWG_BLACK_OIL = 3
-  PetscInt, parameter, public :: TOWG_SOLVENT_TL = 4
+  ! default flow mode's primary variable dof
+  PetscInt, parameter, public :: FLOW_TEMPERATURE_DOF = 0
+  ! for easy including T or not, temperature as 0 so that liq. water always indexing as 1
+  PetscInt, parameter, public :: FLOW_LIQ_PRESSURE_DOF = 1      ! this is default for liquid fluid
+  PetscInt, parameter, public :: FLOW_GAS_PRESSURE_DOF = 2
+  PetscInt, parameter, public :: FLOW_CONDUCTANCE_DOF = 3
+  PetscInt, parameter, public :: FLOW_ENTHALPY_DOF = 4
 
   ! transport modes
-  PetscInt, parameter, public :: RT_MODE = 1
-  PetscInt, parameter, public :: NWT_MODE = 2
-  PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
+  !PetscInt, parameter, public :: RT_MODE = 1
+  !PetscInt, parameter, public :: NWT_MODE = 2
+  !PetscInt, parameter, public :: EXPLICIT_ADVECTION = 10
   
   ! condition types
   PetscInt, parameter, public :: NULL_CONDITION = 0
@@ -192,15 +178,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
   PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
-  PetscInt, parameter, public :: WELL_MASS_RATE_TARGET = 24
-  PetscInt, parameter, public :: WELL_MASS_RATE_MAX = 25
-  PetscInt, parameter, public :: WELL_MASS_RATE_MIN = 26
-  PetscInt, parameter, public :: WELL_VOL_RATE_TARGET = 27
-  PetscInt, parameter, public :: WELL_VOL_RATE_MAX = 28
-  PetscInt, parameter, public :: WELL_VOL_RATE_MIN = 29
-  PetscInt, parameter, public :: WELL_BHP = 30
-  PetscInt, parameter, public :: WELL_BHP_MIN = 31
-  PetscInt, parameter, public :: WELL_BHP_MAX = 32
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
@@ -209,8 +186,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
   PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
   PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 39
-  
-  PetscInt, parameter, public :: WELL_SS = 100
   
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
@@ -223,40 +198,14 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: INITIAL_CONNECTION_TYPE = 3
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
   
-  ! dofs for each mode
-  PetscInt, parameter, public :: THC_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: THC_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: THC_CONCENTRATION_DOF = 3
-  PetscInt, parameter, public :: THC_MASS_RATE_DOF = 4
-  PetscInt, parameter, public :: THC_ENTHALPY_DOF = 5
-  
-  PetscInt, parameter, public :: TH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: TH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: TH_CONDUCTANCE_DOF = 3
-
-  PetscInt, parameter, public :: MPH_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MPH_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: MPH_CONCENTRATION_DOF = 3
-  
-  PetscInt, parameter, public :: RICHARDS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: RICHARDS_CONDUCTANCE_DOF = 2
-  
-  PetscInt, parameter, public :: MIS_PRESSURE_DOF = 1
-  PetscInt, parameter, public :: MIS_CONCENTRATION_DOF = 2
-  
-  ! mphase equation of state
-  PetscInt, parameter, public :: EOS_SPAN_WAGNER = 1
-  PetscInt, parameter, public :: EOS_MRK = 2
-  
-  ! phase ids
+  ! phase ids of any single & pure species (NOT mixture)
   PetscInt, parameter, public :: LIQUID_PHASE = 1
   PetscInt, parameter, public :: GAS_PHASE = 2
-  PetscInt, parameter, public :: OIL_PHASE = 3
-  PetscInt, parameter, public :: SOLVENT_PHASE = 4
-
-  PetscInt, parameter, public :: MAX_PHASE = 4
+  PetscInt, parameter, public :: SOLID_PHASE = 3
+  PetscInt, parameter, public :: SUSPENSE_PHASE = 4  ! tiny solid particles tending to mobile with fluid
+  PetscInt, parameter, public :: MAX_PHASE = 3 ! NOT YET include OIL fluid
   
-  ! approaches to coupling reactive transport
+  ! approaches to coupling transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0
   PetscInt, parameter, public :: OPERATOR_SPLIT = 1
   
@@ -271,7 +220,7 @@ module PFLOTRAN_Constants_module
   
   ! surface/subsurface flags
   PetscInt, parameter, public :: SUBSURFACE = 0
-  PetscInt, parameter, public :: SURFACE    = 1
+  !PetscInt, parameter, public :: SURFACE    = 1
   
   PetscInt, parameter, public :: DECOUPLED     = 0
   PetscInt, parameter, public :: SEQ_COUPLED = 1
@@ -306,18 +255,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: VERTEX_CENTERED_OUTPUT_MESH = 1
   PetscInt, parameter, public :: CELL_CENTERED_OUTPUT_MESH = 2
 
-  ! Geomechanics
-  PetscInt, parameter, public :: GEOMECH_DISP_X_DOF = 1
-  PetscInt, parameter, public :: GEOMECH_DISP_Y_DOF = 2
-  PetscInt, parameter, public :: GEOMECH_DISP_Z_DOF = 3
-  PetscInt, parameter, public :: GEOMECH_ONE_WAY_COUPLED = 4
-  PetscInt, parameter, public :: GEOMECH_TWO_WAY_COUPLED = 5
-
   ! Macros that are used as 'vscatter_index' values
   PetscInt, parameter, public :: SURF_TO_SUBSURF = 1
   PetscInt, parameter, public :: SUBSURF_TO_SURF = 2
-  PetscInt, parameter, public :: SUBSURF_TO_GEOMECHANICS = 3
-  PetscInt, parameter, public :: GEOMECHANICS_TO_SUBSURF = 4
   
   ! Ice/water/vapor partitioning model
   PetscInt, parameter, public :: PAINTER_EXPLICIT = 1

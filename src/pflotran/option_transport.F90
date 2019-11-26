@@ -29,7 +29,7 @@ module Option_Transport_module
     PetscBool :: only_vertical_tran
     PetscBool :: numerical_derivatives
 
-    PetscInt :: nphase
+    PetscInt :: nfluids
         
   end type transport_option_type
   
@@ -127,7 +127,7 @@ subroutine OptionTransportInitRealization(option)
   option%inf_rel_update_tol = UNINITIALIZED_DOUBLE
   option%inf_scaled_res_tol = UNINITIALIZED_DOUBLE 
 
-  option%nphase = 1
+  option%nfluids = 0
 
   option%only_vertical_tran = PETSC_FALSE
   

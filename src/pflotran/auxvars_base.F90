@@ -9,7 +9,6 @@ module AuxVars_Base_module
   private 
 
   type, public :: auxvar_base_type
-    PetscReal :: effective_porosity ! factors in compressibility - common to all modes??
     PetscReal :: pert ! common to all modes to (perturbation for numerical jacobian)
   contains
     procedure, public :: Init => AuxVarBaseInit

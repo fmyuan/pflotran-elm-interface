@@ -255,7 +255,10 @@ subroutine ConnectionCalculateDistances(dist,gravity,distance_upwind, &
   ! upweight could be calculated as 1.d0-fraction_upwind
   ! however, this introduces ever so slight error causing pflow-overhaul not
   ! to match pflow-orig.  This can be changed to 1.d0-fraction_upwind
-  upwind_weight = distance_downwind/(distance_upwind+distance_downwind)
+  !upwind_weight = distance_downwind/(distance_upwind+distance_downwind)
+  ! NOTE: fmy - the above doesn't make sense: why using 'distance_downwind' for 'upwind_weight'?
+  !   especially 'upwind_weight' is used to average properties of connected cells, like water density etc.
+  upwind_weight = distance_upwind/(distance_upwind+distance_downwind)
   
 end subroutine ConnectionCalculateDistances
 

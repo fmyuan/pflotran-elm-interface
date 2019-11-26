@@ -28,21 +28,9 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Init_Common_module
   use Material_module
   
-  use Flash2_module
-  use Mphase_module
-  use Immis_module
-  use Miscible_module
-  use PM_Richards_TS_class
-  use PM_TH_TS_class
-  use Richards_module
-  use TH_module
-  use General_module
-  use Hydrate_module
-  use WIPP_Flow_module
-  use TOilIms_module
-  use TOWG_module
+
+  use Flowmode_module
   use Condition_Control_module
-  use co2_sw_module, only : init_span_wagner
   
   implicit none
   
@@ -59,39 +47,15 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE,WF_MODE,G_MODE,H_MODE,TOIL_IMS_MODE, &
-           TOWG_MODE)
+      case(TH_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
     end select
     select case(option%iflowmode)
-      case(TH_MODE,TH_TS_MODE)
-        call THSetup(realization)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
-        call RichardsSetup(realization)
-      case(MPH_MODE)
-        call init_span_wagner(option)      
-        call MphaseSetup(realization)
-      case(IMS_MODE)
-        call init_span_wagner(option)      
-        call ImmisSetup(realization)
-      case(MIS_MODE)
-        call MiscibleSetup(realization)
-      case(FLASH2_MODE)
-        call init_span_wagner(option)      
-        call Flash2Setup(realization)
-      case(WF_MODE)
-        call WIPPFloSetup(realization)
-      case(G_MODE)
-        call GeneralSetup(realization)
-      case(H_MODE)
-        call HydrateSetup(realization)
-      case(TOIL_IMS_MODE)
-        call TOilImsSetup(realization)
-      case(TOWG_MODE)
-        call TOWGSetup(realization)
+      case(TH_MODE)
+        call FlowmodeSetup(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call PrintErrMsg(option)
@@ -108,34 +72,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   
     select case(option%iflowmode)
       case(TH_MODE)
-        call THUpdateAuxVars(realization)      
-      case(TH_TS_MODE)
-        call PMTHTSUpdateAuxVarsPatch(realization)
-      case(RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
-      case(RICHARDS_TS_MODE)
-        call PMRichardsTSUpdateAuxVarsPatch(realization)
-      case(MPH_MODE)
-        call MphaseUpdateAuxVars(realization)
-      case(IMS_MODE)
-        call ImmisUpdateAuxVars(realization)
-      case(MIS_MODE)
-        call MiscibleUpdateAuxVars(realization)
-      case(FLASH2_MODE)
-        call Flash2UpdateAuxVars(realization)
-      case(G_MODE)
-        !geh: cannot update state during initialization as the guess will be
-        !     assigned as the initial condition if the state changes. therefore,
-        !     pass in PETSC_FALSE. But update BCs (second PETSC_TRUE)
-        call GeneralUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE)
-      case(H_MODE)
-        call HydrateUpdateAuxVars(realization,PETSC_FALSE)
-      case(WF_MODE)
-        call WIPPFloUpdateAuxVars(realization)
-      case(TOIL_IMS_MODE)
-        call TOilImsUpdateAuxVars(realization)
-      case(TOWG_MODE)
-        call TOWGUpdateAuxVars(realization,PETSC_FALSE)
+        call FlowmodeUpdateAuxVars(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
         call PrintErrMsg(option)
@@ -167,7 +104,9 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   use Patch_module
   use Discretization_module
   use HDF5_module
-  
+
+  use Flowmode_Aux_module
+
   implicit none
   
   class(realization_subsurface_type) :: realization
@@ -192,9 +131,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE &
-    .or. option%iflowmode /= RICHARDS_TS_MODE &
-    .or. option%iflowmode /= TH_MODE) then
+  if (option%iflowmode /= TH_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
@@ -211,11 +148,8 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
     ! Pressure for all modes 
-    if (option%iflowmode == RICHARDS_MODE &
-      .or. option%iflowmode == RICHARDS_TS_MODE) then
-      offset = RICHARDS_PRESSURE_DOF
-    elseif (option%iflowmode == TH_MODE) then
-      offset = TH_PRESSURE_DOF
+    if (option%iflowmode == TH_MODE) then
+      offset = FLOW_LIQ_PRESSURE_DOF
     endif
     !offset = 1
     group_name = ''
@@ -237,7 +171,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
 
     ! Temperature for TH mode
     if (option%iflowmode == TH_MODE) then
-      offset = TH_TEMPERATURE_DOF
+      offset = FLOW_TEMPERATURE_DOF
       group_name = ''
       dataset_name = 'Temperature'
       call HDF5ReadCellIndexedRealArray(realization,field%work, &

@@ -426,8 +426,6 @@ subroutine SolverReadLinear(solver,input,option)
   select case(solver%itype)
     case(FLOW_CLASS)
       prefix = '-flow_'
-    case(TRANSPORT_CLASS)
-      prefix = '-tran_'
   end select
 
   if(option%flow%resdef) then
@@ -1017,11 +1015,6 @@ subroutine SolverReadNewton(solver,input,option)
             'MULTIPLE_CONTINUUM keyword.'
           call PrintErrMsg(option)
         endif
-        if (.not.solver%itype == TRANSPORT_CLASS) then
-          option%io_buffer = 'NEWTON ITOL_SEC supported in ' // &
-            'TRANSPORT only.'
-          call PrintErrMsg(option)
-        endif         
         call InputReadDouble(input,option,solver%newton_inf_res_tol_sec)
         call InputErrorMsg(input,option,'newton_inf_res_tol_sec', &
                            'NEWTON_SOLVER')
@@ -1582,8 +1575,6 @@ subroutine SolverLinearPrintFailedReason(solver,option)
             select case(solver%itype)
               case(FLOW_CLASS)
                 string = 'Flow'
-              case(TRANSPORT_CLASS)
-                string = 'Transport'
             end select
             call PCFactorGetZeroPivot(pc,zero_pivot_tol, &
                                       ierr);CHKERRQ(ierr)

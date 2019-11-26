@@ -7,7 +7,6 @@ module Output_module
 
  ! use Output_Surface_module
   use Output_HDF5_module
-  use Output_Tecplot_module
   use Output_VTK_module
   use Output_Observation_module
   
@@ -18,13 +17,9 @@ module Output_module
 
   private
 
-  PetscInt, parameter :: TECPLOT_INTEGER = 0
-  PetscInt, parameter :: TECPLOT_REAL = 1
-
   PetscInt, parameter :: VTK_INTEGER = 0
   PetscInt, parameter :: VTK_REAL = 1
 
-  PetscInt, parameter :: TECPLOT_FILE = 0
   PetscInt, parameter ::  HDF5_FILE = 1
 
   
@@ -141,8 +136,6 @@ subroutine OutputFileRead(input,realization,output_option, &
       output_option%print_observation = PETSC_TRUE
     case('MASS_BALANCE_FILE')
       option%compute_mass_balance_new = PETSC_TRUE
-    case('ECLIPSE_FILE')
-      output_option%write_ecl = PETSC_TRUE
   end select
 
   call InputPushBlock(input,option)
@@ -185,11 +178,6 @@ subroutine OutputFileRead(input,realization,output_option, &
             output_option%write_masses = PETSC_TRUE
         end select
 
-      case('FORMATTED')
-        select case(trim(block_name))
-          case('ECLIPSE_FILE')
-            output_option%eclipse_options%write_ecl_form = PETSC_TRUE
-        end select
 !...............................
       case('TOTAL_MASS_REGIONS')
         select case(trim(block_name))
@@ -389,26 +377,10 @@ subroutine OutputFileRead(input,realization,output_option, &
             units_conversion = UnitsConvertToInternal(word, &
                  internal_units,option)
             deltat = temp_real*units_conversion
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltat = deltat
-              output_option%eclipse_options%write_ecl_sum_deltas = -1
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltat = deltat
-              output_option%eclipse_options%write_ecl_rst_deltas = -1
-            endif
           case('TIMESTEP')
             deltas = -1
             string = 'OUTPUT,' // trim(block_name) // ',' //trim(word)// ',TIMESTEP'
               call InputReadInt(input,option,deltas)
-            if( is_sum ) then
-              output_option%eclipse_options%write_ecl_sum_deltas = deltas
-              output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-            endif
-            if( is_rst ) then
-              output_option%eclipse_options%write_ecl_rst_deltas = deltas
-              output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-            endif
         end select
 !...................
       case('SCREEN')
@@ -484,29 +456,6 @@ subroutine OutputFileRead(input,realization,output_option, &
               end select
             endif
         !.................
-          case ('TECPLOT')
-            string = trim(string) // ',TECPLOT'
-            output_option%print_tecplot = PETSC_TRUE
-            call InputReadCard(input,option,word)
-            call InputErrorMsg(input,option,'TECPLOT format',string) 
-            call StringToUpper(word)
-            select case(trim(word))
-              case('POINT')
-                output_option%tecplot_format = TECPLOT_POINT_FORMAT
-              case('BLOCK')
-                output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
-              case('FEBRICK')
-                output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
-              case default
-                call InputKeywordUnrecognized(input,word,string,option)
-            end select
-            if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
-                 .and. option%mycommsize > 1) then
-              output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
-            endif
-            if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
-              output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
-            endif
         !.............
           case ('VTK')
             output_option%print_vtk = PETSC_TRUE
@@ -582,8 +531,6 @@ subroutine OutputFileRead(input,realization,output_option, &
   
 
   if (vel_cent) then
-    if (output_option%print_tecplot) &
-         output_option%print_tecplot_vel_cent = PETSC_TRUE
     if (output_option%print_hdf5) &
          output_option%print_hdf5_vel_cent = PETSC_TRUE
     if (output_option%print_vtk) &
@@ -591,8 +538,6 @@ subroutine OutputFileRead(input,realization,output_option, &
   endif
 
   if (vel_face) then
-    if (output_option%print_tecplot) &
-         output_option%print_tecplot_vel_face = PETSC_TRUE
     if (output_option%print_hdf5) &
          output_option%print_hdf5_vel_face = PETSC_TRUE
   endif
@@ -950,52 +895,52 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MOLE_FRACTION, &
-                                     option%air_id)
+                                     option%gas_fluid)
         name = 'X_l^l'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MOLE_FRACTION, &
-                                     option%water_id)
+                                     option%liq_fluid)
       case ('GAS_MOLE_FRACTIONS')
         name = 'X_g^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MOLE_FRACTION, &
-                                     option%air_id)
+                                     option%gas_fluid)
         name = 'X_l^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MOLE_FRACTION, &
-                                     option%water_id)
+                                     option%liq_fluid)
       case ('LIQUID_MASS_FRACTIONS')
         name = 'w_g^l'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MASS_FRACTION, &
-                                     option%air_id)
+                                     option%gas_fluid)
         name = 'w_l^l'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MASS_FRACTION, &
-                                     option%water_id)
+                                     option%liq_fluid)
       case ('GAS_MASS_FRACTIONS')
         name = 'w_g^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MASS_FRACTION, &
-                                     option%air_id)
+                                     option%gas_fluid)
         name = 'w_l^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MASS_FRACTION, &
-                                     option%water_id)
+                                     option%liq_fluid)
       case ('AIR_PRESSURE')
         name = 'Air Pressure'
         units = 'Pa'
@@ -1309,33 +1254,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
       call printMsg(option)
 #endif
     endif
-   
-    if (realization_base%output_option%print_tecplot) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      select case(realization_base%output_option%tecplot_format)
-        case (TECPLOT_POINT_FORMAT)
-          call OutputTecplotPoint(realization_base)
-        case (TECPLOT_BLOCK_FORMAT,TECPLOT_FEBRICK_FORMAT)
-          call OutputTecplotBlock(realization_base)
-      end select
-      call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to Tecplot file(s)")') &
-            tend-tstart
-      call PrintMsg(option)
-    endif
-    
-    if (realization_base%output_option%print_explicit_flowrate) then
-      call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      call OutputPrintExplicitFlowrates(realization_base)
-      call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-      call PetscTime(tend,ierr);CHKERRQ(ierr)
-      write(option%io_buffer,'(f10.2," Seconds to write to Rates file.")') &
-            tend-tstart
-      call PrintMsg(option)
-    endif
 
     if (realization_base%output_option%print_vtk) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
@@ -1348,24 +1266,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
             tend-tstart
       call PrintMsg(option)
     endif
-      
-    ! Print secondary continuum variables vs sec. continuum dist.
-    if (option%use_mc) then
-      if (realization_base%output_option%print_tecplot) then
-        call PetscTime(tstart,ierr);CHKERRQ(ierr)
-        call PetscLogEventBegin(logging%event_output_secondary_tecplot, &
-                                ierr);CHKERRQ(ierr)
-        call OutputSecondaryContinuumTecplot(realization_base)
-        call PetscLogEventEnd(logging%event_output_secondary_tecplot, &
-                              ierr);CHKERRQ(ierr)
-        call PetscTime(tend,ierr);CHKERRQ(ierr)
-        write(option%io_buffer,'(f10.2," Seconds to write to secondary' // &
-              ' continuum Tecplot file(s)")') &
-              tend-tstart
-        call PrintMsg(option)
-      endif
-    endif
-      
+
     if (option%compute_statistics) then
       call ComputeFlowCellVelocityStats(realization_base)
       call ComputeFlowFluxVelocityStats(realization_base)
@@ -1381,17 +1282,6 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 !.................................
   if (massbal_plot_flag) then
     call OutputMassBalance(realization_base)
-  endif
-
-  !  Output Eclipse files for this step if required
-  if( realization_base%output_option%write_ecl ) then
-    call OutputEclipseFiles(realization_base)
-  endif
-
-  ! Output single-line report for this step if required
-  if (option%linerept) then
-    option%print_to_screen = PETSC_FALSE
-    call OutputLineRept(realization_base,option)
   endif
 
   ! Output temporally average variables 
@@ -1486,30 +1376,6 @@ subroutine OutputInputRecord(output_option,waypoint_list)
 
   write(id,'(a29)',advance='no') '---------------------------: '
   write(id,'(a)') 'snapshot file output'
-  if (output_option%print_tecplot) then
-    write(id,'(a29)',advance='no') 'format: '
-    if (output_option%tecplot_format == TECPLOT_POINT_FORMAT) then
-      write(id,'(a)') 'tecplot point'
-    endif
-    if (output_option%tecplot_format == TECPLOT_BLOCK_FORMAT) then
-      write(id,'(a)') 'tecplot block'
-    endif
-    if (output_option%tecplot_format == TECPLOT_FEBRICK_FORMAT) then
-      write(id,'(a)') 'tecplot febrick'
-    endif
-    if (output_option%print_fluxes) then
-      write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') 'print fluxes'
-    endif
-    if (output_option%print_tecplot_vel_cent) then
-      write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') 'velocity on cell centers'
-    endif
-    if (output_option%print_tecplot_vel_face) then
-      write(id,'(a29)',advance='no') ' '
-      write(id,'(a)') 'velocity on cell faces'
-    endif
-  endif
   if (output_option%print_hdf5) then
     write(id,'(a29)',advance='no') 'format: '
     if (output_option%print_single_h5_file) then
@@ -1772,7 +1638,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec2)
 
-  do iphase = 1,option%nphase
+  do iphase = 1,option%nfluids
 
     do direction = 1,3
     
@@ -1931,7 +1797,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec) 
   call DiscretizationDuplicateVector(discretization,field%work,global_vec2) 
 
-  do iphase = 1,option%nphase
+  do iphase = 1,option%nfluids
     do direction = 1,3
     
       call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
@@ -2028,9 +1894,8 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
-  use General_Aux_module
-  use Hydrate_Aux_module
-  use WIPP_Flow_Aux_module
+  use Flowmode_Aux_module
+
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -2062,28 +1927,12 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(RICHARDS_MODE,RICHARDS_TS_MODE)
-      allocate(iauxvars(1),auxvar_names(1))
-      iauxvars(1) = RICHARDS_PRESSURE_DOF
-      auxvar_names(1) = 'pressure'
-    case(G_MODE)
+    case(TH_MODE)
       allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
+      iauxvars(1) = FLOW_LIQ_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
+      iauxvars(2) = FLOW_TEMPERATURE_DOF
       auxvar_names(2) = 'temperature'
-    case(H_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = HYDRATE_LIQUID_PRESSURE_DOF
-      auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = HYDRATE_ENERGY_DOF
-      auxvar_names(2) = 'temperature'
-    case(WF_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
-      auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
-      auxvar_names(2) = 'gas_saturation'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'
@@ -2127,8 +1976,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
       if (len_trim(option%group_prefix) > 1) then
         string = trim(string) // trim(option%group_prefix)
       endif
-      string = trim(string) // '.tec'
-      call OutputVectorTecplot(string,word,realization_base,field%work)
     enddo
       
   enddo
@@ -2182,9 +2029,6 @@ subroutine OutputPrintRegions(realization_base)
       vec_ptr(cur_region%cell_ids(i)) = vec_ptr(cur_region%cell_ids(i)) + 1.d0
     enddo
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    string = 'region_' // trim(cur_region%name) // '.tec'
-    word = 'region'
-    call OutputVectorTecplot(string,word,realization_base,field%work)
     cur_region => cur_region%next
   enddo
   

@@ -79,7 +79,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
   use String_module
   
 ! 64-bit stuff
@@ -263,7 +263,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   end select
 
   include_gas_phase = PETSC_FALSE
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nfluids > 1 .or. option%transport%nfluids > 1) then
     include_gas_phase = PETSC_TRUE
   endif
   if (output_option%print_hdf5_vel_cent .and. &
@@ -490,7 +490,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -808,7 +808,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
       endif
     enddo
 
-    if (option%nphase > 1) then
+    if (option%nfluids > 1) then
         call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                              global_vec_vy,global_vec_vz, &
                                              GAS_PHASE)
@@ -891,7 +891,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   use Grid_module
   use Field_module
   use Patch_module
-  use Reaction_Aux_module
+
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -2718,9 +2718,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
   select case(option%iflowmode)
-    case (RICHARDS_MODE,RICHARDS_TS_MODE)
-      ndof=1
-    case (TH_MODE,TH_TS_MODE)
+    case (TH_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate .and. &
           output_option%print_hdf5_energy_flowrate) ndof = 2
@@ -2756,9 +2754,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
-        string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
-      case(TH_MODE,TH_TS_MODE)
+      case(TH_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
         else
@@ -2931,7 +2927,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   PetscInt :: local_id_up,local_id_dn
   PetscInt :: ghosted_id_up,ghosted_id_dn
   PetscInt :: iface_up,iface_dn
-  PetscInt :: iphase
+  PetscInt :: ifluid
   PetscInt :: sum_connection
   PetscInt :: offset
   PetscInt :: cell_type
@@ -2965,18 +2961,18 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   output_option =>realization_base%output_option
   field => realization_base%field
 
-  if (option%nphase == 1 .and. option%transport%nphase > 1) then
+  if (option%nfluids == 1 .and. option%transport%nfluids > 1) then
     option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
       &transport without flow in the gas phase.'
     call PrintErrMsg(option)
   endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
-  local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)
+  local_size = local_size/(option%nfluids*MAX_FACE_PER_CELL + 1)
 
   allocate(double_array(local_size*(MAX_FACE_PER_CELL+1)))
   double_array = 0.d0
 
-  offset = option%nphase*MAX_FACE_PER_CELL+1
+  offset = option%nfluids*MAX_FACE_PER_CELL+1
 
   do idir = 1,3
 
@@ -2992,9 +2988,9 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
         call VecGetArrayF90(field%vz_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
     end select
 
-    do iphase = 1,option%nphase
+    do ifluid = 1, option%nfluids
 
-      select case (iphase)
+      select case (ifluid)
         case (LIQUID_PHASE)
           string = "Liquid " // string_dir // "-Velocity at cell face [m_per_" &
             // trim(output_option%tunit) // "]"
@@ -3061,7 +3057,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
             ! Flowrate values for each face
             do iface = 1,MAX_FACE_PER_CELL
               double_array((i-1)*(MAX_FACE_PER_CELL+1)+iface+1) = &
-              vec_ptr1((i-1)*offset + (iphase-1)*MAX_FACE_PER_CELL + iface + 1)* &
+              vec_ptr1((i-1)*offset + (ifluid-1)*MAX_FACE_PER_CELL + iface + 1)* &
               realization_base%output_option%tconv
             enddo
           enddo

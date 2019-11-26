@@ -171,7 +171,7 @@ module Output_Aux_module
   PetscInt, parameter, public :: OUTPUT_GENERIC = 0
   PetscInt, parameter, public :: OUTPUT_PRESSURE = 1
   PetscInt, parameter, public :: OUTPUT_SATURATION = 2
-  PetscInt, parameter, public :: OUTPUT_CONCENTRATION = 3
+  PetscInt, parameter, public :: OUTPUT_FLUX = 3
   PetscInt, parameter, public :: OUTPUT_RATE = 4
   PetscInt, parameter, public :: OUTPUT_VOLUME_FRACTION = 5
   PetscInt, parameter, public :: OUTPUT_DISCRETE = 6
@@ -197,7 +197,6 @@ module Output_Aux_module
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
             CheckpointOptionDestroy, &
-            CreateOutputOptionEclipse, &
             OutputH5Create, &
             OutputH5Destroy
 
@@ -887,8 +886,8 @@ function OutputVariableToCategoryString(icategory)
       string = 'PRESSURE'
     case(OUTPUT_SATURATION)
       string = 'SATURATION'
-    case(OUTPUT_CONCENTRATION)
-      string = 'CONCENTRATION'
+    case(OUTPUT_FLUX)
+      string = 'FLUX'
     case(OUTPUT_RATE)
       string = 'RATE'
     case(OUTPUT_VOLUME_FRACTION)
@@ -1095,57 +1094,6 @@ end subroutine OutputMassBalRegDestroy
 
 ! ************************************************************************** !
 
-subroutine CreateOutputOptionEclipse(output_option)
-  !
-  ! Creates and initialises the Eclipse output option block
-  !
-  ! Author: Dave Ponting
-  ! Date: 01/29/07
-  !
-
-  implicit none
-
-  type(output_option_type), pointer :: output_option
-
-  if (.not.associated(output_option%eclipse_options) ) then
-    allocate(output_option%eclipse_options)
-!  Initial defaults for Eclipse format input and output
-    output_option%eclipse_options%write_ecl_form  = PETSC_FALSE
-
-    output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-    output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-    output_option%eclipse_options%write_ecl_sum_deltas =  1
-    output_option%eclipse_options%write_ecl_rst_deltas =  10
-
-    output_option%eclipse_options%write_ecl_sum_lastt =  -1.0
-    output_option%eclipse_options%write_ecl_rst_lastt =  -1.0
-    output_option%eclipse_options%write_ecl_sum_lasts =  -1
-    output_option%eclipse_options%write_ecl_rst_lasts =  -1
-  endif
-
-end subroutine CreateOutputOptionEclipse
-
-! ************************************************************************** !
-
-subroutine DestroyOutputOptionEclipse(eclipse_options)
-  !
-  ! Deletes the Eclipse output option block
-  !
-  ! Author: Dave Ponting
-  ! Date: 01/29/07
-  !
-
-  implicit none
-
-  type(output_option_eclipse_type), pointer :: eclipse_options
-
-  if (associated(eclipse_options) ) then
-    deallocate(eclipse_options)
-    nullify(eclipse_options)
-  endif
-
-end subroutine DestroyOutputOptionEclipse
-
 ! ************************************************************************** !
 
 subroutine OutputH5Destroy(output_h5)
@@ -1200,8 +1148,6 @@ subroutine OutputOptionDestroy(output_option)
   
   call OutputMassBalRegDestroy(output_option%mass_balance_region_list)
 
-  call DestroyOutputOptionEclipse(output_option%eclipse_options)
-    
   deallocate(output_option)
   nullify(output_option)
   

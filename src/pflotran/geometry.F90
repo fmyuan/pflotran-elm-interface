@@ -67,7 +67,7 @@ module Geometry_module
             GeometryGetPlaneZIntercept, &
             GeomGetPlaneGradientinXandY, &
             GeomComputeDistanceFromPlane
-!           12345678901234567890123456789012
+
 contains
 
 ! ************************************************************************** !

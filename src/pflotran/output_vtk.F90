@@ -32,7 +32,6 @@ subroutine OutputVTK(realization_base)
   use Patch_module
   use String_module
   
-  use Reaction_Aux_module
   use Variables_module
  
   implicit none
@@ -49,7 +48,7 @@ subroutine OutputVTK(realization_base)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch 
-  class(reaction_rt_type), pointer :: reaction 
+
   type(output_option_type), pointer :: output_option
   type(output_variable_type), pointer :: cur_variable
   PetscReal, pointer :: vec_ptr(:)
@@ -62,7 +61,6 @@ subroutine OutputVTK(realization_base)
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
-  reaction => ReactionCast(realization_base%reaction_base)
   output_option => realization_base%output_option
   
   ! open file
@@ -253,7 +251,7 @@ subroutine OutputVelocitiesVTK(realization_base)
   call WriteVTKDataSetFromVec(OUTPUT_UNIT,realization_base,word, &
                               natural_vec,VTK_REAL)
 
-  if (option%nphase > 1 .or. option%transport%nphase > 1) then
+  if (option%nfluids > 1 .or. option%transport%nfluids > 1) then
     word = 'Vgx'
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz,GAS_PHASE)

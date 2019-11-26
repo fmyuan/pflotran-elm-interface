@@ -80,13 +80,13 @@ subroutine InitFlowGlobalAuxVar(realization,option)
     call GlobalSetAuxVarScalar(realization,option%reference_saturation, &
                                LIQUID_SATURATION)
     call GlobalSetAuxVarScalar(realization, &
-                               option%reference_density(option%liquid_phase), &
+                               option%reference_density(option%liq_fluid), &
                                LIQUID_DENSITY)
     if (option%transport%nphase > 1) then
       call GlobalSetAuxVarScalar(realization,1.d0-option%reference_saturation, &
                                  GAS_SATURATION)
       call GlobalSetAuxVarScalar(realization, &
-                                 option%reference_density(option%gas_phase), &
+                                 option%reference_density(option%gas_fluid), &
                                  GAS_DENSITY)
     endif
   else

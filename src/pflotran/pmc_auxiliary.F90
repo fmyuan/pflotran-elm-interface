@@ -3,7 +3,6 @@ module PMC_Auxiliary_class
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PMC_Base_class
-  use PM_Auxiliary_class
   use Realization_Subsurface_class
 
   use PFLOTRAN_Constants_module

@@ -11,7 +11,6 @@ module Realization_Base_class
   use Debug_module
   use Output_Aux_module
   use Field_module
-  use Reaction_Base_module
   use Data_Mediator_Base_class
   use Communicator_Base_module
   use Waypoint_module
@@ -36,9 +35,7 @@ module Realization_Base_class
     type(output_option_type), pointer :: output_option
     class(data_mediator_base_type), pointer :: flow_data_mediator_list
     class(data_mediator_base_type), pointer :: tran_data_mediator_list
-    
-    class(reaction_base_type), pointer :: reaction_base
-    
+
   end type realization_base_type
   
   public :: RealizationBaseInit, &
@@ -80,7 +77,6 @@ subroutine RealizationBaseInit(realization_base,option)
 
   realization_base%patch_list => PatchCreateList()
 
-  nullify(realization_base%reaction_base)
 
   nullify(realization_base%patch)
   nullify(realization_base%flow_data_mediator_list)
@@ -118,7 +114,6 @@ subroutine RealizationGetVariable(realization_base,vec,ivar,isubvar, &
   if (present(isubsubvar)) isubsubvar_temp = isubsubvar
   
   call PatchGetVariable(realization_base%patch,realization_base%field, &
-                        realization_base%reaction_base, &
                         realization_base%option, &
                         realization_base%output_option, &
                         vec,ivar,isubvar,isubsubvar_temp)
@@ -156,7 +151,6 @@ function RealizGetVariableValueAtCell(realization_base,ghosted_id, &
   
   value = PatchGetVariableValueAtCell(realization_base%patch, &
                                       realization_base%field, &
-                                      realization_base%reaction_base, &
                                       realization_base%option, &
                                       realization_base%output_option, &
                                       ghosted_id,ivar,isubvar,isubsubvar_temp)
@@ -253,8 +247,6 @@ subroutine RealizationBaseStrip(this)
   ! Date: 01/13/14
   ! 
   use Data_Mediator_module
-  use Reaction_Aux_module
-  use NW_Transport_Aux_module
   
   implicit none
   
@@ -279,15 +271,6 @@ subroutine RealizationBaseStrip(this)
   
   call DataMediatorDestroy(this%flow_data_mediator_list)
   call DataMediatorDestroy(this%tran_data_mediator_list)
-
-  ! Intel does not accept r=>this%reaction_base as it says it is not a 
-  ! pointer; therefore, have to cast below
-  select type(r=>this%reaction_base)
-    class is(reaction_rt_type)
-      call ReactionDestroy(ReactionCast(this%reaction_base),this%option)
-    class is(reaction_nw_type)
-      call NWTReactionDestroy(NWTReactionCast(this%reaction_base),this%option)
-  end select
 
 end subroutine RealizationBaseStrip
 

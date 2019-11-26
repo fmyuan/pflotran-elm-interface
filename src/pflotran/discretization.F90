@@ -139,7 +139,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Input_Aux_module
   use String_module
   use Material_Aux_class
-  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
+
 
   implicit none
 
@@ -185,10 +185,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputReadCard(input,option,discretization%ctype)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToUpper(discretization%ctype)
-        if (discretization%ctype == 'GRDECL') then
-          call SetIsGrdecl()
-          discretization%ctype = 'UNSTRUCTURED_EXPLICIT'
-        endif
         select case(trim(discretization%ctype))
           case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
@@ -284,13 +280,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          if (GetIsGrdecl()) then
-            call UGrdEclExplicitRead(un_str_grid, &
-                                     discretization%filename,option)
-          else
-            call UGridExplicitRead(un_str_grid, &
-                                   discretization%filename,option)
-          endif
+          call UGridExplicitRead(un_str_grid, &
+                                 discretization%filename,option)
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
@@ -730,7 +721,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
       discretization%dm_index_to_ndof(ONEDOF) = 1
       discretization%dm_index_to_ndof(NPHASEDOF) = o_nphase
       discretization%dm_index_to_ndof(NFLOWDOF) = o_nflowdof
-      discretization%dm_index_to_ndof(NTRANDOF) = o_ntrandof
+
     case(UNSTRUCTURED_GRID)
 
     
@@ -936,10 +927,6 @@ function DiscretizationGetDMPtrFromIndex(discretization,dm_index)
       DiscretizationGetDMPtrFromIndex => discretization%dm_1dof
     case(NFLOWDOF)
       DiscretizationGetDMPtrFromIndex => discretization%dm_nflowdof
-    case(NTRANDOF)
-      DiscretizationGetDMPtrFromIndex => discretization%dm_ntrandof
-    case(NGEODOF)
-      DiscretizationGetDMPtrFromIndex => discretization%dm_n_stress_strain_dof
   end select  
   
 end function DiscretizationGetDMPtrFromIndex
@@ -958,8 +945,6 @@ function DiscretizationGetDMCPtrFromIndex(discretization,dm_index)
   select case (dm_index)
     case(NFLOWDOF)
       DiscretizationGetDMCPtrFromIndex => discretization%dmc_nflowdof
-    case(NTRANDOF)
-      DiscretizationGetDMCPtrFromIndex => discretization%dmc_ntrandof
   end select  
   
 end function DiscretizationGetDMCPtrFromIndex
@@ -1055,13 +1040,6 @@ subroutine DiscretizationCreateInterpolation(discretization,dm_index, &
         nullify(discretization%dmc_nflowdof(i)%ugdm)
       enddo
       dmc_ptr => discretization%dmc_nflowdof
-    case(NTRANDOF)
-      allocate(discretization%dmc_ntrandof(mg_levels))
-      do i=1, mg_levels
-        discretization%dmc_ntrandof(i)%dm = PETSC_NULL_DM
-        nullify(discretization%dmc_ntrandof(i)%ugdm)
-      enddo
-      dmc_ptr => discretization%dmc_ntrandof
   end select  
    
   allocate(interpolation(mg_levels))

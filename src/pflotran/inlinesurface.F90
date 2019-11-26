@@ -7,6 +7,8 @@ module InlineSurface_module
   use Material_Aux_class, only : material_auxvar_type
   use Option_module
 
+  use Flowmode_Aux_module
+
   implicit none
 
   private
@@ -124,7 +126,7 @@ contains
 
   subroutine InlineSurfaceBCFlux(ibndtype,auxvar_up,auxvar_dn,area,dist,Res)
     ! 
-    ! Compute the inline surface boundary flux term to be used in Richards mode
+    ! Compute the inline surface boundary flux term to be used in G mode
     ! 
     ! Author: Nathan Collier
     ! Date: 09/2015
@@ -135,19 +137,14 @@ contains
     type(inlinesurface_auxvar_type) :: auxvar_up,auxvar_dn
     PetscReal :: area,dist(-1:3),Res(1)
 
-    select case(ibndtype(RICHARDS_PRESSURE_DOF))
-
-    case(SURFACE_DIRICHLET)
-
-      call InlineSurfaceFlux(auxvar_up,auxvar_dn,area,dist,Res)
-
-    case(SURFACE_SPILLOVER)
-
-      call InlineSurfaceFlux(auxvar_up,auxvar_dn,area,dist,Res)
-      if (auxvar_dn%surface_water_depth < auxvar_up%surface_water_depth) then
-        Res(1) = 0.0d0
-      endif
-
+    select case(ibndtype(FLOW_LIQ_PRESSURE_DOF))
+      case(SURFACE_DIRICHLET)
+        call InlineSurfaceFlux(auxvar_up,auxvar_dn,area,dist,Res)
+      case(SURFACE_SPILLOVER)
+        call InlineSurfaceFlux(auxvar_up,auxvar_dn,area,dist,Res)
+        if (auxvar_dn%surface_water_depth < auxvar_up%surface_water_depth) then
+          Res(1) = 0.0d0
+        endif
     case(SURFACE_ZERO_GRADHEIGHT)
 
       auxvar_dn%surface_water_depth = auxvar_up%surface_water_depth
@@ -224,19 +221,14 @@ contains
     type(option_type)               :: option
     PetscReal :: area,dist(-1:3),Jup(1,1),Jdn(1,1)
 
-    select case(ibndtype(RICHARDS_PRESSURE_DOF))
-
-    case(SURFACE_DIRICHLET)
-
-      call InlineSurfaceFluxJac(auxvar_up,auxvar_dn,area,dist,option,Jup,Jdn)
-
-    case(SURFACE_SPILLOVER)
-
-      call InlineSurfaceFluxJac(auxvar_up,auxvar_dn,area,dist,option,Jup,Jdn)
-      if (auxvar_dn%surface_water_depth < auxvar_up%surface_water_depth) then
-        Jdn = 0.d0
-      endif
-
+    select case(ibndtype(FLOW_LIQ_PRESSURE_DOF))
+      case(SURFACE_DIRICHLET)
+        call InlineSurfaceFluxJac(auxvar_up,auxvar_dn,area,dist,option,Jup,Jdn)
+      case(SURFACE_SPILLOVER)
+        call InlineSurfaceFluxJac(auxvar_up,auxvar_dn,area,dist,option,Jup,Jdn)
+        if (auxvar_dn%surface_water_depth < auxvar_up%surface_water_depth) then
+          Jdn = 0.d0
+        endif
     case(SURFACE_ZERO_GRADHEIGHT)
 
       auxvar_dn%surface_water_depth = auxvar_up%surface_water_depth

@@ -56,8 +56,8 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   use Grid_module
   use Patch_module
   use Material_Aux_class
-  use Fracture_module, only : FractureAuxVarInit
   
+
   implicit none
   
   class(realization_subsurface_type) :: realization
@@ -96,9 +96,6 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
     allocate(material_auxvars(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       call MaterialAuxVarInit(material_auxvars(ghosted_id),option)
-      if (option%flow%fracture_on) then
-        call FractureAuxVarInit(material_auxvars(ghosted_id))
-      endif
     enddo
     cur_patch%aux%Material%num_aux = grid%ngmax
     cur_patch%aux%Material%auxvars => material_auxvars
@@ -285,20 +282,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Material_Aux_class
   use Material_module
   use Option_module
-  use WIPP_module
-  use Creep_Closure_module
-  use Fracture_module
-  use Geomechanics_Subsurface_Properties_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY
   use HDF5_module
-  use Grid_Grdecl_module, only : GetPoroPermValues, &
-                                 WriteStaticDataAndCleanup, &
-                                 DeallocatePoroPermArrays, &
-                                 PermPoroExchangeAndSet,SatnumExchangeAndSet, &
-                                 GetIsGrdecl,GetSatnumSet,GetSatnumValue
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -362,11 +350,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! errors in gfortran
   Material => patch%aux%Material
   
-  !if material is associated with fracture, then allocate memory.
-  wipp => WIPPGetPtr()
-  call CreepClosureConvertListToArray(wipp%creep_closure_tables, &
-                                      wipp%creep_closure_tables_array, &
-                                      option)
   
   do ghosted_id = 1, grid%ngmax
     material_id = patch%imat(ghosted_id)
@@ -374,32 +357,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
       material_property => &
         patch%material_property_array(material_id)%ptr
       
-    call GeomechanicsSubsurfacePropsAuxvarInit( &
-          material_property%geomechanics_subsurface_properties, &
-          patch%aux%Material%auxvars(ghosted_id))
-        
-      ! lookup creep closure table id from creep closure table name
-      if (option%flow%creep_closure_on) then
-        material_property%creep_closure_id = &
-          CreepClosureGetID(wipp%creep_closure_tables_array, &
-                             material_property%creep_closure_name, &
-                             material_property%name,option)
-      ! copy creep closure table id from material to material_aux
-      patch%aux%Material%auxvars(ghosted_id)%creep_closure_id = &
-        material_property%creep_closure_id
-      endif
     endif
   enddo
-  
-  !  Prepare for exchange of cell indices and check if satnum set
-
-  satnum_set = PETSC_FALSE
-  if (GetIsGrdecl()) then
-    if (option%myrank /= option%io_rank) then
-      allocate(inatsend(grid%nlmax))
-    endif
-    satnum_set = GetSatnumSet(maxsatn)
-  endif
   
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -456,48 +415,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
 
-    if (GetIsGrdecl()) then
-
-      natural_id = grid%nG2A(ghosted_id)
-
-      if (option%myrank == option%io_rank) then
-  !  Simply set up the values on the I/O proc
-        call GetPoroPermValues(natural_id,poro,permx,permy,permz)
-        por0_p(local_id)    = poro
-        perm_xx_p(local_id) = permx
-        perm_yy_p(local_id) = permy
-        perm_zz_p(local_id) = permz
-        if( satnum_set ) then
-  !  Set satnums on this proc
-          isatnum = GetSatnumValue(natural_id)
-          if (option%nflowdof > 0) then
-             patch%sat_func_id(ghosted_id) = isatnum
-          endif
-        endif
-      else
-  !  Add to the request list on other procs
-        inatsend(local_id)=natural_id
-      endif
-
-    endif
   enddo
 
-  if (GetIsGrdecl()) then
-    call PermPoroExchangeAndSet(por0_p,perm_xx_p,perm_yy_p,perm_zz_p, &
-                                inatsend,grid%nlmax,option)
-    if( satnum_set ) then
-      call SatnumExchangeAndSet(patch%sat_func_id, &
-                                inatsend, grid%nlmax, grid%nL2G, option)
-    endif
-    if (option%myrank .ne. option%io_rank) then
-      call DeallocateArray(inatsend)
-    endif
-    write_ecl = realization%output_option%write_ecl
-    call WriteStaticDataAndCleanup(write_ecl, &
-                                realization%output_option%eclipse_options, &
-                                option)
-    call DeallocatePoroPermArrays(option)
-  endif
 
   call MaterialPropertyDestroy(null_material_property)
 
@@ -616,18 +535,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
     enddo
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
-
-  if (option%geomech_on) then
-    call VecCopy(field%porosity0,field%porosity_geomech_store,ierr);CHKERRQ(ierr)
-#ifdef GEOMECH_DEBUG
-    print *, 'InitSubsurfAssignMatProperties'
-    call PetscViewerASCIIOpen(realization%option%mycomm, &
-                              'porosity_geomech_store_por0.out', &
-                              viewer,ierr);CHKERRQ(ierr)
-    call VecView(field%porosity_geomech_store,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-#endif
-  endif
 
 end subroutine InitSubsurfAssignMatProperties
 
@@ -1085,133 +992,26 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     dof_is_active = PETSC_TRUE
 #if defined(ISOTHERMAL)
     select case(option%iflowmode)
-      case(TH_MODE,TH_TS_MODE)
+      case(TH_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
-      case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE)
-        ! third equation is energy
-        dof_is_active(THREE_INTEGER) = PETSC_FALSE
     end select
 #endif
+
     select case(option%iflowmode)
       !TODO(geh): refactors so that we don't need all these variants?
-      case(RICHARDS_MODE,RICHARDS_TS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Richards%zero_rows_local, &
-                      realization%patch%aux%Richards%zero_rows_local_ghosted, &
-                      realization%patch%aux%Richards%n_zero_rows, &
-                      realization%patch%aux%Richards%inactive_cells_exist, &
-                      option)
-      case(TH_MODE,TH_TS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TH%zero_rows_local, &
-                      realization%patch%aux%TH%zero_rows_local_ghosted, &
-                      realization%patch%aux%TH%n_zero_rows, &
-                      realization%patch%aux%TH%inactive_cells_exist, &
-                      option)
-      case(MPH_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Mphase%zero_rows_local, &
-                      realization%patch%aux%Mphase%zero_rows_local_ghosted, &
-                      realization%patch%aux%Mphase%n_zero_rows, &
-                      realization%patch%aux%Mphase%inactive_cells_exist, &
-                      option)
-      case(G_MODE)
+#if 0
+      case(TH_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%General%inactive_rows_local, &
                     realization%patch%aux%General%inactive_rows_local_ghosted, &
                       realization%patch%aux%General%n_inactive_rows, &
                       realization%patch%aux%General%inactive_cells_exist, &
                       option)
-      case(H_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Hydrate%inactive_rows_local, &
-                    realization%patch%aux%Hydrate%inactive_rows_local_ghosted, &
-                      realization%patch%aux%Hydrate%n_inactive_rows, &
-                      realization%patch%aux%Hydrate%inactive_cells_exist, &
-                      option)
-      case(WF_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%WIPPFlo%inactive_rows_local, &
-                    realization%patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
-                      realization%patch%aux%WIPPFlo%n_inactive_rows, &
-                      realization%patch%aux%WIPPFlo%inactive_cells_exist, &
-                      option)
-      case(TOIL_IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOil_ims%inactive_rows_local, &
-                   realization%patch%aux%TOil_ims%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOil_ims%n_inactive_rows, &
-                      realization%patch%aux%TOil_ims%inactive_cells_exist, &
-                      option)
-      case(TOWG_MODE)
-        !PO: same for all pm_XXX_aux - can be defined in PM_Base_Aux_module
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOWG%inactive_rows_local, &
-                   realization%patch%aux%TOWG%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOWG%n_inactive_rows, &
-                      realization%patch%aux%TOWG%inactive_cells_exist, &
-                      option)
-      case(IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Immis%zero_rows_local, &
-                      realization%patch%aux%Immis%zero_rows_local_ghosted, &
-                      realization%patch%aux%Immis%n_zero_rows, &
-                      realization%patch%aux%Immis%inactive_cells_exist, &
-                      option)
-      case(MIS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Miscible%zero_rows_local, &
-                      realization%patch%aux%Miscible%zero_rows_local_ghosted, &
-                      realization%patch%aux%Miscible%n_zero_rows, &
-                      realization%patch%aux%Miscible%inactive_cells_exist, &
-                      option)
-      case(FLASH2_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Flash2%zero_rows_local, &
-                      realization%patch%aux%Flash2%zero_rows_local_ghosted, &
-                      realization%patch%aux%Flash2%n_zero_rows, &
-                      realization%patch%aux%Flash2%inactive_cells_exist, &
-                      option)
+#endif
     end select
     deallocate(dof_is_active)
   endif
-
-  if (option%ntrandof > 0) then
-    select case(option%itranmode)
-      case(RT_MODE,EXPLICIT_ADVECTION)
-        ! remove ndof above if this is moved
-        if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-          ndof = realization%reaction%ncomp
-        else
-          ndof = 1
-        endif
-        allocate(dof_is_active(ndof))
-        dof_is_active = PETSC_TRUE  
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%RT%zero_rows_local, &
-                      realization%patch%aux%RT%zero_rows_local_ghosted, &
-                      realization%patch%aux%RT%n_zero_rows, &
-                      realization%patch%aux%RT%inactive_cells_exist, &
-                      option)
-        deallocate(dof_is_active)
-      case(NWT_MODE)
-        if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
-          ndof = realization%reaction_nw%params%nspecies
-        else
-          ndof = 1
-        endif
-        allocate(dof_is_active(ndof))
-        dof_is_active = PETSC_TRUE 
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%NWT%zero_rows_local, &
-                      realization%patch%aux%NWT%zero_rows_local_ghosted, &
-                      realization%patch%aux%NWT%n_zero_rows, &
-                      realization%patch%aux%NWT%inactive_cells_exist, &
-                      option)
-        deallocate(dof_is_active)
-    end select
-  endif  
 
 end subroutine InitSubsurfaceSetupZeroArrays
 

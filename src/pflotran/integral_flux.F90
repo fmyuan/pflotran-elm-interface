@@ -240,7 +240,7 @@ subroutine IntegralFluxSizeStorage(integral_flux,option)
   type(integral_flux_type) :: integral_flux
   type(option_type) :: option
   
-  allocate(integral_flux%integral_value(option%nflowdof+option%ntrandof))
+  allocate(integral_flux%integral_value(option%nflowdof))
   integral_flux%integral_value = 0.d0
 
 end subroutine IntegralFluxSizeStorage
@@ -279,10 +279,6 @@ subroutine IntegralFluxUpdate(integral_flux_list,internal_fluxes, &
       offset = 0
       num_values = option%nflowdof
       dt = option%flow_dt
-    case(INTEGRATE_TRANSPORT)
-      offset = option%nflowdof
-      num_values = option%ntrandof
-      dt = option%tran_dt
     case default
       offset = -1 ! to catch bugs
   end select

@@ -592,9 +592,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         endif
         !------fmy
 
+        write(option%io_buffer,'(" Stopping: Time step cut criteria exceeded!")')
+        call printMsg(option)
+        write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
+             icut,this%max_time_step_cuts
+        call printMsg(option)
+        write(option%io_buffer,'("    dt   =",es15.7,", dt_min=",es15.7)') &
+             this%dt/tconv,this%dt_min/tconv
+        call printMsg(option)
         
-        process_model%output_option%plot_name = trim(process_model%name)// &
-          '_cut_to_failure'
+        process_model%output_option%plot_name = 'flow_cut_to_failure'
         snapshot_plot_flag = PETSC_TRUE
         observation_plot_flag = PETSC_FALSE
         massbal_plot_flag = PETSC_FALSE
@@ -658,15 +665,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  ! (2018-09-06, fmy) after updating TH mode, the following 'residual_vec' is NULL
+  !            when surf_subsurface simulation is on, because actually didn't associated with
+  !call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
+  !                     PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  !call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
+  call SNESGetFunction(solver%snes,process_model%residual_vec,PETSC_NULL_FUNCTION, &
                        PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
-
-!fmy: begining
-#ifndef CLM_PFLOTRAN
-  ! the following output produces a large ascii file if coupled with CLM
-
+  call VecNorm(process_model%residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
+  call VecNorm(process_model%residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
   if (option%print_screen_flag) then
       write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
            & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
@@ -691,21 +699,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     print *,' --> SNES Linear/Non-Linear Iterations = ', &
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
-  endif
-#endif
-!fmy: ending
-
-
-  if (option%linerept) then
-    nnl = num_newton_iterations
-    if( nnl>0 ) then
-      lpernl = num_linear_iterations/nnl
-    else
-      lpernl = 0
-    endif
-    option%nnl      = nnl
-    option%linpernl = lpernl
-    option%nchperst = icut
   endif
 
 !fmy: begining

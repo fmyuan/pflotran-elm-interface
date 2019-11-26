@@ -245,9 +245,6 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
       this%Evaluate => PMAuxiliaryEvolvingStrata
       this%name = 'auxiliary evolving strata'
       this%header = 'AUXILIARY EVOLVING STRATA'
-    case('SALINITY')
-      this%Evaluate => PMAuxiliarySalinity
-      this%header = 'AUXILIARY SALINITY'
     case default
       this%option%io_buffer = 'Function pointer "' // trim(string) // '" not &
         &found among available functions in PMAuxiliarySetFunctionPointer.'
@@ -265,8 +262,6 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 02/10/16 
 
-  use Reaction_Aux_module
-
   implicit none
 
   class(pm_auxiliary_type) :: this
@@ -283,20 +278,7 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
 !                        ierr);CHKERRQ(ierr)
 !      call MatSetOption(Jacobian,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE, &
 !                        ierr);CHKERRQ(ierr)
-    case('SALINITY')
-      ! set up species names
-      do i =1, this%salinity%nspecies
-        this%salinity%ispecies(i) = &
-          GetPrimarySpeciesIDFromName(this%salinity%species_names(i), &
-                                      this%realization%patch%reaction, &
-                                      this%option) 
-        if (Uninitialized(this%salinity%molecular_weights(i))) then
-          this%salinity%molecular_weights(i) = this%realization%patch% &
-            reaction%primary_spec_molar_wt(this%salinity%ispecies(i))
-        endif
-      enddo
-      call this%Evaluate(time,ierr)
-  end select  
+   end select
 
 end subroutine PMAuxiliaryInitializeRun
 
@@ -349,60 +331,6 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   call InitSubsurfaceSetupZeroArrays(this%realization)
   
 end subroutine PMAuxiliaryEvolvingStrata
-
-! ************************************************************************** !
-
-subroutine PMAuxiliarySalinity(this,time,ierr)
-  ! 
-  ! Initializes auxiliary process model
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 02/10/16
-  !
-  use Reactive_Transport_Aux_module
-  use Global_Aux_module
-  
-  implicit none
-  
-  class(pm_auxiliary_type) :: this
-  PetscReal :: time
-  PetscErrorCode :: ierr
-  
-  PetscInt :: ghosted_id, i, j, ispecies, num_auxvars
-  PetscReal :: sum_mass_species, xnacl, mass_h2o
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  PetscInt, parameter :: iphase = 1
-    
-  call PMBasePrintHeader(this)
-
-  ierr = 0
-  do j = 1, 2
-    if (j == 1) then
-      rt_auxvars => this%realization%patch%aux%RT%auxvars
-      global_auxvars => this%realization%patch%aux%Global%auxvars
-      num_auxvars = this%realization%patch%aux%RT%num_aux
-    else
-      rt_auxvars => this%realization%patch%aux%RT%auxvars_bc
-      global_auxvars => this%realization%patch%aux%Global%auxvars_bc
-      num_auxvars = this%realization%patch%aux%RT%num_aux_bc
-    endif
-    do ghosted_id = 1, num_auxvars
-      sum_mass_species = 0.d0
-      do i = 1, this%salinity%nspecies
-        ispecies = this%salinity%ispecies(i)
-        sum_mass_species = sum_mass_species + &
-          rt_auxvars(ghosted_id)%total(ispecies,iphase)* &
-          this%salinity%molecular_weights(i) ! mol/L * g/mol = g/L and
-                                             !   g/L => kg/m^3
-      enddo
-      mass_h2o = global_auxvars(ghosted_id)%den_kg(iphase)  ! kg/m^3
-      xnacl = sum_mass_species / (sum_mass_species + mass_h2o)
-      global_auxvars(ghosted_id)%m_nacl(iphase) = xnacl
-    enddo
-  enddo
-  
-end subroutine PMAuxiliarySalinity
 
 ! ************************************************************************** !
 

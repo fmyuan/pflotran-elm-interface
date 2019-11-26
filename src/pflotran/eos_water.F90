@@ -12,6 +12,7 @@ module EOS_Water_module
   
   ! module variables
   PetscReal :: constant_density
+  PetscReal :: constant_density_ice
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_steam_density
@@ -236,6 +237,9 @@ module EOS_Water_module
             EOSWaterGetSurfaceDensity, &
             EOSWaterTableProcess
 
+  public :: EOSWaterSetDensityIce
+            
+            
   public :: TestEOSWaterBatzleAndWang, &
             EOSWaterTest, &
             EOSWaterSteamTest
@@ -249,6 +253,7 @@ subroutine EOSWaterInit()
   implicit none
   
   constant_density = UNINITIALIZED_DOUBLE
+  constant_density_ice = 917.0d0 !UNINITIALIZED_DOUBLE
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_steam_density = UNINITIALIZED_DOUBLE
@@ -430,6 +435,29 @@ subroutine EOSWaterSetDensity(keyword,aux)
   end select
   
 end subroutine EOSWaterSetDensity
+
+! ************************************************************************** !
+
+subroutine EOSWaterSetDensityIce(keyword,aux)
+
+  implicit none
+
+  character(len=*) :: keyword
+  PetscReal, optional :: aux(*)
+
+  select case(keyword)
+    case('CONSTANT')
+      constant_density_ice = aux(1)
+      EOSWaterDensityIcePtr => EOSWaterDensityIceConstant
+    case('DEFAULT','PAINTER')
+      EOSWaterDensityIcePtr => EOSWaterDensityIcePainter
+    case default
+      print *, 'Unknown pointer type "' // trim(keyword) // &
+        '" in EOSWaterSetDensityIce().'
+      stop
+  end select
+
+end subroutine EOSWaterSetDensityIce
 
 ! ************************************************************************** !
 
@@ -2999,6 +3027,28 @@ end subroutine EOSWaterSaturationTemperature
 
 ! ************************************************************************** !
 
+subroutine EOSWaterDensityIceConstant(T, P, calculate_derivatives, &
+                                     den_ice, dden_ice_dT, dden_ice_dP, ierr)
+  ! T is in deg C, P is in Pa, density is in kmol/m3
+
+  implicit none
+
+  PetscReal, intent(in) :: T
+  PetscReal, intent(in) :: P
+  PetscBool, intent(in) :: calculate_derivatives
+  PetscReal, intent(out) :: den_ice
+  PetscReal, intent(out) :: dden_ice_dT
+  PetscReal, intent(out) :: dden_ice_dP
+  PetscErrorCode, intent(out) :: ierr
+
+  den_ice = constant_density_ice/FMWH2O ! kg/m^3 -> kmol/m^3
+  dden_ice_dP = 0.d0
+  dden_ice_dT = 0.d0
+
+end subroutine EOSWaterDensityIceConstant
+
+! ************************************************************************** !
+
 subroutine EOSWaterDensityIcePainter(T, P, calculate_derivatives, &
                                      den_ice, dden_ice_dT, dden_ice_dP, ierr)
   ! Subroutine to calculate the density of ice at given temperature
@@ -3096,13 +3146,13 @@ subroutine EOSWaterDensityPainter(t,p,calculate_derivatives,dw,dwmol, &
   dwmol = dw/FMWH2O     ! in mol
 
   ! Internal energy
-  u_J_kg = 4.217*1.0d3*(T_K - T_ref)    ! in J/kg
+  u_J_kg = 4.217d0*1.0d3*(T_K - T_ref)    ! in J/kg
   h_J_kg = u_J_kg + P/dw    ! in J/kg
 
   if (calculate_derivatives) then
     ! Derivatives of density
-    dwp = 1/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
-    dwt = 1/FMWH2O*(1 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
+    dwp = 1.0d0/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
+    dwt = 1.0d0/FMWH2O*(1.d0 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
                               3.d0*d*(T_K - T_ref)**(2.d0))      ! in Kmol/K
   else
     dwp = UNINITIALIZED_DOUBLE
@@ -3135,7 +3185,7 @@ subroutine EOSWaterEnthalpyPainter(T, P, calculate_derivatives, &
   PetscReal, parameter :: a = 999.915d0
   PetscReal, parameter :: b = 0.0416516d0
   PetscReal, parameter :: c = -0.0100836d0
-  PetscReal, parameter :: d = 0.000206355
+  PetscReal, parameter :: d = 0.000206355d0
   PetscReal, parameter :: alpha = 5.0d-10     ! in Pa^(-1)
   PetscReal, parameter :: T_ref = 273.15d0    ! in K
   PetscReal, parameter :: P_ref = 1.0d5       ! in Pa
@@ -3152,19 +3202,19 @@ subroutine EOSWaterEnthalpyPainter(T, P, calculate_derivatives, &
   den_water_kmol = den_water_kg/FMWH2O     ! in mol
 
   ! Internal energy
-  u_J_kg = 4.217*1.0d3*(T_K - T_ref)    ! in J/kg
+  u_J_kg = 4.217d0*1.0d3*(T_K - T_ref)    ! in J/kg
   h_J_kg = u_J_kg + P/den_water_kg    ! in J/kg
   h_J_kmol = h_J_kg*FMWH2O     ! in J/kmol
 
   if (calculate_derivatives) then
     ! Derivatives of density
-    dden_water_dp = 1/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
-    dden_water_dt = 1/FMWH2O*(1 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
+    dden_water_dp = 1.0d0/FMWH2O*den_w_one_bar*alpha    ! in Kmol/Pa
+    dden_water_dt = 1.0d0/FMWH2O*(1.0d0 + alpha*(P - P_ref))*(b + 2.d0*c*(T_K - T_ref) + &
                               3.d0*d*(T_K - T_ref)**(2.d0))      ! in Kmol/K
 
     ! Derivatives of enthalpy
     dh_dp = FMWH2O/den_water_kg   ! in J/kmol/Pa
-    du_dt = 4.217*1.d3                  ! in J/kg/K
+    du_dt = 4.217d0*1.d3                  ! in J/kg/K
     dh_dt = FMWH2O*(du_dt + P*(-1.d0/den_water_kg**(2.d0))* &
                     dden_water_dt*FMWH2O)    ! in MJ/kmol/K
   else

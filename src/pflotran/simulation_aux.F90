@@ -127,12 +127,6 @@ subroutine SimAuxCopyVecScatter(aux, vscat, vscat_index)
       call VecScatterCopy(vscat, aux%surf_to_subsurf, ierr);CHKERRQ(ierr)
     case(SUBSURF_TO_SURF)
       call VecScatterCopy(vscat, aux%subsurf_to_surf, ierr);CHKERRQ(ierr)
-    case(SUBSURF_TO_GEOMECHANICS)
-      call VecScatterCopy(vscat, aux%subsurf_to_geomechanics,  &
-                          ierr);CHKERRQ(ierr)
-    case(GEOMECHANICS_TO_SUBSURF)
-      call VecScatterCopy(vscat, aux%geomechanics_to_subsurf,  &
-                          ierr);CHKERRQ(ierr)
   end select  
 
 end subroutine SimAuxCopyVecScatter

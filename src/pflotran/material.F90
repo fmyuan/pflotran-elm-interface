@@ -6,8 +6,6 @@ module Material_module
 
   use PFLOTRAN_Constants_module
   use Material_Aux_class
-  use Fracture_module
-  use Geomechanics_Subsurface_Properties_module
   use Utility_module, only : Equal
 
   
@@ -43,11 +41,6 @@ module Material_module
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
 
-    class(fracture_type), pointer :: fracture
-    
-    PetscInt :: creep_closure_id
-    character(len=MAXWORDLENGTH) :: creep_closure_name
-    
     character(len=MAXWORDLENGTH) :: soil_compressibility_function
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
@@ -56,8 +49,6 @@ module Material_module
 !    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
     class(dataset_base_type), pointer :: compressibility_dataset
 
-    class(geomechanics_subsurface_properties_type), pointer :: &
-         geomechanics_subsurface_properties
 
     ! ice properties
     PetscReal :: thermal_conductivity_frozen
@@ -179,12 +170,6 @@ function MaterialPropertyCreate()
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
 
-  nullify(material_property%fracture)
-  nullify(material_property%geomechanics_subsurface_properties)
-  
-  material_property%creep_closure_id = 1 ! one is the index to a null pointer
-  material_property%creep_closure_name = ''
-  
   material_property%soil_compressibility_function = ''
   material_property%soil_compressibility = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure = UNINITIALIZED_DOUBLE
@@ -237,8 +222,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Fracture_module
-  use Geomechanics_Subsurface_Properties_module
   use Dataset_module
   use Units_module
   
@@ -412,34 +395,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call DatasetReadDoubleOrDataset(input,material_property%tortuosity, &
                                         material_property%tortuosity_dataset, &
                                         'tortuosity','MATERIAL_PROPERTY',option)
-      case('GEOMECHANICS_SUBSURFACE_PROPS')
-        ! Changes the subsurface props (perm/porosity) due to changes in
-        ! geomechanical stresses and strains
-        material_property%geomechanics_subsurface_properties => &
-          GeomechanicsSubsurfacePropsCreate()
-        call material_property%geomechanics_subsurface_properties% &
-          Read(input,option)
-        option%flow%transient_porosity = PETSC_TRUE
-      case('TORTUOSITY_FUNCTION_OF_POROSITY')
-        material_property%tortuosity_function_of_porosity = PETSC_TRUE
-        material_property%tortuosity = UNINITIALIZED_DOUBLE
-        call InputReadDouble(input,option, &
-                             material_property%tortuosity_func_porosity_pwr)
-        call InputErrorMsg(input,option,'tortuosity power as a function of &
-                           &porosity','MATERIAL_PROPERTY')
-      case('WIPP-FRACTURE')
-        ! Calculates permeability and porosity induced by fracture,
-        ! which is described by pressure within certain range of pressure
-        ! BRAGFLO_6.02_UM Eq. (136)
-        ! 4.10 Pressure-Induced Fracture Treatment
-        material_property%fracture => FractureCreate()
-        call material_property%fracture%Read(input,option)
-        option%flow%transient_porosity = PETSC_TRUE
-      case('CREEP_CLOSURE_TABLE') 
-        call InputReadCardDbaseCompatible(input,option, &
-                           material_property%creep_closure_name)
-        call InputErrorMsg(input,option,'creep closure table name', &
-                           'MATERIAL_PROPERTY')
       case('PERMEABILITY')
         call InputPushBlock(input,option)
         do
@@ -1166,8 +1121,7 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
   num_mat_prop = size(material_property_array)
   num_characteristic_curves = size(characteristic_curves_array)
 
-  if (option%iflowmode /= RICHARDS_MODE .and. &
-      option%iflowmode /= RICHARDS_TS_MODE) then
+  if (.not.option%flow%isothermal_eq) then
     allocate(material_parameter%soil_heat_capacity(num_mat_prop))
     allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
     material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
@@ -1447,8 +1401,7 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   !
   use Material_Aux_class
   use Option_module
-  use Fracture_module 
-  
+
   implicit none
   
   class(material_auxvar_type) :: material_auxvar
@@ -1459,14 +1412,6 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
     material_auxvar%soil_particle_density = &
       material_property%rock_density
   endif
-  
-  if (associated(material_property%geomechanics_subsurface_properties)) then
-    call GeomechanicsSubsurfacePropsPropertytoAux(material_auxvar, &
-      material_property%geomechanics_subsurface_properties)
-  endif
-  
-  call FracturePropertytoAux(material_auxvar%fracture, &
-                             material_property%fracture)
   
   if (soil_compressibility_index > 0) then
     material_auxvar%soil_properties(soil_compressibility_index) = &
@@ -2152,7 +2097,6 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   if (.not.associated(material_property)) return
   
   call MaterialPropertyDestroy(material_property%next)
-  call FractureDestroy(material_property%fracture)
   
   ! simply nullify since the datasets reside in a list within realization
   nullify(material_property%permeability_dataset)
