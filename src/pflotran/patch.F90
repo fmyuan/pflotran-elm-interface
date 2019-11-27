@@ -10101,9 +10101,10 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscInt :: i, ii
   PetscInt :: face_id
   PetscInt :: local_id
-  PetscInt :: local_id_up
+  PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id
-  PetscInt :: ghosted_id_up
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: natural_id_up, natural_id_dn
   PetscReal :: fraction_upwind
   PetscReal :: magnitude
   PetscReal :: v1(3), v2(3), cp(3)
@@ -10246,10 +10247,27 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         select case(ipass)
           case(1) ! internal connections
             ghosted_id_up = cur_connection_set%id_up(iconn)
+            ghosted_id_dn = cur_connection_set%id_dn(iconn)
             local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+            local_id_dn = grid%nG2L(ghosted_id_dn)
+            ! natural ids are used to ensure that a connection is only mapped
+            ! on one process if running in parallel
+            natural_id_up = grid%nG2A(ghosted_id_up)
+            natural_id_dn = grid%nG2A(ghosted_id_dn)
             ! if one of the cells is ghosted, the process stores the flux only
             ! when the upwind cell is non-ghosted.
-            if (local_id_up <= 0) cycle
+            if (local_id_up <= 0 .or. local_id_dn <= 0) then
+              ! we are on a ghost boundary. we cannot rely on local or ghost
+              ! numbering to determine on which process to store the
+              ! connection as these numbering schemes vary across
+              ! processes. use natural numbering and only store if the
+              ! on process cell has the lower number
+              if ((local_id_up > 0 .and. natural_id_up > natural_id_dn) .or. &
+                  (local_id_dn > 0 .and. natural_id_dn > natural_id_up)) then
+                ! skip this connection on this process
+                cycle
+              endif
+            endif
             fraction_upwind = cur_connection_set%dist(-1,iconn)
             x = grid%x(ghosted_id_up) + fraction_upwind * magnitude * &
                                         unit_direction(X_DIRECTION)
@@ -10438,6 +10456,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   endif
 
 end subroutine PatchGetIntegralFluxConnections
+
 ! **************************************************************************** !
 
 subroutine PatchCouplerInputRecord(patch)
