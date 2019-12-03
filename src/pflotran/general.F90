@@ -66,7 +66,7 @@ subroutine GeneralSetup(realization)
                                                 ! extra index for derivatives
   type(general_auxvar_type), pointer :: gen_auxvars(:,:)
   type(general_auxvar_type), pointer :: gen_auxvars_bc(:)
-  type(general_auxvar_type), pointer :: gen_auxvars_ss(:)
+  type(general_auxvar_type), pointer :: gen_auxvars_ss(:,:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(fluid_property_type), pointer :: cur_fluid_property
 
@@ -169,11 +169,16 @@ subroutine GeneralSetup(realization)
   ! auxvar data structures for them  
   sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
   if (sum_connection > 0) then
-    allocate(gen_auxvars_ss(sum_connection))
+    allocate(gen_auxvars_ss(0:ONE_INTEGER,sum_connection))
     do iconn = 1, sum_connection
-      call GeneralAuxVarInit(gen_auxvars_ss(iconn), &
+      do i = 0,ONE_INTEGER
+        ! Index 0 contains user-provided information.
+        ! Index 1 contains state variables used for perturbed values 
+        ! in the source/sink term
+        call GeneralAuxVarInit(gen_auxvars_ss(i,iconn), &
                              general_analytical_derivatives, &
                              option)
+      enddo
     enddo
     patch%aux%General%auxvars_ss => gen_auxvars_ss
   endif
@@ -667,7 +672,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
-                                        gen_auxvars_ss(:)
+                                        gen_auxvars_ss(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:), &
                                        global_auxvars_bc(:), global_auxvars_ss(:)
   
@@ -919,13 +924,13 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
-    if (.not.general_analytical_derivatives) then
-      option%io_buffer = 'The use of GENERAL mode with source/sinks and &
-        &numerical derivatives has been disabled due to incorrect &
-        &implementation. Please use analytical derivatives for the &
-        &time being.'
-      call PrintErrMsg(option)
-    endif
+!     if (.not.general_analytical_derivatives) then
+!       option%io_buffer = 'The use of GENERAL mode with source/sinks and &
+!         &numerical derivatives has been disabled due to incorrect &
+!         &implementation. Please use analytical derivatives for the &
+!         &time being.'
+!       call PrintErrMsg(option)
+!     endif
 
 !geh: the use of gen_auxvars(ZERO_INTEGER,ghosted_id) must be replaced
 !     by the numerical derivative equivalents in the derivative calculations.
@@ -941,28 +946,28 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       flow_src_sink_type = source_sink%flow_condition%general%rate%itype
     
       if (associated(source_sink%flow_condition%general%temperature)) then
-        gen_auxvars_ss(sum_connection)%temp = &
+        gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp = &
           source_sink%flow_condition%general%temperature%dataset%rarray(1)
       else
-        gen_auxvars_ss(sum_connection)%temp = &
+        gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp = &
           gen_auxvars(ZERO_INTEGER,ghosted_id)%temp
       endif
     
       ! Check if liquid pressure is set
       if (associated(source_sink%flow_condition%general%liquid_pressure)) then
-        gen_auxvars_ss(sum_connection)%pres(wat_comp_id) = &
+        gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(wat_comp_id) = &
           source_sink%flow_condition%general%liquid_pressure%dataset%rarray(1)
       else
-        gen_auxvars_ss(sum_connection)%pres(wat_comp_id) = &
+        gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(wat_comp_id) = &
           gen_auxvars(ZERO_INTEGER,ghosted_id)%pres(option%liquid_phase)
       endif
     
       ! Check if gas pressure is set
       if (associated(source_sink%flow_condition%general%gas_pressure)) then
-        gen_auxvars_ss(sum_connection)%pres(air_comp_id) = &
+        gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(air_comp_id) = &
           source_sink%flow_condition%general%gas_pressure%dataset%rarray(1)
       else
-        gen_auxvars_ss(sum_connection)%pres(air_comp_id) = &
+        gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(air_comp_id) = &
           gen_auxvars(ZERO_INTEGER,ghosted_id)%pres(option%gas_phase)
       endif
     
@@ -983,16 +988,17 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
       end select
     
-      xxss(1) = maxval(gen_auxvars_ss(sum_connection)%pres(option% &
+      xxss(1) = maxval(gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(option% &
                      liquid_phase:option%gas_phase))
-      if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
-          dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
-        xxss(2) = 0.d0
-      else
-        xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
-                + qsrc_vol(air_comp_id))
-      endif
-      xxss(3) = gen_auxvars_ss(sum_connection)%temp
+      !if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
+      !    dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
+      !  xxss(2) = 0.d0
+      !else
+      !  xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
+      !          + qsrc_vol(air_comp_id))
+      !endif
+      xxss(2) = 5.d-1
+      xxss(3) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
     
       cell_pressure = maxval(gen_auxvars(ZERO_INTEGER,ghosted_id)% &
                              pres(option%liquid_phase:option%gas_phase))    
@@ -1028,7 +1034,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       option%iflag = GENERAL_UPDATE_FOR_SS
     
       ! Compute state variables 
-      call GeneralAuxVarCompute(xxss,gen_auxvars_ss(sum_connection), &
+      call GeneralAuxVarCompute(xxss, &
+                                gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
                                 global_auxvars_ss(sum_connection), &
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
@@ -1178,7 +1185,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   type(material_parameter_type), pointer :: material_parameter
   type(general_parameter_type), pointer :: general_parameter
   type(general_auxvar_type), pointer :: gen_auxvars(:,:), gen_auxvars_bc(:), &
-                                        gen_auxvars_ss(:)
+                                        gen_auxvars_ss(:,:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
@@ -1460,11 +1467,21 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
       flow_src_sink_type=source_sink%flow_condition%general%rate%itype
       
+      ! Index 0 contains user-specified conditions
+      ! Index 1 contains auxvars to be used in src/sink calculations
+      call GeneralAuxVarCopy(gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
+                             gen_auxvars_ss(ONE_INTEGER,sum_connection),option)
+      
       call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                          gen_auxvars_ss(sum_connection), &
+                          gen_auxvars_ss(ONE_INTEGER,sum_connection), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
+                          global_auxvars_ss(sum_connection), &
+                          material_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
+                          patch%characteristic_curves_array( &
+                          patch%sat_func_id(ghosted_id))%ptr, &
+                          grid%nG2A(ghosted_id), &
                           scale,Res,Jac_dummy, &
                           general_analytical_derivatives, &
                           local_id == general_debug_cell_id)
@@ -1622,8 +1639,9 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   type(general_parameter_type), pointer :: general_parameter
   type(general_auxvar_type), pointer :: gen_auxvars(:,:), &
                                         gen_auxvars_bc(:), &
-                                        gen_auxvars_ss(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:) 
+                                        gen_auxvars_ss(:,:)
+  type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:), &
+                                       global_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -1640,6 +1658,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   general_parameter => patch%aux%General%general_parameter
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
   call SNESGetIterationNumber(snes,general_newton_iteration_number, &
@@ -1851,9 +1870,13 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       
       Jup = 0.d0
       call GeneralSrcSinkDerivative(option,source_sink, &
-                        gen_auxvars_ss(sum_connection), &
+                        gen_auxvars_ss(:,sum_connection), &
                         gen_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
+                        global_auxvars_ss(sum_connection), &
+                        patch%characteristic_curves_array( &
+                        patch%sat_func_id(ghosted_id))%ptr, &
+                        grid%nG2A(ghosted_id),material_auxvars(ghosted_id), &
                         scale,Jup)
 
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &

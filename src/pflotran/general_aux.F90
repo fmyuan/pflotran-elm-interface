@@ -205,7 +205,7 @@ module General_Aux_module
     type(general_parameter_type), pointer :: general_parameter
     type(general_auxvar_type), pointer :: auxvars(:,:)
     type(general_auxvar_type), pointer :: auxvars_bc(:)
-    type(general_auxvar_type), pointer :: auxvars_ss(:)
+    type(general_auxvar_type), pointer :: auxvars_ss(:,:)
   end type general_type
 
   interface GeneralAuxVarDestroy
@@ -422,6 +422,7 @@ subroutine GeneralAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%istate_store = auxvar%istate_store
+  auxvar2%istatechng = auxvar%istatechng
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
