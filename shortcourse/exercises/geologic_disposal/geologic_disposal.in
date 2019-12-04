@@ -45,7 +45,7 @@ SIMULATION
       MODE TH
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE RT
     /
     UFD_DECAY ufd_decay ! in aqueous, solid, and sorbed phases
     /
