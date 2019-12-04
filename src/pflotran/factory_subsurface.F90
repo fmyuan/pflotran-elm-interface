@@ -1136,10 +1136,10 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('REACTIVE_TRANSPORT')
+          case('RT')
             pm => PMRTCreate()
             option%itranmode = RT_MODE
-          case('NUCLEAR_WASTE_TRANSPORT')
+          case('NWT')
             pm => PMNWTCreate()
             option%itranmode = NWT_MODE
           case default
