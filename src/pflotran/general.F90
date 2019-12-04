@@ -692,6 +692,10 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   PetscReal :: xxbc(realization%option%nflowdof), & 
                xxss(realization%option%nflowdof)
   PetscReal :: cell_pressure,qsrc_vol(2),scale
+  PetscReal :: Res_dummy(realization%option%nflowdof)
+  PetscReal :: Jac_dummy(realization%option%nflowdof, &
+                         realization%option%nflowdof)
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
 !#define DEBUG_AUXVARS
 #ifdef DEBUG_AUXVARS
   character(len=MAXWORDLENGTH) :: word
@@ -971,22 +975,22 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           gen_auxvars(ZERO_INTEGER,ghosted_id)%pres(option%gas_phase)
       endif
     
-      select case(flow_src_sink_type)
-      case(MASS_RATE_SS)
-        qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
-                        gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))
-        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
-                        gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))
-      case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-        qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
-                  gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))*scale 
-        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
-                  gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))*scale 
-      case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
-      ! qsrc1 = m^3/sec             ! den = kmol/m^3
-        qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
-        qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
-      end select
+!       select case(flow_src_sink_type)
+!       case(MASS_RATE_SS)
+!         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+!                         gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))
+!         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+!                         gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))
+!       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
+!         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
+!                   gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))*scale 
+!         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
+!                   gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))*scale 
+!       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+!       ! qsrc1 = m^3/sec             ! den = kmol/m^3
+!         qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
+!         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
+!       end select
     
       xxss(1) = maxval(gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(option% &
                      liquid_phase:option%gas_phase))
@@ -1003,8 +1007,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       cell_pressure = maxval(gen_auxvars(ZERO_INTEGER,ghosted_id)% &
                              pres(option%liquid_phase:option%gas_phase))    
     
-      if (cell_pressure>xxss(1) .or. qsrc(wat_comp_id)<0 .or. &
-         qsrc(air_comp_id)<0.d0) then
+      if (qsrc(wat_comp_id)<0 .or. qsrc(air_comp_id)<0.d0) then
         xxss(1) = cell_pressure
         xxss(2) = gen_auxvars(ZERO_INTEGER,ghosted_id)%sat(air_comp_id)
         xxss(3) = gen_auxvars(ZERO_INTEGER,ghosted_id)%temp
@@ -1034,13 +1037,20 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
       option%iflag = GENERAL_UPDATE_FOR_SS
     
       ! Compute state variables 
-      call GeneralAuxVarCompute(xxss, &
-                                gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
-                                global_auxvars_ss(sum_connection), &
-                                material_auxvars(ghosted_id), &
-                                patch%characteristic_curves_array( &
-                                patch%sat_func_id(ghosted_id))%ptr, &
-                                grid%nG2A(ghosted_id),option)
+      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+                          gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
+                          gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                          global_auxvars(ghosted_id), &
+                          global_auxvars_ss(sum_connection), &
+                          material_auxvars(ghosted_id), &
+                          ss_flow_vol_flux, &
+                          patch%characteristic_curves_array( &
+                          patch%sat_func_id(ghosted_id))%ptr, &
+                          grid%nG2A(ghosted_id), &
+                          scale, Res_dummy, Jac_dummy, &
+                          general_analytical_derivatives, &
+                          local_id == general_debug_cell_id)
+      
     enddo
     source_sink => source_sink%next
   enddo
@@ -1469,11 +1479,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       
       ! Index 0 contains user-specified conditions
       ! Index 1 contains auxvars to be used in src/sink calculations
-      call GeneralAuxVarCopy(gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
-                             gen_auxvars_ss(ONE_INTEGER,sum_connection),option)
-      
       call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                          gen_auxvars_ss(ONE_INTEGER,sum_connection), &
+                          gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           global_auxvars_ss(sum_connection), &

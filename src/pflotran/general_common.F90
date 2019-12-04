@@ -4572,11 +4572,8 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   
   ! Index 0 contains user-specified conditions
   ! Index 1 contains auxvars to be used in src/sink calculations
-  call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
-                         gen_auxvar_ss(ONE_INTEGER), option)
-  
   call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                      gen_auxvar_ss(ONE_INTEGER), gen_auxvar(ZERO_INTEGER),&
+                      gen_auxvar_ss(ZERO_INTEGER), gen_auxvar(ZERO_INTEGER),&
                       global_auxvar, global_auxvar_ss, &
                       material_auxvar, dummy_real, characteristic_curves, &
                       natural_id, scale,res,Jdum, &
