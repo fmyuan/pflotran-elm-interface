@@ -1542,16 +1542,18 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     select type(cur_pm)
       class is(pm_rt_type)
         if (.not.associated(realization%reaction)) then
-          option%io_buffer = 'SUBSURFACE_TRANSPORT specified as a &
-            &process model without a corresponding CHEMISTRY block.'
+          option%io_buffer = 'SUBSURFACE_TRANSPORT MODE RT is specified &
+            &in the SIMULATION block without the corresponding &
+            &process model without a corresponding CHEMISTRY block within &
+            &the SUBSURFACE block.'
           call PrintErrMsg(option)
         endif
         call cur_pm%SetRealization(realization)
         
       class is(pm_nwt_type)
         if (.not.associated(realization%reaction_nw)) then
-          option%io_buffer = 'NUCLEAR_WASTE_TRANSPORT is specified as a &
-            &process model in the SIMULATION block without the corresponding &
+          option%io_buffer = 'SUBSURFACE_TRANSPORT MODE NWT is specified &
+            &in the SIMULATION block without the corresponding &
             &NUCLEAR_WASTE_CHEMISTRY block within the SUBSURFACE block.'
           call PrintErrMsg(option)
         endif
@@ -2064,9 +2066,10 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 !....................
       case('CHEMISTRY')
         call InputPushCard(input,card,option)
-        if (.not.associated(simulation%rt_process_model_coupler)) then
-          option%io_buffer = 'CHEMISTRY card included when no &
-            &SUBSURFACE_TRANSPORT process model included in SIMULATION block.'
+        if (option%itranmode /= RT_MODE) then
+          option%io_buffer = 'CHEMISTRY card is included, but &
+            &SUBSURFACE_TRANSPORT MODE RT was not specified in the &
+            &SIMULATION block.'
           call PrintErrMsg(option)
         endif
         !geh: for some reason, we need this with CHEMISTRY read for
@@ -2078,10 +2081,10 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
         call InputPushCard(input,card,option)
-        if (.not.associated(simulation%nwt_process_model_coupler)) then
-          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is &
-            &included, but no NUCLEAR_WASTE_TRANSPORT process model found &
-            &in the SIMULATION block.'
+        if (option%itranmode /= NWT_MODE) then
+          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is included, but &
+            &SUBSURFACE_TRANSPORT MODE NWT was not specified in the &
+            &SIMULATION block.'
           call PrintErrMsg(option)
         endif     
         realization%reaction_nw => NWTReactionCreate()
@@ -2299,11 +2302,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         
 !....................
       case('NUCLEAR_WASTE_CHEMISTRY')
-        if (.not.associated(simulation%nwt_process_model_coupler)) then
-          option%io_buffer = 'NUCLEAR_WASTE_CHEMISTRY card is included, but no &
-            &NUCLEAR_WASTE_TRANSPORT process model found in SIMULATION block.'
-          call PrintErrMsg(option)
-        endif
         call NWTReadPass2(realization%reaction_nw,input,option)
 
 !....................
@@ -2488,8 +2486,8 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('TRANSPORT_CONDITION')
         if (option%itranmode == NULL_MODE) then
-          option%io_buffer = 'TRANSPORT_CONDITIONs not supported without &
-                             &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
+          option%io_buffer = 'TRANSPORT_CONDITIONs are not supported without &
+                             &a SUBSURFACE_TRANSPORT PROCESS_MODEL.'
           call PrintErrMsg(option)
         endif
         tran_condition => TranConditionCreate(option)
@@ -2511,8 +2509,8 @@ subroutine SubsurfaceReadInput(simulation,input)
           case(NWT_MODE)
             tran_constraint => TranConstraintNWTCreate(option)
           case default
-            option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY &
-                               &or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
+            option%io_buffer = 'CONSTRAINTs are not supported without &
+                               &a SUBSURFACE_TRANSPORT PROCESS_MODEL.'
           call PrintErrMsg(option)
         end select
         call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)

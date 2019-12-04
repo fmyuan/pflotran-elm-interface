@@ -8,7 +8,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE RT
     /
     WASTE_FORM general
       TYPE GENERAL
