@@ -28,6 +28,7 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
+    PetscBool :: truncate_output
   end type nw_transport_auxvar_type
     
   type, public :: nw_transport_type
@@ -204,6 +205,8 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   nspecies = reaction_nw%params%nspecies
   nauxiliary = reaction_nw%params%nauxiliary
   nphase = reaction_nw%params%nphase
+  
+  auxvar%truncate_output = PETSC_TRUE
   
   allocate(auxvar%total_bulk_conc(nspecies))
   auxvar%total_bulk_conc = 0.d0
