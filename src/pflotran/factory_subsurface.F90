@@ -16,8 +16,7 @@ module Factory_Subsurface_module
             SubsurfaceJumpStart, &
             ! move to init_subsurface
             SubsurfaceReadFlowPM, &
-            SubsurfaceReadRTPM, &
-            SubsurfaceReadNWTPM, &
+            SubsurfaceReadTransportPM, &
             SubsurfaceReadWasteFormPM, &
             SubsurfaceReadUFDDecayPM, &
             SubsurfaceReadUFDBiospherePM
@@ -986,8 +985,6 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use Option_module
   use String_module
 
-  use PMC_Base_class
-
   use PM_Base_class
   use PM_Flash2_class
   use PM_General_class
@@ -1101,20 +1098,18 @@ end subroutine SubsurfaceReadFlowPM
 
 ! ************************************************************************** !
 
-subroutine SubsurfaceReadRTPM(input,option,pm)
+subroutine SubsurfaceReadTransportPM(input,option,pm)
   !
   ! Author: Glenn Hammond
-  ! Date: 06/11/13
+  ! Date: 12/04/19
   !
   use Input_Aux_module
   use Option_module
   use String_module
 
-  use PMC_Base_class
   use PM_Base_class
   use PM_RT_class
-
-  use Init_Common_module
+  use PM_NWT_class
 
   implicit none
 
@@ -1127,49 +1122,51 @@ subroutine SubsurfaceReadRTPM(input,option,pm)
 
   error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_TRANSPORT'
 
-  pm => PMRTCreate()
-  pm%option => option
-  option%itranmode = RT_MODE
+  nullify(pm)
+  word = ''
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case('MODE')
+        call InputReadCard(input,option,word,PETSC_FALSE)
+        call InputErrorMsg(input,option,'mode',error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('REACTIVE_TRANSPORT')
+            pm => PMRTCreate()
+            option%itranmode = RT_MODE
+          case('NUCLEAR_WASTE_TRANSPORT')
+            pm => PMNWTCreate()
+            option%itranmode = NWT_MODE
+          case default
+            error_string = trim(error_string) // ',MODE'
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
+        pm%option => option
+      case('OPTIONS')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'MODE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        call pm%ReadSimulationBlock(input)
+      case default
+        call InputKeywordUnrecognized(input,word,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
 
-  call pm%ReadSimulationBlock(input)
+  if (.not.associated(pm)) then
+    option%io_buffer = 'A transport MODE (card) must be included in the &
+      &SUBSURFACE_TRANSPORT block in ' // trim(error_string) // '.'
+    call PrintErrMsg(option)
+  endif
 
-end subroutine SubsurfaceReadRTPM
-
-! ************************************************************************** !
-
-subroutine SubsurfaceReadNWTPM(input,option,pm)
-  !
-  ! Author: Jenn Frederick
-  ! Date: 03/08/2019
-  !
-  use Input_Aux_module
-  use Option_module
-  use String_module
-
-  use PMC_Base_class
-  use PM_Base_class
-  use PM_NWT_class
-
-  use Init_Common_module
-
-  implicit none
-
-  type(input_type), pointer :: input
-  type(option_type), pointer :: option
-  class(pm_base_type), pointer :: pm
-
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  error_string = 'SIMULATION,PROCESS_MODELS,NUCLEAR_WASTE_TRANSPORT'
-
-  pm => PMNWTCreate()
-  pm%option => option
-  option%itranmode = NWT_MODE
-
-  call pm%ReadSimulationBlock(input)
-
-end subroutine SubsurfaceReadNWTPM
+end subroutine SubsurfaceReadTransportPM
 
 ! ************************************************************************** !
 
