@@ -238,6 +238,48 @@ module PM_Waste_Form_class
     procedure, public :: Dissolution => WFMechFMDMDissolution
   end type wf_mechanism_fmdm_type
 ! -----------------------------------------------------------------------
+
+! OBJECT wf_mechanism_fmdm_surrogate_type:
+! ========================================
+! ---------------------------------------------------------------------------
+! Description:  Defines the dissolution behavior of uranium dioxide high
+! level nuclear waste through coupling to a single-layer feed-forward
+! artificial neural network SURROGATE APPROXIMATION
+! of an external model called the Fuel Matrix Degradation Model (FMDM). This 
+! object extends the base mechanism object.
+! ---------------------------------------------------------------------------
+! dissolution_rate: [kg-bulk/m2/sec] bulk dissolution rate of the waste form
+! frac_dissolution_rate: [1/sec] fractional dissolution rate of the waste form
+! burnup: [GWd/MTHM] waste form burnup if the FMDM is linked
+! mapping_fmdm(:): [-] mapping of fmdm species into fmdm concentration array
+! mapping_fmdm_to_pflotran(:): [-] mapping of species in fmdm concentration 
+!    array to pflotran
+! num_concentrations: [-] number of chemical species (currently hardwired 
+!    to 4 environment concentrations)
+! i*: [-] species id number
+! Dissolution (procedure): calculates the FMDM dissolution rate
+! -----------------------------------------------------------------------
+  type, public, extends(wf_mechanism_base_type) :: wf_mechanism_fmdm_surrogate_type
+    PetscReal :: dissolution_rate
+    PetscReal :: frac_dissolution_rate
+    PetscReal :: burnup
+    PetscReal :: decay_time ! specific to this waste form
+    PetscInt, pointer :: mapping_surrfmdm(:)
+    PetscInt, pointer :: mapping_surrfmdm_to_pflotran(:)
+    PetscReal, pointer :: concentration(:)
+    PetscInt :: num_concentrations
+    PetscInt :: iCO3_2n
+    PetscInt :: iO2
+    PetscInt :: iFe_2p
+    PetscInt :: iH2
+    PetscReal, pointer :: outer_weights(:)
+    PetscReal, pointer :: inner_weights(:,:)
+    PetscReal, pointer :: scaler_means(:)
+    PetscReal, pointer :: scaler_variances(:)
+  contains
+    procedure, public :: Dissolution => WFMechFMDMSurrogateDissolution
+  end type wf_mechanism_fmdm_surrogate_type
+! -----------------------------------------------------------------------
   
 ! OBJECT wf_mechanism_custom_type:
 ! ================================
@@ -435,6 +477,7 @@ module PM_Waste_Form_class
             PMWFMechanismWIPPCreate, &
             PMWFMechanismCustomCreate, &
             PMWFMechanismFMDMCreate, &
+            PMWFMechanismFMDMSurrogateCreate, &
             PMWFRadSpeciesCreate, &
             CriticalityMediatorCreate, &
             CriticalityMechCreate, &
@@ -637,6 +680,76 @@ function PMWFMechanismFMDMCreate()
   PMWFMechanismFMDMCreate => fmdm
 
 end function PMWFMechanismFMDMCreate
+
+! ************************************************************************** !
+
+function PMWFMechanismFMDMSurrogateCreate()
+  ! 
+  ! Creates the FMDM surrogate waste form mechanism package
+  ! 
+  ! Author: Tom Seidl
+  ! Date: 03/05/2019
+
+  implicit none
+
+! LOCAL VARIABLES:
+! ================
+! PMWFMechanismFMDMSurrogateCreate (output): new FMDM surrogate
+! mechanism object
+! surrfmdm: new FMDM mechanism object with shorter name
+! ----------------------------------------------------------------- 
+  class(wf_mechanism_fmdm_surrogate_type), pointer :: PMWFMechanismFMDMSurrogateCreate
+  class(wf_mechanism_fmdm_surrogate_type), pointer :: surrfmdm
+! -----------------------------------------------------------------
+
+  allocate(surrfmdm)
+  call PMWFMechanismInit(surrfmdm)
+
+  surrfmdm%dissolution_rate = UNINITIALIZED_DOUBLE       ! kg/m^2/sec
+  surrfmdm%frac_dissolution_rate = UNINITIALIZED_DOUBLE  ! 1/day
+  surrfmdm%burnup = UNINITIALIZED_DOUBLE                 ! GWd/MTHM
+  surrfmdm%decay_time = UNINITIALIZED_DOUBLE    ! K
+  ! TS - may want to change to C later
+
+  surrfmdm%num_concentrations = 4  ! hardwired
+  surrfmdm%iCO3_2n = 1
+  surrfmdm%iO2 = 2
+  surrfmdm%iFe_2p = 3
+  surrfmdm%iH2 = 4
+
+  allocate(surrfmdm%mapping_surrfmdm_to_pflotran(surrfmdm%num_concentrations))
+  surrfmdm%mapping_surrfmdm_to_pflotran = UNINITIALIZED_INTEGER
+
+  allocate(surrfmdm%concentration(surrfmdm%num_concentrations))
+  surrfmdm%concentration = 1.d-13
+
+  allocate(surrfmdm%mapping_surrfmdm(4))
+  surrfmdm%mapping_surrfmdm = [surrfmdm%iO2,surrfmdm%iCO3_2n, &
+                               surrfmdm%iH2,surrfmdm%iFe_2p]
+
+  allocate(surrfmdm%outer_weights(101))
+  open(IUNIT_TEMP,file="ann_surrogate/outer_weights.txt")
+  read(IUNIT_TEMP,*) surrfmdm%outer_weights
+  close(IUNIT_TEMP)
+
+  allocate(surrfmdm%inner_weights(7,100))
+  open(IUNIT_TEMP,file="ann_surrogate/inner_weights.txt")
+  read(IUNIT_TEMP,*) surrfmdm%inner_weights
+  close(IUNIT_TEMP)
+
+  allocate(surrfmdm%scaler_means(6))
+  open(IUNIT_TEMP,file="ann_surrogate/means.txt")
+  read(IUNIT_TEMP,*) surrfmdm%scaler_means
+  close(IUNIT_TEMP)
+
+  allocate(surrfmdm%scaler_variances(6))
+  open(IUNIT_TEMP,file="ann_surrogate/vars.txt")
+  read(IUNIT_TEMP,*) surrfmdm%scaler_variances
+  close(IUNIT_TEMP)
+
+  PMWFMechanismFMDMSurrogateCreate => surrfmdm
+
+end function PMWFMechanismFMDMSurrogateCreate
 
 ! ************************************************************************** !
 
@@ -1109,6 +1222,11 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
           allocate(new_mechanism)
           new_mechanism => PMWFMechanismFMDMCreate()
       !---------------------------------
+        case('FMDM_SURROGATE')
+          error_string = trim(error_string) // ' FMDM_SURROGATE'
+          allocate(new_mechanism)
+          new_mechanism => PMWFMechanismFMDMSurrogateCreate()
+      !---------------------------------
         case('CUSTOM')
           error_string = trim(error_string) // ' CUSTOM'
           allocate(new_mechanism)
@@ -1406,8 +1524,30 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
                 option%io_buffer = 'FMDM is linked.'
                 call PrintMsg(option)
 #endif
+              type is(wf_mechanism_fmdm_surrogate_type)
+                call InputReadDouble(input,option,new_mechanism%burnup)
+                call InputErrorMsg(input,option,'burnup',error_string)
+                option%io_buffer = 'FMDM surrogate selected.'
+                call PrintMsg(option)
               class default
                 option%io_buffer = 'ERROR: BURNUP cannot be &
+                                   &specified for ' // trim(error_string)
+                call PrintMsg(option)
+                num_errors = num_errors + 1
+            end select
+        !--------------------------
+          case('DECAY_TIME')
+            select type(new_mechanism)
+              type is(wf_mechanism_fmdm_surrogate_type)
+                call InputReadDouble(input,option, &
+                                     new_mechanism%decay_time)
+                call InputErrorMsg(input,option,'DECAY_TIME', &
+                                   error_string)
+                call InputReadAndConvertUnits(input, &
+                  new_mechanism%decay_time,'day','DECAY_TIME', &
+                  option)
+              class default
+                option%io_buffer = 'ERROR: DECAY_TIME cannot be &
                                    &specified for ' // trim(error_string)
                 call PrintMsg(option)
                 num_errors = num_errors + 1
@@ -2392,6 +2532,19 @@ subroutine PMWFSetup(this)
         species_name = 'Fe++'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iFe_2p) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
+      type is(wf_mechanism_fmdm_surrogate_type)
+        species_name = 'O2(aq)'
+        cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iO2) = &
+          GetPrimarySpeciesIDFromName(species_name,reaction,option)
+        species_name = 'HCO3-'
+        cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
+          GetPrimarySpeciesIDFromName(species_name,reaction,option)
+        species_name = 'H2(aq)'
+        cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iH2) = &
+          GetPrimarySpeciesIDFromName(species_name,reaction,option)
+        species_name = 'Fe++'
+        cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iFe_2p) = &
+          GetPrimarySpeciesIDFromName(species_name,reaction,option)
       type is(wf_mechanism_glass_type)
         if (cur_mechanism%use_pH) then
           if ((associated(this%realization%reaction%species_idx) .and. &
@@ -3257,6 +3410,8 @@ subroutine PMWFSolve(this,time,ierr)
       select type(cwfm => cur_waste_form%mechanism)
         type is(wf_mechanism_fmdm_type)
           fmdm_count_local = fmdm_count_local + 1
+        type is (wf_mechanism_fmdm_surrogate_type)
+          fmdm_count_local = fmdm_count_local + 1
       end select
     !---------------------------------------------------------------------------
     else ! (canister not breached, or all waste form has dissolved already)
@@ -3640,8 +3795,14 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
     do i = 1, size(this%mapping_fmdm)
       icomp_fmdm = this%mapping_fmdm(i)
       icomp_pflotran = this%mapping_fmdm_to_pflotran(icomp_fmdm)
+      ! original -- set ALL cells to the concentration values
       this%concentration(icomp_fmdm,:) = &
         rt_auxvars(ghosted_id)%total(icomp_pflotran,LIQUID_PHASE)
+      ! It seems like only the boundary should be set by PFLOTRAN,
+      ! i.e.
+      !geh: the boundary should be at beginning of the array, not the end
+      !this%concentration(icomp_fmdm,this%num_grid_cells_in_waste_form) = &
+      !  rt_auxvars(ghosted_id)%total(icomp_pflotran,LIQUID_PHASE)
     enddo
   enddo
   
@@ -3706,6 +3867,128 @@ subroutine WFMechFMDMDissolution(this,waste_form,pm,ierr)
      waste_form%exposure_factor        ! [-]
   
 end subroutine WFMechFMDMDissolution
+
+! ************************************************************************** !
+
+subroutine WFMechFMDMSurrogateDissolution(this,waste_form,pm,ierr)
+  !
+  ! Calculates the FMDM waste form dissolution rate using a
+  ! single-layer feed-forward artifical neural network
+  ! SURROGATE APPROXIMATION of the FMDM model
+  !
+  ! Author: Tom Seidl (with old code by Jenn Frederick and Glenn Hammond)
+  ! Date: 11/12/2019
+
+  use Grid_module
+  use Reactive_Transport_Aux_module
+  use Global_Aux_module
+  use Option_module
+  use Utility_module
+
+  implicit none
+  
+! INPUT ARGUMENTS:
+! ================
+! this (input/output): base mechanism object
+! waste_form (input/output): base waste form object
+! pm (input/output): waste form process model
+! ierr (input/output): [-] PETSc error integer
+! -----------------------------------------
+  class(wf_mechanism_fmdm_surrogate_type) :: this
+  class(waste_form_base_type) :: waste_form
+  class(pm_waste_form_type) :: pm
+  PetscErrorCode :: ierr
+! -----------------------------------------
+  
+! LOCAL VARIABLES:
+! ================
+! grid: pointer to grid object
+! rt_auxvars(:): pointer to reactive transport auxvar object, which stores
+!    the total component concentration, and is indexed by the ghosted cell id
+! i, k: [-] looping index integers
+! icomp_fmdm: [-] FMDM species component number
+! icomp_pflotran: [-] species component number mapped from FMDM to PFLOTRAN
+! ghosted_id: [-] ghosted grid cell id
+! avg_temp_local: [C] average temperature in the waste form region
+! --------------------------------------------------------------
+  type(grid_type), pointer :: grid
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  PetscInt :: i, k
+  PetscInt :: icomp_surrfmdm
+  PetscInt :: icomp_pflotran
+  PetscInt :: ghosted_id
+  PetscReal :: avg_temp_local
+! --------------------------------------------------------------
+  
+ ! FMDM surrogate model: 
+ !=======================================================
+  PetscReal :: time
+  PetscReal :: avg_temp_global
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(option_type), pointer :: option
+ !========================================================
+  
+  grid => pm%realization%patch%grid
+  rt_auxvars => pm%realization%patch%aux%RT%auxvars
+  global_auxvars => pm%realization%patch%aux%Global%auxvars
+  option => pm%realization%option
+
+  do k = 1,waste_form%region%num_cells
+    ghosted_id = grid%nL2G(waste_form%region%cell_ids(k))
+    ! overwrite the components in mapping_pflotran array
+    do i = 1, size(this%mapping_surrfmdm)
+      icomp_surrfmdm = this%mapping_surrfmdm(i)
+      icomp_pflotran = this%mapping_surrfmdm_to_pflotran(icomp_surrfmdm)
+      this%concentration(icomp_surrfmdm) = &
+        rt_auxvars(ghosted_id)%total(icomp_pflotran,LIQUID_PHASE)
+    enddo
+  enddo
+  
+  ! convert total component concentration from mol/L to mol/m3 (*1.d3)
+  this%concentration = this%concentration*1.d3
+  
+ ! FMDM surrogate model calculates this%dissolution_rate [g/m^2/yr]:
+ !====================================================================
+  time = option%time
+  
+  avg_temp_local = 0.d0
+  do i = 1,waste_form%region%num_cells
+    ghosted_id = grid%nL2G(waste_form%region%cell_ids(i))
+    avg_temp_local = avg_temp_local + &  ! Celcius
+               global_auxvars(ghosted_id)%temp * waste_form%scaling_factor(i)
+  enddo
+  call CalcParallelSUM(option,waste_form%rank_list,avg_temp_local, &
+                       avg_temp_global)
+
+  call AMP_surrogate_step(this%burnup, time, avg_temp_global, &
+                          this%concentration, this%decay_time, &
+                          this%outer_weights, &
+                          this%inner_weights, this%scaler_means, &
+                          this%scaler_variances, this%dissolution_rate)
+
+  ! convert total component concentration from mol/m3 back to mol/L (/1.d3)
+  this%concentration = this%concentration/1.d3
+  ! convert this%dissolution_rate from fmdm to pflotran units:
+  ! g/m^2/yr => kg/m^2/sec
+  this%dissolution_rate = this%dissolution_rate / &
+                          (1000.d0*24.d0*3600.d0*DAYS_PER_YEAR)
+
+  ierr = 0
+  !==================
+  this%frac_dissolution_rate = &    ! 1/sec
+    this%dissolution_rate * &       ! kg-matrix/m^2/sec
+    this%specific_surface_area      ! m^2/kg-matrix
+  !==================
+  
+  ! kg-matrix / sec
+  waste_form%eff_dissolution_rate = &
+     this%dissolution_rate * &         ! kg-matrix/m^2/sec
+     this%specific_surface_area * &    ! m^2/kg-matrix
+     this%matrix_density * &           ! kg-matrix/m^3-matrix
+     waste_form%volume * &             ! m^3-matrix
+     waste_form%exposure_factor        ! [-]
+  
+end subroutine WFMechFMDMSurrogateDissolution
 
 ! ************************************************************************** !
 
@@ -4375,6 +4658,7 @@ subroutine PMWFRestartHDF5(this,pm_grp_id)
 end subroutine PMWFRestartHDF5
 
 ! ************************************************************************** !
+
 subroutine PMWFCheckpointBinary(this, viewer)
   ! 
   ! Checkpoints data associated with the waste form process model
@@ -4793,6 +5077,14 @@ subroutine PMWFMechanismStrip(this)
         call DeallocateArray(prev_mechanism%concentration)
         call DeallocateArray(prev_mechanism%mapping_fmdm)
         call DeallocateArray(prev_mechanism%mapping_fmdm_to_pflotran)
+      type is (wf_mechanism_fmdm_surrogate_type)
+        call DeallocateArray(prev_mechanism%concentration)
+        call DeallocateArray(prev_mechanism%mapping_surrfmdm)
+        call DeallocateArray(prev_mechanism%mapping_surrfmdm_to_pflotran)
+        call DeallocateArray(prev_mechanism%outer_weights)
+        call DeallocateArray(prev_mechanism%inner_weights)
+        call DeallocateArray(prev_mechanism%scaler_means)
+        call DeallocateArray(prev_mechanism%scaler_variances)
     end select
     deallocate(prev_mechanism)
     nullify(prev_mechanism)
@@ -5322,6 +5614,7 @@ subroutine CriticalitySolve(this,realization,time,scaling_factor,ierr)
 end subroutine CriticalitySolve
 
 ! ************************************************************************** !
+
 subroutine CritReadValues(input, option, keyword, dataset_base, &
                           data_external_units, data_internal_units)
   use Input_Aux_module
@@ -5495,6 +5788,87 @@ subroutine CriticalityStrip(this)
 
 
 end subroutine CriticalityStrip
+
+! ************************************************************************** !
+
+subroutine AMP_surrogate_step (burnup, sTme, current_temp_C, &
+                               conc, decay_time, &
+                               outer_weights, inner_weights, &
+                               scaler_means, scaler_variances, &
+                               fuelDisRate)
+  implicit none
+  PetscReal, intent(in) :: sTme
+  PetscReal, intent(in) :: burnup
+  PetscReal, intent(in) :: current_temp_C 
+  PetscReal, intent(in) :: decay_time
+  ! four environmental concentrations
+  PetscReal, intent(in) :: conc(:)
+  ! ANN weights
+  PetscReal, intent(in) :: outer_weights(:)
+  PetscReal, intent(in) :: inner_weights(:,:)
+  ! standardization scaler parameters
+  PetscReal, intent(in) :: scaler_means(:)
+  PetscReal, intent(in) :: scaler_variances(:)
+  ! output
+  PetscReal, intent(out) :: fuelDisRate ! g/m2/yr
+  
+  ! local variables
+  PetscReal :: yTme
+  PetscReal :: f1, f2, f3, f4, f5
+  PetscReal :: AOF, rad0a, rad0
+  PetscReal :: node_sum
+  PetscInt :: i
+  PetscInt :: N ! number of nodes in ANN
+  ! features
+  PetscReal, dimension(6) :: f
+  ! hidden layer nodes values
+  PetscReal, dimension(100) :: h
+  ! constants
+  PetscReal, parameter :: UO2_molar_mass = 270.0d0 ! g/mol
+
+  yTme = sTme/60.0d0/60.0d0/24.0d0/DAYS_PER_YEAR
+
+  ! calculate dose rate at the fuel surface (rad0)
+  AOF = yTme + decay_time
+
+  f2 = log(AOF)
+  f1 = f2**2.0d0
+  f3 = 1.0d0/f2
+  f4 = f2/AOF
+  f5 = exp(burnup/25.26892627636246d0)
+
+  rad0a = -206.0634818750711d0   - 0.7631591788870090d0*f1 &
+        + 20.97112373957833d0*f2 + 678.8463343193430d0*f3 &
+        - 506.7149017370657d0*f4 + 0.1555448893425319d0*f5
+  rad0 = max(exp(rad0a),5.0d-3)
+
+  ! features
+  f(1) = current_temp_C + 273.15d0
+  f(2) = log10(conc(1)) ! Env_CO3_2n
+  f(3) = log10(conc(2)) ! Env_O2
+  f(4) = log10(conc(3)) ! Env_Fe_2p
+  f(5) = log10(conc(4)) ! Env_H2
+  f(6) = log10(rad0)
+
+  ! standardize
+  do i = 1,6
+    f(i) = (f(i) - scaler_means(i))/sqrt(scaler_variances(i))
+  enddo
+
+  N = 100 ! 100 nodes
+
+  do i = 1,N
+    node_sum = dot_product(f, inner_weights(1:6,i)) + inner_weights(7,i)
+    if (node_sum < 0.0d0) then
+      node_sum = 0.0d0
+    endif
+    h(i) = node_sum
+  enddo
+
+  fuelDisRate= 10**(dot_product(h,outer_weights(1:N)) + &
+                          outer_weights(101))*UO2_molar_mass
+
+end subroutine AMP_surrogate_step
 
 ! ************************************************************************** !
 

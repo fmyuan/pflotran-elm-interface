@@ -104,7 +104,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_gas_type
     PetscReal :: m
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Mualem_VG_Gas_Init
     procedure, public :: Verify => RPF_Mualem_VG_Gas_Verify
@@ -122,7 +121,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_BC_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Burdine_BC_Gas_Init
     procedure, public :: Verify => RPF_Burdine_BC_Gas_Verify
@@ -139,7 +137,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_BC_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Mualem_BC_Gas_Init
     procedure, public :: Verify => RPF_Mualem_BC_Gas_Verify
@@ -156,7 +153,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_Burdine_VG_gas_type
     PetscReal :: m
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Burdine_VG_Gas_Init
     procedure, public :: Verify => RPF_Burdine_VG_Gas_Verify
@@ -174,7 +170,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rpf_Mualem_Linear_liq_type) :: & 
                         rpf_Mualem_Linear_gas_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Mualem_Linear_Gas_Init
     procedure, public :: Verify => RPF_Mualem_Linear_Gas_Verify
@@ -190,7 +185,6 @@ module Characteristic_Curves_Common_module
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: & 
                         rpf_Burdine_Linear_gas_type
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_Burdine_Linear_Gas_Init
     procedure, public :: Verify => RPF_Burdine_Linear_Gas_Verify
@@ -214,7 +208,6 @@ module Characteristic_Curves_Common_module
   end type rpf_mK_liq_type
   !---------------------------------------------------------------------------
   type, public, extends(rel_perm_func_base_type) :: rpf_mK_gas_type
-    PetscReal :: Srg
     PetscReal :: sigmaz
   contains
     procedure, public :: Verify => RPF_mK_Gas_Verify
@@ -236,7 +229,6 @@ module Characteristic_Curves_Common_module
   type, public, extends(rel_perm_func_base_type) :: &
                                        rpf_IGHCC2_Comp_gas_type
     PetscReal :: lambda
-    PetscReal :: Srg
   contains
     procedure, public :: Init => RPF_IGHCC2_Comp_Gas_Init
     procedure, public :: Verify => RPF_IGHCC2_Comp_Gas_Verify
@@ -1932,7 +1924,6 @@ subroutine RPF_Mualem_VG_Gas_Init(this)
   class(rpf_Mualem_VG_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2272,7 +2263,6 @@ subroutine RPF_Burdine_BC_Gas_Init(this)
   class(rpf_Burdine_BC_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2394,7 +2384,6 @@ subroutine RPF_IGHCC2_Comp_Gas_Init(this)
   class(rpf_IGHCC2_Comp_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
 
   this%analytical_derivative_available = PETSC_TRUE
 
@@ -2619,7 +2608,6 @@ subroutine RPF_Mualem_BC_Gas_Init(this)
   class(rpf_Mualem_BC_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -2852,7 +2840,6 @@ subroutine RPF_Burdine_VG_Gas_Init(this)
   class(rpf_Burdine_VG_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   
@@ -3096,7 +3083,6 @@ subroutine RPF_Mualem_Linear_Gas_Init(this)
   class(rpf_Mualem_Linear_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   this%alpha = UNINITIALIZED_DOUBLE
   this%pcmax = UNINITIALIZED_DOUBLE
   
@@ -3323,7 +3309,6 @@ subroutine RPF_Burdine_Linear_Gas_Init(this)
   class(rpf_Burdine_Linear_gas_type) :: this
 
   call RPFBaseInit(this)
-  this%Srg = UNINITIALIZED_DOUBLE
   
   this%analytical_derivative_available = PETSC_TRUE
   

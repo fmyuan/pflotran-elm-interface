@@ -1,0 +1,189 @@
+##########
+# Make sure you copy the folder ann_surrogate that contains
+# the coefficients for the ann into the directory where PFLOTRAN is
+# executed, as these are read in.
+# This can be found in
+# $SRC/regression_tests/ufd/ann_surrogate
+SIMULATION
+
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+    WASTE_FORM general
+      TYPE GENERAL
+    /
+  /
+
+END_SIMULATION
+##############
+
+##########
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    4
+    8
+    10
+    14
+  /
+END
+
+CHEMISTRY
+  PRIMARY_SPECIES
+    O2(aq)
+    HCO3-
+    H2(aq)
+    Fe++
+    RAD-A
+    RAD-B
+    RAD-C
+  /
+  OUTPUT
+    All
+    TOTAL
+  /
+END
+
+GRID
+  TYPE structured
+  NXYZ 5 5 1
+  BOUNDS
+    0.d0  0.d0  0.d0   # [m]
+    50.d0 50.d0 10.d0  # [m]
+  END
+END
+
+REGION all
+  COORDINATES
+    0.d0  0.d0  0.d0   # [m]
+    50.d0 50.d0 10.d0  # [m]
+  /
+END
+
+REGION wf1
+  COORDINATES
+    30.d0 10.d0  0.d0   # [m]
+    40.d0 20.d0 10.d0  # [m]
+  /
+END
+
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+MATERIAL_PROPERTY subsurface1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-13
+  /
+END
+
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
+
+OUTPUT
+  SNAPSHOT_FILE
+    PERIODIC TIME 50 day
+    FORMAT VTK
+  /
+END
+
+TIME
+  FINAL_TIME 1.0d0 yr
+  INITIAL_TIMESTEP_SIZE 1.d-6 day
+  MAXIMUM_TIMESTEP_SIZE 5.0d-1 year
+END
+
+CONSTRAINT groundwater
+  CONCENTRATIONS
+    O2(aq)   1.d-9           F
+    HCO3-    1.d-6           F
+    H2(aq)   1.d-9           F
+    Fe++     1.d-9           F
+    RAD-A    1.e-20          F
+    RAD-B    1.e-20          F
+    RAD-C    1.e-20          F
+  /
+END
+
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE dirichlet
+  /
+  PRESSURE 201325 Pa
+END
+
+TRANSPORT_CONDITION groundwater
+  TYPE dirichlet_zero_gradient
+  CONSTRAINT_LIST
+    0.d0 groundwater
+  /
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION groundwater
+  REGION all
+END
+
+STRATA
+  REGION all
+  MATERIAL subsurface1
+END
+
+END_SUBSURFACE
+##############
+
+##################
+WASTE_FORM_GENERAL
+
+  MECHANISM FMDM_SURROGATE
+    NAME fmdm01
+    MATRIX_DENSITY 10.97d3 kg/m^3
+    BURNUP 60 #GWd/MTHM
+    DECAY_TIME 100 day
+    SPECIFIC_SURFACE_AREA 2.78d-3 cm^2/g
+    SPECIES
+     #name,   MW[g/mol],dcy[1/s], initMF, inst_rel_frac, daughter             
+      RAD-A  128.90d0  1.29d-15  2.18d-4  0.2d0
+      RAD-B   98.91d0  1.04d-12  8.87d-6  0.0d0
+      RAD-C  241.06d0  5.08d-11  8.70d-4  0.0d0
+    /  
+    CANISTER_DEGRADATION_MODEL
+      CANISTER_MATERIAL_CONSTANT 1500
+    /
+  /
+  
+  WASTE_FORM
+    REGION wf1
+    EXPOSURE_FACTOR 1.0d0
+    VOLUME 1.50d0 m^3
+    MECHANISM_NAME fmdm01
+    CANISTER_BREACH_TIME 0.0 yr
+  /
+  
+  PRINT_MASS_BALANCE
+  
+END_WASTE_FORM_GENERAL
+######################
