@@ -2,7 +2,9 @@ module Hydrate_Aux_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -245,10 +247,6 @@ module Hydrate_Aux_module
   end type methanogenesis_type
   
   type, public :: hydrate_type
-    PetscInt :: n_inactive_rows
-    PetscInt, pointer :: inactive_rows_local(:), inactive_rows_local_ghosted(:)
-    PetscInt, pointer :: row_zeroing_array(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -256,6 +254,7 @@ module Hydrate_Aux_module
     type(hydrate_auxvar_type), pointer :: auxvars(:,:)
     type(hydrate_auxvar_type), pointer :: auxvars_bc(:)
     type(hydrate_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type hydrate_type
 
   interface HydrateAuxVarDestroy
@@ -357,10 +356,7 @@ function HydrateAuxCreate(option)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_inactive_rows = 0
-  nullify(aux%inactive_rows_local)
-  nullify(aux%inactive_rows_local_ghosted)
-  nullify(aux%row_zeroing_array)
+  nullify(aux%matrix_zeroing)
 
   allocate(aux%hydrate_parameter)
   allocate(aux%hydrate_parameter%diffusion_coefficient(option%nphase))
@@ -3358,9 +3354,7 @@ subroutine HydrateAuxDestroy(aux)
   call HydrateAuxVarDestroy(aux%auxvars_bc)
   call HydrateAuxVarDestroy(aux%auxvars_ss)
 
-  call DeallocateArray(aux%inactive_rows_local)
-  call DeallocateArray(aux%inactive_rows_local_ghosted)
-  call DeallocateArray(aux%row_zeroing_array)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%hydrate_parameter)) then
     call DeallocateArray(aux%hydrate_parameter%diffusion_coefficient)

@@ -47,6 +47,7 @@ subroutine GeneralSetup(realization)
   use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use Matrix_Zeroing_module
  
   implicit none
   
@@ -178,8 +179,10 @@ subroutine GeneralSetup(realization)
   patch%aux%General%num_aux_ss = sum_connection
 
   ! create array for zeroing Jacobian entries if isothermal and/or no air
-  allocate(patch%aux%General%row_zeroing_array(grid%nlmax))
-  patch%aux%General%row_zeroing_array = 0
+  if (general_isothermal .or. general_no_air) then
+    call MatrixZeroingInitRowZeroing(patch%aux%General%matrix_zeroing, &
+                                     grid%nlmax)
+  endif
   
   ! initialize parameters
   cur_fluid_property => realization%fluid_properties
@@ -1483,8 +1486,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   enddo
   
   if (patch%aux%General%inactive_cells_exist) then
-    do i=1,patch%aux%General%n_inactive_rows
-      r_p(patch%aux%General%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%General%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%General%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -1877,15 +1880,16 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (patch%aux%General%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%General%n_inactive_rows, &
-                          patch%aux%General%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%General%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%General%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
   if (general_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%General%row_zeroing_array
+    zeros => patch%aux%General%matrix_zeroing%row_zeroing_array
     ! zero energy residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1898,7 +1902,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
   if (general_no_air) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%General%row_zeroing_array
+    zeros => patch%aux%General%matrix_zeroing%row_zeroing_array
     ! zero gas component mass balance residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)

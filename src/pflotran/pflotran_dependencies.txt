@@ -219,7 +219,7 @@ flash2.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
            material_aux.o option.o output_aux.o patch.o pflotran_constants.o \
            realization_subsurface.o utility.o variables.o
 flash2_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
-               eos_water.o fluid.o gas_eos_mod.o global_aux.o \
+               eos_water.o fluid.o gas_eos_mod.o global_aux.o matrix_zeroing.o \
                mphase_pckr_mod.o option.o pflotran_constants.o \
                saturation_function.o
 fluid.o : input_aux.o option.o pflotran_constants.o string.o units.o
@@ -227,14 +227,14 @@ gas_eos_mod.o : pflotran_constants.o
 gauss.o : grid_unstructured_cell.o pflotran_constants.o utility.o
 general.o : connection.o coupler.o debug.o discretization.o eos_water.o \
             field.o fluid.o general_aux.o general_common.o global_aux.o grid.o \
-            material.o material_aux.o option.o output_aux.o output_tecplot.o \
-            patch.o pflotran_constants.o realization_subsurface.o \
-            saturation_function.o srcsink_sandbox.o srcsink_sandbox_base.o \
-            srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \
-            upwind_direction.o variables.o
+            material.o material_aux.o matrix_zeroing.o option.o output_aux.o \
+            output_tecplot.o patch.o pflotran_constants.o \
+            realization_subsurface.o saturation_function.o srcsink_sandbox.o \
+            srcsink_sandbox_base.o srcsink_sandbox_wipp_gas.o \
+            srcsink_sandbox_wipp_well.o upwind_direction.o variables.o
 general_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
-                material_aux.o option.o pflotran_constants.o string.o \
-                utility.o wipp.o
+                material_aux.o matrix_zeroing.o option.o pflotran_constants.o \
+                string.o utility.o wipp.o
 general_common.o : connection.o coupler.o eos_gas.o eos_water.o general_aux.o \
                    global_aux.o material_aux.o option.o pflotran_constants.o \
                    upwind_direction.o utility.o wipp.o
@@ -337,14 +337,14 @@ hdf5.o : discretization.o field.o grid.o grid_unstructured_cell.o hdf5_aux.o \
 hdf5_aux.o : input_aux.o logging.o option.o pflotran_constants.o string.o
 hydrate.o : connection.o coupler.o debug.o discretization.o eos_water.o \
             field.o fluid.o global_aux.o grid.o hydrate_aux.o hydrate_common.o \
-            input_aux.o material.o material_aux.o option.o output_aux.o \
-            patch.o pflotran_constants.o realization_subsurface.o \
+            input_aux.o material.o material_aux.o matrix_zeroing.o option.o \
+            output_aux.o patch.o pflotran_constants.o realization_subsurface.o \
             saturation_function.o srcsink_sandbox.o srcsink_sandbox_base.o \
             srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o string.o \
             upwind_direction.o variables.o
 hydrate_aux.o : characteristic_curves.o eos_gas.o eos_water.o global_aux.o \
-                material_aux.o option.o pflotran_constants.o string.o \
-                utility.o
+                material_aux.o matrix_zeroing.o option.o pflotran_constants.o \
+                string.o utility.o
 hydrate_common.o : connection.o coupler.o eos_gas.o eos_water.o global_aux.o \
                    hydrate_aux.o material_aux.o option.o pflotran_constants.o \
                    upwind_direction.o utility.o wipp.o
@@ -363,8 +363,9 @@ immis.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
           output_aux.o patch.o pflotran_constants.o realization_subsurface.o \
           utility.o variables.o
 immis_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
-              eos_water.o fluid.o gas_eos_mod.o mphase_pckr_mod.o option.o \
-              pflotran_constants.o saturation_function.o
+              eos_water.o fluid.o gas_eos_mod.o matrix_zeroing.o \
+              mphase_pckr_mod.o option.o pflotran_constants.o \
+              saturation_function.o
 init_common.o : condition.o connection.o coupler.o discretization.o field.o \
                 grid.o hdf5.o hdf5_aux.o input_aux.o logging.o option.o \
                 output.o output_aux.o output_tecplot.o patch.o \
@@ -374,9 +375,9 @@ init_subsurface.o : dataset_base.o dataset_common_hdf5.o \
                     dataset_gridded_hdf5.o discretization.o field.o \
                     geomechanics_subsurface_properties.o grid.o grid_grdecl.o \
                     hdf5.o input_aux.o logging.o material.o material_aux.o \
-                    option.o patch.o pflotran_constants.o \
+                    matrix_zeroing.o option.o patch.o pflotran_constants.o \
                     realization_subsurface.o region.o srcsink_sandbox.o \
-                    strata.o utility.o variables.o wipp.o
+                    strata.o string.o utility.o variables.o wipp.o
 init_subsurface_flow.o : co2_sw.o condition_control.o discretization.o field.o \
                          flash2.o general.o grid.o hdf5.o hydrate.o immis.o \
                          init_common.o material.o miscible.o mphase.o option.o \
@@ -411,12 +412,14 @@ material.o : characteristic_curves.o communicator_base.o dataset.o \
 material_aux.o : option.o pflotran_constants.o utility.o variables.o
 matrix_block_aux.o : option.o pflotran_constants.o utility.o
 matrix_buffer.o : grid.o grid_structured.o pflotran_constants.o
+matrix_zeroing.o : pflotran_constants.o utility.o
 miscible.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
              connection.o coupler.o debug.o discretization.o eos_water.o \
              field.o global_aux.o grid.o logging.o material.o miscible_aux.o \
              option.o output_aux.o patch.o pflotran_constants.o \
              realization_subsurface.o utility.o variables.o
-miscible_aux.o : fluid.o global_aux.o option.o pflotran_constants.o
+miscible_aux.o : fluid.o global_aux.o matrix_zeroing.o option.o \
+                 pflotran_constants.o
 mphase.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
            connection.o coupler.o debug.o discretization.o eos_water.o field.o \
            gas_eos_mod.o global_aux.o grid.o material.o material_aux.o \
@@ -424,7 +427,7 @@ mphase.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
            realization_subsurface.o secondary_continuum.o \
            secondary_continuum_aux.o variables.o
 mphase_aux.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
-               eos_water.o fluid.o gas_eos_mod.o global_aux.o \
+               eos_water.o fluid.o gas_eos_mod.o global_aux.o matrix_zeroing.o \
                mphase_pckr_mod.o option.o pflotran_constants.o \
                saturation_function.o
 mphase_pckr_mod.o : material.o option.o pflotran_constants.o \
@@ -436,8 +439,9 @@ nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  option.o output_aux.o pflotran_constants.o \
                  realization_subsurface.o string.o transport_constraint_nwt.o \
                  utility.o
-nw_transport_aux.o : input_aux.o option.o output_aux.o pflotran_constants.o \
-                     reaction_base.o string.o utility.o variables.o
+nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
+                     pflotran_constants.o reaction_base.o string.o utility.o \
+                     variables.o
 nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
                              option.o pflotran_constants.o \
                              transport_constraint_nwt.o
@@ -540,7 +544,8 @@ pm_auxiliary.o : communicator_base.o global_aux.o init_subsurface.o \
                  realization_subsurface.o string.o
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
             realization_base.o solver.o string.o
-pm_base_aux.o : auxvars_base.o grid.o option.o pflotran_constants.o utility.o
+pm_base_aux.o : auxvars_base.o grid.o matrix_zeroing.o option.o \
+                pflotran_constants.o utility.o
 pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
                     realization_subsurface.o
 pm_flash2.o : eos_water.o flash2.o flash2_aux.o input_aux.o option.o \
@@ -842,9 +847,9 @@ reactive_transport.o : co2_span_wagner.o co2eos.o condition.o connection.o \
                        region.o secondary_continuum.o \
                        secondary_continuum_aux.o string.o transport.o \
                        transport_constraint_rt.o
-reactive_transport_aux.o : matrix_block_aux.o option.o pflotran_constants.o \
-                           reaction_aux.o reaction_surf_complex_aux.o \
-                           utility.o
+reactive_transport_aux.o : matrix_block_aux.o matrix_zeroing.o option.o \
+                           pflotran_constants.o reaction_aux.o \
+                           reaction_surf_complex_aux.o utility.o
 realization_base.o : communicator_base.o data_mediator.o data_mediator_base.o \
                      debug.o discretization.o field.o input_aux.o \
                      nw_transport_aux.o option.o output_aux.o patch.o \
@@ -891,7 +896,7 @@ richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              srcsink_sandbox_downreg.o string.o utility.o variables.o
 richards_aux.o : characteristic_curves.o characteristic_curves_common.o \
                  eos_water.o global_aux.o material_aux.o matrix_buffer.o \
-                 option.o pflotran_constants.o utility.o
+                 matrix_zeroing.o option.o pflotran_constants.o utility.o
 richards_common.o : characteristic_curves.o connection.o eos_water.o \
                     global_aux.o material_aux.o option.o pflotran_constants.o \
                     richards_aux.o utility.o
@@ -1000,8 +1005,8 @@ th.o : characteristic_curves.o condition.o connection.o coupler.o debug.o \
        saturation_function.o secondary_continuum.o secondary_continuum_aux.o \
        string.o th_aux.o utility.o variables.o
 th_aux.o : characteristic_curves.o characteristic_curves_common.o eos_water.o \
-           global_aux.o material_aux.o option.o pflotran_constants.o \
-           saturation_function.o
+           global_aux.o material_aux.o matrix_zeroing.o option.o \
+           pflotran_constants.o saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \
@@ -1063,15 +1068,16 @@ wipp.o : characteristic_curves_base.o characteristic_curves_wipp.o input_aux.o \
          units.o utility.o
 wipp_flow.o : characteristic_curves.o connection.o coupler.o debug.o \
               discretization.o field.o general_aux.o global_aux.o grid.o \
-              material.o material_aux.o option.o output_aux.o patch.o \
-              pflotran_constants.o pm_wipp_srcsink.o realization_subsurface.o \
-              srcsink_sandbox.o srcsink_sandbox_base.o \
-              srcsink_sandbox_wipp_gas.o srcsink_sandbox_wipp_well.o \
-              upwind_direction.o variables.o wipp.o wipp_flow_aux.o \
-              wipp_flow_common.o
+              material.o material_aux.o matrix_zeroing.o option.o output_aux.o \
+              patch.o pflotran_constants.o pm_wipp_srcsink.o \
+              realization_subsurface.o srcsink_sandbox.o \
+              srcsink_sandbox_base.o srcsink_sandbox_wipp_gas.o \
+              srcsink_sandbox_wipp_well.o upwind_direction.o variables.o \
+              wipp.o wipp_flow_aux.o wipp_flow_common.o
 wipp_flow_aux.o : characteristic_curves.o characteristic_curves_wipp.o \
-                  eos_gas.o eos_water.o global_aux.o material_aux.o option.o \
-                  pflotran_constants.o utility.o variables.o wipp.o
+                  eos_gas.o eos_water.o global_aux.o material_aux.o \
+                  matrix_zeroing.o option.o pflotran_constants.o utility.o \
+                  variables.o wipp.o
 wipp_flow_common.o : connection.o eos_gas.o eos_water.o global_aux.o \
                      material_aux.o option.o pflotran_constants.o \
                      upwind_direction.o wipp_flow_aux.o

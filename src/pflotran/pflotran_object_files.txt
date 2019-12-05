@@ -241,6 +241,7 @@ misc_obj = \
 	${common_src}init_subsurface_transport.o \
 	${common_src}integral_flux.o \
 	${common_src}matrix_buffer.o \
+	${common_src}matrix_zeroing.o \
 	${common_src}multisimulation.o \
 	${common_src}observation.o \
 	${common_src}patch.o \

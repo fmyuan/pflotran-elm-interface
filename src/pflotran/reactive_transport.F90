@@ -1756,8 +1756,10 @@ subroutine RTCalculateTransportMatrix(realization,T)
 
   if (patch%aux%RT%inactive_cells_exist) then
     coef = 1.d0
-    call MatZeroRowsLocal(T,patch%aux%RT%n_zero_rows, &
-                          patch%aux%RT%zero_rows_local_ghosted,coef, &
+    call MatZeroRowsLocal(T,patch%aux%RT%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%RT%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
+                          coef, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
@@ -2954,8 +2956,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 #endif
 
   if (patch%aux%RT%inactive_cells_exist) then
-    do i=1,patch%aux%RT%n_zero_rows
-      r_p(patch%aux%RT%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%RT%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%RT%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -3163,8 +3165,10 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   if (realization%patch%aux%RT%inactive_cells_exist) then
     call PetscLogEventBegin(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
     rdum = 1.d0
-    call MatZeroRowsLocal(J,realization%patch%aux%RT%n_zero_rows, &
-                          realization%patch%aux%RT%zero_rows_local_ghosted, &
+    call MatZeroRowsLocal(J,realization%patch%aux%RT%matrix_zeroing% &
+                            n_inactive_rows, &
+                          realization%patch%aux%RT%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           rdum,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
     call PetscLogEventEnd(logging%event_rt_jacobian_zero,ierr);CHKERRQ(ierr)
