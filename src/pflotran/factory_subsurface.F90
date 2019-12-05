@@ -1063,8 +1063,11 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
 
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: print_refactor_msg
 
   error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_TRANSPORT'
+
+  print_refactor_msg = PETSC_FALSE
 
   nullify(pm)
   word = ''
@@ -1098,11 +1101,36 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
           call PrintErrMsg(option)
         endif
         call pm%ReadSimulationBlock(input)
+      case('GLOBAL_IMPLICIT')
+        print_refactor_msg = PETSC_TRUE
+        exit
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
+
+  if (print_refactor_msg .or. .not.associated(pm)) then
+    if (OptionPrintToScreen(option)) then
+      print *
+      print *, 'SIMULATION'
+      print *, '  SIMULATION_TYPE SUBSURFACE'
+      print *, '  PROCESS_MODELS'
+      print *, '    SUBSURFACE_TRANSPORT transport'
+      print *, '      MODE RT'
+      print *, '      OPTIONS'
+      print *, '      /'
+      print *, '    /'
+      print *, '  /'
+      print *, 'END'
+      print *
+      option%io_buffer = "PFLOTRAN's SUBSURFACE_TRANSPORT PROCESS_MODEL &
+        &has been refactored to use a MODE keyword and an OPTIONS block. &
+        &Please use the keywords above in reformatting the SIMULATION block. &
+        &The MODE card is the only required card."
+    endif
+    call PrintErrMsg(option)
+  endif
 
   if (.not.associated(pm)) then
     option%io_buffer = 'A transport MODE (card) must be included in the &
