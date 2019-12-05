@@ -785,11 +785,16 @@ subroutine NWTResidual(snes,xx,r,realization,ierr)
       local_id_dn = grid%nG2L(ghosted_id_dn) ! ghost to local mapping
       
       area = cur_connection_set%area(iconn)
+      !WRITE(*,*)  '      area = ', area
       if (associated(wippflo_auxvars)) then
+        !WRITE(*,*)  'alpha_up = ', wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha
+        !WRITE(*,*)  'alpha_dn = ', wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha
         area = area * 0.5d0 * &
                (wippflo_auxvars(ZERO_INTEGER,ghosted_id_up)%alpha + &
                 wippflo_auxvars(ZERO_INTEGER,ghosted_id_dn)%alpha)
       endif
+      
+      !WRITE(*,*)  'area*alpha = ', area
       
       ! ignore inactive cells with inactive materials
       if (realization%patch%imat(ghosted_id_up) <= 0 .or.  &
