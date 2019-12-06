@@ -1619,7 +1619,9 @@ class RegressionTestManager(object):
         """
         Add the current test status to the overall status for the file.
         """
-        self._file_status.fail += status.fail
+        # status.fail may be greater than 1
+        if (status.fail > 0):
+          self._file_status.fail += 1
         self._file_status.warning += status.warning
         # status.error may be greater than 1
         if (status.error > 0):
