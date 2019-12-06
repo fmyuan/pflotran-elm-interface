@@ -13,6 +13,8 @@ module Solver_module
   private
 
   type, public :: solver_type
+    !TODO(geh): remove itype in favor of setting prefix through call to
+    !           nonlinear/linear solver read routine
     PetscInt :: itype            ! type: flow or transport
     PetscReal :: linear_atol       ! absolute tolerance
     PetscReal :: linear_rtol       ! relative tolerance
@@ -1012,6 +1014,7 @@ subroutine SolverReadNewton(solver,input,option)
         call PrintErrMsg(option)
 
       case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
+        !TODO(geh): move to PM
         if (.not.option%use_mc) then
           option%io_buffer = 'NEWTON ITOL_SEC not supported without ' // &
             'MULTIPLE_CONTINUUM keyword.'

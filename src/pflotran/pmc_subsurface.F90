@@ -693,6 +693,11 @@ subroutine PMCSubsurfaceGetAuxData(this)
 
   class(pmc_subsurface_type) :: this
 
+  !TODO(geh): create a class for get/set and add it to a dynamic linked list
+  !           based on the process models involved. there is no need to
+  !           extend this class just to override this function as there
+  !           may be more than one PM for which to apply get/set. the 
+  !           proposed accomplishes the task.
   if (this%option%surf_flow_on) call PMCSubsurfaceGetAuxDataFromSurf(this)
   if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
 
