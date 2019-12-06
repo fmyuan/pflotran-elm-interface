@@ -1692,15 +1692,17 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          min_perturbation
        if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
            1.d3 * perturbation_tolerance) then
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
 !         I think it should be what's below, has to confirm with M. Nole. -hdp
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * & 
-                   (perturbation_tolerance * x(GENERAL_LIQUID_STATE_X_MOLE_DOF)&
-                    + min_mole_fraction_pert)
+!         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * & 
+!                   (perturbation_tolerance * x(GENERAL_LIQUID_STATE_X_MOLE_DOF)&
+!                    + min_mole_fraction_pert)
        else
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
 !         I think it should be what's below, has to confirm with M. Nole. -hdp         
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
-                                     x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
-                                     min_mole_fraction_pert
+!         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
+!                                     x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
+!                                     min_mole_fraction_pert
        endif
        pert(GENERAL_ENERGY_DOF) = -1.d0 * &
          (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
