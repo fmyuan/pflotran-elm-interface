@@ -1307,12 +1307,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 end subroutine PMCSubsurfaceSetAuxDataForGeomech
 
 ! ************************************************************************** !
-!
-! PMCSubsurfaceFinalizeRun: Finalizes the time stepping
-! author: Glenn Hammond
-! date: 03/18/13
-!
-! ************************************************************************** !
+
 recursive subroutine PMCSubsurfaceFinalizeRun(this)
   ! 
   ! Finalizes the time stepping
