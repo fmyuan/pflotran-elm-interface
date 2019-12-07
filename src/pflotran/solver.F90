@@ -89,6 +89,8 @@ module Solver_module
             SolverDestroy, &
             SolverReadLinear, &
             SolverReadNewton, &
+            SolverCreateKSP, &
+            SolverSetKSPOptions, &
             SolverCreateSNES, &
             SolverSetSNESOptions, &
             SolverCreateTS, &

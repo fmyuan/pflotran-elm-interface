@@ -46,6 +46,7 @@ module PMC_Base_class
     procedure, public :: SetTimestepper => PMCBaseSetTimestepper
     procedure, public :: SetupSolvers => PMCBaseSetupSolvers
     procedure, public :: RunToTime => PMCBaseRunToTime
+    procedure, public :: StepDT => PMCBaseStepDT
     procedure, public :: Checkpoint => PMCBaseCheckpoint
     procedure, public :: CheckpointBinary => PMCBaseCheckpointBinary
     procedure, public :: RestartBinary => PMCBaseRestartBinary
@@ -477,7 +478,8 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
                                         observation_plot_at_this_time_flag, &
                                         massbal_plot_at_this_time_flag, &
                                         checkpoint_at_this_time_flag)
-    call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+!    call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+    call this%StepDT(local_stop_flag)
     if (this%timestepper%time_step_cut_flag) then
       ! if timestep has been cut, all the I/O flags set above in 
       ! %SetTargetTime, which are based on waypoints times, not time step,
@@ -604,6 +606,22 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
   endif
   
 end subroutine PMCBaseRunToTime
+
+! ************************************************************************** !
+
+subroutine PMCBaseStepDT(this,local_stop_flag)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/06/19
+  ! 
+  implicit none
+
+  class(pmc_base_type) :: this
+  PetscInt :: local_stop_flag
+
+  call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+
+end subroutine PMCBaseStepDT
 
 ! ************************************************************************** !
 

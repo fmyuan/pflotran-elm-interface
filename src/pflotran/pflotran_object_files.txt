@@ -248,6 +248,7 @@ misc_obj = \
 	${common_src}pmc_auxiliary.o \
 	${common_src}pmc_base.o \
 	${common_src}pmc_subsurface.o \
+	${common_src}pmc_subsurface_osrt.o \
 	${common_src}pmc_third_party.o \
 	${common_src}realization_base.o \
 	${common_src}realization_subsurface.o \
@@ -261,6 +262,7 @@ misc_obj = \
 	${common_src}spline.o \
 	${common_src}strata.o \
 	${common_src}timestepper_base.o \
+	${common_src}timestepper_KSP.o \
 	${common_src}timestepper_BE.o \
 	${common_src}timestepper_TS.o \
 	${common_src}transport.o \

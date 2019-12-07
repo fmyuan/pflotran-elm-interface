@@ -34,6 +34,7 @@ module PM_RT_class
     PetscBool :: temperature_dependent_diffusion
     ! for transport only
     PetscBool :: transient_porosity
+    PetscBool :: operator_split
   contains
     procedure, public :: Setup => PMRTSetup
     procedure, public :: ReadSimulationBlock => PMRTRead
@@ -112,6 +113,7 @@ function PMRTCreate()
   rt_pm%temperature_dependent_diffusion = PETSC_FALSE
   ! these flags can only be true for transport only
   rt_pm%transient_porosity = PETSC_FALSE
+  rt_pm%operator_split = PETSC_FALSE
 
   call PMBaseInit(rt_pm)
   rt_pm%name = 'Reactive Transport'
@@ -167,7 +169,12 @@ subroutine PMRTRead(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
+      case('GLOBAL_IMPLICIT')
+        this%operator_split = PETSC_FALSE
+        option%transport%reactive_transport_coupling = OPERATOR_SPLIT
+      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
+        this%operator_split = PETSC_TRUE
+        option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       case('MAX_VOLUME_FRACTION_CHANGE')
         call InputReadDouble(input,option,this%volfrac_change_governor)
         call InputDefaultMsg(input,option,'maximum volume fraction change')

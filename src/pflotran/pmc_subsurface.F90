@@ -23,7 +23,9 @@ module PMC_Subsurface_class
     procedure, public :: Destroy => PMCSubsurfaceDestroy
   end type pmc_subsurface_type
   
-  public :: PMCSubsurfaceCreate
+  public :: PMCSubsurfaceCreate, &
+            PMCSubsurfaceInit, &
+            PMCSubsurfaceStrip
   
 contains
 

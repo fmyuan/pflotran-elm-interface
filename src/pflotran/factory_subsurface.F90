@@ -331,6 +331,7 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   use PM_RT_class
   use PM_NWT_class
   use PMC_Subsurface_class
+  use PMC_Subsurface_OSRT_class
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
@@ -349,7 +350,16 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
 
   nullify(pmc_dummy)
 
-  pmc_subsurface => PMCSubsurfaceCreate()
+  select type(pm=>pm_base)
+    class is(pm_rt_type)
+      if (pm%operator_split) then
+        pmc_subsurface => PMCSubsurfaceOSRTCreate()
+      else
+        pmc_subsurface => PMCSubsurfaceCreate()
+      endif
+    class is(pm_nwt_type)
+      pmc_subsurface => PMCSubsurfaceCreate()
+  end select
   call pmc_subsurface%SetName(pmc_name)
   call pmc_subsurface%SetOption(option)
   call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
@@ -2127,6 +2137,11 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Checkpoint_module
   use Simulation_Subsurface_class
   use PMC_Subsurface_class
+  use PMC_Subsurface_OSRT_class
+  use PM_Base_class
+  use PM_RT_class
+  use PM_NWT_class
+  use Timestepper_KSP_class
   use Timestepper_BE_class
   use Timestepper_Steady_class
   use Timestepper_TS_class
@@ -2206,7 +2221,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   class(timestepper_base_type), pointer :: temp_timestepper
   class(timestepper_base_type), pointer :: flow_timestepper
-  class(timestepper_BE_type), pointer :: tran_timestepper
+  class(timestepper_base_type), pointer :: tran_timestepper
 
   PetscInt::iwaytime,nwaytime,mwaytime
   PetscReal,dimension(:),pointer :: waytime
@@ -2233,7 +2248,20 @@ subroutine SubsurfaceReadInput(simulation,input)
   endif
   flow_timestepper%solver%itype = FLOW_CLASS
 
-  tran_timestepper => TimestepperBECreate()
+  if (associated(simulation%tran_process_model_coupler)) then
+    select type(pm=>simulation%tran_process_model_coupler%pm_ptr%pm)
+      class is(pm_rt_type)
+        if (pm%operator_split) then
+          tran_timestepper => TimestepperKSPCreate()
+        else
+          tran_timestepper => TimestepperBECreate()
+        endif
+      class is(pm_nwt_type)
+        tran_timestepper => TimestepperBECreate()
+    end select
+  else
+    tran_timestepper => TimestepperBECreate()
+  endif
   tran_timestepper%solver%itype = TRANSPORT_CLASS
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
@@ -3784,12 +3812,16 @@ subroutine SubsurfaceReadInput(simulation,input)
   if (associated(simulation%tran_process_model_coupler)) then
     tran_timestepper%name = 'TRAN'
     if (option%steady_state) then
-      ! transport is currently always BE
-      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
+      select type(tts=>tran_timestepper)
+        class is(timestepper_BE_type)
+          temp_timestepper => TimestepperSteadyCreateFromBE(tts)
+        class is(timestepper_base_type)
+          temp_timestepper =>  TimestepperSteadyCreateFromBase(tts)
+      end select
       call tran_timestepper%Destroy()
       deallocate(tran_timestepper)
       nullify(tran_timestepper)
-      flow_timestepper => temp_timestepper
+      tran_timestepper => temp_timestepper
       nullify(temp_timestepper)
     endif
     if (associated(simulation%tran_process_model_coupler)) then
