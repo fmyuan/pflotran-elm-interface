@@ -3413,7 +3413,10 @@ end subroutine RJumpStartKineticSorption
 
 ! ************************************************************************** !
 
-subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
+!TODO(geh): delete
+!subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
+!                  num_iterations_,reaction,option)
+subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
                   num_iterations_,reaction,option)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson

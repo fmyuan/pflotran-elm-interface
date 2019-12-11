@@ -157,7 +157,7 @@ function PMHydrateCreate()
   this%damping_factor = -1.d0
   this%hydrate_newton_max_iter = 8
   
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'Hydrate Multiphase Flow'
   this%header = 'GAS HYDRATE + MULTIPHASE FLOW'
 

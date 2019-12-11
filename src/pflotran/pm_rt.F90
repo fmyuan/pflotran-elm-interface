@@ -70,7 +70,11 @@ module PM_RT_class
     PetscInt :: checkpoint_activity_coefs
   end type pm_rt_header_type  
   
-  public :: PMRTCreate
+  public :: PMRTCreate, &
+            PMRTInit, &
+            PMRTInitializeRun, &
+            PMRTWeightFlowParameters, &
+            PMRTStrip
 
 contains
 
@@ -78,50 +82,60 @@ contains
 
 function PMRTCreate()
   ! 
-  ! Creates reactive transport process models shell
+  ! Creates reactive transport process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
   implicit none
   
   class(pm_rt_type), pointer :: PMRTCreate
 
-  class(pm_rt_type), pointer :: rt_pm
+  class(pm_rt_type), pointer :: pm_rt
   
-#ifdef PM_RT_DEBUG  
-  print *, 'PMRTCreate()'
-#endif
+  allocate(pm_rt)
+  call PMRTInit(pm_rt)
+  pm_rt%name = 'Reactive Transport'
+  pm_rt%header = 'REACTIVE TRANSPORT'
   
-  allocate(rt_pm)
-  nullify(rt_pm%option)
-  nullify(rt_pm%output_option)
-  nullify(rt_pm%realization)
-  nullify(rt_pm%comm1)
-  nullify(rt_pm%commN)
-  
-  ! local variables
-  rt_pm%steady_flow = PETSC_FALSE
-  rt_pm%tran_weight_t0 = 0.d0
-  rt_pm%tran_weight_t1 = 0.d0
-  rt_pm%check_post_convergence = PETSC_FALSE
-  nullify(rt_pm%max_concentration_change)
-  nullify(rt_pm%max_volfrac_change)
-  rt_pm%volfrac_change_governor = 1.d0
-  rt_pm%cfl_governor = UNINITIALIZED_DOUBLE
-  rt_pm%temperature_dependent_diffusion = PETSC_FALSE
-  ! these flags can only be true for transport only
-  rt_pm%transient_porosity = PETSC_FALSE
-  rt_pm%operator_split = PETSC_FALSE
-
-  call PMBaseInit(rt_pm)
-  rt_pm%name = 'Reactive Transport'
-  rt_pm%header = 'REACTIVE TRANSPORT'
-  
-  PMRTCreate => rt_pm
+  PMRTCreate => pm_rt
   
 end function PMRTCreate
+
+! ************************************************************************** !
+
+subroutine PMRTInit(pm_rt)
+  ! 
+  ! Initializes reactive transport process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/09/19
+  ! 
+  implicit none
+  
+  class(pm_rt_type) :: pm_rt
+  
+  call PMBaseInit(pm_rt)
+  nullify(pm_rt%option)
+  nullify(pm_rt%output_option)
+  nullify(pm_rt%realization)
+  nullify(pm_rt%comm1)
+  nullify(pm_rt%commN)
+  
+  ! local variables
+  pm_rt%steady_flow = PETSC_FALSE
+  pm_rt%tran_weight_t0 = 0.d0
+  pm_rt%tran_weight_t1 = 0.d0
+  pm_rt%check_post_convergence = PETSC_FALSE
+  nullify(pm_rt%max_concentration_change)
+  nullify(pm_rt%max_volfrac_change)
+  pm_rt%volfrac_change_governor = 1.d0
+  pm_rt%cfl_governor = UNINITIALIZED_DOUBLE
+  pm_rt%temperature_dependent_diffusion = PETSC_FALSE
+  ! these flags can only be true for transport only
+  pm_rt%transient_porosity = PETSC_FALSE
+
+end subroutine PMRTInit
 
 ! ************************************************************************** !
 
@@ -233,10 +247,6 @@ subroutine PMRTSetup(this)
 
   type(reactive_transport_param_type), pointer :: rt_parameter
 
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%Setup()')
-#endif
-
   rt_parameter => this%realization%patch%aux%RT%rt_parameter
   
   ! pass down flags from PMRT class
@@ -291,10 +301,6 @@ subroutine PMRTSetRealization(this,realization)
   class(pm_rt_type) :: this
   class(realization_subsurface_type), pointer :: realization
 
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%SetRealization()')
-#endif
-  
   this%realization => realization
   this%realization_base => realization
   
@@ -332,10 +338,6 @@ recursive subroutine PMRTInitializeRun(this)
   class(pm_rt_type) :: this
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%InitializeRun()')
-#endif
-
   ! check for uninitialized flow variables
   call RealizUnInitializedVarsTran(this%realization)
 
@@ -404,10 +406,6 @@ subroutine PMRTInitializeTimestep(this)
   
   class(pm_rt_type) :: this
  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%InitializeTimestep()')
-#endif
-
   this%option%tran_dt = this%option%dt
 
   call PMBasePrintHeader(this)
@@ -415,22 +413,7 @@ subroutine PMRTInitializeTimestep(this)
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
-  if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
-    call this%SetTranWeights()
-    if (this%option%flow%transient_porosity) then
-      ! weight material properties (e.g. porosity)
-      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                                 this%tran_weight_t0, &
-                                 this%realization%field,this%comm1)
-    endif
-    ! set densities and saturations to t
-    call GlobalWeightAuxVars(this%realization,this%tran_weight_t0)
-  else if (this%transient_porosity) then
-    this%tran_weight_t0 = 0.d0
-    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                               this%tran_weight_t0, &
-                               this%realization%field,this%comm1)
-  endif
+  call PMRTWeightFlowParameters(this,TIME_T)
 
   call RTInitializeTimestep(this%realization)
 
@@ -440,6 +423,51 @@ subroutine PMRTInitializeTimestep(this)
   endif
 
 end subroutine PMRTInitializeTimestep
+
+! ************************************************************************** !
+
+subroutine PMRTWeightFlowParameters(this,time_level)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/14/13
+  ! 
+
+  use Global_module  
+  use Material_module
+
+  implicit none
+  
+  class(pm_rt_type) :: this
+  PetscInt :: time_level
+  
+  PetscReal :: tran_weight
+  PetscErrorCode :: ierr
+
+  if (time_level == TIME_T) then ! for ts initialization and ts cut
+    if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
+      call this%SetTranWeights()
+    endif
+    tran_weight = this%tran_weight_t0
+  else !TIME_TpDT
+    tran_weight = this%tran_weight_t1
+  endif
+
+  if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 tran_weight, &
+                                 this%realization%field,this%comm1)
+    endif
+    ! set densities and saturations to t
+    call GlobalWeightAuxVars(this%realization,tran_weight)
+  else if (this%transient_porosity) then
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               tran_weight, &
+                               this%realization%field,this%comm1)
+  endif
+  
+end subroutine PMRTWeightFlowParameters
 
 ! ************************************************************************** !
 
@@ -460,25 +488,7 @@ subroutine PMRTPreSolve(this)
   
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%UpdatePreSolve()')
-#endif
-  
-  ! set densities and saturations to t+dt
-  if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
-    if (this%option%flow%transient_porosity) then
-      ! weight material properties (e.g. porosity)
-      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                                 this%tran_weight_t1, &
-                                 this%realization%field,this%comm1)
-    endif
-    call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
-  else if (this%transient_porosity) then
-    this%tran_weight_t1 = 1.d0
-    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
-                               this%tran_weight_t1, &
-                               this%realization%field,this%comm1)
-  endif
+  call PMRTWeightFlowParameters(this,TIME_TpDT)
 
   call RTUpdateTransportCoefs(this%realization)
   
@@ -517,10 +527,6 @@ subroutine PMRTPostSolve(this)
   implicit none
   
   class(pm_rt_type) :: this
-  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%PostSolve()')
-#endif
   
 end subroutine PMRTPostSolve
 
@@ -601,9 +607,6 @@ function PMRTAcceptSolution(this)
   
   PetscBool :: PMRTAcceptSolution
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%AcceptSolution()')
-#endif
   ! do nothing
   PMRTAcceptSolution = PETSC_TRUE
   
@@ -632,10 +635,6 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
   PetscInt :: ifac
   PetscReal, parameter :: pert = 1.d-20
-  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%UpdateTimestep()')
-#endif
   
   if (this%volfrac_change_governor < 1.d0) then
     ! with volume fraction potentially scaling the time step.
@@ -697,10 +696,6 @@ recursive subroutine PMRTFinalizeRun(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%PMRTFinalizeRun()')
-#endif
-  
   ! do something here
   
   if (associated(this%next)) then
@@ -726,10 +721,6 @@ subroutine PMRTResidual(this,snes,xx,r,ierr)
   Vec :: r
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%Residual()')
-#endif
-  
   call RTResidual(snes,xx,r,this%realization,ierr)
 
 end subroutine PMRTResidual
@@ -751,10 +742,6 @@ subroutine PMRTJacobian(this,snes,xx,A,B,ierr)
   Mat :: A, B
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%Jacobian()')
-#endif
-
   call RTJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMRTJacobian
@@ -1045,10 +1032,6 @@ subroutine PMRTTimeCut(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%TimeCut()')
-#endif
-  
   this%option%tran_dt = this%option%dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
     call this%SetTranWeights()
@@ -1092,10 +1075,6 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   
   class(pm_rt_type) :: this
   PetscBool :: update_kinetics
-  
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%UpdateSolution()')
-#endif
   
   ! begin from RealizationUpdate()
   call TranConditionUpdate(this%realization%transport_conditions, &
@@ -1158,10 +1137,6 @@ subroutine PMRTMaxChange(this)
   
   class(pm_rt_type) :: this
   
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%MaxChange()')
-#endif
-
   print *, 'PMRTMaxChange not implemented'
   stop
 !  call RTMaxChange(this%realization)
@@ -1182,10 +1157,6 @@ subroutine PMRTComputeMassBalance(this,mass_balance_array)
   
   class(pm_rt_type) :: this
   PetscReal :: mass_balance_array(:)
-
-#ifdef PM_RT_DEBUG  
-  call PrintMsg(this%option,'PMRT%MassBalance()')
-#endif
 
 #ifndef SIMPLIFY 
   call RTComputeMassBalance(this%realization,-999,mass_balance_array)
@@ -1920,14 +1891,13 @@ end subroutine PMRTInputRecord
 
 ! ************************************************************************** !
 
-subroutine PMRTDestroy(this)
+subroutine PMRTStrip(this)
   ! 
-  ! Destroys RT process model
+  ! Strips members of RT process model
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 12/09/19
   ! 
-
   use Reactive_Transport_module, only : RTDestroy
   use Utility_module, only : DeallocateArray
 
@@ -1946,6 +1916,23 @@ subroutine PMRTDestroy(this)
   call this%commN%Destroy()
   if (associated(this%commN)) deallocate(this%commN)
   nullify(this%commN)  
+
+end subroutine PMRTStrip
+  
+! ************************************************************************** !
+
+subroutine PMRTDestroy(this)
+  ! 
+  ! Destroys RT process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/14/13
+  ! 
+  implicit none
+  
+  class(pm_rt_type) :: this
+
+  call PMRTStrip(this)
 
 end subroutine PMRTDestroy
   

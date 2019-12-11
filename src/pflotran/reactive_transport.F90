@@ -1878,7 +1878,7 @@ subroutine RTReact(realization)
     
     call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
-                tran_xx_p(istart:iend), &
+!                tran_xx_p(istart:iend), &
                 num_iterations,reaction,option)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal

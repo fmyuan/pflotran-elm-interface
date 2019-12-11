@@ -4,7 +4,7 @@ module PMC_Subsurface_OSRT_class
   use petscts
 
   use PMC_Subsurface_class
-  use Realization_Subsurface_class
+  use PM_OSRT_class
 
   use PFLOTRAN_Constants_module
 
@@ -80,6 +80,7 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   use Solver_module
   use Discretization_module
   use PM_RT_class
+  use Timestepper_KSP_class
 
   implicit none
 
@@ -93,6 +94,14 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
 
   option => this%option
   solver => this%timestepper%solver
+
+  select type(ts=>this%timestepper) 
+    class is(timestepper_KSP_type)
+    class default
+      option%io_buffer = 'A KSP timestepper must be used for operator-split &
+        &reactive transport'
+      call PrintErrMsg(option)
+  end select
 
   select type(pm=>this%pm_ptr%pm)
     class is(pm_rt_type)
@@ -136,12 +145,146 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
   ! Author: Glenn Hammond
   ! Date: 12/06/19
   ! 
+  use Option_module
+  use Realization_Subsurface_class
+  use Patch_module
+  use Grid_module
+  use Solver_module
+  use Field_module
+  use Reactive_Transport_Aux_module
+  use Reactive_Transport_module
+  use Global_Aux_module
+  use Material_Aux_class
+  use Reaction_Aux_module
+  use Reaction_module
+  use PM_RT_class
+
   implicit none
 
   class(pmc_subsurface_osrt_type) :: this
   PetscInt :: local_stop_flag
 
-  call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+  type(option_type), pointer :: option
+  type(pm_osrt_type), pointer :: pm
+  class(realization_subsurface_type), pointer :: realization
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  type(solver_type), pointer :: solver
+  class(reaction_rt_type), pointer :: reaction
+  type(reactive_transport_param_type), pointer :: rt_parameter
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  PetscInt, parameter :: iphase = 1
+
+  PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
+  PetscInt :: idof
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscInt :: offset_global
+  PetscInt :: istart, iend
+  PetscInt :: num_iterations
+  PetscInt :: num_linear_iterations
+  PetscInt :: sum_linear_iterations
+
+  KSPConvergedReason :: ksp_reason
+  PetscErrorCode :: ierr
+
+  option => this%option
+  realization => this%realization
+  field => realization%field
+  patch => realization%patch
+  grid => patch%grid
+  rt_parameter => patch%aux%RT%rt_parameter
+  reaction => patch%reaction
+  solver => this%timestepper%solver
+  select type(pm_osrt=>this%pm_list)
+    class is(pm_osrt_type)
+      pm => pm_osrt
+  end select
+
+  call pm%InitializeTimestep()
+
+  material_auxvars => patch%aux%Material%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+  rt_auxvars => patch%aux%RT%auxvars
+
+  ! from RTUpdateRHSCoefs
+  ! update time derivative on RHS
+  call VecGetArrayF90(pm%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    vec_ptr(local_id) = material_auxvars(ghosted_id)%porosity* &
+                        global_auxvars(ghosted_id)%sat(iphase)* &
+                        1000.d0* &
+                        material_auxvars(ghosted_id)%volume/option%tran_dt
+  enddo
+  call VecRestoreArrayF90(pm%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
+
+!  call RTCalculateRHS_t0(realization)
+
+  call PMRTWeightFlowParameters(pm,TIME_TpDT)
+  ! update diffusion/dispersion coefficients
+  call RTUpdateTransportCoefs(realization)
+  ! RTCalculateRHS_t1() updates aux vars (cell and boundary) to k+1 
+  ! and calculates RHS fluxes and src/sinks
+  call RTCalculateRHS_t1(realization)
+
+  ! RTCalculateTransportMatrix() calculates flux coefficients and the
+  ! t^(k+1) coefficient in accumulation term
+  call RTCalculateTransportMatrix(realization,solver%J)
+  call KSPSetOperators(solver%ksp,solver%J,solver%Jpre,ierr);CHKERRQ(ierr)
+
+  ! loop over chemical component and transport
+  do idof = 1, rt_parameter%naqcomp
+    ! from RTUpdateRHSCoefs
+    ! update time derivative on RHS
+    call VecGetArrayF90(pm%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(pm%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      vec_ptr(local_id) = vec_ptr2(local_id) * &
+                          rt_auxvars(ghosted_id)%total(idof,iphase)
+    enddo
+    call VecRestoreArrayF90(pm%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(pm%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
+    call KSPSolve(solver%ksp,pm%rhs,field%work,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      rt_auxvars(ghosted_id)%total(idof,iphase) = vec_ptr(local_id)
+    enddo
+    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+    call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
+    call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
+    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+  enddo
+
+  ! react all chemical components
+  call VecGetArrayF90(field%tran_xx,vec_ptr,ierr);CHKERRQ(ierr)
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
+                material_auxvars(ghosted_id), &
+                num_iterations,reaction,option)
+    ! set primary dependent var back to free-ion molality
+    offset_global = (local_id-1)*reaction%ncomp
+    istart = offset_global + 1
+    iend = offset_global + reaction%naqcomp
+    vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%pri_molal(:)
+    if (reaction%immobile%nimmobile > 0) then
+      istart = istart + reaction%offset_immobile
+      iend = istart + reaction%immobile%nimmobile - 1
+      vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%immobile
+    endif
+  enddo
+  call VecRestoreArrayF90(field%tran_xx,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PMCSubsurfaceOSRTStepDT
 

@@ -97,7 +97,7 @@ subroutine PMRichardsInit(this)
   
   class(pm_richards_type) :: this
   
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   
 end subroutine PMRichardsInit
 

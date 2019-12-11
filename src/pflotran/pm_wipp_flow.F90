@@ -150,13 +150,12 @@ subroutine PMWIPPFloInitObject(this)
   class(pm_wippflo_type) :: this
   
   allocate(this%max_change_ivar(3))
-  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  nullify(this%pmwss_ptr)
-  
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'WIPP Immiscible Multiphase Flow'
   this%header = 'WIPP IMMISCIBLE MULTIPHASE FLOW'
 
+  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  nullify(this%pmwss_ptr)
   this%check_post_convergence = PETSC_TRUE
 
   ! defaults from BRAGFLO input deck or recommended values from user manual

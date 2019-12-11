@@ -587,6 +587,10 @@ pm_nwt.o : communicator_base.o condition.o convergence.o data_mediator.o \
            material_aux.o nw_transport.o nw_transport_aux.o option.o \
            output_ekg.o patch.o pflotran_constants.o pm_base.o \
            realization_subsurface.o string.o utility.o variables.o
+pm_osrt.o : data_mediator.o discretization.o global.o material.o \
+            material_aux.o option.o pflotran_constants.o pm_base.o pm_rt.o \
+            reaction_aux.o reactive_transport.o realization_subsurface.o \
+            variables.o
 pm_richards.o : characteristic_curves.o convergence.o eos_water.o field.o \
                 general_aux.o global_aux.o grid.o input_aux.o option.o patch.o \
                 pflotran_constants.o pm_base.o pm_subsurface_flow.o \
@@ -708,8 +712,12 @@ pmc_subsurface.o : connection.o convergence.o coupler.o discretization.o \
                    realization_subsurface.o secondary_continuum.o solver.o \
                    string.o timestepper_BE.o timestepper_TS.o \
                    timestepper_base.o variables.o
-pmc_subsurface_osrt.o : discretization.o option.o pflotran_constants.o pm_rt.o \
-                        pmc_subsurface.o realization_subsurface.o solver.o
+pmc_subsurface_osrt.o : discretization.o field.o global_aux.o grid.o \
+                        material_aux.o option.o patch.o pflotran_constants.o \
+                        pm_osrt.o pm_rt.o pmc_subsurface.o reaction.o \
+                        reaction_aux.o reactive_transport.o \
+                        reactive_transport_aux.o realization_subsurface.o \
+                        solver.o timestepper_KSP.o
 pmc_surface.o : checkpoint.o connection.o coupler.o eos_water.o grid.o \
                 option.o output.o output_aux.o output_surface.o patch.o \
                 pflotran_constants.o pm_base.o pm_surface_flow.o pmc_base.o \

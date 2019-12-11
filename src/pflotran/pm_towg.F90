@@ -161,7 +161,7 @@ function PMTOWGCreate(input,miscibility_model,option)
   end if  
 
 
-  call PMSubsurfaceFlowCreate(towg_pm)
+  call PMSubsurfaceFlowInit(towg_pm)
   towg_pm%name = 'TOWG Flow'
   towg_pm%header = 'TOWG FLOW'
 
