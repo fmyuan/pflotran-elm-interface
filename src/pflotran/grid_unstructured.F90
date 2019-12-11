@@ -1887,10 +1887,11 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
       do ivertex = 1, nvertices
         face_to_vertex(ivertex,face_count) = &
           unstructured_grid%cell_vertices(vertex_ids4(ivertex),ghosted_id)
-          if (face_to_vertex(ivertex,face_count) > 0) then
-            unstructured_grid%face_to_vertex_natural(ivertex,face_count) = &
-              unstructured_grid%vertex_ids_natural(face_to_vertex(ivertex,face_count))
-          endif
+        if (face_to_vertex(ivertex,face_count) > 0) then
+          unstructured_grid%face_to_vertex_natural(ivertex,face_count) = &
+            unstructured_grid%vertex_ids_natural(face_to_vertex(ivertex, &
+                                                                face_count))
+        endif
       enddo
     enddo
   enddo
