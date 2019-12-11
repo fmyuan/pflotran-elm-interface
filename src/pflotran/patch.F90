@@ -10378,7 +10378,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
                 if (iv2 > num_vertices1) iv2 = 1
               enddo
               ! search backward direction
-              if (.not.found) then
+              if (.not.found2) then
                 reverse_direction = PETSC_TRUE
                 found2 = PETSC_TRUE
                 iv1 = ivert1
