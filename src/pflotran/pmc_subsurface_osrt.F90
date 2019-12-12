@@ -196,6 +196,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations
   PetscInt :: icut
+  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   PetscInt :: rreact_error
   PetscReal :: tconv
 
@@ -359,8 +360,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       ! print snapshot only 
       process_model%output_option%plot_name = trim(process_model%name) // &
         '_cut_to_failure'
-      call Output(process_model%realization_base, &
-                  PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+      snapshot_plot_flag = PETSC_TRUE
+      observation_plot_flag = PETSC_FALSE
+      massbal_plot_flag = PETSC_FALSE
+      call Output(process_model%realization_base,snapshot_plot_flag, &
+                  observation_plot_flag,massbal_plot_flag)
       stop_flag = TS_STOP_FAILURE
       return
     endif
