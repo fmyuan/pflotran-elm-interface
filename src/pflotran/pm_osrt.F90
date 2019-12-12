@@ -12,7 +12,7 @@ module PM_OSRT_class
   private
 
   type, public, extends(pm_rt_type) :: pm_osrt_type
-    Vec :: rhs_coef
+    Vec :: fixed_accum
     Vec :: rhs
   contains
     procedure, public :: InitializeRun => PMOSRTInitializeRun
@@ -69,7 +69,7 @@ subroutine PMOSRTInit(pm_osrt)
 
   call PMRTInit(pm_osrt)
 
-  pm_osrt%rhs_coef = PETSC_NULL_VEC
+  pm_osrt%fixed_accum = PETSC_NULL_VEC
   pm_osrt%rhs = PETSC_NULL_VEC
   
   pm_osrt%operator_split = PETSC_TRUE
@@ -93,10 +93,10 @@ recursive subroutine PMOSRTInitializeRun(this)
 
   call PMRTInitializeRun(this)
   call DiscretizationDuplicateVector(this%realization%discretization, &
-                                     this%realization%field%work, &
-                                     this%rhs_coef)
+                                     this%realization%field%tran_xx, &
+                                     this%fixed_accum)
   call DiscretizationDuplicateVector(this%realization%discretization, &
-                                     this%realization%field%work, &
+                                     this%realization%field%tran_xx, &
                                      this%rhs)
 
 end subroutine PMOSRTInitializeRun
@@ -381,8 +381,8 @@ subroutine PMOSRTStrip(this)
 
   call PMRTStrip(this)
 
-  if (this%rhs_coef /= PETSC_NULL_VEC) then
-    call VecDestroy(this%rhs_coef,ierr);CHKERRQ(ierr)
+  if (this%fixed_accum /= PETSC_NULL_VEC) then
+    call VecDestroy(this%fixed_accum,ierr);CHKERRQ(ierr)
   endif
   if (this%rhs /= PETSC_NULL_VEC) then
     call VecDestroy(this%rhs,ierr);CHKERRQ(ierr)

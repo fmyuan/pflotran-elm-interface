@@ -162,6 +162,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   use Timestepper_Base_class
   use Timestepper_KSP_class
   use Output_module
+  use String_module
 
   implicit none
 
@@ -186,7 +187,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscViewer :: viewer
 
   PetscReal, pointer :: vec_ptr(:)
-  PetscReal, pointer :: vec_ptr2(:)
+  PetscReal, pointer :: tran_xx_p(:)
   PetscInt :: idof
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -198,7 +199,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: icut
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   PetscInt :: rreact_error
+  PetscInt :: tempint
   PetscReal :: tconv
+  PetscReal :: tempreal
 
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: tunit
@@ -239,6 +242,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
   ! from RTUpdateRHSCoefs
   ! update time derivative on RHS
+#if 0
   call VecGetArrayF90(process_model%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -249,143 +253,167 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
                         material_auxvars(ghosted_id)%volume
   enddo
   call VecRestoreArrayF90(process_model%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
-
-  do
-
-!  call RTCalculateRHS_t0(realization)
-
-  call PMRTWeightFlowParameters(process_model,TIME_TpDT)
-  ! update diffusion/dispersion coefficients
-  call RTUpdateTransportCoefs(realization)
-  ! RTCalculateRHS_t1() updates aux vars (cell and boundary) to k+1 
-  ! and calculates RHS fluxes and src/sinks
-  call VecZeroEntries(process_model%rhs,ierr);CHKERRQ(ierr)
-  call RTCalculateRHS_t1(realization,process_model%rhs)
-
-  ! RTCalculateTransportMatrix() calculates flux coefficients and the
-  ! t^(k+1) coefficient in accumulation term
-  call RTCalculateTransportMatrix(realization,solver%J)
-  call KSPSetOperators(solver%ksp,solver%J,solver%Jpre,ierr);CHKERRQ(ierr)
-
-  ! loop over chemical component and transport
-  do idof = 1, rt_parameter%naqcomp
-    ! from RTUpdateRHSCoefs
-    ! update time derivative on RHS
-    call VecGetArrayF90(process_model%rhs,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(process_model%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = vec_ptr(local_id) + &
-                          vec_ptr2(local_id) * &
-                          rt_auxvars(ghosted_id)%total(idof,iphase) / &
-                          option%tran_dt
-    enddo
-    call VecRestoreArrayF90(process_model%rhs,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(process_model%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
-
-    if (realization%debug%vecview_residual) then
-      string = 'Trhs'
-      call DebugCreateViewer(realization%debug,string,option,viewer)
-      call VecView(process_model%rhs,viewer,ierr);CHKERRQ(ierr)
-      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    endif
-
-    call KSPSolve(solver%ksp,process_model%rhs,field%work,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) cycle
-      rt_auxvars(ghosted_id)%total(idof,iphase) = vec_ptr(local_id)
-    enddo
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
-    call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
-    call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
-    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
-  enddo
-
-  ! react all chemical components
-  call VecGetArrayF90(field%tran_xx,vec_ptr,ierr);CHKERRQ(ierr)
+#else
+  call VecGetArrayF90(process_model%fixed_accum,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
-                material_auxvars(ghosted_id), &
-                num_iterations,reaction,grid%nG2A(ghosted_id),option, &
-                rreact_error)
-    if (rreact_error /= 0) exit
-    ! set primary dependent var back to free-ion molality
     offset_global = (local_id-1)*reaction%ncomp
     istart = offset_global + 1
     iend = offset_global + reaction%naqcomp
-    vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%pri_molal(:)
+    vec_ptr(istart:iend) = material_auxvars(ghosted_id)%porosity* &
+                           global_auxvars(ghosted_id)%sat(iphase)* &
+                           1000.d0* &
+                           material_auxvars(ghosted_id)%volume* &
+                           rt_auxvars(ghosted_id)%total(:,iphase)
+    !TODO(geh): do immobile need to be stored; they are in tran_xx
     if (reaction%immobile%nimmobile > 0) then
+      ! need to store immobile concentrations for the purpose of reverting
+      ! when reaction fails
       istart = istart + reaction%offset_immobile
       iend = istart + reaction%immobile%nimmobile - 1
       vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%immobile
     endif
   enddo
-  call VecRestoreArrayF90(field%tran_xx,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(process_model%fixed_accum,vec_ptr,ierr);CHKERRQ(ierr)
+#endif
 
-  if (rreact_error /= 0) then
-    !TODO(geh): move to timestepper base and call from daughters.
-    icut = icut + 1
-    timestepper%time_step_cut_flag = PETSC_TRUE
-    ! if a cut occurs on the last time step, the stop_flag will have been
-    ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
-    ! premature ending of simulation.
-    if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
+  do
 
-    if (icut > timestepper%max_time_step_cuts .or. &
-        timestepper%dt < timestepper%dt_min) then
+    rreact_error = 0
 
-      if (icut > timestepper%max_time_step_cuts) then
-        option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
-        call PrintMsg(option)
-        write(option%io_buffer, &
-              '("    icut =",i3,", max_time_step_cuts=",i3)') &
-              icut,timestepper%max_time_step_cuts
-        call PrintMsg(option)
+!    call RTCalculateRHS_t0(realization)
+
+    call PMRTWeightFlowParameters(process_model,TIME_TpDT)
+    ! update diffusion/dispersion coefficients
+    call RTUpdateTransportCoefs(realization)
+    ! RTCalculateRHS_t1() updates aux vars (cell and boundary) to k+1 
+    ! and calculates RHS fluxes and src/sinks
+    call VecCopy(process_model%fixed_accum,process_model%rhs,ierr);CHKERRQ(ierr)
+    tempreal = 1.d0/option%tran_dt
+    call VecScale(process_model%rhs,tempreal,ierr);CHKERRQ(ierr)
+    call RTCalculateRHS_t1(realization,process_model%rhs)
+
+    ! RTCalculateTransportMatrix() calculates flux coefficients and the
+    ! t^(k+1) coefficient in accumulation term
+    call RTCalculateTransportMatrix(realization,solver%J)
+    call KSPSetOperators(solver%ksp,solver%J,solver%Jpre,ierr);CHKERRQ(ierr)
+
+    ! loop over chemical component and transport
+    do idof = 1, rt_parameter%naqcomp
+
+      tempint = idof-1
+      call VecStrideGather(process_model%rhs,tempint,field%work, &
+                           INSERT_VALUES,ierr);CHKERRQ(ierr)
+
+!debug      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+!debug      print *, 'Trhs: ', trim(StringWrite(vec_ptr))
+!debug      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+
+      if (realization%debug%vecview_residual) then
+        string = 'Trhs'
+        call DebugCreateViewer(realization%debug,string,option,viewer)
+        call VecView(field%work,viewer,ierr);CHKERRQ(ierr)
+        call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
       endif
-      if (timestepper%dt < timestepper%dt_min) then
-        option%io_buffer = ' Stopping: Time step size is less than the &
-                           &minimum allowable time step.'
-        call PrintMsg(option)
-        write(option%io_buffer, &
-              '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
-             timestepper%dt/tconv,timestepper%dt_min/tconv,trim(tunit)
-        call PrintMsg(option)
-     endif
 
-      ! print snapshot only 
-      process_model%output_option%plot_name = trim(process_model%name) // &
-        '_cut_to_failure'
-      snapshot_plot_flag = PETSC_TRUE
-      observation_plot_flag = PETSC_FALSE
-      massbal_plot_flag = PETSC_FALSE
-      call Output(process_model%realization_base,snapshot_plot_flag, &
-                  observation_plot_flag,massbal_plot_flag)
-      stop_flag = TS_STOP_FAILURE
-      return
+      call KSPSolve(solver%ksp,field%work,field%work,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+!debug      print *, 'Tsol: ', trim(StringWrite('(es17.8)',vec_ptr))
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (patch%imat(ghosted_id) <= 0) cycle
+        rt_auxvars(ghosted_id)%total(idof,iphase) = vec_ptr(local_id)
+      enddo
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+      call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
+      call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
+      sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+    enddo
+
+    ! react all chemical components
+    call VecGetArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      offset_global = (local_id-1)*reaction%ncomp
+      istart = offset_global + 1
+      iend = offset_global + reaction%ncomp
+      call RReact(tran_xx_p(istart:iend),rt_auxvars(ghosted_id), &
+                  global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
+                  num_iterations,reaction,grid%nG2A(ghosted_id),option, &
+                  rreact_error)
+      if (rreact_error /= 0) exit
+      ! set primary dependent var back to free-ion molality
+      iend = offset_global + reaction%naqcomp
+      tran_xx_p(istart:iend) = rt_auxvars(ghosted_id)%pri_molal(:)
+      if (reaction%immobile%nimmobile > 0) then
+        istart = istart + reaction%offset_immobile
+        iend = iend + reaction%immobile%nimmobile
+        tran_xx_p(istart:iend) = rt_auxvars(ghosted_id)%immobile
+      endif
+    enddo
+    call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
+
+    if (rreact_error /= 0) then
+      !TODO(geh): move to timestepper base and call from daughters.
+      icut = icut + 1
+      timestepper%time_step_cut_flag = PETSC_TRUE
+      ! if a cut occurs on the last time step, the stop_flag will have been
+      ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
+      ! premature ending of simulation.
+      if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
+
+      if (icut > timestepper%max_time_step_cuts .or. &
+          timestepper%dt < timestepper%dt_min) then
+
+        if (icut > timestepper%max_time_step_cuts) then
+          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
+          call PrintMsg(option)
+          write(option%io_buffer, &
+                '("    icut =",i3,", max_time_step_cuts=",i3)') &
+                icut,timestepper%max_time_step_cuts
+          call PrintMsg(option)
+        endif
+        if (timestepper%dt < timestepper%dt_min) then
+          option%io_buffer = ' Stopping: Time step size is less than the &
+                             &minimum allowable time step.'
+          call PrintMsg(option)
+          write(option%io_buffer, &
+                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
+               timestepper%dt/tconv,timestepper%dt_min/tconv,trim(tunit)
+          call PrintMsg(option)
+       endif
+
+        ! print snapshot only 
+        process_model%output_option%plot_name = trim(process_model%name) // &
+          '_cut_to_failure'
+        snapshot_plot_flag = PETSC_TRUE
+        observation_plot_flag = PETSC_FALSE
+        massbal_plot_flag = PETSC_FALSE
+        call Output(process_model%realization_base,snapshot_plot_flag, &
+                    observation_plot_flag,massbal_plot_flag)
+        stop_flag = TS_STOP_FAILURE
+        return
+      endif
+
+      timestepper%target_time = this%timestepper%target_time - timestepper%dt
+
+      timestepper%dt = timestepper%time_step_reduction_factor * timestepper%dt
+
+      write(option%io_buffer,'(''-> Cut time step: icut='',i2, &
+           &   ''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
+           &   1pe12.5)')  icut, &
+           timestepper%cumulative_time_step_cuts+icut, &
+           option%time/tconv, &
+           timestepper%dt/tconv
+      call PrintMsg(option)
+      timestepper%target_time = timestepper%target_time + timestepper%dt
+      option%dt = timestepper%dt
+      call process_model%TimeCut()
+    else
+      exit
     endif
-
-    timestepper%target_time = this%timestepper%target_time - timestepper%dt
-
-    timestepper%dt = timestepper%time_step_reduction_factor * timestepper%dt
-
-    write(option%io_buffer,'(''-> Cut time step: icut='',i2, &
-         &   ''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-         &   1pe12.5)')  icut, &
-         timestepper%cumulative_time_step_cuts+icut, &
-         option%time/tconv, &
-         timestepper%dt/tconv
-    call PrintMsg(option)
-    timestepper%target_time = timestepper%target_time + timestepper%dt
-    option%dt = timestepper%dt
-    call process_model%TimeCut()
-  else
-    exit
-  endif
 
   enddo
 

@@ -3413,7 +3413,7 @@ end subroutine RJumpStartKineticSorption
 
 ! ************************************************************************** !
 
-subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
+subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
                   num_iterations_,reaction,natural_id,option,ierror)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson
@@ -3426,6 +3426,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
   implicit none
   
   class(reaction_rt_type), pointer :: reaction
+  PetscReal :: tran_xx(reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -3466,7 +3467,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
                              global_auxvar%den_kg(iphase)*1.d3
     return
   endif
-  
+
   if (.not.option%use_isothermal) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_FALSE,option)
   endif
@@ -3482,9 +3483,19 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
                            option,fixed_accum)  
   endif
 
-  ! now update activity coefficients
-  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
+!TODO(geh): activity coefficient will be updated earlier. otherwise, they
+!           will be repeatedly updated due to time step cut
+!  ! now update activity coefficients
+!  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
+!    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
+!  endif
+
+  ! initialize guesses to stored solution
+  rt_auxvar%pri_molal(:) = tran_xx(1:reaction%naqcomp)
+  if (reaction%immobile%nimmobile > 0) then
+    rt_auxvar%immobile(:) = tran_xx(reaction%offset_immobile+1: &
+                                    reaction%offset_immobile+ &
+                                      reaction%immobile%nimmobile)
   endif
   
   do

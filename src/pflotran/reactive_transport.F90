@@ -1870,7 +1870,7 @@ subroutine RTReact(realization)
     iendaq = istart + reaction%naqcomp - 1
     
     
-    call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
+    call RReact(tran_xx_p,rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
 !                tran_xx_p(istart:iend), &
                 num_iterations,reaction,grid%nG2A(ghosted_id),option,ierror)
