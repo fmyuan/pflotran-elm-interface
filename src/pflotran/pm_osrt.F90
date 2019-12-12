@@ -50,9 +50,6 @@ function PMOSRTCreate()
   pm_osrt%name = 'Operator-Split Reactive Transport'
   pm_osrt%header = 'OPERATOR-SPLIT REACTIVE TRANSPORT'
 
-  pm_osrt%rhs_coef = PETSC_NULL_VEC
-  pm_osrt%rhs = PETSC_NULL_VEC
-  
   PMOSRTCreate => pm_osrt
   
 end function PMOSRTCreate
@@ -71,6 +68,11 @@ subroutine PMOSRTInit(pm_osrt)
   class(pm_osrt_type) :: pm_osrt
 
   call PMRTInit(pm_osrt)
+
+  pm_osrt%rhs_coef = PETSC_NULL_VEC
+  pm_osrt%rhs = PETSC_NULL_VEC
+  
+  pm_osrt%operator_split = PETSC_TRUE
 
 end subroutine PMOSRTInit
 
@@ -304,7 +306,7 @@ end function PMOSRTAcceptSolution
 ! ************************************************************************** !
 
 subroutine PMOSRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
-                              num_newton_iterations,tfac, &
+                                num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
   ! 
   ! Author: Glenn Hammond
@@ -321,6 +323,22 @@ subroutine PMOSRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
+
+  PetscReal, parameter :: pert = 1.d-20
+  PetscReal :: dtt
+  PetscReal :: uvf
+
+  dtt = 1.d20
+  if (this%volfrac_change_governor < 1.d0) then
+    uvf= this%volfrac_change_governor/(maxval(this%max_volfrac_change)+pert)
+    dtt = 0.5d0 * dt * (1.d0 + uvf)
+  endif
+
+  dtt = min(time_step_max_growth_factor*dt,dtt)
+  if (dtt > dt_max) dtt = dt_max
+  ! geh: see comment above under flow stepper
+  dtt = max(dtt,dt_min)
+  dt = dtt
   
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   

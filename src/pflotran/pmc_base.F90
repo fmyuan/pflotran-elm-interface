@@ -609,7 +609,7 @@ end subroutine PMCBaseRunToTime
 
 ! ************************************************************************** !
 
-subroutine PMCBaseStepDT(this,local_stop_flag)
+subroutine PMCBaseStepDT(this,stop_flag)
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/06/19
@@ -617,9 +617,9 @@ subroutine PMCBaseStepDT(this,local_stop_flag)
   implicit none
 
   class(pmc_base_type) :: this
-  PetscInt :: local_stop_flag
+  PetscInt :: stop_flag
 
-  call this%timestepper%StepDT(this%pm_list,local_stop_flag)
+  call this%timestepper%StepDT(this%pm_list,stop_flag)
 
 end subroutine PMCBaseStepDT
 

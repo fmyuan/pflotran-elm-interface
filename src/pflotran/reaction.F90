@@ -3413,11 +3413,8 @@ end subroutine RJumpStartKineticSorption
 
 ! ************************************************************************** !
 
-!TODO(geh): delete
-!subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
-!                  num_iterations_,reaction,option)
 subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
-                  num_iterations_,reaction,option)
+                  num_iterations_,reaction,natural_id,option,ierror)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson
   ! 
@@ -3432,10 +3429,10 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  PetscReal :: tran_xx_p(reaction%ncomp)
-  type(option_type) :: option
   PetscInt :: num_iterations_
-  PetscReal :: sign_(reaction%ncomp)
+  PetscInt :: natural_id
+  type(option_type) :: option
+  PetscInt :: ierror
   
   PetscReal :: residual(reaction%ncomp)
   PetscReal :: res(reaction%ncomp)
@@ -3458,38 +3455,24 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
   one_over_dt = 1.d0/option%tran_dt
   num_iterations = 0
 
-  ! calculate fixed portion of accumulation term
-  ! fixed_accum is overwritten in RTAccumulation
-  ! Since RTAccumulation uses rt_auxvar%total, we must overwrite the 
-  ! rt_auxvar total variables
-  ! aqueous
-  rt_auxvar%total(:,iphase) = tran_xx_p(1:reaction%naqcomp)
-  
   if (reaction%ncoll > 0) then
     option%io_buffer = 'Colloids not set up for operator split mode.'
     call PrintErrMsg(option)
   endif
 
 ! skip chemistry if species nonreacting 
-#if 1  
   if (.not.reaction%use_full_geochemistry) then
-    rt_auxvar%pri_molal(:) = tran_xx_p(1:reaction%naqcomp) / &
+    rt_auxvar%pri_molal(:) = rt_auxvar%total(:,iphase) / &
                              global_auxvar%den_kg(iphase)*1.d3
     return
-  endif
-#endif  
-  
-  ! update immobile concentrations
-  if (reaction%immobile%nimmobile > 0) then
-    immobile_start = reaction%offset_immobile + 1
-    immobile_end = reaction%offset_immobile + reaction%immobile%nimmobile
-    rt_auxvar%immobile(1:reaction%immobile%nimmobile)  = &
-      tran_xx_p(immobile_start:immobile_end)
   endif
   
   if (.not.option%use_isothermal) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_FALSE,option)
   endif
+
+  ! NOTE: total^* and immobile^k are already up to date in rt_auxvar for 
+  !       use in the fixed accumulation below.
 
   ! still need code to overwrite other phases
   call RTAccumulation(rt_auxvar,global_auxvar,material_auxvar,reaction, &
@@ -3582,7 +3565,13 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar, &
         print *, 'Maximum iterations in RReact: stop: ',num_iterations
         print *, 'Maximum iterations in RReact: residual: ',residual
         print *, 'Maximum iterations in RReact: new solution: ',new_solution
-        stop
+        print *, 'Grid cell: ', natural_id
+        if (option%mycommsize > 1) then
+          print *, 'Process rank: ', option%myrank
+        endif
+        num_iterations_ = num_iterations
+        ierror = 1
+        return
       endif
       if (scale < 0.99d0) then
         ! apply scaling

@@ -1062,8 +1062,9 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
   use String_module
 
   use PM_Base_class
-  use PM_RT_class
   use PM_NWT_class
+  use PM_OSRT_class
+  use PM_RT_class
 
   implicit none
 
@@ -1096,6 +1097,10 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
           case('RT')
             pm => PMRTCreate()
             option%itranmode = RT_MODE
+          case('OSRT')
+            pm => PMOSRTCreate()
+            option%itranmode = RT_MODE
+            option%transport%reactive_transport_coupling = OPERATOR_SPLIT
           case('NWT')
             pm => PMNWTCreate()
             option%itranmode = NWT_MODE

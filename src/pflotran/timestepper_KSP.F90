@@ -173,6 +173,8 @@ subroutine TimestepperKSPUpdateDT(this,process_model)
   class(pm_base_type) :: process_model
   
   PetscBool :: update_time_step
+  PetscInt :: dummy_int
+  PetscReal :: dummy_array(1)
   
   update_time_step = PETSC_TRUE
 
@@ -196,19 +198,15 @@ subroutine TimestepperKSPUpdateDT(this,process_model)
     update_time_step = PETSC_FALSE
   endif
     
-#if 0
-  if (update_time_step .and. this%iaccel /= 0) then
+  if (update_time_step) then
       
     call process_model%UpdateTimestep(this%dt, &
                                       this%dt_min, &
                                       this%dt_max, &
-                                      this%iaccel, &
-                                      this%num_newton_iterations, &
-                                      this%tfac, &
+                                      dummy_int, dummy_int, dummy_array, &
                                       this%time_step_max_growth_factor)
     
   endif
-#endif
 
 end subroutine TimestepperKSPUpdateDT
 

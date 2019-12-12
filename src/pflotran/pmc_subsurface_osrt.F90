@@ -140,7 +140,7 @@ end subroutine PMCSubsurfaceOSRTSetupSolvers
 
 ! ************************************************************************** !
 
-subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
+subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/06/19
@@ -158,25 +158,32 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
   use Reaction_Aux_module
   use Reaction_module
   use PM_RT_class
+  use Debug_module
+  use Timestepper_Base_class
+  use Timestepper_KSP_class
+  use Output_module
 
   implicit none
 
   class(pmc_subsurface_osrt_type) :: this
-  PetscInt :: local_stop_flag
+  PetscInt :: stop_flag
 
   type(option_type), pointer :: option
-  type(pm_osrt_type), pointer :: pm
+  type(pm_osrt_type), pointer :: process_model
   class(realization_subsurface_type), pointer :: realization
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(solver_type), pointer :: solver
+  type(timestepper_KSP_type), pointer :: timestepper
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   PetscInt, parameter :: iphase = 1
+
+  PetscViewer :: viewer
 
   PetscReal, pointer :: vec_ptr(:)
   PetscReal, pointer :: vec_ptr2(:)
@@ -188,6 +195,12 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
   PetscInt :: num_iterations
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations
+  PetscInt :: icut
+  PetscInt :: rreact_error
+  PetscReal :: tconv
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: tunit
 
   KSPConvergedReason :: ksp_reason
   PetscErrorCode :: ierr
@@ -199,39 +212,54 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
   grid => patch%grid
   rt_parameter => patch%aux%RT%rt_parameter
   reaction => patch%reaction
-  solver => this%timestepper%solver
+  select type(ts=>this%timestepper)
+    class is(timestepper_KSP_type)
+      timestepper => ts
+  end select
+  solver => timestepper%solver
   select type(pm_osrt=>this%pm_list)
     class is(pm_osrt_type)
-      pm => pm_osrt
+      process_model => pm_osrt
   end select
-
-  call pm%InitializeTimestep()
 
   material_auxvars => patch%aux%Material%auxvars
   global_auxvars => patch%aux%Global%auxvars
   rt_auxvars => patch%aux%RT%auxvars
 
+  tconv = process_model%output_option%tconv
+  tunit = process_model%output_option%tunit
+  sum_linear_iterations = 0
+  icut = 0
+
+  option%dt = timestepper%dt
+  option%time = timestepper%target_time - timestepper%dt
+
+  call process_model%InitializeTimestep()
+
   ! from RTUpdateRHSCoefs
   ! update time derivative on RHS
-  call VecGetArrayF90(pm%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(process_model%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     vec_ptr(local_id) = material_auxvars(ghosted_id)%porosity* &
                         global_auxvars(ghosted_id)%sat(iphase)* &
                         1000.d0* &
-                        material_auxvars(ghosted_id)%volume/option%tran_dt
+                        material_auxvars(ghosted_id)%volume
   enddo
-  call VecRestoreArrayF90(pm%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(process_model%rhs_coef,vec_ptr,ierr);CHKERRQ(ierr)
+
+  do
 
 !  call RTCalculateRHS_t0(realization)
 
-  call PMRTWeightFlowParameters(pm,TIME_TpDT)
+  call PMRTWeightFlowParameters(process_model,TIME_TpDT)
   ! update diffusion/dispersion coefficients
   call RTUpdateTransportCoefs(realization)
   ! RTCalculateRHS_t1() updates aux vars (cell and boundary) to k+1 
   ! and calculates RHS fluxes and src/sinks
-  call RTCalculateRHS_t1(realization)
+  call VecZeroEntries(process_model%rhs,ierr);CHKERRQ(ierr)
+  call RTCalculateRHS_t1(realization,process_model%rhs)
 
   ! RTCalculateTransportMatrix() calculates flux coefficients and the
   ! t^(k+1) coefficient in accumulation term
@@ -242,17 +270,27 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
   do idof = 1, rt_parameter%naqcomp
     ! from RTUpdateRHSCoefs
     ! update time derivative on RHS
-    call VecGetArrayF90(pm%rhs,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(pm%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(process_model%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(process_model%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-      vec_ptr(local_id) = vec_ptr2(local_id) * &
-                          rt_auxvars(ghosted_id)%total(idof,iphase)
+      vec_ptr(local_id) = vec_ptr(local_id) + &
+                          vec_ptr2(local_id) * &
+                          rt_auxvars(ghosted_id)%total(idof,iphase) / &
+                          option%tran_dt
     enddo
-    call VecRestoreArrayF90(pm%rhs,vec_ptr,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(pm%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
-    call KSPSolve(solver%ksp,pm%rhs,field%work,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(process_model%rhs,vec_ptr,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(process_model%rhs_coef,vec_ptr2,ierr);CHKERRQ(ierr)
+
+    if (realization%debug%vecview_residual) then
+      string = 'Trhs'
+      call DebugCreateViewer(realization%debug,string,option,viewer)
+      call VecView(process_model%rhs,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+    endif
+
+    call KSPSolve(solver%ksp,process_model%rhs,field%work,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -272,7 +310,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
     if (patch%imat(ghosted_id) <= 0) cycle
     call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
-                num_iterations,reaction,option)
+                num_iterations,reaction,grid%nG2A(ghosted_id),option, &
+                rreact_error)
+    if (rreact_error /= 0) exit
     ! set primary dependent var back to free-ion molality
     offset_global = (local_id-1)*reaction%ncomp
     istart = offset_global + 1
@@ -285,6 +325,76 @@ subroutine PMCSubsurfaceOSRTStepDT(this,local_stop_flag)
     endif
   enddo
   call VecRestoreArrayF90(field%tran_xx,vec_ptr,ierr);CHKERRQ(ierr)
+
+  if (rreact_error /= 0) then
+    !TODO(geh): move to timestepper base and call from daughters.
+    icut = icut + 1
+    timestepper%time_step_cut_flag = PETSC_TRUE
+    ! if a cut occurs on the last time step, the stop_flag will have been
+    ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
+    ! premature ending of simulation.
+    if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
+
+    if (icut > timestepper%max_time_step_cuts .or. &
+        timestepper%dt < timestepper%dt_min) then
+
+      if (icut > timestepper%max_time_step_cuts) then
+        option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
+        call PrintMsg(option)
+        write(option%io_buffer, &
+              '("    icut =",i3,", max_time_step_cuts=",i3)') &
+              icut,timestepper%max_time_step_cuts
+        call PrintMsg(option)
+      endif
+      if (timestepper%dt < timestepper%dt_min) then
+        option%io_buffer = ' Stopping: Time step size is less than the &
+                           &minimum allowable time step.'
+        call PrintMsg(option)
+        write(option%io_buffer, &
+              '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
+             timestepper%dt/tconv,timestepper%dt_min/tconv,trim(tunit)
+        call PrintMsg(option)
+     endif
+
+      ! print snapshot only 
+      process_model%output_option%plot_name = trim(process_model%name) // &
+        '_cut_to_failure'
+      call Output(process_model%realization_base, &
+                  PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+      stop_flag = TS_STOP_FAILURE
+      return
+    endif
+
+    timestepper%target_time = this%timestepper%target_time - timestepper%dt
+
+    timestepper%dt = timestepper%time_step_reduction_factor * timestepper%dt
+
+    write(option%io_buffer,'(''-> Cut time step: icut='',i2, &
+         &   ''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
+         &   1pe12.5)')  icut, &
+         timestepper%cumulative_time_step_cuts+icut, &
+         option%time/tconv, &
+         timestepper%dt/tconv
+    call PrintMsg(option)
+    timestepper%target_time = timestepper%target_time + timestepper%dt
+    option%dt = timestepper%dt
+    call process_model%TimeCut()
+  else
+    exit
+  endif
+
+  enddo
+
+  timestepper%steps = timestepper%steps + 1
+
+  if (option%print_screen_flag) then
+      write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+           & " [",a,"]", " cuts = ",i2, " [",i4,"]")') &
+           this%timestepper%steps, &
+           this%timestepper%target_time/tconv, &
+           this%timestepper%dt/tconv,trim(tunit),icut, &
+           this%timestepper%cumulative_time_step_cuts
+  endif
 
 end subroutine PMCSubsurfaceOSRTStepDT
 

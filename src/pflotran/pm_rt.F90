@@ -134,6 +134,7 @@ subroutine PMRTInit(pm_rt)
   pm_rt%temperature_dependent_diffusion = PETSC_FALSE
   ! these flags can only be true for transport only
   pm_rt%transient_porosity = PETSC_FALSE
+  pm_rt%operator_split = PETSC_FALSE
 
 end subroutine PMRTInit
 

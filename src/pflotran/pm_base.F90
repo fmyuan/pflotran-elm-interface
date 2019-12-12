@@ -180,6 +180,8 @@ end subroutine PMBaseJacobian
 
 ! ************************************************************************** !
 
+!TODO(geh): replace anything TS BE-related with an array that can be
+!           packed/unpacked on either side.
 subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
                                 time_step_max_growth_factor)

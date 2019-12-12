@@ -75,12 +75,6 @@ subroutine RTTimeCut(realization)
   ! copy previous solution back to current solution
   call VecCopy(field%tran_yy,field%tran_xx,ierr);CHKERRQ(ierr)
   
-  ! set densities and saturations to t+dt
-  if (realization%option%nflowdof > 0) then
-    call GlobalWeightAuxVars(realization, &
-                             realization%option%transport%tran_weight_t1)
-  endif
-
   if (option%use_mc) then
     call SecondaryRTTimeCut(realization)
   endif
@@ -1294,7 +1288,7 @@ end subroutine RTCalculateRHS_t0
 
 ! ************************************************************************** !
 
-subroutine RTCalculateRHS_t1(realization)
+subroutine RTCalculateRHS_t1(realization,rhs_vec)
   ! 
   ! Calculate porition of RHS of transport system
   ! at time level k+1
@@ -1315,6 +1309,7 @@ subroutine RTCalculateRHS_t1(realization)
   implicit none
   
   type(realization_subsurface_type) :: realization
+  Vec :: rhs_vec
   
   type(reactive_transport_auxvar_type), pointer :: rt_auxvar_out
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
@@ -1361,8 +1356,6 @@ subroutine RTCalculateRHS_t1(realization)
   nphase = rt_parameter%nphase
   
   iphase = 1
-  option%io_buffer = 'RTCalculateRHS_t1 must be refactored'
-  call PrintErrMsg(option)
 
 #if 0
 !geh - activity coef updates must always be off!!!
@@ -1376,7 +1369,7 @@ subroutine RTCalculateRHS_t1(realization)
 #endif
 
   ! Get vectors
-  call VecGetArrayF90(field%tran_rhs,rhs_p,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(rhs_vec,rhs_p,ierr);CHKERRQ(ierr)
 
   ! add in inflowing boundary conditions
   ! Boundary Flux Terms -----------------------------------
@@ -1520,13 +1513,13 @@ subroutine RTCalculateRHS_t1(realization)
 #endif
 
   ! Restore vectors
-  call VecRestoreArrayF90(field%tran_rhs,rhs_p,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(rhs_vec,rhs_p,ierr);CHKERRQ(ierr)
 
   ! Mass Transfer
   if (field%tran_mass_transfer /= PETSC_NULL_VEC) then
     ! scale by -1.d0 for contribution to residual.  A negative contribution
     ! indicates mass being added to system.
-    call VecAXPY(field%tran_rhs,-1.d0,field%tran_mass_transfer, &
+    call VecAXPY(rhs_vec,-1.d0,field%tran_mass_transfer, &
                  ierr);CHKERRQ(ierr)
   endif
   
@@ -1815,6 +1808,7 @@ subroutine RTReact(realization)
   PetscReal, pointer :: tran_xx_p(:)
   PetscReal, pointer :: mask_p(:)
   PetscInt :: num_iterations
+  PetscInt :: ierror
 #ifdef OS_STATISTICS
   PetscInt :: sum_iterations
   PetscInt :: max_iterations
@@ -1879,7 +1873,7 @@ subroutine RTReact(realization)
     call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
 !                tran_xx_p(istart:iend), &
-                num_iterations,reaction,option)
+                num_iterations,reaction,grid%nG2A(ghosted_id),option,ierror)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
     if (reaction%immobile%nimmobile > 0) then
