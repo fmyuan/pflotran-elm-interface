@@ -3846,7 +3846,7 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
 
-  print *, 'RActivityCoefficients from RTUpdateActivityCoefficients'
+!debug  print *, 'RActivityCoefficients from RTUpdateActivityCoefficients'
   
   option => realization%option
   patch => realization%patch  
@@ -4000,9 +4000,9 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
 
-  if (update_activity_coefs) then
-    print *, 'RActivityCoefficients from RTUpdateAuxVars'
-  endif
+!debug  if (update_activity_coefs) then
+!debug    print *, 'RActivityCoefficients from RTUpdateAuxVars'
+!debug  endif
 
   if (update_cells) then
 
