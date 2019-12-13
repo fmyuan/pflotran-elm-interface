@@ -193,6 +193,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: ghosted_id
   PetscInt :: offset_global
   PetscInt :: istart, iend
+  PetscInt :: nimmobile
   PetscInt :: num_iterations
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations
@@ -229,6 +230,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   material_auxvars => patch%aux%Material%auxvars
   global_auxvars => patch%aux%Global%auxvars
   rt_auxvars => patch%aux%RT%auxvars
+
+  nimmobile = reaction%immobile%nimmobile
 
   tconv = process_model%output_option%tconv
   tunit = process_model%output_option%tunit
@@ -267,11 +270,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
                            material_auxvars(ghosted_id)%volume* &
                            rt_auxvars(ghosted_id)%total(:,iphase)
     !TODO(geh): do immobile need to be stored; they are in tran_xx
-    if (reaction%immobile%nimmobile > 0) then
+    if (nimmobile > 0) then
       ! need to store immobile concentrations for the purpose of reverting
       ! when reaction fails
       istart = istart + reaction%offset_immobile
-      iend = istart + reaction%immobile%nimmobile - 1
+      iend = istart + nimmobile - 1
       vec_ptr(istart:iend) = rt_auxvars(ghosted_id)%immobile
     endif
   enddo
@@ -296,6 +299,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
     ! RTCalculateTransportMatrix() calculates flux coefficients and the
     ! t^(k+1) coefficient in accumulation term
+    if (rt_parameter%species_dependent_diffusion) then
+      option%io_buffer = 'Operator-split reactive transport is not &
+        &currently configured to handle species-dependent diffusion.'
+      call PrintErrMsg(option)
+    endif
     call RTCalculateTransportMatrix(realization,solver%J)
     call KSPSetOperators(solver%ksp,solver%J,solver%Jpre,ierr);CHKERRQ(ierr)
 
@@ -339,6 +347,10 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       offset_global = (local_id-1)*reaction%ncomp
       istart = offset_global + 1
       iend = offset_global + reaction%ncomp
+      if (nimmobile > 0) then
+        tempint = istart+reaction%offset_immobile
+        rt_auxvars(ghosted_id)%immobile = tran_xx_p(tempint:tempint+nimmobile-1)
+      endif
       call RReact(tran_xx_p(istart:iend),rt_auxvars(ghosted_id), &
                   global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
                   num_iterations,reaction,grid%nG2A(ghosted_id),option, &
@@ -347,10 +359,9 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       ! set primary dependent var back to free-ion molality
       iend = offset_global + reaction%naqcomp
       tran_xx_p(istart:iend) = rt_auxvars(ghosted_id)%pri_molal(:)
-      if (reaction%immobile%nimmobile > 0) then
-        istart = istart + reaction%offset_immobile
-        iend = iend + reaction%immobile%nimmobile
-        tran_xx_p(istart:iend) = rt_auxvars(ghosted_id)%immobile
+      if (nimmobile > 0) then
+        tempint = istart+reaction%offset_immobile
+        tran_xx_p(tempint:tempint+nimmobile-1) = rt_auxvars(ghosted_id)%immobile
       endif
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)

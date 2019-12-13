@@ -88,6 +88,7 @@ module Reactive_Transport_Aux_module
     PetscInt :: offset_collcomp
     PetscInt :: offset_immobile
     PetscInt :: offset_auxiliary
+    PetscBool :: species_dependent_diffusion
     PetscInt, pointer :: pri_spec_to_coll_spec(:)
     PetscInt, pointer :: coll_spec_to_pri_spec(:)
     PetscReal, pointer :: diffusion_coefficient(:,:)
@@ -192,6 +193,7 @@ function RTAuxCreate(naqcomp,nphase)
   aux%rt_parameter%offset_collcomp = 0
   aux%rt_parameter%offset_immobile = 0
   aux%rt_parameter%offset_auxiliary = 0
+  aux%rt_parameter%species_dependent_diffusion = PETSC_FALSE
   nullify(aux%rt_parameter%pri_spec_to_coll_spec)
   nullify(aux%rt_parameter%coll_spec_to_pri_spec)
   aux%rt_parameter%calculate_transverse_dispersion = PETSC_FALSE

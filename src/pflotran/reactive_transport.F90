@@ -135,7 +135,6 @@ subroutine RTSetup(realization)
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: iphase, local_id, i
   PetscBool :: error_found
-  PetscBool :: species_dependent_diffusion
   PetscInt :: flag(10)  
 
   option => realization%option
@@ -332,12 +331,11 @@ subroutine RTSetup(realization)
 
   ! overwrite diffusion coefficients with species specific values
   ! aqueous diffusion
-  species_dependent_diffusion = PETSC_FALSE
   iphase = option%liquid_phase
   cur_generic_parameter => reaction%aq_diffusion_coefficients
   do
     if (.not.associated(cur_generic_parameter)) exit
-    species_dependent_diffusion = PETSC_TRUE
+    rt_parameter%species_dependent_diffusion = PETSC_TRUE
     i = GetPrimarySpeciesIDFromName(cur_generic_parameter%name, &
                                     reaction,PETSC_FALSE,option)
     if (Uninitialized(i)) then
@@ -358,7 +356,7 @@ subroutine RTSetup(realization)
     endif
     ! gas diffusion
     iphase = option%gas_phase
-    species_dependent_diffusion = PETSC_TRUE
+    rt_parameter%species_dependent_diffusion = PETSC_TRUE
     cur_generic_parameter => reaction%gas_diffusion_coefficients
     do
       if (.not.associated(cur_generic_parameter)) exit
@@ -383,7 +381,7 @@ subroutine RTSetup(realization)
     enddo
   endif
 
-  if (species_dependent_diffusion) then
+  if (rt_parameter%species_dependent_diffusion) then
     if (reaction%gas%nactive_gas > 0) then
       if (maxval(reaction%gas%acteqspecid(0,:)) > 1) then
         option%io_buffer = 'Active gas transprot is not supported when &
@@ -1324,7 +1322,8 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
   PetscReal, pointer :: rhs_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: iphase
-  PetscReal :: coef_up(1), coef_dn(1)
+  PetscReal :: coef_up(realization%reaction%naqcomp,realization%reaction%nphase)
+  PetscReal :: coef_dn(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: msrc(2)
   PetscReal :: Res(realization%reaction%naqcomp)
   PetscInt :: istartaq, iendaq
@@ -1394,6 +1393,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
                      option,cur_connection_set%area(iconn), &
                      patch%boundary_velocities(:,sum_connection), &
                      patch%boundary_tran_coefs(:,:,sum_connection), &
+                     ! this 0.5 only applies to the non-upwinded conditional
                      0.5d0, & ! fraction upwind (0.d0 upwind, 0.5 central)
                      coef_up,coef_dn)
 
@@ -1402,7 +1402,7 @@ subroutine RTCalculateRHS_t1(realization,rhs_vec)
       istartaq = iendaq-reaction%naqcomp+1
       
       rhs_p(istartaq:iendaq) = rhs_p(istartaq:iendaq) + &
-        coef_up(iphase)*rt_auxvars_bc(sum_connection)%total(:,iphase)
+        coef_up(:,iphase)*rt_auxvars_bc(sum_connection)%total(:,iphase)
 
     enddo
     boundary_condition => boundary_condition%next
@@ -1567,7 +1567,9 @@ subroutine RTCalculateTransportMatrix(realization,T)
   type(reactive_transport_param_type), pointer :: rt_parameter
   PetscInt :: sum_connection, iconn
   PetscReal :: coef
-  PetscReal :: coef_up(2), coef_dn(2)
+  !TODO(geh): replace these with parameters RT_MAX_AQCOMP,RT_MAX_NPHASE
+  PetscReal :: coef_up(realization%reaction%naqcomp,realization%reaction%nphase)
+  PetscReal :: coef_dn(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: qsrc(2)
   PetscBool :: volumetric  
   PetscInt :: flow_pc
@@ -1621,9 +1623,6 @@ subroutine RTCalculateTransportMatrix(realization,T)
                      cur_connection_set%dist(-1,iconn), &
                      coef_up,coef_dn)
 
-!      coef_up = coef_up*global_auxvars(ghosted_id_up)%den_kg*1.d-3
-!      coef_dn = coef_dn*global_auxvars(ghosted_id_dn)%den_kg*1.d-3
-                     
       if (local_id_up > 0) then
         call MatSetValuesLocal(T,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                coef_up,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1730,11 +1729,11 @@ subroutine RTCalculateTransportMatrix(realization,T)
                         qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
-      coef_dn = coef_in
+      coef = coef_in(1)
       !geh: do not remove this conditional as otherwise MatSetValuesLocal() 
       !     will be called for injection too (wasted calls)
-      if (coef_dn(1) > 0.d0) then
-        call MatSetValuesLocal(T,1,ghosted_id-1,1,ghosted_id-1,coef_dn, &
+      if (coef > 0.d0) then
+        call MatSetValuesLocal(T,1,ghosted_id-1,1,ghosted_id-1,coef, &
                                ADD_VALUES,ierr);CHKERRQ(ierr)
       endif 
 
@@ -3846,6 +3845,8 @@ subroutine RTUpdateActivityCoefficients(realization,update_cells,update_bcs)
   type(connection_set_type), pointer :: cur_connection_set
 
   PetscInt :: ghosted_id, local_id, sum_connection, iconn
+
+  print *, 'RActivityCoefficients from RTUpdateActivityCoefficients'
   
   option => realization%option
   patch => realization%patch  
@@ -3998,6 +3999,10 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 #endif  
   
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+
+  if (update_activity_coefs) then
+    print *, 'RActivityCoefficients from RTUpdateAuxVars'
+  endif
 
   if (update_cells) then
 

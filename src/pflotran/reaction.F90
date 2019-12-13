@@ -3422,6 +3422,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   ! Date: 05/04/10
   ! 
   use Option_module
+  use String_module
   
   implicit none
   
@@ -3442,16 +3443,28 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: prev_solution(reaction%ncomp)
   PetscReal :: new_solution(reaction%ncomp)
   PetscReal :: update(reaction%ncomp)
+  PetscReal :: conc(reaction%ncomp)
   PetscReal :: maximum_relative_change
   PetscReal :: accumulation_coef
   PetscReal :: fixed_accum(reaction%ncomp)
   PetscInt :: num_iterations
+  PetscInt :: ncomp
+  PetscInt :: naqcomp
+  PetscInt :: nimmobile
   PetscInt :: icomp
   PetscInt :: immobile_start, immobile_end
   PetscReal :: ratio, min_ratio
   PetscReal :: scale
-  
+
   PetscInt, parameter :: iphase = 1
+
+  ncomp = reaction%ncomp
+  naqcomp = reaction%naqcomp
+  nimmobile = reaction%immobile%nimmobile
+  if (nimmobile > 0) then
+    immobile_start = reaction%offset_immobile + 1
+    immobile_end = reaction%offset_immobile + nimmobile
+  endif
 
   one_over_dt = 1.d0/option%tran_dt
   num_iterations = 0
@@ -3491,11 +3504,9 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
 !  endif
 
   ! initialize guesses to stored solution
-  rt_auxvar%pri_molal(:) = tran_xx(1:reaction%naqcomp)
-  if (reaction%immobile%nimmobile > 0) then
-    rt_auxvar%immobile(:) = tran_xx(reaction%offset_immobile+1: &
-                                    reaction%offset_immobile+ &
-                                      reaction%immobile%nimmobile)
+  rt_auxvar%pri_molal(:) = tran_xx(1:naqcomp)
+  if (nimmobile > 0) then
+    rt_auxvar%immobile(:) = tran_xx(immobile_start:immobile_end)
   endif
   
   do
@@ -3531,13 +3542,16 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
     
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
-    call RSolve(residual,J,rt_auxvar%pri_molal,update,reaction%ncomp, &
-                reaction%use_log_formulation)
+    conc(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
+    if (nimmobile > 0) then
+      conc(immobile_start:immobile_end) = rt_auxvar%immobile(:)
+    endif
+
+    call RSolve(residual,J,conc,update,ncomp,reaction%use_log_formulation)
     
-    prev_solution(1:reaction%naqcomp) = rt_auxvar%pri_molal(1:reaction%naqcomp)
-    if (reaction%immobile%nimmobile > 0) then
-      prev_solution(immobile_start:immobile_end) = &
-        rt_auxvar%immobile(1:reaction%immobile%nimmobile)
+    prev_solution(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
+    if (nimmobile > 0) then
+      prev_solution(immobile_start:immobile_end) = rt_auxvar%immobile(:)
     endif
 
     if (reaction%use_log_formulation) then
@@ -3546,7 +3560,7 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
     else ! linear upage
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
-      do icomp = 1, reaction%ncomp
+      do icomp = 1, ncomp
         if (prev_solution(icomp) <= update(icomp)) then
           ratio = abs(prev_solution(icomp)/update(icomp))
           if (ratio < min_ratio) min_ratio = ratio
@@ -3573,12 +3587,15 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       else if (num_iterations <= 500) then
         scale = 0.001d0
       else
-        print *, 'Maximum iterations in RReact: stop: ',num_iterations
-        print *, 'Maximum iterations in RReact: residual: ',residual
-        print *, 'Maximum iterations in RReact: new solution: ',new_solution
-        print *, 'Grid cell: ', natural_id
+        print *, 'Maximum iterations in RReact: stop: ' // &
+                 trim(StringWrite(num_iterations))
+        print *, 'Maximum iterations in RReact: residual: ' // &
+                 trim(StringWrite(residual))
+        print *, 'Maximum iterations in RReact: new solution: ' // &
+                 trim(StringWrite(new_solution))
+        print *, 'Grid cell: ' // trim(StringWrite(natural_id))
         if (option%mycommsize > 1) then
-          print *, 'Process rank: ', option%myrank
+          print *, 'Process rank: ' // trim(StringWrite(option%myrank))
         endif
         num_iterations_ = num_iterations
         ierror = 1
@@ -3590,9 +3607,9 @@ subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
       endif
     endif
     
-    rt_auxvar%pri_molal(1:reaction%naqcomp) = new_solution(1:reaction%naqcomp)
-    if (reaction%immobile%nimmobile > 0) then
-      rt_auxvar%immobile(1:reaction%immobile%nimmobile) = &
+    rt_auxvar%pri_molal(1:naqcomp) = new_solution(1:naqcomp)
+    if (nimmobile > 0) then
+      rt_auxvar%immobile(1:nimmobile) = &
         new_solution(immobile_start:immobile_end)
     endif    
   
