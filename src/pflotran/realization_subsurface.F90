@@ -1141,6 +1141,9 @@ subroutine RealProcessTranConditions(realization)
                             cur_constraint_coupler%constraint_name, &
                             MAXWORDLENGTH)) then
             cur_constraint_coupler%constraint => cur_constraint
+            cur_constraint_coupler%equilibrate_at_each_cell = &
+              (realization%reaction_base%equilibrate_at_each_cell .or. &
+               cur_constraint%equilibrate_at_each_cell)
             exit
           endif
           cur_constraint => cur_constraint%next
