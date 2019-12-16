@@ -2152,6 +2152,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_TS_class
   use Well_Data_class
   use Hydrate_module
+  use Time_Storage_module
 
   use TH_Aux_module
 
@@ -2215,6 +2216,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
   class(dataset_ascii_type), pointer :: dataset_ascii
+  type(time_storage_type), pointer :: default_time_storage
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
@@ -2233,6 +2235,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: wtime, msfsalt, msfwatr, mlfsalt, mlfwatr
 
   internal_units = 'not_assigned'
+  nullify(default_time_storage)
 
   realization => simulation%realization
   output_option => simulation%output_option
@@ -2377,13 +2380,10 @@ subroutine SubsurfaceReadInput(simulation,input)
                     call PrintErrMsg(option)
                   endif
                 endif
-                bool_flag = PETSC_FALSE
-                call DatasetAsciiVerify(dataset_ascii,bool_flag,option)
-                if (bool_flag) then
-                  option%io_buffer = 'Error verifying ' // &
-                    trim(error_string) // '.'
-                  call PrintErrMsg(option)
-                endif
+                string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
+                ! have to pass in dataset_base_type
+                dataset => dataset_ascii
+                call DatasetVerify(dataset,default_time_storage,string,option)
               else
 ! Add interface for non-uniform dataset
                 call InputReadFilename(input,option, &
