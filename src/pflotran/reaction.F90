@@ -5125,6 +5125,7 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
       material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
       material_auxvar%volume
   endif
+
 end subroutine RAge
 
 ! ************************************************************************** !

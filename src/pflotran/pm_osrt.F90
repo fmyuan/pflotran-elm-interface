@@ -47,8 +47,8 @@ function PMOSRTCreate()
   
   allocate(pm_osrt)
   call PMOSRTInit(pm_osrt)
-  pm_osrt%name = 'Operator-Split Reactive Transport'
-  pm_osrt%header = 'OPERATOR-SPLIT REACTIVE TRANSPORT'
+  pm_osrt%name = 'Oper.-Split Reactive Transport'
+  pm_osrt%header = 'OPER.-SPLIT REACTIVE TRANSPORT'
 
   PMOSRTCreate => pm_osrt
   
