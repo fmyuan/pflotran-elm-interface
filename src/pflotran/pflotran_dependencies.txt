@@ -183,8 +183,8 @@ factory_subsurface.o : characteristic_curves.o checkpoint.o condition.o \
                        realization_base.o realization_subsurface.o region.o \
                        regression.o saturation_function.o \
                        simulation_subsurface.o solver.o srcsink_sandbox.o \
-                       strata.o string.o th_aux.o timestepper_BE.o \
-                       timestepper_TS.o timestepper_steady.o \
+                       strata.o string.o th_aux.o time_storage.o \
+                       timestepper_BE.o timestepper_TS.o timestepper_steady.o \
                        transport_constraint.o transport_constraint_base.o \
                        transport_constraint_nwt.o transport_constraint_rt.o \
                        units.o utility.o waypoint.o well_data.o wipp.o
