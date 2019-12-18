@@ -251,8 +251,8 @@ class RegressionTest(object):
                 print('    Input file "{0}" found.'.format(filename), file=testlog)
             return None
 
+        timeout_error = False
         if self._python_setup_script is not None:
-            timeout_error = False
             print("\n  Setup script... ", file=testlog)
             command = []
             command.append(sys.executable)
@@ -378,14 +378,16 @@ class RegressionTest(object):
                 if pflotran_status == self._PFLOTRAN_USER_ERROR:
                     # error was caught and the code properly shut down
                     status.error = _USER_ERROR
+                    string = 'failed due to user error'
                 else:
                     status.error = _CODE_CRASH_ERROR
+                    string = 'crashed'
                 message = self._txtwrap.fill(
                     "ERROR : {name} : pflotran returned an error "
-                    "code ({status}) indicating the simulation may have "
-                    "failed. Please check '{name}.out' and '{name}.stdout' "
+                    "code ({status}) indicating that the simulation {s}"
+                    ". Please check '{name}.out' and '{name}.stdout' "
                     "for error messages (included below).".format(
-                        name=test_name, status=pflotran_status))
+                    s=string, name=test_name, status=pflotran_status))
                 print("".join(['\n', message, '\n']), file=testlog)
                 print("~~~~~ {0}.stdout ~~~~~".format(test_name), file=testlog)
                 try:
