@@ -237,7 +237,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMFlash2UpdateTimestep
 

@@ -242,7 +242,7 @@ subroutine PMMiscibleUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMMiscibleUpdateTimestep
 
