@@ -2465,7 +2465,6 @@ subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
   
   type(patch_type), pointer :: patch
   PetscReal :: max_dt_cfl_1_patch
-  PetscReal :: tempreal
   PetscErrorCode :: ierr
   
   max_dt_cfl_1 = 1.d20
@@ -2475,10 +2474,9 @@ subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
   max_dt_cfl_1 = min(max_dt_cfl_1,max_dt_cfl_1_patch)
 
   ! get the minimum across all cores
-  call MPI_Allreduce(max_dt_cfl_1,tempreal,ONE_INTEGER_MPI, &
+  call MPI_Allreduce(MPI_IN_PLACE,max_dt_cfl_1,ONE_INTEGER_MPI, &
                      MPI_DOUBLE_PRECISION,MPI_MIN, &
                      realization%option%mycomm,ierr)
-  max_dt_cfl_1 = tempreal
 
 end subroutine RealizationCalculateCFL1Timestep
 
@@ -2604,7 +2602,7 @@ end subroutine RealizUnInitializedVar1
 
 ! ************************************************************************** !
 
-subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt)
+subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt,dt_max)
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/09/16 
@@ -2617,6 +2615,7 @@ subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt)
   class(realization_subsurface_type) :: realization
   PetscReal :: cfl_governor
   PetscReal :: dt
+  PetscReal :: dt_max
 
   PetscReal :: max_dt_cfl_1
   PetscReal :: prev_dt
@@ -2627,6 +2626,9 @@ subroutine RealizationLimitDTByCFL(realization,cfl_governor,dt)
     if (dt/cfl_governor > max_dt_cfl_1) then
       prev_dt = dt
       dt = max_dt_cfl_1*cfl_governor
+      ! have to set dt_max here so that timestepper%dt_max is truncated
+      ! for timestepper_base%revert_dt in TimestepperBaseSetTargetTime
+      dt_max = dt
       output_option => realization%output_option
       if (OptionPrintToScreen(realization%option)) then
         write(*, &
