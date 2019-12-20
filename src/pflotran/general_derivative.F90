@@ -772,26 +772,27 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   call GeneralAuxVarCopy(general_auxvar_ss(ZERO_INTEGER), &
                          general_auxvar_ss(ONE_INTEGER),option)
   
-  call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+  call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                       general_auxvar_ss(ONE_INTEGER), &
                       general_auxvar(ZERO_INTEGER),&
                       global_auxvar(natural_id), &
                       global_auxvar_ss(natural_id), &
                       material_auxvar(natural_id), ss_flow_vol_flux, &
                       characteristic_curves, natural_id, &
-                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE)                           
+                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)                           
                            
   do idof = 1, option%nflowdof
     call GeneralAuxVarCopy(general_auxvar_ss(ZERO_INTEGER), &
                            general_auxvar_ss(ONE_INTEGER),option)
-    call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+    call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                         general_auxvar_ss(ONE_INTEGER), &
                         general_auxvar(idof), global_auxvar(natural_id), &
                         global_auxvar_ss(natural_id), &
                         material_auxvar(natural_id), &
                         ss_flow_vol_flux, &
                         characteristic_curves, natural_id, &
-                        scale,res_pert(:,idof),jac_dum,PETSC_FALSE,PETSC_FALSE)                          
+                        scale,res_pert(:,idof),jac_dum,PETSC_FALSE, &
+                        PETSC_FALSE,PETSC_FALSE)                          
     do irow = 1, option%nflowdof
       jac_num(irow,idof) = (res_pert(irow,idof)-res(irow))/pert(idof)
     enddo !irow

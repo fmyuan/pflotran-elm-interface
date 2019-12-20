@@ -995,15 +995,10 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
         global_auxvars_ss(sum_connection)%istate = TWO_PHASE_STATE
       endif
     
-!geh: m_nacl should be allocated in GlobalAuxVarInit based on flag
-!     option%flow%density_depends_on_salinity
-!      allocate(global_auxvars_ss(sum_connection)%m_nacl(1))
-!      global_auxvars_ss(sum_connection)%m_nacl(1) = 0.d0
-
       option%iflag = GENERAL_UPDATE_FOR_SS
     
       ! Compute state variables 
-      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+      call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
@@ -1015,6 +1010,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
                           grid%nG2A(ghosted_id), &
                           scale, Res_dummy, Jac_dummy, &
                           general_analytical_derivatives, &
+                          PETSC_TRUE, & ! aux_var_compute_only
                           local_id == general_debug_cell_id)
       
     enddo
@@ -1445,7 +1441,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       
       ! Index 0 contains user-specified conditions
       ! Index 1 contains auxvars to be used in src/sink calculations
-      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+      call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           gen_auxvars_ss(ZERO_INTEGER,sum_connection), &
                           gen_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
@@ -1457,6 +1453,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                           grid%nG2A(ghosted_id), &
                           scale,Res,Jac_dummy, &
                           general_analytical_derivatives, &
+                          PETSC_FALSE, &
                           local_id == general_debug_cell_id)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)

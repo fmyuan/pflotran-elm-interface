@@ -34,7 +34,7 @@ module General_Common_module
   public :: GeneralAccumulation, &
             GeneralFlux, &
             GeneralBCFlux, &
-            GeneralSrcSink, &
+            GeneralAuxVarComputeAndSrcSink, &
             GeneralAccumDerivative, &
             GeneralFluxDerivative, &
             GeneralBCFluxDerivative, &
@@ -3823,11 +3823,13 @@ end subroutine GeneralBCFlux
 
 ! ************************************************************************** !
 
-subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
+subroutine GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                          gen_auxvar_ss, &
                           gen_auxvar,global_auxvar, global_auxvar_ss, &
                           material_auxvar,ss_flow_vol_flux, &
                           characteristic_curves, natural_id, scale,Res,J, &
-                          analytical_derivatives,debug_cell)
+                          analytical_derivatives,aux_var_compute_only, &
+                          debug_cell)
   ! 
   ! Computes the source/sink terms for the residual
   ! 
@@ -3854,6 +3856,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   PetscReal :: Res(option%nflowdof)
   PetscReal :: J(option%nflowdof,option%nflowdof)  
   PetscBool :: analytical_derivatives  
+  PetscBool :: aux_var_compute_only  
   PetscBool :: debug_cell
   
   PetscReal :: qsrc(THREE_INTEGER)
@@ -3943,6 +3946,8 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
   call GeneralAuxVarCompute(xxss,gen_auxvar_ss, global_auxvar_ss, &
                             material_auxvar, characteristic_curves, &
                             natural_id,option)
+
+  if (aux_var_compute_only) return
 
   qsrc_mol = 0.d0 
   if (flow_src_sink_type == TOTAL_MASS_RATE_SS) then
@@ -4071,7 +4076,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
       case(GAS_STATE)
         if (dabs(Res(wat_comp_id)) > 1.d-40 .and. dden_bool > 0.d0) then      
           option%io_buffer = 'Volumetric water injection not set up &
-            &for gas state in GeneralSrcSink.'
+            &for gas state in GeneralAuxVarComputeAndSrcSink.'
           call PrintErrMsg(option)
         endif
         ! derivative wrt gas pressure
@@ -4118,7 +4123,8 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
       case(LIQUID_STATE)
         if (dabs(Res(air_comp_id)) > 1.d-40 .and. dden_bool > 0.d0) then      
           option%io_buffer = 'Volumetric air injection not set up for &
-            &liquid state in GeneralSrcSink as there is no air density.'
+            &liquid state in GeneralAuxVarComputeAndSrcSink as there is &
+            &no air density.'
           call PrintErrMsg(option)
         endif
         ! derivative wrt liquid pressure
@@ -4233,7 +4239,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type,gen_auxvar_ss, &
     ! no derivative
   endif
   
-end subroutine GeneralSrcSink
+end subroutine GeneralAuxVarComputeAndSrcSink
 
 ! ************************************************************************** !
 
@@ -4572,12 +4578,12 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
   
   ! Index 0 contains user-specified conditions
   ! Index 1 contains auxvars to be used in src/sink calculations
-  call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+  call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                       gen_auxvar_ss(ZERO_INTEGER), gen_auxvar(ZERO_INTEGER),&
                       global_auxvar, global_auxvar_ss, &
                       material_auxvar, dummy_real, characteristic_curves, &
                       natural_id, scale,res,Jdum, &
-                      general_analytical_derivatives, PETSC_FALSE)
+                      general_analytical_derivatives, PETSC_FALSE, PETSC_FALSE)
                       
   if (general_analytical_derivatives) then
     Jac = Jdum
@@ -4586,12 +4592,12 @@ subroutine GeneralSrcSinkDerivative(option,source_sink,gen_auxvar_ss, &
     do idof = 1, option%nflowdof
       call GeneralAuxVarCopy(gen_auxvar_ss(ZERO_INTEGER), &
                              gen_auxvar_ss(ONE_INTEGER), option)
-      call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
+      call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
                           gen_auxvar_ss(ONE_INTEGER), gen_auxvar(idof), &
                           global_auxvar,global_auxvar_ss, &
                           material_auxvar, dummy_real,characteristic_curves, &
                           natural_id, scale, res_pert,Jdum,PETSC_FALSE, &
-                          PETSC_FALSE)
+                          PETSC_FALSE, PETSC_FALSE)
       
       do irow = 1, option%nflowdof
         Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
