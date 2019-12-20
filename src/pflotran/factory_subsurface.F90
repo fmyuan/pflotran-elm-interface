@@ -2167,7 +2167,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Well_Data_class
   use PM_Hydrate_class
   use PM_Base_class
-
+  use Time_Storage_module
   use TH_Aux_module
 
 #ifdef SOLID_SOLUTION
@@ -2230,6 +2230,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(output_option_type), pointer :: output_option
   class(dataset_base_type), pointer :: dataset
   class(dataset_ascii_type), pointer :: dataset_ascii
+  type(time_storage_type), pointer :: default_time_storage
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
@@ -2250,6 +2251,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(pm_base_type), pointer :: pm_flow
 
   internal_units = 'not_assigned'
+  nullify(default_time_storage)
 
   realization => simulation%realization
   output_option => simulation%output_option
@@ -2386,13 +2388,10 @@ subroutine SubsurfaceReadInput(simulation,input)
                     call PrintErrMsg(option)
                   endif
                 endif
-                bool_flag = PETSC_FALSE
-                call DatasetAsciiVerify(dataset_ascii,bool_flag,option)
-                if (bool_flag) then
-                  option%io_buffer = 'Error verifying ' // &
-                    trim(error_string) // '.'
-                  call PrintErrMsg(option)
-                endif
+                string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
+                ! have to pass in dataset_base_type
+                dataset => dataset_ascii
+                call DatasetVerify(dataset,default_time_storage,string,option)
               else
 ! Add interface for non-uniform dataset
                 call InputReadFilename(input,option, &
@@ -3786,7 +3785,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             call PMHydrateReadParameters(input,pm_flow,option)
           class default
             option%io_buffer = 'Keyword HYDRATE not recognized for the ' // &
-                               trim(option%flowmode) // 'flow process model.'
+                               trim(option%flowmode) // ' flow process model.'
             call PrintErrMsg(option)
         end select
       case default

@@ -233,6 +233,10 @@ subroutine DatabaseRead(reaction,option)
         do
           if (found .or. .not.associated(cur_immobile_spec)) exit
           if (StringCompare(name,cur_immobile_spec%name,MAXWORDLENGTH)) then
+            option%io_buffer = 'Immobile species [i.e. ' // &
+              trim(cur_immobile_spec%name) // '] should not be placed in &
+              &the reaction database.'
+            call PrintErrMsg(option)
             found = PETSC_TRUE          
             ! change negative id to positive, indicating it was found in 
             ! database
@@ -286,16 +290,19 @@ subroutine DatabaseRead(reaction,option)
             call InputErrorMsg(input,option,'EQRXN logKs','DATABASE') 
           enddo
         endif
-        ! read the Debye-Huckel ion size parameter (a0)
-        call InputReadDouble(input,option,cur_aq_spec%a0)
-        call InputErrorMsg(input,option,'AQ Species a0','DATABASE')            
-        ! read the valence
-        call InputReadDouble(input,option,cur_aq_spec%Z)
-        call InputErrorMsg(input,option,'AQ Species Z','DATABASE')            
-        ! read the molar weight
-        call InputReadDouble(input,option,cur_aq_spec%molar_weight)
-        call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
         
+        ! only read for aqueous species
+        if (associated(cur_aq_spec)) then
+          ! read the Debye-Huckel ion size parameter (a0)
+          call InputReadDouble(input,option,cur_aq_spec%a0)
+          call InputErrorMsg(input,option,'AQ Species a0','DATABASE')
+          ! read the valence
+          call InputReadDouble(input,option,cur_aq_spec%Z)
+          call InputErrorMsg(input,option,'AQ Species Z','DATABASE')
+          ! read the molar weight
+          call InputReadDouble(input,option,cur_aq_spec%molar_weight)
+          call InputErrorMsg(input,option,'AQ Species molar weight','DATABASE')
+        endif
                     
       case(2) ! gas species
         cur_gas_spec => reaction%gas%list
