@@ -928,16 +928,6 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
-!     if (.not.general_analytical_derivatives) then
-!       option%io_buffer = 'The use of GENERAL mode with source/sinks and &
-!         &numerical derivatives has been disabled due to incorrect &
-!         &implementation. Please use analytical derivatives for the &
-!         &time being.'
-!       call PrintErrMsg(option)
-!     endif
-
-!geh: the use of gen_auxvars(ZERO_INTEGER,ghosted_id) must be replaced
-!     by the numerical derivative equivalents in the derivative calculations.
 
     qsrc = source_sink%flow_condition%general%rate%dataset%rarray(:)
     cur_connection_set => source_sink%connection_set
@@ -975,32 +965,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state,update_state_bc)
           gen_auxvars(ZERO_INTEGER,ghosted_id)%pres(option%gas_phase)
       endif
     
-!       select case(flow_src_sink_type)
-!       case(MASS_RATE_SS)
-!         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
-!                         gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))
-!         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
-!                         gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))
-!       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-!         qsrc_vol(air_comp_id) = qsrc(air_comp_id)/(fmw_comp(air_comp_id)* &
-!                   gen_auxvars(ZERO_INTEGER,ghosted_id)%den(air_comp_id))*scale 
-!         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)/(fmw_comp(wat_comp_id)* &
-!                   gen_auxvars(ZERO_INTEGER,ghosted_id)%den(wat_comp_id))*scale 
-!       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
-!       ! qsrc1 = m^3/sec             ! den = kmol/m^3
-!         qsrc_vol(air_comp_id) = qsrc(air_comp_id)*scale
-!         qsrc_vol(wat_comp_id) = qsrc(wat_comp_id)*scale
-!       end select
-    
       xxss(1) = maxval(gen_auxvars_ss(ZERO_INTEGER,sum_connection)%pres(option% &
                      liquid_phase:option%gas_phase))
-      !if (dabs(qsrc_vol(wat_comp_id)) < 1.d-40 .and. &
-      !    dabs(qsrc_vol(air_comp_id)) < 1.d-40) then
-      !  xxss(2) = 0.d0
-      !else
-      !  xxss(2) = qsrc_vol(air_comp_id)/(qsrc_vol(wat_comp_id) &
-      !          + qsrc_vol(air_comp_id))
-      !endif
       xxss(2) = 5.d-1
       xxss(3) = gen_auxvars_ss(ZERO_INTEGER,sum_connection)%temp
     
