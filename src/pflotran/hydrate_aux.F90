@@ -139,6 +139,7 @@ module Hydrate_Aux_module
   PetscBool, public :: HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_FALSE
   PetscBool, public :: HYDRATE_WITH_SEDIMENTATION = PETSC_FALSE
   PetscBool, public :: HYDRATE_NO_PC = PETSC_FALSE
+  PetscBool, public :: HYDRATE_WITH_METHANOGENESIS = PETSC_FALSE
 
   type, public :: hydrate_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
@@ -230,8 +231,7 @@ module Hydrate_Aux_module
   
   type, public :: hydrate_parameter_type
     PetscReal, pointer :: diffusion_coefficient(:) ! (iphase)
-    PetscReal :: newton_inf_scaled_res_tol
-    PetscBool :: check_post_converged
+    type(methanogenesis_type), pointer :: methanogenesis
   end type hydrate_parameter_type
 
   type, public :: methanogenesis_type
@@ -270,6 +270,7 @@ module Hydrate_Aux_module
   end interface HydrateOutputAuxVars
   
   public :: HydrateAuxCreate, &
+            HydrateMethanogenesisCreate, &
             HydrateAuxDestroy, &
             HydrateAuxSetEnergyDOF, &
             HydrateAuxVarCompute, &
@@ -283,7 +284,7 @@ module Hydrate_Aux_module
             HydrateOutputAuxVars, &
             HydrateCompositeThermalCond,&
             HydratePE, &
-            Methanogenesis, &
+            HydrateMethanogenesis, &
             HenrysConstantMethane, &
             HydrateGHSZSolubilityCorrection, &
             GibbsThomsonFreezing, &
@@ -362,22 +363,40 @@ function HydrateAuxCreate(option)
   nullify(aux%inactive_rows_local_ghosted)
   nullify(aux%row_zeroing_array)
 
-  allocate(aux%hydrate_parameter)
-  allocate(aux%hydrate_parameter%diffusion_coefficient(option%nphase))
-  !geh: there is no point in setting default lquid diffusion coeffcient values 
-  !     here as they will be overwritten by the fluid property defaults.
-  aux%hydrate_parameter%diffusion_coefficient(LIQUID_PHASE) = &
-                                                           UNINITIALIZED_DOUBLE
-  aux%hydrate_parameter%diffusion_coefficient(GAS_PHASE) = 2.13d-5
-  aux%hydrate_parameter%newton_inf_scaled_res_tol = 1.d-50
-  aux%hydrate_parameter%check_post_converged = PETSC_FALSE
-  
+  nullify(aux%hydrate_parameter)
+ 
   HydrateAuxCreate => aux
   
 end function HydrateAuxCreate
 
 ! ************************************************************************** !
 
+function HydrateMethanogenesisCreate()
+
+  ! 
+  ! Allocate and initialize methanogenesis object
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/21/19
+  ! 
+
+  type(methanogenesis_type), pointer :: HydrateMethanogenesisCreate
+  type(methanogenesis_type), pointer :: methanogenesis
+
+  allocate(methanogenesis)
+
+  methanogenesis%source_name = ''
+  methanogenesis%alpha = UNINITIALIZED_DOUBLE
+  methanogenesis%k_alpha = UNINITIALIZED_DOUBLE
+  methanogenesis%lambda = UNINITIALIZED_DOUBLE
+  methanogenesis%omega = UNINITIALIZED_DOUBLE
+  methanogenesis%z_smt = UNINITIALIZED_DOUBLE
+
+  HydrateMethanogenesisCreate => methanogenesis
+
+end function HydrateMethanogenesisCreate
+
+! ************************************************************************** !
 subroutine HydrateAuxVarInit(auxvar,allocate_derivative,option)
   ! 
   ! Initialize auxiliary object
@@ -3467,7 +3486,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
 end subroutine HydratePE
 
 ! ************************************************************************** !
-subroutine Methanogenesis(z,offset,meth,q_meth)
+subroutine HydrateMethanogenesis(z,offset,hydrate_parameter,q_meth)
 
   ! A simple methanogenesis source parameterized as a function of depth
   ! assuming top of domain is the seafloor
@@ -3478,16 +3497,19 @@ subroutine Methanogenesis(z,offset,meth,q_meth)
   implicit none
 
   PetscReal :: z, offset
-  type(methanogenesis_type), pointer :: meth
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   PetscReal :: q_meth
 
+  type(methanogenesis_type), pointer :: methanogenesis
   PetscReal :: alpha, k_alpha, lambda, omega, z_smt
 
-  alpha = meth%alpha
-  k_alpha = meth%k_alpha
-  lambda = meth%lambda
-  omega = meth%omega
-  z_smt = meth%z_smt
+  methanogenesis => hydrate_parameter%methanogenesis
+
+  alpha = methanogenesis%alpha
+  k_alpha = methanogenesis%k_alpha
+  lambda = methanogenesis%lambda
+  omega = methanogenesis%omega
+  z_smt = methanogenesis%z_smt
 
   if (offset - z > z_smt) then
     q_meth = k_alpha * lambda * alpha * exp(-lambda/omega * (offset - &
@@ -3499,7 +3521,7 @@ subroutine Methanogenesis(z,offset,meth,q_meth)
   !kg/m^3/s to kmol/s
   q_meth = q_meth / MW_CH4
 
-end subroutine Methanogenesis
+end subroutine HydrateMethanogenesis
 ! ************************************************************************** !
 
 subroutine HenrysConstantMethane(T,K_H)
