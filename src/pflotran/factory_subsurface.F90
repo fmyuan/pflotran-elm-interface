@@ -1405,7 +1405,7 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   ! always call the flow side since a velocity field still has to be
   ! set if no flow exists
-  call InitSubsurfFlowSetupRealization(realization)
+  call InitSubsurfFlowSetupRealization(simulation)
   if (option%ntrandof > 0) then
     call InitSubsurfTranSetupRealization(realization)
   endif
@@ -2151,9 +2151,9 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Timestepper_Steady_class
   use Timestepper_TS_class
   use Well_Data_class
-  use Hydrate_module
+  use PM_Hydrate_class
+  use PM_Base_class
   use Time_Storage_module
-
   use TH_Aux_module
 
 #ifdef SOLID_SOLUTION
@@ -2233,6 +2233,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscInt::iwaytime,nwaytime,mwaytime
   PetscReal,dimension(:),pointer :: waytime
   PetscReal :: wtime, msfsalt, msfwatr, mlfsalt, mlfwatr
+
+  class(pm_base_type), pointer :: pm_flow
 
   internal_units = 'not_assigned'
   nullify(default_time_storage)
@@ -3771,7 +3773,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case ('HYDRATE')
-        call HydrateRead(input,patch%methanogenesis,option)
+        pm_flow => simulation%flow_process_model_coupler%pm_list
+        select type (pm_flow)
+          class is (pm_hydrate_type)
+            call PMHydrateReadParameters(input,pm_flow,option)
+          class default
+            option%io_buffer = 'Keyword HYDRATE not recognized for the ' // &
+                               trim(option%flowmode) // ' flow process model.'
+            call PrintErrMsg(option)
+        end select
       case default
         call InputKeywordUnrecognized(input,word, &
                                       'SubsurfaceReadInput()',option)
