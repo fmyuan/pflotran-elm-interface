@@ -157,6 +157,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
+  type(smart_kd_rxn_type), pointer :: smart_kd_rxn, prev_smart_kd_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
@@ -175,6 +176,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   nullify(prev_cation)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
+  nullify(prev_smart_kd_rxn)
   nullify(prev_kd_rxn)
   nullify(prev_ionx_rxn)
   
@@ -556,6 +558,68 @@ subroutine ReactionReadPass1(reaction,input,option)
 
           select case(trim(word))
 
+            case('SMART_KD_REACTIONS')
+              call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+
+                reaction%neqsmartkdrxn = reaction%neqsmartkdrxn + 1
+
+                smart_kd_rxn => SmartKDRxnCreate()
+                ! first string is species name
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'kd species name', &
+                                   'CHEMISTRY,SMART_KD_REACTIONS')
+                smart_kd_rxn%kd_species_name = trim(word)
+                call InputPushBlock(input,option)
+                do 
+                  call InputReadPflotranString(input,option)
+                  if (InputError(input)) exit
+                  if (InputCheckExit(input,option)) exit
+
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'keyword', &
+                                     'CHEMISTRY,SMART_KD_REACTIONS')
+                  call StringToUpper(word)
+                  
+                  ! default type is linear
+                  select case(trim(word))
+                    case('TRACER_SPECIES')
+                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputErrorMsg(input,option,'TRACER_SPECIES', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                      smart_kd_rxn%tracer_species_name = word
+                    case('R_BASE')
+                      call InputReadDouble(input,option,smart_kd_rxn%R_base)
+                      call InputErrorMsg(input,option,'R_base', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('TRACER_SCALING_FACTOR')
+                      call InputReadDouble(input,option, &
+                                           smart_kd_rxn%tracer_scaling_factor)
+                      call InputErrorMsg(input,option,'tracer_scaling_factor', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                              'CHEMISTRY,SORPTION,SMART_KD_REACTIONS',option)
+                  end select
+                enddo
+                call InputPopBlock(input,option)
+                ! add to list
+                if (.not.associated(reaction%smart_kd_rxn_list)) then
+                  reaction%smart_kd_rxn_list => smart_kd_rxn
+                  smart_kd_rxn%id = 1
+                endif
+                if (associated(prev_smart_kd_rxn)) then
+                  prev_smart_kd_rxn%next => smart_kd_rxn
+                  smart_kd_rxn%id = prev_smart_kd_rxn%id + 1
+                endif
+                prev_smart_kd_rxn => smart_kd_rxn
+                nullify(smart_kd_rxn)
+              enddo
+              call InputPopBlock(input,option)
+
             case('ISOTHERM_REACTIONS')
               call InputPushBlock(input,option)
               do
@@ -936,6 +1000,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   call GasSpeciesListMergeDuplicates(reaction%gas%list)
   
   reaction%neqsorb = reaction%neqionxrxn + &
+                     reaction%neqsmartkdrxn + &
                      reaction%neqkdrxn + &
                      reaction%surface_complexation%neqsrfcplxrxn
   reaction%nsorb = reaction%neqsorb + &
@@ -1053,6 +1118,17 @@ subroutine ReactionReadPass2(reaction,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'SORPTION','CHEMISTRY') 
           select case(trim(word))
+            case('SMART_KD_REACTIONS')
+              do
+                call InputReadPflotranString(input,option)
+                call InputReadStringErrorMsg(input,option,card)
+                if (InputCheckExit(input,option)) exit
+                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputErrorMsg(input,option,word, &
+                                    'CHEMISTRY,SORPTION,SMART_KD_REACTIONS') 
+                ! skip over remaining cards to end of each kd entry
+                call InputSkipToEnd(input,option,word)
+              enddo
             case('ISOTHERM_REACTIONS')
               do
                 call InputReadPflotranString(input,option)
@@ -4355,11 +4431,76 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   endif
   
+  if (reaction%neqsmartkdrxn > 0) then
+    call RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
+                           reaction,option)
+  endif
+  
   if (reaction%neqkdrxn > 0) then
     call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
 end subroutine RTotalSorb
+
+! ************************************************************************** !
+
+subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
+                             reaction,option)
+  ! 
+  ! Computes the total sorbed component concentrations and
+  ! derivative with respect to free-ion for the smart KD model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/2019
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+  
+  PetscInt :: irxn
+  PetscInt :: icomp
+  PetscInt :: itracer
+  PetscReal :: Lwater_m3bulk
+  PetscReal :: kd_species_molality
+  PetscReal :: tracer_species_molality
+  PetscReal :: tracer_scale
+  PetscReal :: R
+  PetscReal :: dR_dtracer
+  PetscReal :: total_sorb
+  PetscReal :: dtotal_sorb_dc
+  PetscReal :: dtotal_sorb_dtracer
+
+  PetscInt, parameter :: iphase = 1
+
+  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+
+  do irxn = 1, reaction%neqsmartkdrxn
+    icomp = reaction%eqsmartkdspecid(irxn)
+    kd_species_molality = rt_auxvar%pri_molal(icomp)
+    itracer = reaction%eqsmartkdtracerspecid(irxn)
+    tracer_species_molality = rt_auxvar%pri_molal(itracer)
+
+    dR_dtracer = reaction%eqsmartkdscale(irxn) * Lwater_m3bulk
+    tracer_scale = reaction%eqsmartkdscale(irxn)
+    R = reaction%eqsmartkdrbase(irxn) + tracer_scale * tracer_species_molality
+    dtotal_sorb_dc = R * Lwater_m3bulk
+    dtotal_sorb_dtracer = tracer_scale * kd_species_molality * Lwater_m3bulk
+    total_sorb = kd_species_molality * dtotal_sorb_dc
+    rt_auxvar%total_sorb_eq(icomp) = rt_auxvar%total_sorb_eq(icomp) + total_sorb
+    rt_auxvar%dtotal_sorb_eq(icomp,icomp) = &
+      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dtotal_sorb_dc
+    rt_auxvar%dtotal_sorb_eq(icomp,itracer) = &
+      rt_auxvar%dtotal_sorb_eq(icomp,itracer) + dtotal_sorb_dtracer
+  enddo
+
+end subroutine RTotalSorbSmartKD
 
 ! ************************************************************************** !
 
