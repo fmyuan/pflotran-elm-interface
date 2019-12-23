@@ -338,7 +338,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   
   implicit none
 
@@ -365,19 +365,6 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! grid%flow_xx is the vector into which all of the primary variables are 
     ! packed for the SNESSolve().
     call VecView(field%flow_xx, viewer, ierr);CHKERRQ(ierr)
-
-
-    ! If we are running with multiple phases, we need to dump the vector 
-    ! that indicates what phases are present, as well as the 'var' vector 
-    ! that holds variables derived from the primary ones via the translator.
-    select case(option%iflowmode)
-      case default
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
-        call DiscretizationLocalToGlobal(discretization,field%work_loc, &
-                                         global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-    end select 
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now, 
@@ -430,7 +417,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   
   implicit none
 
@@ -465,8 +452,6 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%work_loc,ONEDOF)
-        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
-                                   ZERO_INTEGER)
     end select
     
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
@@ -1037,7 +1022,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
 
@@ -1078,23 +1063,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
                                     global_vec, GLOBAL,option)
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
-
-    ! If we are running with multiple phases, we need to dump the vector
-    ! that indicates what phases are present, as well as the 'var' vector
-    ! that holds variables derived from the primary ones via the translator.
-    select case(option%iflowmode)
-
-      case default
-        call GlobalGetAuxVarVecLoc(realization,field%work_loc, &
-                                   STATE,ZERO_INTEGER)
-        call DiscretizationLocalToGlobal(discretization,field%work_loc, &
-                                         global_vec,ONEDOF)
-        call DiscretizationGlobalToNatural(discretization, global_vec, &
-                                           natural_vec, ONEDOF)
-        dataset_name = "State" // CHAR(0)
-        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
-            pm_grp_id, H5T_NATIVE_DOUBLE)
-    end select
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now,
@@ -1163,7 +1131,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
 
@@ -1208,23 +1176,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
                                     global_vec, GLOBAL,option)
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
-
-    ! If we are running with multiple phases, we need to dump the vector
-    ! that indicates what phases are present, as well as the 'var' vector
-    ! that holds variables derived from the primary ones via the translator.
-    dataset_name = "State" // CHAR(0)
-    select case(option%iflowmode)
-
-      case default
-        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
-             pm_grp_id, H5T_NATIVE_DOUBLE)
-        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
-                                           global_vec, ONEDOF)
-        call DiscretizationGlobalToLocal(realization%discretization, &
-                                         global_vec, field%work_loc, ONEDOF)
-        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
-                                   ZERO_INTEGER)
-    end select
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now,

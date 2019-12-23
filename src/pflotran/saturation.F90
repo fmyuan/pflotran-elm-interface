@@ -53,7 +53,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid, &
   
   condition => coupler%flow_condition
 
-  if (option%iflowmode /= TH_MODE ) then
+  if (option%iflowmode /= MPFLOW_MODE ) then
     option%io_buffer = 'SaturationUpdateCoupler is not set up for this flow mode.'
     call PrintErrMsg(option)
   endif
@@ -65,7 +65,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid, &
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
 
-    if (option%iflowmode == TH_MODE) then
+    if (option%iflowmode == MPFLOW_MODE) then
       call characteristic_curves_array( &
              sat_func_id(ghosted_id))%ptr% &
              saturation_function%CapillaryPressure(saturation,capillary_pressure, dpc_dsatl, option)

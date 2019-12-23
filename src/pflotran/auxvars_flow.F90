@@ -15,26 +15,26 @@ module AuxVars_Flow_module
   private
 
   type, public, extends(auxvar_base_type) :: auxvar_flow_type
-    PetscReal, pointer :: pres(:)   ! (nfluids)
-    PetscReal, pointer :: sat(:)    ! (nfluids)
-    PetscReal          :: pc        ! liq. fluid capillary pressure (1) only
-    PetscReal, pointer :: den(:)    ! (nfluids) kmol/m^3 phase
-    PetscReal, pointer :: den_kg(:) ! (nfluids) kg/m^3 phase
+    PetscReal, pointer :: sat(:)    ! (nfluids+1) unitless: the '+1' is for fluid in solid phase (e.g. ice)
+    PetscReal, pointer :: den(:)    ! (nfluids+1) kmol/m^3:
+    PetscReal, pointer :: den_kg(:) ! (nfluids+1) kg/m^3  :
+    PetscReal, pointer :: pres(:)      ! (nfluids): exlcuding solid phase
     PetscReal, pointer :: mobility(:)  ! relative permissivity/dynamic viscosity
     PetscReal, pointer :: viscosity(:) ! dynamic viscosity
     PetscReal, pointer :: xmol(:,:)    ! (nflowspec,nfluids) transportants in fluids
-    PetscReal          :: por       !
+    PetscReal          :: por          ! porosity of porous media for flow
+    PetscReal          :: pc           ! liq. fluid capillary pressure only (specific variables useful)
 
     ! derivatives
     PetscBool :: has_derivs
+    PetscReal, pointer :: D_sat(:,:)    ! (nfluids+1, nflowdof)
+    PetscReal, pointer :: D_den(:,:)    ! (nfluids+1, nflowdof) kmol/m^3 phase
+    PetscReal, pointer :: D_den_kg(:,:) ! (nfluids+1, nflowdof) kg/m^3 phase
     PetscReal, pointer :: D_pres(:,:)   ! (nfluids, nflowdof)
-    PetscReal, pointer :: D_sat(:,:)    ! (nfluids, nflowdof)
-    PetscReal, pointer :: D_pc(:)       ! liq. capillary pressure (nflowdof)
-    PetscReal, pointer :: D_den(:,:)    ! (nfluids, nflowdof) kmol/m^3 phase
-    PetscReal, pointer :: D_den_kg(:,:) ! (nfluids, nflowdof) kg/m^3 phase
     PetscReal, pointer :: D_mobility(:,:)  ! (nfluids, nflowdof) relative perm./visc.
     PetscReal, pointer :: D_viscosity(:,:) ! (nfluids, nflowdof) dynamic viscosity
-    PetscReal, pointer :: D_por(:)      ! (nflowdof)
+    PetscReal, pointer :: D_por(:)         ! (nflowdof)
+    PetscReal, pointer :: D_pc(:)          ! liq. capillary pressure (nflowdof)
 
   contains
     !

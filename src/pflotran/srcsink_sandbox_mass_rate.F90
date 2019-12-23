@@ -145,7 +145,7 @@ subroutine MassRateSetup(this,grid,option)
   call SSSandboxBaseSetup(this,grid,option)
   ! convert rate from kg/s to mol/s
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       this%rate(1) = this%rate(1) / FMWH2O
     case default
       option%io_buffer = 'Rate conversion not set up for flow mode in ' // &

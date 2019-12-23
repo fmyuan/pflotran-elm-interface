@@ -61,10 +61,6 @@ ifdef compute_internal_flux
   MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
 endif
 
-ifdef condnr
-  MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
-endif
-
 ifdef no_vapor_diffusion
   MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
 endif
@@ -99,15 +95,6 @@ endif
 
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
-endif
-
-# Set this accordingly on your platform
-# SCORPIO_DIR=${HOME}/soft/scorpio
-ifdef scorpio
-  LIBS += -L${SCORPIO_DIR}/lib -lscorpio
-  MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO
-  MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO_WRITE
-  MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
 ifdef codecov

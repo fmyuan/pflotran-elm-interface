@@ -39,7 +39,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Ascii_class
   use String_module
   
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
   implicit none
 
@@ -271,7 +271,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0, &
@@ -311,7 +311,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -319,7 +319,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
@@ -441,7 +441,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                     temperature_gradient(Z_DIRECTION)*dist_z 
     coupler%flow_aux_real_var(3,iconn) = temperature
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         coupler%flow_aux_real_var(FLOW_TEMPERATURE_DOF,iconn) = temperature
         coupler%flow_aux_real_var(FLOW_LIQ_PRESSURE_DOF,iconn) = gas_pressure - pressure
         coupler%flow_aux_real_var(FLOW_GAS_PRESSURE_DOF,iconn) = gas_pressure

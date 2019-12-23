@@ -29,20 +29,20 @@ mode_aux_obj = \
 	${common_src}auxvars_base.o \
 	${common_src}auxvars_flow.o \
 	${common_src}auxvars_flow_energy.o \
-	${common_src}flowmode_aux.o \
-	${common_src}pm_base_aux.o \
-	${common_src}inlinesurface_aux.o
+	${common_src}inlinesurface_aux.o \
+	${common_src}mpflow_aux.o \
+	${common_src}pm_base_aux.o 
 #	${common_src}transport_aux.o \
 #	${common_src}transport_common.o
 	
 	
 mode_obj = \
-	${common_src}flowmode.o \
 	${common_src}global.o \
 	${common_src}inlinesurface.o \
+	${common_src}mpflow.o \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
-	${common_src}pm_th.o \
+	${common_src}pm_mpflow.o \
 	${common_src}pm_subsurface_flow.o
 #	${common_src}transport.o \
 #	${common_src}transport_constraint.o \

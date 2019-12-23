@@ -29,7 +29,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Material_module
   
 
-  use Flowmode_module
+  use MpFlow_module
   use Condition_Control_module
   
   implicit none
@@ -47,15 +47,15 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
     end select
     select case(option%iflowmode)
-      case(TH_MODE)
-        call FlowmodeSetup(realization)
+      case(MPFLOW_MODE)
+        call MpFlowSetup(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>Setup'
         call PrintErrMsg(option)
@@ -71,8 +71,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
     endif
   
     select case(option%iflowmode)
-      case(TH_MODE)
-        call FlowmodeUpdateAuxVars(realization)
+      case(MPFLOW_MODE)
+        call MpFlowUpdateAuxVars(realization)
       case default
         option%io_buffer = 'Unknown flowmode found during <Mode>UpdateAuxVars'
         call PrintErrMsg(option)
@@ -105,7 +105,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   use Discretization_module
   use HDF5_module
 
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
   implicit none
   
@@ -131,7 +131,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= TH_MODE) then
+  if (option%iflowmode /= MPFLOW_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
@@ -148,7 +148,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
     ! Pressure for all modes 
-    if (option%iflowmode == TH_MODE) then
+    if (option%iflowmode == MPFLOW_MODE) then
       offset = FLOW_LIQ_PRESSURE_DOF
     endif
     !offset = 1
@@ -170,7 +170,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
 
     ! Temperature for TH mode
-    if (option%iflowmode == TH_MODE) then
+    if (option%iflowmode == MPFLOW_MODE) then
       offset = FLOW_TEMPERATURE_DOF
       group_name = ''
       dataset_name = 'Temperature'

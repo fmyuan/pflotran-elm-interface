@@ -7,7 +7,7 @@ module InlineSurface_module
   use Material_Aux_class, only : material_auxvar_type
   use Option_module
 
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
   implicit none
 

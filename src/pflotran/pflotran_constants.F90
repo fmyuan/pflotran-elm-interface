@@ -129,7 +129,6 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: THREENPDOF = 3
   PetscInt, parameter, public :: NFLOWDOF = 4
   PetscInt, parameter, public :: NTRANDOF = 5
-  !PetscInt, parameter, public :: SURF_ONEDOF = 6
   
   PetscInt, parameter, public :: GLOBAL = 1
   PetscInt, parameter, public :: LOCAL = 2
@@ -138,7 +137,7 @@ module PFLOTRAN_Constants_module
   
   ! flow modes
   PetscInt, parameter, public :: NULL_MODE = 0
-  PetscInt, parameter, public :: TH_MODE = 1
+  PetscInt, parameter, public :: MPFLOW_MODE = 1
 
   ! default flow mode's primary variable dof
   PetscInt, parameter, public :: FLOW_TEMPERATURE_DOF = 0

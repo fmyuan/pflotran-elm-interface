@@ -992,7 +992,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     dof_is_active = PETSC_TRUE
 #if defined(ISOTHERMAL)
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
     end select
@@ -1001,7 +1001,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     select case(option%iflowmode)
       !TODO(geh): refactors so that we don't need all these variants?
 #if 0
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
                       realization%patch%aux%General%inactive_rows_local, &
                     realization%patch%aux%General%inactive_rows_local_ghosted, &

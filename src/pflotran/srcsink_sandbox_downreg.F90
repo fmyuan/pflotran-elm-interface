@@ -255,7 +255,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: idof
   
   do idof = 1, option%nflowdof
-    if (option%iflowmode == TH_MODE &
+    if (option%iflowmode == MPFLOW_MODE &
       .and. idof == ONE_INTEGER) then
       pressure = aux_real(3)
       rate = this%dataset%rarray(1)
@@ -308,7 +308,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
   if (compute_derivative) then
     
     do idof = 1, option%nflowdof
-      if ((option%iflowmode == TH_MODE) &
+      if ((option%iflowmode == MPFLOW_MODE) &
          .and. idof == ONE_INTEGER) then
         Jacobian(idof,idof) = -1.0d0 * rate * drate_regulator
       else

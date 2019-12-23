@@ -281,8 +281,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-  use Flowmode_Aux_module
-  use PM_TH_class
+  use MpFlow_Aux_module
+  use PM_MpFlow_class
 
   implicit none
 
@@ -291,8 +291,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
   select type(pm_flow)
     !
-    class is (pm_th_type)
-      option%iflowmode = TH_MODE
+    class is (pm_mpflow_type)
+      option%iflowmode = MPFLOW_MODE
       !
       option%nfluids      = 2       ! liq. water & air-gas
       option%liq_fluid    = LIQUID_PHASE
@@ -328,9 +328,9 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
   use PMC_Base_class
 
   use PM_Base_class
-  use PM_TH_class
+  use PM_MpFlow_class
   use Init_Common_module
-  use Flowmode_module
+  use MpFlow_module
 
   implicit none
 
@@ -357,8 +357,9 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('TH')
-            pm => PMTHCreate()
+          !Multi-phase Thermal-hydroloical Flow (MPFLOW)
+          case('MPFLOW')
+            pm => PMMpFlowCreate()
           case default
             error_string = trim(error_string) // ', MODE'
             call InputKeywordUnrecognized(input,word,error_string,option)
@@ -779,7 +780,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
-  use Flowmode_module
+  use MpFlow_module
   use Init_Common_module
 
 #ifdef CLM_PFLOTRAN
@@ -1511,7 +1512,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('CHARACTERISTIC_CURVES')
-        if (.not.(option%iflowmode == TH_MODE)) then
+        if (.not.(option%iflowmode == MPFLOW_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
             'modes other than TH. '
           call printErrMsg(option)
@@ -2242,7 +2243,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE) then
+        if (option%iflowmode /= MPFLOW_MODE) then
           option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
           call PrintErrMsg(option)
         endif

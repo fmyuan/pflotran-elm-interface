@@ -19,7 +19,7 @@ module Patch_module
 
   use PFLOTRAN_Constants_module
 
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
   implicit none
 
@@ -638,7 +638,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
         patch%boundary_flow_fluxes = 0.d0
       endif
       ! surface/subsurface storage
-      if (option%iflowmode == TH_MODE) then
+      if (option%iflowmode == MPFLOW_MODE) then
         allocate(patch%boundary_energy_flux(2,temp_int))  ! why 2?
         patch%boundary_energy_flux = 0.d0
       endif
@@ -707,7 +707,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Connection_module
   use Global_Aux_module
   use Condition_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
   implicit none
 
@@ -748,7 +748,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
-              case(TH_MODE)
+              case(MPFLOW_MODE)
                 temp_int = option%nflowspec*option%nfluids
                 if (associated(coupler%flow_condition%pressure)) then
                   select case(coupler%flow_condition%pressure%itype)
@@ -772,7 +772,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
-              case(TH_MODE)
+              case(MPFLOW_MODE)
                 temp_int = ONE_INTEGER
                 allocate(coupler%flow_aux_real_var(temp_int,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
@@ -798,7 +798,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(TH_MODE)
+                  case(MPFLOW_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case default
@@ -899,7 +899,7 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
       flow_condition => coupler%flow_condition
       if (force_update_flag .or. flow_condition%is_transient) then
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           case default
 
@@ -920,7 +920,7 @@ end subroutine PatchUpdateCouplerAuxVars
 subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   !
   ! Updates flow auxiliary variables associated
-  ! with a coupler for TH_MODE
+  ! with a coupler for MPFLOW_MODE
   !
   ! Author: Glenn Hammond
   ! Date: 11/26/07
@@ -1440,7 +1440,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     select case(option%iflowmode)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
     end select
@@ -1500,7 +1500,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
     call PrintErrMsg(option)
   endif
 
-  if (option%iflowmode/=TH_MODE) then
+  if (option%iflowmode/=MPFLOW_MODE) then
     option%io_buffer='PatchUpdateHetroCouplerAuxVars only implemented '// &
       ' for TH mode.'
     call PrintErrMsg(option)
@@ -1746,7 +1746,7 @@ subroutine PatchGetVariable1(patch,field,option, &
   iphase = 1
   select case(ivar)
     case(TEMPERATURE,LIQUID_PRESSURE,GAS_PRESSURE,AIR_PRESSURE, &
-         LIQUID_SATURATION,GAS_SATURATION,HYDRATE_SATURATION,ICE_SATURATION, &
+         LIQUID_SATURATION,GAS_SATURATION,ICE_SATURATION, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
@@ -1764,8 +1764,7 @@ subroutine PatchGetVariable1(patch,field,option, &
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%flow%auxvars( &
-                                          grid%nL2G(local_id))%Tk
+                patch%aux%flow%auxvars(grid%nL2G(local_id))%Tk
             enddo
           case(MAXIMUM_PRESSURE)
             do local_id=1,grid%nlmax
@@ -1911,18 +1910,25 @@ subroutine PatchGetVariable1(patch,field,option, &
                 patch%aux%flow%auxvars(ghosted_id)%kvr(option%gas_fluid)/ &
                 patch%aux%flow%auxvars(ghosted_id)%viscosity(option%gas_fluid)
             enddo
+          ! 2 special varialbes for solid phase of fluid, e.g. ice
+          case(ICE_SATURATION)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%flow%auxvars( &
+                  grid%nL2G(local_id))%sat(option%nfluids+1)
+            enddo
+          case(ICE_DENSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%flow%auxvars( &
+                  grid%nL2G(local_id))%den_kg(option%nfluids+1)
+            enddo
+
           case default
-            call PatchUnsupportedVariable('GENERAL',ivar,option)
+
+            call PatchUnsupportedVariable(option%flowmode,ivar,option)
         end select
 
       endif
 
-
-    case(STATE,PHASE)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = &
-          patch%aux%Global%auxvars(grid%nL2G(local_id))%istate
-      enddo
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
@@ -2184,17 +2190,19 @@ function PatchGetVariableValueAtCell(patch,field,option, &
                       viscosity(option%gas_fluid) / &
                     patch%aux%flow%auxvars(ghosted_id)% &
                       mobility(option%gas_fluid)
+          ! 2 special varialbes for solid phase of fluid, e.g. ice
           case(ICE_SATURATION)
             value = patch%aux%flow%auxvars(ghosted_id)% &
-                      sat_ice
+                      sat(option%nfluids+1)
+          case(ICE_DENSITY)
+            value = patch%aux%flow%auxvars(ghosted_id)% &
+                      den_kg(option%nfluids+1)
           case default
-            call PatchUnsupportedVariable('TH_MODE',ivar,option)
+            call PatchUnsupportedVariable('MPFLOW_MODE',ivar,option)
         end select
 
       endif
 
-    case(STATE,PHASE)
-      value = patch%aux%Global%auxvars(ghosted_id)%istate
     case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
          VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
@@ -2261,7 +2269,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   use Option_module
   use Field_module
   use Variables_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
   use Material_Aux_class
 
@@ -2387,11 +2395,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
                                       ivar,vec_ptr(ghosted_id))
         enddo
       endif
-    case(STATE,PHASE)
-      do local_id=1,grid%nlmax
-        patch%aux%Global%auxvars(grid%nL2G(local_id))%istate = &
-          int(vec_ptr(local_id)+1.d-10)
-      enddo
     case(VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       option%io_buffer = 'Setting of volume, tortuosity, ' // &
         'soil compressibility or soil reference pressure in ' // &

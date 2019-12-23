@@ -124,12 +124,12 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use Discretization_module
   use Realization_Subsurface_class
   use Option_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
   use PMC_Base_class
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use PM_TH_class
+  use PM_MpFlow_class
   use Solver_module
   use Timestepper_Base_class
   use Timestepper_BE_class
@@ -171,7 +171,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     class is(pm_subsurface_flow_type)
       call PrintMsg(option,"  Beginning setup of FLOW SNES ")
       if (solver%J_mat_type == MATAIJ .and. &
-          option%iflowmode /= TH_MODE) then
+          option%iflowmode /= MPFLOW_MODE) then
 
         option%io_buffer = 'AIJ matrix not supported for current &
           &mode: '// option%flowmode
@@ -181,14 +181,14 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
         write(*,'(" number of dofs = ",i3,", number of &
                   &fluids = ",i3,i2)') option%nflowdof, option%nfluids
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             write(*,'(" mode = TH: p, sg/X, T")')
 
         end select
       endif
 
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
           if (trim(snes_type) == 'newtontr') then
             flow_using_newtontr = PETSC_TRUE
@@ -314,7 +314,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                   
       add_pre_check = PETSC_FALSE
       select type(pm)
-        class is(pm_th_type)
+        class is(pm_mpflow_type)
           add_pre_check = PETSC_TRUE
       end select
 

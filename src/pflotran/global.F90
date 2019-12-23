@@ -10,12 +10,10 @@ module Global_module
   
   private 
 
-  public GlobalSetup, &
+  public GlobalSetup,           &
          GlobalSetAuxVarScalar, &
          GlobalSetAuxVarVecLoc, &
-         GlobalGetAuxVarVecLoc, &
-         GlobalWeightAuxVars, &
-         GlobalUpdateState, &
+         GlobalWeightAuxVars,   &
          GlobalUpdateAuxVars
 
 contains
@@ -249,7 +247,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
                                LIQUID_DENSITY, GAS_PRESSURE, &
                                GAS_DENSITY, GAS_SATURATION, &
                                TEMPERATURE, SC_FUGA_COEFF, GAS_DENSITY_MOL, &
-                               STATE, OIL_PRESSURE, OIL_SATURATION, &
+                               OIL_PRESSURE, OIL_SATURATION, &
                                OIL_DENSITY, OIL_DENSITY_MOL
   
   implicit none
@@ -438,10 +436,6 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
             auxvars(ghosted_id)%fugacoeff(1) = vec_loc_p(ghosted_id)
           enddo
       end select
-    case(STATE)
-      do ghosted_id=1, grid%ngmax
-        auxvars(ghosted_id)%istate = int(vec_loc_p(ghosted_id)+1.d-10)
-      enddo
     case default
       print *, 'Case(', ivar, ') not supported in GlobalSetAuxVarVecLoc'
       stop
@@ -452,59 +446,6 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
 end subroutine GlobalSetAuxVarVecLoc
 
 ! ************************************************************************** !
-
-subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
-  ! 
-  ! Sets values of auxvar data using a vector.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 11/19/08
-  ! 
-
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-  use Realization_Subsurface_class
-  use Patch_module
-  use Grid_module
-  use Option_module
-  use Variables_module, only : STATE
-  
-  implicit none
-
-  class(realization_subsurface_type) :: realization
-  Vec :: vec_loc
-  PetscInt :: ivar
-  PetscInt :: isubvar  
-  
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  
-  PetscInt :: ghosted_id
-  PetscReal, pointer :: vec_loc_p(:)
-  PetscErrorCode :: ierr
-  
-  patch => realization%patch
-  grid => patch%grid
-  option => realization%option
-  
-  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
-  
-  select case(ivar)
-    case(STATE)
-      do ghosted_id=1, grid%ngmax
-        vec_loc_p(ghosted_id) = &
-          dble(patch%aux%Global%auxvars(ghosted_id)%istate)
-      enddo
-    case default
-      option%io_buffer = 'Variable unrecognized in GlobalGetAuxVarVecLoc.'
-      call PrintErrMsg(option)
-  end select
-
-  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
-
-end subroutine GlobalGetAuxVarVecLoc
-
 ! ************************************************************************** !
 
 subroutine GlobalWeightAuxVars(realization,weight)
@@ -543,7 +484,7 @@ subroutine GlobalWeightAuxVars(realization,weight)
   enddo
   
   select case(option%iflowmode) 
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
@@ -556,33 +497,6 @@ subroutine GlobalWeightAuxVars(realization,weight)
   end select
   
 end subroutine GlobalWeightAuxVars
-
-! ************************************************************************** !
-
-subroutine GlobalUpdateState(realization)
-  ! 
-  ! Updates global aux var variables for use in
-  ! reactive transport
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/14/09
-  ! 
-
-  use Realization_Subsurface_class
-  use Realization_Base_class, only : RealizationGetVariable
-  use Communicator_Base_module
-  use Variables_module, only : STATE
-  
-  class(realization_subsurface_type) :: realization
-  
-  call RealizationGetVariable(realization,realization%field%work,STATE, &
-                              ZERO_INTEGER)
-  call realization%comm1%GlobalToLocal(realization%field%work, &
-                                       realization%field%work_loc)
-  call GlobalSetAuxVarVecLoc(realization,realization%field%work_loc,STATE, &
-                             ZERO_INTEGER)
-  
-end subroutine GlobalUpdateState
 
 ! ************************************************************************** !
 
@@ -638,7 +552,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                              time_level)
   select case(option%iflowmode)
 
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       ! pressure
       call RealizationGetVariable(realization,field%work,LIQUID_PRESSURE, &
                                   ZERO_INTEGER)

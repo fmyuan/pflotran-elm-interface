@@ -908,7 +908,7 @@ subroutine FlowConditionRead(condition,input,option)
   !geh: simple check to ensure that DIRICHLET_SEEPAGE and 
   !     DIRICHLET_CONDUCTANCE_BC are only used in TH and RICHARDS
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
     case default
       if (pressure%itype == DIRICHLET_SEEPAGE_BC .or. &
           pressure%itype == DIRICHLET_CONDUCTANCE_BC) then
@@ -984,7 +984,7 @@ subroutine FlowConditionRead(condition,input,option)
         &FlowConditionRead.'
       call PrintMsg(option)
 
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
            .and. .not.associated(saturation)) then
         option%io_buffer = 'pressure, rate and saturation condition null in &

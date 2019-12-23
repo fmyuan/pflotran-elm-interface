@@ -732,7 +732,7 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   ! add secondary temperature to header
   if (print_secondary_data(1)) then
     select case (option%iflowmode) 
-      case (TH_MODE)
+      case (MPFLOW_MODE)
         do i = 1, option%nsec_cells
           write(string,'(i2)') i
           string = 'T(' // trim(adjustl(string)) // ')'
@@ -771,7 +771,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   option => realization_base%option
   
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       string = ',"Darcy flux ' // trim(coupler_name) // &
                ' [m^3/' // trim(realization_base%output_option%tunit) // ']"'
     case default
@@ -1011,7 +1011,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
     offset = connection_set%offset
     select case(option%iflowmode)
       !
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         sum_volumetric_flux = 0.d0
         if (associated(connection_set)) then
           do iconn = 1, connection_set%num_connections
@@ -1454,7 +1454,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   if (option%nsec_cells > 0) then
     if (ivar == PRINT_SEC_TEMP) then
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           do i = 1, option%nsec_cells 
             write(fid,110,advance="no") &
               RealizGetVariableValueAtCell(realization_base,ghosted_id, &
@@ -1521,7 +1521,7 @@ subroutine OutputIntegralFlux(realization_base)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       flow_dof_scale(1) = FMWH2O
       flow_dof_scale(2) = FMWAIR
   end select
@@ -1564,7 +1564,7 @@ subroutine OutputIntegralFlux(realization_base)
       do
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -1573,7 +1573,7 @@ subroutine OutputIntegralFlux(realization_base)
         end select
         select case(option%iflowmode)
 
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
@@ -1697,7 +1697,7 @@ subroutine OutputMassBalance(realization_base)
   use Utility_module
   use Output_Aux_module
   
-  use Flowmode_module, only : FlowmodeComputeMassBalance
+  use MpFlow_module, only : MpFlowComputeMassBalance
 
   use Global_Aux_module
   use Material_Aux_class
@@ -1793,7 +1793,7 @@ subroutine OutputMassBalance(realization_base)
       endif
       
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Water Mass in Solid Phase', &
@@ -1824,7 +1824,7 @@ subroutine OutputMassBalance(realization_base)
         endif
 
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Air Mass'
@@ -1893,8 +1893,8 @@ subroutine OutputMassBalance(realization_base)
     select type(realization_base)
       class is(realization_subsurface_type)
         select case(option%iflowmode)
-          case(TH_MODE)
-            call FlowmodeComputeMassBalance(realization_base,sum_kg(:,:))
+          case(MPFLOW_MODE)
+            call MpFlowComputeMassBalance(realization_base,sum_kg(:,:))
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -1908,7 +1908,7 @@ subroutine OutputMassBalance(realization_base)
 
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           do ifluid = 1, option%nfluids
             do ispec = 1, option%nflowspec
               write(fid,110,advance="no") sum_kg_global(ispec,ifluid)
@@ -1946,7 +1946,7 @@ subroutine OutputMassBalance(realization_base)
     if (option%nflowdof > 0) then
 
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           ! print out cumulative H2O flux
           sum_kg = 0.d0
           do iconn = 1, coupler%connection_set%num_connections
@@ -1993,7 +1993,7 @@ subroutine OutputMassBalance(realization_base)
       ! print out sum of global water mass and fluxes
       ! (NOTE: THIS amount MUST BE constant, otherwise error in mass-conservation)
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           if (option%myrank == option%io_rank) then
             write(fid,110,advance="no") sum_kg_water
           endif

@@ -9,7 +9,6 @@ module Global_Aux_module
   private 
 
   type, public :: global_auxvar_type
-    PetscInt :: istate
     PetscReal :: temp
     PetscReal, pointer :: pres(:)
     PetscReal, pointer :: pres_store(:,:)
@@ -98,7 +97,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
 
   PetscInt :: nfluid
   
-  auxvar%istate = 0
   auxvar%temp = 0.d0
 
   ! nullify everthing to begin with and allocate later
@@ -175,7 +173,6 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   type(global_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
-  auxvar2%istate = auxvar%istate
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat

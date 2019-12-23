@@ -400,7 +400,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
              ' ' // trim(adjustl(y_string)) // &
              ' ' // trim(adjustl(z_string)) // ')'
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         variable_string = ' Water'
         ! cumulative
         units_string = 'kg'
@@ -412,7 +412,7 @@ subroutine SSSandboxOutputHeader(sandbox_list,grid,option,output_option)
                                  cell_string,icolumn)
     end select
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         variable_string = ' Gas Component'
         ! cumulative
         units_string = 'kg'
@@ -466,7 +466,7 @@ subroutine SSSandboxOutput(sandbox_list,option,output_option)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       flow_dof_scale(1) = FMWH2O
   end select  
   

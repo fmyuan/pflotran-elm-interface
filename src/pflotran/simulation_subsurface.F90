@@ -132,7 +132,7 @@ subroutine SubsurfaceSimInputRecord(this)
   write(id,'(a)') 'subsurface'
   write(id,'(a29)',advance='no') 'flow mode: '
   select case(this%realization%option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       write(id,'(a)') 'thermo-hydro'
   end select
   

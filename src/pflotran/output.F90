@@ -1894,7 +1894,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
 
 
   class(realization_base_type) :: realization_base
@@ -1927,7 +1927,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
   endif
 
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       allocate(iauxvars(2),auxvar_names(2))
       iauxvars(1) = FLOW_LIQ_PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'

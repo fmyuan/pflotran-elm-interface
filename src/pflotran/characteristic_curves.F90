@@ -1121,7 +1121,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   if (associated(characteristic_curves%gas_rel_perm_function) ) then
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
-    if (option%iflowmode == TH_MODE) then
+    if (option%iflowmode == MPFLOW_MODE) then
       option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &

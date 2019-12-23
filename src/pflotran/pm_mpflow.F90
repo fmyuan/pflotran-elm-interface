@@ -1,4 +1,4 @@
-module PM_TH_class
+module PM_MpFlow_class
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
@@ -20,7 +20,7 @@ module PM_TH_class
   PetscInt, parameter :: SCALED_RESIDUAL_INDEX = 4
   PetscInt, parameter :: MAX_INDEX = SCALED_RESIDUAL_INDEX
 
-  type, public, extends(pm_subsurface_flow_type) :: pm_th_type
+  type, public, extends(pm_subsurface_flow_type) :: pm_mpflow_type
     class(communicator_type), pointer :: commN
     PetscBool :: converged_flag(2,MAX_INDEX)
     PetscInt :: converged_cell(2,MAX_INDEX)
@@ -30,45 +30,45 @@ module PM_TH_class
     PetscReal :: abs_update_inf_tol(2)
     PetscReal :: rel_update_inf_tol(2)
   contains
-    procedure, public :: Setup => PMTHSetup
-    procedure, public :: ReadSimulationBlock => PMTHRead
-    procedure, public :: InitializeTimestep => PMTHInitializeTimestep
-    procedure, public :: Residual => PMTHResidual
-    procedure, public :: Jacobian => PMTHJacobian
-    procedure, public :: UpdateTimestep => PMTHUpdateTimestep
-    procedure, public :: PreSolve => PMTHPreSolve
-    procedure, public :: PostSolve => PMTHPostSolve
-    procedure, public :: CheckUpdatePre => PMTHCheckUpdatePre
-    procedure, public :: CheckUpdatePost => PMTHCheckUpdatePost
-    procedure, public :: CheckConvergence => PMTHCheckConvergence
-    procedure, public :: TimeCut => PMTHTimeCut
-    procedure, public :: UpdateSolution => PMTHUpdateSolution
-    procedure, public :: UpdateAuxVars => PMTHUpdateAuxVars
-    procedure, public :: MaxChange => PMTHMaxChange
-    procedure, public :: ComputeMassBalance => PMTHComputeMassBalance
-    procedure, public :: InputRecord => PMTHInputRecord
-    procedure, public :: Destroy => PMTHDestroy
-  end type pm_th_type
+    procedure, public :: Setup => PMMpFlowSetup
+    procedure, public :: ReadSimulationBlock => PMMpFlowRead
+    procedure, public :: InitializeTimestep => PMMpFlowInitializeTimestep
+    procedure, public :: Residual => PMMpFlowResidual
+    procedure, public :: Jacobian => PMMpFlowJacobian
+    procedure, public :: UpdateTimestep => PMMpFlowUpdateTimestep
+    procedure, public :: PreSolve => PMMpFlowPreSolve
+    procedure, public :: PostSolve => PMMpFlowPostSolve
+    procedure, public :: CheckUpdatePre => PMMpFlowCheckUpdatePre
+    procedure, public :: CheckUpdatePost => PMMpFlowCheckUpdatePost
+    procedure, public :: CheckConvergence => PMMpFlowCheckConvergence
+    procedure, public :: TimeCut => PMMpFlowTimeCut
+    procedure, public :: UpdateSolution => PMMpFlowUpdateSolution
+    procedure, public :: UpdateAuxVars => PMMpFlowUpdateAuxVars
+    procedure, public :: MaxChange => PMMpFlowMaxChange
+    procedure, public :: ComputeMassBalance => PMMpFlowComputeMassBalance
+
+    procedure, public :: Destroy => PMMpFlowDestroy
+  end type pm_mpflow_type
   
-  public :: PMTHCreate
+  public :: PMMpFlowCreate
   
 contains
 
 ! ************************************************************************** !
 
-function PMTHCreate()
+function PMMpFlowCreate()
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
   implicit none
   
-  class(pm_th_type), pointer :: PMTHCreate
+  class(pm_mpflow_type), pointer :: PMMpFlowCreate
 
-  class(pm_th_type), pointer :: this
+  class(pm_mpflow_type), pointer :: this
 
   PetscReal, parameter :: pres_abs_inf_tol = 1.d0
   PetscReal, parameter :: temp_abs_inf_tol = 1.d-5
@@ -82,7 +82,7 @@ function PMTHCreate()
   PetscReal, parameter :: residual_scaled_inf_tol(2) = 1.d-5
   
 #ifdef PM_TH_DEBUG
-  print *, 'PMTHCreate()'
+  print *, 'PMMpFlowCreate()'
 #endif  
 
   allocate(this)
@@ -98,13 +98,13 @@ function PMTHCreate()
   this%abs_update_inf_tol = abs_update_inf_tol
   this%rel_update_inf_tol = rel_update_inf_tol
 
-  PMTHCreate => this
+  PMMpFlowCreate => this
   
-end function PMTHCreate
+end function PMMpFlowCreate
 
 ! ************************************************************************** !
 
-subroutine PMTHRead(this,input)
+subroutine PMMpFlowRead(this,input)
   ! 
   ! Reads input file parameters associated with the TH process model
   ! 
@@ -115,11 +115,11 @@ subroutine PMTHRead(this,input)
   use Utility_module
   use EOS_Water_module  
   use Option_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
  
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   type(input_type), pointer :: input
   
   character(len=MAXWORDLENGTH) :: word
@@ -282,16 +282,16 @@ subroutine PMTHRead(this,input)
     end select
   enddo
   
-end subroutine PMTHRead
+end subroutine PMMpFlowRead
 
 ! ************************************************************************** !
 
-subroutine PMTHSetup(this)
+subroutine PMMpFlowSetup(this)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
   use Discretization_module
@@ -301,7 +301,7 @@ subroutine PMTHSetup(this)
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
   call PMSubsurfaceFlowSetup(this)
   
@@ -314,24 +314,24 @@ subroutine PMTHSetup(this)
   end select
   call this%commN%SetDM(this%realization%discretization%dm_nflowdof)
 
-end subroutine PMTHSetup
+end subroutine PMMpFlowSetup
 
 ! ************************************************************************** !
 
-subroutine PMTHInitializeTimestep(this)
+subroutine PMMpFlowInitializeTimestep(this)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeInitializeTimestep
+  use MpFlow_module, only : MpFlowInitializeTimestep
   use Option_module
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
   call PMSubsurfaceFlowInitializeTimestepA(this)
 
@@ -341,34 +341,34 @@ subroutine PMTHInitializeTimestep(this)
   call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
                                this%realization%field%ithrm_loc)
 
-  call FlowmodeInitializeTimestep(this%realization)
+  call MpFlowInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
   
-end subroutine PMTHInitializeTimestep
+end subroutine PMMpFlowInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMTHPreSolve(this)
+subroutine PMMpFlowPreSolve(this)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
   use Global_module
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
   call PMSubsurfaceFlowPreSolve(this)
 
-end subroutine PMTHPreSolve
+end subroutine PMMpFlowPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMTHPostSolve(this)
+subroutine PMMpFlowPostSolve(this)
   ! 
   ! Date: 03/14/13
   ! 
@@ -377,28 +377,28 @@ subroutine PMTHPostSolve(this)
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
   ! nothing ?
 
-end subroutine PMTHPostSolve
+end subroutine PMMpFlowPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
+subroutine PMMpFlowUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                               num_newton_iterations,tfac, &
                               time_step_max_growth_factor)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
   use Realization_Subsurface_class, only : RealizationLimitDTByCFL
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   PetscReal :: dt
   PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
@@ -451,64 +451,64 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
 
   call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
   
-end subroutine PMTHUpdateTimestep
+end subroutine PMMpFlowUpdateTimestep
 
 ! ************************************************************************** !
 
-subroutine PMTHResidual(this,snes,xx,r,ierr)
+subroutine PMMpFlowResidual(this,snes,xx,r,ierr)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeResidual
+  use MpFlow_module, only : MpFlowResidual
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   SNES :: snes
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
 
-  call FlowmodeResidual(snes,xx,r,this%realization,ierr)
+  call MpFlowResidual(snes,xx,r,this%realization,ierr)
 
-end subroutine PMTHResidual
+end subroutine PMMpFlowResidual
 
 ! ************************************************************************** !
 
-subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
+subroutine PMMpFlowJacobian(this,snes,xx,A,B,ierr)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeJacobian
+  use MpFlow_module, only : MpFlowJacobian
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   SNES :: snes
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
   
-  call FlowmodeJacobian(A,B,this%realization,ierr)
+  call MpFlowJacobian(A,B,this%realization,ierr)
 
-end subroutine PMTHJacobian
+end subroutine PMMpFlowJacobian
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMMpFlowCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
   use Realization_Subsurface_class
@@ -516,12 +516,12 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Field_module
   use Option_module
   use Patch_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
   use Global_Aux_module
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   SNESLineSearch :: line_search
   Vec :: X
   Vec :: dX
@@ -535,7 +535,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(flow_auxvar_type), pointer :: flow_auxvars(:)
+  type(mpflow_auxvar_type), pointer :: flow_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
   PetscReal :: P0, P1, P_R, delP
@@ -636,32 +636,32 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
     call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   endif
 
-end subroutine PMTHCheckUpdatePre
+end subroutine PMMpFlowCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMMpFlowCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/21/18
   ! 
   ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
-  !    setting the 'th_itol_scaled_res' values. Temperally off now.
+  !    setting the 'flow_itol_scaled_res' values. Temperally off now.
 
   use Realization_Subsurface_class
   use Grid_module
   use Field_module
   use Option_module
-  use Flowmode_module
-  use Flowmode_Aux_module
+  use MpFlow_module
+  use MpFlow_Aux_module
   use Global_Aux_module
   use Material_Aux_class
   use Patch_module
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   SNESLineSearch :: line_search
   Vec :: X0
   Vec :: dX
@@ -753,11 +753,11 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   this%converged_cell(:,ABS_UPDATE_INDEX) = converged_abs_update_cell(:)
   this%converged_cell(:,REL_UPDATE_INDEX) = converged_rel_update_cell(:)
 
-end subroutine PMTHCheckUpdatePost
+end subroutine PMMpFlowCheckUpdatePost
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
+subroutine PMMpFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   !
   ! Author: Glenn Hammond
   ! Date: 11/20/18
@@ -775,7 +775,7 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
 
   implicit none
 
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   SNES :: snes
   PetscInt :: it
   PetscReal :: xnorm
@@ -924,86 +924,86 @@ subroutine PMTHCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                         reason,ierr)
 
-end subroutine PMTHCheckConvergence
+end subroutine PMMpFlowCheckConvergence
 
 ! ************************************************************************** !
 
-subroutine PMTHTimeCut(this)
+subroutine PMMpFlowTimeCut(this)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeTimeCut
+  use MpFlow_module, only : MpFlowTimeCut
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   
   call PMSubsurfaceFlowTimeCut(this)
-  call FlowmodeTimeCut(this%realization)
+  call MpFlowTimeCut(this%realization)
 
-end subroutine PMTHTimeCut
+end subroutine PMMpFlowTimeCut
 
 ! ************************************************************************** !
 
-subroutine PMTHUpdateSolution(this)
+subroutine PMMpFlowUpdateSolution(this)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeUpdateSolution
+  use MpFlow_module, only : MpFlowUpdateSolution
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
   call PMSubsurfaceFlowUpdateSolution(this)
-  call FlowmodeUpdateSolution(this%realization)
+  call MpFlowUpdateSolution(this%realization)
 
-end subroutine PMTHUpdateSolution     
+end subroutine PMMpFlowUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine PMTHUpdateAuxVars(this)
+subroutine PMMpFlowUpdateAuxVars(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use Flowmode_module, only : FlowmodeUpdateAuxVars
+  use MpFlow_module, only : MpFlowUpdateAuxVars
   
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
-  call FlowmodeUpdateAuxVars(this%realization)
+  call MpFlowUpdateAuxVars(this%realization)
 
-end subroutine PMTHUpdateAuxVars   
+end subroutine PMMpFlowUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine PMTHMaxChange(this)
+subroutine PMMpFlowMaxChange(this)
   ! 
   ! This routine
   ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeMaxChange
+  use MpFlow_module, only : MpFlowMaxChange
   use Option_module
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   character(len=MAXSTRINGLENGTH) :: string
 
-  call FlowmodeMaxChange(this%realization,this%max_pressure_change, &
+  call MpFlowMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
 
 #ifndef CLM_PFLOTRAN
@@ -1012,68 +1012,42 @@ subroutine PMTHMaxChange(this)
   call OptionPrint(string,this%option)
 #endif
 
-end subroutine PMTHMaxChange
+end subroutine PMMpFlowMaxChange
 
 ! ************************************************************************** !
 
-subroutine PMTHComputeMassBalance(this,mass_balance_array)
+subroutine PMMpFlowComputeMassBalance(this,mass_balance_array)
   ! 
-  ! This routine
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeComputeMassBalance
+  use MpFlow_module, only : MpFlowComputeMassBalance
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
   PetscReal :: mass_balance_array(:)
   
-  call FlowmodeComputeMassBalance(this%realization,mass_balance_array)
+  call MpFlowComputeMassBalance(this%realization,mass_balance_array)
 
-end subroutine PMTHComputeMassBalance
-
-! ************************************************************************** !
-
-subroutine PMTHInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
-  ! 
-  
-  implicit none
-  
-  class(pm_th_type) :: this
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pm: '
-  write(id,'(a)') this%name
-  write(id,'(a29)',advance='no') 'mode: '
-  write(id,'(a)') 'thermo-hydro'
-
-end subroutine PMTHInputRecord
+end subroutine PMMpFlowComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine PMTHDestroy(this)
+! ************************************************************************** !
+
+subroutine PMMpFlowDestroy(this)
   ! 
-  ! This routine
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 03/90/13
+  ! Author: F-M Yuan, ESD/CCSI-ORNL
+  ! Date: 12/23/2019
   ! 
 
-  use Flowmode_module, only : FlowmodeDestroy
+  use MpFlow_module, only : MpFlowAuxPatchDestroy
 
   implicit none
   
-  class(pm_th_type) :: this
+  class(pm_mpflow_type) :: this
 
   if (associated(this%next)) then
     call this%next%Destroy()
@@ -1081,10 +1055,9 @@ subroutine PMTHDestroy(this)
 
   call this%commN%Destroy()
 
-  ! preserve this ordering
-  call FlowmodeDestroy(this%realization%patch)
+  call MpFlowAuxPatchDestroy(this%realization%patch)
   call PMSubsurfaceFlowDestroy(this)
 
-end subroutine PMTHDestroy
+end subroutine PMMpFlowDestroy
 
-end module PM_TH_class
+end module PM_MpFlow_class
