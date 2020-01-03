@@ -3428,13 +3428,17 @@ subroutine BasisInit(reaction,option)
 
     ! allocate arrays
     allocate(reaction%eqsmartkdspecid(reaction%neqsmartkdrxn))
-    allocate(reaction%eqsmartkdtracerspecid(reaction%neqsmartkdrxn))
-    allocate(reaction%eqsmartkdrbase(reaction%neqsmartkdrxn))
-    allocate(reaction%eqsmartkdscale(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdrefspecid(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdrefspechigh(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdlow(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdhigh(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdpower(reaction%neqsmartkdrxn))
     reaction%eqsmartkdspecid = 0
-    reaction%eqsmartkdtracerspecid = 0
-    reaction%eqsmartkdrbase = 0.d0
-    reaction%eqsmartkdscale = 0.d0
+    reaction%eqsmartkdrefspecid = 0
+    reaction%eqsmartkdrefspechigh = 0.d0
+    reaction%eqsmartkdlow = 0.d0
+    reaction%eqsmartkdhigh = 0.d0
+    reaction%eqsmartkdpower = 0.d0
 
     cur_smart_kd_rxn => reaction%smart_kd_rxn_list
     irxn = 0
@@ -3461,22 +3465,24 @@ subroutine BasisInit(reaction,option)
       endif
       found = PETSC_FALSE
       do i = 1, reaction%naqcomp
-        if (StringCompare(cur_smart_kd_rxn%tracer_species_name, &
+        if (StringCompare(cur_smart_kd_rxn%ref_species_name, &
                           reaction%primary_species_names(i), &
                           MAXWORDLENGTH)) then
-          reaction%eqsmartkdtracerspecid(irxn) = i
+          reaction%eqsmartkdrefspecid(irxn) = i
           found = PETSC_TRUE
           exit      
         endif
       enddo
       if (.not.found) then
-        option%io_buffer = 'Tracer species ' // &
-                 trim(cur_smart_kd_rxn%tracer_species_name) // &
+        option%io_buffer = 'Reference species ' // &
+                 trim(cur_smart_kd_rxn%ref_species_name) // &
                  ' in smart kd reaction not found among primary species list.'
         call PrintErrMsg(option)
       endif
-      reaction%eqsmartkdrbase(irxn) = cur_smart_kd_rxn%R_base
-      reaction%eqsmartkdscale(irxn) = cur_smart_kd_rxn%tracer_scaling_factor
+      reaction%eqsmartkdrefspechigh(irxn) = cur_smart_kd_rxn%ref_species_high
+      reaction%eqsmartkdlow(irxn) = cur_smart_kd_rxn%KD_low
+      reaction%eqsmartkdhigh(irxn) = cur_smart_kd_rxn%KD_high
+      reaction%eqsmartkdpower(irxn) = cur_smart_kd_rxn%KD_power
       cur_smart_kd_rxn => cur_smart_kd_rxn%next
     enddo
   endif

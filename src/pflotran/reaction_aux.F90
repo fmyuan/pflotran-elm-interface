@@ -85,9 +85,11 @@ module Reaction_Aux_module
   type, public :: smart_kd_rxn_type
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: kd_species_name
-    character(len=MAXWORDLENGTH) :: tracer_species_name
-    PetscReal :: R_base
-    PetscReal :: tracer_scaling_factor
+    character(len=MAXWORDLENGTH) :: ref_species_name
+    PetscReal :: ref_species_high
+    PetscReal :: KD_high
+    PetscReal :: KD_low
+    PetscReal :: KD_power
     type(smart_kd_rxn_type), pointer :: next
   end type smart_kd_rxn_type    
 
@@ -319,9 +321,11 @@ module Reaction_Aux_module
     ! smart kd rxn
     PetscInt :: neqsmartkdrxn
     PetscInt, pointer :: eqsmartkdspecid(:)
-    PetscInt, pointer :: eqsmartkdtracerspecid(:)
-    PetscReal, pointer :: eqsmartkdrbase(:)
-    PetscReal, pointer :: eqsmartkdscale(:)
+    PetscInt, pointer :: eqsmartkdrefspecid(:)
+    PetscReal, pointer :: eqsmartkdrefspechigh(:)
+    PetscReal, pointer :: eqsmartkdlow(:)
+    PetscReal, pointer :: eqsmartkdhigh(:)
+    PetscReal, pointer :: eqsmartkdpower(:)
     
     ! kd rxn
     PetscInt :: neqkdrxn
@@ -584,9 +588,11 @@ function ReactionCreate()
 
   reaction%neqsmartkdrxn = 0
   nullify(reaction%eqsmartkdspecid)
-  nullify(reaction%eqsmartkdtracerspecid)
-  nullify(reaction%eqsmartkdrbase)
-  nullify(reaction%eqsmartkdscale)
+  nullify(reaction%eqsmartkdrefspecid)
+  nullify(reaction%eqsmartkdrefspechigh)
+  nullify(reaction%eqsmartkdlow)
+  nullify(reaction%eqsmartkdhigh)
+  nullify(reaction%eqsmartkdpower)
 
   reaction%neqkdrxn = 0
   nullify(reaction%eqkdspecid)
@@ -868,9 +874,11 @@ function SmartKDRxnCreate()
   allocate(rxn)
   rxn%id = 0
   rxn%kd_species_name = ''
-  rxn%tracer_species_name = ''
-  rxn%R_base = 0.d0
-  rxn%tracer_scaling_factor = 0.d0
+  rxn%ref_species_name = ''
+  rxn%ref_species_high = UNINITIALIZED_DOUBLE
+  rxn%KD_low = UNINITIALIZED_DOUBLE
+  rxn%KD_high = UNINITIALIZED_DOUBLE
+  rxn%KD_power = UNINITIALIZED_DOUBLE
   nullify(rxn%next)
   
   SmartKDRxnCreate => rxn
@@ -2345,9 +2353,11 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%general_kr)
 
   call DeallocateArray(reaction%eqsmartkdspecid)
-  call DeallocateArray(reaction%eqsmartkdtracerspecid)
-  call DeallocateArray(reaction%eqsmartkdrbase)
-  call DeallocateArray(reaction%eqsmartkdscale)
+  call DeallocateArray(reaction%eqsmartkdrefspecid)
+  call DeallocateArray(reaction%eqsmartkdrefspechigh)
+  call DeallocateArray(reaction%eqsmartkdlow)
+  call DeallocateArray(reaction%eqsmartkdhigh)
+  call DeallocateArray(reaction%eqsmartkdpower)
   
   call DeallocateArray(reaction%eqkdspecid)
   call DeallocateArray(reaction%eqkdtype)

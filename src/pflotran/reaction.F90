@@ -586,19 +586,29 @@ subroutine ReactionReadPass1(reaction,input,option)
                   
                   ! default type is linear
                   select case(trim(word))
-                    case('TRACER_SPECIES')
+                    case('REFERENCE_SPECIES')
                       call InputReadWord(input,option,word,PETSC_TRUE)
-                      call InputErrorMsg(input,option,'TRACER_SPECIES', &
+                      call InputErrorMsg(input,option,'REFERENCE_SPECIES', &
                                          'CHEMISTRY,SMART_KD_REACTIONS')
-                      smart_kd_rxn%tracer_species_name = word
-                    case('R_BASE')
-                      call InputReadDouble(input,option,smart_kd_rxn%R_base)
-                      call InputErrorMsg(input,option,'R_base', &
-                                         'CHEMISTRY,SMART_KD_REACTIONS')
-                    case('TRACER_SCALING_FACTOR')
+                      smart_kd_rxn%ref_species_name = word
+                    case('REFERENCE_SPECIES_HIGH')
                       call InputReadDouble(input,option, &
-                                           smart_kd_rxn%tracer_scaling_factor)
-                      call InputErrorMsg(input,option,'tracer_scaling_factor', &
+                                           smart_kd_rxn%ref_species_high)
+                      call InputErrorMsg(input,option, &
+                                         'REFERENCE_SPECIES_HIGH', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('KD_LOW')
+                      call InputReadDouble(input,option,smart_kd_rxn%KD_low)
+                      call InputErrorMsg(input,option,'KD_LOW', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('KD_HIGH')
+                      call InputReadDouble(input,option,smart_kd_rxn%KD_high)
+                      call InputErrorMsg(input,option,'KD_HIGH', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('KD_POWER')
+                      call InputReadDouble(input,option, &
+                                           smart_kd_rxn%KD_power)
+                      call InputErrorMsg(input,option,'KD_POWER', &
                                          'CHEMISTRY,SMART_KD_REACTIONS')
                     case default
                       call InputKeywordUnrecognized(input,word, &
@@ -606,6 +616,16 @@ subroutine ReactionReadPass1(reaction,input,option)
                   end select
                 enddo
                 call InputPopBlock(input,option)
+                if (Uninitialized(smart_kd_rxn%ref_species_high) .or. &
+                    Uninitialized(smart_kd_rxn%KD_low) .or. &
+                    Uninitialized(smart_kd_rxn%KD_high) .or. &
+                    Uninitialized(smart_kd_rxn%KD_power) .or. &
+                    len_trim(smart_kd_rxn%ref_species_name) < 0) then
+                  option%io_buffer = 'REFERENCE_SPECIES, &
+                    &REFERENCE_SPECIES_HIGH, KD_LOW, KD_HIGH, KD_POWER must &
+                    &be defined for SMART_KD_REACTIONs.'
+                  call PrintErrMsg(option)
+                endif
                 ! add to list
                 if (.not.associated(reaction%smart_kd_rxn_list)) then
                   reaction%smart_kd_rxn_list => smart_kd_rxn
@@ -4465,39 +4485,49 @@ subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
   type(option_type) :: option
   
   PetscInt :: irxn
-  PetscInt :: icomp
-  PetscInt :: itracer
+  PetscInt :: ikd
+  PetscInt :: iref
   PetscReal :: Lwater_m3bulk
   PetscReal :: kd_species_molality
-  PetscReal :: tracer_species_molality
-  PetscReal :: tracer_scale
-  PetscReal :: R
-  PetscReal :: dR_dtracer
+  PetscReal :: ref_species_molality
+  PetscReal :: ref_high
+  PetscReal :: KD_low
+  PetscReal :: KD_high_minus_low
+  PetscReal :: KD_power
+  PetscReal :: KD
+  PetscReal :: dKD_dref
   PetscReal :: total_sorb
-  PetscReal :: dtotal_sorb_dc
-  PetscReal :: dtotal_sorb_dtracer
+  PetscReal :: dtotal_sorb_dckd
+  PetscReal :: dtotal_sorb_dcref
+  PetscReal :: tempreal
 
   PetscInt, parameter :: iphase = 1
 
   Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
 
   do irxn = 1, reaction%neqsmartkdrxn
-    icomp = reaction%eqsmartkdspecid(irxn)
-    kd_species_molality = rt_auxvar%pri_molal(icomp)
-    itracer = reaction%eqsmartkdtracerspecid(irxn)
-    tracer_species_molality = rt_auxvar%pri_molal(itracer)
+    ikd = reaction%eqsmartkdspecid(irxn)
+    kd_species_molality = rt_auxvar%pri_molal(ikd)
+    iref = reaction%eqsmartkdrefspecid(irxn)
+    ref_high = reaction%eqsmartkdrefspechigh(irxn)
+    ref_species_molality = rt_auxvar%pri_molal(iref)
+    KD_power = reaction%eqsmartkdpower(irxn)
+    KD_low = reaction%eqsmartkdlow(irxn)
+    KD_high_minus_low = reaction%eqsmartkdhigh(irxn) - KD_low
 
-    dR_dtracer = reaction%eqsmartkdscale(irxn) * Lwater_m3bulk
-    tracer_scale = reaction%eqsmartkdscale(irxn)
-    R = reaction%eqsmartkdrbase(irxn) + tracer_scale * tracer_species_molality
-    dtotal_sorb_dc = R * Lwater_m3bulk
-    dtotal_sorb_dtracer = tracer_scale * kd_species_molality * Lwater_m3bulk
-    total_sorb = kd_species_molality * dtotal_sorb_dc
-    rt_auxvar%total_sorb_eq(icomp) = rt_auxvar%total_sorb_eq(icomp) + total_sorb
-    rt_auxvar%dtotal_sorb_eq(icomp,icomp) = &
-      rt_auxvar%dtotal_sorb_eq(icomp,icomp) + dtotal_sorb_dc
-    rt_auxvar%dtotal_sorb_eq(icomp,itracer) = &
-      rt_auxvar%dtotal_sorb_eq(icomp,itracer) + dtotal_sorb_dtracer
+    ! R = KD_low + ref_species_molality ** KD_power * KD_high_minus_low
+    tempreal = (ref_species_molality/ref_high)**KD_power
+    KD = KD_low + tempreal * KD_high_minus_low
+    dKD_dref = KD_power * tempreal / ref_species_molality * KD_high_minus_low
+
+    total_sorb = KD * kd_species_molality * Lwater_m3bulk
+    dtotal_sorb_dckd = KD * Lwater_m3bulk
+    dtotal_sorb_dcref = dKD_dref * kd_species_molality * Lwater_m3bulk
+    rt_auxvar%total_sorb_eq(ikd) = rt_auxvar%total_sorb_eq(ikd) + total_sorb
+    rt_auxvar%dtotal_sorb_eq(ikd,ikd) = &
+      rt_auxvar%dtotal_sorb_eq(ikd,ikd) + dtotal_sorb_dckd
+    rt_auxvar%dtotal_sorb_eq(ikd,iref) = &
+      rt_auxvar%dtotal_sorb_eq(ikd,iref) + dtotal_sorb_dcref
   enddo
 
 end subroutine RTotalSorbSmartKD
