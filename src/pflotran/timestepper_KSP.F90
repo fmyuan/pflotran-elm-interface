@@ -726,7 +726,7 @@ recursive subroutine TimestepperKSPFinalizeRun(this,option)
     write(*,'(x,a)') trim(this%name) // &
       ' TS KSP Wasted Linear Iterations = ' // trim(adjustl(string))
     write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(x,a)') trim(this%name) // ' TS KSP SNES time = ' // &
+    write(*,'(x,a)') trim(this%name) // ' TS KSP KSP time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
   
