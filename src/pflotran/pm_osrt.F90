@@ -14,6 +14,8 @@ module PM_OSRT_class
   type, public, extends(pm_rt_type) :: pm_osrt_type
     Vec :: fixed_accum
     Vec :: rhs
+    PetscLogDouble :: cumulative_transport_time
+    PetscLogDouble :: cumulative_reaction_time
   contains
     procedure, public :: InitializeRun => PMOSRTInitializeRun
     procedure, public :: InitializeTimestep => PMOSRTInitializeTimestep
@@ -22,6 +24,7 @@ module PM_OSRT_class
     procedure, public :: PreSolve => PMOSRTPreSolve
     procedure, public :: PostSolve => PMOSRTPostSolve
     procedure, public :: AcceptSolution => PMOSRTAcceptSolution
+    procedure, public :: FinalizeRun => PMOSRTFinalizeRun
     procedure, public :: Destroy => PMOSRTDestroy
   end type pm_osrt_type
   
@@ -49,6 +52,8 @@ function PMOSRTCreate()
   call PMOSRTInit(pm_osrt)
   pm_osrt%name = 'Oper.-Split Reactive Transport'
   pm_osrt%header = 'OPER.-SPLIT REACTIVE TRANSPORT'
+  pm_osrt%cumulative_transport_time = 0.d0
+  pm_osrt%cumulative_reaction_time = 0.d0
 
   PMOSRTCreate => pm_osrt
   
@@ -353,10 +358,19 @@ recursive subroutine PMOSRTFinalizeRun(this)
   ! Author: Glenn Hammond
   ! Date: 12/09/19
   ! 
+  use Option_module
 
   implicit none
   
   class(pm_osrt_type) :: this
+
+
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(/," Transport Time: ", es12.4, " [sec]",/,&
+               &"  Reaction Time: ", es12.4, " [sec]")') &
+            this%cumulative_transport_time, & 
+            this%cumulative_reaction_time
+  endif
   
   if (associated(this%next)) then
     call this%next%FinalizeRun()
