@@ -85,7 +85,7 @@ subroutine MultiSimulationInitialize(multisimulation,option)
       option%io_buffer = '"-num_realizations <int>" must be specified ' // &
         'with an integer value matching the number of ids in ' // &
         '"-realization_ids_file <string>".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     allocate(realization_ids_from_file(multisimulation%num_realizations))
     realization_ids_from_file = 0
@@ -115,13 +115,13 @@ subroutine MultiSimulationInitialize(multisimulation,option)
   if (multisimulation%num_groups == 0) then
     option%io_buffer = 'Number of stochastic processor groups not ' // &
                        'initialized. Setting to 1.'
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
     multisimulation%num_groups = 1
   endif
   if (multisimulation%num_realizations == 0) then
     option%io_buffer = 'Number of stochastic realizations not ' // &
                        'initialized. Setting to 1.'
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
     multisimulation%num_realizations = 1
   endif
   if (multisimulation%num_groups > multisimulation%num_realizations) then
@@ -131,7 +131,7 @@ subroutine MultiSimulationInitialize(multisimulation,option)
     option%io_buffer = trim(option%io_buffer) // ') must be equal to &
          &or greater than number of processor groups (' // adjustl(string)
     option%io_buffer = trim(option%io_buffer) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   call OptionCreateProcessorGroups(option,multisimulation%num_groups)

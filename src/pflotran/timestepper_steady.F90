@@ -1,5 +1,8 @@
 module Timestepper_Steady_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+ 
   use Timestepper_BE_class
   use Timestepper_Base_class
   use Convergence_module
@@ -9,8 +12,6 @@ module Timestepper_Steady_class
 
   implicit none
 
-#include "petsc/finclude/petscsys.h"
- 
   type, public, extends(timestepper_BE_type) :: timestepper_steady_type
   
  !   PetscInt :: num_newton_iterations ! number of Newton iterations in a time step

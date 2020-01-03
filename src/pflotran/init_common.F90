@@ -210,7 +210,7 @@ subroutine InitCommonReadRegionFiles(realization)
             (.not. vert_ids_exists)) then
           option%io_buffer = '"Regions/' // trim(region%name) // &
                 ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         end if
         if (cell_ids_exists .or. face_ids_exists) then
           call HDF5ReadRegionFromFile(realization%patch%grid,region, &
@@ -228,7 +228,9 @@ subroutine InitCommonReadRegionFiles(realization)
         region%def_type = DEFINED_BY_FACE_UGRID_EXP
         call RegionReadFromFile(region%explicit_faceset,region%cell_ids, &
                                 region%filename,realization%option)
-        region%num_cells = size(region%cell_ids)
+        if (associated(region%cell_ids)) then
+          region%num_cells = size(region%cell_ids)
+        endif
       else
         call RegionReadFromFile(region,realization%option, &
                                 region%filename)
@@ -238,6 +240,144 @@ subroutine InitCommonReadRegionFiles(realization)
   enddo
 
 end subroutine InitCommonReadRegionFiles
+
+! ************************************************************************** !
+
+subroutine readVectorFromFile(realization,vector,filename,vector_type)
+  ! 
+  ! Reads data from a file into an associated vector
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/18/08
+  ! 
+
+  use Realization_Subsurface_class
+  use Discretization_module
+  use Field_module
+  use Grid_module
+  use Option_module
+  use Patch_module
+  use Logging_module
+
+  use HDF5_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  Vec :: vector
+  character(len=MAXWORDLENGTH) :: filename
+  PetscInt :: vector_type
+  
+  type(discretization_type), pointer :: discretization
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch   
+  PetscInt :: ghosted_id, natural_id, material_id
+  PetscInt :: fid = 86
+  PetscInt :: status
+  PetscErrorCode :: ierr
+  PetscInt :: count, read_count, i
+  PetscInt :: flag
+  PetscInt, pointer :: indices(:)
+  PetscReal, pointer :: values(:)
+  PetscInt, parameter :: block_size = 10000
+  Vec :: natural_vec, global_vec
+
+  discretization => realization%discretization
+  field => realization%field
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+
+  if (index(filename,'.h5') > 0) then
+    ! to be taken care of later in readPermeabilitiesFromFile()
+  else
+    open(unit=fid,file=filename,status="old",iostat=status)
+    if (status /= 0) then
+      option%io_buffer = 'File: ' // trim(filename) // ' not found.'
+      call PrintErrMsg(option)
+    endif
+    allocate(values(block_size))
+    allocate(indices(block_size))
+    call DiscretizationCreateVector(discretization,ONEDOF,natural_vec, &
+                                    NATURAL,option)
+    count = 0
+    do
+      if (count >= grid%nmax) exit
+      read_count = min(block_size,grid%nmax-count)
+      do i=1,read_count
+        indices(i) = count+i-1 ! zero-based indexing
+      enddo
+      ierr = 0
+      if (option%myrank == option%io_rank) &
+        read(fid,*,iostat=ierr) values(1:read_count)
+      flag = ierr
+      call MPI_Bcast(flag,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
+                     option%mycomm,ierr)      
+      if (flag /= 0) then
+        option%io_buffer = 'Insufficent data in file: ' // filename
+        call PrintErrMsg(option)
+      endif
+      if (option%myrank == option%io_rank) then
+        call VecSetValues(natural_vec,read_count,indices,values,INSERT_VALUES, &
+                          ierr);CHKERRQ(ierr)
+      endif
+      count = count + read_count
+    enddo
+    call MPI_Bcast(count,ONE_INTEGER_MPI,MPIU_INTEGER,option%io_rank, &
+                   option%mycomm,ierr)      
+    if (count /= grid%nmax) then
+      write(option%io_buffer,'("Number of data in file (",i8, &
+      & ") does not match size of vector (",i8,")")') count, grid%nlmax
+      call PrintErrMsg(option)
+    endif
+    close(fid)
+    deallocate(values)
+    nullify(values)
+    deallocate(indices)
+    nullify(indices)
+    call VecAssemblyBegin(natural_vec,ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(natural_vec,ierr);CHKERRQ(ierr)
+    select case(vector_type)
+      case(LOCAL)
+        call DiscretizationCreateVector(discretization,ONEDOF,global_vec, &
+                                        GLOBAL,option)        
+        call DiscretizationNaturalToGlobal(discretization,natural_vec, &
+                                           global_vec,ONEDOF)  
+        call DiscretizationGlobalToLocal(discretization,global_vec, &
+                                         vector,ONEDOF)
+        call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+      case(GLOBAL)
+        call DiscretizationNaturalToGlobal(discretization,natural_vec, &
+                                           vector,ONEDOF) 
+    end select 
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+  endif
+  
+end subroutine readVectorFromFile
+
+! ************************************************************************** !
+
+subroutine InitCommonPrintPFLOTRANHeader(option,fid)
+  ! 
+  ! Initializes pflotran
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/23/07
+  ! 
+
+  use Option_module
+  
+  implicit none
+  
+  PetscInt :: fid
+  
+  type(option_type) :: option
+  
+  write(fid,'(" PFLOTRAN Header")') 
+  
+end subroutine InitCommonPrintPFLOTRANHeader
 
 ! ************************************************************************** !
 
@@ -304,7 +444,7 @@ subroutine InitCommonReadVelocityField(realization)
       option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
         trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call HDF5ReadCellIndexedRealArray(realization,field%work,filename, &
                                       group_name,dataset_name,PETSC_FALSE)
@@ -337,7 +477,7 @@ subroutine InitCommonReadVelocityField(realization)
       option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
         trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call HDF5ReadCellIndexedRealArray(realization,field%work,filename, &
                                       group_name,dataset_name,PETSC_FALSE)

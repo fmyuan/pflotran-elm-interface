@@ -25,6 +25,7 @@ module Characteristic_Curves_Base_module
     PetscReal :: Sr
     PetscReal :: pcmax
     PetscBool :: analytical_derivative_available
+    PetscBool :: calc_int_tension
 #ifdef SMOOTHING2
     type(polynomial_type), pointer :: sat_poly2      ! dry-end of the curve  ! added by F.-M. Yuan (2017-03-10)
     type(polynomial_type), pointer :: pres_poly2     ! dry-end of the curve  ! added by F.-M. Yuan (2017-03-10)
@@ -37,6 +38,7 @@ module Characteristic_Curves_Base_module
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
     procedure, public :: D2SatDP2 => SFBaseD2SatDP2
+    procedure, public :: CalcInterfacialTension => SFBaseSurfaceTension
     !added pc function if ice exists
     procedure, public :: IceCapillaryPressure => SFBaseIceCapillaryPressure
   end type sat_func_base_type
@@ -111,6 +113,7 @@ subroutine SFBaseInit(this)
   this%Sr = UNINITIALIZED_DOUBLE
   this%pcmax = DEFAULT_PCMAX
   this%analytical_derivative_available = PETSC_FALSE
+  this%calc_int_tension = PETSC_FALSE
   
 end subroutine SFBaseInit
 
@@ -129,7 +132,7 @@ subroutine SFBaseVerify(this,name,option)
   if (Uninitialized(this%Sr)) then
     option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
                                             name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if ((.not.this%analytical_derivative_available) .and. &
@@ -137,7 +140,7 @@ subroutine SFBaseVerify(this,name,option)
     option%io_buffer = 'Analytical derivatives are not available for the &
       &capillary pressure - saturation function chosen: ' // &
       trim(name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine SFBaseVerify
@@ -175,14 +178,14 @@ subroutine RPFBaseVerify(this,name,option)
   if (Uninitialized(this%Sr)) then
     option%io_buffer = UninitializedMessage('LIQUID_RESIDUAL_SATURATION', &
                                             name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if ((.not.this%analytical_derivative_available) .and. &
       (.not.option%flow%numerical_derivatives)) then
     option%io_buffer = 'Analytical derivatives are not available for the &
       &relative permeability function chosen: ' // trim(name)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine RPFBaseVerify
@@ -202,7 +205,7 @@ subroutine SFBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
   
   option%io_buffer = 'SF Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine SFBaseSetupPolynomials
 
@@ -221,7 +224,7 @@ subroutine RPFBaseSetupPolynomials(this,option,error_string)
   character(len=MAXSTRINGLENGTH) :: error_string
   
   option%io_buffer = 'RPF Smoothing not supported for ' // trim(error_string)
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine RPFBaseSetupPolynomials
 
@@ -240,7 +243,7 @@ subroutine SFBaseCapillaryPressure(this,liquid_saturation, &
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'SFBaseCapillaryPressure must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine SFBaseCapillaryPressure
 
@@ -261,8 +264,10 @@ subroutine SFBaseIceCapillaryPressure(this, pres_l, tc, &
   PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
   type(option_type), intent(inout) :: option
 
-  call SF_Ice_CapillaryPressure(this, pres_l, tc, &
+  if (option%th_use_freezing) then
+    call SF_Ice_CapillaryPressure(this, pres_l, tc, &
                            ice_pc, dice_pc_dpres, dice_pc_dt, option)
+  end if
 
 end subroutine SFBaseIceCapillaryPressure
 
@@ -281,7 +286,7 @@ subroutine SFBaseSaturation(this,capillary_pressure, &
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'SFBaseSaturation must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine SFBaseSaturation
 
@@ -299,7 +304,7 @@ subroutine SFBaseD2SatDP2(this,pc,d2s_dp2,option)
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'SFBaseD2SatDP2 must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine SFBaseD2SatDP2
 
@@ -417,7 +422,7 @@ subroutine RPF_Base_RelPerm(this,liquid_saturation,relative_permeability, &
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'RPF_Base_RelPerm must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine RPF_Base_RelPerm
 
@@ -797,4 +802,40 @@ subroutine PermeabilityFunctionDestroy(rpf)
 
 end subroutine PermeabilityFunctionDestroy
 
+subroutine SFBaseSurfaceTension(this,T,sigma)
+  
+  !Surface tension of water equation from Revised Release on Surface
+  !Tension of Ordinary Water Substance, June 2014. Valid from -25C to
+  !373 C
+  
+  implicit none
+  
+  class(sat_func_base_type) :: this
+  PetscReal, intent(in) :: T
+  PetscReal, intent(out) :: sigma
+  
+  PetscReal, parameter :: Tc = 647.096d0
+  PetscReal, parameter :: B = 235.8d0
+  PetscReal, parameter :: b_2 = -0.625d0
+  PetscReal, parameter :: mu = 1.256d0
+  PetscReal, parameter :: sigma_base = 0.073d0
+  PetscReal :: Temp
+  PetscReal :: tao
+  
+  Temp=T+273.15d0
+  
+  if (T <= 373.d0) then
+    tao = 1.d0-Temp/Tc
+    sigma = B*(tao**mu)*(1+b_2*tao)
+    sigma = sigma * 1.d-3
+  else
+    sigma = 0.d0
+  endif
+  sigma= sigma/sigma_base
+
+  !TOUGH3 way (not pressure-dependent)
+  !if (Temp >= 101) sigma = 0
+  
+end subroutine SFBaseSurfaceTension
+  
 end module Characteristic_Curves_Base_module

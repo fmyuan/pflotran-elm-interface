@@ -134,7 +134,7 @@ subroutine GeometryReadCoordinates(input,option,region_name,coordinates)
       option%io_buffer = trim(option%io_buffer) // &
         ' Increase size of PetscInt, parameter :: max_num_coordinates ' // &
         ' in RegionReadCoordinates()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call GeometryReadCoordinate(input,option,temp_coordinates(icount),'REGION')
   enddo

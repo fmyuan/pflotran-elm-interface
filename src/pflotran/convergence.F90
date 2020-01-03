@@ -152,6 +152,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
 !
 !              SNES_CONVERGED_ITERATING          =  0} SNESConvergedReason;
 !PETSC_EXTERN const char *const*SNESConvergedReasons;
+  sec_reason = 0
 
   if (option%use_touch_options) then
     string = 'detailed_convergence'
@@ -245,7 +246,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
     endif
     
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations) then
+    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
     endif
 
@@ -319,7 +320,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
   
 
     ! force the minimum number of iterations
-    if (i_iteration < solver%newton_min_iterations) then
+    if (i_iteration < solver%newton_min_iterations .and. reason /= -88) then
       reason = 0
     endif
 
@@ -353,7 +354,7 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
       if (solver%print_linear_iterations) then
         call KSPGetIterationNumber(solver%ksp,i,ierr);CHKERRQ(ierr)
         write(option%io_buffer,'("   Linear Solver Iterations: ",i6)') i
-        call printMsg(option)
+        call PrintMsg(option)
       endif
     endif
   endif    
@@ -468,8 +469,13 @@ subroutine ConvergenceTest(snes_,i_iteration,xnorm,unorm,fnorm,reason, &
           string = "SNES_CONVERGED_SNORM_RELATIVE"
         case(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"
+#if (PETSC_VERSION_MAJOR<=3 && PETSC_VERSION_MINOR<=11 && PETSC_VERSION_SUBMINOR<=3)
         case(SNES_CONVERGED_TR_DELTA)
           string = "SNES_CONVERGED_TR_DELTA"
+#else
+        case(SNES_DIVERGED_TR_DELTA)
+          string = "SNES_DIVERGED_TR_DELTA"
+#endif
   !      case(SNES_DIVERGED_FUNCTION_DOMAIN)
   !        string = "SNES_DIVERGED_FUNCTION_DOMAIN"
         case(SNES_DIVERGED_FUNCTION_COUNT)

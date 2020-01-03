@@ -1,5 +1,7 @@
 # this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 util_obj  = \
 	${common_src}input_aux.o \
 	${common_src}logging.o \
@@ -11,12 +13,12 @@ util_obj  = \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
-	${common_src}grid_grdecl_util.o \
 	${common_src}variables.o
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 eos_obj = \
 	${common_src}eos.o \
-	${common_src}eos_database.o \
 	${common_src}eos_gas.o \
 
 mode_aux_obj = \
@@ -37,10 +39,14 @@ mode_obj = \
 	${common_src}flowmode.o \
 	${common_src}inlinesurface.o
 
+# DO NOT place any object files that depend on the discretization within 
+# util_obj
 shared_mode_aux_obj = \
+	${common_src}eos_database.o \
 	${common_src}eos_water.o \
 	${common_src}geometry.o \
 	${common_src}global_aux.o \
+	${common_src}lookup_table.o \
 	${common_src}material_aux.o
 
 grid_obj = \
@@ -51,13 +57,14 @@ grid_obj = \
 	${common_src}discretization.o \
 	${common_src}dm_kludge.o \
 	${common_src}grid.o \
+	${common_src}grid_grdecl.o \
+	${common_src}grid_grdecl_util.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \
 	${common_src}grid_unstructured_aux.o \
 	${common_src}grid_unstructured.o \
-	${common_src}grid_unstructured_polyhedra.o \
-	${common_src}grid_grdecl.o
+	${common_src}grid_unstructured_polyhedra.o
 
 relations_obj = \
 	${common_src}saturation.o \

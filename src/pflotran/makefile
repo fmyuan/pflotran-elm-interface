@@ -26,6 +26,8 @@
 #
 ###############################################################################
 
+PATH = /usr/local/gcc-x/netcdf-4.x-hdf5/bin:/usr/local/gcc-x/hdf5-1.10/bin:/usr/local/gcc-x/mpich-3.3/bin:/usr/local/gcc-x/gdb-8/bin:/usr/local/gcc-x/gcc-x-clang/bin:/usr/local/gnutools/bin:/usr/local/bin:/usr/local/CMake.app/Contents/bin:/usr/sbin:/sbin:/usr/bin:/bin:/opt/X11/bin
+
 # PFLOTRAN source directory -- default to the current directory
 SRC_DIR = ./
 
@@ -55,16 +57,8 @@ MYFLAGS = -I. -g -O0
 # Preprocessor flags for special PFLOTRAN features/hacks
 ###############################################################################
 
-ifdef match_tough2
-  MYFLAGS += ${FC_DEFINE_FLAG}MATCH_TOUGH2
-endif
-
 ifdef internal_mass_flux
   MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
-endif
-
-ifdef condnr
-  MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
 endif
 
 ifdef no_vapor_diffusion
@@ -79,13 +73,6 @@ ifdef ugrid_debug
   MYFLAGS += ${FC_DEFINE_FLAG}UGRID_DEBUG
 endif
 
-ifdef surface_th_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}SURFACE_TH_DEBUG
-endif
-
-ifdef th_bc_hack
-  MYFLAGS += ${FC_DEFINE_FLAG}THDIRICHLET_TEMP_BC_HACK
-endif
 
 ifdef debug
   MYFLAGS += ${FC_DEFINE_FLAG}DEBUG
@@ -95,9 +82,8 @@ ifdef smoothing2
   MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
-UPDATE_PROVENANCE=0
-ifdef provenance
-  UPDATE_PROVENANCE=1
+ifdef use_matseqaij_fix
+  MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
 endif
 
 ifdef have_hdf5
@@ -127,7 +113,7 @@ FPPFLAGS = ${MYFLAGS}
 # FC_FLAGS is defined in ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
 
 # List of files to remove when running "make clean-pflotran"
-CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log $(SRC_DIR)/pflotran_provenance.F90
+CLEANFILES       = pflotran make.log
 
 ###############################################################################
 # Lists all files that PFLOTRAN (and other targets) depends on 
@@ -156,7 +142,7 @@ include pflotran_object_files.txt
 pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
-	$(srcsink_obj) $(io_obj) $(misc_obj) $(surface_obj) $(solver_obj) \
+	$(srcsink_obj) $(io_obj) $(misc_obj) $(solver_obj) \
 	${pflotran_src}pflotran.o
 
 # PFLOTRAN executable
@@ -166,16 +152,6 @@ pflotran : $(pflotran_obj)
 # PFLOTRAN as a library
 libpflotran.a : $(pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(pflotran_obj)
-
-$(SRC_DIR)/pflotran_provenance.F90 : FORCE
-ifeq ($(UPDATE_PROVENANCE),1)
-	@-rm pflotran_provenance.o pflotran_provenance_module.mod $(SRC_DIR)/pflotran_provenance.F90; \
-	$(PYTHON) $(SRC_DIR)/pflotran-provenance.py \
-		--pflotran-fflags "${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}" \
-		--petsc-config "${CONFIGURE_OPTIONS}";
-else
-	@if test ! -f $(SRC_DIR)/pflotran_provenance.F90; then cp $(SRC_DIR)/pflotran_no_provenance.F90 $(SRC_DIR)/pflotran_provenance.F90; fi;
-endif
 
 ###############################################################################
 # Dependencies

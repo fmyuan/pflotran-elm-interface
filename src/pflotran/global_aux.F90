@@ -25,6 +25,9 @@ module Global_Aux_module
     PetscReal, pointer :: xmass(:)          ! for convertion from molarity (moles/L solution) to molality(moles/kg solvent)
     PetscReal, pointer :: mass_balance(:,:) ! kg (nflowspec, nphase)
     PetscReal, pointer :: mass_balance_delta(:,:) ! kmol
+    PetscReal, pointer :: conversion_rate(:)
+    PetscReal, pointer :: conversion_rate_store(:)
+    PetscReal, pointer :: dphi(:,:) !geh: why here?
   end type global_auxvar_type
   
   type, public :: global_type
@@ -130,10 +133,32 @@ subroutine GlobalAuxVarInit(auxvar,option)
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
 
+  ! need these for reactive transport only if flow is computed
+  if (option%nflowdof > 0 .and. option%ntrandof > 0) then
+    allocate(auxvar%sat_store(nphase,TWO_INTEGER))
+    auxvar%sat_store = 0.d0
+    allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
+    auxvar%den_kg_store = 0.d0
+  endif
  
   select case(option%iflowmode)
-      !
     case(TH_MODE)
+      allocate(auxvar%xmass(nphase))
+      auxvar%xmass = 1.d0
+      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
+      auxvar%pres_store = option%reference_pressure
+      allocate(auxvar%temp_store(TWO_INTEGER))
+      auxvar%temp_store = 0.d0
+      allocate(auxvar%fugacoeff(ONE_INTEGER))
+      auxvar%fugacoeff = 1.d0
+      allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
+      auxvar%fugacoeff_store = 1.d0    
+      allocate(auxvar%den_store(nphase,TWO_INTEGER))
+      auxvar%den_store = 0.d0
+      allocate(auxvar%conversion_rate(option%nflowspec))
+      auxvar%conversion_rate = 0.d0
+      allocate(auxvar%conversion_rate_store(option%nflowspec))
+      auxvar%conversion_rate_store = 0.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))
       auxvar%pres_store = 0.d0
       allocate(auxvar%temp_store(TWO_INTEGER))
@@ -178,7 +203,8 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%sat = auxvar%sat
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
-  
+< auxvar2%dphi = auxvar%dphi
+>
   if (associated(auxvar2%fugacoeff)) then
     auxvar2%fugacoeff = auxvar%fugacoeff  
   endif
@@ -284,6 +310,7 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%fugacoeff)
   call DeallocateArray(auxvar%den_kg)
   call DeallocateArray(auxvar%xmass)
+  call DeallocateArray(auxvar%conversion_rate)
 
   call DeallocateArray(auxvar%pres_store)
   call DeallocateArray(auxvar%temp_store)
@@ -291,6 +318,7 @@ subroutine GlobalAuxVarStrip(auxvar)
   call DeallocateArray(auxvar%sat_store)
   call DeallocateArray(auxvar%den_kg_store)
   call DeallocateArray(auxvar%den_store)
+  call DeallocateArray(auxvar%conversion_rate_store)
   
   call DeallocateArray(auxvar%mass_balance)
   call DeallocateArray(auxvar%mass_balance_delta)

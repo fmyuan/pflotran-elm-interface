@@ -4,7 +4,7 @@ module EOS_Gas_module
   use petscsys
 
   use PFLOTRAN_Constants_module
-  use EOSData_module
+  use EOS_Database_module
   use Utility_module, only : Equal
   
   implicit none
@@ -33,6 +33,9 @@ module EOS_Gas_module
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
   PetscReal :: exponent_gas_compressibility
+  
+  ! Error
+  PetscInt, parameter, public :: EOS_GAS_TEMP_BOUND_EXCEEDED = 71
 
   ! This is the offset added to temperature [C] used to calculate the energy
   ! equation of state.  Swithing between 0. and 273.15 greatly changes results.
@@ -123,7 +126,7 @@ module EOS_Gas_module
       PetscInt, pointer, optional, intent(inout) :: table_idxs(:)
     end subroutine EOSGasDensityEnergyDummy
     subroutine EOSGasHenryDummy(T,Psat,Hc,calculate_derivative, &
-                                Psat_p,Psat_T,Hc_P,Hc_T)
+                                Psat_p,Psat_T,Hc_P,Hc_T,ierr)
       implicit none
       PetscReal, intent(in) :: T        ! temperature [C]
       PetscReal, intent(in) :: Psat     ! saturation pressure
@@ -133,6 +136,7 @@ module EOS_Gas_module
       PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
       PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
       PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
+      PetscErrorCode, intent(out) :: ierr
     end subroutine EOSGasHenryDummy
   end interface
   
@@ -1699,23 +1703,24 @@ end subroutine EOSGasEnergyConstant
 
 ! ************************************************************************** !
 
-subroutine EOSGasHenryNoDerive(T,Psat,Hc)
+subroutine EOSGasHenryNoDerive(T,Psat,Hc,ierr)
 
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
   PetscReal, intent(in) :: Psat     ! saturation pressure
   PetscReal, intent(out) :: Hc      ! Henry's constant
+  PetscErrorCode, intent(out) :: ierr
   
   PetscReal :: dum1, dum2, dum3, dum4
   
-  call EOSGasHenryPtr(T,Psat,Hc,PETSC_FALSE,dum1,dum2,dum3,dum4)
+  call EOSGasHenryPtr(T,Psat,Hc,PETSC_FALSE,dum1,dum2,dum3,dum4,ierr)
                           
 end subroutine EOSGasHenryNoDerive
 
 ! ************************************************************************** !
 
-subroutine EOSGasHenryDerive(T,Psat,Psat_P,Psat_T,Hc,Hc_P,Hc_T)
+subroutine EOSGasHenryDerive(T,Psat,Psat_P,Psat_T,Hc,Hc_P,Hc_T,ierr)
 
   implicit none
 
@@ -1726,10 +1731,11 @@ subroutine EOSGasHenryDerive(T,Psat,Psat_P,Psat_T,Hc,Hc_P,Hc_T)
   PetscReal, intent(out) :: Hc      ! Henry's constant
   PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
   PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
+  PetscErrorCode, intent(out) :: ierr
   
 !  PetscReal :: pert, T_pert, Hc_pert, dum1, dum2
   
-  call EOSGasHenryPtr(T,Psat,Hc,PETSC_TRUE,Psat_P,Psat_T,Hc_P,Hc_T)
+  call EOSGasHenryPtr(T,Psat,Hc,PETSC_TRUE,Psat_P,Psat_T,Hc_P,Hc_T,ierr)
 !  pert = 1.d-8 * T
 !  T_pert = T + pert
 !  call EOSGasHenryPtr(T_pert,Psat,Hc_pert,PETSC_FALSE,Psat_P,Psat_T,dum1,dum2)
@@ -1772,7 +1778,7 @@ end subroutine EOSGasHenry_air_noderiv
 ! ************************************************************************** !
 
 subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
-                           Psat_P,Psat_T,Hc_P,Hc_T)
+                           Psat_P,Psat_T,Hc_P,Hc_T,ierr)
 ! 
 !   Calculates Henry's constant as a function of temperature [C], 
 !   and saturation pressure [Pa].  
@@ -1792,6 +1798,7 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
     PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
     PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
+    PetscErrorCode, intent(out) :: ierr
 
     PetscReal :: Tr,tau,TK
     PetscReal :: tmp, tmpA, tmpB, tmpC
@@ -1800,6 +1807,10 @@ subroutine EOSGasHenry_air(T,Psat,Hc,calculate_derivative, &
     PetscReal, parameter :: Tcw=647.096d0 ! H2O critical temp from IAPWS(1995b)
 
     TK = T+273.15D0
+    if ( TK > Tcw .or. TK < 0.0d0 ) then
+       ierr = EOS_GAS_TEMP_BOUND_EXCEEDED
+       TK = 299.999D0
+    end if
     Tr = TK/Tcw
     tau = 1.D0-Tr
     !tmp = a/Tr + b * tau**0.355d0/Tr + c * (Tr**(-0.41d0)) * exp(tau)
@@ -1825,7 +1836,7 @@ end subroutine EOSGasHenry_air
 ! ************************************************************************** !
 
 subroutine EOSGasHenryConstant(T,Psat,Hc,calculate_derivative, &
-                               Psat_P,Psat_T,Hc_P,Hc_T)
+                               Psat_P,Psat_T,Hc_P,Hc_T,ierr)
 
   implicit none
 
@@ -1837,7 +1848,8 @@ subroutine EOSGasHenryConstant(T,Psat,Hc,calculate_derivative, &
   PetscReal, intent(in) :: Psat_T   ! derivative Psat wrt temperature
   PetscReal, intent(out) :: Hc_P    ! derivative Henry's constant wrt pressure
   PetscReal, intent(out) :: Hc_T    ! derivative Henry's constant wrt temperature
-
+  PetscErrorCode, intent(out) :: ierr
+  
   Hc = constant_henry
   Hc_P = 0.d0
   Hc_T = 0.d0
@@ -2196,7 +2208,7 @@ subroutine EOSGasTest(temp_low,temp_high,pres_low,pres_high, &
     ! Need saturation pressure to calculate air partial pressure
     call EOSWaterSaturationPressure(temp(itemp),saturation_pressure,ierr)
     saturation_pressure_array(itemp) = saturation_pressure
-    call EOSGasHenry(temp(itemp),saturation_pressure,henry(itemp))
+    call EOSGasHenry(temp(itemp),saturation_pressure,henry(itemp),ierr)
     do ipres = 1, npres
       call EOSGasDensityPtr(temp(itemp),pres(ipres), &
                             density_kg(ipres,itemp), &

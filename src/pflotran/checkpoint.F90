@@ -1,6 +1,8 @@
 module Checkpoint_module
-#include "petsc/finclude/petscdm.h"
-  use petscdm
+
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -30,8 +32,6 @@ module Checkpoint_module
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
-#include "petsc/finclude/petscsys.h"
-      use petscsys
       import :: checkpoint_header_type
       implicit none
       PetscBag :: bag
@@ -160,9 +160,6 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -189,9 +186,8 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,append_name,option)
   call PetscViewerBinarySkipInfo(viewer,ierr);CHKERRQ(ierr)
   call PetscViewerFileSetName(viewer,filename,ierr);CHKERRQ(ierr)
   
-  write(option%io_buffer,'(" --> Dump checkpoint file: ", a64)') &
-    trim(adjustl(filename))
-  call printMsg(option)
+  option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
+  call PrintMsg(option)
 
 end subroutine CheckpointOpenFileForWriteBinary
 
@@ -218,8 +214,6 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -273,8 +267,6 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   ! Author: Glenn Hammond
   ! Date: 003/26/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -311,7 +303,7 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
     option%io_buffer = 'Incorrect checkpoint file format (' // &
       trim(adjustl(word)) // ' vs ' // &
       trim(adjustl(word2)) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   temp_int = size(transfer(test_header,dummy_char))
@@ -321,7 +313,7 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
     option%io_buffer = 'Inconsistent PetscBagSize (' // &
       trim(adjustl(word)) // ' vs ' // &
       trim(adjustl(word2)) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
@@ -337,8 +329,6 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -346,6 +336,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -391,7 +382,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! (We only write diagonal terms of the permeability tensor for now, 
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
-                                  field%work_loc,POROSITY,ZERO_INTEGER)
+                                  field%work_loc,POROSITY,POROSITY_BASE)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                       global_vec,ONEDOF)
     call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
@@ -428,8 +419,6 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
       
   use Option_module
   use Realization_Subsurface_class
@@ -438,6 +427,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   
@@ -484,7 +474,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                                  field%work_loc,POROSITY,ZERO_INTEGER)
+                                  field%work_loc,POROSITY,POROSITY_BASE)
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,global_vec, &
                                       field%work_loc,ONEDOF)
@@ -551,9 +541,8 @@ subroutine CheckpointOpenFileForWriteHDF5(file_id,grp_id,append_name,option, &
   string = "Checkpoint"
   call h5gcreate_f(file_id, string, grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
 
-  write(option%io_buffer,'(" --> Dump checkpoint file: ", a64)') &
-    trim(adjustl(filename))
-  call printMsg(option)
+  option%io_buffer = ' --> Dump checkpoint file: ' // trim(adjustl(filename))
+  call PrintMsg(option)
 
 end subroutine CheckpointOpenFileForWriteHDF5
 
@@ -593,7 +582,7 @@ subroutine CheckpointOpenFileForReadHDF5(filename, file_id, grp_id, option)
   if (hdf5_err < 0) then
     option%io_buffer = 'HDF5 restart file "' // trim(filename) // &
                        '" not found.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call h5pclose_f(prop_id, hdf5_err)
 
@@ -650,10 +639,11 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   call h5eset_auto_f(ON, hdf5_err)
 
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5pcreate_f(H5P_DATASET_CREATE_F, prop_id, hdf5_err)
     call h5screate_simple_f(dataset_rank, dims, grp_space_id, hdf5_err, dims)
-    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_INTEGER, grp_space_id, &
-                     data_set_id, hdf5_err, prop_id)
+    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_INTEGER, &
+                     grp_space_id, data_set_id, hdf5_err, prop_id)
     call h5pclose_f(prop_id, hdf5_err)
   else
     call h5dget_space_f(data_set_id, grp_space_id, hdf5_err)
@@ -695,8 +685,6 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   ! Author: Gautam Bisht
   ! Date: 07/30/15
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use hdf5
   use HDF5_module, only : trick_hdf5
@@ -732,10 +720,11 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   call h5eset_auto_f(ON, hdf5_err)
 
   if (hdf5_flag < 0) then
+    ! if the dataset does not exist, create it
     call h5pcreate_f(H5P_DATASET_CREATE_F, prop_id, hdf5_err)
     call h5screate_simple_f(dataset_rank, dims, grp_space_id, hdf5_err, dims)
-    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_DOUBLE, grp_space_id, &
-                     data_set_id, hdf5_err, prop_id)
+    call h5dcreate_f(chk_grp_id, dataset_name, H5T_NATIVE_DOUBLE, &
+                     grp_space_id, data_set_id, hdf5_err, prop_id)
     call h5pclose_f(prop_id, hdf5_err)
   else
     call h5dget_space_f(data_set_id, grp_space_id, hdf5_err)
@@ -1018,7 +1007,7 @@ subroutine CheckPointReadCompatibilityHDF5(chk_grp_id, option)
     option%io_buffer = 'Incorrect checkpoint file format (' // &
       trim(adjustl(word)) // ' vs ' // &
       trim(adjustl(word2)) // ').'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   deallocate(start)
@@ -1038,8 +1027,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Glenn Hammond
   ! Date: 07/26/13
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1047,10 +1034,12 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
+
   implicit none
 
   integer(HID_T) :: pm_grp_id
@@ -1109,7 +1098,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
     ! (We only write diagonal terms of the permeability tensor for now,
     ! since we have yet to add the full-tensor formulation.)
     call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
-                                 field%work_loc,POROSITY,ZERO_INTEGER)
+                                 field%work_loc,POROSITY,POROSITY_BASE)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                      global_vec,ONEDOF)
     call DiscretizationGlobalToNatural(discretization, global_vec, &
@@ -1163,8 +1152,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   ! Author: Gautam Bisht, LBNL
   ! Date: 08/16/2015
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Realization_Subsurface_class
   use Field_module
@@ -1172,10 +1159,12 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Grid_module
   use Global_module
   use Material_module
+  use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, STATE
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
+
   implicit none
 
   integer(HID_T) :: pm_grp_id
@@ -1229,11 +1218,9 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
         call DiscretizationNaturalToGlobal(discretization, natural_vec, &
                                            global_vec, ONEDOF)
         call DiscretizationGlobalToLocal(realization%discretization, &
-                                         global_vec, field%iphas_loc, ONEDOF)
-        call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
-        call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                        field%iphas_old_loc,ONEDOF)
-     case default
+                                         global_vec, field%work_loc, ONEDOF)
+        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
+                                   ZERO_INTEGER)
     end select
 
     ! Porosity and permeability.
@@ -1247,7 +1234,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
     call DiscretizationGlobalToLocal(discretization, global_vec, field%work_loc, &
                                      ONEDOF)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                                 field%work_loc,POROSITY,ZERO_INTEGER)
+                                 field%work_loc,POROSITY,POROSITY_BASE)
 
     dataset_name = "Permeability_X" // CHAR(0)
     call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
@@ -1326,18 +1313,19 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
   format_binary = PETSC_FALSE
   format_hdf5 = PETSC_FALSE
   default_time_units = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     call InputReadStringErrorMsg(input,option,'CHECKPOINT')
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'checkpoint option or value', &
                         'CHECKPOINT')
     call StringToUpper(word)
     select case(trim(word))
       case ('PERIODIC')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'time increment', &
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'increment', &
                             'CHECKPOINT,PERIODIC')
         select case(trim(word))
           case('TIME')
@@ -1358,7 +1346,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
             call InputErrorMsg(input,option,'timestep increment', &
                                 'CHECKPOINT,PERIODIC,TIMESTEP')
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,PERIODIC', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,PERIODIC', &
                                           option)
         end select
       case ('TIMES')
@@ -1396,7 +1384,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
         enddo
 #endif
       case ('FORMAT')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'format type', &
                             'CHECKPOINT,FORMAT')
         call StringToUpper(word)
@@ -1406,7 +1394,7 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
           case('HDF5')
             format_hdf5 = PETSC_TRUE
           case default
-            call InputKeywordUnrecognized(word,'CHECKPOINT,FORMAT', &
+            call InputKeywordUnrecognized(input,word,'CHECKPOINT,FORMAT', &
                                           option)
         end select
       case ('TIME_UNITS')
@@ -1415,9 +1403,12 @@ subroutine CheckpointRead(input,option,checkpoint_option,waypoint_list)
       case default
         temp_string = 'Must specify PERIODIC TIME, PERIODIC TIMESTEP, &
                       &TIMES, or FORMAT'
-        call InputKeywordUnrecognized(word,'CHECKPOINT',temp_string,option)
+        call InputKeywordUnrecognized(input,word,'CHECKPOINT', &
+                                      temp_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
+
   if (len_trim(default_time_units) > 0) then
     internal_units = 'sec'
     units_conversion = UnitsConvertToInternal(default_time_units, &
@@ -1437,7 +1428,8 @@ end subroutine CheckpointRead
 
 ! ************************************************************************** !
 
-subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list)
+subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
+                                           option)
   ! 
   ! Inserts periodic time waypoints into list
   ! 
@@ -1468,7 +1460,7 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list)
   if (final_time < 1.d-40) then
     option%io_buffer = 'No final time specified in waypoint list. &
       &Send your input deck to pflotran-dev.'
-    call printMsg(option)
+    call PrintMsg(option)
   endif
   
   ! add waypoints for periodic checkpoint

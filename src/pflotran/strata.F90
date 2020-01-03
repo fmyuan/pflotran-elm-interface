@@ -1,5 +1,8 @@
 module Strata_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Region_module
   use Material_module
  
@@ -8,9 +11,6 @@ module Strata_module
   implicit none
 
   private
- 
-#include "petsc/finclude/petscsys.h"
-
  
   type, public :: strata_type
     PetscInt :: id                                       ! id of strata
@@ -68,8 +68,6 @@ function StrataCreate1()
   ! Author: Glenn Hammond
   ! Date: 10/23/07
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   implicit none
 
   type(strata_type), pointer :: StrataCreate1
@@ -167,8 +165,6 @@ subroutine StrataRead(strata,input,option)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -186,14 +182,14 @@ subroutine StrataRead(strata,input,option)
   character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
-
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','STRATA')   
       
     select case(trim(keyword))
@@ -228,15 +224,16 @@ subroutine StrataRead(strata,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (input%ierr == 0) then
           strata%final_time = strata%final_time * &
-                              UnitsConvertToInternal(word,internal_units,option)
+                       UnitsConvertToInternal(word,internal_units,option)
         endif
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
-        call InputKeywordUnrecognized(keyword,'STRATA',option)
+        call InputKeywordUnrecognized(input,keyword,'STRATA',option)
     end select 
   
   enddo
+  call InputPopBlock(input,option)
 
   if (len_trim(strata%region_name) == 0 .and. &
       len_trim(strata%material_property_name) > 0) then
@@ -244,7 +241,7 @@ subroutine StrataRead(strata,input,option)
       trim(strata%material_property_name) // '" must have an associated &
       &REGION in the STRATA block.  Otherwise, please use "FILE <filename>" &
       &to read material IDs from a file.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   if ((Initialized(strata%start_time) .and. &
@@ -254,7 +251,7 @@ subroutine StrataRead(strata,input,option)
     option%io_buffer = &
       'Both START_TIME and FINAL_TIME must be set for STRATA with region "' // &
       trim(strata%region_name) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (Initialized(strata%start_time)) then
     option%flow%transient_porosity = PETSC_TRUE
@@ -294,8 +291,6 @@ function StrataWithinTimePeriod(strata,time)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   implicit none
 
   type(strata_type) :: strata
@@ -320,8 +315,6 @@ function StrataEvolves(strata_list)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   implicit none
 
   type(strata_list_type) :: strata_list

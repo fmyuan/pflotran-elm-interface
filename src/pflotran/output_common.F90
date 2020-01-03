@@ -98,7 +98,7 @@ function OutputFilenameID(output_option,option)
     write(OutputFilenameID,'(i5)') output_option%plot_number  
   else
     option%io_buffer = 'Plot number exceeds current maximum of 10^5.'
-    call PrintErrMsgToDev('ask for a higher maximum',option)
+    call PrintErrMsgToDev(option,'ask for a higher maximum')
   endif 
   
   OutputFilenameID = adjustl(OutputFilenameID)
@@ -1005,14 +1005,18 @@ subroutine OutputGetFaceVelUGrid(realization_base)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn)
-      do iface_up = 1,MAX_FACE_PER_CELL
-        if (face_id==ugrid%cell_to_face_ghosted(iface_up,local_id_up)) exit
-      enddo
+
+      iface_up=-1
+      if (local_id_up>0) then
+        do iface_up = 1,MAX_FACE_PER_CELL
+          if (face_id==ugrid%cell_to_face_ghosted(iface_up,ghosted_id_up)) exit
+        enddo
+      endif
 
       iface_dn=-1
       if (local_id_dn>0) then
         do iface_dn = 1,MAX_FACE_PER_CELL
-          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
         enddo
       endif
 
@@ -1022,15 +1026,17 @@ subroutine OutputGetFaceVelUGrid(realization_base)
         vel_vector = cur_connection_set%dist(1:3,iconn)* &
                      patch%internal_velocities(dof,sum_connection)
 
-        vx(dof,iface_up,local_id_up) = vel_vector(1)
-        vy(dof,iface_up,local_id_up) = vel_vector(2)
-        vz(dof,iface_up,local_id_up) = vel_vector(3)
+        if (iface_up>0) then
+          vx(dof,iface_up,local_id_up) = vel_vector(1)
+          vy(dof,iface_up,local_id_up) = vel_vector(2)
+          vz(dof,iface_up,local_id_up) = vel_vector(3)
 
-        idx = (local_id_up-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_up + 1
+          idx = (local_id_up-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_up + 1
 
-        vx_ptr(idx) = vel_vector(1)
-        vy_ptr(idx) = vel_vector(2)
-        vz_ptr(idx) = vel_vector(3)
+          vx_ptr(idx) = vel_vector(1)
+          vy_ptr(idx) = vel_vector(2)
+          vz_ptr(idx) = vel_vector(3)
+        endif
 
         if (iface_dn>0) then
 
@@ -1043,8 +1049,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
           vz(dof,iface_dn,local_id_dn) = -vel_vector(3)
 
           vx_ptr(idx) = -vel_vector(1)
-          vx_ptr(idx) = -vel_vector(2)
-          vx_ptr(idx) = -vel_vector(3)
+          vy_ptr(idx) = -vel_vector(2)
+          vz_ptr(idx) = -vel_vector(3)
 
         endif
 
@@ -1068,11 +1074,11 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
       sum_connection = sum_connection + 1
       face_id = cur_connection_set%face_id(iconn)
-      ghosted_id_dn = cur_connection_set%id_dn(iconn)
-      local_id_dn = grid%nG2L(ghosted_id_dn)
+      local_id_dn = cur_connection_set%id_dn(iconn)
+      ghosted_id_dn = grid%nL2G(local_id_dn)
 
       do iface_dn = 1,MAX_FACE_PER_CELL
-        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
       enddo
 
       do dof=1,option%nflowspec
@@ -1088,8 +1094,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
         vz(dof,iface_dn,local_id_dn) = -vel_vector(3)
 
         vx_ptr(idx) = -vel_vector(1)
-        vx_ptr(idx) = -vel_vector(2)
-        vx_ptr(idx) = -vel_vector(3)
+        vy_ptr(idx) = -vel_vector(2)
+        vz_ptr(idx) = -vel_vector(3)
 
       enddo ! dof-loop
 
@@ -1128,7 +1134,10 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call VecGetArrayF90(field%vx_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
-  vec_ptr2 = vec_ptr
+  !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
+  do i = 1, size(vec_ptr)
+    vec_ptr2(i) = vec_ptr(i)
+  enddo
   call VecRestoreArrayF90(natural_vx_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vx_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
@@ -1137,7 +1146,10 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call VecGetArrayF90(field%vy_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
-  vec_ptr2 = vec_ptr
+  !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
+  do i = 1, size(vec_ptr)
+    vec_ptr2(i) = vec_ptr(i)
+  enddo
   call VecRestoreArrayF90(natural_vy_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vy_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
@@ -1146,7 +1158,10 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call VecGetArrayF90(field%vz_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
-  vec_ptr2 = vec_ptr
+  !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
+  do i = 1, size(vec_ptr)
+    vec_ptr2(i) = vec_ptr(i)
+  enddo
   call VecRestoreArrayF90(natural_vz_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vz_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
@@ -1623,6 +1638,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Field_module
   use Connection_module
   use Global_Aux_module
+  use TH_Aux_module
   use Material_Aux_class
 
   implicit none
@@ -1636,6 +1652,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
 
+  type(material_parameter_type), pointer :: material_parameter
+  type(TH_auxvar_type), pointer :: th_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscReal, pointer :: density(:)
@@ -1648,6 +1666,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   PetscInt :: icap_up, icap_dn
   PetscReal, parameter :: eps = 1.D-8
   PetscReal :: upweight
+  PetscBool :: is_flowing
 
   
   patch => realization_base%patch
@@ -1656,6 +1675,9 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   grid => patch%grid
   global_auxvar => patch%aux%Global%auxvars
  
+  material_parameter => patch%aux%Material%material_parameter
+
+  is_flowing = PETSC_FALSE
   allocate(density(count))
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)
   connection_set_list => grid%internal_connection_set_list
@@ -1676,6 +1698,16 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
         count = count + 1
 
           upweight = 0.5d0
+        select case (option%iflowmode)
+           case(TH_MODE)
+              th_auxvars => patch%aux%TH%auxvars
+              if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
+                  th_auxvars(ghosted_id_dn)%kvr > eps ) then
+                is_flowing = PETSC_TRUE
+              endif   
+        end select
+           
+        if (is_flowing) then
           if (global_auxvar(ghosted_id_up)%sat(1) <eps) then 
             upweight = 0.d0
           else if (global_auxvar(ghosted_id_dn)%sat(1) <eps) then 
@@ -1928,7 +1960,7 @@ subroutine OutputCollectVelocityOrFlux(realization_base, iphase, direction, &
       if (ghosted_id <= 0) then
         option%io_buffer = 'Negative ghosted id in OutputFluxVelocities&
           &TecplotBlk while adding boundary values.'
-        call PrintErrMsgByRankToDev('',option)
+        call PrintErrMsgByRankToDev(option,'')
       endif
       ! I don't know why one would do this, but it is possible that a 
       ! boundary condition could be applied to an interior face shared

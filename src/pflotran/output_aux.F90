@@ -57,8 +57,6 @@ module Output_Aux_module
     PetscBool :: print_observation 
     PetscBool :: print_column_ids
 
-    PetscBool :: print_mad 
-
     PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
     PetscBool :: print_explicit_dual_grid      ! prints voronoi (dual) grid if true
 
@@ -131,21 +129,9 @@ module Output_Aux_module
     type(mass_balance_region_type), pointer :: next
   end type mass_balance_region_type
 
-  type, public :: output_option_eclipse_type
-! Controls for Eclipse format input and output
-    PetscBool :: write_ecl_form         ! Indicates Eclipse files are formatted
-! For output of Eclipse summary and restart files, hold:
-! The interval in time or step count between writes
-! The last time or step count at which the file was written
-    PetscReal :: write_ecl_sum_deltat
-    PetscReal :: write_ecl_rst_deltat
-    PetscInt  :: write_ecl_sum_deltas
-    PetscInt  :: write_ecl_rst_deltas
-    PetscReal :: write_ecl_sum_lastt
-    PetscReal :: write_ecl_rst_lastt
-    PetscInt  :: write_ecl_sum_lasts
-    PetscInt  :: write_ecl_rst_lasts
-  end type
+  type, public :: output_h5_type
+    PetscBool :: first_write
+  end type output_h5_type
 
 !  type, public, EXTENDS (output_variable_type) :: aveg_output_variable_type
 !    PetscReal :: time_interval
@@ -192,7 +178,8 @@ module Output_Aux_module
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
             CheckpointOptionDestroy, &
-            CreateOutputOptionEclipse
+            OutputH5Create, &
+            OutputH5Destroy
 
 contains
 
@@ -231,7 +218,6 @@ function OutputOptionCreate()
   output_option%print_tecplot_vel_face = PETSC_FALSE
   output_option%print_observation = PETSC_FALSE
   output_option%print_column_ids = PETSC_FALSE
-  output_option%print_mad = PETSC_FALSE
   output_option%print_explicit_primal_grid = PETSC_FALSE
   output_option%print_explicit_dual_grid = PETSC_FALSE
   output_option%print_initial_obs = PETSC_TRUE
@@ -278,6 +264,22 @@ end function OutputOptionCreate
 
 ! ************************************************************************** !
 
+function OutputH5Create()
+  ! 
+  ! Initializes module variables for H5 output
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/18/19
+  ! 
+  type(output_h5_type), pointer :: OutputH5Create
+
+  allocate(OutputH5Create)
+  OutputH5Create%first_write = PETSC_TRUE
+
+end function OutputH5Create
+
+! ************************************************************************** !
+
 function OutputOptionDuplicate(output_option)
   ! 
   ! Creates a copy of output options object
@@ -320,7 +322,6 @@ function OutputOptionDuplicate(output_option)
   output_option2%print_tecplot_vel_face = output_option%print_tecplot_vel_face
   output_option2%print_observation = output_option%print_observation
   output_option2%print_column_ids = output_option%print_column_ids
-  output_option2%print_mad = output_option%print_mad
   output_option2%print_initial_obs = output_option%print_initial_obs
   output_option2%print_final_obs = output_option%print_final_obs
   output_option2%print_initial_snap = output_option%print_initial_snap
@@ -1069,56 +1070,26 @@ end subroutine OutputMassBalRegDestroy
 
 ! ************************************************************************** !
 
-subroutine CreateOutputOptionEclipse(output_option)
-  !
-  ! Creates and initialises the Eclipse output option block
-  !
-  ! Author: Dave Ponting
-  ! Date: 01/29/07
-  !
-
-  implicit none
-
-  type(output_option_type), pointer :: output_option
-
-  if (.not.associated(output_option%eclipse_options) ) then
-    allocate(output_option%eclipse_options)
-!  Initial defaults for Eclipse format input and output
-    output_option%eclipse_options%write_ecl_form  = PETSC_FALSE
-
-    output_option%eclipse_options%write_ecl_sum_deltat = -1.0
-    output_option%eclipse_options%write_ecl_rst_deltat = -1.0
-    output_option%eclipse_options%write_ecl_sum_deltas =  1
-    output_option%eclipse_options%write_ecl_rst_deltas =  10
-
-    output_option%eclipse_options%write_ecl_sum_lastt =  -1.0
-    output_option%eclipse_options%write_ecl_rst_lastt =  -1.0
-    output_option%eclipse_options%write_ecl_sum_lasts =  -1
-    output_option%eclipse_options%write_ecl_rst_lasts =  -1
-  endif
-
-end subroutine CreateOutputOptionEclipse
-
 ! ************************************************************************** !
 
-subroutine DestroyOutputOptionEclipse(eclipse_options)
+subroutine OutputH5Destroy(output_h5)
   !
-  ! Deletes the Eclipse output option block
+  ! Deallocates an output_h5 object
   !
   ! Author: Dave Ponting
-  ! Date: 01/29/07
+  ! Date: 10/19/19
   !
 
   implicit none
 
-  type(output_option_eclipse_type), pointer :: eclipse_options
+  type(output_h5_type), pointer :: output_h5
 
-  if (associated(eclipse_options) ) then
-    deallocate(eclipse_options)
-    nullify(eclipse_options)
-  endif
+  if (.not.associated(output_h5)) return
 
-end subroutine DestroyOutputOptionEclipse
+  deallocate(output_h5)
+  nullify(output_h5)
+
+end subroutine OutputH5Destroy
 
 ! ************************************************************************** !
 
@@ -1153,8 +1124,6 @@ subroutine OutputOptionDestroy(output_option)
   
   call OutputMassBalRegDestroy(output_option%mass_balance_region_list)
 
-  call DestroyOutputOptionEclipse(output_option%eclipse_options)
-    
   deallocate(output_option)
   nullify(output_option)
   

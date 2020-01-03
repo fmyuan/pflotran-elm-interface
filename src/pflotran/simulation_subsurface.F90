@@ -272,6 +272,10 @@ subroutine SubsurfaceSimulationJumpStart(this)
   
   if (this%realization%debug%print_regions) then
     call OutputPrintRegions(this%realization)
+    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
+        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+      call OutputPrintRegionsH5(this%realization)
+    endif
   endif  
 
   if (this%realization%debug%print_couplers) then
@@ -290,27 +294,25 @@ subroutine SubsurfaceFinalizeRun(this)
   ! Date: 03/18/13
   ! 
 
-  use Timestepper_BE_class
-
+  use Timestepper_Base_class
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
 
   implicit none
   
   class(simulation_subsurface_type) :: this
-  class(timestepper_BE_type), pointer :: flow_timestepper
+  PetscErrorCode :: ierr
+  
+  class(timestepper_base_type), pointer :: flow_timestepper
 
 #ifdef DEBUG
-  call printMsg(this%option,'SubsurfaceFinalizeRun()')
+  call PrintMsg(this%option,'SubsurfaceFinalizeRun()')
 #endif
   
   call SimulationBaseFinalizeRun(this)
   
   nullify(flow_timestepper)
   if (associated(this%flow_process_model_coupler)) then
-    select type(ts => this%flow_process_model_coupler%timestepper)
-      class is(timestepper_BE_type)
-        flow_timestepper => ts
-    end select
+    flow_timestepper => this%flow_process_model_coupler%timestepper
     call SSSandboxDestroyList()
   endif
   

@@ -1,5 +1,8 @@
 module Waypoint_module
  
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Option_module
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -7,8 +10,6 @@ module Waypoint_module
   implicit none
   
   private
-
-#include "petsc/finclude/petscsys.h"
 
   ! linked-list for waypoints in the simulation
   type, public :: waypoint_type
@@ -68,8 +69,6 @@ function WaypointCreate1()
   ! Author: Glenn Hammond
   ! Date: 11/07/07
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(waypoint_type), pointer :: WaypointCreate1
@@ -471,7 +470,7 @@ subroutine WaypointListRemoveExtraWaypnts(waypoint_list,option)
     write(option%io_buffer,'("Waypoint at time:", 1pe12.4, &
   &       " is beyond the end of simulation")') &
           prev_waypoint%time
-    call printWrnMsg(option)
+    call PrintWrnMsg(option)
     call WaypointDestroy(prev_waypoint)   
     waypoint_list%num_waypoints = waypoint_list%num_waypoints - 1
   enddo
@@ -487,8 +486,6 @@ subroutine WaypointMerge(old_waypoint,new_waypoint)
   ! Author: Glenn Hammond
   ! Date: 10/28/03
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
 
   type(waypoint_type), pointer :: old_waypoint, new_waypoint
@@ -726,8 +723,6 @@ function WaypointForceMatchToTime(waypoint)
   ! Author: Glenn Hammond
   ! Date: 03/19/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   type(waypoint_type) :: waypoint

@@ -223,9 +223,6 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('OutputVTK', &
                              logging%class_pflotran, &
                              logging%event_output_vtk,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('OutputMAD', &
-                             logging%class_pflotran, &
-                             logging%event_output_mad,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('OutputHDF5', &
                              logging%class_pflotran, &
                              logging%event_output_hdf5,ierr);CHKERRQ(ierr)

@@ -119,13 +119,14 @@ subroutine RegressionRead(regression,input,option)
   regression => RegressionCreate()
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGRESSION')
     call StringToUpper(keyword)   
       
@@ -133,11 +134,12 @@ subroutine RegressionRead(regression,input,option)
     
       case('VARIABLES') 
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
 
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','REGRESSION,VARIABLES')
           call StringToUpper(word)
           new_variable => RegressionVariableCreate()
@@ -149,10 +151,12 @@ subroutine RegressionRead(regression,input,option)
           endif
           cur_variable => new_variable
         enddo
+        call InputPopBlock(input,option)
       case('CELLS')
         max_cells = 100
         allocate(int_array(max_cells))
         count = 0
+        call InputPushBlock(input,option)
         do 
           call InputReadPflotranString(input,option)
           if (InputCheckExit(input,option)) exit  
@@ -163,6 +167,7 @@ subroutine RegressionRead(regression,input,option)
           call InputReadInt(input,option,int_array(count))
           call InputErrorMsg(input,option,'natural cell id','REGRESSION,CELLS')
         enddo
+        call InputPopBlock(input,option)
         allocate(regression%natural_cell_ids(count))
         regression%natural_cell_ids = int_array(1:count)
         call PetscSortInt(count,regression%natural_cell_ids, &
@@ -174,10 +179,11 @@ subroutine RegressionRead(regression,input,option)
       case('ALL_CELLS')
          regression%all_cells = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(keyword,'REGRESSION',option)
+        call InputKeywordUnrecognized(input,keyword,'REGRESSION',option)
     end select
     
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine RegressionRead
 
@@ -229,7 +235,7 @@ subroutine RegressionCreateMapping(regression,realization)
     if (grid%nmax > 100) then
       option%io_buffer = 'Printing regression info for ALL_CELLS not &
         &supported for problem sizes greater than 100 cells.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     call DeallocateArray(regression%natural_cell_ids)
     allocate(regression%natural_cell_ids(grid%nmax))
@@ -244,7 +250,7 @@ subroutine RegressionCreateMapping(regression,realization)
     if (maxval(regression%natural_cell_ids) > grid%nmax) then
       option%io_buffer = 'Natural IDs outside problem domain requested ' // &
         'for regression output.  Removing non-existent IDs.'
-      call printWrnMsg(option)
+      call PrintWrnMsg(option)
       count = 0
       allocate(int_array(size(regression%natural_cell_ids)))
       int_array = 0
@@ -330,7 +336,7 @@ subroutine RegressionCreateMapping(regression,realization)
       option%io_buffer = 'Number of cells per process for regression file&
         &exceeds minimum number of cells per process.  Truncating to ' // &
         trim(adjustl(word)) // '.'
-      call printMsg(option)
+      call PrintMsg(option)
       regression%num_cells_per_process = count
     endif
   
@@ -484,6 +490,8 @@ subroutine RegressionOutput(regression,realization, &
   ! 
 
   use Realization_Subsurface_class
+  use Timestepper_Base_class
+  use Timestepper_TS_class
   use Timestepper_BE_class
   use Option_module
   use Discretization_module
@@ -522,7 +530,7 @@ subroutine RegressionOutput(regression,realization, &
              trim(option%group_prefix) // &  
              '.regression'
     option%io_buffer = '--> write regression output file: ' // trim(string)
-    call printMsg(option)
+    call PrintMsg(option)
     open(unit=OUTPUT_UNIT,file=string,action="write")
   endif
   
@@ -783,22 +791,43 @@ subroutine RegressionOutput(regression,realization, &
 
   ! timestep, newton iteration, solver iteration output
   if (associated(flow_timestepper)) then
-    call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-    call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-    if (option%myrank == option%io_rank) then
-      write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-      write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-        flow_timestepper%cumulative_solver_time
-      write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_timestepper%steps
-      write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
-        flow_timestepper%cumulative_newton_iterations
-      write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
-        flow_timestepper%cumulative_linear_iterations
-      write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
-        flow_timestepper%cumulative_time_step_cuts
-      write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-      write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
-    endif
+    select type(flow_stepper => flow_timestepper)
+      class is(timestepper_BE_type)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        if (option%myrank == option%io_rank) then
+          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
+          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          flow_stepper%cumulative_solver_time
+          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          flow_stepper%cumulative_newton_iterations
+          write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+          flow_stepper%cumulative_linear_iterations
+          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          flow_stepper%cumulative_time_step_cuts
+          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+        endif
+      class is(timestepper_TS_type)
+        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
+        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
+        if (option%myrank == option%io_rank) then
+          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
+          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
+          flow_stepper%cumulative_solver_time
+          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
+          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
+          flow_stepper%cumulative_newton_iterations
+          write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
+          flow_stepper%cumulative_linear_iterations
+          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
+          flow_stepper%cumulative_time_step_cuts
+          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
+          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
+        endif
+    end select
+  endif
   endif
   
   close(OUTPUT_UNIT)

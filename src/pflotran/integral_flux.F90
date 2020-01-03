@@ -111,13 +111,14 @@ subroutine IntegralFluxRead(integral_flux,input,option)
   PetscReal, pointer :: real_array(:,:)
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','integral_flux')   
       
     select case(trim(keyword))
@@ -209,14 +210,15 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         integral_flux%vertices = int_array(:,1:icount)
         call DeallocateArray(int_array)
       case default
-        call InputKeywordUnrecognized(keyword,'INTEGRAL_FLUX',option)
+        call InputKeywordUnrecognized(input,keyword,'INTEGRAL_FLUX',option)
     end select 
   
   enddo  
+  call InputPopBlock(input,option)
 
   if (len_trim(integral_flux%name) < 1) then
     option%io_buffer = 'All INTEGRAL_FLUXes must have a name.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine IntegralFluxRead

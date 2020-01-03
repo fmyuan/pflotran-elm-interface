@@ -1,4 +1,6 @@
 module Region_module
+#include "petsc/finclude/petscsys.h"
+  use petscsys
 
   use Geometry_module
   
@@ -7,8 +9,6 @@ module Region_module
   implicit none
 
   private
-
-#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: DEFINED_BY_BLOCK = 1
   PetscInt, parameter, public :: DEFINED_BY_COORD = 2
@@ -91,6 +91,7 @@ module Region_module
             RegionDestroyList, &
             RegionReadSideSet, &
             RegionCreateSideset, &
+            RegionCheckCellIndexBounds, &
             RegionInputRecord, &
             RegionDestroy
   
@@ -402,8 +403,6 @@ subroutine RegionRead(region,input,option)
   ! Author: Glenn Hammond
   ! Date: 02/20/08
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use String_module
   use Option_module
@@ -418,13 +417,14 @@ subroutine RegionRead(region,input,option)
   character(len=MAXWORDLENGTH) :: keyword, word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','REGION')
     call StringToUpper(keyword)   
 
@@ -452,7 +452,7 @@ subroutine RegionRead(region,input,option)
         call InputErrorMsg(input,option,'k2','REGION')
       case('CARTESIAN_BOUNDARY')
         region%def_type = DEFINED_BY_CARTESIAN_BOUNDARY
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cartesian boundary face','REGION')
         call StringToUpper(word)
         select case(word)
@@ -471,7 +471,7 @@ subroutine RegionRead(region,input,option)
           case default
             option%io_buffer = 'Cartesian boundary face "' // trim(word) // &
               '" not recognized.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case('COORDINATE')
         region%def_type = DEFINED_BY_COORD
@@ -496,16 +496,17 @@ subroutine RegionRead(region,input,option)
         if (.not.associated(region%polygonal_volume)) then
           region%polygonal_volume => GeometryCreatePolygonalVolume()
         endif
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','REGION')
           call StringToUpper(word)   
           select case(trim(word))
             case('TYPE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'polygon type','REGION')
               call StringToUpper(word)
               select case(word)
@@ -516,7 +517,7 @@ subroutine RegionRead(region,input,option)
                 case default
                   option%io_buffer = 'REGION->POLYGON->"' // trim(word) // &
                     '" not recognized.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
               end select
             case('XY')
               call GeometryReadCoordinates(input,option,region%name, &
@@ -529,17 +530,18 @@ subroutine RegionRead(region,input,option)
                                          region%polygonal_volume%yz_coordinates)
             case default
               option%io_buffer = 'Keyword not recognized for REGION POLYGON.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('FILE')
         call InputReadFilename(input,option,region%filename)
         call InputErrorMsg(input,option,'filename','REGION')
       case('LIST')
         option%io_buffer = 'REGION LIST currently not implemented'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case('FACE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'face','REGION')
         call StringToUpper(word)
         select case(word)
@@ -558,12 +560,13 @@ subroutine RegionRead(region,input,option)
           case default
             option%io_buffer = 'FACE "' // trim(word) // &
               '" not recognized.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case default
-        call InputKeywordUnrecognized(keyword,'REGION',option)
+        call InputKeywordUnrecognized(input,keyword,'REGION',option)
     end select
   enddo
+  call InputPopBlock(input,option)
  
 end subroutine RegionRead
 
@@ -604,8 +607,6 @@ subroutine RegionReadFromFileId(region,input,option)
   ! Date: 10/29/07
   ! 
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use Utility_module
@@ -748,7 +749,7 @@ subroutine RegionReadFromFileId(region,input,option)
       if (InputError(input)) then
         option%io_buffer = 'ERROR while reading the region "' // &
           trim(region%name) // '" from file'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       face_ids_p(count) = temp_int
       if (count+1 > max_size) then ! resize temporary array
@@ -804,7 +805,7 @@ subroutine RegionReadFromFileId(region,input,option)
         if (InputError(input)) then
           option%io_buffer = 'ERROR while reading the region "' // &
             trim(region%name) // '" from file'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 
         select case(ii)
@@ -896,8 +897,6 @@ subroutine RegionReadSideSet(sideset,filename,option)
   ! Date: 12/19/11
   ! 
 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -964,6 +963,7 @@ subroutine RegionReadSideSet(sideset,filename,option)
 
   ! for now, read all faces from ASCII file through io_rank and communicate
   ! to other ranks
+  call OptionSetBlocking(option,PETSC_FALSE)
   if (option%myrank == option%io_rank) then
     allocate(temp_int_array(max_nvert_per_face, &
                             num_faces_local_save+1))
@@ -1035,6 +1035,8 @@ subroutine RegionReadSideSet(sideset,filename,option)
                   MPIU_INTEGER,option%io_rank, &
                   MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
   endif
+  call OptionSetBlocking(option,PETSC_TRUE)
+  call OptionCheckNonBlockingError(option)
 
 !  unstructured_grid%nlmax = num_faces_local
 !  unstructured_grid%num_vertices_local = num_vertices_local
@@ -1052,8 +1054,6 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
   ! Author: Glenn Hammond
   ! Date: 05/18/12
   ! 
-#include <petsc/finclude/petscsys.h>
-  use petscsys
   use Input_Aux_module
   use Option_module
   use String_module
@@ -1096,11 +1096,12 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
 ! id_M x_M y_M z_M area_M
 ! -----------------------------------------------------------------
 
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     hint = trim(word)
   
@@ -1140,10 +1141,11 @@ subroutine RegionReadExplicitFaceSet(explicit_faceset,cell_ids,filename,option)
           call InputErrorMsg(input,option,'face area',hint)
         enddo
       case default
-        call InputKeywordUnrecognized(word, &
+        call InputKeywordUnrecognized(input,word, &
                'REGION (explicit unstructured grid)',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   call InputDestroy(input)
 
@@ -1185,6 +1187,55 @@ function RegionGetPtrFromList(region_name,region_list)
   enddo
   
 end function RegionGetPtrFromList
+
+! ************************************************************************** !
+
+subroutine RegionCheckCellIndexBounds(region,num_cells,option)
+  ! 
+  ! Checks to ensure that cell ids listed in a region are within the bounds
+  ! of 1 and the maximum cell id.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/27/19
+  ! 
+  use Option_module
+  use String_module
+
+  implicit none
+  
+  type(region_type) :: region
+  PetscInt :: num_cells
+  type(option_type) :: option
+
+  PetscInt :: cell_id_extremes(2)
+  PetscErrorCode :: ierr
+
+  cell_id_extremes(1) = 999999999
+  cell_id_extremes(2) = -cell_id_extremes(1)
+  if (region%num_cells > 0) then
+    cell_id_extremes(1) = minval(region%cell_ids)
+    cell_id_extremes(2) = maxval(region%cell_ids)
+  endif
+
+  ! invert for MPI max below
+  cell_id_extremes(1) = -cell_id_extremes(1)
+  call MPI_Allreduce(MPI_IN_PLACE, cell_id_extremes, TWO_INTEGER_MPI, &
+                     MPI_INTEGER, MPI_MAX, option%mycomm,ierr)
+  ! invert back
+  cell_id_extremes(1) = -cell_id_extremes(1)
+
+  if (cell_id_extremes(1) < 1 .or. cell_id_extremes(2) > num_cells) then
+    option%io_buffer = 'The minimum cell ID (' // &
+      trim(StringWrite(cell_id_extremes(1))) // &
+      ') and/or maximum cell ID (' // &
+      trim(StringWrite(cell_id_extremes(2))) // &
+      ') for REGION "' // trim(region%name) // &
+      '" is outside the GRID cell ID bounds of (1 - ' // &
+      trim(StringWrite(num_cells)) // ').'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine RegionCheckCellIndexBounds
 
 ! **************************************************************************** !
 

@@ -1,6 +1,8 @@
 module Discretization_module
+
 #include "petsc/finclude/petscdmda.h"
   use petscdmda
+
   use Grid_module
   use Grid_Structured_module
   use Grid_Unstructured_module
@@ -166,6 +168,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -173,13 +176,13 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','GRID')
     call StringToUpper(word)
       
     select case(trim(word))
       case('TYPE')
-        call InputReadWord(input,option,discretization%ctype,PETSC_TRUE)
+        call InputReadCard(input,option,discretization%ctype)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToUpper(discretization%ctype)
         if (discretization%ctype == 'GRDECL') then
@@ -189,7 +192,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         select case(trim(discretization%ctype))
           case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
-            call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
+            call InputReadCard(input,option,structured_grid_ctype,PETSC_FALSE)
             call InputDefaultMsg(input,option,'grid_structured_type') 
             call StringToUpper(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
@@ -221,7 +224,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             call InputReadFilename(input,option,discretization%filename)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
-            call InputKeywordUnrecognized(discretization%ctype, &
+            call InputKeywordUnrecognized(input,discretization%ctype, &
                                           'discretization type',option)
         end select    
       case('NXYZ')
@@ -252,14 +255,15 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
-        call InputKeywordUnrecognized(word,'DISCRETIZATION',option)
+        call InputKeywordUnrecognized(input,word,'DISCRETIZATION',option)
     end select 
   enddo  
+  call InputPopBlock(input,option)
 
   if (discretization%itype == NULL_GRID) then
     option%io_buffer = 'Discretization type not defined under ' // &
                        'keyword GRID.' 
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   grid => GridCreate()
@@ -292,7 +296,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
           if (index(discretization%filename,'.h5') > 0 ) then
             !call UGridPolyhedraReadHDF5(un_str_grid,discretization%filename,option)
-            call printErrMsg(option,'Add UGridPolyhedraReadHDF5')
+            call PrintErrMsg(option,'Add UGridPolyhedraReadHDF5')
           else
             call UGridPolyhedraRead(un_str_grid,discretization%filename,option)
           endif
@@ -344,7 +348,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 #endif
 
       if (nx*ny*nz <= 0) &
-        call printErrMsg(option,'NXYZ not set correctly for structured grid.')
+        call PrintErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
       str_grid%nx = nx
       str_grid%ny = ny
@@ -407,6 +411,7 @@ subroutine DiscretizationRead(discretization,input,option)
 ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -414,7 +419,7 @@ subroutine DiscretizationRead(discretization,input,option)
 
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','GRID')
     call StringToUpper(word)
       
@@ -466,7 +471,7 @@ subroutine DiscretizationRead(discretization,input,option)
 #endif
 
           case default
-            call printErrMsg(option,&
+            call PrintErrMsg(option,&
                            'Keyword "DXYZ" not supported for unstructured grid')
         end select
 
@@ -478,7 +483,7 @@ subroutine DiscretizationRead(discretization,input,option)
         if (.not.(InputCheckExit(input,option))) then
           option%io_buffer = 'Card DXYZ should include either 3 entires ' // &
                    '(one for each grid direction or NX+NY+NZ entries)'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
 #endif
 
@@ -590,7 +595,7 @@ subroutine DiscretizationRead(discretization,input,option)
         call InputErrorMsg(input,option,'stencil_width', &
                            'GRID')
       case ('STENCIL_TYPE')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'stencil type','GRID')
         call StringToUpper(word)
         select case(trim(word))
@@ -599,7 +604,7 @@ subroutine DiscretizationRead(discretization,input,option)
           case ('STAR')
             discretization%stencil_type = DMDA_STENCIL_STAR
           case default
-            call InputKeywordUnrecognized(word, &
+            call InputKeywordUnrecognized(input,word, &
                    'DISCRETIZATION,stencil type',option)
         end select
       case('DOMAIN_FILENAME')
@@ -612,15 +617,15 @@ subroutine DiscretizationRead(discretization,input,option)
           case default
             option%io_buffer = 'DOMAIN_FILENAME only supported for explicit &
                                &unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
         end select
       case('UPWIND_FRACTION_METHOD')
         if (discretization%itype == STRUCTURED_GRID) then
           option%io_buffer = 'UPWIND_FRACTION_METHOD not supported for &
             &structured grids.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'UPWIND_FRACTION_METHOD','GRID')
         call StringToUpper(word)
         select case(trim(word))
@@ -634,12 +639,13 @@ subroutine DiscretizationRead(discretization,input,option)
             discretization%grid%unstructured_grid%upwind_fraction_method = &
               UGRID_UPWIND_FRACTION_ABS_DIST
           case default
-            call InputKeywordUnrecognized(word,'GRID,UPWIND_FRACTION_METHOD', &
+            call InputKeywordUnrecognized(input,word, &
+                                          'GRID,UPWIND_FRACTION_METHOD', &
                                           option)
         end select
 
       case('PERM_TENSOR_TO_SCALAR_MODEL')
-        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'PERM_TENSOR_TO_SCALAR_MODEL','GRID')
         call StringToUpper(word)
         select case(trim(word))
@@ -652,7 +658,8 @@ subroutine DiscretizationRead(discretization,input,option)
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,&
                               option)
           case default
-            call InputKeywordUnrecognized(word,'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
+            call InputKeywordUnrecognized(input,word, &
+                                    'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
                                           option)
         end select
 
@@ -664,9 +671,10 @@ subroutine DiscretizationRead(discretization,input,option)
         endif
         discretization%grid%structured_grid%second_order_bc = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(word,'GRID',option)
+        call InputKeywordUnrecognized(input,word,'GRID',option)
     end select 
   enddo  
+  call InputPopBlock(input,option)
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -678,7 +686,7 @@ subroutine DiscretizationRead(discretization,input,option)
   if (bounds_read .and. dxyz_read) then
     option%io_buffer = 'Only BOUNDS or DXYZ may be set in the GRID &
                        &block, not both.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine DiscretizationRead
@@ -724,7 +732,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, &
 #if !defined(PETSC_HAVE_PARMETIS)
             option%io_buffer = &
              'Must compile with Parmetis in order to use implicit unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 #endif
           call UGridDecompose(discretization%grid%unstructured_grid, &
                               option)
@@ -732,7 +740,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, &
 #if !defined(PETSC_HAVE_PARMETIS) && !defined(PETSC_HAVE_PTSCOTCH)
             option%io_buffer = &
              'Must compile with either Parmetis or PTSCOTCH in order to use explicit unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 #endif
           ugrid => discretization%grid%unstructured_grid
           call UGridExplicitDecompose(ugrid,option)
@@ -740,7 +748,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, &
 #if !defined(PETSC_HAVE_PARMETIS)
             option%io_buffer = &
              'Must compile with Parmetis in order to use implicit unstructured grids.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
 #endif
           ugrid => discretization%grid%unstructured_grid
           call UGridPolyhedraDecompose(ugrid,option)
@@ -942,8 +950,6 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none
@@ -1066,8 +1072,6 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
   ! Author: Glenn Hammond
   ! Date: 10/24/07
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none
@@ -1539,11 +1543,7 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   ! Author: Glenn Hammond
   ! Date: 10/12/12
   ! 
-#include "petsc/finclude/petscdmda.h"
-  use petscdmda
   implicit none
-  
-
   
   type(discretization_type) :: discretization
   PetscInt :: int_array(:)

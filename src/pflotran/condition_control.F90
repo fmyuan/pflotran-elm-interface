@@ -29,8 +29,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   ! Author: Glenn Hammond
   ! Date: 11/02/07, 10/18/11
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Discretization_module
   use Region_module
@@ -41,22 +39,26 @@ subroutine CondControlAssignFlowInitCond(realization)
   use Dataset_Base_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Common_HDF5_class
+  use Dataset_module
   use Grid_module
   use Patch_module
   use EOS_Water_module
 
   use Global_module
+  use Variables_module, only : STATE
   use Global_Aux_module
 
   implicit none
   
   class(realization_subsurface_type) :: realization
   
-  PetscInt :: iconn, idof
+  PetscInt :: icell, iconn, idof, iface
   PetscInt :: local_id, ghosted_id, iend, ibegin
-  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:)
   PetscErrorCode :: ierr
-
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  
   type(option_type), pointer :: option
   type(field_type), pointer :: field  
   type(patch_type), pointer :: patch
@@ -65,12 +67,18 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
   class(dataset_base_type), pointer :: dataset
-
-  PetscBool :: use_dataset
+  type(global_auxvar_type) :: global_aux
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
   PetscInt, pointer :: conn_id_ptr(:)
-  PetscReal :: tempreal
+  PetscInt :: offset, istate
+  PetscReal :: x(realization%option%nflowdof)
+  PetscReal :: temperature, p_sat
+  PetscReal :: tempreal,pru,sou,sgu,pbu
+  PetscInt :: saturated_state
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  PetscReal, parameter :: eps_oil   = 1.0d-6
+  PetscReal, parameter :: eps_gas   = 1.0d-6
 
   option => realization%option
   discretization => realization%discretization
@@ -78,9 +86,8 @@ subroutine CondControlAssignFlowInitCond(realization)
   patch => realization%patch
 
   ! to catch uninitialized grid cells.  see VecMin check at bottom.
-  call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
-  iphase_loc_p = UNINITIALIZED_DOUBLE
-  call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+  call VecSet(field%work_loc,UNINITIALIZED_DOUBLE,ierr);CHKERRQ(ierr)
+  call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
 
   cur_patch => realization%patch_list%first
   do
@@ -93,7 +100,6 @@ subroutine CondControlAssignFlowInitCond(realization)
       case default
         ! assign initial conditions values to domain
         call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
       
         xx_p = UNINITIALIZED_DOUBLE
       
@@ -102,7 +108,6 @@ subroutine CondControlAssignFlowInitCond(realization)
       
           if (.not.associated(initial_condition)) exit
 
-          use_dataset = PETSC_FALSE
           dataset_flag = PETSC_FALSE
           do idof = 1, option%nflowdof
             dataset =>  initial_condition%flow_condition% &
@@ -110,20 +115,26 @@ subroutine CondControlAssignFlowInitCond(realization)
             select type(dataset_ptr => dataset)
               class is(dataset_gridded_hdf5_type)
                 ! already mapped to flow_aux_real_var
+                if (.not.associated(initial_condition%flow_aux_real_var)) then
+                  option%io_buffer = 'A gridded dataset is being &
+                    &used with ' // trim(option%flowmode) // &
+                    ', yet flow_aux_real_var is not allocated.'
+                  call PrintErrMsgToDev(option,'')
+                endif
               class is(dataset_common_hdf5_type)
-                use_dataset = PETSC_TRUE
                 dataset_flag(idof) = PETSC_TRUE
+                call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
                 call ConditionControlMapDatasetToVec(realization, &
                         initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%dataset,idof, &
                         field%flow_xx,GLOBAL)
-              class default
+                call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
             end select
           enddo            
           if (.not.associated(initial_condition%flow_aux_real_var) .and. &
               .not.associated(initial_condition%flow_condition)) then
             option%io_buffer = 'Flow condition is NULL in initial condition'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           if (associated(initial_condition%flow_aux_real_var)) then
             num_connections = &
@@ -140,7 +151,7 @@ subroutine CondControlAssignFlowInitCond(realization)
             ibegin = iend-option%nflowdof+1
             if (cur_patch%imat(ghosted_id) <= 0) then
               xx_p(ibegin:iend) = 0.d0
-              iphase_loc_p(ghosted_id) = 0
+              cur_patch%aux%Global%auxvars(ghosted_id)%istate = 0
               cycle
             endif
             if (associated(initial_condition%flow_aux_real_var)) then
@@ -159,8 +170,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                 endif
               enddo
             endif
-            ! TODO(geh): phase out field%iphas_loc
-            iphase_loc_p(ghosted_id) = &
+            cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
               initial_condition%flow_condition%iphase
           enddo
           initial_condition => initial_condition%next
@@ -172,30 +182,519 @@ subroutine CondControlAssignFlowInitCond(realization)
     cur_patch => cur_patch%next
   enddo
 
+  select case(option%iflowmode)
+    case(RICHARDS_MODE,RICHARDS_TS_MODE)
+    case default
+      call GlobalUpdateState(realization)
+  end select
+  
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
                                    field%flow_xx_loc,NFLOWDOF)  
 
   call VecCopy(field%flow_xx, field%flow_yy, ierr);CHKERRQ(ierr)
-  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                  field%iphas_loc,ONEDOF)  
-  call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                  field%iphas_old_loc,ONEDOF)
 
   ! cannot perform VecMin on local vector as the ghosted corner values are not
   ! updated during the local to local update.
-  call DiscretizationLocalToGlobal(discretization,field%iphas_loc,field%work, &
+  call GlobalGetAuxVarVecLoc(realization,field%work_loc,STATE,ZERO_INTEGER)
+  call DiscretizationLocalToGlobal(discretization,field%work_loc,field%work, &
                                    ONEDOF)
   call VecMin(field%work,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
   if (tempreal < 0.d0) then
 !    print *, tempreal
     option%io_buffer = 'Uninitialized cells in domain.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine CondControlAssignFlowInitCond
 
 ! ************************************************************************** !
+
+subroutine CondControlAssignTranInitCond(realization)
+  ! 
+  ! Assigns transport initial conditions to model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/02/07, 10/18/11
+  ! 
+
+  use Realization_Subsurface_class
+  use Discretization_module
+  use Region_module
+  use Option_module
+  use Field_module
+  use Coupler_module
+  use Condition_module
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
+  use Grid_module
+  use Dataset_Base_class
+  use Patch_module
+  use Reactive_Transport_module, only : RTUpdateAuxVars, &
+                                        RTUpdateActivityCoefficients
+  use Reactive_Transport_Aux_module
+  use Reaction_Aux_module
+  use Global_Aux_module
+  use Material_Aux_class
+  use Reaction_module
+  use HDF5_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  
+  PetscInt :: icell, iconn, idof, isub_condition, temp_int, iimmobile
+  PetscInt :: local_id, ghosted_id, iend, ibegin
+  PetscInt :: irxn, isite, imnrl, ikinrxn
+  PetscReal, pointer :: xx_p(:), xx_loc_p(:), vec_p(:), vec_p2(:)
+  Vec :: vec1_loc
+  Vec :: vec2_loc
+  PetscErrorCode :: ierr
+  
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field  
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(coupler_type), pointer :: initial_condition
+  type(patch_type), pointer :: cur_patch
+  class(reaction_rt_type), pointer :: reaction
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)
+  class(tran_constraint_coupler_rt_type), pointer :: constraint_coupler
+  class(tran_constraint_rt_type), pointer :: constraint
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+
+  PetscInt :: iphase
+  PetscInt :: offset
+  PetscBool :: equilibrate_at_each_cell
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  class(dataset_base_type), pointer :: dataset
+  PetscInt :: aq_dataset_to_idof(realization%reaction%naqcomp)
+  PetscInt :: iaqdataset, num_aq_datasets
+  PetscBool :: use_aq_dataset
+  PetscReal :: ave_num_iterations
+  PetscReal :: tempreal
+  PetscInt :: prev_equilibrated_ghosted_id
+  PetscReal, pointer :: flow_xx_p(:)
+  PetscLogDouble :: tstart, tend
+  
+  option => realization%option
+  discretization => realization%discretization
+  field => realization%field
+  patch => realization%patch
+  reaction => realization%reaction
+  
+  iphase = 1
+  vec1_loc = PETSC_NULL_VEC
+  vec2_loc = PETSC_NULL_VEC
+  
+  cur_patch => realization%patch_list%first
+  do
+    if (.not.associated(cur_patch)) exit
+
+    grid => cur_patch%grid
+    rt_auxvars => cur_patch%aux%RT%auxvars
+    global_auxvars => cur_patch%aux%Global%auxvars
+    material_auxvars => cur_patch%aux%Material%auxvars
+
+    ! assign initial conditions values to domain
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    select case(option%iflowmode)
+      case(MPH_MODE,FLASH2_MODE)
+        call VecGetArrayF90(field%flow_xx,flow_xx_p, ierr);CHKERRQ(ierr)
+    end select
+      
+    xx_p = UNINITIALIZED_DOUBLE
+      
+    initial_condition => cur_patch%initial_condition_list%first
+    do
+      
+      if (.not.associated(initial_condition)) exit
+        
+      constraint_coupler => &
+        TranConstraintCouplerRTCast(initial_condition%tran_condition% &
+                                      cur_constraint_coupler)
+      constraint => TranConstraintRTCast(constraint_coupler%constraint)
+
+      equilibrate_at_each_cell = constraint_coupler%equilibrate_at_each_cell
+      use_aq_dataset = PETSC_FALSE
+      num_aq_datasets = 0
+      aq_dataset_to_idof = 0
+      do idof = 1, reaction%naqcomp ! primary aqueous concentrations
+        if (constraint%aqueous_species%external_dataset(idof)) then
+          num_aq_datasets = num_aq_datasets + 1
+          aq_dataset_to_idof(num_aq_datasets) = idof
+          equilibrate_at_each_cell = PETSC_TRUE
+          use_aq_dataset = PETSC_TRUE
+          string = 'constraint ' // trim(constraint%name)
+          dataset => DatasetBaseGetPointer(realization%datasets, &
+                        constraint%aqueous_species%constraint_aux_string(idof), &
+                        string,option)
+          call ConditionControlMapDatasetToVec(realization,dataset,idof, &
+                                                field%tran_xx_loc,LOCAL)
+        endif
+      enddo
+
+      ! read in heterogeneous mineral volume fractions
+      if (associated(constraint%minerals)) then
+        do imnrl = 1, reaction%mineral%nkinmnrl
+          if (constraint%minerals%external_vol_frac_dataset(imnrl)) then
+            equilibrate_at_each_cell = PETSC_TRUE
+            string = 'constraint ' // trim(constraint%name)
+            dataset => DatasetBaseGetPointer(realization%datasets, &
+                          constraint%minerals% &
+                            constraint_vol_frac_string(imnrl), &
+                          string,option)
+            if (vec1_loc == PETSC_NULL_VEC) then
+              ! cannot use field%work_loc as it is used within ConditionCo...
+              call VecDuplicate(field%work_loc,vec1_loc, &
+                                ierr);CHKERRQ(ierr)
+            endif 
+            idof = ONE_INTEGER
+            call ConditionControlMapDatasetToVec(realization,dataset,idof, &
+                                                 vec1_loc,LOCAL)
+            call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl) = vec_p(ghosted_id)
+              rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) = vec_p(ghosted_id)
+            enddo
+            call VecRestoreArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
+          endif
+        enddo
+      endif
+          
+      ! read in heterogeneous mineral surface area
+      if (associated(constraint%minerals)) then
+        do imnrl = 1, reaction%mineral%nkinmnrl
+          if (constraint%minerals%external_area_dataset(imnrl)) then
+            equilibrate_at_each_cell = PETSC_TRUE
+            string = 'constraint ' // trim(constraint%name)
+            dataset => DatasetBaseGetPointer(realization%datasets, &
+                          constraint%minerals% &
+                          constraint_area_string(imnrl), &
+                          string,option)
+            if (vec1_loc == PETSC_NULL_VEC) then
+              ! cannot use field%work_loc as it is used within ConditionCo...
+              call VecDuplicate(field%work_loc,vec1_loc, &
+                                ierr);CHKERRQ(ierr)
+            endif 
+            idof = ONE_INTEGER
+            call ConditionControlMapDatasetToVec(realization,dataset,idof, &
+                                                 vec1_loc,LOCAL)
+            call VecScale(vec1_loc,constraint%minerals% &
+                            constraint_area_conv_factor(imnrl), &
+                          ierr);CHKERRQ(ierr)
+            if (constraint%minerals%area_per_unit_mass(imnrl)) then
+              if (constraint%minerals% &
+                    external_vol_frac_dataset(imnrl)) then
+                dataset => DatasetBaseGetPointer(realization%datasets, &
+                              constraint%minerals% &
+                                constraint_vol_frac_string(imnrl), &
+                              string,option)
+                if (vec2_loc == PETSC_NULL_VEC) then
+                  call VecDuplicate(vec1_loc,vec2_loc, &
+                                    ierr);CHKERRQ(ierr)
+                endif 
+                idof = ONE_INTEGER
+                call ConditionControlMapDatasetToVec(realization,dataset, &
+                                                     idof,vec2_loc,LOCAL)
+                call VecPointwiseMult(vec1_loc,vec1_loc, &
+                                      vec2_loc,ierr);CHKERRQ(ierr)
+              else
+                call VecScale(vec1_loc, &
+                              constraint%minerals% &
+                                constraint_vol_frac(imnrl), &
+                              ierr);CHKERRQ(ierr)
+              endif
+            endif
+            call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              rt_auxvars(ghosted_id)%mnrl_area0(imnrl) = vec_p(ghosted_id)
+              rt_auxvars(ghosted_id)%mnrl_area(imnrl) = vec_p(ghosted_id)
+            enddo
+            call VecRestoreArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
+          endif
+        enddo
+      endif
+          
+      ! read in heterogeneous immobile
+      if (associated(constraint%immobile_species)) then
+        do iimmobile = 1, reaction%immobile%nimmobile
+          if (constraint%immobile_species%external_dataset(iimmobile)) then
+            ! no need to requilibrate at each cell
+            string = 'constraint ' // trim(constraint%name)
+            dataset => DatasetBaseGetPointer(realization%datasets, &
+                constraint%immobile_species%constraint_aux_string(iimmobile), &
+                string,option)
+            if (vec1_loc == PETSC_NULL_VEC) then
+              ! cannot use field%work_loc as it is used within ConditionCo...
+              call VecDuplicate(field%work_loc,vec1_loc, &
+                                ierr);CHKERRQ(ierr)
+            endif 
+            idof = ONE_INTEGER
+            call ConditionControlMapDatasetToVec(realization,dataset,idof, &
+                                                 vec1_loc,LOCAL)
+            call VecGetArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              rt_auxvars(ghosted_id)%immobile(iimmobile) = vec_p(ghosted_id)
+            enddo
+            call VecRestoreArrayF90(vec1_loc,vec_p,ierr);CHKERRQ(ierr)
+          endif
+        enddo
+      endif
+          
+      if (.not.option%use_isothermal) then
+        equilibrate_at_each_cell = PETSC_TRUE
+      endif
+        
+      if (use_aq_dataset) then
+        call VecGetArrayF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+        call PetscTime(tstart,ierr);CHKERRQ(ierr)
+      endif
+        
+      ave_num_iterations = 0.d0
+      prev_equilibrated_ghosted_id = 0
+      do icell=1,initial_condition%region%num_cells
+        local_id = initial_condition%region%cell_ids(icell)
+        ghosted_id = grid%nL2G(local_id)
+        iend = local_id*option%ntrandof
+        ibegin = iend-option%ntrandof+1
+        if (cur_patch%imat(ghosted_id) <= 0) then
+          xx_p(ibegin:iend) = 1.d-200
+          cycle
+        endif
+        if (equilibrate_at_each_cell) then
+          if (use_aq_dataset) then
+            offset = (ghosted_id-1)*option%ntrandof
+            do iaqdataset = 1, num_aq_datasets
+              ! remember that xx_loc_p holds the data set values that 
+              ! were read in
+              temp_int = aq_dataset_to_idof(iaqdataset)
+              constraint%aqueous_species%constraint_conc(temp_int) = &
+                xx_loc_p(offset+temp_int)
+            enddo
+          endif
+          option%iflag = grid%nG2A(grid%nL2G(local_id))
+          if (prev_equilibrated_ghosted_id > 0) then
+            ! copy molalities from previous equilibrated auxvar as initial guess
+            call RTAuxVarCopyInitialGuess(rt_auxvars(ghosted_id), &
+              rt_auxvars(prev_equilibrated_ghosted_id),option)
+          endif
+          call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
+            global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
+            reaction,constraint, &
+            constraint_coupler%num_iterations, &
+            (prev_equilibrated_ghosted_id > 0),option)
+          option%iflag = 0
+          ave_num_iterations = ave_num_iterations + &
+            constraint_coupler%num_iterations
+          ! update CO2 mole fraction for CO2 modes
+#if 0
+          ! TODO(geh): ideally, the intermingling of the flow process model
+          ! with transport is not ideal.  Peter should be looking into whether
+          ! we can remove this code in favor of a slighly less accurate
+          ! solution.
+          select case(option%iflowmode)
+            case(MPH_MODE,FLASH2_MODE)
+              if (global_auxvars(ghosted_id)%istate == 1) then
+                tempreal = &
+                  RCO2MoleFraction(rt_auxvars(ghosted_id), &
+                                   global_auxvars(ghosted_id),reaction,option)
+                ! concentration dof in flow solution vector
+                flow_xx_p(local_id*option%nflowdof) = tempreal
+              endif
+          end select
+#endif
+          ! prev_eq_ghosted_id is only updated to the prev active cell
+          prev_equilibrated_ghosted_id = ghosted_id
+        endif
+        ! ibegin is the local non-ghosted offset: (local_id-1)*option%ntrandof+1
+        offset = ibegin + reaction%offset_aqueous - 1
+        ! primary aqueous concentrations
+        do idof = 1, reaction%naqcomp 
+          xx_p(offset+idof) = &
+            constraint%aqueous_species%basis_molarity(idof) / &
+            global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 ! convert molarity -> molality
+        enddo
+        ! mineral volume fractions
+        if (associated(constraint%minerals)) then
+          do imnrl = 1, reaction%mineral%nkinmnrl
+            ! if read from a dataset, the vol frac was set above.  Don't want to
+            ! overwrite
+            if (.not.constraint%minerals% &
+                  external_vol_frac_dataset(imnrl)) then
+              rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl) = &
+                constraint%minerals%constraint_vol_frac(imnrl)
+              rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl) = &
+                constraint%minerals%constraint_vol_frac(imnrl)
+            endif
+            if (.not.constraint%minerals% &
+                  external_area_dataset(imnrl)) then
+              rt_auxvars(ghosted_id)%mnrl_area0(imnrl) = &
+                constraint%minerals%constraint_area(imnrl)
+              rt_auxvars(ghosted_id)%mnrl_area(imnrl) = &
+                constraint%minerals%constraint_area(imnrl)
+            endif
+          enddo
+        endif
+        ! kinetic surface complexes
+        if (associated(constraint%surface_complexes)) then
+          do idof = 1, reaction%surface_complexation%nkinsrfcplx
+            rt_auxvars(ghosted_id)%kinsrfcplx_conc(idof,-1) = & !geh: to catch bug
+              constraint%surface_complexes%constraint_conc(idof)
+          enddo
+          do ikinrxn = 1, reaction%surface_complexation%nkinsrfcplxrxn
+            irxn = reaction%surface_complexation%kinsrfcplxrxn_to_srfcplxrxn(ikinrxn)
+            isite = reaction%surface_complexation%srfcplxrxn_to_surf(irxn)
+            rt_auxvars(ghosted_id)%kinsrfcplx_free_site_conc(isite) = &
+              constraint%surface_complexes%basis_free_site_conc(isite)
+          enddo
+        endif
+        ! this is for the multi-rate surface complexation model
+        if (reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
+          ! geh: if we re-equilibrate at each grid cell, we do not want to
+          ! overwrite the reequilibrated values with those from the constraint
+            .not. equilibrate_at_each_cell) then
+          ! copy over total sorbed concentration
+          rt_auxvars(ghosted_id)%kinmr_total_sorb = &
+            constraint_coupler%rt_auxvar%kinmr_total_sorb
+          ! copy over free site concentration
+          rt_auxvars(ghosted_id)%srfcplxrxn_free_site_conc = &
+            constraint_coupler%rt_auxvar%srfcplxrxn_free_site_conc
+        endif
+        ! colloids fractions
+        if (associated(constraint%colloids)) then
+          offset = ibegin + reaction%offset_colloid - 1
+          do idof = 1, reaction%ncoll ! primary aqueous concentrations
+            xx_p(offset+idof) = &
+              constraint%colloids%basis_conc_mob(idof) / &
+              global_auxvars(ghosted_id)%den_kg(iphase)*1000.d0 ! convert molarity -> molality
+            rt_auxvars(ghosted_id)%colloid%conc_imb(idof) = &
+              constraint%colloids%basis_conc_imb(idof)
+          enddo
+        endif
+        ! immobile
+        if (associated(constraint%immobile_species)) then
+          offset = ibegin + reaction%offset_immobile - 1
+          do iimmobile = 1, reaction%immobile%nimmobile
+            if (constraint%immobile_species%external_dataset(iimmobile)) then
+              ! already read into rt_auxvars above.
+              xx_p(offset+iimmobile) = &
+                rt_auxvars(ghosted_id)%immobile(iimmobile)
+            else
+              xx_p(offset+iimmobile) = &
+                constraint%immobile_species%constraint_conc(iimmobile)
+              rt_auxvars(ghosted_id)%immobile(iimmobile) = &
+                constraint%immobile_species%constraint_conc(iimmobile)
+            endif
+          enddo
+        endif
+      enddo ! icell=1,initial_condition%region%num_cells
+      if (use_aq_dataset) then
+        call PetscTime(tend,ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%tran_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)
+        ave_num_iterations = ave_num_iterations / &
+          initial_condition%region%num_cells
+        write(option%io_buffer,&
+              '("Average number of iterations in ReactionEquilibrateConstraint():", &
+              & f5.1)') ave_num_iterations
+        call PrintMsg(option)
+        write(option%io_buffer,'(f10.2," Seconds to equilibrate constraints")') &
+          tend-tstart
+        call PrintMsg(option)
+      endif
+      initial_condition => initial_condition%next
+    enddo
+      
+    call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+    select case(option%iflowmode)
+      case(MPH_MODE,FLASH2_MODE)
+        call VecRestoreArrayF90(field%flow_xx,flow_xx_p, ierr);CHKERRQ(ierr)
+    end select
+
+    cur_patch => cur_patch%next
+  enddo
+  
+  ! check to ensure that minimum concentration is not less than or equal
+  ! to zero
+  call VecMin(field%tran_xx,PETSC_NULL_INTEGER,tempreal,ierr);CHKERRQ(ierr)
+  if (tempreal <= 0.d0) then
+    option%io_buffer = 'ERROR: Zero concentrations found in initial ' // &
+      'transport solution.'
+    call PrintMsg(option)
+    ! now figure out which species have zero concentrations
+    do idof = 1, option%ntrandof
+      call VecStrideMin(field%tran_xx,idof-1,offset,tempreal, &
+                        ierr);CHKERRQ(ierr)
+      if (tempreal <= 0.d0) then
+        write(string,*) tempreal
+        if (idof <= reaction%naqcomp) then
+          string2 = '  Aqueous species "' // &
+            trim(reaction%primary_species_names(idof))
+        else
+          string2 = '  Immobile species "' // &
+            trim(reaction%immobile%names(idof-reaction%offset_immobile))
+        endif
+          string2 = trim(string2) // &
+            '" has zero concentration (' // &
+            trim(adjustl(string)) // ').'
+        call PrintMsg(option,string2)
+      endif
+    enddo
+    option%io_buffer = ''
+    call PrintMsg(option)
+    option%io_buffer = '*** Begin Note'
+    call PrintMsg(option)
+    option%io_buffer = 'If concentrations = -999., they have not ' // &
+              'been initialized properly.'
+    call PrintMsg(option)
+    option%io_buffer = '*** End Note'
+    call PrintMsg(option)
+    option%io_buffer = 'Free ion concentations must be positive.  Try ' // &
+      'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
+    call PrintErrMsg(option)
+  endif
+  
+  ! update dependent vectors
+  call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)  
+  call VecCopy(field%tran_xx, field%tran_yy, ierr);CHKERRQ(ierr)
+
+  ! override initial conditions if they are to be read from a file
+  if (len_trim(option%initialize_transport_filename) > 1) then
+    call CondControlReadTransportIC(realization, &
+                                    option%initialize_transport_filename)
+  endif
+  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+  ! at this point the auxvars have been computed with activity coef = 1.d0
+  ! to use intitial condition with activity coefs /= 1.d0, must update
+  ! activity coefs and recompute auxvars
+  if (realization%reaction%act_coef_update_frequency /= &
+      ACT_COEF_FREQUENCY_OFF) then
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE)
+    !geh: you may ask, why call this twice....  We need to iterate at least
+    !     once to ensure that the activity coefficients are more accurate.
+    !     Otherwise, the total component concentrations can be quite
+    !     different from what is defined in the input file.
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE)
+  endif
+
+  if (vec1_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(vec1_loc,ierr);CHKERRQ(ierr)
+  endif
+  if (vec2_loc /= PETSC_NULL_VEC) then
+    call VecDestroy(vec2_loc,ierr);CHKERRQ(ierr)
+  endif
+
+end subroutine CondControlAssignRTTranInitCond
+
 
 ! ************************************************************************** !
 
@@ -208,8 +707,6 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   ! Author: Glenn Hammond
   ! Date: 03/23/12
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Option_module
   use Field_module
@@ -259,7 +756,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // &
           '" not supported in ConditionControlMapDatasetToVec.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
 
@@ -419,5 +916,240 @@ subroutine CondControlScaleSourceSink(realization)
 end subroutine CondControlScaleSourceSink
 
 ! ************************************************************************** !
+
+subroutine CondControlReadTransportIC(realization,filename)
+  ! 
+  ! Assigns transport initial condition from
+  ! HDF5 file
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/05/10
+  ! 
+
+  use Realization_Subsurface_class
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Patch_module
+  use Reactive_Transport_module
+  use Reaction_Aux_module
+  use Discretization_module
+  use HDF5_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+  character(len=MAXSTRINGLENGTH) :: filename
+  
+  PetscInt :: local_id, idx, offset, idof
+  PetscReal, pointer :: xx_p(:)
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  PetscReal, pointer :: vec_p(:)  
+  PetscErrorCode :: ierr
+  
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field  
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(patch_type), pointer :: cur_patch
+  class(reaction_rt_type), pointer :: reaction
+
+  option => realization%option
+  discretization => realization%discretization
+  field => realization%field
+  patch => realization%patch
+  reaction => realization%reaction
+
+  cur_patch => realization%patch_list%first
+  do
+    if (.not.associated(cur_patch)) exit
+
+    grid => cur_patch%grid
+
+      ! assign initial conditions values to domain
+    call VecGetArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+
+    ! Primary species concentrations for all modes 
+    do idof = 1, option%ntrandof ! primary aqueous concentrations
+      offset = idof
+      group_name = ''
+      if (associated(reaction)) &
+        dataset_name = reaction%primary_species_names(idof)
+      if (associated(realization%reaction_nw)) &
+        dataset_name = realization%reaction_nw%species_names(idof)
+      call HDF5ReadCellIndexedRealArray(realization,field%work, &
+                                        filename,group_name, &
+                                        dataset_name,option%id>0)
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id=1, grid%nlmax
+        if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
+        if (vec_p(local_id) < 1.d-40) then
+          print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
+            ': Zero free-ion concentration in Initial Condition read from file.'
+        endif
+        idx = (local_id-1)*option%ntrandof + offset
+        xx_p(idx) = vec_p(local_id)
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+     
+    enddo     
+
+    call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
+        
+    cur_patch => cur_patch%next
+  enddo
+   
+  ! update dependent vectors
+  call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)  
+  call VecCopy(field%tran_xx, field%tran_yy, ierr);CHKERRQ(ierr)
+  
+end subroutine CondControlReadTransportIC
+
+! ************************************************************************** !
+
+subroutine CondControlAssignFlowInitCondSurface(surf_realization)
+
+  use Realization_Surface_class
+  use Discretization_module
+  use Region_module
+  use Option_module
+  use Surface_Field_module
+  use Coupler_module
+  use Condition_module
+  use Grid_module
+  use Patch_module
+  use EOS_Water_module
+  use Surface_TH_Aux_module
+  use Surface_Global_Aux_module
+  
+  implicit none
+  
+  class(realization_surface_type) :: surf_realization
+  
+  PetscInt :: icell, iconn, idof, iface
+  PetscInt :: local_id, ghosted_id, iend, ibegin
+  PetscReal, pointer :: xx_p(:)
+  PetscErrorCode :: ierr
+  
+  PetscReal :: temperature, p_sat
+  PetscReal :: pw, dw_kg, dw_mol, hw
+  PetscReal :: temp
+  PetscReal :: dpsat_dt
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  type(option_type), pointer :: option
+  type(surface_field_type), pointer :: surf_field  
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(coupler_type), pointer :: initial_condition
+  type(patch_type), pointer :: cur_patch
+  type(flow_general_condition_type), pointer :: general
+  type(Surface_TH_auxvar_type), pointer :: surf_th_auxvars(:)
+  type(surface_global_auxvar_type), pointer :: surf_global_auxvars(:)
+
+  option => surf_realization%option
+  discretization => surf_realization%discretization
+  surf_field => surf_realization%surf_field
+  patch => surf_realization%patch
+
+  if ((option%iflowmode == TH_MODE) .or. &
+      (option%iflowmode == TH_MODE)) then
+    surf_th_auxvars => patch%surf_aux%SurfaceTH%auxvars
+    surf_global_auxvars => patch%surf_aux%SurfaceGlobal%auxvars
+  endif
+
+  cur_patch => surf_realization%patch_list%first
+  do
+    if (.not.associated(cur_patch)) exit
+
+    grid => cur_patch%grid
+
+    select case(option%iflowmode)
+      
+      case (TH_MODE)
+        ! assign initial conditions values to domain
+        call VecGetArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+    
+        xx_p = UNINITIALIZED_DOUBLE
+      
+        initial_condition => cur_patch%initial_condition_list%first
+        do
+      
+          if (.not.associated(initial_condition)) exit
+
+            if (.not.associated(initial_condition%flow_aux_real_var)) then
+              if (.not.associated(initial_condition%flow_condition)) then
+                option%io_buffer = 'Flow condition is NULL in initial condition'
+                call PrintErrMsg(option)
+              endif
+              do icell=1,initial_condition%region%num_cells
+                local_id = initial_condition%region%cell_ids(icell)
+                ghosted_id = grid%nL2G(local_id)
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                if (cur_patch%imat(ghosted_id) <= 0) then
+                  xx_p(ibegin:iend) = 0.d0
+                  cycle
+                endif
+                do idof = 1, option%nflowdof
+                  select case (idof)
+                    case (ONE_INTEGER)
+                      xx_p(ibegin+idof-1) = &
+                        initial_condition%flow_condition% &
+                        sub_condition_ptr(idof)%ptr%dataset%rarray(1)
+                    case (TWO_INTEGER)
+                      temp = &
+                        initial_condition%flow_condition% &
+                        sub_condition_ptr(idof)%ptr%dataset%rarray(1)
+                      pw = option%reference_pressure
+                        
+                      call EOSWaterDensity(temp,pw,dw_kg,dw_mol,ierr)
+                      ! [rho*h*T*Cw]
+                      xx_p(ibegin+idof-1) = dw_kg*xx_p(ibegin)* &
+                                            (temp + 273.15d0)* &
+                                            surf_th_auxvars(ghosted_id)%Cw
+                      surf_global_auxvars(ghosted_id)%den_kg(1) = dw_kg
+                      surf_global_auxvars(ghosted_id)%temp = temp
+                  end select
+                enddo
+                xx_p(ibegin:iend) = 0.0d0
+              enddo
+            else
+              do iconn=1,initial_condition%connection_set%num_connections
+                local_id = initial_condition%connection_set%id_dn(iconn)
+                ghosted_id = grid%nL2G(local_id)
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                if (cur_patch%imat(ghosted_id) <= 0) then
+                  xx_p(ibegin:iend) = 0.d0
+                  cycle
+                endif
+                xx_p(ibegin:iend) = &
+                      initial_condition%flow_aux_real_var(1:option%nflowdof,iconn)
+                xx_p(ibegin:iend) = 0.0d0
+              enddo
+            endif
+          initial_condition => initial_condition%next
+        enddo
+     
+        call VecRestoreArrayF90(surf_field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+      case default
+        option%io_buffer = 'CondControlAssignFlowInitCondSurface not ' // &
+          'for this mode'
+        call PrintErrMsg(option)
+    end select 
+   
+    cur_patch => cur_patch%next
+  enddo
+   
+  ! update dependent vectors
+  call DiscretizationGlobalToLocal(discretization, surf_field%flow_xx, &
+                                   surf_field%flow_xx_loc, NFLOWDOF)
+
+end subroutine CondControlAssignFlowInitCondSurface
 
 end module Condition_Control_module

@@ -1,6 +1,8 @@
 module Timestepper_Base_class
  
 #include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Waypoint_module 
   use Solver_module
  
@@ -137,8 +139,6 @@ subroutine TimestepperBaseInit(this)
   ! Date: 07/01/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
   class(timestepper_base_type) :: this
@@ -235,7 +235,7 @@ subroutine TimestepperBaseRead(this,input,option)
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseRead not supported.  Requires extension.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine TimestepperBaseRead
 
@@ -249,8 +249,6 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   ! Date: 03/20/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   use String_module
   use Input_Aux_module
@@ -298,11 +296,16 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputErrorMsg(input,option,'timestep overstep tolerance', &
                          error_string)
     case('INITIALIZE_TO_STEADY_STATE')
+      option%io_buffer = 'INITIALIZE_TO_STEADY_STATE capability has been &
+                         &disabled.'
+      call PrintErrMsg(option)
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)
       call InputErrorMsg(input,option,'steady state convergence relative &
                          &tolerance',error_string)
     case('RUN_AS_STEADY_STATE')
+      option%io_buffer = 'RUN_AS_STEADY_STATE capability has been disabled.'
+      call PrintErrMsg(option)
       this%run_as_steady_state = PETSC_TRUE
     case('PRINT_EKG')
       this%print_ekg = PETSC_TRUE
@@ -313,9 +316,9 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
          'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
       option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
         &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     case default
-      call InputKeywordUnrecognized(keyword,error_string,option)
+      call InputKeywordUnrecognized(input,keyword,error_string,option)
   end select
 
 end subroutine TimestepperBaseProcessKeyword
@@ -339,7 +342,7 @@ subroutine TimestepperBaseUpdateDT(this,process_model)
   class(pm_base_type) :: process_model
   
   process_model%option%io_buffer = 'TimestepperBaseStepDT must be extended.'
-  call printErrMsg(process_model%option)
+  call PrintErrMsg(process_model%option)
 
 end subroutine TimestepperBaseUpdateDT
 
@@ -356,8 +359,6 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
   ! Date: 03/20/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -388,7 +389,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
 !geh: for debugging
 #ifdef DEBUG
   option%io_buffer = 'TimestepperBaseSetTargetTime()'
-  call printMsg(option)
+  call PrintMsg(option)
 #endif
   
   if (this%time_step_cut_flag) then
@@ -545,7 +546,6 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
     stop_flag = TS_STOP_END_SIMULATION ! stop after end of time step
   endif
   
-  option%refactor_dt = dt
   this%dt = dt
   this%dt_max = dt_max
   this%target_time = target_time
@@ -578,7 +578,7 @@ subroutine TimestepperBaseStepDT(this,process_model,stop_flag)
   option => process_model%option
   
   option%io_buffer = 'TimestepperBaseStepDT must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
   
 end subroutine TimestepperBaseStepDT
 
@@ -655,8 +655,6 @@ subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -668,7 +666,7 @@ subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseCheckpointBinary must be extended.'
-  call printErrMsg(option)  
+  call PrintErrMsg(option)
     
 end subroutine TimestepperBaseCheckpointBinary
 
@@ -691,7 +689,7 @@ subroutine TimestepperBaseCheckpointHDF5(this, h5_chk_grp_id, option)
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseCheckpointHDF5 must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine TimestepperBaseCheckpointHDF5
 
@@ -714,7 +712,7 @@ subroutine TimestepperBaseRestartHDF5(this, h5_chk_grp_id, option)
   type(option_type) :: option
 
   option%io_buffer = 'TimestepperBaseRestartHDF5 must be extended.'
-  call printErrMsg(option)
+  call PrintErrMsg(option)
 
 end subroutine TimestepperBaseRestartHDF5
 
@@ -727,8 +725,6 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   ! Author: Glenn Hammond
   ! Date: 07/30/13
   ! 
-#include "petsc/finclude/petscsys.h"  
-  use petscsys
   use Option_module
 
   implicit none
@@ -769,8 +765,6 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -805,8 +799,6 @@ subroutine TimestepperBaseRestartBinary(this,viewer,option)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -816,7 +808,7 @@ subroutine TimestepperBaseRestartBinary(this,viewer,option)
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseRestartBinary must be extended.'
-  call printErrMsg(option)  
+  call PrintErrMsg(option)
     
 end subroutine TimestepperBaseRestartBinary
 
@@ -830,8 +822,6 @@ subroutine TimestepperBaseGetHeader(this,header)
   ! Date: 07/25/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -861,8 +851,6 @@ subroutine TimestepperBaseReset(this)
   ! Date: 01/20/14
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   implicit none
   
 
@@ -888,8 +876,6 @@ function TimestepperBaseWallClockStop(this,option)
   ! Author: Glenn Hammond
   ! Date: 08/08/14
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -927,8 +913,6 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   ! Date: 07/22/13
   ! 
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
   
   implicit none
@@ -939,7 +923,7 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   character(len=MAXSTRINGLENGTH) :: string
   
 #ifdef DEBUG
-  call printMsg(option,'TimestepperBaseFinalizeRun()')
+  call PrintMsg(option,'TimestepperBaseFinalizeRun()')
 #endif
   
   if (OptionPrintToScreen(option)) then

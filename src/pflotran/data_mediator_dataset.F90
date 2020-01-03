@@ -1,6 +1,8 @@
 module Data_Mediator_Dataset_class
+
 #include "petsc/finclude/petscvec.h"
   use petscvec
+
   use PFLOTRAN_Constants_module
   use Data_Mediator_Base_class
   use Dataset_Global_HDF5_class
@@ -70,6 +72,7 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
   character(len=MAXWORDLENGTH) :: keyword
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
@@ -91,10 +94,11 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'DATASET,NAME','MASS_TRANSFER')
       case default
-        call InputKeywordUnrecognized(keyword,'MASS_TRANSFER',option)
+        call InputKeywordUnrecognized(input,keyword,'MASS_TRANSFER',option)
     end select
     
   enddo  
+  call InputPopBlock(input,option)
 
 end subroutine DataMediatorDatasetRead
 
@@ -109,8 +113,6 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   ! Author: Glenn Hammond
   ! Date: 05/09/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Discretization_module
   use Dataset_Base_class
   use Dataset_Common_HDF5_class
@@ -131,7 +133,7 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
   if (.not.associated(data_mediator%dataset)) then
     option%io_buffer = 'A "global" DATASET does not exist for ' // &
       'MASS_TRANSFER object "' // trim(data_mediator%name) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
   string = 'Data Mediator ' // trim(data_mediator%name)
@@ -145,7 +147,7 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
     class default
       option%io_buffer = 'DATASET ' // trim(dataset%name) // 'is not of ' // &
         'GLOBAL type, which is necessary for all MASS_TRANSFER objects.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
   ! dm_wrapper is solely a pointer; it should not be allocated
   data_mediator%dataset%dm_wrapper => discretization%dm_1dof
@@ -189,8 +191,6 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   ! Author: Glenn Hammond
   ! Date: 05/01/13
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use String_module
   
@@ -236,7 +236,7 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   ndof_per_cell = mdof_local_size / this%dataset%local_size
   if (mod(mdof_local_size,this%dataset%local_size) > 0) then
     option%io_buffer = 'Mismatched vector size in MassTransferUpdate.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   call VecGetArrayF90(data_mediator_vec,vec_ptr,ierr);CHKERRQ(ierr)
   offset = this%idof

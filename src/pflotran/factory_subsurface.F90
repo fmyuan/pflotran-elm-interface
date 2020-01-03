@@ -19,7 +19,9 @@ module Factory_Subsurface_module
   public :: SubsurfaceInitialize, &
             SubsurfaceInitializePostPETSc, &
             SubsurfaceJumpStart, &
-            SubsurfaceReadFlowPM
+            ! move to init_subsurface
+            SubsurfaceReadFlowPM, &
+            SubsurfaceReadRTPM, &
 
 contains
 
@@ -55,19 +57,10 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   use Option_module
   use PM_Subsurface_Flow_class
-  use PM_Base_class
-
-  use Timestepper_BE_class
+  use PM_RT_class
   use Realization_Subsurface_class
-  use Logging_module
   use Simulation_Subsurface_class
-  use Solver_module
   use Waypoint_module
-  use Init_Common_module
-  use Init_Subsurface_module
-  use Input_Aux_module
-  use String_module
-  use Checkpoint_module
 
   implicit none
 
@@ -75,6 +68,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   type(option_type), pointer :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
+  class(pm_rt_type), pointer :: pm_rt
   class(realization_subsurface_type), pointer :: realization
 
   option => simulation%option
@@ -82,8 +76,9 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   ! process command line arguments specific to subsurface
   call SubsurfInitCommandLineSettings(option)
 
-  call ExtractPMsFromPMList(simulation,   &
-                            pm_flow)
+  call ExtractPMsFromPMList(simulation, &
+                            pm_flow, &
+                            pm_rt)
 
   call SubsurfaceSetFlowMode(pm_flow,option)
 
@@ -94,7 +89,9 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
   simulation%waypoint_list_subsurface => WaypointListCreate()
 
   ! Setup linkages between PMCs
-  call SetupPMCLinkages(simulation,pm_flow, &
+  call SetupPMCLinkages(simulation, &
+                        pm_flow, &
+                        pm_rt, &
                         realization)
   
   ! SubsurfaceInitSimulation() must be called after pmc linkages are set above.
@@ -107,8 +104,9 @@ end subroutine SubsurfaceInitializePostPetsc
 
 ! ************************************************************************** !
 
-subroutine ExtractPMsFromPMList(simulation,   &
-                                pm_flow)
+subroutine ExtractPMsFromPMList(simulation, &
+                                pm_flow, &
+                                pm_rt)
   !
   ! Extracts all possible PMs from the PM list
   !
@@ -118,7 +116,7 @@ subroutine ExtractPMsFromPMList(simulation,   &
 
   use PM_Subsurface_Flow_class
   use PM_Base_class
-
+  use PM_RT_class
   use Option_module
   use Simulation_Subsurface_class
 
@@ -128,12 +126,13 @@ subroutine ExtractPMsFromPMList(simulation,   &
 
   type(option_type), pointer :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
-
+  class(pm_rt_type), pointer :: pm_rt
   class(pm_base_type), pointer :: cur_pm, prev_pm
 
   option => simulation%option
 
   nullify(pm_flow)
+  nullify(pm_rt)
 
   cur_pm => simulation%process_model_list
   do
@@ -141,10 +140,12 @@ subroutine ExtractPMsFromPMList(simulation,   &
     select type(cur_pm)
       class is(pm_subsurface_flow_type)
         pm_flow => cur_pm
+      class is(pm_rt_type)
+        pm_rt => cur_pm
       class default
         option%io_buffer = &
          'PM Class unrecognized in SubsurfaceInitializePostPetsc.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
 
     prev_pm => cur_pm
@@ -160,7 +161,9 @@ end subroutine ExtractPMsFromPMList
 
 ! ************************************************************************** !
 
-subroutine SetupPMCLinkages(simulation, pm_flow, &
+subroutine SetupPMCLinkages(simulation, &
+                            pm_flow, &
+                            pm_rt, &
                             realization)
   !
   ! Sets up all PMC linkages
@@ -170,8 +173,7 @@ subroutine SetupPMCLinkages(simulation, pm_flow, &
   !
 
   use PM_Subsurface_Flow_class
-  use PM_Base_class
-
+  use PM_RT_class
   use Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
@@ -180,7 +182,7 @@ subroutine SetupPMCLinkages(simulation, pm_flow, &
 
   class(simulation_subsurface_type) :: simulation
   class(pm_subsurface_flow_type), pointer :: pm_flow
-
+  class(pm_rt_type), pointer :: pm_rt
   class(realization_subsurface_type), pointer :: realization
 
   type(option_type), pointer :: option
@@ -192,6 +194,10 @@ subroutine SetupPMCLinkages(simulation, pm_flow, &
     call AddPMCSubsurfaceFlow(simulation,pm_flow,'PMCSubsurfaceFlow', &
                               realization,option)
 
+  if (associated(pm_rt))   &
+    call AddPMCSubsurfaceRT(simulation,pm_rt,'PMCSubsurfaceTransport', &
+                            realization,option)
+                            
   input => InputCreate(IN_UNIT,option%input_filename,option)
   call SubsurfaceReadRequiredCards(simulation,input)
   call SubsurfaceReadInput(simulation,input)
@@ -214,7 +220,6 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   use PM_Subsurface_Flow_class
   use PMC_Subsurface_class
   use Realization_Subsurface_class
-  use String_module
   use Option_module
   use Logging_module
 
@@ -246,6 +251,63 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
 
 end subroutine AddPMCSubsurfaceFlow
 
+! ************************************************************************** !
+
+subroutine AddPMCSubsurfaceRT(simulation,pm_rt,pmc_name,realization,option)
+
+  !
+  ! Adds a subsurface reactive transport PMC
+  !
+  ! Author: Gautam Bisht
+  ! Date: 06/05/18
+  !
+
+  use PMC_Base_class
+  use PM_RT_class
+  use PMC_Subsurface_class
+  use Realization_Subsurface_class
+  use Option_module
+  use Logging_module
+
+  implicit none
+
+  class(simulation_subsurface_type) :: simulation
+  class(pm_rt_type), pointer :: pm_rt
+  character(len=*) :: pmc_name
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+
+  class(pmc_subsurface_type), pointer :: pmc_subsurface
+  character(len=MAXSTRINGLENGTH) :: string
+  class(pmc_base_type), pointer :: pmc_dummy
+
+  nullify(pmc_dummy)
+
+  pmc_subsurface => PMCSubsurfaceCreate()
+  call pmc_subsurface%SetName(pmc_name)
+  call pmc_subsurface%SetOption(option)
+  call pmc_subsurface%SetCheckpointOption(simulation%checkpoint_option)
+  call pmc_subsurface%SetWaypointList(simulation%waypoint_list_subsurface)
+  pmc_subsurface%pm_list => pm_rt
+  pmc_subsurface%pm_ptr%pm => pm_rt
+  pmc_subsurface%realization => realization
+
+  ! set up logging stage
+  string = trim(pm_rt%name)
+  call LoggingCreateStage(string,pmc_subsurface%stage)
+  simulation%rt_process_model_coupler => pmc_subsurface
+
+  if (.not.associated(simulation%process_model_coupler_list)) then
+    simulation%process_model_coupler_list => pmc_subsurface
+  else
+    call PMCBaseSetChildPeerPtr(PMCCastToBase(pmc_subsurface),PM_CHILD, &
+                      PMCCastToBase(simulation%flow_process_model_coupler), &
+                      pmc_dummy,PM_INSERT)
+  endif
+
+end subroutine AddPMCSubsurfaceRT
+
+! ************************************************************************** !
 
 ! ************************************************************************** !
 
@@ -296,7 +358,6 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use Option_module
   use PM_Subsurface_Flow_class
   use PM_Base_class
-
   use PM_TH_class
 
   implicit none
@@ -304,7 +365,27 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   type(option_type) :: option
   class(pm_subsurface_flow_type), pointer :: pm_flow
 
+  if (.not.associated(pm_flow)) then
+    option%nphase = 1
+    option%liquid_phase = 1
+    option%gas_phase = 2 ! still set gas phase to 2 for transport
+    ! assume default isothermal when only transport
+    option%use_isothermal = PETSC_TRUE
+    return
+  endif
+
   select type(pm_flow)
+#if 0
+    class is (pm_th_type)
+      option%iflowmode = TH_MODE
+      option%nphase = 1
+      option%liquid_phase = 1
+      option%gas_phase = 2
+      option%nflowdof = 2
+      option%nflowspec = 1
+      option%use_isothermal = PETSC_FALSE
+      option%flow%store_fluxes = PETSC_TRUE
+#endif
     class is (pm_th_type)
       option%iflowmode = TH_MODE
       !
@@ -318,9 +399,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       !
       option%flow%store_fluxes = PETSC_TRUE
     class default
-      option%io_buffer = 'A TH flow MODE (card) must be included in the &
-         & SUBSURFACE_FLOW block.'
-      call printErrMsg(option)
+      option%io_buffer = ''
+      call PrintErrMsg(option)
 
   end select
 
@@ -356,10 +436,119 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
 
   nullify(pm)
   word = ''
+  call InputPushBlock(input,option)
   do
     call InputReadPflotranString(input,option)
     if (InputCheckExit(input,option)) exit
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case('MODE')
+        call InputReadCard(input,option,word,PETSC_FALSE)
+        call InputErrorMsg(input,option,'mode',error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('TH')
+            pm => PMTHCreate()
+          case default
+            error_string = trim(error_string) // ',MODE'
+            call InputKeywordUnrecognized(input,word,error_string,option)
+        end select
+        pm%option => option
+      case('OPTIONS')
+        if (.not.associated(pm)) then
+          option%io_buffer = 'MODE keyword must be read first under ' // &
+                             trim(error_string)
+          call PrintErrMsg(option)
+        endif
+        call pm%ReadSimulationBlock(input)
+      case default
+        call InputKeywordUnrecognized(input,word,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+  if (.not.associated(pm)) then
+    option%io_buffer = 'A flow MODE (card) must be included in the &
+      &SUBSURFACE_FLOW block in ' // trim(error_string) // '.'
+    call PrintErrMsg(option)
+  endif
+
+end subroutine SubsurfaceReadFlowPM
+
+! ************************************************************************** !
+
+subroutine SubsurfaceReadRTPM(input,option,pm)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/11/13
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PMC_Base_class
+  use PM_Base_class
+  use PM_RT_class
+
+  use Init_Common_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  class(pm_base_type), pointer :: pm
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_TRANSPORT'
+
+  pm => PMRTCreate()
+  pm%option => option
+  option%itranmode = RT_MODE
+
+  call pm%ReadSimulationBlock(input)
+
+end subroutine SubsurfaceReadRTPM
+
+! ************************************************************************** !
+
+! ************************************************************************** !
+
+subroutine SubsurfaceReadFlowPM(input,option,pm)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 06/11/13
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PMC_Base_class
+
+  use PM_Base_class
+  use PM_TH_class
+  use Init_Common_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  class(pm_base_type), pointer :: pm
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'SIMULATION,PROCESS_MODELS,SUBSURFACE_FLOW'
+
+  nullify(pm)
+  word = ''
+  call InputPushBlock(input,option)
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     select case(word)
       case('MODE')
@@ -382,10 +571,12 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
         endif
         call pm%ReadSimulationBlock(input)
       case default
-        error_string = trim(error_string) // ',SUBSURFACE_FLOW'
-        call InputKeywordUnrecognized(word,error_string,option)
+        option%io_buffer = 'Keyword ' // trim(word) // &
+              ' not recognized for the ' // trim(error_string) // ' block.'
+        call PrintErrMsg(option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (.not.associated(pm)) then
     option%io_buffer = 'A flow MODE (card) must be included in the &
@@ -444,6 +635,12 @@ subroutine SubsurfaceInitSimulation(simulation)
   if (associated(simulation%flow_process_model_coupler)) then
     if (associated(simulation%flow_process_model_coupler%timestepper)) then
       simulation%flow_process_model_coupler%timestepper%cur_waypoint => &
+        simulation%waypoint_list_subsurface%first
+    endif
+  endif
+  if (associated(simulation%rt_process_model_coupler)) then
+    if (associated(simulation%rt_process_model_coupler%timestepper)) then
+      simulation%rt_process_model_coupler%timestepper%cur_waypoint => &
         simulation%waypoint_list_subsurface%first
     endif
   endif
@@ -514,11 +711,10 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-
+  use PM_RT_class
   use Option_module
   use Simulation_Subsurface_class
   use Realization_Subsurface_class
-  use Timestepper_BE_class
 
   implicit none
 
@@ -544,6 +740,14 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     ! set realization
     select type(cur_pm)
     !-----------------------------------
+      class is(pm_rt_type)
+        if (.not.associated(realization%reaction)) then
+          option%io_buffer = 'SUBSURFACE_TRANSPORT specified as a &
+            &process model without a corresponding CHEMISTRY block.'
+          call PrintErrMsg(option)
+        endif
+        call cur_pm%SetRealization(realization)
+        
       class is(pm_subsurface_flow_type)
         call cur_pm%SetRealization(realization)
     !-----------------------------------
@@ -554,6 +758,8 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
       class is(pm_subsurface_flow_type)
         pmc%timestepper%dt = option%flow_dt
     !-----------------------------------
+      class is(pm_rt_type)
+        pmc%timestepper%dt = option%tran_dt
     end select
     cur_pm%output_option => simulation%output_option
     call cur_pm%Setup()
@@ -613,6 +819,21 @@ subroutine SubsurfaceSetupRealization(simulation)
 
   ! set reference densities if not specified in input file.
   call EOSReferenceDensity(option)
+  select case(option%itranmode) 
+    case(RT_MODE)
+      ! read reaction database
+      if (realization%reaction%use_full_geochemistry) then
+        call DatabaseRead(realization%reaction,option)
+        call BasisInit(realization%reaction,option)
+      else
+        ! turn off activity coefficients since the database has not been read
+        realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
+        !TODO(jenn) Should I turn on print here too?
+        allocate(realization%reaction%primary_species_print(option%ntrandof))
+        realization%reaction%primary_species_print = PETSC_TRUE
+      endif
+
+  end select
 
   ! create grid and allocate vectors
   call RealizationCreateDiscretization(realization)
@@ -639,6 +860,11 @@ subroutine SubsurfaceSetupRealization(simulation)
   ! RealizInitMaterialProperties() where the Material object is created
   call SubsurfAssignVolsToMatAuxVars(realization)
   call RealizationInitAllCouplerAuxVars(realization)
+  if (option%ntrandof > 0) then
+    call PrintMsg(option,"  Setting up TRAN Realization ")
+    call RealizationInitConstraints(realization)
+    call PrintMsg(option,"  Finished setting up TRAN Realization ")
+  endif
   call RealizationPrintCouplers(realization)
   if (.not.option%steady_state) then
     ! add waypoints associated with boundary conditions, source/sinks etc. to list
@@ -653,9 +879,9 @@ subroutine SubsurfaceSetupRealization(simulation)
 #endif
 
 #if !defined(HDF5_BROADCAST)
-  call printMsg(option,"Default HDF5 method is used in Initialization")
+  call PrintMsg(option,"Default HDF5 method is used in Initialization")
 #else
-  call printMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
+  call PrintMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
 #endif
 
 end subroutine SubsurfaceSetupRealization
@@ -701,7 +927,8 @@ subroutine SetupWaypointList(simulation)
   ! add in periodic time waypoints for checkpointing. these will not appear
   ! in the outer list
   call CheckpointPeriodicTimeWaypoints(simulation%checkpoint_option, &
-                                       simulation%waypoint_list_subsurface)
+                                       simulation%waypoint_list_subsurface, &
+                                       option)
 
   ! clean up waypoints
   if (.not.option%steady_state) then
@@ -747,6 +974,19 @@ subroutine SubsurfaceJumpStart(simulation)
                            PETSC_NULL_CHARACTER, "-vecload_block_size", &
                            failure, ierr);CHKERRQ(ierr)
 
+  if (option%transport%jumpstart_kinetic_sorption .and. &
+      option%time < 1.d-40) then
+    ! only user jumpstart for a restarted simulation
+    if (.not. option%restart_flag) then
+      option%io_buffer = 'Only use JUMPSTART_KINETIC_SORPTION on a &
+        &restarted simulation.  ReactionEquilibrateConstraint() will &
+        &appropriately set sorbed initial concentrations for a normal &
+        &(non-restarted) simulation.'
+      call PrintErrMsg(option)
+    endif
+    call RTJumpStartKineticSorption(realization)
+  endif
+
 end subroutine SubsurfaceJumpStart
 
 ! ************************************************************************** !
@@ -769,6 +1009,8 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   use HDF5_Aux_module
 
   use Simulation_Subsurface_class
+  use Reaction_module
+  use Reaction_Aux_module
   use Init_Common_module
 
 #ifdef CLM_PFLOTRAN
@@ -795,9 +1037,15 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   option => realization%option
   discretization => realization%discretization
 
+  qerr  = PETSC_FALSE
+  wname = '<missing>'
+  found = PETSC_FALSE
+
+  call InputPushBlock(input,'SUBSURFACE',option)
+
 ! Read in select required cards
 !.........................................................................
-!-------------------
+  ! .........................................................................
   ! when coupling with CLM, need to know if meshmaps are provided prior to 'GRID' reading
   ! if not, CLM mesh will directly over-ride whatever in PF input card
 #ifdef CLM_PFLOTRAN
@@ -811,12 +1059,12 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
   rewind(input%fid)
 #endif
 !-------------------
-  
   ! GRID information - GRID is a required card for every simulation
   string = "GRID"
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
+  call InputPushBlock(input,'GRID',option)
   call DiscretizationReadRequiredCards(discretization,input,option)
 
   select case(discretization%itype)
@@ -829,14 +1077,17 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
       call PatchAddToList(patch,realization%patch_list)
       realization%patch => patch
   end select
+  call InputPopBlock(input,option)
 
   ! optional required cards - yes, an oxymoron, but we need to know if
   ! these exist before we can go any further.
   call InputRewind(input)
+  call InputPushBlock(input,'REQUIRED_CARDS',option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
+    ! do not use InputReadCard here as this is a search operation
     call InputReadWord(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
@@ -845,6 +1096,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 !....................
       case('DBASE_FILENAME')
+        call InputPushCard(input,card,option)
         call InputReadFilename(input,option,string)
         call InputErrorMsg(input,option,'filename','DBASE_FILENAME')
         if (index(string,'.h5') > 0) then
@@ -855,16 +1107,19 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
 
 !....................
       case('HDF5_WRITE_GROUP_SIZE')
+        call InputPushCard(input,card,option)
         call InputReadInt(input,option,option%hdf5_write_group_size)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
         call InputSkipToEnd(input,option,'HDF5_WRITE_GROUP_SIZE')
 
       case('HDF5_READ_GROUP_SIZE')
+        call InputPushCard(input,card,option)
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
 
 !....................
       case('PROC')
+        call InputPushCard(input,card,option)
         ! processor decomposition
         if (realization%discretization%itype == STRUCTURED_GRID) then
           grid => realization%patch%grid
@@ -892,16 +1147,16 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
           if (option%myrank == option%io_rank .and. &
               option%print_to_screen) then
             option%io_buffer = ' Processor Decomposition:'
-            call printMsg(option)
+            call PrintMsg(option)
             write(option%io_buffer,'("  npx   = ",3x,i4)') &
               grid%structured_grid%npx
-            call printMsg(option)
+            call PrintMsg(option)
             write(option%io_buffer,'("  npy   = ",3x,i4)') &
               grid%structured_grid%npy
-            call printMsg(option)
+            call PrintMsg(option)
             write(option%io_buffer,'("  npz   = ",3x,i4)') &
               grid%structured_grid%npz
-            call printMsg(option)
+            call PrintMsg(option)
           endif
 
           if (option%mycommsize /= grid%structured_grid%npx * &
@@ -910,13 +1165,29 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
             write(option%io_buffer,*) 'Incorrect number of processors &
               &specified: ',grid%structured_grid%npx*grid%structured_grid%npy* &
               grid%structured_grid%npz,' commsize = ',option%mycommsize
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
-
+        
+!....................
+      case('CHEMISTRY')
+        call InputPushCard(input,card,option)
+        if (.not.associated(simulation%rt_process_model_coupler)) then
+          option%io_buffer = 'CHEMISTRY card included when no &
+            &SUBSURFACE_TRANSPORT process model included in SIMULATION block.'
+          call PrintErrMsg(option)
+        endif
+        !geh: for some reason, we need this with CHEMISTRY read for
+        !     multicontinuum
+ !       option%use_mc = PETSC_TRUE
+        call ReactionInit(realization%reaction,input,option)  
+        realization%reaction_base => realization%reaction
+        
 !....................
     end select
   enddo
+  call InputPopBlock(input,option) ! REQUIRED_CARDS
+  call InputPopBlock(input,option) ! SUBSURFACE
 
 end subroutine SubsurfaceReadRequiredCards
 
@@ -947,6 +1218,11 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Realization_Base_class
   use Region_module
   use Condition_module
+
+  use Transport_Constraint_Base_module
+  use Transport_Constraint_RT_module
+  use Transport_Constraint_module
+
   use Coupler_module
   use Strata_module
   use Observation_module
@@ -954,6 +1230,8 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Waypoint_module
   use Debug_module
   use Patch_module
+  use Transport_module
+  use Transport_Aux_module
   use Discretization_module
   use Input_Aux_module
   use String_module
@@ -972,7 +1250,9 @@ subroutine SubsurfaceReadInput(simulation,input)
   use PMC_Subsurface_class
   use Timestepper_BE_class
   use Timestepper_Steady_class
-  
+
+  use TH_Aux_module
+
   implicit none
 
   class(simulation_subsurface_type) :: simulation
@@ -1001,6 +1281,8 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
+  type(tran_condition_type), pointer :: tran_condition
+  class(tran_constraint_base_type), pointer :: tran_constraint
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
@@ -1039,6 +1321,11 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   class(timestepper_base_type), pointer :: temp_timestepper
   class(timestepper_base_type), pointer :: flow_timestepper
+  class(timestepper_BE_type), pointer :: tran_timestepper
+
+  PetscInt::iwaytime,nwaytime,mwaytime
+  PetscReal,dimension(:),pointer :: waytime
+  PetscReal :: wtime, msfsalt, msfwatr, mlfsalt, mlfwatr
 
   internal_units = 'not_assigned'
 
@@ -1052,28 +1339,28 @@ subroutine SubsurfaceReadInput(simulation,input)
   option => realization%option
   field => realization%field
 
-
   flow_timestepper => TimestepperBECreate()
   flow_timestepper%solver%itype = FLOW_CLASS
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
-
+                          
   call InputRewind(input)
   string = 'SUBSURFACE'
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
+  call InputPushBlock(input,'SUBSURFACE',option)
   do
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
 
-    call InputReadWord(input,option,word,PETSC_FALSE)
+    call InputReadCard(input,option,word,PETSC_FALSE)
     call StringToUpper(word)
     card = trim(word)
 
     option%io_buffer = 'pflotran card:: ' // trim(card)
-    call printMsg(option)
+    call PrintMsg(option)
 
     select case(trim(card))
 
@@ -1090,19 +1377,24 @@ subroutine SubsurfaceReadInput(simulation,input)
         call DiscretizationRead(realization%discretization,input,option)
 
 !....................
+      case ('CHEMISTRY')
+        call ReactionReadPass2(reaction,input,option)
+        
+!....................
       case ('SPECIFIED_VELOCITY')
         if (option%nflowdof > 0) then
           option%io_buffer = 'SPECIFIED_VELOCITY fields may not be used &
             &with a SUBSURFACE_FLOW mode.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         internal_units = 'm/sec'
         flag1 = UNINITIALIZED_INTEGER ! uniform?
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','SPECIFIED_VELOCITY')
           call StringToUpper(word)
           select case(trim(word))
@@ -1113,7 +1405,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 option%io_buffer = 'SPECIFIED_VELOCITY card "UNIFORM?" &
                   &must be answered with "YES"/"NO" before velocity data &
                   &can can be read.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
               if (flag1 == STRING_YES) then
                 error_string = 'SPECIFIED_VELOCITY,UNIFORM,DATASET'
@@ -1134,7 +1426,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 else
                   input%buf = string
                   input%ierr = 0
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword',error_string)
                   call StringToUpper(word)
                   select case(word)
@@ -1152,13 +1444,14 @@ subroutine SubsurfaceReadInput(simulation,input)
                                                 temp_string,internal_units, &
                                                 error_string,option)
                     case default
-                      call InputKeywordUnrecognized(word,error_string,option)
+                      call InputKeywordUnrecognized(input,word, &
+                                                    error_string,option)
                   end select
                   if (dataset_ascii%time_storage%time_interpolation_method == &
                       INTERPOLATION_NULL) then
                     option%io_buffer = 'An INTERPOLATION method (LINEAR or &
                       &STEP) must be specified for: ' // trim(error_string)
-                    call printErrMsg(option)
+                    call PrintErrMsg(option)
                   endif
                 endif
                 bool_flag = PETSC_FALSE
@@ -1166,7 +1459,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 if (bool_flag) then
                   option%io_buffer = 'Error verifying ' // &
                     trim(error_string) // '.'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
               else
 ! Add interface for non-uniform dataset
@@ -1177,18 +1470,19 @@ subroutine SubsurfaceReadInput(simulation,input)
               endif
           end select
         enddo
+        call InputPopBlock(input,option)
       case ('NONUNIFORM_VELOCITY')
         option%io_buffer = 'The NONUNIFORM_VELOCITY card within SUBSURFACE &
           &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case ('UNIFORM_VELOCITY')
         option%io_buffer = 'The UNIFORM_VELOCITY card within SUBSURFACE &
           &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       case ('VELOCITY_DATASET')
         option%io_buffer = 'The VELOCITY_DATASET card within SUBSURFACE &
           &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
 !....................
       case ('DEBUG')
@@ -1199,14 +1493,14 @@ subroutine SubsurfaceReadInput(simulation,input)
         !option%print_explicit_primal_grid = PETSC_TRUE
         option%io_buffer = 'PRINT_PRIMAL_GRID must now be entered under &
                             &OUTPUT card.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
 !....................
       case ('PRINT_DUAL_GRID')
         !option%print_explicit_dual_grid = PETSC_TRUE
         option%io_buffer = 'PRINT_DUAL_GRID must now be entered under &
                             &OUTPUT card.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
 !....................
       case ('PROC')
@@ -1216,7 +1510,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         region => RegionCreate()
         call InputReadWord(input,option,region%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','REGION')
-        call printMsg(option,region%name)
+        call PrintMsg(option,region%name)
         call RegionRead(region,input,option)
         ! we don't copy regions down to patches quite yet, since we
         ! don't want to duplicate IO in reading the regions
@@ -1228,10 +1522,52 @@ subroutine SubsurfaceReadInput(simulation,input)
         flow_condition => FlowConditionCreate(option)
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'FLOW_CONDITION','name')
-        call printMsg(option,flow_condition%name)
         call FlowConditionRead(flow_condition,input,option)
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
+
+!....................
+      case ('TRANSPORT_CONDITION')
+        if (option%itranmode == NULL_MODE) then
+          option%io_buffer = 'TRANSPORT_CONDITIONs not supported without &
+                             &CHEMISTRY or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
+          call PrintErrMsg(option)
+        endif
+        tran_condition => TranConditionCreate(option)
+        call InputReadWord(input,option,tran_condition%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name')
+        call PrintMsg(option,tran_condition%name)
+        call TranConditionRead(tran_condition, &
+                               realization%transport_constraints, &
+                               realization%reaction_base,input,option)
+        call TranConditionAddToList(tran_condition, &
+                                    realization%transport_conditions)
+        nullify(tran_condition)
+
+!....................
+      case('CONSTRAINT')
+        select case(option%itranmode)
+          case(RT_MODE)
+            tran_constraint => TranConstraintRTCreate(option)
+          case(NWT_MODE)
+            tran_constraint => TranConstraintNWTCreate(option)
+          case default
+            option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY &
+                               &or SUBSURFACE_NUCLEAR_WASTE_TRANSPORT.'
+          call PrintErrMsg(option)
+        end select
+        call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'constraint','name')
+        call PrintMsg(option,tran_constraint%name)
+        select type(tc=>tran_constraint)
+          class is(tran_constraint_rt_type)
+            call TranConstraintRTRead(tc,reaction,input,option)
+          class is(tran_constraint_nwt_type)
+            call TranConstraintNWTRead(tc,realization%reaction_nw,input,option)
+        end select
+        call TranConstraintAddToList(tran_constraint, &
+                                     realization%transport_constraints)
+        nullify(tran_constraint)
 
 !....................
       case ('BOUNDARY_CONDITION')
@@ -1367,18 +1703,17 @@ subroutine SubsurfaceReadInput(simulation,input)
         grid%unstructured_grid%grid_type = TWO_DIM_GRID
 
 !......................
-
       case ('RESTART')
         option%io_buffer = 'The RESTART card within SUBSURFACE block has &
                            &been deprecated.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
 !......................
 
       case ('CHECKPOINT')
         option%io_buffer = 'The CHECKPOINT card within SUBSURFACE block must &
                            &be moved to the SIMULATION block.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
 !......................
 
@@ -1386,10 +1721,9 @@ subroutine SubsurfaceReadInput(simulation,input)
         option%io_buffer = 'The NUMERICAL_JACOBIAN_FLOW card within &
           &SUBSURFACE block must be listed under the SIMULATION/&
           &PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block as NUMERICAL_JACOBIAN.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
 
 !......................
-
 
       case ('NUMERICAL_JACOBIAN_MULTI_COUPLE')
         option%numerical_derivatives_multi_coupling = PETSC_TRUE
@@ -1402,40 +1736,40 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('TIMESTEPPER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
             call flow_timestepper%ReadInput(input,option)
           case default
-            option%io_buffer = 'TIMESTEPPER must specify FLOW.'
-            call printErrMsg(option)
+            option%io_buffer = 'TIMESTEPPER must specify FLOW or TRANSPORT.'
+            call PrintErrMsg(option)
         end select
 
 !....................
 
       case ('LINEAR_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
             call SolverReadLinear(flow_timestepper%solver,input,option)
           case default
-            option%io_buffer = 'LINEAR_SOLVER must specify FLOW.'
-            call printErrMsg(option)
+            option%io_buffer = 'LINEAR_SOLVER must specify FLOW or TRANSPORT.'
+            call PrintErrMsg(option)
         end select
 
 !....................
 
       case ('NEWTON_SOLVER')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case(word)
           case('FLOW')
             call SolverReadNewton(flow_timestepper%solver,input,option)
           case default
-            option%io_buffer = 'NEWTON_SOLVER must specify FLOW.'
-            call printErrMsg(option)
+            option%io_buffer = 'NEWTON_SOLVER must specify FLOW or TRANSPORT.'
+            call PrintErrMsg(option)
         end select
 !....................
 
@@ -1465,21 +1799,20 @@ subroutine SubsurfaceReadInput(simulation,input)
         call InputErrorMsg(input,option,'name','CHARACTERISTIC_CURVES')
         option%io_buffer = '  Name :: ' // &
           trim(characteristic_curves%name)
-        call printMsg(option)
+        call PrintMsg(option)
         call CharacteristicCurvesRead(characteristic_curves,input,option)
         call CharacteristicCurvesAddToList(characteristic_curves, &
                                           realization%characteristic_curves)
         nullify(characteristic_curves)
 
 !....................
-      
       case ('MATERIAL_PROPERTY')
 
         material_property => MaterialPropertyCreate()
         call InputReadWord(input,option,material_property%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','MATERIAL_PROPERTY')
         option%io_buffer = '  Name :: ' // trim(material_property%name)
-        call printMsg(option)
+        call PrintMsg(option)
         call MaterialPropertyRead(material_property,input,option)
         call MaterialPropertyAddToList(material_property, &
              realization%material_properties)
@@ -1555,11 +1888,12 @@ subroutine SubsurfaceReadInput(simulation,input)
         energy_flowrate = PETSC_FALSE
         aveg_mass_flowrate = PETSC_FALSE
         aveg_energy_flowrate = PETSC_FALSE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword','OUTPUT')
           call StringToUpper(word)
         !----------------------------------------------------------------------
@@ -1606,27 +1940,33 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('PROCESSOR_ID')
               option%io_buffer = 'PROCESSOR_ID output must now be entered &
                                  &under OUTPUT/VARIABLES card as PROCESS_ID.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
+!              output_option%print_iproc = PETSC_TRUE
             case('PERMEABILITY')
               option%io_buffer = 'PERMEABILITY output must now be entered &
                                  &under OUTPUT/VARIABLES card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
+!              output_option%print_permeability = PETSC_TRUE
             case('POROSITY')
               option%io_buffer = 'POROSITY output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
+!              output_option%print_porosity = PETSC_TRUE
             case('TORTUOSITY')
               option%io_buffer = 'TORTUOSITY output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
+!              output_option%print_tortuosity = PETSC_TRUE
             case('VOLUME')
               option%io_buffer = 'VOLUME output must now be entered under &
                                  &OUTPUT/VARIABLES card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
+!              output_option%print_volume = PETSC_TRUE
+
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               output_option%periodic_msbl_output_ts_imod = 1
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputDefaultMsg(input,option, &
                                    'OUTPUT,MASS_BALANCE,DETAILED')
               if (len_trim(word) > 0) then
@@ -1635,7 +1975,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   case('DETAILED')
                     option%mass_bal_detailed = PETSC_TRUE
                   case default
-                    call InputKeywordUnrecognized(word, &
+                    call InputKeywordUnrecognized(input,word, &
                            'OUTPUT,MASS_BALANCE',option)
                 end select
               endif
@@ -1649,10 +1989,10 @@ subroutine SubsurfaceReadInput(simulation,input)
            case ('EXPLICIT_GRID_PRIMAL_GRID_TYPE')
              if (associated(grid%unstructured_grid)) then
                if (associated(grid%unstructured_grid%explicit_grid)) then
-                 call InputReadWord(input,option,word,PETSC_TRUE)
+                 call InputReadCard(input,option,word)
                  call InputErrorMsg(input,option,word, &
                        'EXPLICIT_GRID_PRIMAL_GRID_TYPE')
-                 call printMsg(option,word)
+                 call PrintMsg(option,word)
                  call StringToUpper(word)
                    select case (trim(word))
                      case ('VERTEX_CENTERED')
@@ -1661,6 +2001,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                      case ('CELL_CENTERED')
                        grid%unstructured_grid%explicit_grid% &
                           output_mesh_type = CELL_CENTERED_OUTPUT_MESH
+                       call OptionSetBlocking(option,PETSC_FALSE)
                        if ( option%myrank == option%io_rank ) then
                          if (grid%unstructured_grid% &
                              explicit_grid%num_elems /= &
@@ -1672,14 +2013,16 @@ subroutine SubsurfaceReadInput(simulation,input)
                              &if CELL_CENTERED option, the number of cells &
                              &of the grid to print and those &
                              &of the computational grid must be equal.'
-                           call printErrMsg(option)
+                           call PrintErrMsg(option)
                          end if
                        end if
+                       call OptionSetBlocking(option,PETSC_TRUE)
+                       call OptionCheckNonBlockingError(option)
                      case default
                        option%io_buffer ='EXPLICIT_GRID_PRIMAL_GRID_TYPE &
                                   &only VERTEX_CENTERED and CELL_CENTERED &
                                   &are supported.'
-                       call printErrMsg(option)
+                       call PrintErrMsg(option)
                    end select
                endif
              endif
@@ -1705,7 +2048,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               enddo
               call DeallocateArray(temp_real_array)
             case('OUTPUT_FILE')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                                  'OUTPUT,OUTPUT_FILE')
               call StringToUpper(word)
@@ -1717,11 +2060,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,OUTPUT_FILE,PERIODIC')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,OUTPUT_FILE',option)
               end select
             case('SCREEN')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment','OUTPUT,SCREEN')
               call StringToUpper(word)
               select case(trim(word))
@@ -1732,11 +2075,11 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC,SCREEN')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,SCREEN',option)
               end select
             case('PERIODIC')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                                  'OUTPUT,PERIODIC')
               call StringToUpper(word)
@@ -1753,7 +2096,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                                      internal_units,option)
                   output_option%periodic_snap_output_time_incr = temp_real* &
                                                             units_conversion
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   if (input%ierr == 0) then
                     if (StringCompareIgnoreCase(word,'between')) then
                       call InputReadDouble(input,option,temp_real)
@@ -1765,7 +2108,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                       units_conversion = UnitsConvertToInternal(word, &
                                          internal_units,option)
                       temp_real = temp_real * units_conversion
-                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputReadCard(input,option,word)
                       if (.not.StringCompareIgnoreCase(word,'and')) then
                         input%ierr = 1
                       endif
@@ -1802,7 +2145,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,PERIODIC',option)
               end select
             case('OBSERVATION_TIMES')
@@ -1830,7 +2173,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               call DeallocateArray(temp_real_array)
             case('PERIODIC_OBSERVATION')
               output_option%print_observation = PETSC_TRUE
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'time increment', &
                 'OUTPUT, PERIODIC_OBSERVATION')
               call StringToUpper(word)
@@ -1853,17 +2196,17 @@ subroutine SubsurfaceReadInput(simulation,input)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'OUTPUT,PERIODIC_OBSERVATION,TIMESTEP')
                 case default
-                  call InputKeywordUnrecognized(word, &
+                  call InputKeywordUnrecognized(input,word, &
                          'OUTPUT,PERIODIC_OBSERVATION',option)
               end select
             case('FORMAT')
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'keyword','OUTPUT,FORMAT')
               call StringToUpper(word)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputDefaultMsg(input,option, &
                                        'OUTPUT,FORMAT,HDF5,# FILES')
                   if (len_trim(word) > 0) then
@@ -1874,7 +2217,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                       case('MULTIPLE_FILES')
                         output_option%print_single_h5_file = PETSC_FALSE
                         output_option%times_per_h5_file = 1
-                        call InputReadWord(input,option,word,PETSC_TRUE)
+                        call InputReadCard(input,option,word)
                         if (len_trim(word)>0) then
                           select case(trim(word))
                             case('TIMES_PER_FILE')
@@ -1885,20 +2228,18 @@ subroutine SubsurfaceReadInput(simulation,input)
                                 'OUTPUT,FORMAT,HDF5,MULTIPLE_FILES,&
                                 &TIMES_PER_FILE')
                             case default
-                              call InputKeywordUnrecognized(word, &
+                              call InputKeywordUnrecognized(input,word, &
                                     'OUTPUT,FORMAT,HDF5,MULTIPLE_FILES',option)
                           end select
                         endif
                       case default
-                        call InputKeywordUnrecognized(word, &
+                        call InputKeywordUnrecognized(input,word, &
                                'OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
-                case ('MAD')
-                  output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
                   output_option%print_tecplot = PETSC_TRUE
-                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'TECPLOT','OUTPUT,FORMAT')
                   call StringToUpper(word)
                   select case(trim(word))
@@ -1909,7 +2250,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                     case('FEBRICK')
                       output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                     case default
-                      call InputKeywordUnrecognized(word, &
+                      call InputKeywordUnrecognized(input,word, &
                                'OUTPUT,FORMAT,TECPLOT',option)
                   end select
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
@@ -1920,7 +2261,8 @@ subroutine SubsurfaceReadInput(simulation,input)
                     output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                   endif
                 case default
-                  call InputKeywordUnrecognized(word,'OUTPUT,FORMAT',option)
+                  call InputKeywordUnrecognized(input,word, &
+                                                'OUTPUT,FORMAT',option)
               end select
             case('VELOCITY_AT_CENTER')
               vel_cent = PETSC_TRUE
@@ -1949,10 +2291,11 @@ subroutine SubsurfaceReadInput(simulation,input)
             case('EXTEND_HDF5_TIME_FORMAT')
               output_option%extend_hdf5_time_format = PETSC_TRUE
             case default
-              call InputKeywordUnrecognized(word,'OUTPUT',option)
+              call InputKeywordUnrecognized(input,word,'OUTPUT',option)
           end select
 
         enddo
+        call InputPopBlock(input,option)
 
   ! If VARIABLES were not specified within the *_FILE blocks, point their
   ! variable lists to the master variable list, which can be specified within
@@ -1994,11 +2337,11 @@ subroutine SubsurfaceReadInput(simulation,input)
           if(Equal(output_option%periodic_snap_output_time_incr,0.d0)) then
             option%io_buffer = 'Keyword: AVERAGE_VARIABLES defined without &
                                &PERIODIC TIME being set.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           if(.not.output_option%print_hdf5) then
             option%io_buffer = 'Keyword: AVERAGE_VARIABLES only defined for FORMAT HDF5'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
         endif
         if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate &
@@ -2013,7 +2356,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                 option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ &
                   &AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without &
                   &PERIODIC TIME being set.'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
               endif
             endif
            option%flow%store_fluxes = PETSC_TRUE
@@ -2033,7 +2376,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                ) then
                 option%io_buffer = 'unstructured explicit grid &
                   &output_mesh_type = CELL_CENTERED supported for hdf5 only'
-                call printErrMsg(option)
+                call PrintErrMsg(option)
             end if
           end if
         end if
@@ -2046,11 +2389,12 @@ subroutine SubsurfaceReadInput(simulation,input)
       case ('TIME')
         dt_init = 1.d0
         dt_min = UNINITIALIZED_DOUBLE
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
           if (InputCheckExit(input,option)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'word','TIME')
           select case(trim(word))
             case('SCREEN_UNITS')
@@ -2106,7 +2450,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               internal_units = 'sec'
               waypoint%dt_max = temp_real*UnitsConvertToInternal(word, &
                                           internal_units,option)
-              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputReadCard(input,option,word)
               if (input%ierr == 0) then
                 call StringToUpper(word)
                 if (StringCompare(word,'AT',TWO_INTEGER)) then
@@ -2123,16 +2467,17 @@ subroutine SubsurfaceReadInput(simulation,input)
                   option%io_buffer = 'Keyword under "MAXIMUM_TIMESTEP_SIZE" &
                                      &after maximum timestep size should &
                                      &be "at".'
-                  call printErrMsg(option)
+                  call PrintErrMsg(option)
                 endif
               else
                 waypoint%time = 0.d0
               endif
               call WaypointInsertInList(waypoint,waypoint_list)
             case default
-              call InputKeywordUnrecognized(word,'TIME',option)
+              call InputKeywordUnrecognized(input,word,'TIME',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (Initialized(dt_init)) then
           if (associated(flow_timestepper)) then
             flow_timestepper%dt_init = dt_init
@@ -2161,21 +2506,22 @@ subroutine SubsurfaceReadInput(simulation,input)
         option%flow%only_vertical_flow = PETSC_TRUE
         if (option%iflowmode /= TH_MODE) then
           option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in RICHARDS, &
-                              &RICHARDS_TSand TH mode.'
-          call printErrMsg(option)
+                              &RICHARDS_TS and TH, TH_TS modes.'
+          call PrintErrMsg(option)
         endif
 
 !....................
       case ('ONLY_ENERGY_EQ')
-        option%flow%only_thermal_eq = PETSC_TRUE
+        option%flow%only_energy_eq = PETSC_TRUE
         if (option%iflowmode /= TH_MODE) then
-          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH mode.'
-          call printErrMsg(option)
+          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH and &
+                              &TH_TS modes.'
+          call PrintErrMsg(option)
         endif
 
 !....................
       case ('RELATIVE_PERMEABILITY_AVERAGE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
         select case (trim(word))
           case ('UPWIND')
@@ -2187,7 +2533,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           case default
             option%io_buffer = 'Cannot identify the specificed &
               &RELATIVE_PERMEABILITY_AVERAGE.'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           end select
 
 !....................
@@ -2219,10 +2565,12 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
       case default
-        call InputKeywordUnrecognized(word,'SubsurfaceReadInput()',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SubsurfaceReadInput()',option)
     end select
 
   enddo
+  call InputPopBlock(input,option) ! SUBSURFACE
 
 #ifdef CLM_PFLOTRAN
     ! material_properties are unique for each cell, if CLM coupling with PFLOTRAN
@@ -2404,6 +2752,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 
   if (associated(simulation%flow_process_model_coupler)) then
+    select case(option%iflowmode)
+      case(TH_MODE)
+        if (option%steady_state) then
+          option%io_buffer = 'Steady state solution is not supported with &
+            &the current flow mode.'
+          call PrintErrMsg(option)
+        endif
+    end select
+
     flow_timestepper%name = 'FLOW'
     if (option%steady_state) then
       !geh: This is a workaround for the Intel compiler which thinks that
@@ -2427,6 +2784,30 @@ subroutine SubsurfaceReadInput(simulation,input)
     call flow_timestepper%Destroy()
     deallocate(flow_timestepper)
     nullify(flow_timestepper)
+  endif
+
+  if (associated(simulation%rt_process_model_coupler) .or. &
+      associated(simulation%nwt_process_model_coupler)) then
+    tran_timestepper%name = 'TRAN'
+    if (option%steady_state) then
+      ! transport is currently always BE
+      temp_timestepper => TimestepperSteadyCreateFromBE(tran_timestepper)
+      call tran_timestepper%Destroy()
+      deallocate(tran_timestepper)
+      nullify(tran_timestepper)
+      flow_timestepper => temp_timestepper
+      nullify(temp_timestepper)
+    endif
+    if (associated(simulation%rt_process_model_coupler)) then
+      simulation%rt_process_model_coupler%timestepper => tran_timestepper
+    endif
+    if (associated(simulation%nwt_process_model_coupler)) then
+      simulation%nwt_process_model_coupler%timestepper => tran_timestepper
+    endif
+  else
+    call tran_timestepper%Destroy()
+    deallocate(tran_timestepper)
+    nullify(tran_timestepper)
   endif
 
 end subroutine SubsurfaceReadInput

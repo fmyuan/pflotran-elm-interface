@@ -492,9 +492,10 @@ contains
       prev_row = -1
 
       ! Read first six entries in the mapping file.
+      call InputPushBlock(input,option)
       do nheader = 1, 6
         call InputReadPflotranString(input,option)
-        call InputReadWord(input,option,card,PETSC_TRUE)
+        call InputReadCard(input,option,card)
         call StringToLower(card)
 
         select case (trim(card))
@@ -526,9 +527,10 @@ contains
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
-            call printErrMsgByRank(option)
+            call PrintErrMsgByRank(option)
         end select
       enddo
+      call InputPopBlock(input,option)
       
       nwts_tmp = nwts/option%mycommsize
       remainder= nwts - nwts_tmp*option%mycommsize
@@ -554,26 +556,26 @@ contains
           if(wts_row_tmp(ii) < 1) then
             write(*,string) 'Row entry for ii = ',ii,' less than 1'
             option%io_buffer = string
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           if(wts_col_tmp(ii) < 1) then
             write(*,string) 'Col entry for ii = ',ii,' less than 1'
             option%io_buffer = string
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           if((wts_tmp(ii) < 0.d0).or.(wts_tmp(ii) > 1.d0)) then
             write(*,string) 'Invalid wt value for ii = ',ii
             option%io_buffer = string
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
           
           ! ensure that row values in the data are stored in ascending order
           if(wts_row_tmp(ii) < prev_row) then
             write(*,string) 'Row value in the mapping data not store in ascending order: ii ',ii
             option%io_buffer = string
-            call printErrMsg(option) 
+            call PrintErrMsg(option)
           endif
           prev_row = wts_row_tmp(ii)
           

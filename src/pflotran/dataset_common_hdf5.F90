@@ -152,23 +152,25 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   PetscBool :: found
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','DATASET')
     call StringToUpper(keyword)   
       
     call DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
 
     if (.not.found) then
-      call InputKeywordUnrecognized(keyword,'dataset',option)
+      call InputKeywordUnrecognized(input,keyword,'dataset',option)
     endif
   
   enddo
+  call InputPopBlock(input,option)
   
   if (len_trim(this%hdf5_dataset_name) < 1) then
     this%hdf5_dataset_name = this%name
@@ -281,7 +283,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     ! open the file
     call h5open_f(hdf5_err)
     option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
-    call printMsg(option)
+    call PrintMsg(option)
   
     ! set read file access property
     call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
@@ -296,7 +298,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 
     if (h5fopen_err == 0) then
       option%io_buffer = 'Opening hdf5 group: ' // trim(dataset_name)
-      call printMsg(option)
+      call PrintMsg(option)
       call HDF5GroupOpen(file_id,dataset_name,grp_id,option)
       attribute_name = "Time Units"
       call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
@@ -310,7 +312,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
         call h5aclose_f(attribute_id,hdf5_err)
       else
         option%io_buffer = 'Time Units assumed to be seconds.'
-        call printWrnMsg(option)
+        call PrintWrnMsg(option)
         time_units = 's'
       endif
 
@@ -321,7 +323,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
       if (group_exists) then
         !geh: Should check to see if "Times" dataset exists.
         option%io_buffer = 'Opening data set: ' // trim(string)
-        call printMsg(option)  
+        call PrintMsg(option)
         call h5dopen_f(grp_id,string,dataset_id,hdf5_err)
         call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
         call h5sget_simple_extent_npoints_f(file_space_id,num_times,hdf5_err)
@@ -340,7 +342,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
                  option%mycomm,ierr)
   if (temp_int < 0) then ! actually h5fopen_err
     option%io_buffer = 'Error opening file: ' // trim(filename)
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   int_mpi = 1
@@ -375,10 +377,10 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     call h5sclose_f(file_space_id,hdf5_err)
     call h5dclose_f(dataset_id,hdf5_err)  
     option%io_buffer = 'Closing group: ' // trim(dataset_name)
-    call printMsg(option)  
+    call PrintMsg(option)
     call h5gclose_f(grp_id,hdf5_err)  
     option%io_buffer = 'Closing hdf5 file: ' // trim(filename)
-    call printMsg(option)  
+    call PrintMsg(option)
     call h5fclose_f(file_id,hdf5_err)
     call h5close_f(hdf5_err) 
     internal_units = 'sec'
@@ -525,7 +527,7 @@ function DatasetCommonHDF5GetPointer(dataset_list, dataset_name, &
     class default
       option%io_buffer = 'Dataset "' // trim(dataset_name) // '" in "' // &
              trim(debug_string) // '" not of type Common HDF5.'
-      call printErrMsg(option)    
+      call PrintErrMsg(option)
   end select
 
 end function DatasetCommonHDF5GetPointer

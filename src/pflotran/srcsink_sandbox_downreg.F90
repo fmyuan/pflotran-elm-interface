@@ -19,6 +19,9 @@ module SrcSink_Sandbox_Downreg_class
 ! extended from srcsink_sandbox_mass_rate
 ! currently work in RICHARDS mode
   
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use PFLOTRAN_Constants_module
   use SrcSink_Sandbox_Base_class
   use Dataset_Base_class
@@ -27,8 +30,6 @@ module SrcSink_Sandbox_Downreg_class
   
   private
   
-#include "petsc/finclude/petscsys.h"
-
   type, public, &
     extends(srcsink_sandbox_base_type) :: srcsink_sandbox_downreg_type
     PetscReal :: pressure_min       ! Pa
@@ -77,8 +78,7 @@ subroutine DownregRead(this,input,option)
   ! 
   ! Author: Guoping Tang
   ! Date: 06/03/14
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+
   use Option_module
   use String_module
   use Input_Aux_module
@@ -109,12 +109,13 @@ subroutine DownregRead(this,input,option)
   this%dataset => dataset_ascii
   nullify(dataset_ascii)
 
+  call InputPushBlock(input,option)
   do 
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword', &
                        'SOURCE_SINK_SANDBOX,DOWNREG')
     call StringToUpper(word)   
@@ -161,12 +162,14 @@ subroutine DownregRead(this,input,option)
         if (this%pressure_delta <= 1.0d-10) then
           option%io_buffer = 'SRCSINK_SANDBOX,DOWNREG,DELTA_REG_PRESSURE' // &
             ': the pressure delta is too close to 0 Pa.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif 
       case default
-        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
+        call InputKeywordUnrecognized(input,word, &
+                                      'SRCSINK_SANDBOX,DOWNREG',option)
     end select
   enddo
+  call InputPopBlock(input,option)
 
   if (associated(this%dataset%time_storage)) then
     ! for now, forcing to step, which makes sense for src/sinks.

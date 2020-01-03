@@ -267,8 +267,6 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! Author: Glenn Hammond
   ! Date: 10/07/14
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Grid_module
   use Discretization_module
@@ -354,23 +352,23 @@ subroutine InitSubsurfAssignMatProperties(realization)
           option%io_buffer = 'No material property for material id ' // &
                               trim(adjustl(string)) &
                               //  ' defined in input file.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
       endif
     else if (Uninitialized(material_id)) then 
       write(string,*) grid%nG2A(ghosted_id)
       option%io_buffer = 'Uninitialized material id in patch at cell ' // &
                           trim(adjustl(string))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else if (material_id > size(patch%material_property_array)) then
       write(option%io_buffer,*) patch%imat_internal_to_external(material_id)
       option%io_buffer = 'Unmatched material id in patch: ' // &
         adjustl(trim(option%io_buffer))
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     else
       option%io_buffer = 'Something messed up with material ids. Possibly &
         &material ids not assigned to all grid cells. Contact Glenn!'
-      call printErrMsgByRank(option)
+      call PrintErrMsgByRank(option)
     endif
     if (option%nflowdof > 0) then
       patch%sat_func_id(ghosted_id) = &
@@ -481,7 +479,9 @@ subroutine InitSubsurfAssignMatProperties(realization)
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                    field%work_loc,ONEDOF)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,POROSITY_MINERAL)
+                               POROSITY,POROSITY_INITIAL)
+  call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,POROSITY_BASE)
   call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,POROSITY_CURRENT)
   call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
@@ -520,8 +520,6 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   ! Date: 1/03/08
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -615,8 +613,6 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   ! Date: 01/19/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -763,9 +759,6 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
   ! Author: Glenn Hammond
   ! Date: 01/19/2016
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
-
   use Realization_Subsurface_class
   use Field_module
   use Grid_module
@@ -852,7 +845,7 @@ subroutine SubsurfReadDatasetToVecWithMask(realization,dataset, &
       class default
         option%io_buffer = 'Dataset "' // trim(dataset%name) // '" is of the &
           &wrong type for SubsurfReadDatasetToVecWithMask()'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   else
     call PetscLogEventBegin(logging%event_hash_map,ierr);CHKERRQ(ierr)
@@ -971,18 +964,37 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     end select
 #endif
     select case(option%iflowmode)
-      !TODO(geh): refactors so that we don't need all these variants?
       case(TH_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Flow%zero_rows_local, &
-                      realization%patch%aux%Flow%zero_rows_local_ghosted, &
-                      realization%patch%aux%Flow%n_zero_rows, &
-                      realization%patch%aux%Flow%inactive_cells_exist, &
+                      realization%patch%aux%TH%zero_rows_local, &
+                      realization%patch%aux%TH%zero_rows_local_ghosted, &
+                      realization%patch%aux%TH%n_zero_rows, &
+                      realization%patch%aux%TH%inactive_cells_exist, &
                       option)
     end select
     deallocate(dof_is_active)
   endif
 
+  if (option%ntrandof > 0) then
+    select case(option%itranmode)
+      case(RT_MODE,EXPLICIT_ADVECTION)
+        ! remove ndof above if this is moved
+        if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+          ndof = realization%reaction%ncomp
+        else
+          ndof = 1
+        endif
+        allocate(dof_is_active(ndof))
+        dof_is_active = PETSC_TRUE  
+        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
+                      realization%patch%aux%RT%zero_rows_local, &
+                      realization%patch%aux%RT%zero_rows_local_ghosted, &
+                      realization%patch%aux%RT%n_zero_rows, &
+                      realization%patch%aux%RT%inactive_cells_exist, &
+                      option)
+        deallocate(dof_is_active)
+    end select
+  endif  
 
 end subroutine InitSubsurfaceSetupZeroArrays
 

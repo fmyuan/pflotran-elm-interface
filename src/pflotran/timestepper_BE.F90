@@ -12,8 +12,6 @@ module Timestepper_BE_class
 
   private
   
-#include "petsc/finclude/petscsys.h"
- 
   type, public, extends(timestepper_base_type) :: timestepper_BE_type
   
     PetscInt :: num_newton_iterations ! number of Newton iterations in a time step
@@ -158,14 +156,23 @@ subroutine TimestepperBERead(this,input,option)
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
+  if (option%flow%resdef) then
+    option%io_buffer = 'TIMESTEPPER CARD: applying common defaults (RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+    this%iaccel=100
+    option%io_buffer = 'TIMESTEPPER CARD: TS_ACCELERATION as been set to 100 (RESERVOIR_DEFAULTS)'
+    call PrintMsg(option)
+  endif
+
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
     call StringToUpper(keyword)   
 
@@ -174,6 +181,10 @@ subroutine TimestepperBERead(this,input,option)
       case('TS_ACCELERATION')
         call InputReadInt(input,option,this%iaccel)
         call InputDefaultMsg(input,option,'iaccel')
+        if (option%flow%resdef) then
+          option%io_buffer = 'WARNING: TS_ACCELERATION has been changed, overwritting the RESERVOIR_DEFAULTS default'
+          call PrintMsg(option)
+        endif
 
       case('DT_FACTOR')
         string='time_step_factor'
@@ -186,6 +197,7 @@ subroutine TimestepperBERead(this,input,option)
     end select 
   
   enddo
+  call InputPopBlock(input,option)
   
   this%solver%print_ekg = this%print_ekg
 
@@ -288,6 +300,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: sum_linear_iterations
   PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
   character(len=MAXWORDLENGTH) :: tunit
+  
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
@@ -315,7 +328,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   write(process_model%option%io_buffer,'(es12.5)') this%dt
   process_model%option%io_buffer = 'StepperStepDT(' // &
     trim(adjustl(process_model%option%io_buffer)) // ')'
-  call printMsg(process_model%option)  
+  call PrintMsg(process_model%option)
 #endif
 
   tconv = process_model%output_option%tconv
@@ -334,7 +347,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       
     call process_model%PreSolve()
     
-    call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+    call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
 
     call SNESSolve(solver%snes,PETSC_NULL_VEC, &
                    process_model%solution_vec,ierr);
@@ -432,7 +445,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
     CHKERRQ(ierr)
 
-    call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
 
     this%cumulative_solver_time = &
       this%cumulative_solver_time + &
@@ -554,16 +567,26 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         endif
         !------fmy
 
-        write(option%io_buffer,'(" Stopping: Time step cut criteria exceeded!")')
-        call printMsg(option)
-        write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
-             icut,this%max_time_step_cuts
-        call printMsg(option)
-        write(option%io_buffer,'("    dt   =",es15.7,", dt_min=",es15.7)') &
-             this%dt/tconv,this%dt_min/tconv
-        call printMsg(option)
+        if (icut > this%max_time_step_cuts) then
+          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
+          call PrintMsg(option)
+          write(option%io_buffer, &
+                '("    icut =",i3,", max_time_step_cuts=",i3)') &
+                icut,this%max_time_step_cuts
+          call PrintMsg(option)
+        endif
+        if (this%dt < this%dt_min) then
+          option%io_buffer = ' Stopping: Time step size is less than the &
+                             &minimum allowable time step.'
+          call PrintMsg(option)
+          write(option%io_buffer, &
+                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
+               this%dt/tconv,this%dt_min/tconv,trim(tunit)
+          call PrintMsg(option)
+       endif   
         
-        process_model%output_option%plot_name = 'flow_cut_to_failure'
+        process_model%output_option%plot_name = trim(process_model%name)// &
+          '_cut_to_failure'
         snapshot_plot_flag = PETSC_TRUE
         observation_plot_flag = PETSC_FALSE
         massbal_plot_flag = PETSC_FALSE
@@ -707,8 +730,6 @@ subroutine TimestepperBECheckpointBinary(this,viewer,option)
   ! Author: Glenn Hammond
   ! Date: 07/25/13
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
   use Option_module
 
   implicit none
@@ -1252,7 +1273,7 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
   character(len=MAXSTRINGLENGTH) :: string
   
 #ifdef DEBUG
-  call printMsg(option,'TimestepperBEFinalizeRun()')
+  call PrintMsg(option,'TimestepperBEFinalizeRun()')
 #endif
   
   if (OptionPrintToScreen(option)) then

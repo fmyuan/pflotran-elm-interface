@@ -1213,6 +1213,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadIntArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
+      call InputPushCard(input,word,option)
       call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
@@ -1294,7 +1295,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
           option%io_buffer = trim(option%io_buffer) // &
             '  Expected ' // trim(adjustl(word2)) // &
             ' but read ' // trim(adjustl(word)) // '.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         exit
       else if (icount == 0) then
@@ -1304,7 +1305,7 @@ subroutine UtilityReadIntArray(array,array_size,comment,input,option)
         else
           option%io_buffer = 'No values read in UtilityReadIntArray().'
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         exit
       endif
@@ -1376,6 +1377,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
     call InputErrorMsg(input,option,'file or value','UtilityReadRealArray')
     call StringToLower(word)
     if (StringCompare(word,'file',FOUR_INTEGER)) then
+      call InputPushCard(input,word,option)
       call InputReadFilename(input,option,string2)
       input%err_buf = 'filename'
       input%err_buf2 = comment
@@ -1457,7 +1459,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
           option%io_buffer = trim(option%io_buffer) // &
             '  Expected ' // trim(adjustl(word2)) // &
             ' but read ' // trim(adjustl(word)) // '.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         exit
       else if (icount == 0) then
@@ -1467,7 +1469,7 @@ subroutine UtilityReadRealArray(array,array_size,comment,input,option)
         else
           option%io_buffer = 'No values read in UtilityReadRealArray().'
         endif
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       else
         exit
       endif

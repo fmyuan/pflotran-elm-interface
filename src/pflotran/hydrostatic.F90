@@ -38,7 +38,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Gridded_HDF5_class
   use Dataset_Common_HDF5_class
   use Dataset_Ascii_class
-  
+  use String_module
 
   implicit none
 
@@ -97,7 +97,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   piezometric_head_gradient = 0.d0
   
   select case(option%iflowmode)
-
     case default
       ! for now, just set it; in future need to account for a different 
       ! temperature datum
@@ -108,7 +107,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           option%io_buffer = 'HDF5-type datasets for temperature are not &
             &supported in combination with hydrostatic, seepage, or &
             &conductance boundary conditions for pressure.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (condition%temperature%itype == DIRICHLET_BC) then
 #ifndef THDIRICHLET_TEMP_BC_HACK
@@ -154,14 +153,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           'Incorrect dataset type in HydrostaticUpdateCoupler. Dataset "' // &
           trim(condition%datum%name) // '" in file "' // &
           trim(condition%datum%filename) // '".'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
       
   call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                           aux,rho_kg,dummy,ierr)
   if (ierr /= 0) then
-    call printMsgByCell(option,-1, &
+    call PrintMsgByCell(option,-1, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
   endif
   
@@ -169,7 +168,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   
   if (dabs(gravity_magnitude-EARTH_GRAVITY) > 0.1d0) then
     option%io_buffer = 'Magnitude of gravity vector is not near 9.81.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! if a pressure gradient is prescribed in Z (at this point it will be a
@@ -239,9 +238,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     if (ipressure < 1) then
       write(word,*) ipressure
       option%io_buffer = 'Minimum index for pressure array outside of &
-        &bounds (' // trim(adjustl(word)) // ') for hydrostatic FLOW_&
-        &CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsgToDev('include your input deck',option)
+        &bounds (' // trim(StringWrite(ipressure)) // ') for hydrostatic &
+        &FLOW_CONDITION "' // trim(condition%name) // '".'
+      call PrintErrMsgToDev(option,'include your input deck')
     endif
     dist_z = grid%z_max_global-min(datum_dataset_rmin,datum(Z_DIRECTION))
     ipressure = idatum+int(dist_z/delta_z)
@@ -252,13 +251,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         &bounds (' // trim(adjustl(word)) // ' > ' // &
         trim(adjustl(option%io_buffer)) // ') for hydrostatic FLOW_&
         &CONDITION "' // trim(condition%name) // '".'
-      call PrintErrMsgToDev('include your input deck',option)
+      call PrintErrMsgToDev(option,'include your input deck')
     endif
 
     call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
                             aux,rho_kg,dummy,ierr)
     if (ierr /= 0) then
-      call printMsgByCell(option,-2, &
+      call PrintMsgByCell(option,-2, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
     endif
     temperature = temperature_at_datum
@@ -277,7 +276,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       call EOSWaterDensityExt(temperature,pressure0, &
                               aux,rho_kg,dummy,ierr)
       if (ierr /= 0) then
-        call printMsgByCell(option,-3, &
+        call PrintMsgByCell(option,-3, &
                       'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
       endif
       num_iteration = 0
@@ -286,7 +285,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,-4, &
+          call PrintMsgByCell(option,-4, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
         endif
 !geh        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
@@ -324,7 +323,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       end select
       call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
       if (ierr /= 0) then
-        call printMsgByCell(option,-5, &
+        call PrintMsgByCell(option,-5, &
                       'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
       endif
       num_iteration = 0
@@ -333,7 +332,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                    option%gravity(Z_DIRECTION) * delta_z
         call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (ierr /= 0) then
-          call printMsgByCell(option,-6, &
+          call PrintMsgByCell(option,-6, &
                         'Error in HydrostaticUpdateCoupler->EOSWaterDensity')
         endif
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
@@ -399,6 +398,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     if (associated(pressure_array)) then
       ipressure = idatum+int(dist_z/delta_z)
+      if (ipressure < 1 .or. ipressure > num_pressures) then
+        option%io_buffer = 'Hydrostatic pressure array sampled outside &
+          &bounds: ' // trim(StringWrite(ipressure))
+        call PrintErrMsg(option)
+      endif
       dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-(z(ipressure) + z_offset)
       pressure = pressure_array(ipressure) + &
                  density_array(ipressure)*option%gravity(Z_DIRECTION) * &
@@ -420,11 +424,12 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! assign pressure
     select case(option%iflowmode)
       case default
-        if (condition%pressure%itype == SEEPAGE_BC) then
+        if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
           coupler%flow_aux_real_var(1,iconn) = &
             max(pressure,option%reference_pressure)
-        else if (condition%pressure%itype == CONDUCTANCE_BC) then
-          coupler%flow_aux_real_var(1,iconn) = &
+        else if (condition%pressure%itype == HYDROSTATIC_CONDUCTANCE_BC) then
+           ! add the conductance
+          coupler%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = &
             max(pressure,option%reference_pressure)
           select case(option%iflowmode)
             case(TH_MODE)
@@ -432,7 +437,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                 condition%pressure%aux_real(1)
           end select
         else
-          coupler%flow_aux_real_var(1,iconn) = pressure
+          coupler%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = pressure
         endif
     end select
 

@@ -1,5 +1,8 @@
 module Realization_Base_class
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+
   use Patch_module
 
   use Discretization_module
@@ -18,7 +21,6 @@ module Realization_Base_class
 
   private
 
-#include "petsc/finclude/petscsys.h"
   type, public :: realization_base_type
 
     PetscInt :: id

@@ -236,13 +236,14 @@ subroutine CouplerRead(coupler,input,option)
   character(len=MAXWORDLENGTH) :: word
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','COUPLER')   
     call StringToUpper(word)      
     
@@ -253,10 +254,11 @@ subroutine CouplerRead(coupler,input,option)
       case('FLOW_CONDITION','SURF_FLOW_CONDITION')
         call InputReadWord(input,option,coupler%flow_condition_name,PETSC_TRUE)
       case default
-        call InputKeywordUnrecognized(word,'coupler ',option)
+        call InputKeywordUnrecognized(input,word,'coupler ',option)
     end select 
   
-  enddo  
+  enddo 
+  call InputPopBlock(input,option)
 
 end subroutine CouplerRead
 
@@ -363,8 +365,10 @@ subroutine CouplerComputeConnections(grid,option,coupler)
       if (associated(coupler%flow_condition)) then
         if (associated(coupler%flow_condition%pressure)) then
           if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%pressure%itype /= SEEPAGE_BC .and. &
-              coupler%flow_condition%pressure%itype /= CONDUCTANCE_BC) then
+              coupler%flow_condition%pressure%itype /= &
+                HYDROSTATIC_SEEPAGE_BC .and. &
+              coupler%flow_condition%pressure%itype /= &
+                HYDROSTATIC_CONDUCTANCE_BC) then
             select type(selector => coupler%flow_condition%pressure%dataset)
               class is(dataset_gridded_hdf5_type)
               class default

@@ -1,7 +1,7 @@
 module Data_Mediator_module
  
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
 
   use Data_Mediator_Base_class
   
@@ -44,8 +44,6 @@ subroutine DataMediatorUpdate(data_mediator_list,vec,option)
   ! Author: Glenn Hammond
   ! Date: 03/25/15
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   
   implicit none

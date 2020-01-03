@@ -1,12 +1,13 @@
 module Material_module
  
-#include "petsc/finclude/petscsys.h"
-   use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
   use Dataset_Base_class
 
   use PFLOTRAN_Constants_module
   use Material_Aux_class
   use Utility_module, only : Equal
+
   
   implicit none
 
@@ -104,6 +105,7 @@ function MaterialPropertyCreate()
   ! Author: Glenn Hammond
   ! Date: 11/02/07
   ! 
+
   
   implicit none
 
@@ -153,7 +155,7 @@ function MaterialPropertyCreate()
 !  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
-  material_property%thermal_conductivity_frozen = 0.d0
+  material_property%thermal_conductivity_frozen = UNINITIALIZED_DOUBLE
   material_property%alpha_fr = 0.95d0
 
   material_property%thermal_expansitivity = 0.d0  
@@ -206,13 +208,14 @@ subroutine MaterialPropertyRead(material_property,input,option)
   soil_or_bulk_compressibility = UNINITIALIZED_INTEGER
 
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','MATERIAL_PROPERTY')
     call StringToUpper(keyword)   
       
@@ -235,9 +238,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('INACTIVE')
         material_property%active = PETSC_FALSE
       case('SATURATION_FUNCTION','CHARACTERISTIC_CURVES') 
-        call InputReadWordDbaseCompatible(input,option, &
-                           material_property%saturation_function_name, &
-                           PETSC_TRUE)
+        call InputReadCardDbaseCompatible(input,option, &
+                           material_property%saturation_function_name)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('ROCK_DENSITY') 
@@ -300,7 +302,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'thermal conductivity frozen exponent', &
                            'MATERIAL_PROPERTY')
       case('SOIL_COMPRESSIBILITY_FUNCTION')
-        call InputReadWord(input,option, &
+        call InputReadCard(input,option, &
                            material_property%soil_compressibility_function, &
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'soil compressibility function', &
@@ -328,6 +330,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'MATERIAL_PROPERTY')
         length = 16
         if (StringCompare(word,'INITIAL_PRESSURE',length)) then
+          call InputPushCard(input,word,option)
           material_property%soil_reference_pressure_initial = PETSC_TRUE
         else
           ! if not the keyword above, copy back into buffer to be read as a
@@ -359,6 +362,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'tortuosity power as a function of &
                            &porosity','MATERIAL_PROPERTY')
       case('PERMEABILITY')
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -367,7 +371,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit
           
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,PERMEABILITY')   
           select case(trim(word))
@@ -467,7 +471,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 'Please use the new DATASET object in the input file and ' // &
                 'reference that dataset through "DATASET name" within ' // &
                 'the PERMEABILITY card.'
-              call printErrMsg(option)
+              call PrintErrMsg(option)
             case('DATASET')
               material_property%permeability_dataset => DatasetBaseCreate()
               call InputReadNChars(input,option, &
@@ -477,10 +481,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')   
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERMEABILITY',option)
           end select
         enddo
+        call InputPopBlock(input,option)
         if (dabs(material_property%permeability(1,1) - &
                  material_property%permeability(2,2)) > 1.d-40 .or. &
             dabs(material_property%permeability(1,1) - &
@@ -491,6 +496,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       ! Permfactor is the multiplier to permeability to increase perm
       ! The perm increase could be due to pressure or other variable
       ! Added by Satish Karra, LANL, 1/8/12
+        call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
@@ -499,7 +505,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           if (InputCheckExit(input,option)) exit          
           
           if (InputError(input)) exit
-          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'keyword', &
                              'MATERIAL_PROPERTY,PERM_FACTOR')   
           select case(trim(word))
@@ -516,10 +522,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputReadDouble(input,option,material_property%max_permfactor)
               call InputErrorMsg(input,option,'max permfactor','PERM_FACTOR')
             case default
-              call InputKeywordUnrecognized(word, &
+              call InputKeywordUnrecognized(input,word, &
                      'MATERIAL_PROPERTY,PERM_FACTOR',option)
           end select
         enddo
+        call InputPopBlock(input,option)
       case('PERMEABILITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%permeability_pwr)
@@ -541,15 +548,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'tortuosity power','MATERIAL_PROPERTY')
 
       case default
-        call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)
+        call InputKeywordUnrecognized(input,keyword,'MATERIAL_PROPERTY',option)
     end select 
   enddo
+  call InputPopBlock(input,option)
   
   if (material_property%tortuosity_function_of_porosity) then
     if (associated(material_property%tortuosity_dataset)) then
       option%io_buffer = 'A TORTUOSITY dataset may not be assigned in &
         &combination with TORTUOSITY_FUNCTION_OF_POROSITY.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (.not.associated(material_property%porosity_dataset)) then
       material_property%tortuosity = material_property%porosity** &
@@ -592,7 +600,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &instead of a SOIL_COMPRESSIBILITY in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a BRAGFLO or WIPP &
             &SOIL_COMPRESSIBILITY function is defined.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         word = 'BULK_COMPRESSIBILITY'
       case('POROSITY_EXPONENTIAL')
@@ -601,7 +609,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a POROSITY_EXPONENTIAL &
             &not POROSITY_COMPRESSIBILITY function is defined.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         word = 'POROSITY_COMPRESSIBILITY'
       case('LEIJNSE','DEFAULT')
@@ -610,7 +618,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
             &instead of a BULK_COMPRESSIBILITY in MATERIAL_PROPERTY "' // &
             trim(material_property%name) // '" since a LEIJNSE or DEFAULT &
             &SOIL_COMPRESSIBILITY function is defined.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         word = 'SOIL_COMPRESSIBILITY'
       case default
@@ -622,7 +630,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         &inputdeck for MATERIAL_PROPERTY "' // &
         trim(material_property%name) // &
         '", but a ' // trim(word) // ' is not defined.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (Uninitialized(material_property%soil_reference_pressure) .and. &
         .not.associated(material_property% &
@@ -632,7 +640,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         &inputdeck for MATERIAL_PROPERTY "' // &
         trim(material_property%name) // &
         '", but a SOIL_REFERENCE_PRESSURE is not defined.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if ((Initialized(material_property%soil_reference_pressure) .or. &
          associated(material_property%soil_reference_pressure_dataset)) .and. &
@@ -640,7 +648,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       option%io_buffer = 'SOIL_REFERENCE_PRESSURE may not be defined by the &
         &initial pressure and a specified pressure in material "' // &
         trim(material_property%name) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
   endif
 
@@ -652,7 +660,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       trim(adjustl(word)) // '). If you would like to inactivate a &
       &material, please do so by adding INACTIVE to the STRATA to which &
       &the MATERIAL_PROPERTY is coupled.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
 
 end subroutine MaterialPropertyRead
@@ -737,7 +745,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
       write(string,*) cur_material_property%internal_id
       option%io_buffer = trim(option%io_buffer) // &
         'and internal id "' // trim(adjustl(string)) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     cur_material_property => cur_material_property%next
   enddo
@@ -768,7 +776,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
       write(string,*) i
       option%io_buffer = 'Material ID ' // trim(adjustl(string)) // &
         ' is duplicated in input file.'
-      call printMsg(option)
+      call PrintMsg(option)
       error_flag = PETSC_TRUE
     endif
   enddo
@@ -777,7 +785,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material IDs.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
   ! ensure unique material names
@@ -793,7 +801,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
             option%io_buffer = 'Material name "' // &
               trim(adjustl(array(i)%ptr%name)) // &
               '" is duplicated in input file.'
-            call printMsg(option)
+            call PrintMsg(option)
             error_flag = PETSC_TRUE
           endif
         endif
@@ -803,7 +811,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
 
   if (error_flag) then
     option%io_buffer = 'Duplicate Material names.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine MaterialPropConvertListToArray
@@ -936,6 +944,13 @@ subroutine MaterialSetup(material_property_array, &
   type(material_property_ptr_type) :: material_property_array(:)
   type(characteristic_curves_ptr_type) :: characteristic_curves_array(:)
   type(option_type), pointer :: option
+  
+  PetscInt :: num_characteristic_curves
+  PetscInt :: num_mat_prop
+  PetscInt :: i
+  
+  num_mat_prop = size(material_property_array)
+  num_characteristic_curves = size(characteristic_curves_array)
 
   ! duplicated subroutine - not needed
   
@@ -1113,7 +1128,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
             trim(material_property_ptrs(i)%ptr% &
                    soil_compressibility_function) // &
             '" not recognized.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
       num_soil_compress_func = num_soil_compress_func + 1
     endif  
@@ -1123,7 +1138,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
                              MaterialCompressSoilPtrTmp)) then
       option%io_buffer = 'All MATERIAL_PROPERTIES must specify the ' // &
         'same soil compressibility function.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (Initialized(material_property_ptrs(i)%ptr%soil_compressibility) .or. &
         associated(material_property_ptrs(i)%ptr%compressibility_dataset)) then
@@ -1166,25 +1181,25 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       num_soil_compress_func /= num_material_properties) then
     option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION must be defined for all &
       &materials.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (soil_compressibility_index > 0 .and. &
       num_soil_compress /= num_material_properties) then
     option%io_buffer = 'SOIL_COMPRESSIBILITY must be defined for all &
       &materials.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (soil_reference_pressure_index > 0 .and. &
       num_soil_ref_press /= num_material_properties) then
     option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined for all &
       &materials.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   if (soil_compressibility_index > 0 .and. &
       soil_reference_pressure_index == 0) then
     option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined to model &
       &soil compressibility.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   
 end subroutine MaterialInitAuxIndices
@@ -1238,7 +1253,7 @@ end subroutine MaterialAssignPropertyToAux
 
 ! ************************************************************************** !
 
-subroutine MaterialSetAuxVarScalar(Material,value,ivar)
+subroutine MaterialSetAuxVarScalar(Material,value,ivar,isubvar)
   ! 
   ! Sets values of a material auxvar data using a scalar value.
   ! 
@@ -1253,6 +1268,8 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
   type(material_type) :: Material ! from realization%patch%aux%Material
   PetscReal :: value
   PetscInt :: ivar
+  PetscInt :: isubvar
+
   PetscInt :: i
   
 !  material_auxvars => Material%auxvars
@@ -1265,9 +1282,20 @@ subroutine MaterialSetAuxVarScalar(Material,value,ivar)
         Material%auxvars(i)%volume = value
       enddo
     case(POROSITY)
-      do i=1, Material%num_aux
-        Material%auxvars(i)%porosity = value
-      enddo
+      select case(isubvar)
+        case(POROSITY_CURRENT)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity = value
+          enddo
+        case(POROSITY_BASE)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity_base = value
+          enddo
+        case(POROSITY_INITIAL)
+          do i=1, Material%num_aux
+            Material%auxvars(i)%porosity_0 = value
+          enddo
+      end select
     case(TORTUOSITY)
       do i=1, Material%num_aux
         Material%auxvars(i)%tortuosity = value
@@ -1310,8 +1338,6 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Variables_module
   
   implicit none
@@ -1351,10 +1377,17 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity = vec_loc_p(ghosted_id)
           enddo
-        case(POROSITY_MINERAL)
+        case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
             Material%auxvars(ghosted_id)%porosity_base = vec_loc_p(ghosted_id)
           enddo
+        case(POROSITY_INITIAL)
+          do ghosted_id=1, Material%num_aux
+            Material%auxvars(ghosted_id)%porosity_0 = vec_loc_p(ghosted_id)
+          enddo
+        case default
+          print *, 'Error indexing porosity in MaterialSetAuxVarVecLoc()'
+          stop
       end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
@@ -1405,8 +1438,6 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   ! Author: Glenn Hammond
   ! Date: 01/09/14
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Variables_module
   
   implicit none
@@ -1455,10 +1486,17 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
             vec_loc_p(ghosted_id) = &
               Material%auxvars(ghosted_id)%porosity
           enddo
-        case(POROSITY_MINERAL)
+        case(POROSITY_BASE)
           do ghosted_id=1, Material%num_aux
             vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_base
           enddo
+        case(POROSITY_INITIAL)
+          do ghosted_id=1, Material%num_aux
+            vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%porosity_0
+          enddo
+        case default
+          print *, 'Error indexing porosity in MaterialGetAuxVarVecLoc()'
+          stop
       end select
     case(TORTUOSITY)
       do ghosted_id=1, Material%num_aux
@@ -1509,8 +1547,6 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   ! Author: Glenn Hammond
   ! Date: 04/17/14
   ! 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Field_module
   use Communicator_Base_module
@@ -1575,8 +1611,6 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   ! Date: 01/14/09
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Communicator_Base_module
   use Variables_module, only : POROSITY
@@ -1599,7 +1633,7 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
   print *, 'MaterialUpdateAuxVars not implemented.'
   stop
   ! porosity
-!  call MaterialGetAuxVarVecLoc(Material,vec_loc,POROSITY,ZERO_INTEGER)
+!  call MaterialGetAuxVarVecLoc(Material,vec_loc,POROSITY,POROSITY_CURRENT)
 !  call comm1%LocalToLocal(vec_loc,vec_loc)
   ! note that 'time_level' is not ZERO_INTEGER.  thus, this differs
   ! from MaterialAuxVarCommunicate.
@@ -1617,8 +1651,6 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   ! Date: 01/09/14
   ! 
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Communicator_Base_module
   
   implicit none
@@ -1634,6 +1666,49 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   call MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
 
 end subroutine MaterialAuxVarCommunicate
+
+! ************************************************************************** !
+
+subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
+  ! 
+  ! Gets values of material auxvar data using a vector.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/09/14
+  ! 
+
+  use Variables_module
+  use Global_Aux_module
+  
+  implicit none
+
+  type(material_type) :: Material ! from realization%patch%aux%Material
+  type(global_auxvar_type) :: global_auxvars(:)
+  Vec :: porosity_loc
+  
+  PetscReal, pointer :: porosity_loc_p(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscInt :: ghosted_id
+  PetscReal :: compressed_porosity
+  PetscReal :: dcompressed_porosity_dp
+  PetscErrorCode :: ierr
+  
+  if (soil_compressibility_index > 0) then
+    material_auxvars => Material%auxvars
+    call VecGetArrayReadF90(porosity_loc,porosity_loc_p,ierr);CHKERRQ(ierr)
+    do ghosted_id = 1, Material%num_aux
+      material_auxvars(ghosted_id)%porosity = porosity_loc_p(ghosted_id)
+      call MaterialCompressSoil(material_auxvars(ghosted_id), &
+                                maxval(global_auxvars(ghosted_id)%pres), &
+                                compressed_porosity,dcompressed_porosity_dp)
+      material_auxvars(ghosted_id)%porosity = compressed_porosity
+      material_auxvars(ghosted_id)%dporosity_dp = dcompressed_porosity_dp
+    enddo
+    call VecRestoreArrayReadF90(porosity_loc,porosity_loc_p, &
+                                ierr);CHKERRQ(ierr)
+  endif
+  
+end subroutine MaterialUpdatePorosity
 
 ! **************************************************************************** !
 

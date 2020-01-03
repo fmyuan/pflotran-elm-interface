@@ -50,7 +50,9 @@ module PM_TH_class
     procedure, public :: Destroy => PMTHDestroy
   end type pm_th_type
   
-  public :: PMTHCreate
+  public :: PMTHCreate, &
+            PMTHDestroy, &
+            PMTHCheckConvergence
   
 contains
 
@@ -136,13 +138,14 @@ subroutine PMTHRead(this,input)
   error_string = 'TH Options'
   
   input%ierr = 0
+  call InputPushBlock(input,option)
   do
   
     call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
 
@@ -250,11 +253,11 @@ subroutine PMTHRead(this,input)
         call StringToUpper(word)
         select case (trim(word))
           case ('PAINTER_EXPLICIT')
-            option%ice_model = PAINTER_EXPLICIT
+            option%th_ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
-            option%ice_model = PAINTER_KARRA_IMPLICIT
+            option%th_ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
-            option%ice_model = PAINTER_KARRA_EXPLICIT
+            option%th_ice_model = PAINTER_KARRA_EXPLICIT
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
             option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('PAINTER_KARRA_EXPLICIT_SMOOTH')
@@ -263,7 +266,7 @@ subroutine PMTHRead(this,input)
             call InputDefaultMsg(input,option,'freezing-thawing smoothing')
             if(tempreal > 1.d-10) option%frzthw_halfwidth = tempreal
           case ('DALL_AMICO')
-            option%ice_model = DALL_AMICO
+            option%th_ice_model = DALL_AMICO
           case default
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
@@ -277,9 +280,10 @@ subroutine PMTHRead(this,input)
             call printMsg(option)
           end select
       case default
-        call InputKeywordUnrecognized(word,error_string,option)
+        call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
+  call InputPopBlock(input,option)
   
 end subroutine PMTHRead
 
@@ -339,8 +343,6 @@ subroutine PMTHInitializeTimestep(this)
                                this%realization%field%icap_loc)
   call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
                                this%realization%field%ithrm_loc)
-  call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
-                               this%realization%field%iphas_loc)
 
   call FlowmodeInitializeTimestep(this%realization)
   call PMSubsurfaceFlowInitializeTimestepB(this)
@@ -566,7 +568,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (press_limit < dabs(delP)) then
         write(option%io_buffer,'("dP_trunc:",1i7,2es15.7)') &         
           grid%nG2A(grid%nL2G(local_id)),press_limit,dabs(delP)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       endif
       delP = sign(min(dabs(delP),press_limit),delP)
       dX_p(istart) = delP
@@ -592,7 +594,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (abs(delP) > abs(temp_limit)) then
         write(option%io_buffer,'("dT_trunc:",1i7,2es15.7)') &
           grid%nG2A(grid%nL2G(local_id)),temp_limit,dabs(delP)
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       endif
       delP = sign(min(dabs(delP),temp_limit),delP)
       dX_p(iend) = delP
@@ -621,11 +623,11 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
       if (P0 < P_R .and. P1 > P_R) then
         write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1 
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       else if (P1 < P_R .and. P0 > P_R) then
         write(option%io_buffer,'("S -> U:",1i7,2f12.1)') &
           grid%nG2A(grid%nL2G(local_id)),P0,P1
-        call printMsgAnyRank(option)
+        call PrintMsgAnyRank(option)
       endif
       ! transition from unsaturated to saturated
       if (P0 < P_R .and. P1 > P_R) then

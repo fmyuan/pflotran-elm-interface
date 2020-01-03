@@ -2,22 +2,24 @@ module PFLOTRAN_Constants_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
+  
   use, intrinsic :: iso_fortran_env, only : stdout=>Output_Unit
  
   implicit none
 
   private
 
-#include "petsc/finclude/petscsys.h"
 #define VMAJOR 3
-#define VMINOR 10
-#define VSUBMINOR 2
+#define VMINOR 11
+#define VSUBMINOR 3
 #if (PETSC_VERSION_MAJOR < VMAJOR ||                    \
      (PETSC_VERSION_MAJOR == VMAJOR &&                  \
       (PETSC_VERSION_MINOR < VMINOR ||                  \
        (PETSC_VERSION_MINOR == VMINOR &&                \
         (PETSC_VERSION_SUBMINOR < VSUBMINOR)))))
-!#error "Please use PETSc version 3.10.2: 'git checkout v3.10.2' in $PETSC_DIR"
+!#error "Please use PETSc version 3.11.3: 'git checkout v3.11.3' in $PETSC_DIR"
 #endif
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS 
   ! MODIFIED TO PREVENT COMPATIBILITY ISSUES - geh.
@@ -34,18 +36,16 @@ module PFLOTRAN_Constants_module
   ! for embedded input files.
   PetscInt, parameter, public :: MAX_IN_UNIT = 25
   PetscInt, parameter, public :: IUNIT_TEMP = 86
-  ! Unit numbers for reading and writing reservoir engineering format files
-  PetscInt, parameter, public :: UNIT_GRDECL_READ = 50
-  PetscInt, parameter, public :: UNIT_SPEC_WRITE  = 51
-  PetscInt, parameter, public :: UNIT_SUMM_WRITE  = 52
-  PetscInt, parameter, public :: UNIT_GRID_WRITE  = 53
-  PetscInt, parameter, public :: UNIT_INIT_WRITE  = 54
-  PetscInt, parameter, public :: UNIT_REST_WRITE  = 55
+  ! Units 50-59 are reserved for reservoir engineering format files
   ! EKG_UNIT = 87
   PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
   ! HHISTORY_LENGTH is the length of the array used to store the differencing
   ! values h.
+
+  ! EXIT codes
+  PetscInt, parameter, public :: EXIT_SUCCESS = 0
+  PetscInt, parameter, public :: EXIT_USER_ERROR = 87
   
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0
@@ -138,14 +138,14 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: DIRICHLET_ZERO_GRADIENT_BC = 3
   PetscInt, parameter, public :: ZERO_GRADIENT_BC = 4
   PetscInt, parameter, public :: HYDROSTATIC_BC = 5
-  PetscInt, parameter, public :: SEEPAGE_BC = 6
+  PetscInt, parameter, public :: HYDROSTATIC_SEEPAGE_BC = 6
   PetscInt, parameter, public :: MASS_RATE_SS = 7
   PetscInt, parameter, public :: VOLUMETRIC_RATE_SS = 8
   PetscInt, parameter, public :: SCALED_MASS_RATE_SS = 9
   PetscInt, parameter, public :: SCALED_VOLUMETRIC_RATE_SS = 10
   PetscInt, parameter, public :: CONCENTRATION_SS = 11
   PetscInt, parameter, public :: EQUILIBRIUM_SS = 12
-  PetscInt, parameter, public :: CONDUCTANCE_BC = 13
+  PetscInt, parameter, public :: HYDROSTATIC_CONDUCTANCE_BC = 13
   PetscInt, parameter, public :: UNIT_GRADIENT_BC = 14
   PetscInt, parameter, public :: SATURATION_BC = 15
   PetscInt, parameter, public :: HET_VOL_RATE_SS = 16
@@ -154,14 +154,17 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
   PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
   PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
-  PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
+  PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
   PetscInt, parameter, public :: SPILLOVER_BC = 23
   PetscInt, parameter, public :: SURFACE_DIRICHLET = 33
   PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
   PetscInt, parameter, public :: SURFACE_SPILLOVER = 35
-  PetscInt, parameter, public :: HET_SEEPAGE_BC = 36
-  PetscInt, parameter, public :: HET_CONDUCTANCE_BC = 37
-
+  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC = 36
+  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 37
+  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS = 38
+  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC = 38
+  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC = 39
+  
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
   PetscInt, parameter, public :: SCALE_BY_NEIGHBOR_PERM = 2
@@ -263,11 +266,13 @@ module PFLOTRAN_Constants_module
   interface Uninitialized
     module procedure UninitializedInteger
     module procedure UninitializedDouble
+    module procedure UninitializedMatType
   end interface
   
   interface Initialized
     module procedure InitializedInteger
     module procedure InitializedDouble
+    module procedure InitializedMatType
   end interface
   
   public :: Initialized, &
@@ -352,6 +357,45 @@ function UninitializedDouble(value)
   UninitializedDouble = (dabs(value-UNINITIALIZED_DOUBLE) < 1.d-20)
   
 end function UninitializedDouble
+
+! ************************************************************************** !
+
+function InitializedMatType(value)
+  ! 
+  ! Tests whether a variable is initialized based orginally being set to
+  ! the value PETSC_NULL_CHARACTER.
+  ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
+  implicit none
+  
+  MatType :: value
+  PetscBool :: InitializedMatType
+
+  InitializedMatType = .not.Uninitialized(value)
+  
+end function InitializedMatType
+
+! ************************************************************************** !
+
+function UninitializedMatType(value)
+  ! 
+  ! Tests whether a variable is uninitialized based orginally being set to
+  ! the value PETSC_NULL_CHARACTER.
+  ! 
+#include "petsc/finclude/petscmat.h"
+  use petscmat
+
+  implicit none
+  
+  MatType :: value
+  PetscBool :: UninitializedMatType
+
+  UninitializedMatType = (value == PETSC_NULL_CHARACTER)
+  
+end function UninitializedMatType
+
 
 ! ************************************************************************** !
 
