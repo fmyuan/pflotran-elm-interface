@@ -28,6 +28,7 @@ module PMC_Base_class
     character(len=MAXWORDLENGTH) :: name
     PetscInt :: stage
     PetscBool :: is_master
+    PetscLogDouble :: cumulative_time
     type(option_type), pointer :: option
     type(checkpoint_option_type), pointer :: checkpoint_option
     class(timestepper_base_type), pointer :: timestepper
@@ -149,6 +150,7 @@ subroutine PMCBaseInit(this)
   this%name = 'PMCBase'
   this%stage = 0
   this%is_master = PETSC_FALSE
+  this%cumulative_time = 0.d0
   nullify(this%option)
   nullify(this%checkpoint_option)
   nullify(this%timestepper)
@@ -478,7 +480,6 @@ recursive subroutine PMCBaseRunToTime(this,sync_time,stop_flag)
                                         observation_plot_at_this_time_flag, &
                                         massbal_plot_at_this_time_flag, &
                                         checkpoint_at_this_time_flag)
-!    call this%timestepper%StepDT(this%pm_list,local_stop_flag)
     call this%StepDT(local_stop_flag)
     if (this%timestepper%time_step_cut_flag) then
       ! if timestep has been cut, all the I/O flags set above in 
@@ -619,7 +620,14 @@ subroutine PMCBaseStepDT(this,stop_flag)
   class(pmc_base_type) :: this
   PetscInt :: stop_flag
 
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_end_time
+  PetscErrorCode :: ierr
+
+  call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
   call this%timestepper%StepDT(this%pm_list,stop_flag)
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+  this%cumulative_time = this%cumulative_time + log_end_time - log_start_time
 
 end subroutine PMCBaseStepDT
 
@@ -661,6 +669,7 @@ recursive subroutine FinalizeRun(this)
   ! Author: Glenn Hammond
   ! Date: 03/18/13
   ! 
+  use Option_module
 
   implicit none
   
@@ -671,6 +680,11 @@ recursive subroutine FinalizeRun(this)
 #ifdef DEBUG
   call PrintMsg(this%option,'PMCBase%FinalizeRun()')
 #endif
+
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'(/,a,/," Total Time: ", es12.4, " [sec]")') &
+            trim(this%name), this%cumulative_time
+  endif  
   
   if (associated(this%timestepper)) then
     call this%timestepper%FinalizeRun(this%option)
@@ -679,6 +693,9 @@ recursive subroutine FinalizeRun(this)
   if (associated(this%pm_list)) then
     call this%pm_list%FinalizeRun()
   endif
+  if (OptionPrintToScreen(this%option)) then
+    write(*,'("----------")')
+  endif  
 
   if (associated(this%child)) then
     call this%child%FinalizeRun()

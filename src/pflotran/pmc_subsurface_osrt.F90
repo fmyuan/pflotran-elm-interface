@@ -208,7 +208,13 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   character(len=MAXWORDLENGTH) :: tunit
 
   KSPConvergedReason :: ksp_reason
+  PetscLogDouble :: log_outer_start_time
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_ksp_start_time
+  PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
+
+  call PetscTime(log_outer_start_time,ierr);CHKERRQ(ierr)
 
   option => this%option
   realization => this%realization
@@ -283,6 +289,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
   do
 
+    call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
+
     rreact_error = 0
 
 !    call RTCalculateRHS_t0(realization)
@@ -325,7 +333,12 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
         call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
       endif
 
+      call PetscTime(log_ksp_start_time,ierr);CHKERRQ(ierr)      
       call KSPSolve(solver%ksp,field%work,field%work,ierr);CHKERRQ(ierr)
+      call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+      timestepper%cumulative_solver_time = &
+        timestepper%cumulative_solver_time + (log_end_time - log_ksp_start_time)
+      
       call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 !debug      print *, 'Tsol: ', trim(StringWrite('(es17.8)',vec_ptr))
       do local_id = 1, grid%nlmax
@@ -338,6 +351,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
       sum_linear_iterations = sum_linear_iterations + num_linear_iterations
     enddo
+
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+    process_model%cumulative_transport_time = &
+      process_model%cumulative_transport_time + log_end_time - log_start_time
+    log_start_time = log_end_time
 
     ! react all chemical components
     call VecGetArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
@@ -365,6 +383,10 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       endif
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
+
+    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+    process_model%cumulative_reaction_time = &
+      process_model%cumulative_reaction_time + log_end_time - log_start_time
 
     if (rreact_error /= 0) then
       !TODO(geh): move to timestepper base and call from daughters.
@@ -439,27 +461,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
            this%timestepper%cumulative_time_step_cuts
   endif
 
+  call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
+  this%cumulative_time = this%cumulative_time + &
+    log_end_time - log_outer_start_time
+
 end subroutine PMCSubsurfaceOSRTStepDT
-
-! ************************************************************************** !
-
-recursive subroutine PMCSubsurfaceOSRTFinalizeRun(this)
-  ! 
-  ! Finalizes the time stepping
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/06/19
-  ! 
-
-  use Option_module
-  
-  implicit none
-  
-  class(pmc_subsurface_osrt_type) :: this
-  
-  nullify(this%realization)
-  
-end subroutine PMCSubsurfaceOSRTFinalizeRun
 
 ! ************************************************************************** !
 

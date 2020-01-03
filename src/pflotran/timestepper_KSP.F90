@@ -21,7 +21,6 @@ module Timestepper_KSP_class
     
     procedure, public :: ReadInput => TimestepperKSPRead
     procedure, public :: Init => TimestepperKSPInit
-    procedure, public :: StepDT => TimestepperKSPStepDT
     procedure, public :: UpdateDT => TimestepperKSPUpdateDT
     procedure, public :: CheckpointBinary => TimestepperKSPCheckpointBinary
     procedure, public :: RestartBinary => TimestepperKSPRestartBinary
@@ -64,7 +63,7 @@ function TimestepperKSPCreate()
   ! Allocates and initializes a new Timestepper object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   implicit none
@@ -89,7 +88,7 @@ subroutine TimestepperKSPInit(this)
   ! Allocates and initializes a new Timestepper object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   implicit none
@@ -114,7 +113,7 @@ subroutine TimestepperKSPRead(this,input,option)
   ! Reads parameters associated with time stepper
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   use Option_module
@@ -162,7 +161,7 @@ subroutine TimestepperKSPUpdateDT(this,process_model)
   ! Updates time step
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   use PM_Base_class
@@ -212,272 +211,13 @@ end subroutine TimestepperKSPUpdateDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperKSPStepDT(this,process_model,stop_flag)
-  ! 
-  ! Steps forward one step in time
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 07/22/13
-  ! 
-
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-  use PM_Base_class
-  use Option_module
-  use Output_module, only : Output, OutputFindNaNOrInfInVec
-  use Output_EKG_module, only : IUNIT_EKG
-  
-  implicit none
-
-  class(timestepper_KSP_type) :: this
-  class(pm_base_type) :: process_model
-  PetscInt :: stop_flag
-  
-  SNESConvergedReason :: snes_reason
-  PetscInt :: icut
-  
-  type(solver_type), pointer :: solver
-  type(option_type), pointer :: option
-  
-  PetscLogDouble :: log_start_time
-  PetscLogDouble :: log_end_time
-  PetscInt :: num_newton_iterations
-  PetscInt :: num_linear_iterations
-  PetscInt :: sum_newton_iterations
-  PetscInt :: sum_linear_iterations
-  PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
-  character(len=MAXWORDLENGTH) :: tunit
-  
-  PetscReal :: tconv
-  PetscReal :: fnorm, inorm, scaled_fnorm
-  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
-  Vec :: residual_vec
-  PetscErrorCode :: ierr
-
-  solver => this%solver
-  option => process_model%option
-  
-!geh: for debugging
-#ifdef DEBUG
-  write(process_model%option%io_buffer,'(es12.5)') this%dt
-  process_model%option%io_buffer = 'StepperStepDT(' // &
-    trim(adjustl(process_model%option%io_buffer)) // ')'
-  call PrintMsg(process_model%option)
-#endif
-
-  tconv = process_model%output_option%tconv
-  tunit = process_model%output_option%tunit
-  sum_linear_iterations = 0
-  sum_wasted_linear_iterations = 0
-  sum_newton_iterations = 0
-  icut = 0
-  
-  option%dt = this%dt
-  option%time = this%target_time-this%dt
-
-  call process_model%InitializeTimestep()
-    
-#if 0
-  do
-      
-    call process_model%PreSolve()
-    
-    call PetscTime(log_start_time,ierr);CHKERRQ(ierr)
-
-    call SNESSolve(solver%snes,PETSC_NULL_VEC, &
-                   process_model%solution_vec,ierr);CHKERRQ(ierr)
-
-    call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
-
-    this%cumulative_solver_time = &
-      this%cumulative_solver_time + &
-      (log_end_time - log_start_time)
-
-    call SNESGetIterationNumber(solver%snes,num_newton_iterations, &
-                                ierr);CHKERRQ(ierr)
-    call SNESGetLinearSolveIterations(solver%snes,num_linear_iterations, &
-                                      ierr);CHKERRQ(ierr)
-    call SNESGetConvergedReason(solver%snes,snes_reason,ierr);CHKERRQ(ierr)
-
-    sum_newton_iterations = sum_newton_iterations + num_newton_iterations
-    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
-  
-    if (snes_reason <= 0 .or. .not. process_model%AcceptSolution()) then
-      sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
-        num_linear_iterations
-      ! The Newton solver diverged, so try reducing the time step.
-      icut = icut + 1
-      this%time_step_cut_flag = PETSC_TRUE
-      ! if a cut occurs on the last time step, the stop_flag will have been
-      ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
-      ! premature ending of simulation.
-      if (stop_flag /= TS_STOP_MAX_TIME_STEP) stop_flag = TS_CONTINUE
-
-      if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
-
-        if (icut > this%max_time_step_cuts) then
-          option%io_buffer = ' Stopping: Time step cut criteria exceeded.'
-          call PrintMsg(option)
-          write(option%io_buffer, &
-                '("    icut =",i3,", max_time_step_cuts=",i3)') &
-                icut,this%max_time_step_cuts
-          call PrintMsg(option)
-        endif
-        if (this%dt < this%dt_min) then
-          option%io_buffer = ' Stopping: Time step size is less than the &
-                             &minimum allowable time step.'
-          call PrintMsg(option)
-          write(option%io_buffer, &
-                '("    dt   =",es15.7,", dt_min=",es15.7," [",a,"]")') &
-               this%dt/tconv,this%dt_min/tconv,trim(tunit)
-          call PrintMsg(option)
-       endif   
-        
-        process_model%output_option%plot_name = trim(process_model%name)// &
-          '_cut_to_failure'
-        snapshot_plot_flag = PETSC_TRUE
-        observation_plot_flag = PETSC_FALSE
-        massbal_plot_flag = PETSC_FALSE
-        call Output(process_model%realization_base,snapshot_plot_flag, &
-                    observation_plot_flag,massbal_plot_flag)
-        stop_flag = TS_STOP_FAILURE
-        return
-      endif
- 
-      this%target_time = this%target_time - this%dt
-
-      this%dt = this%time_step_reduction_factor * this%dt  
-      
-      write(option%io_buffer,'(''-> Cut time step: snes='',i3, &
-           &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-           &   1pe12.5)')  snes_reason,icut, &
-           this%cumulative_time_step_cuts+icut, &
-           option%time/tconv, &
-           this%dt/tconv
-      call PrintMsg(option)
-      if (snes_reason < SNES_CONVERGED_ITERATING) then
-        call SolverNewtonPrintFailedReason(solver,option)
-        if (solver%verbose_logging) then
-          select case(snes_reason)
-            case(SNES_DIVERGED_FNORM_NAN)
-              ! attempt to find cells with NaNs.
-              call SNESGetFunction(solver%snes,residual_vec, &
-                                   PETSC_NULL_FUNCTION,PETSC_NULL_INTEGER, &
-                                 ierr);CHKERRQ(ierr)
-              call OutputFindNaNOrInfInVec(residual_vec, &
-                                           process_model%realization_base% &
-                                             discretization%grid,option)
-          end select
-        endif
-      endif
-
-      this%target_time = this%target_time + this%dt
-      option%dt = this%dt
-      call process_model%TimeCut()
-  
-    else
-      ! The Newton solver converged, so we can exit.
-      exit
-    endif
-  enddo
-
-  this%steps = this%steps + 1      
-  this%cumulative_newton_iterations = &
-    this%cumulative_newton_iterations + sum_newton_iterations
-  this%cumulative_linear_iterations = &
-    this%cumulative_linear_iterations + sum_linear_iterations
-  this%cumulative_wasted_linear_iterations = &
-    this%cumulative_wasted_linear_iterations + sum_wasted_linear_iterations
-  this%cumulative_time_step_cuts = &
-    this%cumulative_time_step_cuts + icut
-
-  this%num_newton_iterations = num_newton_iterations
-  this%num_linear_iterations = num_linear_iterations  
-  
-  ! print screen output
-  call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
-                       PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
-  call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
-  if (option%print_screen_flag) then
-      write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-           & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
-           & " [",i8,"]", " linear = ",i5," [",i10,"]"," cuts = ",i2, &
-           & " [",i4,"]")') &
-           this%steps, &
-           this%target_time/tconv, &
-           this%dt/tconv, &
-           trim(tunit),snes_reason,sum_newton_iterations, &
-           this%cumulative_newton_iterations,sum_linear_iterations, &
-           this%cumulative_linear_iterations,icut, &
-           this%cumulative_time_step_cuts
-
-
-    if (associated(process_model%realization_base%discretization%grid)) then
-       scaled_fnorm = fnorm/process_model%realization_base% &
-                        discretization%grid%nmax 
-    else
-       scaled_fnorm = fnorm
-    endif
-
-    print *,' --> SNES Linear/Non-Linear Iterations = ', &
-             num_linear_iterations,' / ',num_newton_iterations
-    write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
-  endif
-
-  if (option%linerept) then
-    nnl = num_newton_iterations
-    if( nnl>0 ) then
-      lpernl = num_linear_iterations/nnl
-    else
-      lpernl = 0
-    endif
-    option%nnl      = nnl
-    option%linpernl = lpernl
-    option%nchperst = icut
-  endif
-
-  if (option%print_file_flag) then
-    write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-      & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &
-      & " [",i8,"]", " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
-      this%steps, &
-      this%target_time/tconv, &
-      this%dt/tconv, &
-      trim(tunit),snes_reason,sum_newton_iterations, &
-      this%cumulative_newton_iterations,sum_linear_iterations, &
-      this%cumulative_linear_iterations,icut, &
-      this%cumulative_time_step_cuts
-  endif
-#endif
-  
-  option%time = this%target_time
-  call process_model%FinalizeTimestep()
-  
-#if 0
-  if (this%print_ekg .and. OptionPrintToFile(option)) then
-100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i3,i5,i5,i10)
-    write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
-      this%dt/tconv, trim(tunit), &
-      icut, this%cumulative_time_step_cuts, &
-      sum_newton_iterations, this%cumulative_newton_iterations, &
-      sum_linear_iterations, this%cumulative_linear_iterations
-  endif
-#endif
-  
-  if (option%print_screen_flag) print *, ""  
-  
-end subroutine TimestepperKSPStepDT
-
-! ************************************************************************** !
-
 subroutine TimestepperKSPCheckpointBinary(this,viewer,option)
   ! 
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/25/13
+  ! Date: 12/06/19
   ! 
   use Option_module
 
@@ -515,7 +255,7 @@ subroutine TimestepperKSPRegisterHeader(this,bag,header)
   ! Register header entries.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/30/13
+  ! Date: 12/06/19
   ! 
 
   use Option_module
@@ -547,7 +287,7 @@ subroutine TimestepperKSPSetHeader(this,bag,header)
   ! Sets values in checkpoint header.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/25/13
+  ! Date: 12/06/19
   ! 
 
   use Option_module
@@ -577,7 +317,7 @@ subroutine TimestepperKSPRestartBinary(this,viewer,option)
   ! a time stepper.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/25/13
+  ! Date: 12/06/19
   ! 
 
   use Option_module
@@ -617,7 +357,7 @@ subroutine TimestepperKSPCheckpointHDF5(this, h5_chk_grp_id, option)
   ! a time stepper.
   !
   ! Author: Gautam Bisht
-  ! Date: 07/30/15
+  ! Date: 12/06/19
   !
   use Option_module
   use hdf5
@@ -736,7 +476,7 @@ subroutine TimestepperKSPRestartHDF5(this, h5_chk_grp_id, option)
   ! a time stepper.
   !
   ! Author: Gautam Bisht
-  ! Date: 08/16/15
+  ! Date: 12/06/19
   !
   use Option_module
   use hdf5
@@ -853,7 +593,7 @@ subroutine TimestepperKSPGetHeader(this,header)
   ! Gets values in checkpoint header.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/25/13
+  ! Date: 12/06/19
   ! 
 
   use Option_module
@@ -879,7 +619,7 @@ subroutine TimestepperKSPReset(this)
   ! Zeros timestepper object members.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 01/20/14
+  ! Date: 12/06/19
   ! 
 
   implicit none
@@ -899,7 +639,7 @@ subroutine TimestepperKSPPrintInfo(this,option)
   ! Prints settings for base timestepper.
   ! 
   ! Author: Glenn Hammond
-  ! Date: 12/04/14
+  ! Date: 12/06/19
   ! 
   use Option_module
   use String_module
@@ -931,7 +671,7 @@ subroutine TimestepperKSPInputRecord(this)
   ! To get a## format, must match that in simulation types.
   ! 
   ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
+  ! Date: 12/06/19
   ! 
   
   implicit none
@@ -959,7 +699,7 @@ recursive subroutine TimestepperKSPFinalizeRun(this,option)
   ! Finalizes the time stepping
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   use Option_module
@@ -976,17 +716,17 @@ recursive subroutine TimestepperKSPFinalizeRun(this,option)
 #endif
   
   if (OptionPrintToScreen(option)) then
-    write(*,'(/,a," TS KSP steps = ",i6," linear = ",i10, &
+    write(*,'(/,x,a," TS KSP steps = ",i6," linear = ",i10, &
             & " cuts = ",i6)') &
             trim(this%name), &
             this%steps, &
             this%cumulative_linear_iterations, &
             this%cumulative_time_step_cuts
     write(string,'(i12)') this%cumulative_wasted_linear_iterations
-    write(*,'(a)') trim(this%name) // ' TS KSP Wasted Linear Iterations = ' // &
-      trim(adjustl(string))
+    write(*,'(x,a)') trim(this%name) // &
+      ' TS KSP Wasted Linear Iterations = ' // trim(adjustl(string))
     write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(a)') trim(this%name) // ' TS KSP SNES time = ' // &
+    write(*,'(x,a)') trim(this%name) // ' TS KSP SNES time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
   
@@ -999,7 +739,7 @@ subroutine TimestepperKSPStrip(this)
   ! Deallocates members of a time stepper
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   implicit none
@@ -1018,7 +758,7 @@ subroutine TimestepperKSPDestroy(this)
   ! Deallocates a time stepper
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 12/06/19
   ! 
 
   implicit none
