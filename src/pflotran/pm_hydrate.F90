@@ -236,7 +236,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
   implicit none
 
   type(input_type), pointer :: input
-  type(pm_hydrate_type), pointer :: pm_hydrate
+  class(pm_hydrate_type) :: pm_hydrate
   type(option_type), pointer :: option
 
   type(methanogenesis_type), pointer :: methanogenesis
@@ -343,7 +343,7 @@ subroutine PMHydrateAssignParameters(realization, pm)
   implicit none
 
   class(realization_subsurface_type), pointer :: realization
-  class(pm_hydrate_type), pointer ::pm
+  class(pm_hydrate_type) :: pm
 
   type(fluid_property_type), pointer :: cur_fluid_property
   type(option_type), pointer :: option
