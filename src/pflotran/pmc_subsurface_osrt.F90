@@ -197,6 +197,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: num_iterations
   PetscInt :: num_linear_iterations
   PetscInt :: sum_linear_iterations
+  PetscInt :: sum_linear_iterations_temp
+  PetscInt :: sum_wasted_linear_iterations
   PetscInt :: icut
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   PetscInt :: rreact_error
@@ -242,6 +244,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   tconv = process_model%output_option%tconv
   tunit = process_model%output_option%tunit
   sum_linear_iterations = 0
+  sum_linear_iterations_temp = 0
+  sum_wasted_linear_iterations = 0
   icut = 0
 
   option%dt = timestepper%dt
@@ -349,9 +353,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
       call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
       call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
       call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
-      sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+      sum_linear_iterations_temp = sum_linear_iterations_temp + &
+        num_linear_iterations
     enddo
 
+    sum_linear_iterations = sum_linear_iterations + sum_linear_iterations_temp
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_transport_time = &
       process_model%cumulative_transport_time + log_end_time - log_start_time
@@ -390,6 +396,8 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
 
     if (rreact_error /= 0) then
       !TODO(geh): move to timestepper base and call from daughters.
+      sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
+        sum_linear_iterations_temp
       icut = icut + 1
       timestepper%time_step_cut_flag = PETSC_TRUE
       ! if a cut occurs on the last time step, the stop_flag will have been
@@ -451,6 +459,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   enddo
 
   timestepper%steps = timestepper%steps + 1
+  timestepper%cumulative_linear_iterations = &
+    timestepper%cumulative_linear_iterations + sum_linear_iterations
+  timestepper%cumulative_wasted_linear_iterations = &
+    timestepper%cumulative_wasted_linear_iterations + &
+    sum_wasted_linear_iterations
 
   if (option%print_screen_flag) then
       write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
