@@ -442,7 +442,7 @@ subroutine CondControlAssignFlowInitCond(realization)
                   option%io_buffer = 'Gas saturation ' // trim(string)
                   call PrintErrMsg(option)
                 endif
-              case (HA_STATE) !MAN: testing HA_STATE (7)
+              case (HA_STATE)
             end select
             if (.not. &
                 (hydrate%temperature%itype == DIRICHLET_BC .or. &
@@ -465,15 +465,6 @@ subroutine CondControlAssignFlowInitCond(realization)
               ! decrement ibegin to give a local offset of 0
               ibegin = ibegin - 1
               select case(initial_condition%flow_condition%iphase)
-                case(GA_STATE)
-                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
-                    hydrate%gas_pressure%dataset%rarray(1)
-                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
-                    hydrate%gas_saturation%dataset%rarray(1)
-                  temperature = hydrate%temperature%dataset%rarray(1)
-                  if (hydrate_2ph_energy_dof == HYDRATE_TEMPERATURE_INDEX) then
-                    xx_p(ibegin+HYDRATE_ENERGY_DOF) = temperature
-                  endif
                 case(L_STATE)
                   xx_p(ibegin+HYDRATE_LIQUID_PRESSURE_DOF) = &
                     hydrate%liquid_pressure%dataset%rarray(1)
@@ -489,13 +480,104 @@ subroutine CondControlAssignFlowInitCond(realization)
                     hydrate%mole_fraction%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
-                case(HA_STATE) !MAN testing HA_STATE (7)
+                case(H_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    MOL_RATIO_METH
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(I_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    0.d0
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(GA_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%gas_saturation%dataset%rarray(1)
+                  temperature = hydrate%temperature%dataset%rarray(1)
+                  if (hydrate_2ph_energy_dof == HYDRATE_TEMPERATURE_INDEX) then
+                    xx_p(ibegin+HYDRATE_ENERGY_DOF) = temperature
+                  endif
+                case(HG_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%gas_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(HA_STATE)
+                  if (associated(hydrate%gas_pressure)) then
+                    xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%gas_pressure%dataset%rarray(1)
+                  else
+                    xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%liquid_pressure%dataset%rarray(1)
+                  endif
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%hydrate_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(HI_STATE)
                   xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
                     hydrate%gas_pressure%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
                     hydrate%hydrate_saturation%dataset%rarray(1)
                   xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
                     hydrate%temperature%dataset%rarray(1)
+                case(GI_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                    hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%ice_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(AI_STATE)
+                  xx_p(ibegin+HYDRATE_LIQUID_PRESSURE_DOF) = &
+                    hydrate%liquid_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%mole_fraction%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(HGA_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%hydrate_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(HAI_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%liquid_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%ice_saturation%dataset%rarray(1)
+                case(HGI_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%ice_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%hydrate_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%temperature%dataset%rarray(1)
+                case(GAI_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%gas_pressure%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%liquid_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%ice_saturation%dataset%rarray(1)
+                case(QUAD_STATE)
+                  xx_p(ibegin+HYDRATE_GAS_PRESSURE_DOF) = &
+                      hydrate%liquid_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_GAS_SATURATION_DOF) = &
+                    hydrate%gas_saturation%dataset%rarray(1)
+                  xx_p(ibegin+HYDRATE_ENERGY_DOF) = &
+                    hydrate%ice_saturation%dataset%rarray(1)
               end select
               cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
                 initial_condition%flow_condition%iphase

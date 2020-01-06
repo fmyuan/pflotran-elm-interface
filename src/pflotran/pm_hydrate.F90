@@ -4,7 +4,8 @@ module PM_Hydrate_class
   use petscsnes
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  
+  use Hydrate_Aux_module  
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -20,6 +21,7 @@ module PM_Hydrate_class
   type, public, extends(pm_subsurface_flow_type) :: pm_hydrate_type
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
+    type(hydrate_parameter_type), pointer :: hydrate_parameters
     PetscBool :: converged_flag(3,15,MAX_INDEX)
     PetscInt :: converged_cell(3,15,MAX_INDEX)
     PetscReal :: converged_real(3,15,MAX_INDEX)
@@ -53,7 +55,9 @@ module PM_Hydrate_class
   end type pm_hydrate_type
   
   public :: PMHydrateCreate, &
-            PMHydrateSetFlowMode
+            PMHydrateSetFlowMode, &
+            PMHydrateReadParameters, &
+            PMHydrateAssignParameters
   
 contains
 
@@ -177,6 +181,8 @@ function PMHydrateCreate()
   this%converged_real(:,:,:) = 0.d0
   this%converged_cell(:,:,:) = 0
 
+  allocate(this%hydrate_parameters)
+
   PMHydrateCreate => this
   
 end function PMHydrateCreate
@@ -221,6 +227,158 @@ end subroutine PMHydrateSetFlowMode
 
 ! ************************************************************************** !
 
+subroutine PMHydrateReadParameters(input,pm_hydrate,option)
+
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  class(pm_hydrate_type) :: pm_hydrate
+  type(option_type), pointer :: option
+
+  type(methanogenesis_type), pointer :: methanogenesis
+  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: temp_int
+
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+    if (input%ierr /= 0) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,word)
+    call InputErrorMsg(input,option,'keyword','HYDRATE')
+    call StringToUpper(word)
+
+    select case(trim(word))
+      case('SCALE_PERM_BY_HYD_SAT')
+        HYDRATE_PERM_SCALING = PETSC_TRUE
+      case('EFFECTIVE_SAT_SCALING')
+        HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
+      case('WITH_GIBBS_THOMSON')
+        HYDRATE_WITH_GIBBS_THOMSON = PETSC_TRUE
+      case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
+        HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_TRUE
+      case('WITH_SEDIMENTATION')
+        HYDRATE_WITH_SEDIMENTATION = PETSC_TRUE
+      case('NO_PC')
+        HYDRATE_NO_PC = PETSC_TRUE
+      case('METHANOGENESIS')
+        HYDRATE_WITH_METHANOGENESIS = PETSC_TRUE
+        if (.not. associated(pm_hydrate%hydrate_parameters%methanogenesis)) then
+          pm_hydrate%hydrate_parameters%methanogenesis => &
+                     HydrateMethanogenesisCreate()
+        endif
+        methanogenesis => pm_hydrate%hydrate_parameters%methanogenesis
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (input%ierr /= 0) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadCard(input,option,word)
+          call InputErrorMsg(input,option,'keyword','HYDRATE')
+          call StringToUpper(word)
+          select case(trim(word))
+            case('NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'methanogenesis source name', &
+                                 error_string)
+              call StringToUpper(word)
+              methanogenesis%source_name = trim(word)
+            case('ALPHA')
+              call InputReadDouble(input,option,methanogenesis%alpha)
+              call InputErrorMsg(input,option,'alpha',error_string)
+            case('LAMBDA')
+              call InputReadDouble(input,option,methanogenesis%lambda)
+              call InputErrorMsg(input,option,'lambda',error_string)
+            case('V_SED')
+              call InputReadDouble(input,option,methanogenesis%omega)
+              call InputErrorMsg(input,option,'v_sed',error_string)
+            case('SMT_DEPTH')
+              call InputReadDouble(input,option,methanogenesis%z_smt)
+              call InputErrorMsg(input,option,'smt_depth',error_string)
+            case('K_ALPHA')
+              call InputReadDouble(input,option,methanogenesis%k_alpha)
+              call InputErrorMsg(input,option,'k_alpha',error_string)
+          end select
+        enddo
+        call InputPopBlock(input,option)
+      case('PERM_SCALING_FUNCTION')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('DAI_AND_SEOL')
+            temp_int = 1
+            HYDRATE_PERM_SCALING_FUNCTION = temp_int
+        end select
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PMHydrateReadParameters
+
+! ************************************************************************** !
+
+subroutine PMHydrateAssignParameters(realization, pm)
+
+  ! Points hydrate parameters to those read into the PM.
+  ! 
+  ! Author: Michael Nole
+  ! Date: 11/20/19
+  !
+
+  use Realization_Subsurface_class
+  use Hydrate_Aux_module
+  use Fluid_module
+  use Option_module
+
+  implicit none
+
+  class(realization_subsurface_type), pointer :: realization
+  class(pm_hydrate_type) :: pm
+
+  type(fluid_property_type), pointer :: cur_fluid_property
+  type(option_type), pointer :: option
+
+  option => realization%option
+
+  ! initialize parameters
+  allocate(pm%hydrate_parameters%diffusion_coefficient(option%nphase))
+  cur_fluid_property => realization%fluid_properties
+  do
+    if (.not.associated(cur_fluid_property)) exit
+    pm%hydrate_parameters% &
+      diffusion_coefficient(cur_fluid_property%phase_id) = &
+        cur_fluid_property%diffusion_coefficient
+    cur_fluid_property => cur_fluid_property%next
+  enddo
+  ! check whether diffusion coefficients are initialized.
+  if (Uninitialized(pm%hydrate_parameters% &
+      diffusion_coefficient(LIQUID_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Liquid phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(pm%hydrate_parameters% &
+      diffusion_coefficient(GAS_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Gas phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+
+  realization%patch%aux%hydrate%hydrate_parameter => pm%hydrate_parameters 
+
+end subroutine PMHydrateAssignParameters
+
+! ************************************************************************** !
 subroutine PMHydrateRead(this,input)
   ! 
   ! Sets up SNES solvers.
@@ -228,7 +386,6 @@ subroutine PMHydrateRead(this,input)
   ! Author: Michael Nole
   ! Date: 07/23/19
   !
-  use Hydrate_module
   use Hydrate_Aux_module
   use Input_Aux_module
   use String_module
@@ -520,7 +677,7 @@ subroutine PMHydrateRead(this,input)
       case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
         hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
-        call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
+        call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select
     
   enddo  
@@ -732,7 +889,7 @@ subroutine PMHydrateUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     call this%realization%comm1%GlobalToLocal(field%work,field%work_loc)
     call GlobalSetAuxVarVecLoc(this%realization,field%work_loc, &
                                GAS_SATURATION,TIME_NULL)
-    call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+    call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   endif
 
 end subroutine PMHydrateUpdateTimestep
@@ -1691,6 +1848,8 @@ subroutine PMHydrateDestroy(this)
   nullify(this%max_change_ivar)
   deallocate(this%max_change_isubvar)
   nullify(this%max_change_isubvar)
+  
+  nullify(this%hydrate_parameters)
 
   ! preserve this ordering
   call HydrateDestroy(this%realization)

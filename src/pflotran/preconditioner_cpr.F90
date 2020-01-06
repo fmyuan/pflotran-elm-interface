@@ -405,6 +405,18 @@ subroutine CPRMake(p, ctx, c, ierr, option)
 
   call PCShellSetContext(p, ctx, ierr); CHKERRQ(ierr)
 
+#if PETSC_VERSION_GE(3,11,99)
+#if !defined(PETSC_HAVE_HYPRE)
+  if (.not. ctx%useGAMG .or. &
+      (StringCompare(ctx%T2_type,'SAILS') .or. &
+       StringCompare(ctx%T2_type,'PILUT') .or. &
+       StringCompare(ctx%T2_type,'EUCLID'))) then
+    option%io_buffer = 'CPR solver settings require that PETSc be &
+      &configured with hypre (--download-hypre=yes).'
+    call PrintErrMsg(option)
+  endif
+#endif
+#else
 #if !defined(PETSC_HAVE_LIBHYPRE)
   if (.not. ctx%useGAMG .or. &
       (StringCompare(ctx%T2_type,'SAILS') .or. &
@@ -415,6 +427,8 @@ subroutine CPRMake(p, ctx, c, ierr, option)
     call PrintErrMsg(option)
   endif
 #endif
+#endif
+
 
   call CPRCreateT1(c, ctx,  ierr); CHKERRQ(ierr)
   call CPRCreateT2(c, ctx,  ierr); CHKERRQ(ierr)
@@ -472,9 +486,16 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
     call PCSetType(prec,PCGAMG,ierr); CHKERRQ(ierr)
   else
     call PCSetType(prec,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#else
 #if defined(PETSC_HAVE_LIBHYPRE)
     call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
 #endif
+#endif
+
   endif
 
   call KSPSetFromOptions(ksp,ierr); CHKERRQ(ierr)
@@ -513,8 +534,14 @@ subroutine CPRCreateT2(c, ctx, ierr)
   select case(trim(ctx%T2_type))
     case('SAILS')
       call PCSetType(T2,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+      call PCHYPRESetType(t2,"parasails",ierr); CHKERRQ(ierr)
+#endif
+#else
 #if defined(PETSC_HAVE_LIBHYPRE)
       call PCHYPRESetType(t2,"parasails",ierr); CHKERRQ(ierr)
+#endif
 #endif
     case('PBJ')
       call PCSetType(t2,PCPBJACOBI,ierr); CHKERRQ(ierr)
@@ -526,13 +553,25 @@ subroutine CPRCreateT2(c, ctx, ierr)
       call PCSetType(t2,PCGASM,ierr); CHKERRQ(ierr)
     case('PILUT')
       call PCSetType(t2,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+      call PCHYPRESetType(t2,"pilut",ierr); CHKERRQ(ierr)
+#endif
+#else
 #if defined(PETSC_HAVE_LIBHYPRE)
       call PCHYPRESetType(t2,"pilut",ierr); CHKERRQ(ierr)
 #endif
+#endif
     case('EUCLID')
       call PCSetType(t2,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+      call PCHYPRESetType(t2,"euclid",ierr); CHKERRQ(ierr)
+#endif
+#else
 #if defined(PETSC_HAVE_LIBHYPRE)
       call PCHYPRESetType(t2,"euclid",ierr); CHKERRQ(ierr)
+#endif
 #endif
     case('ILU')
       call PCSetType(t2,PCILU,ierr); CHKERRQ(ierr)

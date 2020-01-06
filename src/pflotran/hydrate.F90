@@ -12,8 +12,7 @@ module Hydrate_module
   
   private 
 
-  public :: HydrateRead, &
-            HydrateSetup, &
+  public :: HydrateSetup, &
             HydrateInitializeTimestep, &
             HydrateUpdateSolution, &
             HydrateTimeCut,&
@@ -28,90 +27,6 @@ module Hydrate_module
             HydrateDestroy
 
 contains
-
-! ************************************************************************** !
-
-subroutine HydrateRead(input,meth,option)
-
-  use Input_Aux_module
-  use Option_module
-  use String_module
-
-  implicit none
-
-  type(input_type), pointer :: input
-  type(methanogenesis_type), pointer :: meth
-  type(option_type), pointer :: option
-
-  character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: temp_int
-
-  call InputPushBlock(input,option)
-  do
-
-    call InputReadPflotranString(input,option)
-    if (input%ierr /= 0) exit
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'keyword','HYDRATE')
-    call StringToUpper(word)
-
-    select case(trim(word))
-      case('METHANOGENESIS')
-        if (.not. associated(meth)) then
-          allocate(meth)
-        endif
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (input%ierr /= 0) exit
-          if (InputCheckExit(input,option)) exit
-
-          call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword','HYDRATE')
-          call StringToUpper(word)
-          select case(trim(word))
-            case('NAME')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option,'methanogenesis source name', &
-                                 error_string)
-              call StringToUpper(word)
-              meth%source_name = trim(word)
-            case('ALPHA')
-              call InputReadDouble(input,option,meth%alpha)
-              call InputErrorMsg(input,option,'alpha',error_string)
-            case('LAMBDA')
-              call InputReadDouble(input,option,meth%lambda)
-              call InputErrorMsg(input,option,'lambda',error_string)
-            case('V_SED')
-              call InputReadDouble(input,option,meth%omega)
-              call InputErrorMsg(input,option,'v_sed',error_string)
-            case('SMT_DEPTH')
-              call InputReadDouble(input,option,meth%z_smt)
-              call InputErrorMsg(input,option,'smt_depth',error_string)
-            case('K_ALPHA')
-              call InputReadDouble(input,option,meth%k_alpha)
-              call InputErrorMsg(input,option,'k_alpha',error_string)
-          end select
-        enddo
-        call InputPopBlock(input,option)
-      case('PERM_SCALING_FUNCTION')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
-        call StringToUpper(word)
-        select case(trim(word))
-          case('DAI_AND_SEOL')
-            temp_int = 1
-            HYDRATE_PERM_SCALING_FUNCTION = temp_int
-        end select
-    end select
-
-  enddo
-  call InputPopBlock(input,option)
-  
-end subroutine HydrateRead
 
 ! ************************************************************************** !
 
@@ -153,7 +68,6 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
@@ -221,11 +135,7 @@ subroutine HydrateSetup(realization)
   endif
   
   ! allocate auxvar data structures for all grid cells  
-  if (hydrate_analytical_derivatives) then
-    ndof = 0
-  else
-    ndof = option%nflowdof
-  endif
+  ndof = option%nflowdof
   allocate(hyd_auxvars(0:2*ndof,grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     do idof = 0, 2 * ndof
@@ -265,29 +175,6 @@ subroutine HydrateSetup(realization)
   allocate(patch%aux%Hydrate%row_zeroing_array(grid%nlmax))
   patch%aux%Hydrate%row_zeroing_array = 0
   
-  ! initialize parameters
-  cur_fluid_property => realization%fluid_properties
-  do 
-    if (.not.associated(cur_fluid_property)) exit
-    patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(cur_fluid_property%phase_id) = &
-        cur_fluid_property%diffusion_coefficient
-    cur_fluid_property => cur_fluid_property%next
-  enddo  
-  ! check whether diffusion coefficients are initialized.
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(LIQUID_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Liquid phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(GAS_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Gas phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-
   list => realization%output_option%output_snap_variable_list
   call HydrateSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
@@ -333,7 +220,6 @@ subroutine HydrateInitializeTimestep(realization)
 end subroutine HydrateInitializeTimestep
 
 ! ************************************************************************** !
-
 subroutine HydrateUpdateSolution(realization)
   ! 
   ! Updates data in module after a successful time
@@ -1135,6 +1021,7 @@ subroutine HydrateUpdateFixedAccum(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:)
@@ -1153,7 +1040,8 @@ subroutine HydrateUpdateFixedAccum(realization)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   material_parameter => patch%aux%Material%material_parameter
-    
+  hydrate_parameter => patch%aux%Hydrate%hydrate_parameter
+
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1179,7 +1067,8 @@ subroutine HydrateUpdateFixedAccum(realization)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
-                             z(ghosted_id),maxval(grid%z),patch%methanogenesis,&
+                             z(ghosted_id),maxval(grid%z), &
+                             hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
@@ -1342,7 +1231,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
-                             z(ghosted_id),0.d0,patch%methanogenesis,&
+                             z(ghosted_id),0.d0,&
+                             hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy,&
                              hydrate_analytical_derivatives, &
@@ -1701,7 +1591,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               grid%z(ghosted_id),maxval(grid%z), &
-                              patch%methanogenesis, &
+                              hydrate_parameter, &
                               material_parameter%soil_heat_capacity(imat), &
                               option,Jup) 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &

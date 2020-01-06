@@ -42,7 +42,7 @@ subroutine GeneralDerivativeDriver(option)
   PetscReal :: xx(3)
   PetscReal :: pert(3)
   type(general_auxvar_type), pointer :: general_auxvar(:)
-  type(global_auxvar_type), pointer :: global_auxvar(:)
+  type(global_auxvar_type), pointer :: global_auxvar(:), global_auxvar_ss(:)
   class(material_auxvar_type), pointer :: material_auxvar(:)
 
   PetscInt :: istate2
@@ -57,7 +57,7 @@ subroutine GeneralDerivativeDriver(option)
   PetscInt :: auxvar_mapping(GENERAL_MAX_INDEX)
   PetscReal :: auxvars(3) ! from aux_real_var array
   
-  type(general_auxvar_type), pointer :: general_auxvar_ss
+  type(general_auxvar_type), pointer :: general_auxvar_ss(:)
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc(3)
   PetscReal :: srcsink_scale
@@ -66,6 +66,8 @@ subroutine GeneralDerivativeDriver(option)
   class(characteristic_curves_type), pointer :: characteristic_curves
   type(material_parameter_type), pointer :: material_parameter
   type(general_parameter_type), pointer :: general_parameter
+  
+  PetscInt :: natural_id = 1
 
   nullify(characteristic_curves)
   nullify(material_parameter)
@@ -113,6 +115,8 @@ subroutine GeneralDerivativeDriver(option)
                                     global_auxvar,material_auxvar, &
                                     characteristic_curves, &
                                     option)  
+                                    
+  global_auxvar_ss => global_auxvar
   
   istate2 = istate
 !  istate2 = LIQUID_STATE
@@ -200,7 +204,9 @@ subroutine GeneralDerivativeDriver(option)
       call GeneralDerivativeSrcSink(pert,source_sink, &
                                     general_auxvar_ss, &
                                     general_auxvar,global_auxvar, &
-                                    material_auxvar,srcsink_scale,option)
+                                    global_auxvar_ss, material_auxvar, &
+                                    characteristic_curves, natural_id, &
+                                    srcsink_scale,option)
     case default
       option%io_buffer = 'The user must specify a process to be tested.'
       call PrintWrnMsg(option)
@@ -720,7 +726,9 @@ end subroutine GeneralDerivativeFluxBC
 subroutine GeneralDerivativeSrcSink(pert,source_sink, &
                                     general_auxvar_ss, &
                                     general_auxvar,global_auxvar, &
-                                    material_auxvar,scale,option)
+                                    global_auxvar_ss, &
+                                    material_auxvar,characteristic_curves, &
+                                    natural_id, scale,option)
 
   use Option_module
   use Coupler_module
@@ -732,18 +740,19 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   type(option_type), pointer :: option
   type(coupler_type), pointer :: source_sink
   PetscReal :: pert(3)  
-  type(general_auxvar_type) :: general_auxvar_ss
+  type(general_auxvar_type) :: general_auxvar_ss(0:1)
   type(general_auxvar_type) :: general_auxvar(0:)
-  type(global_auxvar_type) :: global_auxvar(0:)
+  type(global_auxvar_type) :: global_auxvar(0:), global_auxvar_ss(0:)
   type(material_auxvar_type) :: material_auxvar(0:)
+  type(characteristic_curves_type) :: characteristic_curves
+  PetscInt :: natural_id
   PetscReal :: scale
   
   PetscReal :: qsrc(3)
   PetscInt :: flow_src_sink_type
   PetscReal :: ss_flow_vol_flux(option%nphase)  
 
-  PetscInt :: natural_id = 1
-  PetscInt :: i
+  PetscInt :: idof
   
   PetscInt :: irow
   PetscReal :: res(3)
@@ -755,23 +764,37 @@ subroutine GeneralDerivativeSrcSink(pert,source_sink, &
   qsrc=source_sink%flow_condition%general%rate%dataset%rarray(:)
   flow_src_sink_type=source_sink%flow_condition%general%rate%itype
   
-  call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0),material_auxvar(0), &
-                           natural_id,'srcsink',option)
+  call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0), &
+                           material_auxvar(0),natural_id,'srcsink',option)
 
-  call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                      general_auxvar_ss, &
-                      general_auxvar(ZERO_INTEGER),global_auxvar(ZERO_INTEGER), &
-                      ss_flow_vol_flux, &
-                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE)                           
+  ! Index 0 contains user-specified conditions
+  ! Index 1 contains auxvars to be used in src/sink calculations
+  call GeneralAuxVarCopy(general_auxvar_ss(ZERO_INTEGER), &
+                         general_auxvar_ss(ONE_INTEGER),option)
+  
+  call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                      general_auxvar_ss(ONE_INTEGER), &
+                      general_auxvar(ZERO_INTEGER),&
+                      global_auxvar(natural_id), &
+                      global_auxvar_ss(natural_id), &
+                      material_auxvar(natural_id), ss_flow_vol_flux, &
+                      characteristic_curves, natural_id, &
+                      scale,res,jac_anal,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)                           
                            
-  do i = 1, 3
-    call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                        general_auxvar_ss, &
-                        general_auxvar(i),global_auxvar(i), &
+  do idof = 1, option%nflowdof
+    call GeneralAuxVarCopy(general_auxvar_ss(ZERO_INTEGER), &
+                           general_auxvar_ss(ONE_INTEGER),option)
+    call GeneralAuxVarComputeAndSrcSink(option,qsrc,flow_src_sink_type, &
+                        general_auxvar_ss(ONE_INTEGER), &
+                        general_auxvar(idof), global_auxvar(natural_id), &
+                        global_auxvar_ss(natural_id), &
+                        material_auxvar(natural_id), &
                         ss_flow_vol_flux, &
-                        scale,res_pert(:,i),jac_dum,PETSC_FALSE,PETSC_FALSE)                           
+                        characteristic_curves, natural_id, &
+                        scale,res_pert(:,idof),jac_dum,PETSC_FALSE, &
+                        PETSC_FALSE,PETSC_FALSE)                          
     do irow = 1, option%nflowdof
-      jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
+      jac_num(irow,idof) = (res_pert(irow,idof)-res(irow))/pert(idof)
     enddo !irow
   enddo
   
