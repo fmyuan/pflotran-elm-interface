@@ -1,4 +1,4 @@
-# this file contains all object files except pflotran.o, pflotran_rxn.o, etc.
+# this file contains all object files except pflotran.o, etc.
 
 # DO NOT place any object files that depend on the discretization within 
 # util_obj
@@ -30,13 +30,13 @@ mode_aux_obj = \
 	${common_src}pm_base.o \
 	${common_src}pm_base_pointer.o \
 	${common_src}pm_subsurface_flow.o \
-	${common_src}pm_th.o \
-	${common_src}flowmode_aux.o \
+	${common_src}pm_mpflow.o \
+	${common_src}mpflow_aux.o \
 	${common_src}inlinesurface_aux.o
 
 mode_obj = \
 	${common_src}global.o \
-	${common_src}flowmode.o \
+	${common_src}mpflow.o \
 	${common_src}inlinesurface.o
 
 # DO NOT place any object files that depend on the discretization within 
@@ -57,8 +57,6 @@ grid_obj = \
 	${common_src}discretization.o \
 	${common_src}dm_kludge.o \
 	${common_src}grid.o \
-	${common_src}grid_grdecl.o \
-	${common_src}grid_grdecl_util.o \
 	${common_src}grid_structured.o \
 	${common_src}grid_unstructured_cell.o \
 	${common_src}grid_unstructured_explicit.o \
@@ -121,7 +119,6 @@ misc_obj = \
 	${common_src}init_subsurface.o \
 	${common_src}init_subsurface_flow.o \
 	${common_src}integral_flux.o \
-	${common_src}lookup_table.o \
 	${common_src}multisimulation.o \
 	${common_src}observation.o \
 	${common_src}patch.o \

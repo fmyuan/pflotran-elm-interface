@@ -60,11 +60,8 @@ private
             RealizationRevertFlowParameters, &
             RealizStoreRestartFlowParams, &
             RealizationPrintCouplers, &
-
             RealProcessMatPropAndSatFunc, &
             RealProcessFluidProperties, &
-            RealizationUpdatePropertiesTS, &
-            RealizationUpdatePropertiesNI, &
             RealizationCountCells, &
             RealizationPrintGridStatistics, &
             RealizationPassPtrsToPatches, &
@@ -72,7 +69,6 @@ private
             RealizationCalculateCFL1Timestep, &
             RealizUpdateAllCouplerAuxVars, &
             RealizUnInitializedVarsFlow, &
-            RealizUnInitializedVarsTran, &
             RealizationLimitDTByCFL
 
 
@@ -179,8 +175,9 @@ subroutine RealizationCreateDiscretization(realization)
  
   discretization => realization%discretization
   
-  call DiscretizationCreateDMs(discretization, option%nflowdof, &
-                               option%nphase, &
+  call DiscretizationCreateDMs(discretization, &
+                               option%nflowdof, &
+                               option%nfluids, &
                                option)
 
   ! 1 degree of freedom, global
@@ -389,6 +386,7 @@ subroutine RealizationLocalizeRegions(realization)
   ! localized patch regions later in teh simulation.
   call RegionDestroyList(realization%region_list)
 
+#if 0
   ! compute regional connections for inline surface flow
   if (option%inline_surface_flow) then
      region => RegionGetPtrFromList(option%inline_surface_region_name, &
@@ -402,7 +400,8 @@ subroutine RealizationLocalizeRegions(realization)
      endif
      call GridRestrictRegionalConnect(realization%patch%grid,region)
    endif
-   
+#endif
+
 end subroutine RealizationLocalizeRegions
 
 ! ************************************************************************** !
@@ -641,11 +640,6 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           trim(cur_material_property%saturation_function_name) // &
           '" not found.'
         call printErrMsg(option)
-      else
-        if (associated(patch%characteristic_curves_array)) then
-          call CharCurvesProcessTables(patch%characteristic_curves_array(  &
-                        cur_material_property%saturation_function_id)%ptr,option)
-        end if                
       end if
     endif
     
@@ -1300,28 +1294,6 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
     enddo
   endif  
 
-  ! add waypoints for rt mass transfer
-  if (associated(realization%tran_data_mediator_list)) then
-    cur_data_mediator => realization%tran_data_mediator_list
-    do
-      if (.not.associated(cur_data_mediator)) exit
-      select type(cur_data_mediator)
-        class is(data_mediator_dataset_type)
-          time_storage_ptr => cur_data_mediator%dataset%time_storage
-          if (associated(time_storage_ptr)) then
-            do itime = 1, time_storage_ptr%max_time_index
-              waypoint => WaypointCreate()
-              waypoint%time = time_storage_ptr%times(itime)
-              waypoint%update_conditions = PETSC_TRUE
-              call WaypointInsertInList(waypoint,waypoint_list)
-            enddo
-          endif
-        class default
-      end select           
-      cur_data_mediator => cur_data_mediator%next
-    enddo
-  endif 
-
   ! add in strata that change over time
   cur_strata => realization%patch%strata_list%first
   do
@@ -1343,8 +1315,6 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
 
 end subroutine RealizationAddWaypointsToList
 
-! ************************************************************************** !
-! ************************************************************************** !
 
 ! ************************************************************************** !
 subroutine RealLocalToLocalWithArray(realization,array_id)

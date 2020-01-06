@@ -45,9 +45,9 @@ subroutine AuxVarFlowEnergyInit(this,option)
   type(option_type) :: option
 
   this%temp = 0.d0
-  allocate(this%H(option%nphase))
+  allocate(this%H(option%nfluids))
   this%H = 0.d0
-  allocate(this%U(option%nphase))
+  allocate(this%U(option%nfluids))
   this%U = 0.d0
 
   nullify(this%D_H)
@@ -56,9 +56,9 @@ subroutine AuxVarFlowEnergyInit(this,option)
   this%has_derivs = PETSC_FALSE
   if (.not.option%flow%numerical_derivatives) then
     this%has_derivs = PETSC_TRUE
-    allocate(this%D_H(option%nphase,option%nflowdof))
+    allocate(this%D_H(option%nfluids,option%nflowdof))
     this%D_H = 0.d0
-    allocate(this%D_U(option%nphase,option%nflowdof))
+    allocate(this%D_U(option%nfluids,option%nflowdof))
     this%D_U = 0.d0
   endif
 
@@ -100,7 +100,7 @@ subroutine AuxVarFlowEnergyCopy(auxvar, auxvar2,option)
   auxvar2%den_kg = auxvar%den_kg
   auxvar2%mobility = auxvar%mobility
   auxvar2%viscosity = auxvar%viscosity
-  if(associated(auxvar%table_idx)) auxvar2%table_idx = auxvar%table_idx
+
   if (auxvar%has_derivs) then
     auxvar2%D_pres = auxvar%D_pres
     auxvar2%D_sat  = auxvar%D_sat

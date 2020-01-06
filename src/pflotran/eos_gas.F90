@@ -171,7 +171,6 @@ module EOS_Gas_module
             EOSGasEnergy, &
             EOSGasDensityEnergy, &
             EOSGasHenry, &
-            EOSGasInputRecord, &
             EOSGasTest
             
   public :: EOSGasSetDensityIdeal, &
@@ -206,8 +205,6 @@ subroutine EOSGasInit()
   constant_viscosity = UNINITIALIZED_DOUBLE
   constant_enthalpy = UNINITIALIZED_DOUBLE
   constant_henry = UNINITIALIZED_DOUBLE
-
-  surface_density_kg = UNINITIALIZED_DOUBLE
 
   surface_density_kg = UNINITIALIZED_DOUBLE
 
@@ -1627,6 +1624,10 @@ subroutine EOSGasEnergyEOSDBase(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure [J/kmol/Pa]
   PetscErrorCode, intent(out) :: ierr
 
+  PetscReal :: NaN
+
+  !PO: should do only one lookup here
+  ierr = 0
   call eos_dbase%EOSPropGrad(T,P,EOS_ENTHALPY,H,dH_dT,dH_dP,ierr)
   call eos_dbase%EOSPropGrad(T,P,EOS_INTERNAL_ENERGY,U,dU_dT,dU_dP,ierr)
   
@@ -1959,115 +1960,6 @@ subroutine EOSGasTableProcess(option)
   end select
 
 end subroutine EOSGasTableProcess
-
-! ************************************************************************** !
-
-subroutine EOSGasInputRecord()
-  ! 
-  ! Prints ingested equation of state information to the input record file.
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 05/04/2016
-  ! 
-  
-  implicit none
-  
-  character(len=MAXWORDLENGTH) :: word1
-
-  PetscInt :: id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'GAS'
-  
-  ! gas density [kg/m^3]
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasDensityPtr,EOSGasDensityConstant)) then
-    write(id,'(a29)',advance='no') 'gas density: '
-    write(word1,*) constant_density
-    write(id,'(a)') 'constant, ' // adjustl(trim(word1)) // ' kg/m^3'
-  endif
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasDensityPtr,EOSGasDensityRKS)) then
-    write(id,'(a29)',advance='no') 'gas density: '
-    write(id,'(a)') 'rsk'
-    write(id,'(a29)',advance='no') 'critical temperature: '
-    write(word1,*) rks_Tc
-    write(id,'(a)') adjustl(trim(word1)) // ' C'
-    write(id,'(a29)',advance='no') 'critical pressure: '
-    write(word1,*) rks_Pc
-    write(id,'(a)') adjustl(trim(word1)) // ' Pa'
-    if (rks_use_cubic_root_solution) then
-      write(id,'(a29)',advance='no') 'use analytical cubic root solution: True'
-    else
-      write(id,'(a29)',advance='no') 'use analytical cubic root solution: False'
-    endif
-    if (.not.rks_use_hydrogen) then
-      write(id,'(a29)',advance='no') 'acentric factor: '
-      write(word1,*) rks_acentric
-      write(id,'(a)') adjustl(trim(word1)) 
-    endif
-    write(id,'(a29)',advance='no') 'omega A: '
-    write(word1,*) rks_coeff_a
-    write(id,'(a)') adjustl(trim(word1))
-    write(id,'(a29)',advance='no') 'omega B: '
-    write(word1,*) rks_coeff_b
-    write(id,'(a)') adjustl(trim(word1))
-  endif
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasDensityPtr,EOSGasDensityPRMethane)) then
-    write(id,'(a29)',advance='no') 'gas density: '
-    write(id,'(a)') 'pr methane'
-  endif
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasDensityPtr,EOSGasDensityIdeal)) then
-    write(id,'(a29)',advance='no') 'gas density: '
-    write(id,'(a)') 'default, ideal'
-  endif
-  
-  ! gas viscosity [Pa-s]
-  if (associated(EOSGasViscosityPtr,EOSGasViscosityConstant)) then
-    write(id,'(a29)',advance='no') 'gas viscosity: '
-    write(word1,*) constant_viscosity
-    write(id,'(a)') 'constant, ' // trim(word1) // ' Pa-sec'
-  endif
-  if (associated(EOSGasViscosityPtr,EOSGasViscosity1)) then
-    write(id,'(a29)',advance='no') 'gas viscosity: '
-    write(id,'(a)') 'default'
-  endif
-  
-  ! gas enthalpy [J/kmol]
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasEnergyPtr,EOSGasEnergyConstant)) then
-    write(id,'(a29)',advance='no') 'gas enthalpy: '
-    write(word1,*) constant_enthalpy
-    write(id,'(a)') 'constant, ' // trim(word1) // 'J/kmol'
-  endif
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasEnergyPtr,EOSGasEnergyIdeal)) then
-    write(id,'(a29)',advance='no') 'gas enthalpy: '
-    write(id,'(a)') 'default, ideal'
-  endif
-  if (associated(EOSGasDensityEnergyPtr,EOSGasDensityEnergyGeneral) .and. &
-      associated(EOSGasEnergyPtr,EOSGasEnergyIdealMethane)) then
-    write(id,'(a29)',advance='no') 'gas enthalpy: '
-    write(id,'(a)') 'ideal methane'
-  endif
-  
-  ! henry's constant
-  if (associated(EOSGasHenryPtr,EOSGasHenryConstant)) then
-    write(id,'(a29)',advance='no') "henry's constant: "
-    write(word1,*) constant_henry
-    write(id,'(a)') 'constant, ' // trim(word1) 
-  endif
-  if (associated(EOSGasHenryPtr,EOSGasHenry_air)) then
-    write(id,'(a29)',advance='no') "henry's constant: "
-    write(id,'(a)') 'default, air'
-  endif
-  
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  
-end subroutine EOSGasInputRecord
 
 ! ************************************************************************** !
 

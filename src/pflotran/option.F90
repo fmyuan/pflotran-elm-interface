@@ -44,40 +44,19 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: io_buffer
 
     PetscInt :: fid_out
-    PetscInt :: fid_inputrecord
 
     ! defines the mode (e.g. mph, richards, vadose, etc.
     character(len=MAXWORDLENGTH) :: flowmode
     PetscInt :: iflowmode
-    PetscInt :: iflow_sub_mode
 
-    PetscInt :: nphase
-    PetscInt :: liquid_phase
-    PetscInt :: gas_phase
-    PetscInt :: solid_phase
-    PetscInt :: oil_phase
-    PetscInt :: solvent_phase
-    PetscInt :: phase_map(MAX_PHASE)
+    PetscInt :: nfluids
+    PetscInt :: liq_fluid
+    PetscInt :: gas_fluid
 
     PetscInt :: nflowdof
     PetscInt :: nflowspec
 
-    PetscInt :: nsec_cells
     PetscInt :: num_table_indices
-
-    PetscBool :: surf_flow_on
-    PetscInt :: nsurfflowdof
-    PetscInt :: subsurf_surf_coupling
-    PetscInt :: surface_flow_formulation
-    PetscReal :: surf_flow_time, surf_flow_dt
-    PetscReal :: surf_subsurf_coupling_time
-    PetscReal :: surf_subsurf_coupling_flow_dt
-    PetscReal :: surf_restart_time
-    PetscBool :: surf_restart_flag
-    character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
-    character(len=MAXSTRINGLENGTH) :: surf_restart_filename
-
-    PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id
@@ -88,7 +67,6 @@ module Option_module
 
     PetscInt :: iflag
     PetscInt :: status
-    PetscBool :: input_record
 
     ! these flags are for printing outside of time step loop
     PetscBool :: print_to_screen
@@ -106,40 +84,22 @@ module Option_module
     PetscInt :: keyword_block_count
 
     ! Program options
-    PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
-
-    PetscBool :: use_isothermal
-
-    PetscBool :: update_flow_perm ! If true, permeability changes due to pressure
-
-    PetscBool :: th_use_freezing
-    PetscInt  :: th_ice_model         ! specify water/ice/vapor phase partitioning model
-    PetscReal :: th_frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
       
-    PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
-    PetscReal :: flow_dt ! The size of the time step.
-    PetscReal :: dt
+    PetscReal :: time  ! The time elapsed in the simulation.
+    PetscReal :: dt    ! The size of the time step.
     PetscReal :: dt_min
     PetscBool :: match_waypoint
 
     PetscReal :: gravity(3)
-
-    PetscReal :: scale
-
-    PetscReal :: m_nacl
-
-    PetscInt :: ideriv
-    PetscInt :: idt_switch
     PetscReal :: reference_temperature
     PetscReal :: reference_pressure
     PetscReal :: reference_density(MAX_PHASE)
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
+    PetscReal :: minimum_hydrostatic_pressure
 
     PetscBool :: converged
     PetscInt  :: convergence
-
-    PetscReal :: minimum_hydrostatic_pressure
 
 !   table lookup
     PetscInt :: itable
@@ -163,7 +123,6 @@ module Option_module
     PetscInt :: io_handshake_buffer_size
 
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
-    character(len=MAXSTRINGLENGTH) :: initialize_transport_filename
 
     character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
@@ -174,7 +133,6 @@ module Option_module
 
 
     PetscBool :: steady_state
-    PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
     PetscBool :: use_upwinding
     PetscBool :: out_of_table
@@ -189,16 +147,8 @@ module Option_module
     PetscReal :: max_manning_velocity
     PetscReal :: max_infiltration_velocity
 
-    ! when the scaling factor is too small, stop
-    PetscReal :: min_allowable_scale
-
     PetscBool :: print_ekg
 
-    ! flag to use inline surface flow in flow mode
-    PetscBool :: inline_surface_flow
-    PetscReal :: inline_surface_Mannings_coeff
-    character(len=MAXSTRINGLENGTH) :: inline_surface_region_name
-    
 
 #ifdef CLM_PFLOTRAN
     PetscBool :: mapping_files
@@ -251,7 +201,6 @@ module Option_module
   end interface
 
   public :: OptionCreate, &
-            OptionCheckCommandLine, &
             PrintErrMsg, &
             PrintErrMsgToDev, &
             PrintErrMsgByRank, &
@@ -361,7 +310,6 @@ subroutine OptionInitAll(option)
   option%blocking = PETSC_TRUE
   option%error_while_nonblocking = PETSC_FALSE
 
-  option%input_record = PETSC_FALSE
   option%print_screen_flag = PETSC_FALSE
   option%print_file_flag = PETSC_FALSE
   option%print_to_screen = PETSC_TRUE
@@ -408,51 +356,19 @@ subroutine OptionInitRealization(option)
   ! PFLOTRAN realization or simulation of a single realization
   call OptionFlowInitRealization(option%flow)
 
-
-
   option%fid_out = OUT_UNIT
-  option%fid_inputrecord = INPUT_RECORD_UNIT
 
   option%iflag = 0
   option%io_buffer = ''
-
-  option%use_isothermal = PETSC_FALSE
-  option%use_matrix_free = PETSC_FALSE
-
-  option%th_ice_model = PAINTER_EXPLICIT
-  option%th_frzthw_halfwidth = UNINITIALIZED_DOUBLE
-
-  option%update_flow_perm = PETSC_FALSE
+  option%num_table_indices = 0
 
   option%flowmode = ""
   option%iflowmode = NULL_MODE
-  option%iflow_sub_mode = NULL_MODE
   option%nflowdof = 0
-  option%nsec_cells = 0
-  option%num_table_indices = 0
-  option%th_use_freezing = PETSC_FALSE
 
-  option%nsurfflowdof = 0
-  option%surf_flow_on = PETSC_FALSE
-  option%subsurf_surf_coupling = DECOUPLED
-  option%surface_flow_formulation = DIFFUSION_WAVE
-  option%surf_flow_dt = 0.d0
-  option%surf_flow_time =0.d0
-  option%surf_subsurf_coupling_time = 0.d0
-  option%surf_subsurf_coupling_flow_dt = 0.d0
-  option%surf_initialize_flow_filename = ""
-  option%surf_restart_filename = ""
-  option%surf_restart_flag = PETSC_FALSE
-  option%surf_restart_time = UNINITIALIZED_DOUBLE
-
-  option%phase_map = UNINITIALIZED_INTEGER
-
-  option%nphase = 0
-
-  option%liquid_phase  = UNINITIALIZED_INTEGER
-  option%gas_phase     = UNINITIALIZED_INTEGER
-  option%solid_phase   = UNINITIALIZED_INTEGER
-  option%solvent_phase = UNINITIALIZED_INTEGER
+  option%nfluids    = 0
+  option%liq_fluid  = UNINITIALIZED_INTEGER
+  option%gas_fluid  = UNINITIALIZED_INTEGER
 
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
@@ -481,14 +397,8 @@ subroutine OptionInitRealization(option)
   option%convergence = CONVERGENCE_OFF
 
   option%minimum_hydrostatic_pressure = -1.d20
-
-  !set scale factor for heat equation, i.e. use units of MJ for energy
-  option%scale = 1.d-6
-
-  option%ideriv = 1
-
-  option%gravity(:) = 0.d0
-  option%gravity(3) = -1.d0*EARTH_GRAVITY ! m/s^2
+  option%gravity(1:2) = 0.d0
+  option%gravity(3)   = -1.d0*EARTH_GRAVITY ! m/s^2
 
   option%restart_flag = PETSC_FALSE
   option%restart_filename = ""
@@ -504,36 +414,23 @@ subroutine OptionInitRealization(option)
   option%compute_statistics = PETSC_FALSE
   option%compute_mass_balance_new = PETSC_FALSE
 
-!fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
-#ifdef CLM_PFLOTRAN
-  option%compute_mass_balance_new = PETSC_TRUE
-  option%mapping_files = PETSC_FALSE
-  ! user-defined CLM-PFLOTRAN mesh maps NOT provided (default)
-#endif
-!fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
-
   option%mass_bal_detailed = PETSC_FALSE
 
   option%use_touch_options = PETSC_FALSE
 
   option%time = 0.d0
-  option%flow_dt = 0.d0
-  option%dt = 0.d0
+  option%dt   = 0.d0
   option%dt_min = 1.d-20   ! Ten zeptoseconds
   option%match_waypoint = PETSC_FALSE
 
   option%io_handshake_buffer_size = 0
 
   option%initialize_flow_filename = ''
-  option%initialize_transport_filename = ''
 
   option%steady_state = PETSC_FALSE
 
   option%itable = 0
 
-  option%idt_switch = -1
-
-  option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED
   option%force_newton_iteration = PETSC_FALSE
 
@@ -541,55 +438,17 @@ subroutine OptionInitRealization(option)
   option%max_manning_velocity = 1.d20
   option%max_infiltration_velocity = 1.d20
 
-  ! when the scaling factor is too small, stop
-  option%min_allowable_scale = 1.0d-10
-
   option%print_ekg = PETSC_FALSE
 
-  option%inline_surface_flow           = PETSC_FALSE
-  option%inline_surface_Mannings_coeff = 0.02d0
-  option%inline_surface_region_name    = ""
+#ifdef CLM_PFLOTRAN
+  ! mass_balance for bc/ss IS needed by default if coupled with CLM
+  option%compute_mass_balance_new = PETSC_TRUE
+  option%mapping_files = PETSC_FALSE
+  ! user-defined CLM-PFLOTRAN mesh maps NOT provided (default)
+#endif
 
-end subroutine OptionInitRealization
+ end subroutine OptionInitRealization
 
-! ************************************************************************** !
-
-subroutine OptionCheckCommandLine(option)
-  !
-  ! Checks all PETSc options on input
-  !
-  ! Author: Glenn Hammond
-  ! Date: 10/26/07
-  !
-
-  implicit none
-
-  type(option_type) :: option
-
-  PetscBool :: option_found
-  PetscErrorCode :: ierr
-
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-buffer_matrix", &
-                           option%use_matrix_buffer, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-snes_mf", &
-                           option%use_matrix_free, ierr);CHKERRQ(ierr)
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_isothermal", &
-                           option%use_isothermal, ierr);CHKERRQ(ierr)
-
-  call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER, &
-                             '-restart', option%restart_filename, &
-                             option%restart_flag, ierr);CHKERRQ(ierr)
-  ! check on possible modes
-  option_found = PETSC_FALSE
-  call PetscOptionsHasName(PETSC_NULL_OPTIONS, &
-                           PETSC_NULL_CHARACTER, "-use_th", &
-                           option_found, ierr);CHKERRQ(ierr)
-  if (option_found) option%flowmode = "th"
-
-end subroutine OptionCheckCommandLine
 
 ! ************************************************************************** !
 

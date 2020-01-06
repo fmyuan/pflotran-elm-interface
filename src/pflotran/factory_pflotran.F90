@@ -185,7 +185,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
 
   class(pmc_base_type), pointer :: pmc_master
   
-  PetscBool :: print_ekg
   PetscBool :: realization_dependent_restart
   PetscInt :: i
   
@@ -196,7 +195,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   nullify(pmc_master)
   nullify(checkpoint_option)
   nullify(checkpoint_waypoint_list)
-  print_ekg = PETSC_FALSE
   
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
@@ -236,8 +234,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           select case(trim(word))
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
-            case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input,option,new_pm)
             case default
               call InputKeywordUnrecognized(input,word, &
                      'SIMULATION,PROCESS_MODELS',option)            
@@ -318,9 +314,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
           endif
           option%restart_filename = trim(string)
         endif
-      case('INPUT_RECORD_FILE')
-        option%input_record = PETSC_TRUE
-        call OpenAndWriteInputRecord(option)
       case default
         call InputKeywordUnrecognized(input,word,'SIMULATION',option)            
     end select
@@ -337,7 +330,6 @@ subroutine PFLOTRANReadSimulation(simulation,option)
     cur_pm => pm_master
     do
       if (.not.associated(cur_pm)) exit
-      cur_pm%print_ekg = PETSC_TRUE
       cur_pm => cur_pm%next
     enddo
   endif

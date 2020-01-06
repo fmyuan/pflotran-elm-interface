@@ -39,7 +39,7 @@ contains
     PetscReal                       :: Res(option%nflowdof),area
 
     area   = 0.5d0 * material_auxvar%volume / auxvar%half_cell_height
-    Res(1) = auxvar%density * auxvar%surface_water_depth / option%flow_dt * area
+    Res(1) = auxvar%density * auxvar%surface_water_depth / option%flow%dt * area
 
   end subroutine InlineSurfaceAccumulation
 
@@ -63,7 +63,7 @@ contains
     J(1,1) = 0.0d0
     if ( auxvar%surface_water_depth > 0.d0 ) then
       area   = 0.5d0 * material_auxvar%volume / auxvar%half_cell_height
-      J(1,1) = area / ( option%flow_dt * FMWH2O * ABS(option%gravity(3)) )
+      J(1,1) = area / ( option%flow%dt * FMWH2O * ABS(option%gravity(3)) )
     endif
 
   end subroutine InlineSurfaceAccumulationJac
@@ -135,7 +135,7 @@ contains
     type(inlinesurface_auxvar_type) :: auxvar_up,auxvar_dn
     PetscReal :: area,dist(-1:3),Res(1)
 
-    select case(ibndtype(TH_PRESSURE_DOF))
+    select case(ibndtype(MPFLOW_PRESSURE_DOF))
 
     case(SURFACE_DIRICHLET)
 
@@ -224,7 +224,7 @@ contains
     type(option_type)               :: option
     PetscReal :: area,dist(-1:3),Jup(1,1),Jdn(1,1)
 
-    select case(ibndtype(TH_PRESSURE_DOF))
+    select case(ibndtype(MPFLOW_PRESSURE_DOF))
 
     case(SURFACE_DIRICHLET)
 

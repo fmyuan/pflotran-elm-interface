@@ -23,10 +23,8 @@ module Timestepper_Steady_class
   
   contains
 
- !   procedure, public :: Init => TimestepperSteadyInit
     procedure, public :: StepDT => TimestepperSteadyStepDT
     procedure, public :: UpdateDT => TimestepperSteadyUpdateDT
-    procedure, public :: InputRecord => TimestepperSteadyInputRecord
 
   end type timestepper_steady_type
 
@@ -366,26 +364,5 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
 end subroutine TimestepperSteadyStepDT
 
 ! ************************************************************************** !
-
-subroutine TimestepperSteadyInputRecord(this)
-  ! 
-  ! Prints information about the time stepper to the input record.
-  ! To get a## format, must match that in simulation types.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-  
-  implicit none
-  
-  class(timestepper_steady_type) :: this
-  PetscInt :: id
-   
-  id = INPUT_RECORD_UNIT
-
-  write(id,'(a29)',advance='no') 'pmc timestepper: '
-  write(id,'(a)') this%name
-
-end subroutine TimestepperSteadyInputRecord
 
 end module Timestepper_Steady_class

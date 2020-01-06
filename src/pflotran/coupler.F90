@@ -25,10 +25,8 @@ module Coupler_module
     PetscInt :: itype                                   ! integer defining type
     character(len=MAXWORDLENGTH) :: ctype               ! character string defining type
     character(len=MAXWORDLENGTH) :: flow_condition_name ! character string defining name of condition to be applied
-    character(len=MAXWORDLENGTH) :: tran_condition_name ! character string defining name of condition to be applied
     character(len=MAXWORDLENGTH) :: region_name         ! character string defining name of region to be applied
     PetscInt :: iflow_condition                         ! id of condition in condition array/list
-    PetscInt :: itran_condition                         ! id of condition in condition array/list
     PetscInt :: iregion                                 ! id of region in region array/list
     PetscInt :: iface                                   ! for structured grids only
     PetscInt, pointer :: flow_aux_mapping(:)            ! maps flow_aux_real_var to primarhy dof
@@ -93,10 +91,8 @@ function CouplerCreate1()
   coupler%itype = BOUNDARY_COUPLER_TYPE
   coupler%ctype = "boundary"
   coupler%flow_condition_name = ""
-  coupler%tran_condition_name = ""
   coupler%region_name = ""
   coupler%iflow_condition = 0
-  coupler%itran_condition = 0
   coupler%iregion = 0
   coupler%iface = 0
   nullify(coupler%flow_aux_mapping)
@@ -170,10 +166,8 @@ function CouplerCreateFromCoupler(coupler)
   new_coupler%itype = coupler%itype
   new_coupler%ctype = coupler%ctype
   new_coupler%flow_condition_name = coupler%flow_condition_name
-  new_coupler%tran_condition_name = coupler%tran_condition_name
   new_coupler%region_name = coupler%region_name
   new_coupler%iflow_condition = coupler%iflow_condition
-  new_coupler%itran_condition = coupler%itran_condition
   new_coupler%iregion = coupler%iregion
   new_coupler%iface = coupler%iface
 
@@ -363,13 +357,13 @@ subroutine CouplerComputeConnections(grid,option,coupler)
   select case(coupler%itype)
     case(INITIAL_COUPLER_TYPE)
       if (associated(coupler%flow_condition)) then
-        if (associated(coupler%flow_condition%pressure)) then
-          if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%pressure%itype /= &
+        if (associated(coupler%flow_condition%liq_pressure)) then
+          if (coupler%flow_condition%liq_pressure%itype /= HYDROSTATIC_BC .and. &
+              coupler%flow_condition%liq_pressure%itype /= &
                 HYDROSTATIC_SEEPAGE_BC .and. &
-              coupler%flow_condition%pressure%itype /= &
+              coupler%flow_condition%liq_pressure%itype /= &
                 HYDROSTATIC_CONDUCTANCE_BC) then
-            select type(selector => coupler%flow_condition%pressure%dataset)
+            select type(selector => coupler%flow_condition%liq_pressure%dataset)
               class is(dataset_gridded_hdf5_type)
               class default
                 nullify_connection_set = PETSC_TRUE

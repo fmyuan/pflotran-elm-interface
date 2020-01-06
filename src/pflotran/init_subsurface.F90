@@ -1,7 +1,8 @@
 module Init_Subsurface_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+  !geh: there can be no dependencies on simulation object in this file
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -56,11 +57,14 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
   use Patch_module
   use Material_Aux_class
   
+
   implicit none
   
   class(realization_subsurface_type) :: realization
   
   PetscInt :: ghosted_id
+  PetscInt :: istart, iend
+  PetscInt :: i
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -135,9 +139,12 @@ subroutine InitSubsurfAssignMatIDsToRegns(realization)
   
   PetscInt :: icell, local_id, ghosted_id
   PetscInt :: istart, iend
+  PetscInt :: local_min, global_min
+  PetscErrorCode :: ierr
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
   type(strata_type), pointer :: strata
   type(patch_type), pointer :: cur_patch
 
@@ -275,11 +282,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   use Material_Aux_class
   use Material_module
   use Option_module
+
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
                                TORTUOSITY, POROSITY, SOIL_COMPRESSIBILITY
   use HDF5_module
+  use Utility_module, only : DeallocateArray
   
   implicit none
 
@@ -292,10 +301,14 @@ subroutine InitSubsurfAssignMatProperties(realization)
   PetscReal, pointer :: perm_xx_p(:)
   PetscReal, pointer :: perm_yy_p(:)
   PetscReal, pointer :: perm_zz_p(:)
+  PetscReal, pointer :: perm_xz_p(:)
+  PetscReal, pointer :: perm_xy_p(:)
+  PetscReal, pointer :: perm_yz_p(:)
+  PetscReal, pointer :: perm_pow_p(:)
   PetscReal, pointer :: vec_p(:)
   PetscReal, pointer :: compress_p(:)
   
-  character(len=MAXSTRINGLENGTH) :: string!, string2
+  character(len=MAXSTRINGLENGTH) :: string, string2
   type(material_property_type), pointer :: material_property
   type(material_property_type), pointer :: null_material_property
   type(option_type), pointer :: option
@@ -304,9 +317,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(material_type), pointer :: Material
-  PetscInt :: local_id, ghosted_id, material_id
-  PetscInt :: i
+  PetscInt :: local_id, ghosted_id, material_id,natural_id,i
+  PetscReal :: tempreal, poro, permx, permy, permz
+  PetscInt :: tempint, isatnum, maxsatn
   PetscErrorCode :: ierr
+  PetscViewer :: viewer
+  PetscInt ,pointer,dimension(:)::inatsend
+  PetscBool :: write_ecl, satnum_set
 
   option => realization%option
   discretization => realization%discretization
@@ -333,7 +350,20 @@ subroutine InitSubsurfAssignMatProperties(realization)
   ! have to use Material%auxvars() and not material_auxvars() due to memory
   ! errors in gfortran
   Material => patch%aux%Material
+  
+  
+  do ghosted_id = 1, grid%ngmax
+    material_id = patch%imat(ghosted_id)
+    if (material_id > 0) then
+      material_property => &
+        patch%material_property_array(material_id)%ptr
+    endif
+  enddo
+  
+  !  Prepare for exchange of cell indices and check if satnum set
 
+  satnum_set = PETSC_FALSE
+  
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     material_id = patch%imat(ghosted_id)
@@ -388,7 +418,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
     endif
     por0_p(local_id) = material_property%porosity
     tor0_p(local_id) = material_property%tortuosity
+
   enddo
+
+
   call MaterialPropertyDestroy(null_material_property)
 
   if (option%nflowdof > 0) then
@@ -507,6 +540,7 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call VecRestoreArrayF90(field%work_loc,vec_p,ierr);CHKERRQ(ierr)
   enddo
 
+
 end subroutine InitSubsurfAssignMatProperties
 
 ! ************************************************************************** !
@@ -546,8 +580,10 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   type(discretization_type), pointer :: discretization
   character(len=MAXSTRINGLENGTH) :: group_name
   character(len=MAXSTRINGLENGTH) :: dataset_name
-
+  PetscBool :: append_realization_id
   PetscInt :: ghosted_id, natural_id, material_id
+  PetscInt :: fid = 86
+  PetscInt :: status
   PetscInt, pointer :: external_to_internal_mapping(:)
   Vec :: global_vec
   Vec :: local_vec
@@ -634,7 +670,9 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
+  type(input_type), pointer :: input
   type(discretization_type), pointer :: discretization
+  character(len=MAXWORDLENGTH) :: word
   class(dataset_common_hdf5_type), pointer :: dataset_common_hdf5_ptr
   PetscInt :: local_id
   PetscInt :: idirection, temp_int
@@ -950,6 +988,7 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
   
   type(option_type), pointer :: option
   PetscBool, allocatable :: dof_is_active(:)
+  PetscInt :: ndof
   
   option => realization%option
   
@@ -958,43 +997,23 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     dof_is_active = PETSC_TRUE
 #if defined(ISOTHERMAL)
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         ! second equation is energy
         dof_is_active(TWO_INTEGER) = PETSC_FALSE
     end select
 #endif
     select case(option%iflowmode)
-      case(TH_MODE)
+      !TODO(geh): refactors so that we don't need all these variants?
+      case(MPFLOW_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TH%zero_rows_local, &
-                      realization%patch%aux%TH%zero_rows_local_ghosted, &
-                      realization%patch%aux%TH%n_zero_rows, &
-                      realization%patch%aux%TH%inactive_cells_exist, &
+                      realization%patch%aux%Flow%zero_rows_local, &
+                      realization%patch%aux%Flow%zero_rows_local_ghosted, &
+                      realization%patch%aux%Flow%n_zero_rows, &
+                      realization%patch%aux%Flow%inactive_cells_exist, &
                       option)
     end select
     deallocate(dof_is_active)
   endif
-
-  if (option%ntrandof > 0) then
-    select case(option%itranmode)
-      case(RT_MODE,EXPLICIT_ADVECTION)
-        ! remove ndof above if this is moved
-        if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-          ndof = realization%reaction%ncomp
-        else
-          ndof = 1
-        endif
-        allocate(dof_is_active(ndof))
-        dof_is_active = PETSC_TRUE  
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%RT%zero_rows_local, &
-                      realization%patch%aux%RT%zero_rows_local_ghosted, &
-                      realization%patch%aux%RT%n_zero_rows, &
-                      realization%patch%aux%RT%inactive_cells_exist, &
-                      option)
-        deallocate(dof_is_active)
-    end select
-  endif  
 
 end subroutine InitSubsurfaceSetupZeroArrays
 

@@ -3,7 +3,7 @@ module Auxiliary_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use Global_Aux_module
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
   use Material_Aux_class
   use InlineSurface_Aux_module
   
@@ -15,7 +15,7 @@ module Auxiliary_module
 
   type, public :: auxiliary_type 
     type(global_type), pointer :: Global
-    type(flowmode_type), pointer :: Flow
+    type(MpFlow_type), pointer :: Flow
     type(material_type), pointer :: Material
     type(inlinesurface_type), pointer :: InlineSurface
   end type auxiliary_type
@@ -63,11 +63,12 @@ subroutine AuxDestroy(aux)
   
   call GlobalAuxDestroy(aux%Global)
 
-  call FlowmodeAuxDestroy(aux%Flow)
+  call MpFlowAuxDestroy(aux%Flow)
   call MaterialAuxDestroy(aux%Material)
   call InlineSurfaceAuxDestroy(aux%InlineSurface)
   
   nullify(aux%Global)
+  nullify(aux%Flow)
   nullify(aux%Material)
   nullify(aux%InlineSurface)
 

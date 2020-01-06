@@ -251,7 +251,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   end select
 
   include_gas_phase = PETSC_FALSE
-  if (option%nphase > 1) then
+  if (option%nfluids > 1) then
     include_gas_phase = PETSC_TRUE
   endif
   if (output_option%print_hdf5_vel_cent .and. &
@@ -293,6 +293,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
                                            global_vec_vz,grp_id, &
                                            H5T_NATIVE_DOUBLE)
     endif
+
   endif
 
   if (output_option%print_hdf5_vel_face .and. &
@@ -431,12 +432,12 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
+#ifndef CLM_PFLOTRAN
   if (first) then
     option%io_buffer = '--> creating hdf5 output file: ' // trim(filename)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-#ifndef CLM_PFLOTRAN
   call printMsg(option)
 #endif
 
@@ -778,7 +779,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
       endif
     enddo
 
-    if (option%nphase > 1) then
+    if (option%nfluids > 1) then
         call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                              global_vec_vy,global_vec_vz, &
                                              GAS_PHASE)
@@ -935,8 +936,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
   if (output_option%print_single_h5_file) then
     first = hdf5_first
-    !filename = trim(option%global_prefix) // trim(string2) // &
-    !           trim(option%group_prefix) // '.h5'
     filename_path = trim(option%global_prefix) // trim(string2) // &
                trim(option%group_prefix) // '.h5'
     filename_header = trim(option%output_file_name_prefix) & 
@@ -961,8 +960,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
         endif
     end select
 
-    !filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-    !           trim(string2) // '-' // trim(string) // '.h5'
     filename_path = trim(option%global_prefix) // &
                     trim(option%group_prefix) // &
                     trim(string2) // '-' // trim(string) // '.h5'
@@ -993,13 +990,13 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
   call h5pclose_f(prop_id,hdf5_err)
 
+#ifndef CLM_PFLOTRAN
   if (first) then
     option%io_buffer = '--> creating hdf5 output file: ' // trim(filename_path)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // &
                        trim(filename_path)
   endif
-#ifndef CLM_PFLOTRAN
   call printMsg(option)
 #endif
   
@@ -2638,7 +2635,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
   select case(option%iflowmode)
-    case (TH_MODE)
+    case (MPFLOW_MODE)
       ndof=1
       if (output_option%print_hdf5_mass_flowrate .and. &
           output_option%print_hdf5_energy_flowrate) ndof = 2
@@ -2674,7 +2671,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
     if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         if (dof==1) then
           string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
         else
@@ -2852,18 +2849,20 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   output_option =>realization_base%output_option
   field => realization_base%field
 
-  if (option%nphase == 1 .and. option%transport%nphase > 1) then
+#if 0
+  if (option%nfluids == 1 .and. option%transport%nphase > 1) then
     option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
       &transport without flow in the gas phase.'
     call PrintErrMsg(option)
   endif
+#endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
-  local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)
+  local_size = local_size/(option%nfluids*MAX_FACE_PER_CELL + 1)
 
   allocate(double_array(local_size*(MAX_FACE_PER_CELL+1)))
   double_array = 0.d0
 
-  offset = option%nphase*MAX_FACE_PER_CELL+1
+  offset = option%nfluids*MAX_FACE_PER_CELL+1
 
   do idir = 1,3
 
@@ -2879,7 +2878,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
         call VecGetArrayF90(field%vz_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
     end select
 
-    do iphase = 1,option%nphase
+    do iphase = 1,option%nfluids
 
       select case (iphase)
         case (LIQUID_PHASE)

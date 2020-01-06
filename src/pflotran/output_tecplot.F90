@@ -317,7 +317,7 @@ subroutine OutputTecplotBlock(realization_base)
   if (output_option%print_tecplot_vel_face .and. &
       realization_base%discretization%itype == STRUCTURED_GRID) then
     select case(option%iflowmode)
-      !case(TH_MODE) (TODO)
+      !case(MPFLOW_MODE) (TODO)
       !  call OutputFluxVelocitiesTecplotBlk(realization_base,GAS_PHASE, &
       !                                      X_DIRECTION,PETSC_FALSE)
       !  include_gas_phase = PETSC_TRUE
@@ -351,7 +351,7 @@ subroutine OutputTecplotBlock(realization_base)
       realization_base%discretization%itype == STRUCTURED_GRID) then
     if (grid%structured_grid%nx > 1) then
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               X_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -362,7 +362,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%ny > 1) then
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Y_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -373,7 +373,7 @@ subroutine OutputTecplotBlock(realization_base)
     endif
     if (grid%structured_grid%nz > 1) then
       select case(option%iflowmode)
-        case(TH_MODE)
+        case(MPFLOW_MODE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,ONE_INTEGER, &
                                               Z_DIRECTION,PETSC_TRUE)
           call OutputFluxVelocitiesTecplotBlk(realization_base,TWO_INTEGER, &
@@ -452,7 +452,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase>1) then
+    if (option%nfluids>1) then
       variable_count = TEN_INTEGER
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
@@ -503,7 +503,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   call WriteTecplotDataSetFromVec(OUTPUT_UNIT,realization_base, &
                                   natural_vec,TECPLOT_REAL)
 
-  if (option%nphase > 1) then
+  if (option%nfluids > 1) then
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz,GAS_PHASE)
 
@@ -1065,7 +1065,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
              '"qlx [m/' // trim(output_option%tunit) // ']",' // &
              '"qly [m/' // trim(output_option%tunit) // ']",' // &
              '"qlz [m/' // trim(output_option%tunit) // ']"'
-    if (option%nphase > 1) then
+    if (option%nfluids > 1) then
       string = trim(string) // &
                ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
                '"qgy [m/' // trim(output_option%tunit) // ']",' // &
@@ -1106,7 +1106,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
 1001 format(i4,1x)
 1009 format('')
 
-  if (option%nphase > 1) then
+  if (option%nfluids > 1) then
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgx, &
                                     GLOBAL,option)  
     call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgy, &
@@ -1134,7 +1134,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vly(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vlz(ghosted_id)
 
-    if (option%nphase > 1) then
+    if (option%nfluids > 1) then
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgx(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgy(ghosted_id)
       write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgz(ghosted_id)
@@ -1156,7 +1156,7 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   call VecDestroy(global_vec_vly,ierr);CHKERRQ(ierr)
   call VecDestroy(global_vec_vlz,ierr);CHKERRQ(ierr)
 
-  if (option%nphase > 1) then
+  if (option%nfluids > 1) then
     call VecRestoreArrayF90(global_vec_vgx,vec_ptr_vgx,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgy,vec_ptr_vgy,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(global_vec_vgz,vec_ptr_vgz,ierr);CHKERRQ(ierr)

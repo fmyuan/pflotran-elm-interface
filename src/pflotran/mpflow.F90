@@ -1,8 +1,8 @@
-module Flowmode_module
+module MpFlow_module
 
 #include "petsc/finclude/petscsnes.h"
   use petscsnes
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
   use Global_Aux_module
   use Material_Aux_class
   use PFLOTRAN_Constants_module
@@ -16,24 +16,24 @@ module Flowmode_module
   PetscReal, parameter :: perturbation_tolerance = 1.d-8
   PetscReal, parameter :: unit_z(3) = [0.d0,0.d0,1.d0]
 
-  public :: FlowmodeTimeCut,  &
-            FlowmodeSetup,    &
-            FlowmodeResidual, &
-            FlowmodeJacobian, &
-            FlowmodeMaxChange, &
-            FlowmodeUpdateSolution,     &
-            FlowmodeInitializeTimestep, &
-            FlowmodeComputeMassBalance, &
-            FlowmodeResidualToMass,     &
-            FlowmodeUpdateAuxVars,      &
-            FlowmodeDestroy,            &
-            FlowmodeAccumulation
+  public :: MpFlowTimeCut,  &
+            MpFlowSetup,    &
+            MpFlowResidual, &
+            MpFlowJacobian, &
+            MpFlowMaxChange,          &
+            MpFlowUpdateSolution,     &
+            MpFlowInitializeTimestep, &
+            MpFlowComputeMassBalance, &
+            MpFlowResidualToMass,     &
+            MpFlowUpdateAuxVars,      &
+            MpFlowDestroy,            &
+            MpFlowAccumulation
          
 contains
 
 ! ************************************************************************** !
 
-subroutine FlowmodeTimeCut(realization)
+subroutine MpFlowTimeCut(realization)
   ! 
   ! Resets arrays for time step cut
   ! 
@@ -53,13 +53,13 @@ subroutine FlowmodeTimeCut(realization)
   
   option => realization%option
   field => realization%field
-  call FlowmodeInitializeTimestep(realization)
+  call MpFlowInitializeTimestep(realization)
  
-end subroutine FlowmodeTimeCut
+end subroutine MpFlowTimeCut
 
 ! ************************************************************************** !
 
-subroutine FlowmodeSetup(realization)
+subroutine MpFlowSetup(realization)
   ! 
   ! Author: ???
   ! Date: 02/22/08
@@ -78,20 +78,20 @@ subroutine FlowmodeSetup(realization)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call FlowmodeSetupPatch(realization)
+    call MpFlowSetupPatch(realization)
     cur_patch => cur_patch%next
   enddo
 
   list => realization%output_option%output_snap_variable_list
-  call FlowmodeSetPlotVariables(realization,list)
+  call MpFlowSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
-  call FlowmodeSetPlotVariables(realization,list)
+  call MpFlowSetPlotVariables(realization,list)
 
-end subroutine FlowmodeSetup
+end subroutine MpFlowSetup
 
 ! ************************************************************************** !
 
-subroutine FlowmodeSetupPatch(realization)
+subroutine MpFlowSetupPatch(realization)
   ! 
   ! Creates arrays for auxiliary variables
   ! 
@@ -129,7 +129,7 @@ subroutine FlowmodeSetupPatch(realization)
   patch => realization%patch
   grid => patch%grid
     
-  patch%aux%Flow => FlowModeAuxCreate(option)
+  patch%aux%Flow => MpFlowAuxCreate(option)
 
   ! flow_parameters
   allocate(patch%aux%Flow%Flow_parameters(size(patch%material_property_array)))
@@ -197,20 +197,20 @@ subroutine FlowmodeSetupPatch(realization)
       patch%material_property_array(i)%ptr%alpha_fr
     !
 
-    allocate(patch%aux%Flow%Flow_parameters(material_id)%sir(option%nphase))
+    allocate(patch%aux%Flow%Flow_parameters(material_id)%sir(option%nfluids))
     sat_func_id = patch%material_property_array(i)%ptr%saturation_function_id
     patch%aux%Flow%Flow_parameters(material_id)%sir(:) = &
       CharCurvesGetGetResidualSats(patch%characteristic_curves_array(sat_func_id)%ptr,option)
 
-    allocate(patch%aux%Flow%Flow_parameters(material_id)%diffusion_coefficient(option%nphase))
-    allocate(patch%aux%Flow%Flow_parameters(material_id)%diffusion_activation_energy(option%nphase))
+    allocate(patch%aux%Flow%Flow_parameters(material_id)%diffusion_coefficient(option%nfluids))
+    allocate(patch%aux%Flow%Flow_parameters(material_id)%diffusion_activation_energy(option%nfluids))
 
   enddo
 
   ! allocate auxvar data structures for all grid cells
   allocate(patch%aux%Flow%auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call FlowmodeAuxVarInit(patch%aux%Flow%auxvars(ghosted_id),option)
+    call MpFlowAuxVarInit(patch%aux%Flow%auxvars(ghosted_id),option)
   enddo
   patch%aux%Flow%num_aux = grid%ngmax
 
@@ -237,12 +237,12 @@ subroutine FlowmodeSetupPatch(realization)
     cur_fluid_property => cur_fluid_property%next
   enddo
 
-end subroutine FlowmodeSetupPatch
+end subroutine MpFlowSetupPatch
 
 
 ! ************************************************************************** !
 
-subroutine FlowmodeResidual(snes,xx,r,realization,ierr)
+subroutine MpFlowResidual(snes,xx,r,realization,ierr)
   !
   ! Computes the residual equation
   !
@@ -276,16 +276,16 @@ subroutine FlowmodeResidual(snes,xx,r,realization,ierr)
   option => realization%option
 
  ! check initial guess -----------------------------------------------
-  ierr = FlowmodeInitGuessCheck(xx,option)
+  ierr = MpFlowInitGuessCheck(xx,option)
   if (ierr<0) then
     call SNESSetFunctionDomainError(snes,ierr);CHKERRQ(ierr)
     return
   endif
 
   ! Communication -----------------------------------------
-  ! These 3 must be called before FlowmodeUpdateAuxVars()
+  ! These 3 must be called before MpFlowUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_loc,ONEDOF)
+
   call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
 
   call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
@@ -321,15 +321,15 @@ subroutine FlowmodeResidual(snes,xx,r,realization,ierr)
 
     realization%patch => cur_patch
 
-    call FlowmodeResidualPatch(r,realization,ierr)
+    call MpFlowResidualPatch(r,realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
-end subroutine FlowmodeResidual
+end subroutine MpFlowResidual
 
 ! ************************************************************************** !
 
-subroutine FlowmodeResidualPatch(r,realization,ierr)
+subroutine MpFlowResidualPatch(r,realization,ierr)
   !
   ! Computes the residual equation at patch level
   !
@@ -359,7 +359,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
   PetscReal, pointer :: accum_p(:)
 
   PetscReal, pointer :: r_p(:), xx_loc_p(:)!, yy_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: ithrm_up, ithrm_dn
   PetscReal :: qsrc1, esrc1
@@ -404,10 +404,10 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-  call FlowmodeUpdateAuxVarsPatch(realization)
+  call MpFlowUpdateAuxVarsPatch(realization)
 
   if (option%compute_mass_balance_new) then
-    call FlowmodeZeroMassBalDeltaPatch(realization)
+    call MpFlowZeroMassBalDeltaPatch(realization)
 
     sum_mass_flux=0.d0
   endif
@@ -421,7 +421,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
   !call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
+
 
   r_p = - accum_p
 
@@ -435,7 +435,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
 
     itherm = int(ithrm_loc_p(ghosted_id))
 
-    call FlowmodeAccumulation(auxvars(ghosted_id),    &
+    call MpFlowAccumulation(auxvars(ghosted_id),    &
                         material_auxvars(ghosted_id), &
                         Flow_parameters(itherm),      &
                         option,Res)
@@ -469,11 +469,11 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) &
-        qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
+      if (source_sink%flow_condition%liq_rate%itype /= HET_MASS_RATE_SS) &
+        qsrc1 = source_sink%flow_condition%liq_rate%dataset%rarray(1)
 
       Res_src = 0.d0
-      select case (source_sink%flow_condition%rate%itype)
+      select case (source_sink%flow_condition%liq_rate%itype)
         case(MASS_RATE_SS)
           qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
@@ -490,7 +490,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
 
         case default
-          write(string,*) source_sink%flow_condition%rate%itype
+          write(string,*) source_sink%flow_condition%liq_rate%itype
           option%io_buffer='Flow mode source_sink%flow_condition%rate%itype = ' // &
           trim(adjustl(string)) // ', not implemented.'
       end select
@@ -577,7 +577,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
 
-      call FlowmodeInternalFlux(auxvars(ghosted_id_up), &
+      call MpFlowInternalFlux(auxvars(ghosted_id_up), &
                   material_auxvars(ghosted_id_up),      &
                   Flow_parameters(ithrm_up),            &
                   auxvars(ghosted_id_dn),              &
@@ -650,7 +650,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
 
       ithrm_dn = int(ithrm_loc_p(ghosted_id))
 
-      call FlowmodeBCFlux(boundary_condition%flow_condition%itype,   &
+      call MpFlowBCFlux(boundary_condition%flow_condition%itype,   &
                       boundary_condition%flow_aux_real_var(:,iconn), &
                       auxvars(ghosted_id),                           &
                       material_auxvars(ghosted_id),                  &
@@ -805,7 +805,7 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
+
 
   if (realization%debug%vecview_residual) then
     string = 'Flowresidual'
@@ -814,11 +814,11 @@ subroutine FlowmodeResidualPatch(r,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-end subroutine FlowmodeResidualPatch
+end subroutine MpFlowResidualPatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeJacobian(A,B,realization,ierr)
+subroutine MpFlowJacobian(A,B,realization,ierr)
   !
   ! Computes the Jacobian
   !
@@ -862,7 +862,7 @@ subroutine FlowmodeJacobian(A,B,realization,ierr)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call FlowmodeJacobianPatch(J, realization,ierr)
+    call MpFlowJacobianPatch(J, realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
@@ -885,11 +885,11 @@ subroutine FlowmodeJacobian(A,B,realization,ierr)
     call printMsg(option)
   endif
 
-end subroutine FlowmodeJacobian
+end subroutine MpFlowJacobian
 
 ! ************************************************************************** !
 
-subroutine FlowmodeJacobianPatch(AB,realization,ierr)
+subroutine MpFlowJacobianPatch(AB,realization,ierr)
   !
   ! Computes the Jacobian
   !
@@ -913,7 +913,7 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
   PetscInt :: ithrm_up, ithrm_dn
 
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
+  PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: ii, jj
   PetscInt :: local_id, ghosted_id
@@ -967,7 +967,7 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
 
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
+
 
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...
@@ -978,7 +978,7 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
     istart = iend-option%nflowdof+1
 
     ithrm = int(ithrm_loc_p(ghosted_id))
-    call FlowmodeAccumDerivative(auxvars(ghosted_id),      &
+    call MpFlowAccumDerivative(auxvars(ghosted_id),      &
                             material_auxvars(ghosted_id),  &
                             Flow_parameters(ithrm),        &
                             option,                        &
@@ -1032,10 +1032,10 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) &
-        qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
+      if (source_sink%flow_condition%liq_rate%itype /= HET_MASS_RATE_SS) &
+        qsrc1 = source_sink%flow_condition%liq_rate%dataset%rarray(1)
 
-      select case (source_sink%flow_condition%rate%itype)
+      select case (source_sink%flow_condition%liq_rate%itype)
         case(MASS_RATE_SS)
           qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
@@ -1051,8 +1051,8 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
         case(HET_MASS_RATE_SS)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
         case default
-          write(string,*) source_sink%flow_condition%rate%itype
-          option%io_buffer='Flow mode source_sink%flow_condition%rate%itype = ' // &
+          write(string,*) source_sink%flow_condition%liq_rate%itype
+          option%io_buffer='Flow mode source_sink%flow_condition%liq_rate%itype = ' // &
           trim(adjustl(string)) // ', not implemented.'
       end select
 
@@ -1129,7 +1129,7 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
 
-      call FlowmodeInternalFluxDerivative(auxvars(ghosted_id_up),      &
+      call MpFlowInternalFluxDerivative(auxvars(ghosted_id_up),      &
                                       material_auxvars(ghosted_id_up), &
                                       Flow_parameters(ithrm_up),       &
                                       auxvars(ghosted_id_dn),          &
@@ -1150,7 +1150,7 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
              .or. abs(Jup(ii,jj))>huge(Jup(ii,jj)) .or. abs(Jdn(ii,jj))>huge(Jdn(ii,jj)) ) then
             write(string, *) ' between local_id up/dn -', local_id_up, local_id_dn, &
                 'with Jacobin -', ii,jj, Jup(ii,jj), Jdn(ii,jj)
-            option%io_buffer = ' NaN or INF of Jacobians @ flowmode.F90: FlowJacobinPatch - Interior flux ' // &
+            option%io_buffer = ' NaN or INF of Jacobians @ MpFlow.F90: FlowJacobinPatch - Interior flux ' // &
                 trim(string)
             call printErrMsg(option)
           endif
@@ -1211,7 +1211,7 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
       ithrm_dn  = int(ithrm_loc_p(ghosted_id))
 !      icap_dn = int(icap_loc_p(ghosted_id))
 
-      call FlowmodeBCFluxDerivative(boundary_condition%flow_condition%itype,   &
+      call MpFlowBCFluxDerivative(boundary_condition%flow_condition%itype,   &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
                                 auxvars(ghosted_id),                           &
                                 material_auxvars(ghosted_id),                  &
@@ -1259,7 +1259,6 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
 
   call MatAssemblyBegin(AB,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(AB,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1272,11 +1271,11 @@ subroutine FlowmodeJacobianPatch(AB,realization,ierr)
                           ierr);CHKERRQ(ierr)
   endif
 
-end subroutine FlowmodeJacobianPatch
+end subroutine MpFlowJacobianPatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeMaxChange(realization,dpmax,dtmpmax)
+subroutine MpFlowMaxChange(realization,dpmax,dtmpmax)
   !
   ! Computes the maximum change in the solution vector
   !
@@ -1311,11 +1310,11 @@ subroutine FlowmodeMaxChange(realization,dpmax,dtmpmax)
   call VecStrideNorm(field%flow_dxx,ONE_INTEGER,NORM_INFINITY,dtmpmax, &
                      ierr);CHKERRQ(ierr)
 
-end subroutine FlowmodeMaxChange
+end subroutine MpFlowMaxChange
 
 ! ************************************************************************** !
 
-subroutine FlowmodeResidualToMass(realization)
+subroutine MpFlowResidualToMass(realization)
   !
   ! Computes mass balance from residual equation
   !
@@ -1376,13 +1375,13 @@ subroutine FlowmodeResidualToMass(realization)
     cur_patch => cur_patch%next
   enddo
 
-end subroutine FlowmodeResidualToMass
+end subroutine MpFlowResidualToMass
 
 ! ************************************************************************** !
 
-subroutine FlowmodeComputeMassBalance(realization, mass_balance)
+subroutine MpFlowComputeMassBalance(realization, mass_balance)
   ! 
-  ! FlowmodeomputeMassBalance:
+  ! MpFlowomputeMassBalance:
   ! Adapted from RichardsComputeMassBalance: need to be checked
   ! 
   ! Author: Jitendra Kumar
@@ -1393,7 +1392,7 @@ subroutine FlowmodeComputeMassBalance(realization, mass_balance)
   use Patch_module
 
   type(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nphase)
+  PetscReal :: mass_balance(realization%option%nfluids)
    
   type(patch_type), pointer :: cur_patch
 
@@ -1403,17 +1402,17 @@ subroutine FlowmodeComputeMassBalance(realization, mass_balance)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call FlowmodeComputeMassBalancePatch(realization, mass_balance)
+    call MpFlowComputeMassBalancePatch(realization, mass_balance)
     cur_patch => cur_patch%next
   enddo
 
-end subroutine FlowmodeComputeMassBalance
+end subroutine MpFlowComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine FlowmodeComputeMassBalancePatch(realization,mass_balance)
+subroutine MpFlowComputeMassBalancePatch(realization,mass_balance)
   ! 
-  ! FlowmodeomputeMassBalancePatch:
+  ! MpFlowomputeMassBalancePatch:
   ! Adapted from RichardsComputeMassBalancePatch: need to be checked
   ! 
   ! Author: Jitendra Kumar
@@ -1433,7 +1432,7 @@ subroutine FlowmodeComputeMassBalancePatch(realization,mass_balance)
   implicit none
   
   type(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nphase)
+  PetscReal :: mass_balance(realization%option%nfluids)
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1494,11 +1493,11 @@ subroutine FlowmodeComputeMassBalancePatch(realization,mass_balance)
 
   enddo
 
-end subroutine FlowmodeComputeMassBalancePatch
+end subroutine MpFlowComputeMassBalancePatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeZeroMassBalDeltaPatch(realization)
+subroutine MpFlowZeroMassBalDeltaPatch(realization)
   ! 
   ! Zeros mass balance delta array
   ! 
@@ -1547,11 +1546,11 @@ subroutine FlowmodeZeroMassBalDeltaPatch(realization)
     enddo
   endif
  
-end subroutine FlowmodeZeroMassBalDeltaPatch
+end subroutine MpFlowZeroMassBalDeltaPatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateMassBalancePatch(realization)
+subroutine MpFlowUpdateMassBalancePatch(realization)
   ! 
   ! Updates mass balance
   ! 
@@ -1582,14 +1581,14 @@ subroutine FlowmodeUpdateMassBalancePatch(realization)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   global_auxvars_ss => patch%aux%Global%auxvars_ss
 
-  do iphase = 1, option%nphase
+  do iphase = 1, option%nfluids
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
     do iconn = 1, patch%aux%Flow%num_aux
       patch%aux%Global%auxvars(iconn)%mass_balance(IFLOW1,iphase) = &
         patch%aux%Global%auxvars(iconn)%mass_balance(IFLOW1,iphase) + &
         patch%aux%Global%auxvars(iconn)%mass_balance_delta(IFLOW1,iphase)*FMWH2O* &
-        option%flow_dt
+        option%flow%dt
     enddo
 #endif
 
@@ -1598,7 +1597,7 @@ subroutine FlowmodeUpdateMassBalancePatch(realization)
         global_auxvars_bc(iconn)%mass_balance(IFLOW1,iphase) = &
           global_auxvars_bc(iconn)%mass_balance(IFLOW1,iphase) + &
           global_auxvars_bc(iconn)%mass_balance_delta(IFLOW1,iphase)*FMWH2O* &
-          option%flow_dt
+          option%flow%dt
       enddo
     endif
 
@@ -1607,18 +1606,18 @@ subroutine FlowmodeUpdateMassBalancePatch(realization)
         global_auxvars_ss(iconn)%mass_balance(IFLOW1,iphase) = &
           global_auxvars_ss(iconn)%mass_balance(IFLOW1,iphase) + &
           global_auxvars_ss(iconn)%mass_balance_delta(IFLOW1,iphase)*FMWH2O* &
-          option%flow_dt
+          option%flow%dt
       enddo
     endif
 
   enddo
 
 
-end subroutine FlowmodeUpdateMassBalancePatch
+end subroutine MpFlowUpdateMassBalancePatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateAuxVars(realization)
+subroutine MpFlowUpdateAuxVars(realization)
   ! 
   ! Updates the auxiliary variables associated with
   ! the Flow problem
@@ -1643,15 +1642,15 @@ subroutine FlowmodeUpdateAuxVars(realization)
     ! because this is auxvar computing after solution
     cur_patch%aux%Flow%auxvars_up_to_date = PETSC_TRUE
 
-    call FlowmodeUpdateAuxVarsPatch(realization)
+    call MpFlowUpdateAuxVarsPatch(realization)
     cur_patch => cur_patch%next
   enddo
 
-end subroutine FlowmodeUpdateAuxVars
+end subroutine MpFlowUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateAuxVarsPatch(realization)
+subroutine MpFlowUpdateAuxVarsPatch(realization)
   ! 
   ! Updates the auxiliary variables associated with
   ! the Flow problem
@@ -1691,9 +1690,9 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
   class(characteristic_curves_type), pointer :: characteristic_curves
 
   PetscInt :: ghosted_id, local_id, istart, iend, iconn, sum_connection, idof
-  PetscInt :: ithrm, iphase, icap
+  PetscInt :: ithrm, icap
   PetscReal, pointer :: xx_loc_p(:)
-  PetscReal, pointer :: ithrm_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: ithrm_loc_p(:), icap_loc_p(:)
 
   PetscReal :: xx(realization%option%nflowdof)
 
@@ -1713,7 +1712,7 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
   call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
@@ -1722,7 +1721,6 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
     if (patch%imat(ghosted_id) <= 0) cycle
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    iphase = int(iphase_loc_p(ghosted_id))
     ithrm = int(ithrm_loc_p(ghosted_id))
 
     xx(1) = xx_loc_p(istart)
@@ -1731,7 +1729,7 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
     icap = int(icap_loc_p(ghosted_id))
     characteristic_curves => patch%characteristic_curves_array(icap)%ptr
 
-    call FlowmodeAuxVarCompute(xx,        &
+    call MpFlowAuxVarCompute(xx,        &
             Flow_auxvars(ghosted_id),     &
             patch%aux%Flow%auxvars_up_to_date, &
             global_auxvars(ghosted_id),   &
@@ -1740,7 +1738,6 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
             Flow_parameters(ithrm),       &
             option)
 
-    iphase_loc_p(ghosted_id) = iphase
   enddo
 
   boundary_condition => patch%boundary_condition_list%first
@@ -1761,9 +1758,9 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
-          case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC, &
-               HET_SURF_SEEPAGE_BC, &
-               HET_DIRICHLET_BC,HET_SEEPAGE_BC)
+          case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC, &
+               HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
+               HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC)
             if (idof==IFDOF1) then
               global_auxvars_bc(sum_connection)%pres(LIQUID_PHASE) = &
                 boundary_condition%flow_aux_real_var(IFDOF1,iconn)
@@ -1772,7 +1769,7 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
                 boundary_condition%flow_aux_real_var(IFDOF2,iconn)
             endif
 
-          case(CONDUCTANCE_BC, HET_CONDUCTANCE_BC)
+          case(HYDROSTATIC_CONDUCTANCE_BC, HET_HYDROSTATIC_CONDUCTANCE_BC)
             !(TODO) the following is incorrect?
             if(idof==IFDOF2) then
               global_auxvars_bc(sum_connection)%temp = &
@@ -1804,7 +1801,6 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
 
       iend = ghosted_id*option%nflowdof
       istart = iend-option%nflowdof+1
-      iphase = int(iphase_loc_p(ghosted_id))
 
       ! set global_auxvars to that connected cell at first,
       ! then reset its relevant vars to SrcSink's
@@ -1834,14 +1830,14 @@ subroutine FlowmodeUpdateAuxVarsPatch(realization)
 
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
   call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
-end subroutine FlowmodeUpdateAuxVarsPatch
+end subroutine MpFlowUpdateAuxVarsPatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeInitializeTimestep(realization)
+subroutine MpFlowInitializeTimestep(realization)
   ! 
   ! Update data in module prior to time step
   ! 
@@ -1855,13 +1851,13 @@ subroutine FlowmodeInitializeTimestep(realization)
   
   type(realization_subsurface_type) :: realization
 
-  call FlowmodeUpdateFixedAccumulation(realization)
+  call MpFlowUpdateFixedAccumulation(realization)
 
-end subroutine FlowmodeInitializeTimestep
+end subroutine MpFlowInitializeTimestep
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateSolution(realization)
+subroutine MpFlowUpdateSolution(realization)
   ! 
   ! Updates data in module after a successful time step
   ! 
@@ -1885,15 +1881,15 @@ subroutine FlowmodeUpdateSolution(realization)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call FlowmodeUpdateSolutionPatch(realization)
+    call MpFlowUpdateSolutionPatch(realization)
     cur_patch => cur_patch%next
   enddo
 
-end subroutine FlowmodeUpdateSolution
+end subroutine MpFlowUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateSolutionPatch(realization)
+subroutine MpFlowUpdateSolutionPatch(realization)
   ! 
   ! Updates data in module after a successful time
   ! step
@@ -1918,14 +1914,14 @@ subroutine FlowmodeUpdateSolutionPatch(realization)
   global_auxvars => patch%aux%Global%auxvars
   
   if (realization%option%compute_mass_balance_new) then
-    call FlowmodeUpdateMassBalancePatch(realization)
+    call MpFlowUpdateMassBalancePatch(realization)
   endif
 
-end subroutine FlowmodeUpdateSolutionPatch
+end subroutine MpFlowUpdateSolutionPatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateFixedAccumulation(realization)
+subroutine MpFlowUpdateFixedAccumulation(realization)
   ! 
   ! Updates the fixed portion of the
   ! accumulation term
@@ -1950,15 +1946,15 @@ subroutine FlowmodeUpdateFixedAccumulation(realization)
     cur_patch%aux%Flow%auxvars_up_to_date = PETSC_FALSE
 
     realization%patch => cur_patch
-    call FlowmodeUpdateFixedAccumPatch(realization)
+    call MpFlowUpdateFixedAccumPatch(realization)
     cur_patch => cur_patch%next
   enddo
 
-end subroutine FlowmodeUpdateFixedAccumulation
+end subroutine MpFlowUpdateFixedAccumulation
 
 ! ************************************************************************** !
 
-subroutine FlowmodeUpdateFixedAccumPatch(realization)
+subroutine MpFlowUpdateFixedAccumPatch(realization)
   ! 
   ! Updates the fixed portion of the
   ! accumulation term
@@ -1991,8 +1987,8 @@ subroutine FlowmodeUpdateFixedAccumPatch(realization)
   !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
   type(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscInt :: ghosted_id, local_id, istart, iend, iphase
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscInt :: ghosted_id, local_id, istart, iend
+  PetscReal, pointer :: xx_p(:), icap_loc_p(:)
   PetscReal, pointer :: ithrm_loc_p(:), accum_p(:)
   PetscInt :: ithrm, icap
   PetscReal :: xx(realization%option%nflowdof)
@@ -2011,7 +2007,7 @@ subroutine FlowmodeUpdateFixedAccumPatch(realization)
 
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+
   call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
@@ -2022,7 +2018,6 @@ subroutine FlowmodeUpdateFixedAccumPatch(realization)
 
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    iphase = int(iphase_loc_p(ghosted_id))
     ithrm = int(ithrm_loc_p(ghosted_id))
 
     icap = int(icap_loc_p(ghosted_id))
@@ -2031,7 +2026,7 @@ subroutine FlowmodeUpdateFixedAccumPatch(realization)
     xx(1) = xx_p(istart)
     xx(2) = xx_p(iend)
 
-    call FlowmodeAuxVarCompute(xx,        &
+    call MpFlowAuxVarCompute(xx,        &
             Flow_auxvars(ghosted_id),     &
             patch%aux%Flow%auxvars_up_to_date, &
             global_auxvars(ghosted_id),   &
@@ -2040,7 +2035,7 @@ subroutine FlowmodeUpdateFixedAccumPatch(realization)
             Flow_parameters(ithrm),       &
             option)
     
-    call FlowmodeAccumulation(Flow_auxvars(ghosted_id),  &
+    call MpFlowAccumulation(Flow_auxvars(ghosted_id),  &
                           material_auxvars(ghosted_id),  &
                           Flow_parameters(ithrm),        &
                           option,accum_p(istart:iend))
@@ -2049,16 +2044,14 @@ subroutine FlowmodeUpdateFixedAccumPatch(realization)
 
   call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
-
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
-end subroutine FlowmodeUpdateFixedAccumPatch
+end subroutine MpFlowUpdateFixedAccumPatch
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAccumDerivative(flow_auxvar,   &
+subroutine MpFlowAccumDerivative(flow_auxvar,   &
                              material_auxvar,     &
                              flow_parameter,      &
                              option,              &
@@ -2125,7 +2118,7 @@ subroutine FlowmodeAccumDerivative(flow_auxvar,   &
   u_rock           = flow_parameter%dencpr*(tc + TC2TK)
   du_rock(IFDOF1)   = 0.d0
   du_rock(IFDOF2)   = flow_parameter%dencpr
-  if (option%flow%isothermal_eq) then
+  if (option%flow%isothermal) then
     u_rock         = 0.d0
     du_rock(IFDOF2) = 0.d0
   endif
@@ -2133,7 +2126,7 @@ subroutine FlowmodeAccumDerivative(flow_auxvar,   &
   !------------------------------------------------------------------
   mass = 0.d0
   eng  = u_rock * (1.d0 - por) * vol
-  do iphase = 1, option%nphase
+  do iphase = 1, option%nfluids
     sat = Flow_auxvar%sat(iphase)
     den = Flow_auxvar%den(iphase)
     uh  = Flow_auxvar%U(iphase)
@@ -2142,8 +2135,8 @@ subroutine FlowmodeAccumDerivative(flow_auxvar,   &
     mass = mass + porXvol*sat*den
     eng  = eng + porXvol*sat*den*uh
   end do
-  R(IFDOF1) = mass/option%flow_dt
-  R(IFDOF2) = eng/option%flow_dt
+  R(IFDOF1) = mass/option%flow%dt
+  R(IFDOF2) = eng/option%flow%dt
 
   !------------------------------------------------------------------
   if (ifderivative) then
@@ -2158,7 +2151,7 @@ subroutine FlowmodeAccumDerivative(flow_auxvar,   &
     do idof = 1, option%nflowdof
       dmass = 0.d0
       deng  = 0.d0
-      do iphase = 1, option%nphase
+      do iphase = 1, option%nfluids
 
         sat = Flow_auxvar%sat(iphase)
         den = Flow_auxvar%den(iphase)
@@ -2189,14 +2182,14 @@ subroutine FlowmodeAccumDerivative(flow_auxvar,   &
       J(IFDOF2, idof) = J(IFDOF2, idof) + deng
     end do
     !
-    J = J/option%flow_dt
+    J = J/option%flow%dt
   end if
 
-end subroutine FlowmodeAccumDerivative
+end subroutine MpFlowAccumDerivative
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAccumulation(flow_auxvar,     &
+subroutine MpFlowAccumulation(flow_auxvar,     &
                             material_auxvar,     &
                             flow_parameter,      &
                             option,              &
@@ -2222,17 +2215,17 @@ subroutine FlowmodeAccumulation(flow_auxvar,     &
 
   PetscReal :: J(option%nflowdof,option%nflowdof)
   !
-  call FlowmodeAccumDerivative(flow_auxvar,     &
+  call MpFlowAccumDerivative(flow_auxvar,     &
                            material_auxvar,     &
                            flow_parameter,      &
                            option,              &
                            Res, J, PETSC_FALSE)
 
-end subroutine FlowmodeAccumulation
+end subroutine MpFlowAccumulation
 
 ! ************************************************************************** !
 
-subroutine FlowmodeInternalFluxDerivative(flow_auxvar_up,                  &
+subroutine MpFlowInternalFluxDerivative(flow_auxvar_up,                  &
                               material_auxvar_up, flow_parameter_up,       &
                               flow_auxvar_dn,                              &
                               material_auxvar_dn, flow_parameter_dn,       &
@@ -2345,11 +2338,11 @@ subroutine FlowmodeInternalFluxDerivative(flow_auxvar_up,                  &
     end do
   endif
 
-end subroutine FlowmodeInternalFluxDerivative
+end subroutine MpFlowInternalFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine FlowmodeInternalFlux(flow_auxvar_up,                            &
+subroutine MpFlowInternalFlux(flow_auxvar_up,                            &
                               material_auxvar_up, flow_parameter_up,       &
                               flow_auxvar_dn,                              &
                               material_auxvar_dn, flow_parameter_dn,       &
@@ -2380,7 +2373,7 @@ subroutine FlowmodeInternalFlux(flow_auxvar_up,                            &
   PetscReal :: Jdn(option%nflowdof, option%nflowdof)
 
   !-----------------------------------------------------------------------------
-  call FlowmodeInternalFluxDerivative(flow_auxvar_up,                      &
+  call MpFlowInternalFluxDerivative(flow_auxvar_up,                      &
                               material_auxvar_up, flow_parameter_up,       &
                               flow_auxvar_dn,                              &
                               material_auxvar_dn, flow_parameter_dn,       &
@@ -2389,12 +2382,12 @@ subroutine FlowmodeInternalFlux(flow_auxvar_up,                            &
                               v_darcy, fluxe_bulk, fluxe_cond,  Res,       &
                               Jup, Jdn, PETSC_FALSE)
 
-end subroutine FlowmodeInternalFlux
+end subroutine MpFlowInternalFlux
 
 
 ! ************************************************************************** !
 
-subroutine FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,       &
+subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
                               flow_auxvar_dn,                        &
                               material_auxvar_dn, flow_parameter_dn, &
                               area, dist,                            &
@@ -2444,11 +2437,11 @@ subroutine FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   
   ! duplicate BC-connected cell auxvar at first, and later on re-assign specific var accordingly
   allocate(flow_auxvar_bc)
-  call FlowModeAuxVarInit(flow_auxvar_bc,option)
-  call FlowModeAuxVarCopy(flow_auxvar_dn,flow_auxvar_bc,option)
+  call MpFlowAuxVarInit(flow_auxvar_bc,option)
+  call MpFlowAuxVarCopy(flow_auxvar_dn,flow_auxvar_bc,option)
 
   select case(ibndtype(IFDOF1))
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
       flow_auxvar_bc%pres(LIQUID_PHASE) = bc_aux_real_var(IFDOF1) ! all water pressure on soil pore
       flow_auxvar_bc%pres(SOLID_PHASE)  = bc_aux_real_var(IFDOF1) ! liq. water pressure on ICE/soil pore
       flow_auxvar_bc%pres_fh2o = bc_aux_real_var(IFDOF1)          ! currently this is what to calculated dPressure for flow
@@ -2456,7 +2449,7 @@ subroutine FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,       &
 
       ! the following may not be needed
       flow_auxvar_bc%D_pres(:,:) = 0.d0
-      flow_auxvar_bc%D_pc(:,:) = 0.d0
+      flow_auxvar_bc%D_pc(:) = 0.d0
       flow_auxvar_bc%D_sat(:,:) = 0.d0
       flow_auxvar_bc%D_den(:,:) = 0.d0
       flow_auxvar_bc%D_den_kg(:,:) = 0.d0
@@ -2476,7 +2469,7 @@ subroutine FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   dq_bc = 0.d0
   dq_dn = 0.d0
   select case(ibndtype(IFDOF1))
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
 
       call DarcyFlowDerivative(flow_auxvar_bc,      flow_auxvar_dn,       &
                                material_auxvar_dn,  material_auxvar_dn,   &
@@ -2487,7 +2480,7 @@ subroutine FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,       &
                                q,                                         &
                                dq_bc, dq_dn, ifderivative)
 
-      if (ibndtype(IFDOF1) == SEEPAGE_BC) then
+      if (ibndtype(IFDOF1) == HYDROSTATIC_SEEPAGE_BC) then
         ! ONE-way flow, i.e. flow outward ONLY
         ! + from up (bc) -> dn; - from dn -> bc (up)
         if (q > 0.d0) then
@@ -2596,14 +2589,14 @@ subroutine FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   endif
 
   if(associated(flow_auxvar_bc)) then
-    call FlowmodeAuxVarDestroy(flow_auxvar_bc)
+    call MpFlowAuxVarDestroy(flow_auxvar_bc)
   endif
 
-end subroutine FlowmodeBCFluxDerivative
+end subroutine MpFlowBCFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine FlowmodeBCFlux(ibndtype, bc_aux_real_var,         &
+subroutine MpFlowBCFlux(ibndtype, bc_aux_real_var,         &
                       flow_auxvar_dn,                        &
                       material_auxvar_dn, flow_parameter_dn, &
                       area, dist,                            &
@@ -2634,7 +2627,7 @@ subroutine FlowmodeBCFlux(ibndtype, bc_aux_real_var,         &
   PetscReal :: Jdn(option%nflowdof, option%nflowdof)
 
   !-----------------------------------------------------------------------------
-  call FlowmodeBCFluxDerivative(ibndtype, bc_aux_real_var,           &
+  call MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,           &
                               flow_auxvar_dn,                        &
                               material_auxvar_dn, flow_parameter_dn, &
                               area, dist,                            &
@@ -2642,11 +2635,11 @@ subroutine FlowmodeBCFlux(ibndtype, bc_aux_real_var,         &
                               v_darcy, fluxe_bulk, fluxe_cond, Res,  &
                               Jdn, PETSC_FALSE)
 
-end subroutine FlowmodeBCFlux
+end subroutine MpFlowBCFlux
 
 ! ************************************************************************** !
 
-subroutine FlowmodeSetPlotVariables(realization,list)
+subroutine MpFlowSetPlotVariables(realization,list)
   ! 
   ! Adds variables to be printed to list
   ! 
@@ -2734,7 +2727,7 @@ subroutine FlowmodeSetPlotVariables(realization,list)
     name = 'Transient Porosity'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                                 EFFECTIVE_POROSITY)
+                                 POROSITY_CURRENT)
                                  
   endif
 
@@ -2744,11 +2737,11 @@ subroutine FlowmodeSetPlotVariables(realization,list)
 ! call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
 !                              PHASE)
 
-end subroutine FlowmodeSetPlotVariables
+end subroutine MpFlowSetPlotVariables
 
 
 ! ************************************************************************** !
-function FlowmodeInitGuessCheck(xx, option)
+function MpFlowInitGuessCheck(xx, option)
   !
   ! Checks if the initial guess is valid.
   ! Note: Only implemented for DALL_AMICO formulation.
@@ -2761,7 +2754,7 @@ function FlowmodeInitGuessCheck(xx, option)
   Vec :: xx
   type(option_type), pointer :: option
 
-  PetscInt :: FlowmodeInitGuessCheck
+  PetscInt :: MpFlowInitGuessCheck
   PetscInt :: idx
   PetscReal :: pres_min, pres_max
   PetscReal :: temp_min, temp_max
@@ -2786,14 +2779,14 @@ function FlowmodeInitGuessCheck(xx, option)
                          option%mycomm,ierr)
       if (ipass0 < option%mycommsize) ipass=-1
    endif
-   FlowmodeInitGuessCheck = ipass
+   MpFlowInitGuessCheck = ipass
 
-end function FlowmodeInitGuessCheck
+end function MpFlowInitGuessCheck
 
 
 ! ************************************************************************** !
 
-subroutine FlowmodeDestroy(patch)
+subroutine MpFlowDestroy(patch)
   ! Author: ???
   ! Date: 02/14/08
   ! 
@@ -2805,10 +2798,10 @@ subroutine FlowmodeDestroy(patch)
   type(patch_type) :: patch
   
   ! need to free array in aux vars
-  call FlowmodeAuxDestroy(patch%aux%Flow)
+  call MpFlowAuxDestroy(patch%aux%Flow)
 
-end subroutine FlowmodeDestroy
+end subroutine MpFlowDestroy
 
 ! ************************************************************************** !
 
-end module Flowmode_module
+end module MpFlow_module

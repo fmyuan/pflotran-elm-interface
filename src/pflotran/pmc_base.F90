@@ -41,7 +41,6 @@ module PMC_Base_class
   contains
     procedure, public :: Init => PMCBaseInit
     procedure, public :: InitializeRun
-    procedure, public :: InputRecord => PMCBaseInputRecord
     procedure, public :: CastToBase => PMCCastToBase
     procedure, public :: SetTimestepper => PMCBaseSetTimestepper
     procedure, public :: SetupSolvers => PMCBaseSetupSolvers
@@ -92,7 +91,6 @@ module PMC_Base_class
     
   public :: PMCBaseCreate, &
             PMCBaseInit, &
-            PMCBaseInputRecord, &
             PMCBaseSetChildPeerPtr, &
             PMCBaseStrip, &
             SetOutputFlags, &
@@ -164,53 +162,6 @@ subroutine PMCBaseInit(this)
 end subroutine PMCBaseInit
 
 ! ************************************************************************** !
-
-recursive subroutine PMCBaseInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/21/2016
-  ! 
-
-  use PM_Base_class
-  
-  implicit none
-  
-  class(pmc_base_type) :: this
-  
-  class(pm_base_type), pointer :: cur_pm
-  PetscInt :: id
-
-  id = INPUT_RECORD_UNIT
-
-  ! print information about self
-  write(id,'(a)') ' '
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') ' '
-  write(id,'(a29)',advance='no') 'pmc: '
-  write(id,'(a)') this%name
-  if (associated(this%timestepper)) then
-    call this%timestepper%inputrecord
-  endif
-  cur_pm => this%pm_list
-  do ! loop through this pmc's process models
-    if (.not.associated(cur_pm)) exit
-    call cur_pm%inputrecord
-    cur_pm => cur_pm%next
-  enddo
-
-  ! print information about child's pmc
-  if (associated(this%child)) then
-    call this%child%inputrecord
-  endif
-  ! print information about peer's pmc
-  if (associated(this%peer)) then
-    call this%peer%inputrecord
-  endif
-  
-end subroutine PMCBaseInputRecord
-
 ! ************************************************************************** !
 
 recursive subroutine PMCBaseSetChildPeerPtr(pmcA,relationship_to,pmcB, &

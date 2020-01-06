@@ -59,7 +59,6 @@ module Checkpoint_module
             CheckpointOpenFileForReadHDF5, &
             CheckPointReadCompatibilityHDF5, &
             CheckpointPeriodicTimeWaypoints, &
-            CheckpointInputRecord, &
             CheckpointRead
 
 contains
@@ -338,7 +337,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   
   implicit none
 
@@ -365,18 +364,6 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! grid%flow_xx is the vector into which all of the primary variables are 
     ! packed for the SNESSolve().
     call VecView(field%flow_xx, viewer, ierr);CHKERRQ(ierr)
-
-
-    ! If we are running with multiple phases, we need to dump the vector 
-    ! that indicates what phases are present, as well as the 'var' vector 
-    ! that holds variables derived from the primary ones via the translator.
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call DiscretizationLocalToGlobal(realization%discretization, &
-                                         field%iphas_loc,global_vec,ONEDOF)
-        call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
-      case default
-    end select 
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now, 
@@ -429,7 +416,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   
   implicit none
 
@@ -460,14 +447,10 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
     call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
 
     select case(option%iflowmode)
-      case(TH_MODE)
+      case default
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
-                                         field%iphas_loc,ONEDOF)
-        call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
-        call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
-                                        field%iphas_old_loc,ONEDOF)
-      case default
+                                         field%work_loc,ONEDOF)
     end select
     
     call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
@@ -1036,7 +1019,7 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   use hdf5
   use HDF5_module, only : HDF5WriteDataSetFromVec
 
@@ -1077,22 +1060,6 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
                                     global_vec, GLOBAL,option)
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
-
-    ! If we are running with multiple phases, we need to dump the vector
-    ! that indicates what phases are present, as well as the 'var' vector
-    ! that holds variables derived from the primary ones via the translator.
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call DiscretizationLocalToGlobal(realization%discretization, &
-                                         field%iphas_loc,global_vec,ONEDOF)
-
-        call DiscretizationGlobalToNatural(discretization, global_vec, &
-                                           natural_vec, ONEDOF)
-        dataset_name = "State" // CHAR(0)
-        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
-            pm_grp_id, H5T_NATIVE_DOUBLE)
-       case default
-    end select
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now,
@@ -1161,7 +1128,7 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use Material_module
   use Material_Aux_class, only : POROSITY_BASE
   use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, STATE
+                               PERMEABILITY_Z
   use hdf5
   use HDF5_module, only : HDF5ReadDataSetInVec
 
@@ -1206,22 +1173,6 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
                                     global_vec, GLOBAL,option)
     call DiscretizationCreateVector(realization%discretization, ONEDOF, &
                                     natural_vec, NATURAL, option)
-
-    ! If we are running with multiple phases, we need to dump the vector
-    ! that indicates what phases are present, as well as the 'var' vector
-    ! that holds variables derived from the primary ones via the translator.
-    dataset_name = "State" // CHAR(0)
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
-             pm_grp_id, H5T_NATIVE_DOUBLE)
-        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
-                                           global_vec, ONEDOF)
-        call DiscretizationGlobalToLocal(realization%discretization, &
-                                         global_vec, field%work_loc, ONEDOF)
-        call GlobalSetAuxVarVecLoc(realization,field%work_loc,STATE, &
-                                   ZERO_INTEGER)
-    end select
 
     ! Porosity and permeability.
     ! (We only write diagonal terms of the permeability tensor for now,
@@ -1496,80 +1447,5 @@ subroutine CheckpointPeriodicTimeWaypoints(checkpoint_option,waypoint_list, &
 end subroutine CheckpointPeriodicTimeWaypoints
   
 ! ************************************************************************** !
-
-subroutine CheckpointInputRecord(checkpoint_option,waypoint_list)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  !  
-  use Output_Aux_module
-  use Waypoint_module
-
-  implicit none
-
-  type(checkpoint_option_type), pointer :: checkpoint_option
-  type(waypoint_list_type), pointer :: waypoint_list
-  
-  type(waypoint_type), pointer :: cur_waypoint
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: checkpoints_found
-  PetscInt :: id = INPUT_RECORD_UNIT
-
-  write(id,'(a)') ' '
-    write(id,'(a)') '---------------------------------------------------------&
-                    &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'CHECKPOINTS'
-
-  if (associated(checkpoint_option)) then
-    write(id,'(a29)',advance='no') 'periodic timestep: '
-    if (checkpoint_option%periodic_ts_incr == 0) then
-      write(id,'(a)') 'OFF'
-    else
-      write(id,'(a)') 'ON'
-      write(id,'(a29)',advance='no') 'timestep increment: '
-      write(word,*) checkpoint_option%periodic_ts_incr
-      write(id,'(a)') adjustl(trim(word))
-    endif
-
-    write(id,'(a29)',advance='no') 'periodic time: '
-    if (checkpoint_option%periodic_time_incr <= 0) then
-      write(id,'(a)') 'OFF'
-    else
-      write(id,'(a)') 'ON'
-      write(id,'(a29)',advance='no') 'time increment: '
-      write(word,*) checkpoint_option%periodic_time_incr * &
-                    checkpoint_option%tconv
-      write(id,'(a)') adjustl(trim(word)) // &
-                      adjustl(trim(checkpoint_option%tunit))
-    endif
-  endif
-
-  string = ''
-  checkpoints_found = PETSC_FALSE
-  write(id,'(a29)',advance='no') 'specific times: '
-  cur_waypoint => waypoint_list%first
-  do
-    if (.not.associated(cur_waypoint)) exit
-    if (cur_waypoint%print_checkpoint) then
-      checkpoints_found = PETSC_TRUE
-      write(word,*) cur_waypoint%time*checkpoint_option%tconv
-      string = trim(string) // adjustl(trim(word)) // ','
-    endif
-    cur_waypoint => cur_waypoint%next
-  enddo
-  if (checkpoints_found) then
-    write(id,'(a)') 'ON'
-    write(id,'(a29)',advance='no') 'times (' // &
-                                    trim(checkpoint_option%tunit) // '): '
-    write(id,'(a)') trim(string)
-  else
-    write(id,'(a)') 'OFF'
-  endif
-  
-end subroutine CheckpointInputRecord
 
 end module Checkpoint_module

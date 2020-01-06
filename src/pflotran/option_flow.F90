@@ -12,9 +12,10 @@ module Option_Flow_module
 
   type, public :: flow_option_type 
   
+    PetscReal :: dt    ! The size of the time step for flow mode.
+
     PetscBool :: store_fluxes
     PetscBool :: transient_porosity
-    PetscBool :: only_vertical_flow
     PetscBool :: density_depends_on_salinity
     PetscBool :: numerical_derivatives
     PetscBool :: numerical_derivatives_compare
@@ -23,8 +24,12 @@ module Option_Flow_module
     PetscBool :: flowSolverLinearDone
     PetscBool :: flowTimestepperDone
 
-    PetscBool :: isothermal_eq
-    PetscBool :: only_thermal_eq
+    PetscInt  :: ice_model            ! specify water/ice/vapor phase partitioning model
+    PetscReal :: frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
+
+    PetscBool :: only_vertical_flow
+    PetscBool :: isothermal
+    PetscBool :: onlythermal
 
   end type flow_option_type
   
@@ -101,6 +106,8 @@ subroutine OptionFlowInitRealization(option)
   
   ! These variables should be initialized once at the beginning of every 
   ! PFLOTRAN realization or simulation of a single realization
+
+  option%dt = 0.d0
     
   option%store_fluxes = PETSC_FALSE
   option%transient_porosity = PETSC_FALSE
@@ -112,8 +119,11 @@ subroutine OptionFlowInitRealization(option)
   option%resdef = PETSC_FALSE
   option%flowSolverLinearDone = PETSC_FALSE
   option%flowTimestepperDone = PETSC_FALSE
-  option%isothermal_eq   = PETSC_FALSE
-  option%only_thermal_eq = PETSC_FALSE
+
+  option%isothermal  = PETSC_FALSE
+  option%onlythermal = PETSC_FALSE
+  option%ice_model        = PAINTER_EXPLICIT
+  option%frzthw_halfwidth = UNINITIALIZED_DOUBLE
 
 end subroutine OptionFlowInitRealization
 

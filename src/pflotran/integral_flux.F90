@@ -278,7 +278,7 @@ subroutine IntegralFluxUpdate(integral_flux_list,internal_fluxes, &
     case(INTEGRATE_FLOW)
       offset = 0
       num_values = option%nflowdof
-      dt = option%flow_dt
+      dt = option%flow%dt
     case default
       offset = -1 ! to catch bugs
   end select

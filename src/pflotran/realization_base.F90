@@ -34,7 +34,6 @@ module Realization_Base_class
     type(debug_type), pointer :: debug
     type(output_option_type), pointer :: output_option
     class(data_mediator_base_type), pointer :: flow_data_mediator_list
-    class(data_mediator_base_type), pointer :: tran_data_mediator_list
     
     
   end type realization_base_type
@@ -79,7 +78,6 @@ subroutine RealizationBaseInit(realization_base,option)
 
   nullify(realization_base%patch)
   nullify(realization_base%flow_data_mediator_list)
-  nullify(realization_base%tran_data_mediator_list)
 
 end subroutine RealizationBaseInit
 
@@ -243,7 +241,6 @@ subroutine RealizationBaseStrip(this)
   call DebugDestroy(this%debug)
   
   call DataMediatorDestroy(this%flow_data_mediator_list)
-  call DataMediatorDestroy(this%tran_data_mediator_list)
 
 end subroutine RealizationBaseStrip
 

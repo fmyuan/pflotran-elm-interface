@@ -125,7 +125,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   use PM_Base_Pointer_module
   use PM_Base_class
   use PM_Subsurface_Flow_class
-  use PM_TH_class
+  use PM_MpFlow_class
 
   use Solver_module
   use Timestepper_Base_class
@@ -170,13 +170,20 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
       if (OptionPrintToScreen(option)) then
         write(*,'(" number of dofs = ",i3,", number of &
-                  &phases = ",i3,i2)') option%nflowdof,option%nphase
+                  &phases = ",i3,i2)') option%nflowdof,option%nfluids
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             write(*,'(" mode = TH: p, T")')
         end select
       endif
 
+      select case(option%iflowmode)
+        case(MPFLOW_MODE)
+          call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
+          if (trim(snes_type) == 'newtontr') then
+            !flow_using_newtontr = PETSC_TRUE
+          endif
+      end select
 
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
@@ -297,13 +304,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                   
       add_pre_check = PETSC_FALSE
       select type(pm)
-        class is(pm_th_type)
-          if (Initialized(pm%pressure_dampening_factor) .or. &
-              Initialized(pm%pressure_change_limit) .or. &
-              Initialized(pm%temperature_change_limit)) then
-              add_pre_check = PETSC_TRUE
-          endif
-
+        class is(pm_mpflow_type)
+          add_pre_check = PETSC_TRUE
       end select
 
         if (add_pre_check) then
@@ -320,8 +322,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 #endif
         endif
 
-      call printMsg(option,"  Finished setting up FLOW SNES ")
-
+      call PrintMsg(option,"  Finished setting up FLOW SNES ")
   end select
 
   call SNESSetFunction(this%timestepper%solver%snes, &
@@ -350,162 +351,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 end subroutine PMCSubsurfaceSetupSolvers_TimestepperBE
 
 ! ************************************************************************** !
-
-subroutine PMCSubsurfaceSetupSolvers_TS(this)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 06/20/2018
-  ! 
-  use Convergence_module
-  use Discretization_module
-  use Option_module
-  use PMC_Base_class
-  use PM_Base_Pointer_module
-  use PM_Base_class
-  use PM_Subsurface_Flow_class
-  use PM_Richards_class
-  use Solver_module
-  use Timestepper_Base_class
-  use Timestepper_TS_class
-
-  implicit none
-
-  class(pmc_subsurface_type) :: this
-
-  type(solver_type), pointer :: solver
-  type(option_type), pointer :: option
-  SNESLineSearch :: linesearch  
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: add_pre_check
-  PetscErrorCode :: ierr
-
-  option => this%option
-
-  select type(ts => this%timestepper)
-    class is(timestepper_TS_type)
-      solver => ts%solver
-    class default
-      call PrintErrMsg(option,"Attempting to set up PETSc TS when" // &
-       " timestepper is not of TS type")
-  end select
-
-  call SolverCreateTS(solver,option%mycomm)
-
-  call TSSetEquationType(solver%ts,TS_EQ_IMPLICIT, &
-                        ierr);CHKERRQ(ierr)
-
-  call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
-
-  ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetSolver(solver)
-
-  select type(pm => this%pm_ptr%pm)
-
-    class is (pm_subsurface_flow_type)
-      call PrintMsg(option,"  Beginning setup of FLOW SNES ")
-
-      select case(option%iflowmode)
-        case(RICHARDS_TS_MODE,TH_TS_MODE)
-        case default
-          option%io_buffer = 'Timestepper TS unsupported for mode: '// option%flowmode
-          call PrintErrMsg(option)
-        end select
-
-        if (OptionPrintToScreen(option)) then
-          write(*,'(" number of dofs = ",i3,", number of &
-                    &phases = ",i3,i2)') option%nflowdof,option%nphase
-          select case(option%iflowmode)
-            case(RICHARDS_TS_MODE)
-              write(*,'(" mode = Richards: p")')
-            case(TH_TS_MODE)
-              write(*,'(" mode = TH: p, T")')
-          end select
-        endif
-
-        call TSSetOptionsPrefix(solver%ts, "flow_",ierr);CHKERRQ(ierr)
-        call TSSetFromOptions(solver%ts,ierr);CHKERRQ(ierr)
-
-        call SolverCheckCommandLine(solver)
-
-        solver%Jpre_mat_type = MATBAIJ
-
-        call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                          NFLOWDOF, &
-                                          solver%Jpre_mat_type, &
-                                          solver%Jpre, &
-                                          option)
-
-        call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
-
-        if (solver%J_mat_type /= MATMFFD) then
-          solver%J = solver%Jpre
-        endif
-
-      call TSSetIFunction(solver%ts, &
-                          this%pm_ptr%pm%residual_vec, &
-                          PMIFunctionPtr, &
-                          this%pm_ptr, &
-                          ierr);CHKERRQ(ierr)
-
-      call TSSetIJacobian(solver%ts, &
-                          solver%J, &
-                          solver%Jpre, &
-                          PMIJacobianPtr, &
-                          this%pm_ptr, &
-                          ierr);CHKERRQ(ierr)
-
-      call TSGetSNES(solver%ts,solver%snes,ierr); CHKERRQ(ierr)
-      call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
-      call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
-
-      call SNESSetConvergenceTest(solver%snes, &
-                                  PMCheckConvergencePtr, &
-                                  this%pm_ptr, &
-                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-
-      call PrintMsg(option,"  Finished setting up FLOW SNES ")
-      call SolverSetSNESOptions(solver,option)
-
-  end select
-
-end subroutine PMCSubsurfaceSetupSolvers_TS
-
-! ************************************************************************** !
-
-subroutine PMCSubsurfaceGetAuxData(this)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 10/24/13
-  ! 
-
-  implicit none
-
-  class(pmc_subsurface_type) :: this
-
-  if (this%option%surf_flow_on) call PMCSubsurfaceGetAuxDataFromSurf(this)
-  if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
-
-end subroutine PMCSubsurfaceGetAuxData
-
-! ************************************************************************** !
-
-subroutine PMCSubsurfaceSetAuxData(this)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 10/24/13
-  ! 
-
-  implicit none
-
-  class(pmc_subsurface_type) :: this
-
-  if (this%option%surf_flow_on) call PMCSubsurfaceSetAuxDataForSurf(this)
-  if (this%option%ngeomechdof > 0) call PMCSubsurfaceSetAuxDataForGeomech(this)
-
-end subroutine PMCSubsurfaceSetAuxData
-
-! ************************************************************************** !
-
 
 ! ************************************************************************** !
 !

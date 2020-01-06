@@ -146,7 +146,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   endif
   
   if (calculate_velocities) then
-    nphase = option%nphase
+    nphase = option%nfluids
     allocate(velocities(3,realization_base%patch%grid%nlmax,nphase))
     call PatchGetCellCenteredVelocities(realization_base%patch, &
                                         ONE_INTEGER,velocities(:,:,1))
@@ -397,7 +397,7 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
     call OutputWriteToHeader(fid,'qly',string,cell_string,icolumn)
     call OutputWriteToHeader(fid,'qlz',string,cell_string,icolumn)
 
-    if (option%nphase > 1) then
+    if (option%nfluids > 1) then
       call OutputWriteToHeader(fid,'qgx',string,cell_string,icolumn)
       call OutputWriteToHeader(fid,'qgy',string,cell_string,icolumn)
       call OutputWriteToHeader(fid,'qgz',string,cell_string,icolumn)
@@ -431,7 +431,7 @@ subroutine WriteObservationHeaderForBC(fid,realization_base,coupler_name)
   option => realization_base%option
   
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       string = ',"Darcy flux ' // trim(coupler_name) // &
                ' [m^3/' // trim(realization_base%output_option%tunit) // ']"'
     case default
@@ -657,8 +657,8 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   PetscInt :: offset
   PetscInt :: iphase
   PetscMPIInt :: int_mpi
-  PetscReal :: sum_volumetric_flux(realization_base%option%nphase)
-  PetscReal :: sum_volumetric_flux_global(realization_base%option%nphase)
+  PetscReal :: sum_volumetric_flux(realization_base%option%nfluids)
+  PetscReal :: sum_volumetric_flux_global(realization_base%option%nfluids)
   type(option_type), pointer :: option
   PetscErrorCode :: ierr
   
@@ -672,7 +672,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         sum_volumetric_flux = 0.d0
         if (associated(connection_set)) then
           do iconn = 1, connection_set%num_connections
@@ -681,12 +681,12 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
                             connection_set%area(iconn)
           enddo
         endif
-        int_mpi = option%nphase
+        int_mpi = option%nfluids
         call MPI_Reduce(sum_volumetric_flux,sum_volumetric_flux_global, &
                         int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                         option%io_rank,option%mycomm,ierr)
         if (option%myrank == option%io_rank) then
-          do i = 1, option%nphase
+          do i = 1, option%nfluids
             write(fid,110,advance="no") sum_volumetric_flux_global(i)
           enddo
         endif
@@ -725,7 +725,7 @@ subroutine WriteVelocityAtCell2(fid,realization_base,local_id,velocities)
   write(fid,200,advance="no") velocity(1:3)* &
                               realization_base%output_option%tconv
 
-  if (option%nphase > 1) then
+  if (option%nfluids > 1) then
     velocity = velocities(:,local_id,2)
     write(fid,200,advance="no") velocity(1:3)* &
                                 realization_base%output_option%tconv
@@ -875,7 +875,7 @@ subroutine WriteVelocityAtCoord(fid,realization_base,region)
                                 region%coordinates(ONE_INTEGER)%z,iphase)
   write(fid,200,advance="no") velocity(1:3)*realization_base%output_option%tconv   
 
-  if (option%nphase > 1) then
+  if (option%nfluids > 1) then
     iphase = 2
     velocity = GetVelocityAtCoord(fid,realization_base,region%cell_ids(1), &
                                 region%coordinates(ONE_INTEGER)%x, &
@@ -1082,7 +1082,7 @@ subroutine OutputIntegralFlux(realization_base)
 
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       flow_dof_scale(1) = FMWH2O
   end select
 
@@ -1121,7 +1121,7 @@ subroutine OutputIntegralFlux(realization_base)
       do
         if (.not.associated(integral_flux)) exit
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             string = trim(integral_flux%name) // ' Water'
             call OutputWriteToHeader(fid,string,'kg','',icol)
             units = 'kg/' // trim(output_option%tunit) // ''
@@ -1130,7 +1130,7 @@ subroutine OutputIntegralFlux(realization_base)
         end select
 
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
@@ -1157,7 +1157,7 @@ subroutine OutputIntegralFlux(realization_base)
   
   if (option%nflowdof > 0) then
     if (option%myrank == option%io_rank) &
-      write(fid,100,advance="no") option%flow_dt/output_option%tconv
+      write(fid,100,advance="no") option%flow%dt/output_option%tconv
   endif
   
   allocate(array(option%nflowdof,2))
@@ -1237,7 +1237,7 @@ subroutine OutputMassBalance(realization_base)
   use Utility_module
   use Output_Aux_module
   
-  use Flowmode_module, only : FlowmodeComputeMassBalance
+  use MpFlow_module, only : MpFlowComputeMassBalance
 
   use Global_Aux_module
   use Material_Aux_class
@@ -1264,9 +1264,9 @@ subroutine OutputMassBalance(realization_base)
   PetscInt :: offset
 
   PetscInt :: iphase, ispec
-  PetscReal :: mass_balance(realization_base%option%nflowspec,realization_base%option%nphase)
-  PetscReal :: sum_local(realization_base%option%nphase)
-  PetscReal :: sum_global(realization_base%option%nphase)
+  PetscReal :: mass_balance(realization_base%option%nflowspec,realization_base%option%nfluids)
+  PetscReal :: sum_local(realization_base%option%nfluids)
+  PetscReal :: sum_global(realization_base%option%nfluids)
   
   PetscReal :: global_water_mass
   PetscReal :: sum_allwater  ! sum of global water mass and fluxes
@@ -1319,7 +1319,7 @@ subroutine OutputMassBalance(realization_base)
       
         ! total mass
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             call OutputWriteToHeader(fid,'Global: Water(L)', &
                                     '-kg','',icol)
             call OutputWriteToHeader(fid,'Global: Water(G)', &
@@ -1407,7 +1407,7 @@ subroutine OutputMassBalance(realization_base)
   
     if (option%nflowdof > 0) then
       if (option%myrank == option%io_rank) &
-        write(fid,100,advance="no") option%flow_dt/output_option%tconv
+        write(fid,100,advance="no") option%flow%dt/output_option%tconv
     endif
   
     ! ----------------------------------
@@ -1417,8 +1417,8 @@ subroutine OutputMassBalance(realization_base)
       select type(realization_base)
         class is(realization_subsurface_type)
           select case(option%iflowmode)
-            case(TH_MODE)
-              call FlowmodeComputeMassBalance(realization_base,mass_balance)
+            case(MPFLOW_MODE)
+              call MpFlowComputeMassBalance(realization_base,mass_balance)
           end select
         class default
           option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -1428,13 +1428,13 @@ subroutine OutputMassBalance(realization_base)
       sum_local = mass_balance(ispec,:)
       sum_allwater = 0.d0
 
-      int_mpi = option%nflowspec*option%nphase
+      int_mpi = option%nflowspec*option%nfluids
       call MPI_Reduce(sum_local,sum_global, &
                     int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                     option%io_rank,option%mycomm,ierr)
 
       if (option%myrank == option%io_rank) then
-        do iphase = 1, option%nphase
+        do iphase = 1, option%nfluids
           write(fid,110,advance="no") sum_global(iphase)
             !
           sum_allwater = sum_allwater + sum_global(iphase)
@@ -1469,7 +1469,7 @@ subroutine OutputMassBalance(realization_base)
         do iconn = 1, coupler%connection_set%num_connections
           sum_local = sum_local + global_auxvars_bc_or_ss(offset+iconn)%mass_balance(ispec,:)
         enddo
-        int_mpi = option%nphase
+        int_mpi = option%nfluids
         call MPI_Reduce(sum_local,sum_global, &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)
@@ -1478,7 +1478,7 @@ subroutine OutputMassBalance(realization_base)
           ! change sign for positive in / negative out
           write(fid,110,advance="no") -sum_global
           !
-          do iphase = 1, option%nphase
+          do iphase = 1, option%nfluids
               sum_allwater = sum_allwater+sum_global(iphase)
           enddo
         endif
@@ -1491,7 +1491,7 @@ subroutine OutputMassBalance(realization_base)
         ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
         sum_local = sum_local*FMWH2O
 
-        int_mpi = option%nphase
+        int_mpi = option%nfluids
         call MPI_Reduce(sum_local,sum_global, &
                           int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
                           option%io_rank,option%mycomm,ierr)

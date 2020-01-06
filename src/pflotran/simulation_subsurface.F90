@@ -1,11 +1,12 @@
 module Simulation_Subsurface_class
-
+  
 #include "petsc/finclude/petscsys.h"
   use petscsys  
   use Simulation_Base_class
   use Regression_module
   use Option_module
   use PMC_Subsurface_class
+
   use PMC_Base_class
   use Realization_Subsurface_class
   use Waypoint_module
@@ -18,7 +19,7 @@ module Simulation_Subsurface_class
   type, public, extends(simulation_base_type) :: simulation_subsurface_type
     ! pointer to flow process model coupler
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
-    ! pointer to realization object shared by flow
+    ! pointer to realization object shared by flow and transport
     class(realization_subsurface_type), pointer :: realization 
     ! regression object
     type(regression_type), pointer :: regression
@@ -26,7 +27,6 @@ module Simulation_Subsurface_class
   contains
     procedure, public :: Init => SubsurfaceSimulationInit
     procedure, public :: JumpStart => SubsurfaceSimulationJumpStart
-    procedure, public :: InputRecord => SubsurfaceSimInputRecord
     procedure, public :: FinalizeRun => SubsurfaceFinalizeRun
     procedure, public :: Strip => SubsurfaceSimulationStrip
   end type simulation_subsurface_type
@@ -85,7 +85,6 @@ subroutine SubsurfaceSimulationInit(this,option)
   
   call SimulationBaseInit(this,option)
   nullify(this%flow_process_model_coupler)
-
   nullify(this%realization)
   nullify(this%regression)
   this%waypoint_list_subsurface => WaypointListCreate()
@@ -93,79 +92,6 @@ subroutine SubsurfaceSimulationInit(this,option)
 end subroutine SubsurfaceSimulationInit
 
 ! ************************************************************************** !
-
-subroutine SubsurfaceSimInputRecord(this)
-  ! 
-  ! Writes ingested information to the input record file.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-  use Option_module
-  use Output_module
-  use Discretization_module
-
-  use Region_module
-  use Strata_module
-  use Material_module
-  use Characteristic_Curves_module
-  use Patch_module
-  use Condition_module
-  use EOS_module
-  use Waypoint_module
-  
-  implicit none
-  
-  class(simulation_subsurface_type) :: this
-  PetscInt :: id = INPUT_RECORD_UNIT
-  
-  if (OptionPrintToScreen(this%option)) then
-    write (*,*) 'Printing input record file.'
-  endif
-  
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') 'simulation type: '
-  write(id,'(a)') 'subsurface'
-  write(id,'(a29)',advance='no') 'flow mode: '
-  select case(this%realization%option%iflowmode)
-    case(TH_MODE)
-      write(id,'(a)') 'thermo-hydro'
-  end select
-  
-  ! print time information
-  call WaypointInputRecord(this%output_option,this%waypoint_list_subsurface)
-
-  ! print output file information
-  call OutputInputRecord(this%output_option,this%waypoint_list_subsurface)
-
-  ! print grid/discretization information
-  call DiscretizationInputRecord(this%realization%discretization)
-
-  ! print region information
-  call RegionInputRecord(this%realization%patch%region_list)
-  
-  ! print strata information
-  call StrataInputRecord(this%realization%patch%strata_list)
-  
-  ! print material property information
-  call MaterialPropInputRecord(this%realization%material_properties)
-  
-  ! print characteristic curves information
-  call CharCurvesInputRecord(this%realization%patch%characteristic_curves)
-  
-  ! print coupler information (ICs, BCs, SSs)
-  call PatchCouplerInputRecord(this%realization%patch)
-  
-  ! print flow and trans condition information
-  call FlowCondInputRecord(this%realization%flow_conditions, &
-                           this%realization%option)
-                       
-  ! print equation of state (eos) information
-  call EOSInputRecord()
-
-end subroutine SubsurfaceSimInputRecord
 
 ! ************************************************************************** !
 
@@ -193,7 +119,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   
 #ifdef DEBUG
-  call printMsg(this%option,'SubsurfaceSimulationJumpStart()')
+  call PrintMsg(this%option,'SubsurfaceSimulationJumpStart()')
 #endif
 
   nullify(master_timestepper)
@@ -213,14 +139,14 @@ subroutine SubsurfaceSimulationJumpStart(this)
   
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
   if (master_timestepper%max_time_step < 0) then
-    call printMsg(option,'')
+    call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
                        '), specified by TIMESTEPPER->MAX_STEPS, ' // &
                        'has been met.  Stopping....'  
-    call printMsg(option)
-    call printMsg(option,'')
+    call PrintMsg(option)
+    call PrintMsg(option,'')
     option%status = DONE
     return
   endif
@@ -231,27 +157,27 @@ subroutine SubsurfaceSimulationJumpStart(this)
       master_timestepper%max_time_step >= 0) then
     if (output_option%print_initial_snap) snapshot_plot_flag = PETSC_TRUE
     if (output_option%print_initial_obs) observation_plot_flag = PETSC_TRUE
-    if (output_option%print_initial_massbal) massbal_plot_flag = PETSC_TRUE
+    if (output_option%print_initial_massbal) massbal_plot_flag = PETSC_FALSE
     call Output(this%realization,snapshot_plot_flag,observation_plot_flag, &
                 massbal_plot_flag)
   endif
   
   !if TIMESTEPPER->MAX_STEPS < 1, print out initial condition only
   if (master_timestepper%max_time_step < 1) then
-    call printMsg(option,'')
+    call PrintMsg(option,'')
     write(option%io_buffer,*) master_timestepper%max_time_step
     option%io_buffer = 'The maximum # of time steps (' // &
                        trim(adjustl(option%io_buffer)) // &
                        '), specified by TIMESTEPPER->MAX_STEPS, ' // &
                        'has been met.  Stopping....'  
-    call printMsg(option)
-    call printMsg(option,'') 
+    call PrintMsg(option)
+    call PrintMsg(option,'')
     option%status = DONE
     return
   endif
 
   ! increment plot number so that 000 is always the initial condition, 
-  !and nothing else
+  ! and nothing else
   if (output_option%plot_number == 0) output_option%plot_number = 1
 
   if (associated(flow_timestepper)) then
@@ -259,7 +185,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
       option%io_buffer = &
         'Null flow waypoint list; final time likely equal to start time.&
         &time or simulation time needs to be extended on a restart.'
-      call printMsg(option)
+      call PrintMsg(option)
       option%status = FAIL
       return
     else
@@ -295,11 +221,13 @@ subroutine SubsurfaceFinalizeRun(this)
   ! 
 
   use Timestepper_Base_class
+
   use SrcSink_Sandbox_module, only : SSSandboxDestroyList
 
   implicit none
   
   class(simulation_subsurface_type) :: this
+  
   PetscErrorCode :: ierr
   
   class(timestepper_base_type), pointer :: flow_timestepper
@@ -336,7 +264,7 @@ subroutine SubsurfaceSimulationStrip(this)
   class(simulation_subsurface_type) :: this
   
 #ifdef DEBUG
-  call printMsg(this%option,'SubsurfaceSimulationStrip()')
+  call PrintMsg(this%option,'SubsurfaceSimulationStrip()')
 #endif
   
   call SimulationBaseStrip(this)
@@ -363,7 +291,7 @@ subroutine SubsurfaceSimulationDestroy(simulation)
   class(simulation_subsurface_type), pointer :: simulation
   
 #ifdef DEBUG
-  call printMsg(simulation%option,'SimulationDestroy()')
+  call PrintMsg(simulation%option,'SimulationDestroy()')
 #endif
   
   if (.not.associated(simulation)) return

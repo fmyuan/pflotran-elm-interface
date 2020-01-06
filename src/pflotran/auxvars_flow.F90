@@ -15,40 +15,42 @@ module AuxVars_Flow_module
   private
 
   type, public, extends(auxvar_base_type) :: auxvar_flow_type
-    PetscReal, pointer :: pres(:)   ! (iphase)
-    PetscReal, pointer :: sat(:)    ! (iphase)
-    PetscReal, pointer :: pc(:)     ! capillary pressure (iphase-1)
-    PetscReal, pointer :: den(:)    ! (iphase) kmol/m^3 phase
-    PetscReal, pointer :: den_kg(:) ! (iphase) kg/m^3 phase
-    PetscReal, pointer :: mobility(:) ! relative perm / dynamic viscosity
+    PetscReal, pointer :: sat(:)    ! (nfluids+1) unitless: the '+1' is for fluid in solid phase (e.g. ice)
+    PetscReal, pointer :: den(:)    ! (nfluids+1) kmol/m^3:
+    PetscReal, pointer :: den_kg(:) ! (nfluids+1) kg/m^3  :
+    PetscReal, pointer :: pres(:)      ! (nfluids): exlcuding solid phase
+    PetscReal, pointer :: mobility(:)  ! relative permissivity/dynamic viscosity
     PetscReal, pointer :: viscosity(:) ! dynamic viscosity
-    PetscInt, pointer :: table_idx(:)
+    PetscReal, pointer :: xmol(:,:)    ! (nflowspec,nfluids) transportants in fluids
+    PetscReal          :: por          ! porosity of porous media for flow
+    PetscReal          :: pc           ! liq. fluid capillary pressure only (specific variables useful)
 
     ! derivatives
     PetscBool :: has_derivs
-    PetscReal, pointer :: D_pres(:,:)   ! (iphase)
-    PetscReal, pointer :: D_sat(:,:)    ! (iphase)
-    PetscReal, pointer :: D_pc(:,:)     ! capillary pressure (iphase-1)
-    PetscReal, pointer :: D_den(:,:)    ! (iphase) kmol/m^3 phase
-    PetscReal, pointer :: D_den_kg(:,:) ! (iphase) kg/m^3 phase
-    PetscReal, pointer :: D_mobility(:,:) ! relative perm / dynamic viscosity
-    PetscReal, pointer :: D_por(:)
+    PetscReal, pointer :: D_sat(:,:)    ! (nfluids+1, nflowdof)
+    PetscReal, pointer :: D_den(:,:)    ! (nfluids+1, nflowdof) kmol/m^3 phase
+    PetscReal, pointer :: D_den_kg(:,:) ! (nfluids+1, nflowdof) kg/m^3 phase
+    PetscReal, pointer :: D_pres(:,:)   ! (nfluids, nflowdof)
+    PetscReal, pointer :: D_mobility(:,:)  ! (nfluids, nflowdof) relative perm./visc.
+    PetscReal, pointer :: D_viscosity(:,:) ! (nfluids, nflowdof) dynamic viscosity
+    PetscReal, pointer :: D_por(:)         ! (nflowdof)
+    PetscReal, pointer :: D_pc(:)          ! liq. capillary pressure (nflowdof)
 
   contains
-    !procedure, public :: Init => InitAuxVarFlow
+    !
   end type auxvar_flow_type
 
-  public :: AuxVarFlowInit, AuxVarFlowStrip
+  public :: AuxVarFlowInit, AuxVarFlowCopy, AuxVarFlowStrip
 
 contains
 
 ! ************************************************************************** !
 subroutine AuxVarFlowInit(this,option)
   !
-  ! Initialize auxiliary object
+  ! initialize flow auxiliary variables
   !
-  ! Author: PAolo Orsini
-  ! Date: 5/27/16
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
   !
 
   use Option_module
@@ -59,13 +61,11 @@ subroutine AuxVarFlowInit(this,option)
   type(option_type) :: option
 
   nullify(this%pres)
-  nullify(this%pc)
   nullify(this%sat)
   nullify(this%den)
   nullify(this%den_kg)
   nullify(this%mobility)
   nullify(this%viscosity)
-  nullify(this%table_idx)
 
   nullify(this%D_pres)
   nullify(this%D_sat)
@@ -76,44 +76,40 @@ subroutine AuxVarFlowInit(this,option)
   nullify(this%D_por)
 
   !
-  allocate(this%pres(option%nphase))
+  allocate(this%pres(option%nfluids))
   this%pres = 0.d0
-  allocate(this%pc(option%nphase - ONE_INTEGER))
   this%pc = 0.0d0
-  allocate(this%sat(option%nphase))
+  allocate(this%sat(option%nfluids))
   this%sat = 0.d0
-  allocate(this%den(option%nphase))
+  allocate(this%den(option%nfluids))
   this%den = 0.d0
-  allocate(this%den_kg(option%nphase))
+  allocate(this%den_kg(option%nfluids))
   this%den_kg = 0.d0
-  allocate(this%mobility(option%nphase))
+  allocate(this%mobility(option%nfluids))
   this%mobility = 0.d0
-  allocate(this%viscosity(option%nphase))
+  allocate(this%viscosity(option%nfluids))
   this%viscosity = 0.d0
-  if (option%num_table_indices > 0) then
-    allocate(this%table_idx(option%num_table_indices))
-    this%table_idx = 1
-  else
-    nullify(this%table_idx)
-  endif
+  this%por = 0.d0
 
-  this%has_derivs = PETSC_FALSE
+  this%has_derivs = option%flow%numerical_derivatives
   if (.not.option%flow%numerical_derivatives) then
 
     this%has_derivs = PETSC_TRUE
 
-    allocate(this%D_pres(option%nphase,option%nflowdof))
+    allocate(this%D_pres(option%nfluids,option%nflowdof))
     this%D_pres = 0.d0
-    allocate(this%D_sat(option%nphase,option%nflowdof))
+    allocate(this%D_sat(option%nfluids,option%nflowdof))
     this%D_sat = 0.d0
-    allocate(this%D_pc(option%nphase - ONE_INTEGER,option%nflowdof))
+    allocate(this%D_pc(option%nflowdof))
     this%D_pc = 0.d0
-    allocate(this%D_den(option%nphase,option%nflowdof))
+    allocate(this%D_den(option%nfluids,option%nflowdof))
     this%D_den = 0.d0
-    allocate(this%D_den_kg(option%nphase,option%nflowdof))
+    allocate(this%D_den_kg(option%nfluids,option%nflowdof))
     this%D_den_kg = 0.d0
-    allocate(this%D_mobility(option%nphase,option%nflowdof))
+    allocate(this%D_mobility(option%nfluids,option%nflowdof))
     this%D_mobility = 0.d0
+    allocate(this%D_viscosity(option%nfluids,option%nflowdof))
+    this%D_viscosity = 0.d0
     allocate(this%D_por(option%nflowdof))
     this%D_por = 0.d0
   endif
@@ -121,22 +117,19 @@ subroutine AuxVarFlowInit(this,option)
 end subroutine AuxVarFlowInit
 
 ! ************************************************************************** !
-subroutine AuxVarFlowCopy(auxvar, auxvar2,option)
+subroutine AuxVarFlowCopy(auxvar, auxvar2)
   !
-  ! dupliacate energy auxiliary variables
+  ! dupliacate flow auxiliary variables
   !
-  ! Author: Paolo Orsini
-  ! Date: 11/07/16
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
   !
 
-  use Option_module
 
   implicit none
 
-  type(auxvar_flow_type) :: auxvar
-  type(auxvar_flow_type) :: auxvar2
-
-  type(option_type) :: option
+  class (auxvar_flow_type) :: auxvar
+  class (auxvar_flow_type) :: auxvar2
 
   auxvar2%pres = auxvar%pres
   auxvar2%pc = auxvar%pc
@@ -145,7 +138,6 @@ subroutine AuxVarFlowCopy(auxvar, auxvar2,option)
   auxvar2%den_kg = auxvar%den_kg
   auxvar2%mobility = auxvar%mobility
   auxvar2%viscosity = auxvar%viscosity
-  if(associated(auxvar%table_idx)) auxvar2%table_idx = auxvar%table_idx
   if (auxvar%has_derivs) then
     auxvar2%D_pres = auxvar%D_pres
     auxvar2%D_sat  = auxvar%D_sat
@@ -153,6 +145,7 @@ subroutine AuxVarFlowCopy(auxvar, auxvar2,option)
     auxvar2%D_den  = auxvar%D_den
     auxvar2%D_den_kg   = auxvar%D_den_kg
     auxvar2%D_mobility = auxvar%D_mobility
+    auxvar2%D_viscosity = auxvar%D_viscosity
     auxvar2%D_por      = auxvar%D_por
   endif
 
@@ -174,13 +167,11 @@ subroutine AuxVarFlowStrip(this)
   class(auxvar_flow_type) :: this
 
   call DeallocateArray(this%pres)
-  call DeallocateArray(this%pc)
   call DeallocateArray(this%sat)
   call DeallocateArray(this%den)
   call DeallocateArray(this%den_kg)
   call DeallocateArray(this%mobility)
   call DeallocateArray(this%viscosity)
-  call DeallocateArray(this%table_idx)
 
   if (this%has_derivs) then 
     call DeallocateArray(this%D_pres)
@@ -189,6 +180,7 @@ subroutine AuxVarFlowStrip(this)
     call DeallocateArray(this%D_den)
     call DeallocateArray(this%D_den_kg)
     call DeallocateArray(this%D_mobility)
+    call DeallocateArray(this%D_viscosity)
     call DeallocateArray(this%D_por)
   endif
 

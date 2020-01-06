@@ -264,10 +264,8 @@ subroutine SFBaseIceCapillaryPressure(this, pres_l, tc, &
   PetscReal, intent(out) :: ice_pc, dice_pc_dt, dice_pc_dpres     ! in Pa
   type(option_type), intent(inout) :: option
 
-  if (option%th_use_freezing) then
-    call SF_Ice_CapillaryPressure(this, pres_l, tc, &
+  call SF_Ice_CapillaryPressure(this, pres_l, tc, &
                            ice_pc, dice_pc_dpres, dice_pc_dt, option)
-  end if
 
 end subroutine SFBaseIceCapillaryPressure
 
@@ -554,7 +552,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   drhol_dp = drhol_dp * FMWH2O
   drhol_dt = drhol_dt * FMWH2O
 
-  call EOSWaterDensityIce(tc, pw, &
+  call EOSWaterIceDensity(tc, pw, &
                           rhoi_mol, drhoi_dt, drhoi_dp, ierr)
   rhoi = rhoi_mol * FMWH2O   ! in eos_water.F90, the conversion from mol->kg may not be consistent for all methods.
   drhoi_dp = drhoi_dp * FMWH2O
@@ -562,7 +560,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
   ! --------------------
 
-    select case (option%ice_model)
+    select case (option%flow%ice_model)
 
       case (PAINTER_EXPLICIT)
 
@@ -610,8 +608,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         !--------------------------------------------
         deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
-        if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
-        if (option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
+        if(option%flow%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%flow%frzthw_halfwidth
+        if (option%flow%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
           ! if smoothing, only need to calculate the two ends
           if (Tk<T0+deltaTf .and. Tk>=Tf-deltaTf) then
             Tk=Tf-deltaTf
@@ -642,7 +640,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
          ice_pc     =  ice_pc*Hfunc + pcgl*(1.d0-Hfunc)
 
         !--------------------------------------------
-         if (option%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
+         if (option%flow%ice_model==PAINTER_KARRA_EXPLICIT_SMOOTH .and. deltaTf>1.0d-50) then
             ! using the new Heaveside Smoothing function:
             ! ice_pc@Tf-deltaTf --> ice_pc = pcgl @T0+deltaTf
             !  note: @Tf, ice_pc = pcgl by PKE, so this smoothing actually span over a larger range around Tf~T0)

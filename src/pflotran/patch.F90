@@ -1,7 +1,8 @@
 module Patch_module
 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+#include "petsc/finclude/petscvec.h"
+  use petscvec
+
   use Option_module
   use Grid_module
   use Coupler_module
@@ -17,6 +18,8 @@ module Patch_module
   use Auxiliary_module
 
   use PFLOTRAN_Constants_module
+
+  use MpFlow_Aux_module
 
   implicit none
 
@@ -34,8 +37,6 @@ module Patch_module
 
     PetscReal, pointer :: internal_velocities(:,:)
     PetscReal, pointer :: boundary_velocities(:,:)
-    PetscReal, pointer :: internal_tran_coefs(:,:,:)
-    PetscReal, pointer :: boundary_tran_coefs(:,:,:)
     PetscReal, pointer :: internal_flow_fluxes(:,:)
     PetscReal, pointer :: boundary_flow_fluxes(:,:)
     ! fluid fluxes in moles/sec
@@ -43,12 +44,12 @@ module Patch_module
     ! volumetric flux (m^3/sec) for liquid phase needed for transport
     PetscReal, pointer :: ss_flow_vol_fluxes(:,:)
 
-    PetscReal, pointer :: internal_tran_fluxes(:,:)
-    PetscReal, pointer :: boundary_tran_fluxes(:,:)
-    PetscReal, pointer :: ss_tran_fluxes(:,:)
-
     ! for TH surface/subsurface
     PetscReal, pointer :: boundary_energy_flux(:,:)
+
+    ! for upwind direction in multiphase flow
+    PetscInt, pointer :: flow_upwind_direction(:,:)
+    PetscInt, pointer :: flow_upwind_direction_bc(:,:)
 
     type(grid_type), pointer :: grid
 
@@ -69,7 +70,6 @@ module Patch_module
 
     ! Pointers to objects in mother realization object
     type(field_type), pointer :: field
-
     class(dataset_base_type), pointer :: datasets
 
     type(auxiliary_type) :: aux
@@ -78,6 +78,7 @@ module Patch_module
 
     PetscInt :: surf_or_subsurf_flag  ! Flag to identify if the current patch
                                       ! is a surface or subsurface (default)
+
   end type patch_type
 
   ! pointer data structure required for making an array of patch pointers in F90
@@ -100,19 +101,27 @@ module Patch_module
     module procedure PatchGetVariable2
   end interface
 
+  interface PatchUnsupportedVariable
+    module procedure PatchUnsupportedVariable1
+    module procedure PatchUnsupportedVariable2
+    module procedure PatchUnsupportedVariable3
+    module procedure PatchUnsupportedVariable4
+  end interface
+
   public :: PatchCreate, PatchDestroy, PatchCreateList, PatchDestroyList, &
             PatchAddToList, PatchConvertListToArray, PatchProcessCouplers, &
             PatchUpdateAllCouplerAuxVars, PatchInitAllCouplerAuxVars, &
             PatchLocalizeRegions, &
             PatchGetVariable, PatchGetVariableValueAtCell, &
-            PatchSetVariable, PatchCouplerInputRecord, &
+            PatchSetVariable, &
             PatchCountCells, PatchGetIvarsFromKeyword, &
             PatchGetVarNameFromKeyword, &
             PatchCalculateCFL1Timestep, &
             PatchGetCellCenteredVelocities, &
             PatchGetCompMassInRegion, &
             PatchGetWaterMassInRegion, &
-            PatchGetCompMassInRegionAssign
+            PatchGetCompMassInRegionAssign, &
+            PatchSetupUpwindDirection
 
 contains
 
@@ -141,16 +150,14 @@ function PatchCreate()
   nullify(patch%sat_func_id)
   nullify(patch%internal_velocities)
   nullify(patch%boundary_velocities)
-  nullify(patch%internal_tran_coefs)
-  nullify(patch%boundary_tran_coefs)
   nullify(patch%internal_flow_fluxes)
   nullify(patch%boundary_flow_fluxes)
-  nullify(patch%internal_tran_fluxes)
-  nullify(patch%boundary_tran_fluxes)
   nullify(patch%ss_flow_fluxes)
-  nullify(patch%ss_tran_fluxes)
   nullify(patch%ss_flow_vol_fluxes)
   nullify(patch%boundary_energy_flux)
+
+  nullify(patch%flow_upwind_direction)
+  nullify(patch%flow_upwind_direction_bc)
 
   nullify(patch%grid)
 
@@ -166,7 +173,6 @@ function PatchCreate()
 
   nullify(patch%material_properties)
   nullify(patch%material_property_array)
-
   nullify(patch%characteristic_curves)
   nullify(patch%characteristic_curves_array)
 
@@ -180,7 +186,6 @@ function PatchCreate()
   call AuxInit(patch%aux)
 
   nullify(patch%field)
-
   nullify(patch%datasets)
 
   nullify(patch%next)
@@ -253,9 +258,13 @@ subroutine PatchConvertListToArray(patch_list)
   implicit none
 
   type(patch_list_type) :: patch_list
+
+  PetscInt :: count
   type(patch_type), pointer :: cur_patch
 
+
   allocate(patch_list%array(patch_list%num_patch_objects))
+
   cur_patch => patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -303,8 +312,10 @@ subroutine PatchLocalizeRegions(patch,regions,option)
 end subroutine PatchLocalizeRegions
 
 ! ************************************************************************** !
+
 subroutine PatchProcessCouplers(patch,flow_conditions, &
                                 option)
+
   !
   ! Assigns conditions and regions to couplers
   !
@@ -325,10 +336,12 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
   type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
+  type(coupler_list_type), pointer :: coupler_list
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation, next_observation
   type(integral_flux_type), pointer :: integral_flux
-  PetscInt :: temp_int
+
+  PetscInt :: temp_int, isub
   PetscInt :: nphase
   PetscErrorCode :: ierr
 
@@ -344,7 +357,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                  '" in boundary condition "' // &
                  trim(coupler%name) // &
                  '" not found in region list'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     if (associated(patch%grid%structured_grid)) then
       if (coupler%region%num_cells > 0 .and. &
@@ -353,7 +366,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
         option%io_buffer = 'Region "' // trim(coupler%region_name) // &
                  '", which is tied to a boundary condition, has not &
                  &been assigned a face in the structured grid. '
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     ! pointer to flow condition
@@ -368,15 +381,14 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                    '" in boundary condition "' // &
                    trim(coupler%name) // &
                    '" not found in flow condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       else
         option%io_buffer = 'A FLOW_CONDITION must be specified in &
                            &BOUNDARY_CONDITION: ' // trim(coupler%name) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
-
     coupler => coupler%next
   enddo
 
@@ -393,7 +405,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                  '" in initial condition "' // &
                  trim(coupler%name) // &
                  '" not found in region list'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     ! pointer to flow condition
     if (option%nflowdof > 0) then
@@ -407,12 +419,12 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                    '" in initial condition "' // &
                    trim(coupler%name) // &
                    '" not found in flow condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
       else
         option%io_buffer = 'A FLOW_CONDITION must be specified in ' // &
                            'INITIAL_CONDITION: ' // trim(coupler%name) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     coupler => coupler%next
@@ -430,7 +442,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                  '" in source/sink "' // &
                  trim(coupler%name) // &
                  '" not found in region list'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
 
     ! pointer to flow condition
@@ -445,21 +457,21 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                    '" in source/sink "' // &
                    trim(coupler%name) // &
                    '" not found in flow condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         ! check to ensure that a rate subcondition exists
-        if (.not.associated(coupler%flow_condition%rate)) then
+        if (.not.associated(coupler%flow_condition%liq_rate)) then
           temp_int = 0
           if (temp_int == 0) then
             option%io_buffer = 'FLOW_CONDITIONs associated with &
-              &SOURCE_SINKs must have a RATE within them.'
-            call printErrMsg(option)
+              &SOURCE_SINKs must have a RATE or WELL expression within them.'
+            call PrintErrMsg(option)
           endif
         endif
       else
         option%io_buffer = 'A FLOW_CONDITION must be specified in &
                            &SOURCE_SINK: ' // trim(coupler%name) // '.'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     coupler => coupler%next
@@ -480,7 +492,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
       if (.not.associated(strata%region)) then
         option%io_buffer = 'Region "' // trim(strata%region_name) // &
                  '" in strata not found in region list'
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
       if (strata%active) then
         ! pointer to material
@@ -494,12 +506,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
             option%io_buffer = 'Material "' // &
                               trim(strata%material_property_name) // &
                               '" not found in material list'
-            call printErrMsg(option)
+            call PrintErrMsg(option)
           endif
-        endif
-
-        if (patch%surf_or_subsurf_flag == SURFACE) then
-          ! (TODO)
         endif
 
       endif
@@ -537,7 +545,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
                  '" in observation point "' // &
                  trim(observation%name) // &
                  '" not found in region list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         call MPI_Allreduce(observation%region%num_cells,temp_int, &
                            ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
@@ -546,7 +554,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
           option%io_buffer = 'Region "' // trim(observation%region%name) // &
             '" is used in an observation point but lies outside the &
             &model domain.'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (observation%region%num_cells == 0) then
           ! remove the observation object
@@ -561,7 +569,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
           option%io_buffer = 'Boundary Condition "' // &
                    trim(observation%linkage_name) // &
                    '" not found in Boundary Condition list'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         if (observation%connection_set%num_connections == 0) then
           ! cannot remove from list, since there must be a global reduction
@@ -587,7 +595,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
 
   temp_int = ConnectionGetNumberInList(patch%grid%internal_connection_set_list)
   temp_int = max(temp_int,1)
-  nphase = option%nphase
+  nphase = max(option%nfluids,1)
 
   ! all simulations
   allocate(patch%internal_velocities(nphase,temp_int))
@@ -601,6 +609,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
       patch%internal_flow_fluxes = 0.d0
     endif
   endif
+
 
   temp_int = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
 
@@ -616,8 +625,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
         patch%boundary_flow_fluxes = 0.d0
       endif
       ! surface/subsurface storage
-      if (option%iflowmode == TH_MODE) then
-        allocate(patch%boundary_energy_flux(2,temp_int))
+      if (option%iflowmode == MPFLOW_MODE) then
+        allocate(patch%boundary_energy_flux(2,temp_int))  ! why 2?
         patch%boundary_energy_flux = 0.d0
       endif
     endif
@@ -632,10 +641,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
     endif
   endif
 
-
 end subroutine PatchProcessCouplers
 
-! ************************************************************************** !
 ! ************************************************************************** !
 
 subroutine PatchInitAllCouplerAuxVars(patch,option)
@@ -648,6 +655,7 @@ subroutine PatchInitAllCouplerAuxVars(patch,option)
   !
 
   use Option_module
+
 
   implicit none
 
@@ -688,14 +696,20 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
   use Global_Aux_module
   use Condition_module
+  use MpFlow_Aux_module
 
   implicit none
 
   type(coupler_list_type), pointer :: coupler_list
   type(patch_type), pointer :: patch
   type(option_type) :: option
+
   PetscInt :: num_connections
+  PetscBool :: force_update_flag
+
   type(coupler_type), pointer :: coupler
+
+  PetscInt :: idof
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: temp_int
 
@@ -716,80 +730,69 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
         if (coupler%itype == INITIAL_COUPLER_TYPE .or. &
             coupler%itype == BOUNDARY_COUPLER_TYPE) then
 
-          if (associated(coupler%flow_condition%pressure) .or. &
-              associated(coupler%flow_condition%flux) .or. &
-              associated(coupler%flow_condition%saturation) ) then
+          if (associated(coupler%flow_condition%liq_pressure) .or. &
+              associated(coupler%flow_condition%liq_molarity) .or. &
+              associated(coupler%flow_condition%liq_saturation) .or. &
+              associated(coupler%flow_condition%temperature)) then
 
             ! allocate arrays that match the number of connections
             select case(option%iflowmode)
 
-              case(TH_MODE)
-                temp_int = option%nflowspec*option%nphase
-                if (associated(coupler%flow_condition%pressure)) then
-                  select case(coupler%flow_condition%pressure%itype)
-                    case(CONDUCTANCE_BC,HET_CONDUCTANCE_BC)
-                      temp_int = temp_int + 1
-                  end select
-                endif
-
+               case(MPFLOW_MODE)
+                temp_int = 2
+                select case(coupler%flow_condition%liq_pressure%itype)
+                  case(HYDROSTATIC_CONDUCTANCE_BC, &
+                       DIRICHLET_CONDUCTANCE_BC, &
+                       HET_HYDROSTATIC_CONDUCTANCE_BC)
+                    temp_int = temp_int + 1
+                end select
                 allocate(coupler%flow_aux_real_var(temp_int,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
               case default
+                option%io_buffer = 'Failed allocation for flow condition "' // &
+                  trim(coupler%flow_condition%name)
+                call PrintErrMsg(option)
             end select
 
-          else if (associated(coupler%flow_condition%temperature)) then
-
-            ! allocate arrays that match the number of connections
-            select case(option%iflowmode)
-              case(TH_MODE)
-                temp_int = ONE_INTEGER
-                allocate(coupler%flow_aux_real_var(temp_int,num_connections))
-                allocate(coupler%flow_aux_int_var(1,num_connections))
-                coupler%flow_aux_real_var = 0.d0
-                coupler%flow_aux_int_var = 0
-              case default
-            end select
-
-          else if (associated(coupler%flow_condition%rate)) then
+          else if (associated(coupler%flow_condition%liq_rate)) then
             option%io_buffer = 'Flow condition "' // &
               trim(coupler%flow_condition%name) // '" can only be used in a &
               &SOURCE_SINK since a rate is prescribed.'
-            call printErrMsg(option)
-          endif ! associated(coupler%flow_condition%pressure)
+            call PrintErrMsg(option)
+          endif ! associated(coupler%flow_condition%liq_pressure)
 
         else if (coupler%itype == SRC_SINK_COUPLER_TYPE) then
 
-          if (associated(coupler%flow_condition%rate)) then
+          if (associated(coupler%flow_condition%liq_rate)) then
 
-            select case(coupler%flow_condition%rate%itype)
+            select case(coupler%flow_condition%liq_rate%itype)
               case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
                 select case(option%iflowmode)
-                  case(TH_MODE)
+                  case(MPFLOW_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case default
-                    string = GetSubConditionName(coupler%flow_condition%rate%itype)
+                    string = GetSubConditionName(coupler%flow_condition%liq_rate%itype)
                     option%io_buffer='Source/Sink of rate%itype = "' // &
                       trim(adjustl(string)) // '", not implemented in this mode.'
-                    call printErrMsg(option)
+                    call PrintErrMsg(option)
                 end select
               case default
-                string = GetSubConditionName(coupler%flow_condition%rate%itype)
+                string = GetSubConditionName(coupler%flow_condition%liq_rate%itype)
                 option%io_buffer = &
                   FlowConditionUnknownItype(coupler%flow_condition,'rate', &
                                             string)
-                call printErrMsg(option)
+                call PrintErrMsg(option)
             end select
-          endif ! associated(coupler%flow_condition%rate)
+          endif ! associated(coupler%flow_condition%liq_rate)
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
-
 
     coupler => coupler%next
   enddo
@@ -815,6 +818,8 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
   PetscBool :: force_update_flag
   type(option_type) :: option
 
+  PetscInt :: iconn
+
   !geh: no need to update initial conditions as they only need updating
   !     once as performed in PatchInitCouplerAuxVars()
   call PatchUpdateCouplerAuxVars(patch,patch%boundary_condition_list, &
@@ -837,8 +842,8 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   !
   use Option_module
   use Condition_module
-  !use Hydrostatic_module
-  !use Saturation_module
+  use Hydrostatic_module
+  use Saturation_module
 
 
   use Grid_module
@@ -868,10 +873,8 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
       flow_condition => coupler%flow_condition
       if (force_update_flag .or. flow_condition%is_transient) then
         select case(option%iflowmode)
-          case(TH_MODE)
+          case(MPFLOW_MODE)
             call PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
-          case default
-
         end select
       endif
     endif
@@ -883,14 +886,12 @@ end subroutine PatchUpdateCouplerAuxVars
 
 ! ************************************************************************** !
 
-
-
 ! ************************************************************************** !
 
 subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   !
   ! Updates flow auxiliary variables associated
-  ! with a coupler for TH_MODE
+  ! with a coupler for MPFLOW_MODE
   !
   ! Author: Glenn Hammond
   ! Date: 11/26/07
@@ -906,105 +907,131 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
+  use Dataset_module
 
   implicit none
 
   type(patch_type) :: patch
   type(coupler_type), pointer :: coupler
   type(option_type) :: option
+
   type(flow_condition_type), pointer :: flow_condition
-  character(len=MAXSTRINGLENGTH) :: string
+
+  !type(flow_condition_type), pointer :: general
+  class(dataset_common_hdf5_type), pointer :: dataset
+  PetscBool :: update
+  PetscBool :: dof1, dof2, dof3
+  PetscReal :: temperature, p_sat
+  PetscReal :: x(option%nflowdof)
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscErrorCode :: ierr
   PetscBool :: apply_temp_cond
   PetscInt :: rate_scale_type
-  PetscInt :: num_connections
-  PetscInt :: iphase
+
+  PetscInt :: idof, num_connections,sum_connection
+  PetscInt :: iconn, local_id, ghosted_id
+  !PetscInt :: iphase
 
   num_connections = coupler%connection_set%num_connections
 
   flow_condition => coupler%flow_condition
 
-  if (associated(flow_condition%pressure)) then
+  if (associated(flow_condition%liq_pressure)) then
     !geh: this is a fix for an Intel compiler bug. Not sure why Intel cannot
     !     access flow_condition%iphase directly....
-    iphase = flow_condition%iphase
-    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = iphase
-
-    select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SPILLOVER_BC)
-        select type(selector =>flow_condition%pressure%dataset)
+    !iphase = flow_condition%iphase
+    !coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = iphase
+!    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
+!                                                        flow_condition%iphase
+    select case(flow_condition%liq_pressure%itype)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SPILLOVER_BC, &
+           DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
+        select type(selector =>flow_condition%liq_pressure%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(TH_PRESSURE_DOF,1:num_connections) = &
+            coupler%flow_aux_real_var(MPFLOW_PRESSURE_DOF,1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
-                                               TH_PRESSURE_DOF)
+                                               MPFLOW_PRESSURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
           class default
-            option%io_buffer = 'Unknown dataset class (TH%' // &
-              'pressure%itype,DIRICHLET_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'th%pressure%itype,DIRICHLET_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTH')
         end select
-      case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+        select case(flow_condition%liq_pressure%itype)
+          case(DIRICHLET_CONDUCTANCE_BC)
+            coupler%flow_aux_real_var(MPFLOW_CONDUCTANCE_DOF, &
+                                      1:num_connections) = &
+                                           flow_condition%liq_pressure%aux_real(1)
+        end select
+      case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-      case(HET_DIRICHLET_BC,HET_SEEPAGE_BC,HET_CONDUCTANCE_BC)
+      case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
+           HET_HYDROSTATIC_CONDUCTANCE_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
-                flow_condition%pressure%dataset,TH_PRESSURE_DOF,option)
-        if (flow_condition%pressure%itype == HET_CONDUCTANCE_BC) then
-          coupler%flow_aux_real_var(TH_CONDUCTANCE_DOF,1:num_connections) = &
-            flow_condition%pressure%aux_real(1)
+                flow_condition%liq_pressure%dataset,MPFLOW_PRESSURE_DOF,option)
+        if (flow_condition%liq_pressure%itype == &
+            HET_HYDROSTATIC_CONDUCTANCE_BC) then
+          coupler%flow_aux_real_var(MPFLOW_CONDUCTANCE_DOF,1:num_connections) = &
+            flow_condition%liq_pressure%aux_real(1)
         endif
-      case(HET_SURF_SEEPAGE_BC)
+      case(HET_SURF_HYDROSTATIC_SEEPAGE_BC)
         ! Do nothing, since this BC type is only used for coupling of
         ! surface-subsurface model
       case default
         string = &
-          GetSubConditionName(flow_condition%pressure%itype)
+          GetSubConditionName(flow_condition%liq_pressure%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH pressure',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
     if (associated(flow_condition%temperature)) then
       select case(flow_condition%temperature%itype)
         case(DIRICHLET_BC,ZERO_GRADIENT_BC)
           select type(selector =>flow_condition%temperature%dataset)
             class is(dataset_ascii_type)
-              if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
-                 (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
+              if (flow_condition%liq_pressure%itype /= HYDROSTATIC_BC .or. &
+                 (flow_condition%liq_pressure%itype == HYDROSTATIC_BC .and. &
                  flow_condition%temperature%itype /= DIRICHLET_BC)) then
-                coupler%flow_aux_real_var(TH_TEMPERATURE_DOF, &
+                coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF, &
                                           1:num_connections) = &
                   selector%rarray(1)
               endif
             class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
+              call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
-                                                 TH_TEMPERATURE_DOF)
+                                                 MPFLOW_TEMPERATURE_DOF)
+            class is(dataset_common_hdf5_type)
+              ! skip cell indexed datasets used in initial conditions
             class default
-              option%io_buffer = 'Unknown dataset class (TH%' // &
-                'temperature%itype,DIRICHLET_BC)'
-              call printErrMsg(option)
+              call PrintMsg(option,'th%temperature%itype,DIRICHLET_BC')
+              call DatasetUnknownClass(selector,option, &
+                                       'PatchUpdateCouplerAuxVarsTH')
           end select
         case (HET_DIRICHLET_BC)
           call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                   flow_condition%temperature%dataset, &
-                  TH_TEMPERATURE_DOF,option)
+                  MPFLOW_TEMPERATURE_DOF,option)
         case default
           string = &
             GetSubConditionName(flow_condition%temperature%itype)
           option%io_buffer = &
             FlowConditionUnknownItype(flow_condition,'TH temperature',string)
-          call printErrMsg(option)
+          call PrintErrMsg(option)
       end select
     endif
     if (associated(flow_condition%energy_flux)) then
-      coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,1:num_connections) = &
+      coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF,1:num_connections) = &
         flow_condition%energy_flux%dataset%rarray(1)
     endif
   endif
 
   apply_temp_cond = PETSC_FALSE
-  if (associated(flow_condition%temperature) .and. associated(flow_condition%pressure)) then
-    if (flow_condition%pressure%itype /= HYDROSTATIC_BC) then
+  if (associated(flow_condition%temperature) .and. associated(flow_condition%liq_pressure)) then
+    if (flow_condition%liq_pressure%itype /= HYDROSTATIC_BC) then
       apply_temp_cond = PETSC_TRUE
     else
       if (flow_condition%temperature%itype /= DIRICHLET_BC) then
@@ -1020,28 +1047,30 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       case(DIRICHLET_BC,ZERO_GRADIENT_BC)
         select type(selector =>flow_condition%temperature%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(TH_TEMPERATURE_DOF, &
+            coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF, &
                                       1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
-                                               TH_TEMPERATURE_DOF)
+                                               MPFLOW_TEMPERATURE_DOF)
+          class is(dataset_common_hdf5_type)
+            ! skip cell indexed datasets used in initial conditions
           class default
-            option%io_buffer = 'Unknown dataset class (TH%' // &
-              'pressure%itype,DIRICHLET_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'th%pressure%itype,DIRICHLET_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTH')
         end select
       case (HET_DIRICHLET_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%temperature%dataset, &
-                TH_TEMPERATURE_DOF,option)
+                MPFLOW_TEMPERATURE_DOF,option)
       case default
         string = &
           GetSubConditionName(flow_condition%temperature%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH temperature',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
 
@@ -1050,48 +1079,48 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       case(NEUMANN_BC)
         select type(selector =>flow_condition%energy_flux%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(TH_TEMPERATURE_DOF, &
+            coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF, &
                                       1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
-            call PatchUpdateCouplerFromDataset(coupler,option, &
+            call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
-                                               TH_TEMPERATURE_DOF)
+                                               MPFLOW_TEMPERATURE_DOF)
           class default
-            option%io_buffer = 'Unknown dataset class (TH%' // &
-              'pressure%itype,NEUMANN_BC)'
-            call printErrMsg(option)
+            call PrintMsg(option,'th%pressure%itype,NEUMANN_BC')
+            call DatasetUnknownClass(selector,option, &
+                                     'PatchUpdateCouplerAuxVarsTH')
         end select
       case default
         string = &
           GetSubConditionName(flow_condition%energy_flux%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH energy flux',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
 
   !geh: we set this flag to ensure that we are not scaling mass and energy
   !     differently
   rate_scale_type = 0
-  if (associated(flow_condition%rate)) then
-    select case(flow_condition%rate%itype)
+  if (associated(flow_condition%liq_rate)) then
+    select case(flow_condition%liq_rate%itype)
       case (HET_MASS_RATE_SS,HET_VOL_RATE_SS)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
-                                            flow_condition%rate%dataset, &
-                                            TH_PRESSURE_DOF,option)
+                                            flow_condition%liq_rate%dataset, &
+                                            MPFLOW_PRESSURE_DOF,option)
       case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
+        call PatchScaleSourceSink(patch,coupler,flow_condition%liq_rate%isubtype, &
                                   option)
-        rate_scale_type = flow_condition%rate%isubtype
+        rate_scale_type = flow_condition%liq_rate%isubtype
       case(MASS_RATE_SS,VOLUMETRIC_RATE_SS)
       ! do nothing here
       case default
         string = &
-          GetSubConditionName(flow_condition%rate%itype)
+          GetSubConditionName(flow_condition%liq_rate%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH rate',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
   if (associated(flow_condition%energy_rate)) then
@@ -1099,7 +1128,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       case (ENERGY_RATE_SS)
         !geh: this is pointless as %dataset%rarray(1) is reference in TH,
         !     not the flow_aux_real_var!
-        coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,1:num_connections) = &
+        coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF,1:num_connections) = &
                   flow_condition%energy_rate%dataset%rarray(1)
       case (SCALED_ENERGY_RATE_SS)
         if (rate_scale_type == 0) then
@@ -1110,22 +1139,22 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         else
           option%io_buffer = 'MASS and ENERGY scaling mismatch in ' // &
             'FLOW_CONDITION "' // trim(flow_condition%name) // '".'
-          call printErrMsg(option)
+          call PrintErrMsg(option)
         endif
         !geh: do nothing as the
       case (HET_ENERGY_RATE_SS)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%energy_rate%dataset, &
-                TH_TEMPERATURE_DOF,option)
+                MPFLOW_TEMPERATURE_DOF,option)
       case default
         string = &
           GetSubConditionName(flow_condition%energy_rate%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH energy rate',string)
-        call printErrMsg(option)
+        call PrintErrMsg(option)
     end select
   endif
-  if (associated(flow_condition%saturation)) then
+  if (associated(flow_condition%liq_saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
                                  patch%sat_func_id)
@@ -1133,12 +1162,71 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
 
 end subroutine PatchUpdateCouplerAuxVarsTH
 
+! ************************************************************************** !
 
 ! ************************************************************************** !
 
-subroutine PatchUpdateCouplerFromDataset(coupler,option,grid,dataset,dof)
+subroutine PatchGetCouplerValueFromDataset(coupler,option,grid,dataset,iconn, &
+                                           value)
   !
-  ! Updates auxiliary variables from dataset.
+  ! Gets you an auxiliary variable from a dataset for a given connection.
+  !
+  ! Author: Glenn Hammond/Jennifer M. Frederick
+  ! Date: 04/18/2018
+  !
+
+  use Option_module
+  use Grid_module
+  use Coupler_module
+  use Dataset_Common_HDF5_class
+  use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
+  use Dataset_module
+
+  implicit none
+
+  type(coupler_type) :: coupler
+  type(option_type) :: option
+  type(grid_type) :: grid
+  class(dataset_base_type) :: dataset
+  PetscInt :: iconn
+  PetscReal :: value
+
+  PetscInt :: local_id
+  PetscInt :: ghosted_id
+  PetscReal :: x
+  PetscReal :: y
+  PetscReal :: z
+  PetscReal :: dist(-1:3)
+  
+  select type(dataset)
+    class is(dataset_ascii_type)
+      value = dataset%rarray(1)
+    class is(dataset_gridded_hdf5_type)
+      local_id = coupler%connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      x = grid%x(ghosted_id)
+      y = grid%y(ghosted_id)
+      z = grid%z(ghosted_id)
+      if (associated(coupler%connection_set%dist)) then
+        dist = coupler%connection_set%dist(:,iconn)
+        x = x-dist(0)*dist(1)
+        y = y-dist(0)*dist(2)
+        z = z-dist(0)*dist(3)
+      endif
+      call DatasetGriddedHDF5InterpolateReal(dataset,x,y,z,value,option)
+    class default
+      call DatasetUnknownClass(dataset,option, &
+                               'PatchGetCouplerValueFromDataset')
+  end select
+
+end subroutine PatchGetCouplerValueFromDataset
+
+! ************************************************************************** !
+
+subroutine PatchUpdateCouplerGridDataset(coupler,option,grid,dataset,dof)
+  !
+  ! Updates auxiliary variables from a gridded dataset.
   !
   ! Author: Glenn Hammond
   ! Date: 11/26/07
@@ -1182,7 +1270,7 @@ subroutine PatchUpdateCouplerFromDataset(coupler,option,grid,dataset,dof)
     coupler%flow_aux_real_var(dof,iconn) = temp_real
   enddo
 
-end subroutine PatchUpdateCouplerFromDataset
+end subroutine PatchUpdateCouplerGridDataset
 
 ! ************************************************************************** !
 
@@ -1273,7 +1361,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
             ' in FLOW_CONDITION "' // trim(source_sink%flow_condition%name) // &
             '" in SOURCE_SINK "' // trim(source_sink%name) // &
             '" has no neighbors, and therefore, NEIGHBOR_PERM cannot be used.'
-          call printErrMsgByRank(option)
+          call PrintErrMsgByRank(option)
         endif
         ! ghosted neighbors is ordered first in x, then, y, then z
         icount = 0
@@ -1313,7 +1401,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     case(0)
       option%io_buffer = 'Unknown scaling type in PatchScaleSourceSink ' // &
         'for FLOW_CONDITION "' // trim(source_sink%flow_condition%name) // '".'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1321,7 +1409,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   if (scale < 1.d-40) then
     option%io_buffer = 'Zero infinity norm in PatchScaleSourceSink for ' // &
       'FLOW_CONDITION "' // trim(source_sink%flow_condition%name) // '".'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   endif
   scale = 1.d0/scale
   call VecScale(field%work,scale,ierr);CHKERRQ(ierr)
@@ -1332,7 +1420,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
     select case(option%iflowmode)
       !geh: This is a scaling factor that is stored that would be applied to
       !     all phases.
-      case(TH_MODE)
+      case(MPFLOW_MODE)
         source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = &
           vec_ptr(local_id)
     end select
@@ -1375,25 +1463,27 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
 
   type(connection_set_type), pointer :: cur_connection_set
   type(grid_type),pointer :: grid
+  PetscErrorCode :: ierr
   PetscInt :: iconn
   PetscInt :: ghosted_id,local_id
   PetscInt,pointer ::cell_ids_nat(:)
+  type(flow_sub_condition_type) :: flow_sub_condition
 
   class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
   class(dataset_ascii_type), pointer :: dataset_ascii
 
   grid => patch%grid
 
-  if (isub_condition>option%nflowdof*option%nphase) then
+  if (isub_condition>option%nflowdof*option%nfluids) then
     option%io_buffer='ERROR: PatchUpdateHetroCouplerAuxVars  '// &
-      'isub_condition > option%nflowdof*option%nphase.'
-    call printErrMsg(option)
+      'isub_condition > option%nflowdof*(option%nfluids.'
+    call PrintErrMsg(option)
   endif
 
-  if (option%iflowmode/=TH_MODE) then
+  if (option%iflowmode/=MPFLOW_MODE) then
     option%io_buffer='PatchUpdateHetroCouplerAuxVars only implemented '// &
-      ' in TH mode.'
-    call printErrMsg(option)
+      ' for TH mode.'
+    call PrintErrMsg(option)
   endif
 
   cur_connection_set => coupler%connection_set
@@ -1434,11 +1524,11 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
       enddo
 
     class default
-      option%io_buffer = 'Incorrect dataset class (' // &
-        trim(DatasetGetClass(dataset_base)) // &
-        ') for coupler "' // trim(coupler%name) // &
-        '" in PatchUpdateHetroCouplerAuxVars.'
-      call printErrMsg(option)
+      option%io_buffer = 'Incorrect dataset class for coupler "' // &
+                         trim(coupler%name) // '".'
+      call PrintMsg(option)
+      call DatasetUnknownClass(selector,option, &
+                               'PatchUpdateHetroCouplerAuxVars')
   end select
 
 end subroutine PatchUpdateHetroCouplerAuxVars
@@ -1452,8 +1542,6 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   ! Author: Gautam Bisht, LBL
   ! Date: 10/26/12
   !
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Dataset_Map_HDF5_class
   use Option_module
@@ -1467,8 +1555,8 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   PetscInt :: ncells
 
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: local_id
-  PetscInt :: ii
+  PetscInt :: ghosted_id,local_id
+  PetscInt :: ii,count
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
   PetscInt :: max_id_loc, max_id_global
@@ -1477,6 +1565,7 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   IS :: is_from, is_to
   Vec :: map_ids_1, map_ids_2,map_ids_3
   VecScatter ::vec_scatter
+  PetscViewer :: viewer
 
   ! Step-1: Rearrange map dataset
   max_id_loc = maxval(dataset_map_hdf5%mapping(2,:))
@@ -1583,11 +1672,14 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
 
 end subroutine PatchCreateFlowConditionDatasetMap
 
+! ************************************************************************** !
 
 ! ************************************************************************** !
 
-subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
-                             ivar,isubvar,isubvar2)
+! ************************************************************************** !
+
+subroutine PatchGetVariable1(patch,field,option, &
+                             output_option,vec,ivar,isubvar,isubvar2)
   !
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
   !
@@ -1595,13 +1687,11 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
 
-  use Flowmode_Aux_module
+  use MpFlow_Aux_module
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
@@ -1617,10 +1707,15 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
   PetscInt :: isubvar
   PetscInt :: isubvar2
   PetscInt :: iphase
+
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal :: xmass, lnQKgas, ehfac, eh0, pe0, ph0, tk
+  PetscReal :: tempreal
+  PetscInt :: tempint, tempint2
+  PetscInt :: irate, istate, irxn, ifo2, jcomp, comp_id
   PetscInt :: ivar_temp
   PetscErrorCode :: ierr
 
@@ -1628,7 +1723,9 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
 
+
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+  vec_ptr(:) = UNINITIALIZED_DOUBLE
 
   iphase = 1
   select case(ivar)
@@ -1637,8 +1734,8 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
-         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
          MAXIMUM_PRESSURE,LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
          OIL_MOBILITY,OIL_VISCOSITY,BUBBLE_POINT, &
@@ -1647,42 +1744,46 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
 
       if (associated(patch%aux%Flow)) then
         select case(ivar)
+          case(CAPILLARY_PRESSURE)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Flow%auxvars(grid%nL2G(local_id))%pc
+            enddo
           case(TEMPERATURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%Global%auxvars(grid%nL2G(local_id))%temp
             enddo
-          case(LIQUID_PRESSURE)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(1)
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%pres(LIQUID_PHASE)
             enddo
           case(LIQUID_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(1)
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%sat(LIQUID_PHASE)
             enddo
           case(LIQUID_DENSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(1)
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(LIQUID_PHASE)
             enddo
-          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY,GAS_VISCOSITY) ! still needs implementation
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
+          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY,GAS_VISCOSITY)
+            call PatchUnsupportedVariable('MPFLOW','for gas phase',option)
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(GAS_PHASE)
+                patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(GAS_PHASE)
             enddo
           case(ICE_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(SOLID_PHASE)
+                patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(SOLID_PHASE)
             enddo
           case(ICE_DENSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%Flow%auxvars(grid%nL2G(local_id))%den_kg(SOLID_PHASE)
+                patch%aux%Flow%auxvars(grid%nL2G(local_id))%den(SOLID_PHASE)*FMWH2O
             enddo
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
@@ -1695,21 +1796,20 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
                   patch%aux%Flow%auxvars(grid%nL2G(local_id))%kvr
             enddo
           case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
+            call PatchUnsupportedVariable('MPFLOW','LIQUID_MOLE_FRACTION',option)
           case(LIQUID_ENERGY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
-                  patch%aux%Flow%auxvars(grid%nL2G(local_id))%U(LIQUID_PHASE)
+                  patch%aux%Flow%auxvars(grid%nL2G(local_id))%u(LIQUID_PHASE)
             enddo
-          case(EFFECTIVE_POROSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = &
-                  patch%aux%Flow%auxvars(grid%nL2G(local_id))%transient_por
-            enddo
+          case default
+            call PatchUnsupportedVariable('MPFLOW',ivar,option)
         end select
+
       endif
 
-    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
          SOIL_REFERENCE_PRESSURE)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
@@ -1734,26 +1834,35 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
           MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)), &
                                  ivar_temp)
       enddo
-    case(PHASE)
-      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      do local_id=1,grid%nlmax
-        vec_ptr(local_id) = vec_ptr2(grid%nL2G(local_id))
-      enddo
-      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
+
+    case(LIQUID_RELATIVE_PERMEABILITY)
+      select case(option%iflowmode)
+        case(MPFLOW_MODE)
+          do local_id=1,grid%nlmax
+            vec_ptr(local_id) = &
+              patch%aux%Flow%auxvars(grid%nL2G(local_id))%kvr * &
+              patch%aux%Flow%auxvars(grid%nL2G(local_id))%vis
+          enddo
+        case default
+          option%io_buffer = 'Output of liquid phase relative permeability &
+            &not supported for current flow mode.'
+      end select
+    case(GAS_RELATIVE_PERMEABILITY)
+      select case(option%iflowmode)
+        case(MPFLOW_MODE)
+ !         do local_id=1,grid%nlmax  ! TODO
+ !           vec_ptr(local_id) = &
+ !             patch%aux%Flow%auxvars(grid%nL2G(local_id))% &
+ !               kr(GAS_PHASE)
+ !         enddo
+        case default
+          option%io_buffer = 'Output of gas phase relative permeability &
+            &not supported for current flow mode.'
+      end select
     case(MATERIAL_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = &
           patch%imat_internal_to_external(abs(patch%imat(grid%nL2G(local_id))))
-      enddo
-    case(FRACTURE)
-      vec_ptr = 0.d0
-      do local_id=1,grid%nlmax
-        ghosted_id = grid%nL2G(local_id)
-        if (associated(material_auxvars(ghosted_id)%fracture)) then
-          if (material_auxvars(ghosted_id)%fracture%fracture_is_on) then
-            vec_ptr(local_id) = 1.d0
-          endif
-        endif
       enddo
     case(PROCESS_ID)
       do local_id=1,grid%nlmax
@@ -1767,10 +1876,20 @@ subroutine PatchGetVariable1(patch,field,option,output_option,vec, &
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
       call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES,ierr)
       call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+    case(X_COORDINATE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%x(grid%nL2G(local_id))
+      enddo
+    case(Y_COORDINATE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%y(grid%nL2G(local_id))
+      enddo
+    case(Z_COORDINATE)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = grid%z(grid%nL2G(local_id))
+      enddo
     case default
-      write(option%io_buffer, &
-            '(''IVAR ('',i3,'') not found in PatchGetVariable'')') ivar
-      call printErrMsg(option)
+      call PatchUnsupportedVariable(ivar,option)
   end select
 
   call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -1790,13 +1909,12 @@ function PatchGetVariableValueAtCell(patch,field,option, &
   ! Date: 02/11/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
 
-  use Flowmode_Aux_module
+
+  use MpFlow_Aux_module
   use Output_Aux_module
   use Variables_module
   use Material_Aux_class
@@ -1805,25 +1923,28 @@ function PatchGetVariableValueAtCell(patch,field,option, &
 
   PetscReal :: PatchGetVariableValueAtCell
   type(option_type), pointer :: option
-
   type(output_option_type), pointer :: output_option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt :: ivar
   PetscInt :: isubvar
+  PetscInt :: tempint, tempint2
   PetscInt :: isubvar2
   PetscInt :: iphase
   PetscInt :: ghosted_id
   PetscInt :: local_id
   PetscInt :: ivar_temp
-  PetscReal :: value, xmass
+
+  PetscReal :: value, xmass, lnQKgas, tk, ehfac, eh0, pe0, ph0
+  PetscInt :: irate, istate, irxn, ifo2, jcomp, comp_id
   type(grid_type), pointer :: grid
   PetscReal, pointer :: vec_ptr2(:)
   PetscErrorCode :: ierr
 
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
+
 
   value = UNINITIALIZED_DOUBLE
 
@@ -1844,8 +1965,8 @@ function PatchGetVariableValueAtCell(patch,field,option, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
-         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,EFFECTIVE_POROSITY, &
+         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,ICE_DENSITY, &
+         SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL, &
          LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE, &
          LIQUID_MASS_FRACTION,GAS_MASS_FRACTION, &
          OIL_PRESSURE,OIL_SATURATION,OIL_DENSITY,OIL_DENSITY_MOL,OIL_ENERGY, &
@@ -1853,12 +1974,14 @@ function PatchGetVariableValueAtCell(patch,field,option, &
          SOLVENT_PRESSURE,SOLVENT_SATURATION,SOLVENT_DENSITY, &
          SOLVENT_DENSITY_MOL,SOLVENT_ENERGY,SOLVENT_MOBILITY)
 
-     if (associated(patch%aux%Flow)) then
+      if (associated(patch%aux%Flow)) then
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%Global%auxvars(ghosted_id)%temp
-          case(LIQUID_PRESSURE)
+          case(LIQUID_PRESSURE,MAXIMUM_PRESSURE)
             value = patch%aux%Global%auxvars(ghosted_id)%pres(LIQUID_PHASE)
+          case(CAPILLARY_PRESSURE)
+            value = patch%aux%Flow%auxvars(ghosted_id)%pc
           case(LIQUID_SATURATION)
             value = patch%aux%Global%auxvars(ghosted_id)%sat(LIQUID_PHASE)
           case(LIQUID_DENSITY)
@@ -1867,27 +1990,29 @@ function PatchGetVariableValueAtCell(patch,field,option, &
             value = patch%aux%Flow%auxvars(ghosted_id)%vis
           case(LIQUID_MOBILITY)
             value = patch%aux%Flow%auxvars(ghosted_id)%kvr
-          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
+          case(LIQUID_MOLE_FRACTION)
+            call PatchUnsupportedVariable('MPFLOW','LIQUID_MOLE_FRACTION',option)
+          case(LIQUID_ENERGY)
+            value = patch%aux%Flow%auxvars(ghosted_id)%u(LIQUID_PHASE)
+          case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
+            call PatchUnsupportedVariable('MPFLOW','GAS_MOLE_FRACTION',option)
           case(GAS_SATURATION)
             value = patch%aux%Flow%auxvars(ghosted_id)%sat(GAS_PHASE)
           case(ICE_SATURATION)
             value = patch%aux%Flow%auxvars(ghosted_id)%sat(SOLID_PHASE)
           case(ICE_DENSITY)
-            value = patch%aux%Flow%auxvars(ghosted_id)%den_kg(SOLID_PHASE)
-          case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
-          case(LIQUID_ENERGY)
-            value = patch%aux%Flow%auxvars(ghosted_id)%U(LIQUID_PHASE)
-          case(EFFECTIVE_POROSITY)
-            value = patch%aux%Flow%auxvars(ghosted_id)%transient_por
+            value = patch%aux%Flow%auxvars(ghosted_id)%den(SOLID_PHASE)*FMWH2O
+          case default
+            call PatchUnsupportedVariable('MPFLOW',ivar,option)
         end select
 
       endif
 
+    !case(STATE,PHASE)
+    !  value = patch%aux%Global%auxvars(ghosted_id)%istate
 
-    case(POROSITY,MINERAL_POROSITY,VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY, &
-         SOIL_REFERENCE_PRESSURE)
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY, &
+         VOLUME,TORTUOSITY,SOIL_COMPRESSIBILITY,SOIL_REFERENCE_PRESSURE)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar)
 
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y, PERMEABILITY_Z, &
@@ -1905,34 +2030,44 @@ function PatchGetVariableValueAtCell(patch,field,option, &
           ivar_temp = PERMEABILITY_Z
       end select
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id),ivar_temp)
-    case(PHASE)
-      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      value = vec_ptr2(ghosted_id)
-      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
+
+    case(LIQUID_RELATIVE_PERMEABILITY)
+      select case(option%iflowmode)
+        case(MPFLOW_MODE)
+          value = patch%aux%Flow%auxvars(ghosted_id)%kvr / &
+                  patch%aux%Flow%auxvars(ghosted_id)%vis
+        case default
+          option%io_buffer = 'Output of liquid phase relative permeability &
+            &not supported for current flow mode.'
+      end select
+    case(GAS_RELATIVE_PERMEABILITY)
+      select case(option%iflowmode)
+        case(MPFLOW_MODE)
+!          value = patch%aux%Flow%auxvars(ghosted_id)% &
+!                    kr(GAS_PHASE)
+        case default
+          option%io_buffer = 'Output of gas phase relative permeability &
+            &not supported for current flow mode.'
+      end select
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(abs(patch%imat(ghosted_id)))
-    case(FRACTURE)
-      value = 0.d0
-      if (associated(material_auxvars(ghosted_id)%fracture)) then
-        if (material_auxvars(ghosted_id)%fracture%fracture_is_on) then
-          value = 1.d0
-        endif
-      endif
     case(PROCESS_ID)
       value = grid%nG2A(ghosted_id)
     case(NATURAL_ID)
       value = option%myrank
-    ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13
     case(RESIDUAL)
       local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2((local_id-1)*option%nflowdof+isubvar)
       call VecRestoreArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
+    case(X_COORDINATE)
+      value = grid%x(ghosted_id)
+    case(Y_COORDINATE)
+      value = grid%y(ghosted_id)
+    case(Z_COORDINATE)
+      value = grid%z(ghosted_id)
     case default
-      write(option%io_buffer, &
-            '(''IVAR ('',i3,'') not found in PatchGetVariableValueAtCell'')') &
-            ivar
-      call printErrMsg(option)
+      call PatchUnsupportedVariable(ivar,option)
   end select
 
   PatchGetVariableValueAtCell = value
@@ -1949,8 +2084,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Field_module
@@ -1966,7 +2099,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   PetscInt :: vec_format
   PetscInt :: ivar
   PetscInt :: isubvar
-  PetscInt :: iphase
 
   PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
@@ -1980,18 +2112,17 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (vec_format == NATURAL) then
-    call printErrMsg(option,&
+    call PrintErrMsg(option,&
                      'NATURAL vector format not supported by PatchSetVariable')
   endif
 
-  iphase = 1
   select case(ivar)
     case(TEMPERATURE,LIQUID_PRESSURE,GAS_PRESSURE,LIQUID_SATURATION, &
          GAS_SATURATION,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
-         GAS_VISCOSITY, &
-         LIQUID_MOBILITY,GAS_MOBILITY,STATE)
+         GAS_VISCOSITY,ICE_SATURATION, &
+         LIQUID_MOBILITY,GAS_MOBILITY)
 
       if (associated(patch%aux%Flow)) then
         select case(ivar)
@@ -2014,8 +2145,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Global%auxvars(ghosted_id)%pres(LIQUID_PHASE) = &
-                  vec_ptr(ghosted_id)
+                patch%aux%Global%auxvars(ghosted_id)%pres(LIQUID_PHASE) = vec_ptr(ghosted_id)
               enddo
             endif
           case(LIQUID_SATURATION)
@@ -2026,14 +2156,13 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Global%auxvars(ghosted_id)%sat(LIQUID_PHASE) = &
-                  vec_ptr(ghosted_id)
+                patch%aux%Global%auxvars(ghosted_id)%sat(LIQUID_PHASE) = vec_ptr(ghosted_id)
               enddo
             endif
           case(LIQUID_DENSITY)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
-                patch%aux%Global%auxvars(grid%nL2G(local_id))%den_kg(LIQUID_PHASE) = &
+                patch%aux%Global%auxvars(grid%nL2G(local_id))%den(LIQUID_PHASE) = &
                   vec_ptr(local_id)
               enddo
             else if (vec_format == LOCAL) then
@@ -2043,23 +2172,23 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               enddo
             endif
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY)
-            call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
+            call PrintErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
-                patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(SOLID_PHASE) = &
-                    vec_ptr(local_id)
+                patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(GAS_PHASE) = &
+                  vec_ptr(local_id)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Flow%auxvars(ghosted_id)%sat(SOLID_PHASE) = vec_ptr(ghosted_id)
+                patch%aux%Flow%auxvars(ghosted_id)%sat(GAS_PHASE) = vec_ptr(ghosted_id)
               enddo
             endif
           case(ICE_SATURATION)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
                 patch%aux%Flow%auxvars(grid%nL2G(local_id))%sat(SOLID_PHASE) = &
-                    vec_ptr(local_id)
+                  vec_ptr(local_id)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
@@ -2070,33 +2199,43 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
                 patch%aux%Flow%auxvars(grid%nL2G(local_id))%den(SOLID_PHASE) = &
-                    vec_ptr(local_id)
+                  vec_ptr(local_id)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Flow%auxvars(ghosted_id)%den(SOLID_PHASE) = &
-                  vec_ptr(ghosted_id)
+                patch%aux%Flow%auxvars(ghosted_id)%den(SOLID_PHASE) = vec_ptr(ghosted_id)
               enddo
             endif
           case(LIQUID_VISCOSITY)
           case(GAS_VISCOSITY)
           case(LIQUID_MOLE_FRACTION)
-            call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
+            call PrintErrMsg(option,'LIQUID_MOLE_FRACTION not supported by MPFLOW mode')
           case(LIQUID_ENERGY)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
-                patch%aux%Flow%auxvars(grid%nL2G(local_id))%U(LIQUID_PHASE) = vec_ptr(local_id)
+                patch%aux%Flow%auxvars(grid%nL2G(local_id))%u(LIQUID_PHASE) = vec_ptr(local_id)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Flow%auxvars(ghosted_id)%U(LIQUID_PHASE) = vec_ptr(ghosted_id)
+                patch%aux%Flow%auxvars(ghosted_id)%u(LIQUID_PHASE) = vec_ptr(ghosted_id)
               enddo
             endif
         end select
-
       endif
-
-    case(POROSITY,MINERAL_POROSITY)
+      
+    case(PRIMARY_MOLARITY,TOTAL_MOLALITY, &
+         COLLOID_MOBILE,COLLOID_IMMOBILE)
+      select case(ivar)
+        case(PRIMARY_MOLARITY)
+          call PrintErrMsg(option,'Setting of primary molarity at grid cell not supported.')
+        case(TOTAL_MOLALITY)
+          call PrintErrMsg(option,'Setting of total molality at grid cell not supported.')
+        case(COLLOID_MOBILE)
+          call PrintErrMsg(option,'Setting of mobile colloid concentration at grid cell not supported.')
+        case(COLLOID_IMMOBILE)
+          call PrintErrMsg(option,'Setting of immobile colloid concentration at grid cell not supported.')
+      end select
+    case(POROSITY,BASE_POROSITY,INITIAL_POROSITY)
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           call MaterialAuxVarSetValue(material_auxvars(grid%nL2G(local_id)), &
@@ -2112,29 +2251,17 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       option%io_buffer = 'Setting of volume, tortuosity, ' // &
         'soil compressibility or soil reference pressure in ' // &
         '"PatchSetVariable" not supported.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     case(PERMEABILITY,PERMEABILITY_X,PERMEABILITY_Y,PERMEABILITY_Z, &
          GAS_PERMEABILITY,GAS_PERMEABILITY_X,GAS_PERMEABILITY_Y, &
          GAS_PERMEABILITY_Z)
       option%io_buffer = 'Setting of permeability in "PatchSetVariable"' // &
         ' not supported.'
-      call printErrMsg(option)
-    case(PHASE)
-      if (vec_format == GLOBAL) then
-        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-        do local_id=1,grid%nlmax
-          vec_ptr2(grid%nL2G(local_id)) = vec_ptr(local_id)
-        enddo
-        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      else if (vec_format == LOCAL) then
-        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-        vec_ptr2(1:grid%ngmax) = vec_ptr(1:grid%ngmax)
-        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
-      endif
+      call PrintErrMsg(option)
     case(MATERIAL_ID)
       !geh: this would require the creation of a permanent mapping between
       !     external and internal material ids, which we want to avoid.
-      call printErrMsg(option, &
+      call PrintErrMsg(option, &
                        'Cannot set MATERIAL_ID through PatchSetVariable()')
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
@@ -2144,15 +2271,15 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
     case(PROCESS_ID)
-      call printErrMsg(option, &
+      call PrintErrMsg(option, &
                        'Cannot set PROCESS_ID through PatchSetVariable()')
     case(NATURAL_ID)
-      call printErrMsg(option, &
+      call PrintErrMsg(option, &
                        'Cannot set NATURAL_ID through PatchSetVariable()')
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchSetVariable'')') ivar
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -2203,8 +2330,6 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   ! Date: 10/06/11
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Option_module
   use Connection_module
   use Coupler_module
@@ -2231,8 +2356,10 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
   PetscReal :: por_sat_ave, por_sat_min, v_darcy, v_pore_ave, v_pore_max
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  PetscInt :: iphase
+  PetscInt :: ifluid
+
   PetscReal :: dt_cfl_1
+  PetscErrorCode :: ierr
 
   field => patch%field
   global_auxvars => patch%aux%Global%auxvars
@@ -2256,21 +2383,21 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
           patch%imat(ghosted_id_dn) <= 0) cycle
       distance = cur_connection_set%dist(0,iconn)
       fraction_upwind = cur_connection_set%dist(-1,iconn)
-      do iphase = 1, option%nphase
+      do ifluid = 1, option%nfluids
         ! if the phase is not present in either cell, skip the connection
-        if (.not.(global_auxvars(ghosted_id_up)%sat(iphase) > 0.d0 .and. &
-                  global_auxvars(ghosted_id_dn)%sat(iphase) > 0.d0)) cycle
+        if (.not.(global_auxvars(ghosted_id_up)%sat(ifluid) > 0.d0 .and. &
+                  global_auxvars(ghosted_id_dn)%sat(ifluid) > 0.d0)) cycle
         por_sat_min = min(material_auxvars(ghosted_id_up)%porosity* &
-                          global_auxvars(ghosted_id_up)%sat(iphase), &
+                          global_auxvars(ghosted_id_up)%sat(ifluid), &
                           material_auxvars(ghosted_id_dn)%porosity* &
-                          global_auxvars(ghosted_id_dn)%sat(iphase))
+                          global_auxvars(ghosted_id_dn)%sat(ifluid))
         por_sat_ave = (fraction_upwind* &
                        material_auxvars(ghosted_id_up)%porosity* &
-                       global_auxvars(ghosted_id_up)%sat(iphase) + &
+                       global_auxvars(ghosted_id_up)%sat(ifluid) + &
                       (1.d0-fraction_upwind)* &
                       material_auxvars(ghosted_id_dn)%porosity* &
-                      global_auxvars(ghosted_id_dn)%sat(iphase))
-        v_darcy = patch%internal_velocities(iphase,sum_connection)
+                      global_auxvars(ghosted_id_dn)%sat(ifluid))
+        v_darcy = patch%internal_velocities(ifluid,sum_connection)
         v_pore_max = v_darcy / por_sat_min
         v_pore_ave = v_darcy / por_sat_ave
         !geh: I use v_por_max to ensure that we limit the cfl based on the
@@ -2296,10 +2423,10 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
       if (patch%imat(ghosted_id_dn) <= 0) cycle
       !geh: since on boundary, dist must be scaled by 2.d0
       distance = 2.d0*cur_connection_set%dist(0,iconn)
-      do iphase = 1, option%nphase
+      do ifluid = 1, option%nfluids
         por_sat_ave = material_auxvars(ghosted_id_dn)%porosity* &
-                      global_auxvars(ghosted_id_dn)%sat(iphase)
-        v_darcy = patch%boundary_velocities(iphase,sum_connection)
+                      global_auxvars(ghosted_id_dn)%sat(ifluid)
+        v_darcy = patch%boundary_velocities(ifluid,sum_connection)
         v_pore_ave = v_darcy / por_sat_ave
         dt_cfl_1 = distance / dabs(v_pore_ave)
         max_dt_cfl_1 = min(dt_cfl_1,max_dt_cfl_1)
@@ -2338,7 +2465,7 @@ function PatchGetVarNameFromKeyword(keyword,option)
     case default
       option%io_buffer = 'Keyword "' // trim(keyword) // '" not ' // &
                          'recognized in PatchGetIvarsFromKeyword()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
   PatchGetVarNameFromKeyword = var_name
@@ -2379,7 +2506,7 @@ subroutine PatchGetIvarsFromKeyword(keyword,ivar,isubvar,var_type,option)
     case default
       option%io_buffer = 'Keyword "' // trim(keyword) // '" not ' // &
                          'recognized in PatchGetIvarsFromKeyword()'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine
@@ -2395,11 +2522,10 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
   ! Date: 09/12/08
   !
 
-#include "petsc/finclude/petscvec.h"
-  use petscvec
   use Grid_module
   use Option_module
   use Output_Aux_module
+
   use Variables_module
 
   implicit none
@@ -2412,9 +2538,14 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
   PetscInt :: isubvar
   PetscInt :: isubvar2
   PetscInt :: iphase
-  PetscInt :: local_id
+
+  PetscInt :: local_id, ghosted_id
   type(grid_type), pointer :: grid
-  PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
+  PetscReal :: xmass
+  PetscReal :: tempreal
+  PetscInt :: tempint
+  PetscInt :: irate, istate, irxn
   PetscErrorCode :: ierr
 
   grid => patch%grid
@@ -2440,7 +2571,7 @@ subroutine PatchGetVariable2(patch,option,output_option,vec, &
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchGetVariable'')') ivar
-      call printErrMsg(option)
+      call PrintErrMsg(option)
   end select
 
 end subroutine PatchGetVariable2
@@ -2464,10 +2595,11 @@ subroutine PatchGetCellCenteredVelocities(patch,iphase,velocities)
   PetscReal, intent(out) :: velocities(:,:)
 
   type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
   type(coupler_type), pointer :: boundary_condition
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: sum_connection, iconn
+  PetscInt :: sum_connection, iconn, num_connections
   PetscReal, allocatable :: sum_area(:,:), sum_velocity(:,:)
   PetscReal :: area(3), velocity(3)
   PetscInt :: ghosted_id_up, ghosted_id_dn
@@ -2576,6 +2708,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal,pointer :: coordinates_and_directions(:,:)
   PetscInt,pointer :: vertices(:,:)
   type(grid_type), pointer :: grid
+  type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
 
@@ -2586,6 +2719,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscInt :: array_size
   PetscInt :: sum_connection
   PetscInt :: iconn
+  PetscInt :: ivert
   PetscInt :: i, ii
   PetscInt :: face_id
   PetscInt :: local_id
@@ -2596,6 +2730,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   PetscReal :: magnitude
   PetscReal :: v1(3), v2(3), cp(3)
   PetscReal :: x, y, z
+  PetscReal :: coord(3)
   PetscReal :: unit_direction(3) 
   PetscReal, parameter :: absolute_tolerance = 1.d-10
   PetscReal, parameter :: relative_tolerance = 1.d-6
@@ -2659,7 +2794,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
           polygon(2)%x, polygon(2)%y, polygon(2)%z
         option%io_buffer = 'An integral flux polygon defined by 2 points must &
           & be a plane.' 
-        call printErrMsg(option)
+        call PrintErrMsg(option)
       endif
     endif
     icount = 0
@@ -2679,7 +2814,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
       option%io_buffer = 'Polygon defined in integral flux "' // &
         trim(adjustl(integral_flux%name)) // &
         '" must be aligned with grid axes.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     integral_flux%plane => plane
   endif
@@ -2695,7 +2830,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
       option%io_buffer = 'INTEGRAL_FLUXES defined by VERTICES are only &
         &supported for implicit unstructured grids: ' // &
         trim(integral_flux%name) // '.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     num_to_be_found = size(vertices,2)
     allocate(yet_to_be_found(num_to_be_found))
@@ -2908,7 +3043,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
       trim(adjustl(integral_flux%name)) // &
       '".  Please ensure that the polygon coincides with an internal &
       &cell boundary or a boundary condition.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else if (num_to_be_found > 0 .and. icount /= num_to_be_found) then
     write(word,*) num_to_be_found - icount
     option%io_buffer = trim(adjustl(word)) // &
@@ -2916,106 +3051,16 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
       trim(adjustl(integral_flux%name)) // &
       '".  Please ensure that the polygon coincides with an internal &
       &cell boundary or a boundary condition.'
-    call printErrMsg(option)
+    call PrintErrMsg(option)
   else
     write(option%io_buffer,*) icount
     option%io_buffer = trim(adjustl(option%io_buffer)) // ' connections found &
       &for integral flux "' // trim(adjustl(integral_flux%name)) // '".'
-    call printMsg(option)
+    call PrintMsg(option)
   endif
 
 end subroutine PatchGetIntegralFluxConnections
 ! **************************************************************************** !
-
-subroutine PatchCouplerInputRecord(patch)
-  !
-  ! Prints ingested coupler information to the input record file.
-  !
-  ! Author: Jenn Frederick
-  ! Date: 04/18/2016
-  !
-  use Coupler_module
-
-  implicit none
-
-  type(patch_type), pointer :: patch
-
-  type(coupler_type), pointer :: cur_coupler
-  character(len=MAXWORDLENGTH) :: word1
-  PetscInt :: k
-  PetscInt :: id = INPUT_RECORD_UNIT
-
-  k = 0
-
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'INITIAL CONDITIONS'
-
-  ! Initial conditions
-  cur_coupler => patch%initial_condition_list%first
-  do
-    if (.not.associated(cur_coupler)) exit
-    k = k + 1
-    write(id,'(a29)',advance='no') 'initial condition listed: '
-    write(word1,*) k
-    write(id,'(a)') '#' // adjustl(trim(word1))
-    write(id,'(a29)',advance='no') 'applies to region: '
-    write(id,'(a)') adjustl(trim(cur_coupler%region_name))
-    if (len_trim(cur_coupler%flow_condition_name) > 0) then
-      write(id,'(a29)',advance='no') 'flow condition name: '
-      write(id,'(a)') adjustl(trim(cur_coupler%flow_condition_name))
-    endif
-    write(id,'(a29)') '---------------------------: '
-    cur_coupler => cur_coupler%next
-  enddo
-
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'BOUNDARY CONDITIONS'
-
-  ! Boundary conditions
-  cur_coupler => patch%boundary_condition_list%first
-  do
-    if (.not.associated(cur_coupler)) exit
-    write(id,'(a29)',advance='no') 'boundary condition name: '
-    write(id,'(a)') adjustl(trim(cur_coupler%name))
-    write(id,'(a29)',advance='no') 'applies to region: '
-    write(id,'(a)') adjustl(trim(cur_coupler%region_name))
-    if (len_trim(cur_coupler%flow_condition_name) > 0) then
-      write(id,'(a29)',advance='no') 'flow condition name: '
-      write(id,'(a)') adjustl(trim(cur_coupler%flow_condition_name))
-    endif
-    write(id,'(a29)') '---------------------------: '
-    cur_coupler => cur_coupler%next
-  enddo
-
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-                  &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'SOURCE-SINKS'
-
-  ! Source-Sink conditions
-  cur_coupler => patch%source_sink_list%first
-  do
-    if (.not.associated(cur_coupler)) exit
-    write(id,'(a29)',advance='no') 'source-sink name: '
-    write(id,'(a)') adjustl(trim(cur_coupler%name))
-    write(id,'(a29)',advance='no') 'applies to region: '
-    write(id,'(a)') adjustl(trim(cur_coupler%region_name))
-    if (len_trim(cur_coupler%flow_condition_name) > 0) then
-      write(id,'(a29)',advance='no') 'flow condition name: '
-      write(id,'(a)') adjustl(trim(cur_coupler%flow_condition_name))
-    endif
-    write(id,'(a29)') '---------------------------: '
-    cur_coupler => cur_coupler%next
-  enddo
-
-end subroutine PatchCouplerInputRecord
 
 ! **************************************************************************** !
 
@@ -3044,9 +3089,12 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
 
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  PetscReal :: aq_species_mass    ! [mol]
+  PetscReal :: sorb_species_mass  ! [mol]
+  PetscReal :: ppt_species_mass   ! [mol]
   PetscReal :: m3_water           ! [m^3-water]
   PetscReal :: m3_bulk            ! [m^3-bulk]
-  PetscInt :: k
+  PetscInt :: k, j, m
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
   PetscReal :: local_total_mass
@@ -3065,8 +3113,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     m3_bulk = material_auxvars(ghosted_id)%volume                ! [m^3-bulk]
-
-  end do
+  enddo ! Cell loop
 
   ! Sum the local_total_mass across all processes that own the region:
   call MPI_Allreduce(local_total_mass,global_total_mass,ONE_INTEGER_MPI, &
@@ -3100,7 +3147,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscReal :: m3_water, kg_water
-  PetscInt :: k
+  PetscInt :: k, j, m
   PetscInt :: local_id, ghosted_id
   PetscErrorCode :: ierr
   PetscReal :: local_water_mass
@@ -3169,7 +3216,7 @@ subroutine PatchGetCompMassInRegionAssign(region_list, &
     if (.not.success) then
       option%io_buffer = 'Region ' // trim(cur_mbr%region_name) // ' not &
                           &found among listed regions.'
-      call printErrMsg(option)
+      call PrintErrMsg(option)
     endif
     ! Assign the mass balance region the wanted region's info:
     cur_mbr%num_cells = cur_region%num_cells
@@ -3179,6 +3226,246 @@ subroutine PatchGetCompMassInRegionAssign(region_list, &
   enddo
 
 end subroutine PatchGetCompMassInRegionAssign
+
+! ************************************************************************** !
+
+subroutine PatchVerifyDatasetGriddedForFlux(dataset,coupler,option)
+  !
+  ! Verifies that a dataset being used to define fluxes adheres to
+  ! several rules that attempt to minimize mass balance error.
+  !
+  ! Author: Jennifer Frederick
+  ! Date: 11/04/2016
+  !
+
+  use Option_module
+  use Coupler_module
+  use Dataset_Gridded_HDF5_class
+
+  implicit none
+
+  class(dataset_gridded_hdf5_type) :: dataset
+  type(coupler_type) :: coupler
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  PetscInt :: i, dataset_size
+
+  ! check if dataset is cell-centered:
+  if (.not.dataset%is_cell_centered) then
+    option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
+      " must be cell-centered for fluxes. You must set attribute: &
+      &h5grp.attrs['Cell Centered'] = True."
+    call PrintErrMsg(option)
+  endif
+  ! check if the dimensions match:
+  dataset_size = 1
+  do i=1,size(dataset%dims)
+    dataset_size = dataset%dims(i)*dataset_size
+  enddo
+  if (coupler%connection_set%num_connections /= dataset_size) then
+    write(string,*) dataset%dims
+    write(string2,*) coupler%connection_set%num_connections
+    option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
+      " must have a value for each cell on the boundary defined by &
+      &REGION " // trim(coupler%region%name) // '. The dataset dimension &
+      &is ' // adjustl(trim(string)) // ' but the number of boundary &
+      &connections is ' // adjustl(trim(string2)) // '.'
+    call PrintErrMsg(option)
+  endif
+  ! check if the interpolation method is STEP:
+  if (.not.dataset%interpolation_method == INTERPOLATION_STEP) then
+    option%io_buffer = 'Dataset ' // trim(dataset%hdf5_dataset_name) // &
+      " must be assigned the STEP interpolation method for fluxes. You &
+      &must set attribute: h5grp.attrs['Interpolation Method'] = &
+      &np.string_('STEP')."
+    call PrintErrMsg(option)
+  endif
+
+end subroutine PatchVerifyDatasetGriddedForFlux
+
+! ************************************************************************** !
+
+subroutine PatchSetupUpwindDirection(patch,option)
+  !
+  ! Sets up upwind direction arrays
+  !
+  ! Author: Glenn Hammond
+  ! Date: 10/22/18
+  !
+  use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Option_module
+  use Upwind_Direction_module
+
+  implicit none
+
+  type(patch_type) :: patch
+  type(option_type) :: option
+
+  type(grid_type), pointer :: grid
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  type(coupler_type), pointer :: boundary_condition
+  PetscInt, pointer :: upwind_direction(:,:)
+  PetscInt, pointer :: upwind_direction_bc(:,:)
+  PetscInt :: sum_connection
+  PetscInt :: i, iconn
+  PetscReal :: dist(3)
+
+  grid => patch%grid
+
+  call UpwindDirectionInit()
+
+  ! allocate arrays for upwind directions
+  ! internal connections
+  connection_set_list => grid%internal_connection_set_list
+  sum_connection = ConnectionGetNumberInList(connection_set_list)
+  allocate(upwind_direction(option%nfluids,sum_connection))
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0
+  do
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
+      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
+        i = X_DIRECTION
+      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
+        i = Y_DIRECTION
+      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
+        i = Z_DIRECTION
+      endif
+      upwind_direction(:,sum_connection) = i
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+  ! boundary connections
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
+  boundary_condition => patch%boundary_condition_list%first
+  allocate(upwind_direction_bc(option%nfluids,sum_connection))
+  sum_connection = 0
+  do
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      dist(1:3) = dabs(cur_connection_set%dist(1:3,iconn))
+      if (dist(1) > dist(2) .and. dist(1) > dist(3)) then
+        i = X_DIRECTION
+      else if (dist(2) > dist(1) .and. dist(2) > dist(3)) then
+        i = Y_DIRECTION
+      else if (dist(3) > dist(1) .and. dist(3) > dist(2)) then
+        i = Z_DIRECTION
+      endif
+      upwind_direction_bc(:,sum_connection) = i
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  patch%flow_upwind_direction => upwind_direction
+  patch%flow_upwind_direction_bc => upwind_direction_bc
+
+end subroutine PatchSetupUpwindDirection
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable1(process_name,variable_name,ivar,option)
+  !
+  ! Prints an error message when an unsupported output variable is requested.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  character(len=*) :: process_name
+  character(len=*) :: variable_name
+  PetscInt :: ivar
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: word, word2
+
+  if (len_trim(variable_name) > 1 .and. Initialized(ivar)) then
+    option%io_buffer = 'Both Variable name and ID passed as initialized in &
+      &PatchUnsupportedVariable.'
+    call PrintErrMsg(option)
+  else if (len_trim(variable_name) > 1) then
+    word = trim(variable_name)
+    word2= 'variable name'
+  else
+    write(word,*) ivar
+    word = 'ID ' // trim(adjustl(word))
+    word2= 'integer ID'
+  endif
+  if (len_trim(process_name) > 1) then
+    string = 'Variable ' // trim(adjustl(word)) // &
+      ' not supported for the process model: ' // &
+      trim(adjustl(process_name)) // '.'
+  else
+    string = 'Variable ' // trim(adjustl(word)) // &
+      ' not supported for the employed process models.'
+  endif
+  option%io_buffer = trim(string) // &
+    ' Please look at variables.F90 to match this ' // trim(word2) // &
+    ' with a variable parameter constant.  If you feel this is in &
+    &error, please email this message to pflotran-dev@googlegroups.com.'
+  call PrintErrMsg(option)
+
+end subroutine PatchUnsupportedVariable1
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable2(process_name,ivar,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  character(len=*) :: process_name
+  PetscInt :: ivar
+  type(option_type) :: option
+
+  call PatchUnsupportedVariable(process_name,'',ivar,option)
+
+end subroutine PatchUnsupportedVariable2
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable3(process_name,variable_name,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  character(len=*) :: process_name
+  character(len=*) :: variable_name
+  type(option_type) :: option
+
+  call PatchUnsupportedVariable(process_name,variable_name, &
+                                UNINITIALIZED_INTEGER,option)
+
+end subroutine PatchUnsupportedVariable3
+
+! ************************************************************************** !
+
+subroutine PatchUnsupportedVariable4(ivar,option)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/22/19 
+
+  implicit none
+
+  PetscInt :: ivar
+  type(option_type) :: option
+
+  call PatchUnsupportedVariable('','',ivar,option)
+
+end subroutine PatchUnsupportedVariable4
 
 ! ************************************************************************** !
 
@@ -3239,17 +3526,15 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%sat_func_id)
   call DeallocateArray(patch%internal_velocities)
   call DeallocateArray(patch%boundary_velocities)
-  call DeallocateArray(patch%internal_tran_coefs)
-  call DeallocateArray(patch%boundary_tran_coefs)
   call DeallocateArray(patch%internal_flow_fluxes)
   call DeallocateArray(patch%boundary_flow_fluxes)
   call DeallocateArray(patch%ss_flow_fluxes)
-  call DeallocateArray(patch%internal_tran_fluxes)
-  call DeallocateArray(patch%boundary_tran_fluxes)
-  call DeallocateArray(patch%ss_tran_fluxes)
   call DeallocateArray(patch%ss_flow_vol_fluxes)
 
   call DeallocateArray(patch%boundary_energy_flux)
+
+  call DeallocateArray(patch%flow_upwind_direction)
+  call DeallocateArray(patch%flow_upwind_direction_bc)
 
 
   if (associated(patch%material_property_array)) &
@@ -3257,11 +3542,13 @@ subroutine PatchDestroy(patch)
   nullify(patch%material_property_array)
   ! Since this linked list will be destroyed by realization, just nullify here
   nullify(patch%material_properties)
+
   if (associated(patch%characteristic_curves_array)) &
     deallocate(patch%characteristic_curves_array)
   nullify(patch%characteristic_curves_array)
   ! Since this linked list will be destroyed by realization, just nullify here
   nullify(patch%characteristic_curves)
+
 
   ! solely nullify grid since destroyed in discretization
   nullify(patch%grid)
@@ -3276,7 +3563,6 @@ subroutine PatchDestroy(patch)
 
   call AuxDestroy(patch%aux)
 
-  ! these are solely pointers, must not destroy.
   nullify(patch%datasets)
   nullify(patch%field)
 

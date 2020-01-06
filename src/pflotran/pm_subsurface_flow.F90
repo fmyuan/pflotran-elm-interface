@@ -74,7 +74,6 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowCheckConvergence, &
             PMSubsurfaceFlowInitializeRun, &
             PMSubsurfaceFlowUpdateSolution, &
-            PMSubsurfaceFlowUpdatePropertiesNI, &
             PMSubsurfaceFlowTimeCut, &
             PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
@@ -306,9 +305,6 @@ subroutine PMSubsurfaceFlowSetup(this)
   this%comm1 => this%realization%comm1
   if (this%option%flow%transient_porosity) then
     this%store_porosity_for_ts_cut = PETSC_TRUE
-    if (this%option%ntrandof > 0) then
-      this%store_porosity_for_transport = PETSC_TRUE
-    endif
   endif
   
 end subroutine PMSubsurfaceFlowSetup
@@ -356,37 +352,10 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   class(pm_subsurface_flow_type) :: this
   PetscBool :: update_initial_porosity
 
-  ! must come before RealizUnInitializedVarsTran
   call PMSubsurfaceFlowSetSoilRefPres(this%realization)
 
-  ! check for uninitialized flow variables
-  call RealizUnInitializedVarsTran(this%realization)
-
-  if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity) then
-      call RealizationCalcMineralPorosity(this%realization)
-      call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_BASE)
-      call MaterialSetAuxVarVecLoc(this%realization%patch%aux%Material, &
-                                   this%realization%field%work_loc, &
-                                   POROSITY,POROSITY_INITIAL)
-      call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
-                                    this%realization%field%porosity0)
-    endif
-  endif
-  
   ! update material properties that are a function of mineral vol fracs
   update_initial_porosity = PETSC_TRUE
-  if (associated(this%realization%reaction)) then
-    if (this%realization%reaction%update_porosity .or. &
-        this%realization%reaction%update_tortuosity .or. &
-        this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
-      call RealizationUpdatePropertiesTS(this%realization)
-      update_initial_porosity = PETSC_FALSE
-    endif
-  endif
 
   if (update_initial_porosity) then
     call this%comm1%GlobalToLocal(this%realization%field%porosity0, &
@@ -552,7 +521,7 @@ subroutine PMSubsurfaceFlowInitializeTimestepA(this)
   
   class(pm_subsurface_flow_type) :: this
 
-  this%option%flow_dt = this%option%dt
+  this%option%flow%dt = this%option%dt
 
   call PMBasePrintHeader(this)
 
@@ -672,23 +641,6 @@ end function PMSubsurfaceFlowAcceptSolution
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowUpdatePropertiesNI(this)
-  ! 
-  ! Updates parameters/properties at each Newton iteration
-  !
-  ! Author: Glenn Hammond
-  ! Date: 04/21/14
-
-  implicit none
-  
-  class(pm_subsurface_flow_type) :: this
-  
-  call RealizationUpdatePropertiesNI(this%realization)
-
-end subroutine PMSubsurfaceFlowUpdatePropertiesNI
-
-! ************************************************************************** !
-
 subroutine PMSubsurfaceFlowTimeCut(this)
   ! 
   ! Author: Glenn Hammond
@@ -703,7 +655,7 @@ subroutine PMSubsurfaceFlowTimeCut(this)
   
   PetscErrorCode :: ierr
   
-  this%option%flow_dt = this%option%dt
+  this%option%flow%dt = this%option%dt
   call VecCopy(this%realization%field%flow_yy, &
                this%realization%field%flow_xx,ierr);CHKERRQ(ierr)
   if (this%store_porosity_for_transport) then
@@ -732,7 +684,7 @@ subroutine PMSubsurfaceFlowTimeCutPostInit(this)
   
   class(pm_subsurface_flow_type) :: this
   
-  this%option%flow_dt = this%option%dt
+  this%option%flow%dt = this%option%dt
 end subroutine PMSubsurfaceFlowTimeCutPostInit
 
 ! ************************************************************************** !

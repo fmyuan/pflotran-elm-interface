@@ -39,7 +39,6 @@ module Timestepper_BE_class
     procedure, public :: RestartHDF5 => TimestepperBERestartHDF5
     procedure, public :: Reset => TimestepperBEReset
     procedure, public :: PrintInfo => TimestepperBEPrintInfo
-    procedure, public :: InputRecord => TimestepperBEInputRecord
     procedure, public :: FinalizeRun => TimestepperBEFinalizeRun
     procedure, public :: Strip => TimestepperBEStrip
     procedure, public :: Destroy => TimestepperBEDestroy
@@ -199,8 +198,6 @@ subroutine TimestepperBERead(this,input,option)
   enddo
   call InputPopBlock(input,option)
   
-  this%solver%print_ekg = this%print_ekg
-
 end subroutine TimestepperBERead
 
 ! ************************************************************************** !
@@ -707,7 +704,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   option%time = this%target_time
   call process_model%FinalizeTimestep()
   
-  if (this%print_ekg .and. OptionPrintToFile(option)) then
+  if (option%print_ekg .and. OptionPrintToFile(option)) then
 100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i3,i5,i5,i10)
     write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
       this%dt/tconv, trim(tunit), &
@@ -1223,35 +1220,6 @@ subroutine TimestepperBEPrintInfo(this,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
   
 end subroutine TimestepperBEPrintInfo
-
-! ************************************************************************** !
-
-subroutine TimestepperBEInputRecord(this)
-  ! 
-  ! Prints information about the time stepper to the input record.
-  ! To get a## format, must match that in simulation types.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-  
-  implicit none
-  
-  class(timestepper_BE_type) :: this
-
-  PetscInt :: id
-  character(len=MAXWORDLENGTH) :: word
-   
-  id = INPUT_RECORD_UNIT
-  
-  write(id,'(a29)',advance='no') 'pmc timestepper: '
-  write(id,'(a)') this%name
-
-  write(id,'(a29)',advance='no') 'initial timestep size: '
-  write(word,*) this%dt_init
-  write(id,'(a)') trim(adjustl(word)) // ' sec'
-
-end subroutine TimestepperBEInputRecord
 
 ! ************************************************************************** !
 

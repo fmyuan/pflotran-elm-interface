@@ -57,7 +57,7 @@ MYFLAGS = -I. -g -O0
 # Preprocessor flags for special PFLOTRAN features/hacks
 ###############################################################################
 
-ifdef internal_mass_flux
+ifdef compute_internal_flux
   MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
 endif
 
@@ -73,7 +73,6 @@ ifdef ugrid_debug
   MYFLAGS += ${FC_DEFINE_FLAG}UGRID_DEBUG
 endif
 
-
 ifdef debug
   MYFLAGS += ${FC_DEFINE_FLAG}DEBUG
 endif
@@ -86,8 +85,21 @@ ifdef use_matseqaij_fix
   MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
 endif
 
+ifdef ug_mpi_scatter_glb
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GLOBAL
+endif
+
+ifdef ug_mpi_scatter_ghost
+  MYFLAGS += ${FC_DEFINE_FLAG}MPI_SCATTER_GHOST_ONLY
+endif
+
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
+endif
+
+ifdef codecov
+  MYFLAGS += -fprofile-arcs -ftest-coverage
+  LIBS += -lgcov
 endif
 
 ###############################################################################
@@ -130,7 +142,7 @@ CLEANFILES       = pflotran make.log
 # please see pflotran_object_files.txt for a list of the object files. this 
 # approach of including the object files allows us to re-use the list in other
 # makefiles (e.g. clm-pflotran/makefile).
-include pflotran_object_files.txt
+include $(SRC_DIR)/pflotran_object_files.txt
 
 # End object file block
 
@@ -139,11 +151,12 @@ include pflotran_object_files.txt
 ###############################################################################
 
 # Concatentate dependency groups 
-pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+pflotran_base_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) \
 	$(grid_obj) $(relations_obj) $(properties_obj) $(dataset_obj) \
-	$(srcsink_obj) $(io_obj) $(misc_obj) $(solver_obj) \
-	${pflotran_src}pflotran.o
+	$(srcsink_obj) $(io_obj) $(misc_obj) $(solver_obj)
+
+pflotran_obj = $(pflotran_base_obj) ${pflotran_src}pflotran.o
 
 # PFLOTRAN executable
 pflotran : $(pflotran_obj)

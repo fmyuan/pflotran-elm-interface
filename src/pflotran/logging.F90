@@ -57,10 +57,6 @@ module Logging_module
 
     PetscLogEvent :: event_output_tecplot
     PetscLogEvent :: event_output_hdf5
-    PetscLogEvent :: event_output_vtk
-    PetscLogEvent :: event_output_grid_vtk
-    PetscLogEvent :: event_output_write_vtk
-    PetscLogEvent :: event_output_mad
     PetscLogEvent :: event_output_str_grid_tecplot
     PetscLogEvent :: event_output_write_tecplot
     PetscLogEvent :: event_output_write_flux_tecplot
@@ -69,8 +65,6 @@ module Logging_module
     PetscLogEvent :: event_output_vec_tecplot
     PetscLogEvent :: event_output_observation
     PetscLogEvent :: event_output_coordinates_hdf5
-    PetscLogEvent :: event_output_hydrograph
-    PetscLogEvent :: event_output_secondary_tecplot
     
     PetscLogEvent :: event_mass_balance
 
@@ -220,30 +214,16 @@ subroutine LoggingCreate()
   call PetscLogEventRegister('OutputTecplot', &
                              logging%class_pflotran, &
                              logging%event_output_tecplot,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('OutputVTK', &
-                             logging%class_pflotran, &
-                             logging%event_output_vtk,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('OutputHDF5', &
                              logging%class_pflotran, &
                              logging%event_output_hdf5,ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('OutputSecondaryTecplot', &
-                             logging%class_pflotran, &
-                             logging%event_output_secondary_tecplot, &
-                             ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('WriteTecStrGrid', &
                              logging%class_pflotran, &
                              logging%event_output_str_grid_tecplot, &
                              ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('WriteVTKGrid', &
-                             logging%class_pflotran, &
-                             logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('WriteTecDataSet', &
                              logging%class_pflotran, &
                              logging%event_output_write_tecplot, &
-                             ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('WriteVTKDataSet', &
-                             logging%class_pflotran, &
-                             logging%event_output_write_vtk, &
                              ierr);CHKERRQ(ierr)
   call PetscLogEventRegister('OutputFluxVelTec', &
                              logging%class_pflotran, &
@@ -269,11 +249,6 @@ subroutine LoggingCreate()
                              logging%class_pflotran, &
                              logging%event_output_coordinates_hdf5, &
                              ierr);CHKERRQ(ierr)
-  call PetscLogEventRegister('OutputHydrograph', &
-                             logging%class_pflotran, &
-                             logging%event_output_hydrograph, &
-                             ierr);CHKERRQ(ierr)
-
                              
   call PetscLogEventRegister('MassBalance', &
                              logging%class_pflotran, &
@@ -297,10 +272,6 @@ subroutine LoggingCreateStage(stage_name,stage_id)
   PetscInt :: stage_id
   
   character(len=MAXSTRINGLENGTH) :: full_stage_name
-  character(len=MAXSTRINGLENGTH) :: temp_stage_name
-  character(len=MAXWORDLENGTH) :: word
-  PetscLogStage :: temp_stage_id
-  PetscInt :: i
   PetscErrorCode :: ierr
 
   ! this conditional prevents duplicate stages that can be generated during

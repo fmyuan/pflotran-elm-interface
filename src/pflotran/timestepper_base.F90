@@ -53,7 +53,6 @@ module Timestepper_Base_class
     PetscInt :: start_time_step ! the first time step of a given run
     PetscReal :: time_step_tolerance ! scalar used in determining time step size
     PetscReal :: target_time    ! time at end of "synchronized" time step 
-    PetscBool :: print_ekg
 
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
@@ -75,7 +74,6 @@ module Timestepper_Base_class
     procedure, public :: Reset => TimestepperBaseReset
     procedure, public :: WallClockStop => TimestepperBaseWallClockStop
     procedure, public :: PrintInfo => TimestepperBasePrintInfo
-    procedure, public :: InputRecord => TimestepperBaseInputRecord
     procedure, public :: FinalizeRun => TimestepperBaseFinalizeRun
     procedure, public :: Strip => TimestepperBaseStrip
     procedure, public :: Destroy => TimestepperBaseDestroy
@@ -101,8 +99,7 @@ module Timestepper_Base_class
             TimestepperBaseGetHeader, &
             TimestepperBaseReset, &
             TimestepperBaseRegisterHeader, &
-            TimestepperBasePrintInfo, &
-            TimestepperBaseInputRecord
+            TimestepperBasePrintInfo
 
 contains
 
@@ -178,7 +175,6 @@ subroutine TimestepperBaseInit(this)
   this%revert_dt = PETSC_FALSE
   this%num_contig_revert_due_to_sync = 0
   this%max_num_contig_revert = 2
-  this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
 
@@ -308,7 +304,6 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call PrintErrMsg(option)
       this%run_as_steady_state = PETSC_TRUE
     case('PRINT_EKG')
-      this%print_ekg = PETSC_TRUE
       option%print_ekg = PETSC_TRUE
     case('MAX_PRESSURE_CHANGE','MAX_TEMPERATURE_CHANGE', &
          'MAX_CONCENTRATION_CHANGE','MAX_SATURATION_CHANGE', &
@@ -619,30 +614,6 @@ subroutine TimestepperBasePrintInfo(this,option)
   call StringWriteToUnits(fids,strings)
 
 end subroutine TimestepperBasePrintInfo
-
-! ************************************************************************** !
-
-subroutine TimestepperBaseInputRecord(this)
-  ! 
-  ! Prints information about the time stepper to the input record.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-  
-  implicit none
-  
-  class(timestepper_base_type) :: this
-
-#ifdef DEBUG
-  write(*,*) 'TimestepperBaseInputRecord()'
-#endif
-
-  write(*,*) 'TimestepperBaseInputRecord must be extended for &
-             &each timestepper mode.'
-  stop
-
-end subroutine TimestepperBaseInputRecord
 
 ! ************************************************************************** !
 

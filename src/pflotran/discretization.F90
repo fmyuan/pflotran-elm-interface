@@ -71,7 +71,6 @@ module Discretization_module
             DiscretizationGetDMPtrFromIndex, &
             DiscretizationUpdateTVDGhosts, &
             DiscretAOApplicationToPetsc, &
-            DiscretizationInputRecord, &
             DiscretizationPrintInfo
   
 contains
@@ -139,7 +138,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   use Input_Aux_module
   use String_module
   use Material_Aux_class
-  use Grid_Grdecl_module, only : UGrdEclExplicitRead, SetIsGrdecl, GetIsGrdecl
+
 
   implicit none
 
@@ -185,10 +184,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
         call InputReadCard(input,option,discretization%ctype)
         call InputErrorMsg(input,option,'type','GRID')   
         call StringToUpper(discretization%ctype)
-        if (discretization%ctype == 'GRDECL') then
-          call SetIsGrdecl()
-          discretization%ctype = 'UNSTRUCTURED_EXPLICIT'
-        endif
         select case(trim(discretization%ctype))
           case('STRUCTURED')
             discretization%itype = STRUCTURED_GRID
@@ -284,13 +279,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           grid%unstructured_grid => un_str_grid
         case(EXPLICIT_UNSTRUCTURED_GRID)
           un_str_grid%explicit_grid => UGridExplicitCreate()
-          if (GetIsGrdecl()) then
-            call UGrdEclExplicitRead(un_str_grid, &
-                                     discretization%filename,option)
-          else
-            call UGridExplicitRead(un_str_grid, &
+          call UGridExplicitRead(un_str_grid, &
                                    discretization%filename,option)
-          endif
           grid%unstructured_grid => un_str_grid
         case(POLYHEDRA_UNSTRUCTURED_GRID)
           un_str_grid%polyhedra_grid => UGridPolyhedraCreate()
@@ -913,10 +903,6 @@ function DiscretizationGetDMPtrFromIndex(discretization,dm_index)
       DiscretizationGetDMPtrFromIndex => discretization%dm_1dof
     case(NFLOWDOF)
       DiscretizationGetDMPtrFromIndex => discretization%dm_nflowdof
-    case(NTRANDOF)
-      DiscretizationGetDMPtrFromIndex => discretization%dm_ntrandof
-    case(NGEODOF)
-      DiscretizationGetDMPtrFromIndex => discretization%dm_n_stress_strain_dof
   end select  
   
 end function DiscretizationGetDMPtrFromIndex
@@ -935,8 +921,6 @@ function DiscretizationGetDMCPtrFromIndex(discretization,dm_index)
   select case (dm_index)
     case(NFLOWDOF)
       DiscretizationGetDMCPtrFromIndex => discretization%dmc_nflowdof
-    case(NTRANDOF)
-      DiscretizationGetDMCPtrFromIndex => discretization%dmc_ntrandof
   end select  
   
 end function DiscretizationGetDMCPtrFromIndex
@@ -1026,13 +1010,6 @@ subroutine DiscretizationCreateInterpolation(discretization,dm_index, &
         nullify(discretization%dmc_nflowdof(i)%ugdm)
       enddo
       dmc_ptr => discretization%dmc_nflowdof
-    case(NTRANDOF)
-      allocate(discretization%dmc_ntrandof(mg_levels))
-      do i=1, mg_levels
-        discretization%dmc_ntrandof(i)%dm = PETSC_NULL_DM
-        nullify(discretization%dmc_ntrandof(i)%ugdm)
-      enddo
-      dmc_ptr => discretization%dmc_ntrandof
   end select  
    
   allocate(interpolation(mg_levels))
@@ -1562,86 +1539,6 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
 end subroutine DiscretAOApplicationToPetsc
 
 ! **************************************************************************** !
-
-subroutine DiscretizationInputRecord(discretization)
-  ! 
-  ! Prints ingested grid/discretization information
-  ! 
-  ! Author: Jenn Frederick
-  ! Date: 03/30/2016
-  ! 
-
-  implicit none
-
-  type(discretization_type), pointer :: discretization
-
-  type(grid_type), pointer :: grid
-  character(len=MAXWORDLENGTH) :: word, word1, word2
-  PetscInt :: id = INPUT_RECORD_UNIT
-  character(len=10) :: Format, iFormat
-  
-  Format = '(ES14.7)'
-  iFormat = '(I10)'
-
-  grid => discretization%grid
-
-  write(id,'(a)') ' '
-  write(id,'(a)') ' '
-  write(id,'(a)') '---------------------------------------------------------&
-       &-----------------------'
-  write(id,'(a29)',advance='no') '---------------------------: '
-  write(id,'(a)') 'GRID'
-  write(id,'(a29)',advance='no') 'grid type: '
-  select case(grid%itype)
-    case(STRUCTURED_GRID)
-      write(id,'(a)') trim(grid%ctype)
-      write(id,'(a29)',advance='no') ': '
-      write(id,'(a)') trim(grid%structured_grid%ctype)
-      write(id,'(a29)',advance='no') 'number grid cells X: '
-      write(word,iFormat) grid%structured_grid%nx
-      write(id,'(a)') adjustl(trim(word)) 
-      write(id,'(a29)',advance='no') 'number grid cells Y: '
-      write(word,iFormat) grid%structured_grid%ny
-      write(id,'(a)') adjustl(trim(word)) 
-      write(id,'(a29)',advance='no') 'number grid cells Z: '
-      write(word,iFormat) grid%structured_grid%nz
-      write(id,'(a)') adjustl(trim(word)) 
-      write(id,'(a29)',advance='no') 'delta-X (m): '
-      write(id,'(1p10e12.4)') grid%structured_grid%dx_global
-      write(id,'(a29)',advance='no') 'delta-Y (m): '
-      write(id,'(1p10e12.4)') grid%structured_grid%dy_global
-      write(id,'(a29)',advance='no') 'delta-Z (m): '
-      write(id,'(1p10e12.4)') grid%structured_grid%dz_global
-      write(id,'(a29)',advance='no') 'bounds X: '
-      write(word1,Format) grid%structured_grid%bounds(X_DIRECTION,LOWER)
-      write(word2,Format) grid%structured_grid%bounds(X_DIRECTION,UPPER)
-      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-      write(id,'(a29)',advance='no') 'bounds Y: '
-      write(word1,Format) grid%structured_grid%bounds(Y_DIRECTION,LOWER)
-      write(word2,Format) grid%structured_grid%bounds(Y_DIRECTION,UPPER)
-      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-      write(id,'(a29)',advance='no') 'bounds Z: '
-      write(word1,Format) grid%structured_grid%bounds(Z_DIRECTION,LOWER)
-      write(word2,Format) grid%structured_grid%bounds(Z_DIRECTION,UPPER)
-      write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
-    case(EXPLICIT_UNSTRUCTURED_GRID,IMPLICIT_UNSTRUCTURED_GRID, &
-         POLYHEDRA_UNSTRUCTURED_GRID)
-      write(id,'(a)') trim(grid%ctype)
-  end select
-
-  write(id,'(a29)',advance='no') 'global origin: '
-  write(word,Format) discretization%origin_global(X_DIRECTION)
-  write(id,'(a)') '(x) ' // adjustl(trim(word)) // ' m'
-  write(id,'(a29)',advance='no') ': '
-  write(word,Format) discretization%origin_global(Y_DIRECTION)
-  write(id,'(a)') '(y) ' // adjustl(trim(word)) // ' m'
-  write(id,'(a29)',advance='no') ': '
-  write(word,Format) discretization%origin_global(Z_DIRECTION)
-  write(id,'(a)') '(z) ' // adjustl(trim(word)) // ' m'
-
-end subroutine DiscretizationInputRecord
-
-! ************************************************************************** !
 
 subroutine DiscretizationPrintInfo(discretization,grid,option)
   ! 

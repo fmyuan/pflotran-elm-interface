@@ -1,5 +1,5 @@
 module Regression_module
-
+ 
 #include "petsc/finclude/petscvec.h"
   use petscvec
   use Output_Aux_module
@@ -212,13 +212,14 @@ subroutine RegressionCreateMapping(regression,realization)
   
   IS :: is_petsc
   PetscInt, allocatable :: int_array(:)
-  PetscInt :: i, count, temp_int
+  PetscInt :: i, upper_bound, lower_bound, count, temp_int
   PetscInt :: local_id
   PetscReal, pointer :: vec_ptr(:)
   character(len=MAXWORDLENGTH) :: word
   Vec :: temp_vec
   VecScatter :: temp_scatter
   IS :: temp_is
+  PetscViewer :: viewer
   PetscErrorCode :: ierr
 
   type(grid_type), pointer :: grid
@@ -491,7 +492,7 @@ subroutine RegressionOutput(regression,realization, &
 
   use Realization_Subsurface_class
   use Timestepper_Base_class
-  use Timestepper_TS_class
+
   use Timestepper_BE_class
   use Option_module
   use Discretization_module
@@ -505,8 +506,8 @@ subroutine RegressionOutput(regression,realization, &
   type(regression_type), pointer :: regression
   class(realization_subsurface_type) :: realization
   ! these must be pointers as they can be null
-  class(timestepper_BE_type), pointer :: flow_timestepper
-  
+  class(timestepper_base_type), pointer :: flow_timestepper
+
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec
   Vec :: global_vec_vx,global_vec_vy,global_vec_vz
@@ -664,7 +665,7 @@ subroutine RegressionOutput(regression,realization, &
       call VecZeroEntries(z_vel_process,ierr);CHKERRQ(ierr)
     endif
 
-    do iphase = 1, option%nphase
+    do iphase = 1, option%nfluids
       if (associated(regression%natural_cell_ids) .or. &
           regression%num_cells_per_process > 0) then
     
@@ -809,27 +810,10 @@ subroutine RegressionOutput(regression,realization, &
           write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
           write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
         endif
-      class is(timestepper_TS_type)
-        call VecNorm(realization%field%flow_xx,NORM_2,x_norm,ierr);CHKERRQ(ierr)
-        call VecNorm(realization%field%flow_r,NORM_2,r_norm,ierr);CHKERRQ(ierr)
-        if (option%myrank == option%io_rank) then
-          write(OUTPUT_UNIT,'(''-- SOLUTION: Flow --'')')
-          write(OUTPUT_UNIT,'(''   Time (seconds): '',es21.13)') &
-          flow_stepper%cumulative_solver_time
-          write(OUTPUT_UNIT,'(''   Time Steps: '',i12)') flow_stepper%steps
-          write(OUTPUT_UNIT,'(''   Newton Iterations: '',i12)') &
-          flow_stepper%cumulative_newton_iterations
-          write(OUTPUT_UNIT,'(''   Solver Iterations: '',i12)') &
-          flow_stepper%cumulative_linear_iterations
-          write(OUTPUT_UNIT,'(''   Time Step Cuts: '',i12)') &
-          flow_stepper%cumulative_time_step_cuts
-          write(OUTPUT_UNIT,'(''   Solution 2-Norm: '',es21.13)') x_norm
-          write(OUTPUT_UNIT,'(''   Residual 2-Norm: '',es21.13)') r_norm
-        endif
     end select
   endif
-  endif
-  
+
+
   close(OUTPUT_UNIT)
   
 end subroutine RegressionOutput

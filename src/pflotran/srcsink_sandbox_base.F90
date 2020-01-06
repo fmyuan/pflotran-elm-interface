@@ -169,7 +169,7 @@ subroutine SSSandboxBaseUpdate(this,option)
   
   if (associated(this%cumulative_mass)) then
     this%cumulative_mass(:) = this%cumulative_mass(:) + &
-      option%flow_dt*this%instantaneous_mass_rate(:)
+      option%flow%dt*this%instantaneous_mass_rate(:)
   endif
   
 end subroutine SSSandboxBaseUpdate   

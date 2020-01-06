@@ -20,7 +20,6 @@ module PM_Base_class
     type(output_option_type), pointer :: output_option
     Vec :: solution_vec
     Vec :: residual_vec
-    PetscBool :: print_ekg
     PetscBool :: skip_restart
     !TODO(geh): remove solver and place required convergence settings elsewhere
     type(solver_type), pointer :: solver
@@ -31,7 +30,6 @@ module PM_Base_class
     procedure, public :: ReadSimulationBlock => PMBaseRead
     procedure, public :: ReadPMBlock => PMBaseRead
     procedure, public :: InitializeRun => PMBaseThisOnly
-    procedure, public :: InputRecord => PMBaseInputRecord
     procedure, public :: SetSolver => PMBaseSetSolver
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
@@ -66,7 +64,6 @@ module PM_Base_class
   end type pm_base_header_type
     
   public :: PMBaseInit, &
-            PMBaseInputRecord, &
             PMBaseReadSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
@@ -92,7 +89,6 @@ subroutine PMBaseInit(this)
   nullify(this%solver)
   this%solution_vec = PETSC_NULL_VEC
   this%residual_vec = PETSC_NULL_VEC
-  this%print_ekg = PETSC_FALSE
   this%skip_restart = PETSC_FALSE
   nullify(this%next)
   
@@ -142,15 +138,6 @@ subroutine PMBaseSetup(this)
   print *, 'Must extend PMBaseSetup for: ' // trim(this%name)
   stop
 end subroutine PMBaseSetup
-
-! ************************************************************************** !
-
-subroutine PMBaseInputRecord(this)
-  implicit none
-  class(pm_base_type) :: this
-  print *, 'Must extend PMBaseInputRecord for: ' // trim(this%name)
-  stop
-end subroutine PMBaseInputRecord
 
 ! ************************************************************************** !
 

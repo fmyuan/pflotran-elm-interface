@@ -1135,8 +1135,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
   ! Copy the vectors
   !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
-  do i = 1, size(vec_ptr)
-    vec_ptr2(i) = vec_ptr(i)
+  do idx = 1, size(vec_ptr)
+    vec_ptr2(idx) = vec_ptr(idx)
   enddo
   call VecRestoreArrayF90(natural_vx_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vx_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -1147,8 +1147,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
   ! Copy the vectors
   !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
-  do i = 1, size(vec_ptr)
-    vec_ptr2(i) = vec_ptr(i)
+  do idx = 1, size(vec_ptr)
+    vec_ptr2(idx) = vec_ptr(idx)
   enddo
   call VecRestoreArrayF90(natural_vy_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vy_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -1159,8 +1159,8 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
   ! Copy the vectors
   !geh: for some reason intel 19 give a memory error with 'vec_ptr2 = vec_ptr'
-  do i = 1, size(vec_ptr)
-    vec_ptr2(i) = vec_ptr(i)
+  do idx = 1, size(vec_ptr)
+    vec_ptr2(idx) = vec_ptr(idx)
   enddo
   call VecRestoreArrayF90(natural_vz_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%vz_face_inst,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -1638,7 +1638,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Field_module
   use Connection_module
   use Global_Aux_module
-  use TH_Aux_module
+  use MpFlow_Aux_module
   use Material_Aux_class
 
   implicit none
@@ -1652,8 +1652,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
 
-  type(material_parameter_type), pointer :: material_parameter
-  type(TH_auxvar_type), pointer :: th_auxvars(:)
+  type(flow_auxvar_type), pointer :: flow_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscReal, pointer :: density(:)
@@ -1675,8 +1674,6 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   grid => patch%grid
   global_auxvar => patch%aux%Global%auxvars
  
-  material_parameter => patch%aux%Material%material_parameter
-
   is_flowing = PETSC_FALSE
   allocate(density(count))
   call VecGetArrayF90(vec_proc,vec_proc_ptr,ierr);CHKERRQ(ierr)
@@ -1699,10 +1696,10 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
 
           upweight = 0.5d0
         select case (option%iflowmode)
-           case(TH_MODE)
-              th_auxvars => patch%aux%TH%auxvars
-              if (th_auxvars(ghosted_id_up)%kvr > eps .or. &
-                  th_auxvars(ghosted_id_dn)%kvr > eps ) then
+           case(MPFLOW_MODE)
+              flow_auxvars => patch%aux%Flow%auxvars
+              if (flow_auxvars(ghosted_id_up)%kvr > eps .or. &
+                  flow_auxvars(ghosted_id_dn)%kvr > eps ) then
                 is_flowing = PETSC_TRUE
               endif   
         end select
@@ -1716,8 +1713,8 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
     
           density(count) = upweight*global_auxvar(ghosted_id_up)%den(1)+ &
                   (1.D0 - upweight)*global_auxvar(ghosted_id_dn)%den(1)
-      endif  
-          
+        endif
+      endif
     enddo
     cur_connection_set => cur_connection_set%next
   enddo

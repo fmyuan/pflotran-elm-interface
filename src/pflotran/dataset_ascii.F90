@@ -343,7 +343,7 @@ subroutine DatasetAsciiReadList(this,input,data_external_units, &
         trim(word) // ') and rank in file ('
       write(word,*) data_count
       option%io_buffer = trim(option%io_buffer) // trim(word) // ').'
-      if (option%iflowmode /= TH_MODE) &
+      if (option%iflowmode /= MPFLOW_MODE) &
       call printErrMsg(option)
     endif
   else
@@ -411,7 +411,7 @@ subroutine DatasetAsciiReadSingle(this,input,data_external_units, &
     write(input%err_buf,'(a,i2)') 'DatasetAsciiReadSingle: &
                                   & dataset_values, icol = ', icol
     input%err_buf2 = error_string
-    if(input%ierr /= 0 .and. option%iflowmode == TH_MODE) then
+    if(input%ierr /= 0 .and. option%iflowmode == MPFLOW_MODE) then
       string_array => StringSplit(error_string,',')
       if (StringFindEntryInList('PRESSURE', string_array)>0) then
         ! assuming ONE single pressure-type data if not as input for all other phases
@@ -518,7 +518,7 @@ subroutine DatasetAsciiVerify(this,dataset_error,option)
       option%io_buffer = &
         '"array_width" is not equal to "dims(1)"'
       call printMsg(option)
-      if (option%iflowmode /= TH_MODE) &       ! model now is not required to explicitly read-in all data
+      if (option%iflowmode /= MPFLOW_MODE) &       ! model now is not required to explicitly read-in all data
       dataset_error = PETSC_TRUE
     endif
     ! set initial values

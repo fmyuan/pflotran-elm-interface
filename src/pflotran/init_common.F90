@@ -11,39 +11,9 @@ module Init_Common_module
             InitCommonReadRegionFiles, &
             InitCommonReadVelocityField, &
             InitCommonVerifyAllCouplers, &
-            setSurfaceFlowMode, &
             InitCommonAddOutputWaypoints
 
 contains
-
-! ************************************************************************** !
-
-subroutine setSurfaceFlowMode(option)
-  ! 
-  ! Sets the flow mode for surface (richards, th, etc.)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/30/14
-  ! 
-
-  use Option_module
-  use String_module
-
-  implicit none 
-
-  type(option_type) :: option
-  
-  select case(option%iflowmode)
-    case(TH_MODE)
-      option%nsurfflowdof = TWO_INTEGER
-    case default
-      write(option%io_buffer,*) option%iflowmode
-      option%io_buffer = 'Flow Mode ' // &
-        trim(option%io_buffer) // ' not recognized in setSurfaceFlowMode().'
-      call printErrMsg(option)
-  end select
-  
-end subroutine setSurfaceFlowMode
 
 ! ************************************************************************** !
 
@@ -137,24 +107,19 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
     if (associated(coupler%connection_set)) then
       do iconn = 1, coupler%connection_set%num_connections
         local_id = coupler%connection_set%id_dn(iconn)
-!        vec_ptr(local_id) = coupler%id
-!geh: let's sum the # of connections
-         vec_ptr(local_id) = vec_ptr(local_id) + 1
+        vec_ptr(local_id) = vec_ptr(local_id) + 1
       enddo
     else
       if (associated(coupler%region)) then
         do icell = 1, coupler%region%num_cells
           local_id = coupler%region%cell_ids(icell)
-!          vec_ptr(local_id) = coupler%id
-         vec_ptr(local_id) = vec_ptr(local_id) + 1
+          vec_ptr(local_id) = vec_ptr(local_id) + 1
         enddo
       endif
     endif
     call VecRestoreArrayF90(global_vec,vec_ptr,ierr);CHKERRQ(ierr)
     if (len_trim(coupler%flow_condition_name) > 0) then
       dataset_name = coupler%flow_condition_name
-    else if (len_trim(coupler%tran_condition_name) > 0) then
-      dataset_name = coupler%tran_condition_name
     endif
     write(word,*) patch%id
     dataset_name = trim(dataset_name) // '_' // &

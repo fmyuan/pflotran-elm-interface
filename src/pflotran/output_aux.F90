@@ -92,11 +92,8 @@ module Output_Aux_module
     PetscBool :: print_hydrograph
     PetscInt :: surf_xmf_vert_len
 
-    PetscBool :: write_ecl = PETSC_FALSE
-    ! Write well mass rates and totals as well as surface volumes
-    ! Note this is not a Eclipse-file-only option
     PetscBool :: write_masses = PETSC_FALSE
-    type(output_option_eclipse_type), pointer :: eclipse_options =>null()
+
 
   end type output_option_type
   
@@ -173,7 +170,6 @@ module Output_Aux_module
             OutputWriteVariableListToHeader, &
             OutputVariableToCategoryString, &
             OutputVariableAppendDefaults, &
-            OpenAndWriteInputRecord, &
             OutputOptionDestroy, &
             OutputVariableListDestroy, &
             CheckpointOptionCreate, &
@@ -918,61 +914,6 @@ subroutine OutputVariableAppendDefaults(output_variable_list,option)
 end subroutine OutputVariableAppendDefaults
 
 ! ************************************************************************** !
-
-subroutine OpenAndWriteInputRecord(option)
-  ! 
-  ! Opens the input record file and begins to write to it.
-  ! 
-  ! Author: Jenn Frederick, SNL
-  ! Date: 03/17/2016
-  ! 
-
-  use Option_module
-
-  implicit none
-  
-  type(option_type), pointer :: option
-
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=8) :: date_word
-  character(len=10) :: time_word
-  character(len=5) :: zone_word
-  PetscInt :: id
-
-  id = option%fid_inputrecord
-  ! the input record file has a .rec extension:
-  filename = trim(option%global_prefix) // trim(option%group_prefix) // '.rec'
-  open(unit=id,file=filename,action="write",status="replace")
-!geh: this call does not work with IBM
-!  call fdate(word)
-  call date_and_time(date_word,time_word,zone_word)
-  if (OptionPrintToFile(option)) then
-    write(id,'(a)') '---------------------------------------------------------&
-                    &-----------------------'
-    write(id,'(a)') '---------------------------------------------------------&
-                    &-----------------------'
-    write(id,'(a)') ' PFLOTRAN INPUT RECORD    ' // date_word(5:6) // '/' //  &
-                    date_word(7:8) // '/' // date_word(1:4) // ' ' //         &
-                    time_word(1:2) // ':' // time_word(3:4) // ' (' //        &
-                    zone_word(1:3) // ':' // zone_word(4:5) // ' UTC)'
-    write(id,'(a)') '---------------------------------------------------------&
-                    &-----------------------'
-    write(id,'(a)') '---------------------------------------------------------&
-                    &-----------------------'
-  
-    write(id,'(a18)',advance='no') 'input file: '  
-    write(id,*) trim(option%global_prefix) // '.in' 
-    
-    write(id,'(a18)',advance='no') 'group: ' 
-    write(id,*) trim(option%group_prefix)
-  
-    write(word,*) option%global_commsize
-    write(id,'(a18)',advance='no') 'n processors: ' 
-    write(id,*) trim(adjustl(word))
-  endif
-
-end subroutine OpenAndWriteInputRecord
 
 ! ************************************************************************** !
 

@@ -1,5 +1,7 @@
-module Flowmode_Aux_module
+module MpFlow_Aux_module
 
+#include "petsc/finclude/petscsys.h"
+  use petscsys
   use PFLOTRAN_Constants_module
   use AuxVars_Flow_Energy_module
 
@@ -7,20 +9,21 @@ module Flowmode_Aux_module
 
   private 
 
-#include "petsc/finclude/petscsys.h"
-
   PetscReal, public :: flow_itol_scaled_res = 1.d-15
   PetscReal, public :: flow_itol_rel_update = UNINITIALIZED_DOUBLE
+  !PetscBool, public :: flow_using_newtontr = PETSC_FALSE
 
+  ! currently only liq. water and air gas as fluids (option%nfluids = 2)
+  PetscReal,public :: FMW_FLUIDS(2) = [FMWH2O,FMWAIR]
   ! currently only liq. water as flow species
   PetscInt, public :: IFLOW1 = ONE_INTEGER       ! liq. water
   PetscInt, public :: IFLOW2 = TWO_INTEGER       ! air (not-yet, AND TODO)
 
   ! 2 dofs currently
-  PetscInt, public :: IFDOF1 = TH_PRESSURE_DOF
-  PetscInt, public :: IFDOF2 = TH_TEMPERATURE_DOF
-  PetscInt, public :: IFDOF3 = TH_CONDUCTANCE_DOF ! not-yet
-  PetscInt, public :: IFDOF4 = TH_ENTHALPY_DOF    ! not-yet
+  PetscInt, public :: IFDOF1 = MPFLOW_PRESSURE_DOF
+  PetscInt, public :: IFDOF2 = MPFLOW_TEMPERATURE_DOF
+  PetscInt, public :: IFDOF3 = MPFLOW_CONDUCTANCE_DOF ! not-yet
+  PetscInt, public :: IFDOF4 = MPFLOW_ENTHALPY_DOF    ! not-yet
 
   type, public, extends(auxvar_flow_energy_type) :: flow_auxvar_type
 
@@ -55,7 +58,7 @@ module Flowmode_Aux_module
     PetscReal, pointer :: diffusion_activation_energy(:)   !(nphase)
   end type flow_parameter_type
   
-  type, public :: flowmode_type
+  type, public :: MpFlow_type
     PetscInt :: n_zero_rows
     PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
     PetscBool :: auxvars_up_to_date
@@ -63,14 +66,14 @@ module Flowmode_Aux_module
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(flow_parameter_type), pointer :: flow_parameters(:)    ! material_id
     type(flow_auxvar_type), pointer :: auxvars(:)               ! grid_id
-  end type flowmode_type
+  end type MpFlow_type
 
   PetscReal, parameter :: eps       = 1.d-8
   PetscReal, parameter :: floweps   = 1.d-24
 
-  public :: FlowmodeAuxCreate, FlowmodeAuxDestroy, &
-            FlowmodeAuxVarCompute, FlowmodeAuxVarInit, &
-            FlowmodeAuxVarCopy, FlowmodeAuxVarDestroy
+  public :: MpFlowAuxCreate, MpFlowAuxDestroy, &
+            MpFlowAuxVarCompute, MpFlowAuxVarInit, &
+            MpFlowAuxVarCopy, MpFlowAuxVarDestroy
 
   public :: DarcyFlowDerivative, &
             AdvectionDerivative, &
@@ -80,7 +83,7 @@ contains
 
 ! ************************************************************************** !
 
-function FlowmodeAuxCreate(option)
+function MpFlowAuxCreate(option)
   ! 
   ! Allocate and initialize auxiliary object
   ! 
@@ -92,9 +95,9 @@ function FlowmodeAuxCreate(option)
   implicit none
   
   type(option_type) :: option
-  type(flowmode_type), pointer :: FlowmodeAuxCreate
+  type(MpFlow_type), pointer :: MpFlowAuxCreate
   
-  type(flowmode_type), pointer :: aux
+  type(MpFlow_type), pointer :: aux
 
   allocate(aux) 
   aux%auxvars_up_to_date = PETSC_FALSE
@@ -109,13 +112,13 @@ function FlowmodeAuxCreate(option)
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
 
-  FlowmodeAuxCreate => aux
+  MpFlowAuxCreate => aux
   
-end function FlowmodeAuxCreate
+end function MpFlowAuxCreate
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAuxVarInit(auxvar,option)
+subroutine MpFlowAuxVarInit(auxvar,option)
   ! 
   ! Initialize auxiliary object
   ! 
@@ -157,11 +160,11 @@ subroutine FlowmodeAuxVarInit(auxvar,option)
 
   call AuxVarFlowEnergyInit(auxvar,option)
 
-end subroutine FlowmodeAuxVarInit
+end subroutine MpFlowAuxVarInit
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAuxVarCopy(auxvar,auxvar2,option)
+subroutine MpFlowAuxVarCopy(auxvar,auxvar2,option)
   ! 
   ! Copies an auxiliary variable
   ! 
@@ -210,7 +213,7 @@ subroutine FlowmodeAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%den_kg = auxvar%den_kg
   auxvar2%mobility = auxvar%mobility
   auxvar2%viscosity = auxvar%viscosity
-  if(associated(auxvar%table_idx)) auxvar2%table_idx = auxvar%table_idx
+
   if (auxvar%has_derivs) then
     auxvar2%D_pres = auxvar%D_pres
     auxvar2%D_sat  = auxvar%D_sat
@@ -221,11 +224,11 @@ subroutine FlowmodeAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%D_por      = auxvar%D_por
   endif
 
-end subroutine FlowmodeAuxVarCopy
+end subroutine MpFlowAuxVarCopy
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAuxVarCompute(x, auxvar,              &
+subroutine MpFlowAuxVarCompute(x, auxvar,              &
                            auxvar_update, global_auxvar, &
                            material_auxvar,              &
                            characteristic_curves,        &
@@ -312,14 +315,14 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
     pres_l = auxvar%air_pressure - pcmax
   endif
   auxvar%pres(LIQUID_PHASE) = pres_l
-  auxvar%pc(LIQUID_PHASE) = max(0.d0, auxvar%air_pressure - pres_l)  ! always non-negative
+  auxvar%pc = max(0.d0, auxvar%air_pressure - pres_l)  ! always non-negative
 
   pcmin  = 0.d0  ! near-saturation PC zone (hint: a small positive value may be helpful ?)
-  if (auxvar%pc(LIQUID_PHASE) <= pcmin) then
-    auxvar%pc(LIQUID_PHASE) = 0.d0
-    dpresl_dp  = 1.d0
+  if (auxvar%pc <= pcmin) then
+    auxvar%pc = 0.d0
+    dpresl_dp = 1.d0
   else
-    dpresl_dp  = 0.d0
+    dpresl_dp = 0.d0
   endif
   !
   auxvar%temp = x(2)
@@ -336,7 +339,7 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
   dp_trunc = 1.d0
 
   ! isothermal, i.e. hydrology only (for simplifying water density calculation)
-  if(option%flow%isothermal_eq) temperature = option%reference_temperature
+  if(option%flow%isothermal) temperature = option%reference_temperature
 
   !--------------------------------------------------------------------
 
@@ -352,7 +355,7 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
   
   ! using modules in 'characteristic_curves.F90' to calculate needed variables:
   ! saturations and derivatives for 3 phases
-  call FlowmodeAuxVarComputeCharacteristicCurves(pres_l, temperature,    &
+  call MpFlowAuxVarComputeCharacteristicCurves(pres_l, temperature,    &
                                            global_auxvar,  auxvar,       &
                                            characteristic_curves,        &
                                            sl,  dsl_dp, dsl_dt,          &
@@ -455,7 +458,7 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
   tcmin = -146.d0
   tcmax = 0.d0
   !---------------
-  call EOSWaterDensityIce(max(tcmin, min(tcmax,temperature)),    &
+  call EOSWaterIceDensity(max(tcmin, min(tcmax,temperature)),    &
                           max(auxvar%air_pressure,pres_l), &
                           den_ice, dden_ice_dt, dden_ice_dp, ierr)
   if(DTRUNC_FLAG) dden_ice_dp = dden_ice_dp * dpresl_dp
@@ -470,9 +473,10 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
   auxvar%D_den_kg(SOLID_PHASE, IFDOF2) = dden_ice_dt*FMWH2O
 
   !--------------
-  call EOSWaterInternalEnergyIce(max(tcmin, min(tcmax,temperature)), &
-                                 u_ice, du_ice_dt)
-  du_ice_dp = 0.d0
+  call EOSWaterIceInternalEnergy(max(tcmin, min(tcmax,temperature)), &
+                                 max(auxvar%air_pressure,pres_l), &
+                                 PETSC_TRUE, &
+                                 u_ice, du_ice_dp, du_ice_dt)
   if(DTRUNC_FLAG .and. (temperature<=tcmin .or. temperature>=tcmax)) du_ice_dt = 0.d0
 
   auxvar%U(SOLID_PHASE)           = u_ice * 1.d-6         ! J/kmol -> MJ/kmol
@@ -505,7 +509,7 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
 
   !----------
   ! NOTE: vapor 'molv_air' is included in 'den_air', 'u_air'
-  ! (because 'molv_air', fraction of vapor in air-mixture, going to be as multiplier in all 'air' calculations in 'flowmode.F90')
+  ! (because 'molv_air', fraction of vapor in air-mixture, going to be as multiplier in all 'air' calculations in 'MpFlow.F90')
 #ifdef NO_VAPOR_DIFFUSION
   molv_air     = 0.d0   ! no vapor assumed in open-air
   dmolv_air_dt = 0.d0
@@ -581,7 +585,7 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
 
 
   ! isothermal, i.e. hydrology only
-  if(option%flow%isothermal_eq) then
+  if(option%flow%isothermal) then
     ! NO thermal conductivity and zeroing thermal states
     auxvar%Dk_eff = 0.d0
     auxvar%H      = 0.d0
@@ -595,7 +599,7 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
   endif
 
  ! thermal process only
-  if(option%flow%only_thermal_eq) then
+  if(option%flow%onlythermal) then
     ! no flow (BUT do allowing water states changing with thermal process, if any)
     auxvar%vis = 0.d0
     auxvar%kvr = 0.d0
@@ -616,10 +620,10 @@ subroutine FlowmodeAuxVarCompute(x, auxvar,              &
     global_auxvar%den_kg = auxvar%den_kg
   endif
 
-end subroutine FlowmodeAuxVarCompute
+end subroutine MpFlowAuxVarCompute
 
 ! ************************************************************************** !
-subroutine FlowmodeAuxVarComputeCharacteristicCurves( presl,  tc,           &
+subroutine MpFlowAuxVarComputeCharacteristicCurves( presl,  tc,           &
                                     global_auxvar, auxvar,                  &
                                     characteristic_curves,                  &
                                     sl,  dsl_dpl, dsl_dt,                   &
@@ -704,7 +708,7 @@ subroutine FlowmodeAuxVarComputeCharacteristicCurves( presl,  tc,           &
 
   !--------------------------------------------------------------------------
   ! if ice module turns on, 3-phase saturation recalculated (liq. and ice)
-  if (option%ice_model /= UNINITIALIZED_INTEGER) then
+  if (option%flow%ice_model /= UNINITIALIZED_INTEGER) then
 
     !----------------
     ! assuming all 'sli' in liq. at first, and separate them later
@@ -727,7 +731,7 @@ subroutine FlowmodeAuxVarComputeCharacteristicCurves( presl,  tc,           &
 
     !----------------
     ! ice satuation and its derivatives
-    select case (option%ice_model)
+    select case (option%flow%ice_model)
       case (PAINTER_EXPLICIT)
 
         funcB = 1.d0
@@ -856,32 +860,32 @@ subroutine FlowmodeAuxVarComputeCharacteristicCurves( presl,  tc,           &
   if(sl/=sl .or. abs(sl)>huge(sl) .or. &
      si/=si .or. abs(si)>huge(si) .or. &
      sg/=sg .or. abs(sg)>huge(sg)) then
-    print *, 'checking Saturation cal. in Flowmode: ', sl, sg, si, presl, pc, ice_presl, pcice
-    option%io_buffer = 'Flowmode with characteristic curve: NaN or INF properties'
+    print *, 'checking Saturation cal. in MpFlow: ', sl, sg, si, presl, pc, ice_presl, pcice
+    option%io_buffer = 'MpFlow with characteristic curve: NaN or INF properties'
     call printErrMsg(option)
   endif
 
   ! Check for bounds on saturations
   if ((sl-1.d0)>1.d-15 .or. sl<-1.d-15) then
     print *, tc, pc, pcice, sli, sl, si, sg
-    option%io_buffer = 'Flowmode with ice mode: LIQUID Saturation error: >1 or <0'
+    option%io_buffer = 'MpFlow with ice mode: LIQUID Saturation error: >1 or <0'
     call printErrMsg(option)
   endif
 
   if ((si-1.d0)>1.d-15 .or. si<-1.d-15) then
     print *, tc, pc, pcice, sli, sl, si, sg
-    option%io_buffer = 'Flowmode with ice mode: ICE Saturation error:  >1 or <0'
+    option%io_buffer = 'MpFlow with ice mode: ICE Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
 
   if ((sg-1.d0)>1.d-15 .or. sg<-1.d-15) then
     print *, tc, pc, pcice, sli, sl, si, sg
-    option%io_buffer = 'Flowmode with ice mode: AIR Saturation error:  >1 or <0'
+    option%io_buffer = 'MpFlow with ice mode: AIR Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
   if (abs((sl + si + sg)-1.d0)>1.d-15) then
     print *, tc, pc, pcice, sli, sl, si, sg
-    option%io_buffer = 'Flowmode with ice mode: Saturation not summed to 1 '
+    option%io_buffer = 'MpFlow with ice mode: Saturation not summed to 1 '
     call printErrMsg(option)
   endif
 
@@ -907,7 +911,7 @@ subroutine FlowmodeAuxVarComputeCharacteristicCurves( presl,  tc,           &
 
 #endif
 
-end subroutine FlowmodeAuxVarComputeCharacteristicCurves
+end subroutine MpFlowAuxVarComputeCharacteristicCurves
 
 
 ! ************************************************************************** !
@@ -1389,9 +1393,9 @@ end subroutine VarporDiffusionDerivative
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAuxVarDestroy(auxvar)
+subroutine MpFlowAuxVarDestroy(auxvar)
   ! 
-  ! Deallocates a Flowmode auxiliary object's auxvar
+  ! Deallocates a MpFlow auxiliary object's auxvar
   ! 
   ! Author: ???
   ! Date: 02/14/08
@@ -1416,13 +1420,13 @@ subroutine FlowmodeAuxVarDestroy(auxvar)
   !if(associated(auxvar)) deallocate(auxvar)
   nullify(auxvar)
   
-end subroutine FlowmodeAuxVarDestroy
+end subroutine MpFlowAuxVarDestroy
 
 ! ************************************************************************** !
 
-subroutine FlowmodeAuxDestroy(aux)
+subroutine MpFlowAuxDestroy(aux)
   ! 
-  ! Deallocates all Flowmode auxiliary objects
+  ! Deallocates all MpFlow auxiliary objects
   ! 
   ! Author: ???
   ! Date: 02/14/08
@@ -1430,7 +1434,7 @@ subroutine FlowmodeAuxDestroy(aux)
 
   implicit none
 
-  type(flowmode_type), pointer :: aux
+  type(MpFlow_type), pointer :: aux
   type(flow_auxvar_type), pointer :: auxvar
   type(flow_parameter_type), pointer :: flow_parameter
   PetscInt :: iaux
@@ -1440,7 +1444,7 @@ subroutine FlowmodeAuxDestroy(aux)
   if (associated(aux%auxvars)) then
     do iaux = 1, size(aux%auxvars)
       auxvar => aux%auxvars(iaux)
-      call FlowmodeAuxVarDestroy(auxvar)
+      call MpFlowAuxVarDestroy(auxvar)
     end do
   endif
   nullify(aux%auxvars)
@@ -1475,6 +1479,6 @@ subroutine FlowmodeAuxDestroy(aux)
   deallocate(aux)
   nullify(aux)  
 
-  end subroutine FlowmodeAuxDestroy
+  end subroutine MpFlowAuxDestroy
 
-end module Flowmode_Aux_module
+end module MpFlow_Aux_module

@@ -9,7 +9,6 @@ module Global_Aux_module
   private 
 
   type, public :: global_auxvar_type
-    PetscInt :: istate
     PetscReal :: temp
     PetscReal, pointer :: pres(:)           ! (nphase)
     PetscReal, pointer :: pres_store(:,:)
@@ -100,7 +99,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
 
   PetscInt :: nphase
   
-  auxvar%istate = 0
   auxvar%temp = 0.d0
 
   ! nullify everthing to begin with and allocate later
@@ -119,7 +117,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   nullify(auxvar%mass_balance)
   nullify(auxvar%mass_balance_delta)
 
-  nphase = option%nphase
+  nphase = option%nfluids
 
   if (option%nflowdof > 0) then
     allocate(auxvar%den(nphase))
@@ -133,8 +131,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   allocate(auxvar%den_kg(nphase))
   auxvar%den_kg = 0.d0
 
-  ! need these for reactive transport only if flow is computed
-  if (option%nflowdof > 0 .and. option%ntrandof > 0) then
+  if (option%nflowdof > 0) then
     allocate(auxvar%sat_store(nphase,TWO_INTEGER))
     auxvar%sat_store = 0.d0
     allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
@@ -142,7 +139,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
   endif
  
   select case(option%iflowmode)
-    case(TH_MODE)
+    case(MPFLOW_MODE)
       allocate(auxvar%xmass(nphase))
       auxvar%xmass = 1.d0
       allocate(auxvar%pres_store(nphase,TWO_INTEGER))
@@ -197,14 +194,13 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   type(global_auxvar_type) :: auxvar, auxvar2
   type(option_type) :: option
 
-  auxvar2%istate = auxvar%istate
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
   auxvar2%den = auxvar%den
   auxvar2%den_kg = auxvar%den_kg
-< auxvar2%dphi = auxvar%dphi
->
+  auxvar2%dphi = auxvar%dphi
+
   if (associated(auxvar2%fugacoeff)) then
     auxvar2%fugacoeff = auxvar%fugacoeff  
   endif
