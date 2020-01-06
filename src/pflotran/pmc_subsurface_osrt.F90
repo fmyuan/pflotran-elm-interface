@@ -390,6 +390,7 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
     enddo
     call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr);CHKERRQ(ierr)
 
+    call MPI_Barrier(option%mycomm,ierr)
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_reaction_time = &
       process_model%cumulative_reaction_time + log_end_time - log_start_time
