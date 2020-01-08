@@ -253,13 +253,31 @@ subroutine CPRSetupT1(ctx,  ierr)
   call MatZeroEntries(ctx%Ap, ierr); CHKERRQ(ierr)
 
   select case(ctx%extract_type)
-    case('QIMPES_VARIABLE')
-       if (b == 3) then
-        ! we have a more efficient version for 3x3 blocks so do that if we can instead
-        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
+    case('ABF')
+      if (b == 2) then
+        call MatGetSubABFImmiscible(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
       else
-        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,  b, ctx)
-      endif
+        ctx%option%io_buffer = 'ABF not available for more than 3 unknowns per cell'
+        call PrintErrMsg(ctx%option)
+      end if
+    case('QIMPES_TWO_UNKNOWNS')
+      call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%factors1vec, ierr, ctx)
+    case('QIMPES_THREE_UNKNOWNS')
+      ! we have a more efficient version for 3x3 blocks so do that if we can instead
+      if (b == 3) then
+        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
+      else  ! talk to Daniel or Paolo to remove this statement - Heeho
+        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
+      end if 
+    case('QIMPES')
+      if (b == 2) then
+        ! more efficient for 2x2 blocks
+        call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%factors1vec, ierr, ctx)
+      else if (b == 3) then
+        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx) 
+      else
+        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
+      end if
     case('QIMPES_VARIABLE_FORCE')
       ! force to use the variables block size implementation even for 3x3 blocks
       call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
@@ -727,6 +745,277 @@ end subroutine DeallocateWorkersInCPRStash
 
 ! end of suplementary setup/init/deinit/routines  
 ! ************************************************************************** !
+
+
+! ************************************************************************** !
+subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
+  ! 
+  ! extraction of the pressure system matrix of for the 
+  ! CPR preconditioner with 
+  ! Alternate Block Factorization (ABF)
+  ! Decoupling method for 2 unknowns (pressure and saturation)
+  
+  ! Author:  Heeho Park
+  ! Date: January 2020.
+
+  ! applies to 2x2 blocks ONLY (composed of Jacobian element, j)
+  ! [j_pp j_ps]
+  ! [j_sp j_ss]
+  
+
+  implicit none
+
+
+  Mat :: A, App
+  Vec :: factors1Vec
+  PetscErrorCode :: ierr
+  type(cpr_pc_type) :: ctx
+
+  PetscInt, dimension(0:0) :: insert_rows
+  ! the elements of the diagonal block:
+  PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
+  ! misc workers:
+  PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf
+  PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
+              first_row, cur_col_index, num_col_blocks, &
+              first_row_index, loop_index, i, j, num_cols
+  PetscMPIInt :: rank, row_start, row_end
+
+
+  ctx%vals = 0.d0
+  ctx%insert_vals = 0.d0
+  ctx%all_vals = 0.d0
+
+  ctx%colIdx = 0
+  ctx%colIdx_keep = 0
+  ctx%insert_colIdx = 0
+
+  call MPI_Comm_Rank(PETSC_COMM_WORLD, rank, ierr)
+  call MatGetOwnershipRange(A, row_start, row_end, ierr); CHKERRQ(ierr)
+  call MatGetBlockSize(A,block_size,ierr); CHKERRQ(ierr)
+  call MatGetSize(A, rows, cols, ierr); CHKERRQ(ierr)
+  if (rows /= cols) then
+     ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
+    call PrintErrMsg(ctx%option)
+  endif
+  num_blocks = rows/block_size
+  num_blocks_local = (row_end-row_start)/block_size
+
+
+  ! loop over the row blocks
+  do i = 0,num_blocks_local-1
+
+    first_row = i*block_size + row_start
+
+    ! a) extract [j_pp j_ps] of the diagonal block
+    !    and all the values of the first row
+    call MatGetRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ! a.1) store all the values in the first row and their indices
+      ctx%all_vals(0, j) = ctx%vals(j)
+      ctx%colIdx_keep(j) = ctx%colIdx(j)
+    end do
+   
+    first_row_index = -1
+    do loop_index = 0,num_cols-1,block_size
+      if (ctx%colIdx(loop_index) == first_row) then
+        first_row_index = loop_index
+      endif
+    enddo
+   
+    if (first_row_index == -1) then
+      ctx%option%io_buffer = 'MatGetSubQIMPESImmiscible, cannot find &
+                              &diagonal entry, check matrix.'
+      call PrintErrMsg(ctx%option)
+    endif
+
+    ! a.2) extract j_pp j_ps
+    j_pp = ctx%vals(first_row_index)
+    j_ps = ctx%vals(first_row_index+1)
+    
+    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
+    CHKERRQ(ierr)
+
+    ! b) extract second row
+    call MatGetRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, ctx%vals, &
+                  ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ctx%all_vals(1, j) = ctx%vals(j)
+    end do
+
+    ! b.1) extract [j_sp j_ss] and invert the value
+    j_sp = ctx%vals(first_row_index)
+    j_ss = ctx%vals(first_row_index+1)
+    lambda_inv = 1.0d0/(j_pp*j_ss-j_ps*j_sp)
+
+    ! b.2) apply decoupling to pressure block only
+    !     (it is possible to extract saturation as well)
+    d_ss_abf = lambda_inv*j_ss
+    d_ps_abf = lambda_inv*j_ps
+    
+    num_col_blocks = num_cols/block_size
+    call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
+                       ctx%vals, ierr); CHKERRQ(ierr)
+
+    ! c) set factors to 1.0 (we don't use factors1Vec in this subroutine)
+    call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
+
+    ! g) prepare to set values
+    insert_rows = i + row_start/block_size
+    do j = 0,num_col_blocks-1
+      cur_col_index = j*block_size
+      ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
+
+      ! App - Dps*Dss*Asp
+      ctx%insert_vals(j) = d_ss_abf*ctx%all_vals(0,cur_col_index) &
+                           - d_ps_abf*ctx%all_vals(1,cur_col_index)
+    end do
+
+    ! h) set values
+    call MatSetValues(App, 1, insert_rows, num_col_blocks, &
+                      ctx%insert_colIdx(0:num_col_blocks-1), &
+                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+  end do
+
+  call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+  call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+
+  call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
+
+end subroutine MatGetSubABFImmiscible
+
+
+! ************************************************************************** !
+
+subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
+  ! 
+  ! extraction of the pressure system matrix of for the 
+  ! CPR preconditioner with 
+  ! Quasi Implicit Pressure Explicit Saturation (IMPES)
+  ! Decoupling method for 2 unknowns (pressure and saturation)
+  
+  ! Author:  Heeho Park
+  ! Date: January 2020.
+
+  ! applies to 2x2 blocks ONLY (composed of Jacobian element, j)
+  ! [j_pp j_ps]
+  ! [j_sp j_ss]
+  
+
+  implicit none
+
+
+  Mat :: A, App
+  Vec :: factors1Vec
+  PetscErrorCode :: ierr
+  type(cpr_pc_type) :: ctx
+
+  PetscInt, dimension(0:0) :: insert_rows
+  ! the elements of the diagonal block:
+  PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
+  ! misc workers:
+  PetscReal :: j_ps, j_ss, j_ss_inv
+  PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
+              first_row, cur_col_index, num_col_blocks, &
+              first_row_index, loop_index, i, j, num_cols
+  PetscMPIInt :: rank, row_start, row_end
+
+
+  ctx%vals = 0.d0
+  ctx%insert_vals = 0.d0
+  ctx%all_vals = 0.d0
+
+  ctx%colIdx = 0
+  ctx%colIdx_keep = 0
+  ctx%insert_colIdx = 0
+
+  call MPI_Comm_Rank(PETSC_COMM_WORLD, rank, ierr)
+  call MatGetOwnershipRange(A, row_start, row_end, ierr); CHKERRQ(ierr)
+  call MatGetBlockSize(A,block_size,ierr); CHKERRQ(ierr)
+  call MatGetSize(A, rows, cols, ierr); CHKERRQ(ierr)
+  if (rows /= cols) then
+     ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
+    call PrintErrMsg(ctx%option)
+  endif
+  num_blocks = rows/block_size
+  num_blocks_local = (row_end-row_start)/block_size
+
+
+  ! loop over the row blocks
+  do i = 0,num_blocks_local-1
+
+    first_row = i*block_size + row_start
+
+    ! a) extract j_ps of the diagonal block and all the values of the first row
+    call MatGetRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ! a.1) store all the values in the first row and their indices
+      ctx%all_vals(0, j) = ctx%vals(j)
+      ctx%colIdx_keep(j) = ctx%colIdx(j)
+    end do
+   
+    first_row_index = -1
+    do loop_index = 0,num_cols-1,block_size
+      if (ctx%colIdx(loop_index) == first_row) then
+        first_row_index = loop_index
+      endif
+    enddo
+   
+    if (first_row_index == -1) then
+      ctx%option%io_buffer = 'MatGetSubQIMPESImmiscible, cannot find &
+                              &diagonal entry, check matrix.'
+      call PrintErrMsg(ctx%option)
+    endif
+
+    ! a.2) extract j_ps
+    j_ps = ctx%vals(first_row_index+1)  
+    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
+    CHKERRQ(ierr)
+
+    ! b) extract second row
+    call MatGetRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, ctx%vals, &
+                  ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ctx%all_vals(1, j) = ctx%vals(j)
+    end do
+
+    ! b.1) extract j_ss and invert the value
+    j_ss = ctx%vals(first_row_index+1)
+    j_ss_inv = 1.d0/j_ss
+    num_col_blocks = num_cols/block_size
+    call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
+                       ctx%vals, ierr); CHKERRQ(ierr)
+
+    ! c) set factors to 1.0 (we don't use factors1Vec in this subroutine)
+    call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
+
+    ! g) prepare to set values
+    insert_rows = i + row_start/block_size
+    do j = 0,num_col_blocks-1
+      cur_col_index = j*block_size
+      ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
+
+      ! App - Dps*Dss*Asp
+      ctx%insert_vals(j) = ctx%all_vals(0,cur_col_index) &
+                           - j_ps*j_ss_inv*ctx%all_vals(1,cur_col_index)
+    end do
+
+    ! h) set values
+    call MatSetValues(App, 1, insert_rows, num_col_blocks, &
+                      ctx%insert_colIdx(0:num_col_blocks-1), &
+                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+  end do
+
+  call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+  call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+
+  call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
+
+end subroutine MatGetSubQIMPESImmiscible
 
 
 ! ************************************************************************** !

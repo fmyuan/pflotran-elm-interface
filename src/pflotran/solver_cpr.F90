@@ -98,10 +98,16 @@ subroutine SolverCPRRead(stash, input, option, ierr)
         call InputErrorMsg(input,option,'cpr_extraction_type','CPR OPTIONS')
         call StringToUpper(word)
         select case(trim(word))
-          case('QIMPES_VARIABLE')
-            stash%T1_type = 'QIMPES_VARIABLE'
+          case('ABF')
+            stash%extract_type = 'ABF'
+          case('QIMPES_WIPP','QIMPES_IMMISCIBLE','QIMPES_TWO_UNKNOWNS')
+            stash%extract_type = 'QIMPES_TWO_UNKNOWNS'
+          case('QIMPES_VARIABLE','QIMPES_THREE_UNKNOWNS')
+            stash%extract_type = 'QIMPES_THREE_UNKNOWNS'
+          case('QIMPES','QIMPES_ANY_UNKNOWNS','QIMPES_ANY_UNKNOWN')
+            stash%extract_type = 'QIMPES'
           case('QIMPES_VARIABLE_FORCE')
-            stash%T1_type = 'QIMPES_VARIABLE_FORCE'
+            stash%extract_type = 'QIMPES_VARIABLE_FORCE'
           case default
             option%io_buffer  = 'CPR Extraction type: ' // trim(word) // &
                                 ' unknown.'
@@ -485,7 +491,7 @@ subroutine SolverCPRInitializeStorage(ctx)
 
   ctx%T1_type = "NONE"
   ctx%T2_type = "Jacobi"
-  ctx%extract_type = "QIMPES_VARIABLE"
+  ctx%extract_type = "QIMPES"
 
   ctx%asmfactorinplace = PETSC_FALSE
   ctx%t2shiftinblocks = PETSC_FALSE
