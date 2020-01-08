@@ -866,7 +866,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
       cur_col_index = j*block_size
       ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
 
-      ! App - Dps*Dss*Asp
+      ! lam_inv*Dss*App-lam_inv*Dps*Asp
       ctx%insert_vals(j) = d_ss_abf*ctx%all_vals(0,cur_col_index) &
                            - d_ps_abf*ctx%all_vals(1,cur_col_index)
     end do
