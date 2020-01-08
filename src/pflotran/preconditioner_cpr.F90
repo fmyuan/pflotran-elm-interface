@@ -789,6 +789,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
   ctx%colIdx = 0
   ctx%colIdx_keep = 0
   ctx%insert_colIdx = 0
+  num_cols = 0
 
   call MPI_Comm_Rank(PETSC_COMM_WORLD, rank, ierr)
   call MatGetOwnershipRange(A, row_start, row_end, ierr); CHKERRQ(ierr)
@@ -857,10 +858,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
 
-    ! c) set factors to 1.0 (we don't use factors1Vec in this subroutine)
-    call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
-
-    ! g) prepare to set values
+    ! c) prepare to set values
     insert_rows = i + row_start/block_size
     do j = 0,num_col_blocks-1
       cur_col_index = j*block_size
@@ -871,7 +869,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
                            - d_ps_abf*ctx%all_vals(1,cur_col_index)
     end do
 
-    ! h) set values
+    ! d) set values
     call MatSetValues(App, 1, insert_rows, num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
@@ -881,6 +879,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
   call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
   call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
 
+  call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
   call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
 
@@ -930,6 +929,7 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
   ctx%colIdx = 0
   ctx%colIdx_keep = 0
   ctx%insert_colIdx = 0
+  num_cols = 0
 
   call MPI_Comm_Rank(PETSC_COMM_WORLD, rank, ierr)
   call MatGetOwnershipRange(A, row_start, row_end, ierr); CHKERRQ(ierr)
@@ -988,10 +988,7 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
 
-    ! c) set factors to 1.0 (we don't use factors1Vec in this subroutine)
-    call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
-
-    ! g) prepare to set values
+    ! c) prepare to set values
     insert_rows = i + row_start/block_size
     do j = 0,num_col_blocks-1
       cur_col_index = j*block_size
@@ -1002,7 +999,7 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
                            - j_ps*j_ss_inv*ctx%all_vals(1,cur_col_index)
     end do
 
-    ! h) set values
+    ! d) set values
     call MatSetValues(App, 1, insert_rows, num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
@@ -1011,7 +1008,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
 
   call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
   call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
-
+  
+  call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
   call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
 
