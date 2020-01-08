@@ -4024,7 +4024,7 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
   else if ((1.d0 - liquid_saturation) <= this%Srg) then
     relative_permeability = 0.d0
   else if (this%Srg > 0.d0) then
-    if (liquid_satuation < this%Sr) then
+    if (liquid_saturation < this%Sr) then
       relative_permeability = 1.d0
     else
       Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
