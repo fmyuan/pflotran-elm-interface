@@ -1372,6 +1372,19 @@ subroutine QIRHS(factors, worker, r, rhat, ierr)
 
   PetscInt :: b, k
 
+  ! Explanation:
+  ! residual = [p1,s1,t1,p2,s2,t2, ... pn,sn,tn] 
+  ! as in pressure saturation temperature
+  ! factors = [fac0_1,fac1_1,fac2_1,fac0_2,fac1_2,fac2_3 ... ]
+  ! fac could be j_ps*inv(j_ss)
+  ! multipily factor to residual element by element
+  ! worker =  [p1*fac0_1,s1*fac1_1,t1*fac2_1 ... ]
+  ! then VecStrideGather collapses the results applying addition
+  ! rhat[1] = p1*fac0_1 + s1*fac1_1 + t1*fac2_1
+  ! rhat[2] = p2*fac0_2 + s2*fac1_2 + t2*fac2_2
+  ! so that size(rhat) = size(r)/b
+  ! - Heeho Park
+  
   call VecPointwiseMult(worker, factors, r, ierr);CHKERRQ(ierr)
   call VecGetBlockSize(worker,b,ierr); CHKERRQ(ierr)
   k = 0
