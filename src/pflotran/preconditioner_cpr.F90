@@ -775,7 +775,8 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
   ! the elements of the diagonal block:
   PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
   ! misc workers:
-  PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf
+  PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf, &
+               fac0, fac1
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
               first_row_index, loop_index, i, j, num_cols
@@ -849,27 +850,32 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
     j_ss = ctx%vals(first_row_index+1)
     lambda_inv = 1.0d0/(j_pp*j_ss-j_ps*j_sp)
 
-    ! b.2) apply decoupling to pressure block only
-    !     (it is possible to extract saturation as well)
-    d_ss_abf = lambda_inv*j_ss
-    d_ps_abf = lambda_inv*j_ps
-    
+    ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
+    ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
+    fac0 = lambda_inv*j_ss
+    fac1 = -lambda_inv*j_ps
+    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+
     num_col_blocks = num_cols/block_size
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
 
-    ! c) prepare to set values
+    ! d) prepare to set values
     insert_rows = i + row_start/block_size
     do j = 0,num_col_blocks-1
       cur_col_index = j*block_size
       ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
 
       ! lam_inv*Dss*App-lam_inv*Dps*Asp
-      ctx%insert_vals(j) = d_ss_abf*ctx%all_vals(0,cur_col_index) &
-                           - d_ps_abf*ctx%all_vals(1,cur_col_index)
+      ! apply decoupling to the left hand side
+      ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
+                           + fac1*ctx%all_vals(1,cur_col_index)
     end do
 
-    ! d) set values
+    ! e) set values
     call MatSetValues(App, 1, insert_rows, num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
@@ -879,7 +885,6 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
   call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
   call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
 
-  call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
   call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
 
@@ -915,7 +920,7 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
   ! the elements of the diagonal block:
   PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
   ! misc workers:
-  PetscReal :: j_ps, j_ss, j_ss_inv
+  PetscReal :: j_ps, j_ss, j_ps_j_ss_inv, fac0, fac1
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
               first_row_index, loop_index, i, j, num_cols
@@ -981,25 +986,35 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
       ctx%all_vals(1, j) = ctx%vals(j)
     end do
 
-    ! b.1) extract j_ss and invert the value
+    ! b.1) extract j_sp, j_ss and invert the value
     j_ss = ctx%vals(first_row_index+1)
-    j_ss_inv = 1.d0/j_ss
+    j_ps_j_ss_inv = j_ps*1.d0/j_ss
     num_col_blocks = num_cols/block_size
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
-
-    ! c) prepare to set values
+                       
+    ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
+    ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
+    fac0 = 1.d0
+    fac1 = -j_ps_j_ss_inv
+    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+   
+    ! d) prepare to set values
     insert_rows = i + row_start/block_size
     do j = 0,num_col_blocks-1
       cur_col_index = j*block_size
       ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
 
+      ! Apply decoupling to the left hand side matrix
       ! App - Dps*Dss*Asp
       ctx%insert_vals(j) = ctx%all_vals(0,cur_col_index) &
-                           - j_ps*j_ss_inv*ctx%all_vals(1,cur_col_index)
+                           - j_ps_j_ss_inv*ctx%all_vals(1,cur_col_index)
     end do
 
-    ! d) set values
+    ! e) set values
     call MatSetValues(App, 1, insert_rows, num_col_blocks, &
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
@@ -1009,7 +1024,6 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
   call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
   call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
   
-  call VecSet(factors1Vec, 1.d0, ierr); CHKERRQ(ierr)
   call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
 
