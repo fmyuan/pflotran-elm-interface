@@ -4011,8 +4011,6 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
 
   relative_permeability = 0.d0
   dkr_sat = 0.d0
-  dkr_sat = dkr_sat / 0.d0
-  dkr_sat = dkr_sat * 0.d0
   
                  ! essentially zero
   if (this%Srg <= 0.d0) then
