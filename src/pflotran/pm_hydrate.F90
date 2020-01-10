@@ -182,6 +182,7 @@ function PMHydrateCreate()
   this%converged_cell(:,:,:) = 0
 
   allocate(this%hydrate_parameters)
+  nullify(this%hydrate_parameters%methanogenesis)
 
   PMHydrateCreate => this
   
