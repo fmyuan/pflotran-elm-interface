@@ -3030,6 +3030,8 @@ subroutine PMWSSUpdateRadInventory(wp)
 
   type(srcsink_panel_type) :: wp
 
+  if (.not.associated(wp%rad_inventory%mass)) return
+
   wp%rad_inventory%mass(:) = wp%new_rad_inventory%mass(:)
 
 end subroutine PMWSSUpdateRadInventory
@@ -3484,19 +3486,20 @@ end subroutine PMWSSUpdateChemSpecies
 
         ! Radiolysis calculation
 
-        h2_produced_rad = 0.d0
-        brine_consumed_rad = 0.d0
-        call Radiolysis(cwp,wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
-                        material_auxvars(ghosted_id), option%time, dt, &
-                        wippflo_radiolysis, this%radiolysis_parameters, &
-                        this%salt_wtpercent, h2_produced_rad, &
-                        brine_consumed_rad)
-        cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
+        if (wippflo_radiolysis) then
+          h2_produced_rad = 0.d0
+          brine_consumed_rad = 0.d0
+          call Radiolysis(cwp,wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
+                          material_auxvars(ghosted_id), option%time, dt, &
+                          this%radiolysis_parameters, &
+                          this%salt_wtpercent, h2_produced_rad, &
+                          brine_consumed_rad)
+          cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
                                      h2_produced_rad / MW_H2
-        ! MAN: need to only take water out of the brine?
-        cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
+          ! MAN: need to only take water out of the brine?
+          cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
                                         brine_consumed_rad / MW_H2O
-                        
+        endif              
       !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
       !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
         
@@ -4701,7 +4704,7 @@ end subroutine PMWSSChemSpeciesDeallocate
 ! *************************************************************************** !
 
 subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
-                      with_radiolysis, radiolysis_parameters, salt_wtpercent, &
+                      radiolysis_parameters, salt_wtpercent, &
                       h2_produced, brine_consumed)
 
   ! Computes H2 production and brine consumption by radiolysis as a 
@@ -4722,7 +4725,6 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   class(material_auxvar_type) :: material_auxvar
   type(srcsink_panel_type) :: wp
   PetscReal :: time, dt
-  PetscBool :: with_radiolysis
   type(radiolysis_parameter_type) :: radiolysis_parameters
   PetscReal :: salt_wtpercent, h2_produced, brine_consumed
   
@@ -4762,8 +4764,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   radiolysis_start = 0.d0 ! TIMEICRESET in Bragflo
   lid = 1
   
-  if (.not. with_radiolysis .or. time < radiolysis_start .or. &
-      rad_inventory%name == '') return
+  if (time < radiolysis_start .or. rad_inventory%name == '') return
   
   num_species = rad_inventory%num_species
   brine_saturation = wippflo_auxvar%sat(lid)
