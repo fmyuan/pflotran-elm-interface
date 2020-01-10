@@ -343,6 +343,7 @@ module PM_WIPP_SrcSink_class
     character(len=MAXWORDLENGTH) :: canister_inventory_name
 
     type(rad_inventory_type), pointer :: rad_inventory
+    type(rad_inventory_type), pointer :: new_rad_inventory
     PetscInt :: n_isotopes
 
     PetscReal, pointer :: scaling_factor(:)        
@@ -613,7 +614,9 @@ function PMWSSWastePanelCreate()
   call PMWSSInventoryInit(panel%canister_inventory)
   
   nullify(panel%rad_inventory)
+  nullify(panel%new_rad_inventory)
   call PMWSSRadInventoryInit(panel%rad_inventory)
+  call PMWSSRadInventoryInit(panel%new_rad_inventory)
   
   panel%name = ''
   panel%region_name = ''
@@ -1062,6 +1065,10 @@ subroutine PMWSSAssociateRadInventory(this)
       if (StringCompare(cur_rad_inventory%name, cur_waste_panel% &
                         rad_inventory%name)) then
         call PMWSSCopyRadInv(cur_rad_inventory,cur_waste_panel%rad_inventory)
+        call PMWSSCopyRadInv(cur_rad_inventory,cur_waste_panel%&
+                             new_rad_inventory)
+        cur_waste_panel%new_rad_inventory%name = cur_waste_panel%&
+                                                 rad_inventory%name
         exit
         
       endif
@@ -3008,6 +3015,24 @@ subroutine PMWSSUpdateInventory(waste_panel,dt,option)
        waste_panel%canister_inventory%MgCO3_s%molar_mass))/DN_MGCO3)
                                       
  end subroutine PMWSSUpdateInventory
+
+! *************************************************************************** !
+
+subroutine PMWSSUpdateRadInventory(wp)
+
+  ! Updates the radionuclide inventory in a waste panel.
+  ! 
+  ! Author: Michael Nole
+  ! Date: 01/07/20
+  !
+
+  implicit none
+
+  type(srcsink_panel_type) :: wp
+
+  wp%rad_inventory%mass(:) = wp%new_rad_inventory%mass(:)
+
+end subroutine PMWSSUpdateRadInventory
  
 ! *************************************************************************** !
 
@@ -3804,9 +3829,10 @@ subroutine PMWSSFinalizeTimestep(this)
   do
     if (.not.associated(cur_waste_panel)) exit
     call PMWSSUpdateInventory(cur_waste_panel,option%flow_dt,option)
+    call PMWSSUpdateRadInventory(cur_waste_panel)
     cur_waste_panel => cur_waste_panel%next
   enddo
-  
+ 
   ! write data to *.pnl output files from previous time step
   if (option%time >= this%output_start_time) then
     call PMWSSOutput(this)
@@ -4676,12 +4702,14 @@ end subroutine PMWSSChemSpeciesDeallocate
 
 subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
                       with_radiolysis, radiolysis_parameters, salt_wtpercent, &
-                      h2_produced, &
-                      brine_consumed)
+                      h2_produced, brine_consumed)
 
-  ! Computes H2 production and brine consumption by radiolysis, 
-  ! following the RADIOLYSIS subroutine from Bragflo
-  ! 
+  ! Computes H2 production and brine consumption by radiolysis as a 
+  ! function of radionuclide inventory in the waste form, and  
+  ! decays the radionulcide inventory in the waste form. Following
+  ! the implementation of radiolysis and waste form radionuclide decay
+  ! in BRAGFLO.
+  !
   ! Author: Michael Nole
   ! Date: 10/08/19
   
@@ -4705,31 +4733,31 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
 ! 
   PetscReal :: radiolysis_start
 
-  !MAN: Note this subroutine is called for each cell in a waste panel.
-  !     I think this looping is fine as is.
-
   !MAN: need to make all of these variable names more descriptive and
   !     organize them better
   PetscReal :: wmbrrad,brine_vol
-  ! these vectors are of size nrad
-  PetscReal, pointer :: rthalf(:),radex(:)
-  PetscReal, pointer :: s_mass(:) 
-  ! radionuclide inventory, size nrad
-  PetscReal, pointer :: radin(:)
 
-  PetscReal, pointer :: xold(:), xnew(:), xavg(:), xtot(:), xmol(:)
-  PetscReal :: xmult
+  ! MAN: not sure this is the most elegant way...
+  PetscReal :: rthalf(wp%rad_inventory%num_species), &
+               radex(wp%rad_inventory%num_species), &
+               xold(wp%rad_inventory%num_species), &
+               xnew(wp%rad_inventory%num_species), &
+               xavg(wp%rad_inventory%num_species), &
+               xtot(wp%rad_inventory%num_species), &
+               xmol(wp%rad_inventory%num_species), &
+               H(wp%rad_inventory%num_species)
+  PetscReal :: xmult, brine_saturation
   PetscReal :: h2_source
+  PetscReal :: isotope_in_solution, isotope_in_solid, isotope_mf
 
   PetscInt :: nx,ny,nz
   PetscInt :: idni,id1,id2,id3,id4,idx,idx1
   PetscInt :: lid
  
-  PetscReal, pointer :: idaug(:),idion(:),thalf(:),H(:) 
-
   PetscInt :: num_species
-  
-  rad_inventory => wp%rad_inventory
+ 
+  wp%new_rad_inventory%mass(:) = wp%rad_inventory%mass(:)
+  rad_inventory => wp%new_rad_inventory
       
   radiolysis_start = 0.d0 ! TIMEICRESET in Bragflo
   lid = 1
@@ -4738,17 +4766,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
       rad_inventory%name == '') return
   
   num_species = rad_inventory%num_species
-  
-  allocate(rthalf(num_species))
-  allocate(radex(num_species))
-  allocate(xnew(num_species))
-  allocate(xold(num_species))
-  allocate(xavg(num_species))
-  allocate(xtot(num_species))
-  allocate(xmol(num_species))
-  allocate(s_mass(num_species))
-  allocate(H(num_species))
-  
+  brine_saturation = wippflo_auxvar%sat(lid)
+
   xold(:) = rad_inventory%mass(:)
   xnew(:) = xold(:)
   
@@ -4789,7 +4808,6 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
       ! ID2: second generation daughter ID
       ! ID3: third generation daughter ID
       ! ID4: fourth generation daughter ID
-      
     
       id1 = i
       id2 = 0
@@ -4797,7 +4815,6 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
       id4 = 0
       
       H(1) = rad_inventory%half_life(id1)
-      
       
       if (rad_inventory%daughter_id(id1) /= '') then
       
@@ -5030,7 +5047,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   where (xmol > xtot*0.9999d0) xmol=xtot
   
   h2_source = 0.d0
-  xavg = xnew
+  !xavg = xnew
   
   do i = 1,num_species
   
@@ -5038,9 +5055,19 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
         mass(i) > 0.d0) then
       
       ! total amount of H2 produced over a time step [mol]
-      
-      h2_source = h2_source + xavg(i)/xtot(rad_inventory%element_id(i)) * &
-                  xmol(rad_inventory%element_id(i)) * &
+
+      ! mole fraction of isotope in element inventory
+      isotope_mf = xavg(i)/xtot(rad_inventory%element_id(i))
+
+      ! amount of isotope in solution [mol]
+      isotope_in_solution = xmol(rad_inventory%element_id(i)) * isotope_mf
+
+      ! amount of isotope in wetted solid [mol]
+      isotope_in_solid = max(0.d0, xavg(i) - isotope_in_solution)
+
+      h2_source = h2_source + (isotope_in_solution + &
+                  isotope_in_solid * brine_saturation * &
+                  radiolysis_parameters%gdepfac) * &
                   log(2.d0)/rad_inventory%half_life(i) * &
                   rad_inventory%disintegration_energy(i) * &
                   radiolysis_parameters%gh2avg * dt
@@ -5049,9 +5076,6 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   
   enddo
   
-  ! BRAGFLO does this here (doesn't make sense given what comes later): 
-  ! xold = xnew
- 
   ! End of RADIOLYSIS subroutine execution from Bragflo
  
   ! Calculate gas produced and brine consumed
