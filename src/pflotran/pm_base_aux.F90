@@ -2,7 +2,6 @@ module PM_Base_Aux_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use AuxVars_Base_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -18,14 +17,6 @@ module PM_Base_Aux_module
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
 
-    !if required to operate with auxvar_base objects use pointers below
-    !they must point to doughter classes auxvars (e.g. see: well_flow, well_flow_eenergy) 
-    !class(auxvar_base_type), pointer :: auxvars_base(:,:)
-    !class(auxvar_base_type), pointer :: auxvars_bc_base(:)
-    !class(auxvar_base_type), pointer :: auxvars_ss_base(:)
-    !gfrotran 4.8.4 bugs. class arrays cannot be passed corretly as dummy arguments
-    ! workaround: covert type ouside calling fucntion using a class pointers
-    ! and use compatible "type()" to declair the dummy arguments in the called function. 
   contains
     !add here type-bound-procedure
   end type pm_base_aux_type
@@ -55,9 +46,6 @@ subroutine PMBaseAuxInit(this)
   this%num_aux = 0
   this%num_aux_bc = 0
   this%num_aux_ss = 0
-  !nullify(this%auxvars_base)
-  !nullify(this%auxvars_bc_base)
-  !nullify(this%auxvars_ss_base)
   this%n_inactive_rows = 0
   nullify(this%inactive_rows_local)
   nullify(this%inactive_rows_local_ghosted)

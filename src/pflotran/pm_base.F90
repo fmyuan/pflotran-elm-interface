@@ -265,7 +265,7 @@ end function PMBaseFunctionThisOnly
 subroutine PMBaseComputeMassBalance(this,mass_balance_array)
   implicit none
   class(pm_base_type) :: this
-  PetscReal :: mass_balance_array(:)
+  PetscReal, pointer :: mass_balance_array(:,:)
   print *, 'Must extend PMBaseComputeMassBalance for: ' // trim(this%name)
   stop
 end subroutine PMBaseComputeMassBalance

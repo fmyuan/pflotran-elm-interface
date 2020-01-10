@@ -1,10 +1,11 @@
 module AuxVars_Flow_Energy_module
 
+  ! variables of flow model Extended for flow with thermal processes
+
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
 
-  use AuxVars_Base_module
   use AuxVars_Flow_module
 
   implicit none
@@ -12,12 +13,13 @@ module AuxVars_Flow_Energy_module
   private 
 
   type, public, extends(auxvar_flow_type) :: auxvar_flow_energy_type
-    PetscReal :: temp
-    PetscReal, pointer :: H(:) ! MJ/kmol
-    PetscReal, pointer :: U(:) ! MJ/kmol
+    ! note: temperature in oC (tc) derived from 'global_auxvar_type'
+    PetscReal :: TK            ! in Kevin, assuming ONE value for all 'fluids'
+    PetscReal, pointer :: H(:) ! (nfluid+1) enthalpy in MJ/kmol , with 1 more dimension for when (liq_ or air_)fluid phase-changes to the solid or immobile
+    PetscReal, pointer :: U(:) ! (nfluid+1) internal energy in MJ/kmol
 
-    PetscReal, pointer :: D_H(:,:) ! MJ/kmol
-    PetscReal, pointer :: D_U(:,:) ! MJ/kmol
+    PetscReal, pointer :: D_H(:,:) !  (nfluid+1, nflowdof) MJ/kmol
+    PetscReal, pointer :: D_U(:,:) !  (nfluid+1, nflowdof) MJ/kmol
   contains
    !..............
   end type auxvar_flow_energy_type
@@ -29,112 +31,112 @@ module AuxVars_Flow_Energy_module
 contains
 
 ! ************************************************************************** !
-subroutine AuxVarFlowEnergyInit(this,option)
+subroutine AuxVarFlowEnergyInit(auxvar,option)
   ! 
   ! Initialise energy auxiliary variables
   ! 
-  ! Author: Paolo Orsini
-  ! Date: 11/07/16
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
   ! 
 
   use Option_module
 
   implicit none
 
-  class(auxvar_flow_energy_type) :: this
+  class(auxvar_flow_energy_type) :: auxvar
   type(option_type) :: option
+  PetscInt:: nfluid, nflowdof
 
-  this%temp = 0.d0
-  allocate(this%H(option%nfluids))
-  this%H = 0.d0
-  allocate(this%U(option%nfluids))
-  this%U = 0.d0
+  call AuxVarFlowInit(auxvar, option)
 
-  nullify(this%D_H)
-  nullify(this%D_U)
+  auxvar%TK = auxvar%tc+TC2TK
 
-  this%has_derivs = PETSC_FALSE
-  if (.not.option%flow%numerical_derivatives) then
-    this%has_derivs = PETSC_TRUE
-    allocate(this%D_H(option%nfluids,option%nflowdof))
-    this%D_H = 0.d0
-    allocate(this%D_U(option%nfluids,option%nflowdof))
-    this%D_U = 0.d0
+  nullify(auxvar%H)
+  nullify(auxvar%U)
+
+  nfluid = option%flow%nfluid
+  if(option%iflowmode > 0 .and. nfluid > 0) then
+    allocate(auxvar%H(nfluid+1))
+    auxvar%H = 0.d0
+    allocate(auxvar%U(nfluid+1))
+    auxvar%U = 0.d0
   endif
 
-  call AuxVarFlowInit(this, option)
+  nullify(auxvar%D_H)
+  nullify(auxvar%D_U)
+  nflowdof = option%nflowdof
+  if (.not.option%flow%numerical_derivatives) then
+    auxvar%has_derivs = PETSC_TRUE    ! not needed, but just in case
+
+    allocate(auxvar%D_H(nfluid+1,nflowdof))
+    auxvar%D_H = 0.d0
+    allocate(auxvar%D_U(nfluid+1,nflowdof))
+    auxvar%D_U = 0.d0
+  endif
+
 
 end subroutine AuxVarFlowEnergyInit
 
 ! ************************************************************************** !
-subroutine AuxVarFlowEnergyCopy(auxvar, auxvar2,option)
+subroutine AuxVarFlowEnergyCopy(auxvar, auxvar2)
   !
   ! dupliacate energy auxiliary variables
   !
-  ! Author: Paolo Orsini
-  ! Date: 11/07/16
-  !
-
-  use Option_module
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !  !
 
   implicit none
 
-  type(auxvar_flow_energy_type) :: auxvar
-  type(auxvar_flow_energy_type) :: auxvar2
+  class(auxvar_flow_energy_type) :: auxvar
+  class(auxvar_flow_energy_type) :: auxvar2
 
-  type(option_type) :: option
+  ! flow variables
+  call AuxVarFlowCopy(auxvar, auxvar2)
 
-  auxvar2%temp = auxvar%temp
-  auxvar2%H = auxvar%H
-  auxvar2%U = auxvar%U
+  !
+  auxvar2%TK = auxvar%TK
+  if (associated(auxvar%H)) &
+    auxvar2%H  = auxvar%H
+  if (associated(auxvar%U)) &
+    auxvar2%U  = auxvar%U
+
   auxvar2%has_derivs = auxvar%has_derivs
-  if(auxvar%has_derivs) then
+
+  if (associated(auxvar%D_H)) &
     auxvar2%D_H = auxvar%D_H
+  if (associated(auxvar%D_U)) &
     auxvar2%D_U = auxvar%D_U
-  endif
 
-  auxvar2%pres = auxvar%pres
-  auxvar2%pc = auxvar%pc
-  auxvar2%sat = auxvar%sat
-  auxvar2%den = auxvar%den
-  auxvar2%den_kg = auxvar%den_kg
-  auxvar2%mobility = auxvar%mobility
-  auxvar2%viscosity = auxvar%viscosity
-
-  if (auxvar%has_derivs) then
-    auxvar2%D_pres = auxvar%D_pres
-    auxvar2%D_sat  = auxvar%D_sat
-    auxvar2%D_pc   = auxvar%D_pc
-    auxvar2%D_den  = auxvar%D_den
-    auxvar2%D_den_kg   = auxvar%D_den_kg
-    auxvar2%D_mobility = auxvar%D_mobility
-    auxvar2%D_por      = auxvar%D_por
-  endif
 
 end subroutine AuxVarFlowEnergyCopy
 
 ! ************************************************************************** !
 
-subroutine AuxVarFlowEnergyStrip(this)
+subroutine AuxVarFlowEnergyStrip(auxvar)
   ! 
   ! AuxVarFlowDestroy: Deallocates a toil_ims auxiliary object
   ! 
-  ! Author: Paolo Orsini
-  ! Date: 8/5/16
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
   ! 
   use Utility_module, only : DeallocateArray
 
   implicit none
 
-  class(auxvar_flow_energy_type) :: this
+  class(auxvar_flow_energy_type) :: auxvar
 
-  call DeallocateArray(this%H)  
-  call DeallocateArray(this%U)  
+  call DeallocateArray(auxvar%H)
+  call DeallocateArray(auxvar%U)
 
-  call DeallocateArray(this%D_H)  
-  call DeallocateArray(this%D_U)
+  if (auxvar%has_derivs) then
+    call DeallocateArray(auxvar%D_H)
+    call DeallocateArray(auxvar%D_U)
+  endif
 
-  call AuxVarFlowStrip(this)
+  call AuxVarFlowStrip(auxvar)
 
 end subroutine AuxVarFlowEnergyStrip
 

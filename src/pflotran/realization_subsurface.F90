@@ -177,7 +177,7 @@ subroutine RealizationCreateDiscretization(realization)
   
   call DiscretizationCreateDMs(discretization, &
                                option%nflowdof, &
-                               option%nfluids, &
+                               option%flow%nfluid, &
                                option)
 
   ! 1 degree of freedom, global
@@ -303,7 +303,7 @@ subroutine RealizationCreateDiscretization(realization)
 
     ! vx
     call VecCreateMPI(option%mycomm, &
-        (option%nflowspec*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
+        (option%flow%nfluid*MAX_FACE_PER_CELL+1)*realization%patch%grid%nlmax, &
         PETSC_DETERMINE,field%vx_face_inst,ierr);CHKERRQ(ierr)
     call VecSet(field%vx_face_inst,0.d0,ierr);CHKERRQ(ierr)
 
@@ -790,13 +790,15 @@ subroutine RealProcessFluidProperties(realization)
   do                                      
     if (.not.associated(cur_fluid_property)) exit
     found = PETSC_TRUE
-    select case(trim(cur_fluid_property%phase_name))
-      case('LIQUID')
-        cur_fluid_property%phase_id = LIQUID_PHASE
-      case('GAS')
-        cur_fluid_property%phase_id = GAS_PHASE
+    select case(trim(cur_fluid_property%fluid_type))
+      case('LIQUID','WATER')
+        cur_fluid_property%fluid_id = LIQ_FLUID
+      case('GAS','AIR')
+        cur_fluid_property%fluid_id = AIR_FLUID
+      case('OIL')
+        cur_fluid_property%fluid_id = OIL_FLUID
       case default
-        cur_fluid_property%phase_id = LIQUID_PHASE
+        cur_fluid_property%fluid_id = LIQ_FLUID
     end select
     cur_fluid_property => cur_fluid_property%next
   enddo

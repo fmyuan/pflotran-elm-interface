@@ -612,16 +612,16 @@ subroutine EOSReferenceDensity(option)
 
   select case(option%iflowmode)
     case default
-      if (Initialized(option%liq_fluid)) then
-        if (option%reference_density(option%liq_fluid) < 1.d-40) then
+      if (Initialized(LIQ_FLUID)) then
+        if (option%reference_density(LIQ_FLUID) < 1.d-40) then
           call EOSWaterDensity(option%reference_temperature, &
                              option%reference_pressure, &
-                             option%reference_density(option%liq_fluid), &
+                             option%reference_density(LIQ_FLUID), &
                              dum1,ierr)
         endif
       endif
-      if (Initialized(option%gas_fluid)) then
-        if (option%reference_density(option%gas_fluid) < 1.d-40) then
+      if (Initialized(AIR_FLUID)) then
+        if (option%reference_density(AIR_FLUID) < 1.d-40) then
         ! assume saturated vapor pressure
         call EOSWaterSaturationPressure(option%reference_temperature, &
                                         vapor_saturation_pressure,dum1,ierr)
@@ -632,7 +632,7 @@ subroutine EOSReferenceDensity(option)
         call EOSGasDensity(option%reference_temperature, &
                            option%reference_pressure-vapor_saturation_pressure, &
                            air_density_kmol,ierr)
-        option%reference_density(option%gas_fluid) = &
+        option%reference_density(AIR_FLUID) = &
           vapor_density_kg + air_density_kmol*FMWAIR
       endif
     endif

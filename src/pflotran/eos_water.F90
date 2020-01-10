@@ -227,9 +227,9 @@ module EOS_Water_module
             EOSWaterSteamDensityEnthalpy, &
             EOSWaterDuanMixture, &
             EOSWaterViscosityNaCl, &
-            EOSWaterIceInternalEnergy, &
             EOSWaterIceDensity, &
             EOSWaterIceEnthalpy, &
+            EOSWaterIceInternalEnergy, &
             EOSWaterSaturationTemperature, &
             EOSWaterDensityTGDPB01, &
             EOSWaterViscosityExt, &
@@ -283,7 +283,7 @@ subroutine EOSWaterInit()
   EOSWaterSaturationPressurePtr => EOSWaterSaturationPressureIFC67
   EOSWaterSteamDensityEnthalpyPtr => EOSWaterSteamDensityEnthalpyIFC67
   EOSWaterIceDensityPtr => EOSWaterIceDensityPainter
-  EOSWaterIceEnthalpyPtr => EOSWaterIceEnthalpy
+  EOSWaterIceEnthalpyPtr => EOSWaterIceEnthalpyDefault
   
   ! extended versions
   EOSWaterViscosityExtPtr => EOSWaterViscosityKestinExt
@@ -601,7 +601,7 @@ subroutine EOSWaterSetIceDensity(keyword,aux)
     case('CONSTANT')
       constant_ice_density = aux(1)
       EOSWaterIceDensityPtr => EOSWaterIceDensityConstant
-    case('PAINTER')
+    case('PAINTER','DEFAULT')
       EOSWaterIceDensityPtr => EOSWaterIceDensityPainter
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
@@ -625,7 +625,7 @@ subroutine EOSWaterSetIceEnthalpy(keyword,aux)
       constant_ice_enthalpy = aux(1)
       EOSWaterIceEnthalpyPtr => EOSWaterIceEnthalpyConstant
     case('DEFAULT')
-      EOSWaterIceEnthalpyPtr => EOSWaterIceEnthalpy
+      EOSWaterIceEnthalpyPtr => EOSWaterIceEnthalpyDefault
     case default
       print *, 'Unknown pointer type "' // trim(keyword) // &
         '" in EOSWaterSetIceEnthalpy().'
@@ -3230,7 +3230,7 @@ subroutine EOSWaterIceInternalEnergy(T, P, calculate_derivatives, &
 end subroutine EOSWaterIceInternalEnergy
 ! ************************************************************************** !
 
-subroutine EOSWaterIceEnthalpy(t, p, calculate_derivatives, &
+subroutine EOSWaterIceEnthalpyDefault(t, p, calculate_derivatives, &
                                    h_J_kmol, dh_dp, dh_dt, ierr)
 
 ! Author: F.-M. Yuan
@@ -3275,7 +3275,7 @@ subroutine EOSWaterIceEnthalpy(t, p, calculate_derivatives, &
     dh_dt = UNINITIALIZED_DOUBLE
   endif
 
-end subroutine EOSWaterIceEnthalpy
+end subroutine EOSWaterIceEnthalpyDefault
 
 ! ************************************************************************** !
 ! ************************************************************************** !

@@ -170,10 +170,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
       if (OptionPrintToScreen(option)) then
         write(*,'(" number of dofs = ",i3,", number of &
-                  &phases = ",i3,i2)') option%nflowdof,option%nfluids
+                  &phases = ",i3,i2)') option%nflowdof,option%flow%nfluid
         select case(option%iflowmode)
           case(MPFLOW_MODE)
-            write(*,'(" mode = TH: p, T")')
+            write(*,'(" mode = MPFLOW: p, T")')
         end select
       endif
 

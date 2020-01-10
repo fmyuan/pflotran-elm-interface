@@ -1,4 +1,9 @@
 module Global_Aux_module
+  ! variables globally shared (accessible) for all process models (PMs)
+
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
@@ -8,27 +13,34 @@ module Global_Aux_module
   
   private 
 
+  ! NOTES on a few concenpts -
+  !  - 'fluid(s)':
+  !       flow matter or mixture, like liq. water or solution ('liq_fluid'), air('air_fluid'), oil('oil_fluid') etc.
+  !       that can transport itself and matter (species) in it.
+  !  - 'phase(s)':
+  !       a matter in physical forms or states, usually as liq., gas, and solid. Maybe for one fluid or species in it.
+  !  - 'flow species':
+  !       the individual gas/liq/oil species, including primary fluid itself, in a fluid (either 'liq_fluid', 'air_fluid', 'oil_fluid').
+  !  - 'dof':
+  !       'Degree of Freedom', usually here means independent variables or states.
+
   type, public :: global_auxvar_type
-    PetscReal :: temp
-    PetscReal, pointer :: pres(:)           ! (nphase)
-    PetscReal, pointer :: pres_store(:,:)
-    PetscReal, pointer :: temp_store(:)
-    PetscReal, pointer :: sat(:)
-    PetscReal, pointer :: sat_store(:,:)    ! (nphase, timesteps)
+    PetscReal          :: por               ! porosity of porous media for fluid(s) to flow
+    PetscReal          :: tc                ! oC
+    ! dim: constants: option%flow%nfluid
+    PetscReal, pointer :: pres(:)           ! Pa
+    PetscReal, pointer :: sat(:)            ! fraction
     PetscReal, pointer :: den(:)            ! kmol/m^3
-    PetscReal, pointer :: den_kg(:)         ! kg/m^3
+    ! dim2: timesteps (currently 2) to be stored
+    PetscReal, pointer :: por_store(:)      ! (timesteps)
+    PetscReal, pointer :: tc_store(:)       !
+    PetscReal, pointer :: pres_store(:,:)   ! (nfluid, timesteps)
+    PetscReal, pointer :: sat_store(:,:)
     PetscReal, pointer :: den_store(:,:)
-    PetscReal, pointer :: den_kg_store(:,:)
-    PetscReal, pointer :: fugacoeff(:)
-    PetscReal, pointer :: fugacoeff_store(:,:)
-    PetscReal, pointer :: xmass(:)          ! for convertion from molarity (moles/L solution) to molality(moles/kg solvent)
-    PetscReal, pointer :: mass_balance(:,:) ! kg (nflowspec, nphase)
-    PetscReal, pointer :: mass_balance_delta(:,:) ! kmol
-    PetscReal, pointer :: conversion_rate(:)
-    PetscReal, pointer :: conversion_rate_store(:)
-    PetscReal, pointer :: dphi(:,:) !geh: why here?
+
   end type global_auxvar_type
   
+  ! the following data-type is for domain-wide and all processe-modes (including flows/RTs/etc.) uses
   type, public :: global_type
     PetscReal :: time_t, time_tpdt
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -54,8 +66,9 @@ function GlobalAuxCreate()
   ! 
   ! Allocate and initialize auxiliary object
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 02/14/08
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
   ! 
 
   use Option_module
@@ -86,126 +99,89 @@ subroutine GlobalAuxVarInit(auxvar,option)
   ! 
   ! Initialize auxiliary object
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 02/14/08
-  ! 
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
   use Option_module
 
   implicit none
   
-  type(global_auxvar_type) :: auxvar
+  class(global_auxvar_type) :: auxvar
   type(option_type) :: option
 
-  PetscInt :: nphase
+  PetscInt :: nfluid
   
-  auxvar%temp = 0.d0
-
-  ! nullify everthing to begin with and allocate later
+  !
+  auxvar%por = option%reference_porosity
+  auxvar%tc  = 0.d0
   nullify(auxvar%pres)
   nullify(auxvar%sat)
   nullify(auxvar%den)
-  nullify(auxvar%den_kg)
+
+  nullify(auxvar%por_store)
+  nullify(auxvar%tc_store)
   nullify(auxvar%pres_store)
-  nullify(auxvar%temp_store)
   nullify(auxvar%sat_store)
   nullify(auxvar%den_store)
-  nullify(auxvar%den_kg_store)
-  nullify(auxvar%fugacoeff)
-  nullify(auxvar%fugacoeff_store)
-  nullify(auxvar%xmass)
-  nullify(auxvar%mass_balance)
-  nullify(auxvar%mass_balance_delta)
 
-  nphase = option%nfluids
-
-  if (option%nflowdof > 0) then
-    allocate(auxvar%den(nphase))
+  nfluid = max(1,option%flow%nfluid)  ! at least liq. fluid exists, for purpose of transport with known velocity (data-driven)
+  if(nfluid>0) then
+    allocate(auxvar%pres(nfluid))
+    auxvar%pres = 0.d0
+    allocate(auxvar%sat(nfluid))
+    auxvar%sat = 0.d0
+    allocate(auxvar%den(nfluid))
     auxvar%den = 0.d0
   endif
 
-  allocate(auxvar%pres(nphase))
-  auxvar%pres = 0.d0
-  allocate(auxvar%sat(nphase))
-  auxvar%sat = 0.d0
-  allocate(auxvar%den_kg(nphase))
-  auxvar%den_kg = 0.d0
+  ! stored variables only for 2 timesteps, if flow mode on
+  if (option%iflowmode > 0) then
+    allocate(auxvar%por_store(TWO_INTEGER))
+    auxvar%por_store = 0.d0
 
-  if (option%nflowdof > 0) then
-    allocate(auxvar%sat_store(nphase,TWO_INTEGER))
+    allocate(auxvar%tc_store(TWO_INTEGER))
+    auxvar%tc_store = 0.d0
+
+    allocate(auxvar%pres_store(nfluid,TWO_INTEGER))
+    auxvar%pres_store = option%reference_pressure
+
+    allocate(auxvar%sat_store(nfluid,TWO_INTEGER))
     auxvar%sat_store = 0.d0
-    allocate(auxvar%den_kg_store(nphase,TWO_INTEGER))
-    auxvar%den_kg_store = 0.d0
+
+    allocate(auxvar%den_store(nfluid,TWO_INTEGER))
+    auxvar%den_store = 0.d0
   endif
  
-  select case(option%iflowmode)
-    case(MPFLOW_MODE)
-      allocate(auxvar%xmass(nphase))
-      auxvar%xmass = 1.d0
-      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-      auxvar%pres_store = option%reference_pressure
-      allocate(auxvar%temp_store(TWO_INTEGER))
-      auxvar%temp_store = 0.d0
-      allocate(auxvar%fugacoeff(ONE_INTEGER))
-      auxvar%fugacoeff = 1.d0
-      allocate(auxvar%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
-      auxvar%fugacoeff_store = 1.d0    
-      allocate(auxvar%den_store(nphase,TWO_INTEGER))
-      auxvar%den_store = 0.d0
-      allocate(auxvar%conversion_rate(option%nflowspec))
-      auxvar%conversion_rate = 0.d0
-      allocate(auxvar%conversion_rate_store(option%nflowspec))
-      auxvar%conversion_rate_store = 0.d0
-      allocate(auxvar%pres_store(nphase,TWO_INTEGER))
-      auxvar%pres_store = 0.d0
-      allocate(auxvar%temp_store(TWO_INTEGER))
-      auxvar%temp_store = 0.d0
-      allocate(auxvar%den_store(nphase,TWO_INTEGER))
-      auxvar%den_store = 0.d0
-      nullify(auxvar%xmass)
-      nullify(auxvar%fugacoeff)
-      nullify(auxvar%fugacoeff_store)
-    case default
-  end select
-
-  if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
-    allocate(auxvar%mass_balance(option%nflowspec,nphase))
-    auxvar%mass_balance = 0.d0
-    allocate(auxvar%mass_balance_delta(option%nflowspec,nphase))
-    auxvar%mass_balance_delta = 0.d0
-  endif
-  
 end subroutine GlobalAuxVarInit
 
 ! ************************************************************************** !
 
-subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
+subroutine GlobalAuxVarCopy(auxvar,auxvar2)
   ! 
   ! Copies an auxiliary variable
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/13/07
-  ! 
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
   use Option_module
 
   implicit none
   
-  type(global_auxvar_type) :: auxvar, auxvar2
-  type(option_type) :: option
+  class(global_auxvar_type) :: auxvar, auxvar2
 
+  auxvar2%por  = auxvar%por
+  auxvar2%tc   = auxvar%tc
   auxvar2%pres = auxvar%pres
-  auxvar2%temp = auxvar%temp
-  auxvar2%sat = auxvar%sat
-  auxvar2%den = auxvar%den
-  auxvar2%den_kg = auxvar%den_kg
-  auxvar2%dphi = auxvar%dphi
+  auxvar2%sat  = auxvar%sat
+  auxvar2%den  = auxvar%den
 
-  if (associated(auxvar2%fugacoeff)) then
-    auxvar2%fugacoeff = auxvar%fugacoeff  
+  if (associated(auxvar2%por_store)) then
+    auxvar2%tc_store = auxvar%por_store
   endif
-  if (associated(auxvar2%xmass)) then
-    auxvar2%xmass = auxvar%xmass  
+  if (associated(auxvar2%tc_store)) then
+    auxvar2%tc_store = auxvar%tc_store
   endif
   if (associated(auxvar2%pres_store)) then
     auxvar2%pres_store = auxvar%pres_store  
@@ -216,23 +192,6 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2,option)
   if (associated(auxvar2%sat_store)) then
     auxvar2%sat_store = auxvar%sat_store  
   endif
-  if (associated(auxvar2%den_kg_store)) then
-    auxvar2%den_kg_store = auxvar%den_kg_store
-  endif
-  if (associated(auxvar2%temp_store)) then
-    auxvar2%temp_store = auxvar%temp_store  
-  endif
-  if (associated(auxvar2%fugacoeff_store)) then
-    auxvar2%fugacoeff_store = auxvar%fugacoeff_store  
-  endif
-
-  !geh: here we have to check on both as mass_balance often exists for bcs and
-  !     src/sinks but not regular cells.
-  if (associated(auxvar%mass_balance) .and. &
-      associated(auxvar2%mass_balance)) then
-    auxvar2%mass_balance = auxvar%mass_balance
-    auxvar2%mass_balance_delta = auxvar%mass_balance_delta
-  endif
 
 end subroutine GlobalAuxVarCopy
 
@@ -241,14 +200,15 @@ end subroutine GlobalAuxVarCopy
 subroutine GlobalAuxVarSingleDestroy(auxvar)
   ! 
   ! Deallocates a mode auxiliary object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/10/12
-  ! 
+
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
+
 
   implicit none
 
-  type(global_auxvar_type), pointer :: auxvar
+  class(global_auxvar_type), pointer :: auxvar
   
   if (associated(auxvar)) then
     call GlobalAuxVarStrip(auxvar)
@@ -264,9 +224,9 @@ subroutine GlobalAuxVarArrayDestroy(auxvars)
   ! 
   ! Deallocates a mode auxiliary object
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/10/12
-  ! 
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
   implicit none
 
@@ -290,9 +250,9 @@ subroutine GlobalAuxVarStrip(auxvar)
   ! 
   ! Deallocates all members of single auxiliary object
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/10/12
-  ! 
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
   use Utility_module, only: DeallocateArray
 
@@ -300,24 +260,14 @@ subroutine GlobalAuxVarStrip(auxvar)
 
   type(global_auxvar_type) :: auxvar
   
+  call DeallocateArray(auxvar%por_store)
+  call DeallocateArray(auxvar%tc_store)
   call DeallocateArray(auxvar%pres)
   call DeallocateArray(auxvar%sat)
   call DeallocateArray(auxvar%den)
-  call DeallocateArray(auxvar%fugacoeff)
-  call DeallocateArray(auxvar%den_kg)
-  call DeallocateArray(auxvar%xmass)
-  call DeallocateArray(auxvar%conversion_rate)
-
   call DeallocateArray(auxvar%pres_store)
-  call DeallocateArray(auxvar%temp_store)
-  call DeallocateArray(auxvar%fugacoeff_store)
   call DeallocateArray(auxvar%sat_store)
-  call DeallocateArray(auxvar%den_kg_store)
   call DeallocateArray(auxvar%den_store)
-  call DeallocateArray(auxvar%conversion_rate_store)
-  
-  call DeallocateArray(auxvar%mass_balance)
-  call DeallocateArray(auxvar%mass_balance_delta)
 
 end subroutine GlobalAuxVarStrip
 

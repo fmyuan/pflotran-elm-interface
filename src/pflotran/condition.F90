@@ -445,19 +445,19 @@ subroutine FlowConditionRead(condition,input,option)
   energy_rate_unit_string = 'not_assigned'
   internal_units = 'not_assigned'
 
-  pressure => FlowSubConditionCreate(option%nfluids)
+  pressure => FlowSubConditionCreate(option%flow%nfluid)
   pressure%name = 'pressure'
-  saturation => FlowSubConditionCreate(option%nfluids)
+  saturation => FlowSubConditionCreate(option%flow%nfluid)
   saturation%name = 'saturation'
 
   temperature => FlowSubConditionCreate(ONE_INTEGER)
   temperature%name = 'temperature'
-  enthalpy => FlowSubConditionCreate(option%nfluids)
+  enthalpy => FlowSubConditionCreate(option%flow%nfluid)
   enthalpy%name = 'enthalpy'
 
-  rate => FlowSubConditionCreate(option%nflowspec)
+  rate => FlowSubConditionCreate(option%flow%nfluid)
   rate%name = 'rate'
-  flux => FlowSubConditionCreate(option%nfluids)
+  flux => FlowSubConditionCreate(option%flow%nfluid)
   flux%name = 'flux'
 
   energy_rate => FlowSubConditionCreate(ONE_INTEGER)
@@ -887,15 +887,20 @@ subroutine FlowConditionRead(condition,input,option)
       call PrintMsg(option)
 
     case(MPFLOW_MODE)
-      if (.not.associated(pressure) .and. .not.associated(rate)&
+      if (.not.associated(pressure) &
+           .and. .not.associated(flux) &
+           .and. .not.associated(rate) &
            .and. .not.associated(saturation)) then
-        option%io_buffer = 'pressure, rate and saturation condition null in &
+        option%io_buffer = 'pressure, flux, rate and saturation condition null in &
           &condition: ' // trim(condition%name)
         call PrintErrMsg(option)
       endif
 
       if (associated(pressure)) then
         condition%liq_pressure => pressure
+      endif
+      if (associated(flux)) then
+        condition%liq_flux => flux
       endif
       if (associated(rate)) then
         condition%liq_rate => rate
@@ -920,7 +925,7 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(energy_rate)) condition%energy_rate => energy_rate
 
       if (associated(enthalpy)) then
-        option%io_buffer = 'enthalpy condition not supported in TH mode: ' // &
+        option%io_buffer = 'enthalpy condition not supported in MPFLOW mode: ' // &
                             trim(condition%name)
         call PrintErrMsg(option)
       endif

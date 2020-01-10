@@ -23,7 +23,7 @@ module PM_MpFlow_class
   type, public, extends(pm_subsurface_flow_type) :: pm_mpflow_type
     class(communicator_type), pointer :: commN
     PetscBool :: converged_flag(2,MAX_INDEX)
-    PetscInt :: converged_cell(2,MAX_INDEX)
+    PetscInt  :: converged_cell(2,MAX_INDEX)
     PetscReal :: converged_real(2,MAX_INDEX)
     PetscReal :: residual_abs_inf_tol(2)
     PetscReal :: residual_scaled_inf_tol(2)
@@ -91,8 +91,8 @@ function PMMpFlowCreate()
   nullify(this%commN)
 
   call PMSubsurfaceFlowCreate(this)
-  this%name = 'TH Flow'
-  this%header = 'TH FLOW'
+  this%name = 'MpFlow'
+  this%header = 'MpFlow MODE'
 
   this%residual_abs_inf_tol = residual_abs_inf_tol
   this%residual_scaled_inf_tol = residual_scaled_inf_tol
@@ -107,7 +107,7 @@ end function PMMpFlowCreate
 
 subroutine PMMpFlowRead(this,input)
   ! 
-  ! Reads input file parameters associated with the TH process model
+  ! Reads input file parameters associated with the MpFlow process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/29/15
@@ -116,7 +116,6 @@ subroutine PMMpFlowRead(this,input)
   use Utility_module
   use EOS_Water_module  
   use Option_module
-  use MpFlow_Aux_module
  
   implicit none
   
@@ -131,10 +130,10 @@ subroutine PMMpFlowRead(this,input)
   PetscReal :: tempreal
 
   option => this%option
-  lid = option%liq_fluid
-  eid = option%energy_id
+  lid = MPFLOW_PRESSURE_DOF
+  eid = MPFLOW_TEMPERATURE_DOF
   
-  error_string = 'TH Options'
+  error_string = 'MPFLOW Options'
   
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -225,19 +224,19 @@ subroutine PMMpFlowRead(this,input)
 !....................
       case ('ISOTHERMAL')
         option%flow%isothermal = PETSC_TRUE
-        option%io_buffer = 'TH: ISOTHERMAL_EQ option is ON in TH mode.'
+        option%io_buffer = 'ISOTHERMAL option is ON in MPFLOW mode.'
         call printMsg(option)
 
 !....................
-      case ('ONLY_THERMAL')
-        option%flow%onlythermal = PETSC_TRUE
-        option%io_buffer = 'TH: ONLY_THERMAL_EQ is ON in TH mode.'
+      case ('ONLY_THERMAL','ISOBARIC')
+        option%flow%isobaric = PETSC_TRUE
+        option%io_buffer = 'ONLY_THERMAL or ISOBARIC is ON in MPFLOW mode.'
         call printMsg(option)
 
 !....................
       case ('ONLY_VERTICAL_FLOW')
         option%flow%only_vertical_flow = PETSC_TRUE
-        option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH mode.'
+        option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in MPFLOW mode.'
         call printMsg(option)
 
 !....................
@@ -518,8 +517,6 @@ subroutine PMMpFlowCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   use Field_module
   use Option_module
   use Patch_module
-  use MpFlow_Aux_module
-  use Global_Aux_module
 
   implicit none
   
@@ -537,8 +534,6 @@ subroutine PMMpFlowCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
-  type(flow_auxvar_type), pointer :: flow_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)  
   PetscInt :: local_id, ghosted_id
   PetscReal :: P0, P1, P_R, delP
   PetscReal :: scale, press_limit, temp_limit
@@ -548,8 +543,6 @@ subroutine PMMpFlowCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   grid => patch%grid
   option => this%realization%option
   field => this%realization%field
-  flow_auxvars => patch%aux%Flow%auxvars
-  global_auxvars => patch%aux%Global%auxvars
 
   if (Initialized(this%pressure_change_limit)) then
 
@@ -651,15 +644,9 @@ subroutine PMMpFlowCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   ! A NOTE (fmyuan, 2018-10-17): this option may have mass-balance issue if not carefully
   !    setting the 'flow_itol_scaled_res' values. Temperally off now.
 
-  use Realization_Subsurface_class
-  use Grid_module
-  use Field_module
   use Option_module
-  use MpFlow_module
-  use MpFlow_Aux_module
-  use Global_Aux_module
-  use Material_Aux_class
   use Patch_module
+  use Grid_module
 
   implicit none
   
@@ -674,10 +661,9 @@ subroutine PMMpFlowCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   
   PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: dX_p(:)
-  type(grid_type), pointer :: grid
   type(option_type), pointer :: option
-  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
   PetscInt :: local_id, ghosted_id, natural_id
   PetscInt :: offset, ival, idof
   PetscReal :: dX_, X0_, dX_X0
@@ -690,10 +676,9 @@ subroutine PMMpFlowCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: converged_absolute
   PetscBool :: converged_relative
 
-  grid => this%realization%patch%grid
   option => this%realization%option
-  field => this%realization%field
   patch => this%realization%patch
+  grid  => patch%grid
 
   dX_changed = PETSC_FALSE
   X1_changed = PETSC_FALSE
@@ -711,6 +696,7 @@ subroutine PMMpFlowCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
     ghosted_id = grid%nL2G(local_id)
     natural_id = grid%nG2A(ghosted_id)
     if (patch%imat(ghosted_id) <= 0) cycle
+
     do idof = 1, option%nflowdof
       ival = offset+idof
       ! infinity norms on update
@@ -826,10 +812,11 @@ subroutine PMMpFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
     converged_scaled_residual_real = 0.d0
     converged_scaled_residual_cell = ZERO_INTEGER
     do local_id = 1, grid%nlmax
-      offset = (local_id-1)*option%nflowdof
       ghosted_id = grid%nL2G(local_id)
       natural_id = grid%nG2A(ghosted_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+
+      offset = (local_id-1)*option%nflowdof
       do idof = 1, option%nflowdof
         ival = offset+idof
         converged_absolute = PETSC_TRUE
@@ -1029,7 +1016,7 @@ subroutine PMMpFlowComputeMassBalance(this,mass_balance_array)
   implicit none
   
   class(pm_mpflow_type) :: this
-  PetscReal :: mass_balance_array(:)
+  PetscReal,pointer :: mass_balance_array(:,:)
   
   call MpFlowComputeMassBalance(this%realization,mass_balance_array)
 

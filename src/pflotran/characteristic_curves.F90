@@ -815,46 +815,46 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
   class(characteristic_curves_type) :: characteristic_curves
   type(option_type) :: option
 
-  PetscReal :: CharCurvesGetGetResidualSats(option%nfluids)
+  PetscReal :: CharCurvesGetGetResidualSats(option%flow%nfluid)
 
   CharCurvesGetGetResidualSats(1) = &
     characteristic_curves%liq_rel_perm_function%Sr
-  !if (option%nfluids > 1) then
-  if ( (option%nfluids > 1) .and. &
+  !if (option%flow%nfluid > 1) then
+  if ( (option%flow%nfluid > 1) .and. &
        associated(characteristic_curves%gas_rel_perm_function) ) then
     select type(rpf=>characteristic_curves%gas_rel_perm_function)
       class is(rpf_Mualem_VG_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_Mualem_VG_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rpf_Burdine_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_Burdine_BC_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rpf_Mualem_BC_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_Mualem_BC_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rpf_Burdine_VG_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_Burdine_VG_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rpf_Mualem_Linear_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_Mualem_Linear_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rpf_Burdine_Linear_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_Burdine_Linear_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rpf_mK_liq_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rpf_mK_gas_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Srg
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Srg
       class is(rel_perm_func_constant_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class is(rel_perm_func_default_type)
-        CharCurvesGetGetResidualSats(option%gas_fluid) = rpf%Sr
+        CharCurvesGetGetResidualSats(AIR_FLUID) = rpf%Sr
       class default
         option%io_buffer = 'Relative permeability class not supported in &
               &CharCurvesGetGetResidualSats.'
@@ -991,7 +991,7 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
   if (associated(characteristic_curves%gas_rel_perm_function) ) then
     call characteristic_curves%gas_rel_perm_function%Verify(string,option)
   else
-    if (option%nfluids > 1) then
+    if (option%flow%nfluid > 1) then
       option%io_buffer = 'A gas phase relative permeability function has &
                          &not been set under CHARACTERISTIC_CURVES "' // &
                          trim(characteristic_curves%name) // '". Another &

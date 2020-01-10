@@ -2,9 +2,8 @@ auxiliary.o : global_aux.o \
               inlinesurface_aux.o material_aux.o \
               pflotran_constants.o \
               mpflow_aux.o
-auxvars_base.o : option.o pflotran_constants.o
-auxvars_flow.o : auxvars_base.o option.o pflotran_constants.o utility.o
-auxvars_flow_energy.o : auxvars_base.o auxvars_flow.o option.o \
+auxvars_flow.o : global_aux.o option.o pflotran_constants.o utility.o
+auxvars_flow_energy.o : auxvars_flow.o option.o \
                         pflotran_constants.o utility.o
 characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_common.o \
@@ -197,7 +196,7 @@ option_flow.o : pflotran_constants.o
 output.o : connection.o coupler.o debug.o discretization.o field.o \
            grid.o hdf5.o input_aux.o logging.o \
            material_aux.o option.o output_aux.o output_common.o output_ekg.o \
-           output_hdf5.o output_observation.o output_tecplot.o\
+           output_hdf5.o output_massbalance.o output_observation.o output_tecplot.o\
            patch.o pflotran_constants.o realization_base.o \
            realization_subsurface.o region.o string.o units.o utility.o \
            variables.o waypoint.o
@@ -215,6 +214,17 @@ output_hdf5.o : connection.o coupler.o discretization.o field.o grid.o \
                 output_common.o patch.o pflotran_constants.o \
                 pflotran_provenance.o realization_base.o \
                 string.o utility.o variables.o
+output_massbalance.o : connection.o coupler.o discretization.o eos_gas.o \
+                       eos_water.o field.o \
+                       global_aux.o grid.o \
+                       grid_structured.o \
+                       integral_flux.o logging.o material_aux.o \
+                       option.o output_aux.o \
+                       output_common.o patch.o \
+                       pflotran_constants.o \
+                       realization_base.o \
+                       realization_subsurface.o region.o string.o \
+                       mpflow.o utility.o variables.o
 output_observation.o : connection.o coupler.o discretization.o eos_gas.o \
                        eos_water.o field.o \
                        global_aux.o grid.o \
@@ -252,7 +262,7 @@ pflotran_derivative.o : eos.o general_derivative.o option.o
 pflotran_provenance.o :
 pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
             realization_base.o solver.o string.o
-pm_base_aux.o : auxvars_base.o grid.o option.o pflotran_constants.o utility.o
+pm_base_aux.o : grid.o option.o pflotran_constants.o utility.o
 pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
                     realization_subsurface.o
 pm_subsurface_flow.o : auxvars_flow.o characteristic_curves.o \

@@ -12,8 +12,7 @@ module Field_module
 
   type, public :: field_type 
     
-    !get material id
-    ! 1 degree of freedom
+    ! materials (1 degree of freedom)
     Vec :: porosity0
     Vec :: porosity_base_store
     Vec :: porosity_t
@@ -21,17 +20,13 @@ module Field_module
     Vec :: tortuosity0
     Vec :: ithrm_loc
     Vec :: icap_loc
-
     Vec :: perm0_xx, perm0_yy, perm0_zz
-    !geh: required for higher order, but not supported at this time.
-!    Vec :: perm0_xz, perm0_xy, perm0_yz
     
     Vec :: work, work_loc
 
     Vec :: volume0
     Vec :: compressibility0
     
-    !TODO(geh): move these Vecs into their respective pms
     ! residual vectors
     Vec :: flow_r          
     

@@ -53,22 +53,23 @@ module PFLOTRAN_Constants_module
 
   ! constants
   PetscReal, parameter, public :: DAYS_PER_YEAR            = 365.d0
+
   PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
   PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE    = 22.064d6 ! Pa
+
+  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0     ! J/mol-K
+  PetscReal, parameter, public :: HEAT_OF_FUSION     = 3.34d5        ! J/kg
+  PetscReal, parameter, public :: PI                 = 3.14159265359d0
+  PetscReal, parameter, public :: EARTH_GRAVITY      = 9.8068d0      ! m/s^2
+  PetscReal, parameter, public :: C_AIR              = 1.860d-3      ! average air heat capacity in MJ/kg/K at 300K
+  PetscReal, parameter, public :: C_VAPOR            = 1.005d-3      ! vapor heat capacity in MJ/kg/K at 300K
 
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
   PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0
   PetscReal, parameter, public :: TC2TK     = 273.15d0  ! temperature from oC to K
   
-  ! constants
-                             ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
-  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
-  PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
-  PetscReal, parameter, public :: PI = 3.14159265359d0
-  PetscReal, parameter, public :: FARADAY = 96485.3365d0 ! C/mol
-  PetscReal, parameter, public :: EARTH_GRAVITY = 9.8068d0 ! m/s^2
-  
+  !
   PetscInt, parameter, public :: ZERO_INTEGER    = 0
   PetscInt, parameter, public :: ONE_INTEGER     = 1
   PetscInt, parameter, public :: TWO_INTEGER     = 2
@@ -177,11 +178,17 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MPFLOW_CONDUCTANCE_DOF = 3
   PetscInt, parameter, public :: MPFLOW_ENTHALPY_DOF    = 4
 
-  ! phase ids
-  PetscInt, parameter, public :: LIQUID_PHASE = 1
-  PetscInt, parameter, public :: GAS_PHASE    = 2
-  PetscInt, parameter, public :: SOLID_PHASE  = 3
-  PetscInt, parameter, public :: MAX_PHASE    = 3
+  ! phase ids for a single matter (species) or mixture
+  PetscInt, parameter, public :: LIQUID_PHASE   = 1
+  PetscInt, parameter, public :: GAS_PHASE      = 2
+  PetscInt, parameter, public :: SOLID_PHASE    = 3
+  PetscInt, parameter, public :: SUSPENSE_PHASE = 4  ! solid but suspending in fluid(s) (TODO, not yet used)
+  PetscInt, parameter, public :: MAX_PHASE      = 3  ! i.e. liq, gas, solid
+
+  ! Fluid type ids
+  PetscInt, parameter, public :: LIQ_FLUID   = 1
+  PetscInt, parameter, public :: AIR_FLUID   = 2
+  PetscInt, parameter, public :: OIL_FLUID   = 3
   
   ! approaches to coupling transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0

@@ -5,6 +5,9 @@ module Global_module
   use Global_Aux_module
   
   use PFLOTRAN_Constants_module
+  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, LIQUID_DENSITY, &
+                               GAS_PRESSURE, GAS_SATURATION, GAS_DENSITY, &
+                               TEMPERATURE
 
   implicit none
   
@@ -55,11 +58,6 @@ subroutine GlobalSetup(realization)
   patch%aux%Global => GlobalAuxCreate()
   
   ! allocate auxvar data structures for all grid cells  
-#ifdef COMPUTE_INTERNAL_MASS_FLUX
-  option%iflag = 1 ! allocate mass_balance array
-#else  
-  option%iflag = 0 ! be sure not to allocate mass_balance array
-#endif
   allocate(auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
     call GlobalAuxVarInit(auxvars(ghosted_id),option)
@@ -79,7 +77,6 @@ subroutine GlobalSetup(realization)
   enddo
 
   if (sum_connection > 0) then
-    option%iflag = 1 ! enable allocation of mass_balance array 
     allocate(auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
       call GlobalAuxVarInit(auxvars_bc(iconn),option)
@@ -100,7 +97,6 @@ subroutine GlobalSetup(realization)
   enddo
 
   if (sum_connection > 0) then
-    option%iflag = 1 ! enable allocation of mass_balance array 
     allocate(auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
       call GlobalAuxVarInit(auxvars_ss(iconn),option)
@@ -108,30 +104,23 @@ subroutine GlobalSetup(realization)
     patch%aux%Global%auxvars_ss => auxvars_ss
   endif
   patch%aux%Global%num_aux_ss = sum_connection
-
-  option%iflag = 0
   
 end subroutine GlobalSetup
 
 ! ************************************************************************** !
 
 subroutine GlobalSetAuxVarScalar(realization,value,ivar)
-  ! 
+  !
   ! Sets values of auxvar data using a scalar value.
-  ! 
+  !
   ! Author: Glenn Hammond
   ! Date: 11/19/08
-  ! 
+  !
 
   use Realization_Subsurface_class
   use Option_module
   use Patch_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               LIQUID_DENSITY, GAS_PRESSURE, &
-                               GAS_DENSITY, GAS_SATURATION, &
-                               TEMPERATURE, LIQUID_DENSITY_MOL, &
-                               GAS_DENSITY_MOL
-  
+
   implicit none
 
   class(realization_subsurface_type) :: realization
@@ -142,89 +131,71 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: auxvars_bc(:)
-    
+
   PetscInt :: i
-  PetscInt :: iphase
   PetscInt :: num_aux
   PetscInt :: num_aux_bc
-  
+
   patch => realization%patch
-  option => realization%option  
+  option => realization%option
 
   auxvars => patch%aux%Global%auxvars
   auxvars_bc => patch%aux%Global%auxvars_bc
   num_aux = patch%aux%Global%num_aux
   num_aux_bc = patch%aux%Global%num_aux_bc
-  
+
   select case(ivar)
-    case(LIQUID_PRESSURE)
-      iphase = option%liq_fluid
-      do i=1, num_aux
-        auxvars(i)%pres(iphase) = value
-      enddo
-      do i=1, num_aux_bc
-        auxvars_bc(i)%pres(iphase) = value
-      enddo
     case(TEMPERATURE)
       do i=1, num_aux
-        auxvars(i)%temp = value
+        auxvars(i)%tc = value
       enddo
       do i=1, num_aux_bc
-        auxvars_bc(i)%temp = value
+        auxvars_bc(i)%tc = value
       enddo
     case(LIQUID_DENSITY)
-      iphase = option%liq_fluid
       do i=1, num_aux
-        auxvars(i)%den_kg(iphase) = value
-      enddo
-      do i=1, num_aux_bc
-        auxvars_bc(i)%den_kg(iphase) = value
-      enddo
-    case(LIQUID_DENSITY_MOL)
-      iphase = option%liq_fluid
-      do i=1, num_aux
-        auxvars(i)%den(iphase) = value/FMWH2O
-      enddo
-      do i=1, num_aux_bc
-        auxvars_bc(i)%den(iphase) = value/FMWH2O
+        auxvars(i)%den(LIQ_FLUID) = value
       enddo
     case(LIQUID_SATURATION)
-      iphase = option%liq_fluid
       do i=1, num_aux
-        auxvars(i)%sat(iphase) = value
+        auxvars(i)%sat(LIQ_FLUID) = value
       enddo
       do i=1, num_aux_bc
-        auxvars_bc(i)%sat(iphase) = value
+        auxvars_bc(i)%sat(LIQ_FLUID) = value
+      enddo
+    case(LIQUID_PRESSURE)
+      do i=1, num_aux
+        auxvars(i)%pres(LIQ_FLUID) = value
+      enddo
+      do i=1, num_aux_bc
+        auxvars_bc(i)%pres(LIQ_FLUID) = value
       enddo
     case(GAS_DENSITY)
-      iphase = option%gas_fluid
       do i=1, num_aux
-        auxvars(i)%den_kg(iphase) = value
+        auxvars(i)%den(AIR_FLUID) = value
       enddo
       do i=1, num_aux_bc
-        auxvars_bc(i)%den_kg(iphase) = value
-      enddo
-    case(GAS_DENSITY_MOL)
-      iphase = option%gas_fluid
-      do i=1, num_aux
-        auxvars(i)%den(iphase) = value/FMWAIR
-      enddo
-      do i=1, num_aux_bc
-        auxvars_bc(i)%den(iphase) = value/FMWAIR
+        auxvars_bc(i)%den(AIR_FLUID) = value
       enddo
     case(GAS_SATURATION)
-      iphase = option%gas_fluid
       do i=1, num_aux
-        auxvars(i)%sat(iphase) = value
+        auxvars(i)%sat(AIR_FLUID) = value
       enddo
       do i=1, num_aux_bc
-        auxvars_bc(i)%sat(iphase) = value
+        auxvars_bc(i)%sat(AIR_FLUID) = value
+      enddo
+    case(GAS_PRESSURE)
+      do i=1, num_aux
+        auxvars(i)%pres(AIR_FLUID) = value
+      enddo
+      do i=1, num_aux_bc
+        auxvars_bc(i)%pres(AIR_FLUID) = value
       enddo
     case default
       print *, 'Case(', ivar, ') not supported in GlobalSetAuxVarScalar'
       stop
   end select
-  
+
 end subroutine GlobalSetAuxVarScalar
 
 ! ************************************************************************** !
@@ -243,12 +214,6 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
   use Patch_module
   use Grid_module
   use Option_module
-  use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
-                               LIQUID_DENSITY, GAS_PRESSURE, &
-                               GAS_DENSITY, GAS_SATURATION, &
-                               TEMPERATURE, SC_FUGA_COEFF, GAS_DENSITY_MOL, &
-                               OIL_PRESSURE, OIL_SATURATION, &
-                               OIL_DENSITY, OIL_DENSITY_MOL
   
   implicit none
 
@@ -263,7 +228,6 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
   type(global_auxvar_type), pointer :: auxvars(:)
   
   PetscInt :: ghosted_id
-  PetscInt :: iphase
   PetscReal, pointer :: vec_loc_p(:)
   PetscErrorCode :: ierr
   
@@ -276,166 +240,126 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
   call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
   
   select case(ivar)
-    case(LIQUID_PRESSURE)
-      iphase = option%liq_fluid
-      select case(isubvar)
-        case(TIME_T)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%pres_store(iphase,TIME_T) = &
-                vec_loc_p(ghosted_id)
-          enddo
-        case(TIME_TpDT)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%pres_store(iphase,TIME_TpDT) = &
-                vec_loc_p(ghosted_id)
-          enddo
-        case default
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%pres(iphase) = vec_loc_p(ghosted_id)
-          enddo
-      end select
-    case(GAS_PRESSURE)
-      iphase = option%gas_fluid
-      select case(isubvar)
-        case(TIME_T)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%pres_store(iphase,TIME_T) = &
-                vec_loc_p(ghosted_id)
-          enddo
-        case(TIME_TpDT)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%pres_store(iphase,TIME_TpDT) = &
-                vec_loc_p(ghosted_id)
-          enddo
-        case default
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%pres(iphase) = vec_loc_p(ghosted_id)
-          enddo
-      end select
     case(TEMPERATURE)
       select case(isubvar)
         case(TIME_T)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%temp_store(TIME_T) = vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%tc_store(TIME_T) = vec_loc_p(ghosted_id)
           enddo
         case(TIME_TpDT)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%temp_store(TIME_TpDT) = vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%tc_store(TIME_TpDT) = vec_loc_p(ghosted_id)
           enddo
         case default
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%temp = vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%tc = vec_loc_p(ghosted_id)
+          enddo
+      end select
+    !
+    case(LIQUID_SATURATION)
+      select case(isubvar)
+        case(TIME_T)
+          do ghosted_id=1, grid%ngmax
+            auxvars(ghosted_id)%sat_store(LIQ_FLUID,TIME_T) = &
+              vec_loc_p(ghosted_id)
+          enddo
+        case(TIME_TpDT)
+          do ghosted_id=1, grid%ngmax
+            auxvars(ghosted_id)%sat_store(LIQ_FLUID,TIME_TpDT) = &
+              vec_loc_p(ghosted_id)
+          enddo
+        case default
+          do ghosted_id=1, grid%ngmax
+            auxvars(ghosted_id)%sat(LIQ_FLUID) = vec_loc_p(ghosted_id)
           enddo
       end select
     case(LIQUID_DENSITY)
-      iphase = option%liq_fluid
       select case(isubvar)
         case(TIME_T)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_kg_store(iphase,TIME_T) = &
+            auxvars(ghosted_id)%den_store(LIQ_FLUID,TIME_T) = &
               vec_loc_p(ghosted_id)
           enddo
         case(TIME_TpDT)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_kg_store(iphase,TIME_TpDT) = &
+            auxvars(ghosted_id)%den_store(LIQ_FLUID,TIME_TpDT) = &
               vec_loc_p(ghosted_id)
           enddo
         case default
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_kg(iphase) = vec_loc_p(ghosted_id)
-            auxvars(ghosted_id)%den(iphase) = vec_loc_p(ghosted_id)/FMWH2O
+            auxvars(ghosted_id)%den(LIQ_FLUID) = vec_loc_p(ghosted_id)
           enddo
       end select
-    case(GAS_SATURATION)
-      iphase = option%gas_fluid
+    case(LIQUID_PRESSURE)
       select case(isubvar)
         case(TIME_T)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%sat_store(iphase,TIME_T) = &
+            auxvars(ghosted_id)%pres_store(LIQ_FLUID,TIME_T) = &
+                vec_loc_p(ghosted_id)
+          enddo
+        case(TIME_TpDT)
+          do ghosted_id=1, grid%ngmax
+            auxvars(ghosted_id)%pres_store(LIQ_FLUID,TIME_TpDT) = &
+                vec_loc_p(ghosted_id)
+          enddo
+        case default
+          do ghosted_id=1, grid%ngmax
+            auxvars(ghosted_id)%pres(LIQ_FLUID) = vec_loc_p(ghosted_id)
+          enddo
+      end select
+    !
+    case(GAS_SATURATION)
+      select case(isubvar)
+        case(TIME_T)
+          do ghosted_id=1, grid%ngmax
+            auxvars(ghosted_id)%sat_store(AIR_FLUID,TIME_T) = &
               vec_loc_p(ghosted_id)
           enddo
         case(TIME_TpDT)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%sat_store(iphase,TIME_TpDT) = &
+            auxvars(ghosted_id)%sat_store(AIR_FLUID,TIME_TpDT) = &
               vec_loc_p(ghosted_id)
           enddo
         case default
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%sat(iphase) = vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%sat(AIR_FLUID) = vec_loc_p(ghosted_id)
           enddo
       end select
     case(GAS_DENSITY)
-      iphase = option%gas_fluid
       select case(isubvar)
         case(TIME_T)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_kg_store(iphase,TIME_T) = &
+            auxvars(ghosted_id)%den_store(AIR_FLUID,TIME_T) = &
               vec_loc_p(ghosted_id)
           enddo
         case(TIME_TpDT)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_kg_store(iphase,TIME_TpDT) = &
+            auxvars(ghosted_id)%den_store(AIR_FLUID,TIME_TpDT) = &
               vec_loc_p(ghosted_id)
           enddo
         case default
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_kg(iphase) = vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%den(AIR_FLUID) = vec_loc_p(ghosted_id)
           enddo
       end select
-    case(GAS_DENSITY_MOL)
-      iphase = option%gas_fluid
+    case(GAS_PRESSURE)
       select case(isubvar)
         case(TIME_T)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_store(iphase,TIME_T) = &
-              vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%pres_store(AIR_FLUID,TIME_T) = &
+                vec_loc_p(ghosted_id)
           enddo
         case(TIME_TpDT)
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den_store(iphase,TIME_TpDT) = &
-              vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%pres_store(AIR_FLUID,TIME_TpDT) = &
+                vec_loc_p(ghosted_id)
           enddo
         case default
           do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%den(iphase) = vec_loc_p(ghosted_id)
+            auxvars(ghosted_id)%pres(AIR_FLUID) = vec_loc_p(ghosted_id)
           enddo
       end select
-
-    case(LIQUID_SATURATION)
-      iphase = option%liq_fluid
-      select case(isubvar)
-        case(TIME_T)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%sat_store(iphase,TIME_T) = &
-              vec_loc_p(ghosted_id)
-          enddo
-        case(TIME_TpDT)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%sat_store(iphase,TIME_TpDT) = &
-              vec_loc_p(ghosted_id)
-          enddo
-        case default
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%sat(iphase) = vec_loc_p(ghosted_id)
-          enddo
-      end select
-    case(SC_FUGA_COEFF)
-      select case(isubvar)
-        case(TIME_T)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%fugacoeff_store(1,TIME_T) = &
-              vec_loc_p(ghosted_id)
-          enddo
-        case(TIME_TpDT)
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%fugacoeff_store(1,TIME_TpDT) = &
-              vec_loc_p(ghosted_id)
-          enddo
-        case default
-          do ghosted_id=1, grid%ngmax
-            auxvars(ghosted_id)%fugacoeff(1) = vec_loc_p(ghosted_id)
-          enddo
-      end select
+    !
     case default
       print *, 'Case(', ivar, ') not supported in GlobalSetAuxVarVecLoc'
       stop
@@ -475,12 +399,15 @@ subroutine GlobalWeightAuxVars(realization,weight)
   
   do ghosted_id = 1, realization%patch%aux%Global%num_aux
     ! interpolate density and saturation based on weight
-    auxvars(ghosted_id)%den_kg(:) = &
-      (weight*auxvars(ghosted_id)%den_kg_store(:,TIME_TpDT)+ &
-       (1.d0-weight)*auxvars(ghosted_id)%den_kg_store(:,TIME_T))
+    auxvars(ghosted_id)%tc = &
+      (weight*auxvars(ghosted_id)%tc_store(TIME_TpDT)+ &
+        (1.d0-weight)*auxvars(ghosted_id)%tc_store(TIME_T))
+    auxvars(ghosted_id)%den(:) = &
+      (weight*auxvars(ghosted_id)%den_store(:,TIME_TpDT)+ &
+        (1.d0-weight)*auxvars(ghosted_id)%den_store(:,TIME_T))
     auxvars(ghosted_id)%sat(:) = &
       (weight*auxvars(ghosted_id)%sat_store(:,TIME_TpDT)+ &
-       (1.d0-weight)*auxvars(ghosted_id)%sat_store(:,TIME_T))
+        (1.d0-weight)*auxvars(ghosted_id)%sat_store(:,TIME_T))
   enddo
   
   select case(option%iflowmode) 
@@ -488,10 +415,7 @@ subroutine GlobalWeightAuxVars(realization,weight)
       do ghosted_id = 1, realization%patch%aux%Global%num_aux
         auxvars(ghosted_id)%pres(:) = &
           (weight*auxvars(ghosted_id)%pres_store(:,TIME_TpDT)+ &
-           (1.d0-weight)*auxvars(ghosted_id)%pres_store(:,TIME_T))
-        auxvars(ghosted_id)%temp = &
-          (weight*auxvars(ghosted_id)%temp_store(TIME_TpDT)+ &
-           (1.d0-weight)*auxvars(ghosted_id)%temp_store(TIME_T))
+            (1.d0-weight)*auxvars(ghosted_id)%pres_store(:,TIME_T))
       enddo  
 
   end select
@@ -518,7 +442,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
   use Variables_module, only : LIQUID_PRESSURE, LIQUID_SATURATION, &
                                LIQUID_DENSITY, GAS_PRESSURE, &
                                GAS_DENSITY, GAS_SATURATION, &
-                               TEMPERATURE, SC_FUGA_COEFF, GAS_DENSITY_MOL
+                               TEMPERATURE
   
   class(realization_subsurface_type) :: realization
   PetscReal :: time

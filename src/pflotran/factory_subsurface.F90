@@ -70,9 +70,6 @@ subroutine SubsurfaceInitializePostPetsc(simulation)
 
   option => simulation%option
 
-  ! process command line arguments specific to subsurface
-  call SubsurfInitCommandLineSettings(option)
-
   call ExtractPMsFromPMList(simulation,pm_flow)
 
   call SubsurfaceSetFlowMode(pm_flow,option)
@@ -232,44 +229,6 @@ end subroutine AddPMCSubsurfaceFlow
 
 ! ************************************************************************** !
 
-! ************************************************************************** !
-
-subroutine SubsurfInitCommandLineSettings(option)
-  !
-  ! Initializes PFLTORAN subsurface output
-  ! filenames, etc.
-  !
-  ! Author: Glenn Hammond
-  ! Date: 06/06/13
-  !
-
-  use Option_module
-  use Input_Aux_module
-
-  implicit none
-
-  type(option_type) :: option
-
-  character(len=MAXSTRINGLENGTH) :: string
-  PetscBool :: option_found
-  PetscBool :: bool_flag
-
-  string = '-multisimulation'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    option%subsurface_simulation_type = MULTISIMULATION_SIM_TYPE
-  endif
-
-  string = '-stochastic'
-  call InputGetCommandLineTruth(string,bool_flag,option_found,option)
-  if (option_found) then
-    option%subsurface_simulation_type = STOCHASTIC_SIM_TYPE
-  endif
-
-end subroutine SubsurfInitCommandLineSettings
-
-! ************************************************************************** !
-
 subroutine SubsurfaceSetFlowMode(pm_flow,option)
   !
   ! Sets the flow mode (richards, vadose, mph, etc.)
@@ -289,31 +248,27 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   class(pm_subsurface_flow_type), pointer :: pm_flow
 
   if (.not.associated(pm_flow)) then
-    option%nfluids = 1
-    option%liq_fluid = 1
-    option%gas_fluid = 2 ! still set gas phase to 2 for transport
-    option%nflowspec = 1
+    option%iflowmode  = NULL_MODE
+    option%nflowdof   = 0
+    ! liq. water fluid only assumed, and flow driven by user-defined liq. velocity
+    ! useful to test or data-driven transport processes
+    option%flow%nfluid    = 1
+    option%flow%nspecliq  = 1  ! liq. water only
+    !(TIP: if for transport, option%tran%nspecxxx should be defined)
     return
   endif
 
   select type(pm_flow)
     class is (pm_mpflow_type)
       option%iflowmode = MPFLOW_MODE
-      option%nfluids = 1     ! currently only liq_water flow, todo with air/gas flow
-      option%liq_fluid = 1
-      option%gas_fluid = 2
-
-      option%air_pressure_id = 3
-      option%capillary_pressure_id = 4
-      option%vapor_pressure_id = 5
-      option%saturation_pressure_id = 6
-
-      option%water_id = 1
-      option%air_id = 2
-      option%energy_id = 3
-
       option%nflowdof  = 2      ! T (thermal-state) & P (flow potential, e.g. pressure)
-      option%nflowspec = 1     ! liq. water fluid itself + transportants if any
+
+      option%flow%nfluid    = 2     ! max. of idx of above 3 fluids
+      option%flow%nspecliq  = 1     ! 0: no liq flow; 1: liq. water/solution fluid itself; 2-n: ?
+      option%flow%nspecgas  = 0     ! 0: no air/gas flow; 1: air mixture; 2-n: multiple gases
+      option%flow%nspecoil  = 0     ! 0: no oil flow; 1: oil-like fluid itself; 2-n: ?
+      option%flow%nspecflow = 1     ! sum
+
       option%flow%store_fluxes = PETSC_TRUE
     class default
       option%io_buffer = ''
@@ -1256,20 +1211,20 @@ subroutine SubsurfaceReadInput(simulation,input)
       case('REFERENCE_LIQUID_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
         call InputReadDouble(input,option, &
-                             option%reference_density(option%liq_fluid))
+                             option%reference_density(LIQ_FLUID))
         call InputErrorMsg(input,option,'Reference Liquid Density','value')
         call InputReadAndConvertUnits(input, &
-                             option%reference_density(option%liq_fluid), &
+                             option%reference_density(LIQ_FLUID), &
                              'kg/m^3','Reference Density',option)
 !....................
 
-      case('REFERENCE_GAS_DENSITY')
+      case('REFERENCE_GAS_DENSITY','REFERENCE_AIR_DENSITY')
         call InputReadStringErrorMsg(input,option,card)
         call InputReadDouble(input,option, &
-                             option%reference_density(option%gas_fluid))
+                             option%reference_density(AIR_FLUID))
         call InputErrorMsg(input,option,'Reference Gas Density','value')
         call InputReadAndConvertUnits(input, &
-                              option%reference_density(option%gas_fluid), &
+                              option%reference_density(AIR_FLUID), &
                               'kg/m^3','Reference Density',option)
 !....................
 
@@ -1329,19 +1284,10 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !......................
 
-      case ('NUMERICAL_JACOBIAN_FLOW')
+      case ('NUMERICAL_JACOBIAN_FLOW','NUMERICAL_JACOBIAN')
         option%io_buffer = 'The NUMERICAL_JACOBIAN_FLOW card within &
           &SUBSURFACE block must be listed under the SIMULATION/&
           &PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block as NUMERICAL_JACOBIAN.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('NUMERICAL_JACOBIAN_RXN')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_RXN card within &
-          &SUBSURFACE block must be listed under the SIMULATION/&
-          &PROCESS_MODELS/SUBSURFACE_TRANSPORT block as &
-          &NUMERICAL_JACOBIAN.'
         call PrintErrMsg(option)
 
 !......................
@@ -2228,7 +2174,7 @@ subroutine SubsurfaceReadInput(simulation,input)
       material_property%tortuosity = material_property_default%tortuosity
       material_property%tortuosity_pwr = material_property_default%tortuosity_pwr
       material_property%tortuosity_func_porosity_pwr = material_property_default%tortuosity_func_porosity_pwr
-      material_property%rock_density = material_property_default%rock_density
+      material_property%matrix_density = material_property_default%matrix_density
       material_property%specific_heat = material_property_default%specific_heat
       material_property%thermal_conductivity_dry = material_property_default%thermal_conductivity_dry
       material_property%thermal_conductivity_wet = material_property_default%thermal_conductivity_wet

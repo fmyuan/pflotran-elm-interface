@@ -298,7 +298,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
       endif
     else
       option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
-                         'only for TH mode.'
+                         'only for MPFLOW mode.'
       call printErrMsg(option)
     endif
   enddo
@@ -311,7 +311,7 @@ subroutine DownregSrcSink(this,Residual,Jacobian,compute_derivative, &
         Jacobian(idof,idof) = -1.0d0 * rate * drate_regulator
       else
         option%io_buffer = 'srcsink_sandbox_downreg is implemented ' // &
-                           'only for TH mode.'
+                           'only for MPFLOW mode.'
         call printErrMsg(option)
       endif
     enddo

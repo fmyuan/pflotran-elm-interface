@@ -15,9 +15,9 @@ module Variables_module
   PetscInt, parameter, public :: LIQUID_SATURATION =        6
   PetscInt, parameter, public :: GAS_SATURATION =           7
   PetscInt, parameter, public :: LIQUID_DENSITY =           8
-  PetscInt, parameter, public :: LIQUID_DENSITY_MOL =       9
+  !PetscInt, parameter, public :: LIQUID_DENSITY_MOL =       9
   PetscInt, parameter, public :: GAS_DENSITY =             10
-  PetscInt, parameter, public :: GAS_DENSITY_MOL =         11
+  !PetscInt, parameter, public :: GAS_DENSITY_MOL =         11
   PetscInt, parameter, public :: LIQUID_ENERGY =           12
   PetscInt, parameter, public :: GAS_ENERGY =              13
   PetscInt, parameter, public :: LIQUID_VISCOSITY =        14

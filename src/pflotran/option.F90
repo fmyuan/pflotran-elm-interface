@@ -45,25 +45,10 @@ module Option_module
 
     PetscInt :: fid_out
 
-    ! defines the mode (e.g. mph, richards, vadose, etc.
+    ! defines the mode (e.g. NULL_MODE, MPFLOW_MODE, etc.)
     character(len=MAXWORDLENGTH) :: flowmode
     PetscInt :: iflowmode
-
-    PetscInt :: nfluids
-    PetscInt :: liq_fluid
-    PetscInt :: gas_fluid
-
     PetscInt :: nflowdof
-    PetscInt :: nflowspec
-
-    PetscInt :: num_table_indices
-    PetscInt :: air_pressure_id
-    PetscInt :: capillary_pressure_id
-    PetscInt :: vapor_pressure_id
-    PetscInt :: saturation_pressure_id
-    PetscInt :: water_id   ! index of water component dof
-    PetscInt :: air_id     ! index of air component dof
-    PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: iflag
     PetscInt :: status
@@ -103,6 +88,8 @@ module Option_module
 
 !   table lookup
     PetscInt :: itable
+    PetscInt :: num_table_indices
+    PetscBool :: out_of_table
 
     PetscBool :: restart_flag
     PetscReal :: restart_time
@@ -135,9 +122,6 @@ module Option_module
     PetscBool :: steady_state
     PetscBool :: force_newton_iteration
     PetscBool :: use_upwinding
-    PetscBool :: out_of_table
-
-    PetscInt :: subsurface_simulation_type
 
     ! Type of averaging scheme for relative permeability
     PetscInt :: rel_perm_aveg
@@ -326,12 +310,9 @@ subroutine OptionInitAll(option)
 
   option%use_upwinding = PETSC_TRUE
 
-  option%out_of_table = PETSC_FALSE
-
-  option%subsurface_simulation_type = SUBSURFACE_SIM_TYPE
-
   option%rel_perm_aveg = UPWIND
   option%first_step_after_restart = PETSC_FALSE
+  option%out_of_table = PETSC_FALSE
 
   call OptionInitRealization(option)
 
@@ -366,27 +347,12 @@ subroutine OptionInitRealization(option)
   option%iflowmode = NULL_MODE
   option%nflowdof = 0
 
-  option%nfluids    = 0
-  option%liq_fluid  = UNINITIALIZED_INTEGER
-  option%gas_fluid  = UNINITIALIZED_INTEGER
-
-  option%air_pressure_id = 0
-  option%capillary_pressure_id = 0
-  option%vapor_pressure_id = 0
-  option%saturation_pressure_id = 0
-
-  option%water_id = 0
-  option%air_id = 0
-  option%energy_id = 0
-
-
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
       ! which should be set via the command line or the input file, but it
       ! seems good practice to set them to sensible values when a pflowGrid
       ! is created.
 !-----------------------------------------------------------------------
-  !TODO(geh): move to option%flow.F90
   option%reference_pressure = 101325.d0
   option%reference_temperature = 25.d0
   option%reference_density = 0.d0

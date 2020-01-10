@@ -8,6 +8,7 @@ module Output_module
   use Output_HDF5_module
   use Output_Tecplot_module
   use Output_Observation_module
+  use Output_MassBalance_module
   
   use PFLOTRAN_Constants_module
   use Utility_module, only : Equal
@@ -668,7 +669,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'MOLAR')) then
             units = 'kmol/m^3'
-            temp_int = LIQUID_DENSITY_MOL
+            temp_int = LIQUID_DENSITY
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,LIQUID_DENSITY')
@@ -729,7 +730,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         if (input%ierr == 0) then
           if (StringCompareIgnoreCase(word,'MOLAR')) then
             units = 'kmol/m^3'
-            temp_int = GAS_DENSITY_MOL
+            temp_int = GAS_DENSITY
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,GAS_DENSITY')
@@ -904,52 +905,52 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MOLE_FRACTION, &
-                                     option%air_id)
+                                     AIR_FLUID)
         name = 'X_l^l'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MOLE_FRACTION, &
-                                     option%water_id)
+                                     LIQ_FLUID)
       case ('GAS_MOLE_FRACTIONS')
         name = 'X_g^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MOLE_FRACTION, &
-                                     option%air_id)
+                                     AIR_FLUID)
         name = 'X_l^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MOLE_FRACTION, &
-                                     option%water_id)
+                                     LIQ_FLUID)
       case ('LIQUID_MASS_FRACTIONS')
         name = 'w_g^l'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MASS_FRACTION, &
-                                     option%air_id)
+                                     AIR_FLUID)
         name = 'w_l^l'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      LIQUID_MASS_FRACTION, &
-                                     option%water_id)
+                                     LIQ_FLUID)
       case ('GAS_MASS_FRACTIONS')
         name = 'w_g^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MASS_FRACTION, &
-                                     option%air_id)
+                                     AIR_FLUID)
         name = 'w_l^g'
         units = ''
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      GAS_MASS_FRACTION, &
-                                     option%water_id)
+                                     LIQ_FLUID)
       case ('AIR_PRESSURE')
         name = 'Air Pressure'
         units = 'Pa'
@@ -1372,7 +1373,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec2)
 
-  do iphase = 1,option%nfluids
+  do iphase = 1,option%flow%nfluid
 
     do direction = 1,3
     
@@ -1441,9 +1442,9 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
           string = 'Z-Direction,'
       end select
       select case(iphase)
-        case(LIQUID_PHASE)
+        case(LIQ_FLUID)
           string = trim(string) // ' Liquid Phase'
-        case(GAS_PHASE)
+        case(AIR_FLUID)
           string = trim(string) // ' Gas Phase'
       end select
       string = trim(string) // ' Velocity Statistics [m/' // &
@@ -1531,7 +1532,7 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   call DiscretizationDuplicateVector(discretization,field%work,global_vec) 
   call DiscretizationDuplicateVector(discretization,field%work,global_vec2) 
 
-  do iphase = 1,option%nfluids
+  do iphase = 1,option%flow%nfluid
     do direction = 1,3
     
       call VecZeroEntries(global_vec,ierr);CHKERRQ(ierr)
@@ -1574,9 +1575,9 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
           string = 'Z-Direction,'
       end select
       select case(iphase)
-        case(LIQUID_PHASE)
+        case(LIQ_FLUID)
           string = trim(string) // ' Liquid Phase'
-        case(GAS_PHASE)
+        case(AIR_FLUID)
           string = trim(string) // ' Gas Phase'
       end select
       string = trim(string) // ' Flux Velocity Statistics [m/' // &

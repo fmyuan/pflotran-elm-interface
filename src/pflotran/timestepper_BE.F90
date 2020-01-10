@@ -646,7 +646,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%num_linear_iterations = num_linear_iterations  
   
   ! print screen output
-  ! (2018-09-06, fmy) after updating TH mode, the following 'residual_vec' is NULL
+  ! (2018-09-06, fmy) after updating MPFLOW mode, the following 'residual_vec' is NULL
   !            when surf_subsurface simulation is on, because actually didn't associated with
   !call SNESGetFunction(solver%snes,residual_vec,PETSC_NULL_FUNCTION, &
   !                     PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)

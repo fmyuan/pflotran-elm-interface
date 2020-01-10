@@ -665,7 +665,7 @@ subroutine RegressionOutput(regression,realization, &
       call VecZeroEntries(z_vel_process,ierr);CHKERRQ(ierr)
     endif
 
-    do iphase = 1, option%nfluids
+    do iphase = 1, option%flow%nfluid
       if (associated(regression%natural_cell_ids) .or. &
           regression%num_cells_per_process > 0) then
     

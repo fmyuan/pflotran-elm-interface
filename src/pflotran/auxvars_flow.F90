@@ -1,10 +1,15 @@
 module AuxVars_Flow_module
+  ! variables globally shared (accessible) Extended for flow process model (PM)
+
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
 
-  use AuxVars_Base_module
+  use Global_Aux_module
 
   implicit none
 
@@ -14,27 +19,42 @@ module AuxVars_Flow_module
 
   private
 
-  type, public, extends(auxvar_base_type) :: auxvar_flow_type
-    PetscReal, pointer :: sat(:)    ! (nfluids+1) unitless: the '+1' is for fluid in solid phase (e.g. ice)
-    PetscReal, pointer :: den(:)    ! (nfluids+1) kmol/m^3:
-    PetscReal, pointer :: den_kg(:) ! (nfluids+1) kg/m^3  :
-    PetscReal, pointer :: pres(:)      ! (nfluids): exlcuding solid phase
-    PetscReal, pointer :: mobility(:)  ! relative permissivity/dynamic viscosity
-    PetscReal, pointer :: viscosity(:) ! dynamic viscosity
-    PetscReal, pointer :: xmol(:,:)    ! (nflowspec,nfluids) transportants in fluids
-    PetscReal          :: por          ! porosity of porous media for flow
-    PetscReal          :: pc           ! liq. fluid capillary pressure only (specific variables useful)
+  type, public, extends(global_auxvar_type) :: auxvar_flow_type
+
+    PetscReal          :: pc                   ! liq. fluid capillary pressure only in (negative) Pa (specific variable very useful)
+
+    ! note: here 'sat','den','pres' are derived from 'global_auxvar_type'
+    PetscReal, pointer :: mobility(:)          ! (nfluid): relative permissivity/dynamic viscosity
+    PetscReal, pointer :: viscosity(:)         ! (nfluid): dynamic viscosity
+
+    PetscReal, pointer :: den_kg(:)            ! (nfluid+1) kg/m^3, with 1 more dimension for when (liq_ or air_)fluid phase-changes to the solid or immobile
+
+    ! dim: option%flow%nspecgas, for all dissolved-gas solutes in a liq. fuild solution (when nfluid>=2, disgassing-disolving process may be needed)
+    PetscReal, pointer :: fugacoeff(:)         ! fugacity coefficent in Henry's Law
+    PetscReal, pointer :: xmass(:)             ! for convertion from molarity (moles/L solution) to molality(moles/kg solvent)
+    PetscReal, pointer :: liq_molarity(:)      ! (nflowgas) aq. gas species in liq. fluid in moles/L solution
+    PetscReal, pointer :: gas_molefraction(:)  ! (nflowgas) gas species in gas fluid
+
+    ! dim: (nfluid+1, option%flow%nspecflow). NOTE that this is for fluid species in mixture or itself, NOT transportants in it.
+    PetscReal, pointer :: mass_balance(:,:)       ! kmol
+    PetscReal, pointer :: mass_balance_delta(:,:) ! kmol/timestep
 
     ! derivatives
     PetscBool :: has_derivs
-    PetscReal, pointer :: D_sat(:,:)    ! (nfluids+1, nflowdof)
-    PetscReal, pointer :: D_den(:,:)    ! (nfluids+1, nflowdof) kmol/m^3 phase
-    PetscReal, pointer :: D_den_kg(:,:) ! (nfluids+1, nflowdof) kg/m^3 phase
-    PetscReal, pointer :: D_pres(:,:)   ! (nfluids, nflowdof)
-    PetscReal, pointer :: D_mobility(:,:)  ! (nfluids, nflowdof) relative perm./visc.
-    PetscReal, pointer :: D_viscosity(:,:) ! (nfluids, nflowdof) dynamic viscosity
-    PetscReal, pointer :: D_por(:)         ! (nflowdof)
-    PetscReal, pointer :: D_pc(:)          ! liq. capillary pressure (nflowdof)
+
+    PetscReal, pointer :: D_por(:)             ! (nflowdof)
+    PetscReal, pointer :: D_pc(:)              ! (nflowdof)
+
+    PetscReal, pointer :: D_sat(:,:)           ! (nfluid, nflowdof)
+    PetscReal, pointer :: D_den(:,:)           ! (nfluid, nflowdof) kmol/m^3 phase
+    PetscReal, pointer :: D_pres(:,:)          ! (nfluid, nflowdof)
+    PetscReal, pointer :: D_mobility(:,:)      ! (nfluid, nflowdof) relative perm./visc.
+    PetscReal, pointer :: D_viscosity(:,:)     ! (nfluid, nflowdof) dynamic viscosity
+
+    PetscReal, pointer :: D_den_kg(:,:)        ! (nfluid+1, nflowdof) kg/m^3 phase
+
+    PetscReal, pointer :: D_liqmolarity(:,:)      ! (nspecgas, nflowdof) aq. gas in liq. fluid
+    PetscReal, pointer :: D_gasmolefraction(:,:)  ! (nspecgas, nflowdof) gas in gas fluid
 
   contains
     !
@@ -45,7 +65,7 @@ module AuxVars_Flow_module
 contains
 
 ! ************************************************************************** !
-subroutine AuxVarFlowInit(this,option)
+subroutine AuxVarFlowInit(auxvar,option)
   !
   ! initialize flow auxiliary variables
   !
@@ -57,61 +77,100 @@ subroutine AuxVarFlowInit(this,option)
 
   implicit none
 
-  class(auxvar_flow_type) :: this
+  class(auxvar_flow_type) :: auxvar
   type(option_type) :: option
 
-  nullify(this%pres)
-  nullify(this%sat)
-  nullify(this%den)
-  nullify(this%den_kg)
-  nullify(this%mobility)
-  nullify(this%viscosity)
+  PetscInt:: nflowgas, nfluid, nflowspec, nflowdof
 
-  nullify(this%D_pres)
-  nullify(this%D_sat)
-  nullify(this%D_pc)
-  nullify(this%D_den)
-  nullify(this%D_den_kg)
-  nullify(this%D_mobility)
-  nullify(this%D_por)
+  ! base auxiliary variables
+  call GlobalAuxVarInit(auxvar,option)
+
+  ! specific flow relevant variables
+  auxvar%pc = 0.0d0
+
+  nullify(auxvar%mobility)
+  nullify(auxvar%viscosity)
+  nullify(auxvar%den_kg)
+
+  nfluid = option%flow%nfluid
+  if(option%iflowmode > 0 .and. nfluid > 0) then
+    allocate(auxvar%mobility(nfluid))
+    auxvar%mobility = 0.d0
+    allocate(auxvar%viscosity(nfluid))
+    auxvar%viscosity = 0.d0
+    allocate(auxvar%den_kg(nfluid+1))
+    auxvar%den_kg = 0.d0
+  endif
+
+  nullify(auxvar%fugacoeff)
+  nullify(auxvar%xmass)
+  nullify(auxvar%liq_molarity)
+  nullify(auxvar%gas_molefraction)
+
+  nflowgas   = option%flow%nspecgas
+  if (option%iflowmode > 0 .and. nflowgas > 0) then
+      allocate(auxvar%fugacoeff(nflowgas))
+      auxvar%fugacoeff = 1.d0
+      allocate(auxvar%xmass(nflowgas))
+      auxvar%xmass = 1.d0
+      allocate(auxvar%liq_molarity(nflowgas))
+      auxvar%liq_molarity = 0.d0
+      allocate(auxvar%gas_molefraction(nflowgas))
+      auxvar%gas_molefraction = 0.d0
+  endif
+
+  nullify(auxvar%mass_balance)
+  nullify(auxvar%mass_balance_delta)
+  ! for fluid(s) only, including its phase-changing mass (NOT transportants in it)
+  nflowspec  = option%flow%nspecflow
+
+  if (option%iflag/=0 .and. option%compute_mass_balance_new .and. nflowspec>0) then
+    allocate(auxvar%mass_balance(nfluid+1, nflowspec))
+    auxvar%mass_balance = 0.d0
+    allocate(auxvar%mass_balance_delta(nfluid+1, nflowspec))
+    auxvar%mass_balance_delta = 0.d0
+  endif
 
   !
-  allocate(this%pres(option%nfluids))
-  this%pres = 0.d0
-  this%pc = 0.0d0
-  allocate(this%sat(option%nfluids))
-  this%sat = 0.d0
-  allocate(this%den(option%nfluids))
-  this%den = 0.d0
-  allocate(this%den_kg(option%nfluids))
-  this%den_kg = 0.d0
-  allocate(this%mobility(option%nfluids))
-  this%mobility = 0.d0
-  allocate(this%viscosity(option%nfluids))
-  this%viscosity = 0.d0
-  this%por = 0.d0
+  nullify(auxvar%D_pc)
+  nullify(auxvar%D_por)
+  nullify(auxvar%D_pres)
+  nullify(auxvar%D_sat)
+  nullify(auxvar%D_den)
+  nullify(auxvar%D_mobility)
+  nullify(auxvar%D_den_kg)
 
-  this%has_derivs = option%flow%numerical_derivatives
+  nflowdof = option%nflowdof
+  auxvar%has_derivs = PETSC_FALSE
   if (.not.option%flow%numerical_derivatives) then
+    auxvar%has_derivs = PETSC_TRUE
 
-    this%has_derivs = PETSC_TRUE
+    allocate(auxvar%D_pc(nflowdof))
+    auxvar%D_pc = 0.d0
+    allocate(auxvar%D_por(nflowdof))
+    auxvar%D_por = 0.d0
 
-    allocate(this%D_pres(option%nfluids,option%nflowdof))
-    this%D_pres = 0.d0
-    allocate(this%D_sat(option%nfluids,option%nflowdof))
-    this%D_sat = 0.d0
-    allocate(this%D_pc(option%nflowdof))
-    this%D_pc = 0.d0
-    allocate(this%D_den(option%nfluids,option%nflowdof))
-    this%D_den = 0.d0
-    allocate(this%D_den_kg(option%nfluids,option%nflowdof))
-    this%D_den_kg = 0.d0
-    allocate(this%D_mobility(option%nfluids,option%nflowdof))
-    this%D_mobility = 0.d0
-    allocate(this%D_viscosity(option%nfluids,option%nflowdof))
-    this%D_viscosity = 0.d0
-    allocate(this%D_por(option%nflowdof))
-    this%D_por = 0.d0
+    allocate(auxvar%D_pres(nfluid,nflowdof))
+    auxvar%D_pres = 0.d0
+    allocate(auxvar%D_sat(nfluid,nflowdof))
+    auxvar%D_sat = 0.d0
+    allocate(auxvar%D_pc(nflowdof))
+    auxvar%D_pc = 0.d0
+    allocate(auxvar%D_den(nfluid,nflowdof))
+    auxvar%D_den = 0.d0
+    allocate(auxvar%D_mobility(nfluid,nflowdof))
+    auxvar%D_mobility = 0.d0
+    allocate(auxvar%D_viscosity(nfluid,nflowdof))
+    auxvar%D_viscosity = 0.d0
+
+    allocate(auxvar%D_den_kg(nfluid+1,nflowdof))
+    auxvar%D_den_kg = 0.d0
+
+    allocate(auxvar%D_liqmolarity(nflowgas,nflowdof))
+    auxvar%D_liqmolarity = 0.d0
+    allocate(auxvar%D_gasmolefraction(nflowgas,nflowdof))
+    auxvar%D_gasmolefraction = 0.d0
+
   endif
 
 end subroutine AuxVarFlowInit
@@ -131,57 +190,104 @@ subroutine AuxVarFlowCopy(auxvar, auxvar2)
   class (auxvar_flow_type) :: auxvar
   class (auxvar_flow_type) :: auxvar2
 
-  auxvar2%pres = auxvar%pres
-  auxvar2%pc = auxvar%pc
-  auxvar2%sat = auxvar%sat
-  auxvar2%den = auxvar%den
-  auxvar2%den_kg = auxvar%den_kg
-  auxvar2%mobility = auxvar%mobility
-  auxvar2%viscosity = auxvar%viscosity
-  if (auxvar%has_derivs) then
-    auxvar2%D_pres = auxvar%D_pres
-    auxvar2%D_sat  = auxvar%D_sat
-    auxvar2%D_pc   = auxvar%D_pc
-    auxvar2%D_den  = auxvar%D_den
-    auxvar2%D_den_kg   = auxvar%D_den_kg
-    auxvar2%D_mobility = auxvar%D_mobility
-    auxvar2%D_viscosity = auxvar%D_viscosity
-    auxvar2%D_por      = auxvar%D_por
+  ! base variables
+  call GlobalAuxVarCopy(auxvar,auxvar2)
+
+  ! specific variables for flow
+  auxvar2%pc  = auxvar%pc
+  if (associated(auxvar%sat)) &
+    auxvar2%sat = auxvar%sat
+  if (associated(auxvar%den)) &
+    auxvar2%den = auxvar%den
+  if (associated(auxvar%den_kg)) &
+    auxvar2%den_kg = auxvar%den_kg
+  if (associated(auxvar%mobility)) &
+    auxvar2%mobility = auxvar%mobility
+  if (associated(auxvar%viscosity)) &
+    auxvar2%viscosity = auxvar%viscosity
+
+  if (associated(auxvar%fugacoeff)) &
+    auxvar2%fugacoeff = auxvar%fugacoeff
+  if (associated(auxvar%xmass)) &
+    auxvar2%xmass = auxvar%xmass
+  if (associated(auxvar%liq_molarity)) &
+    auxvar2%liq_molarity = auxvar%liq_molarity
+  if (associated(auxvar%gas_molefraction)) &
+    auxvar2%gas_molefraction = auxvar%gas_molefraction
+
+  if (associated(auxvar%mass_balance) .and. &
+      associated(auxvar2%mass_balance)) then
+    auxvar2%mass_balance = auxvar%mass_balance
+   endif
+  if (associated(auxvar%mass_balance_delta) .and. &
+      associated(auxvar2%mass_balance_delta)) then
+    auxvar2%mass_balance_delta = auxvar%mass_balance_delta
   endif
+
+  if (associated(auxvar%D_pres)) &
+    auxvar2%D_pres = auxvar%D_pres
+  if (associated(auxvar%D_sat)) &
+    auxvar2%D_sat  = auxvar%D_sat
+  if (associated(auxvar%D_pc)) &
+    auxvar2%D_pc   = auxvar%D_pc
+  if (associated(auxvar%D_den)) &
+    auxvar2%D_den  = auxvar%D_den
+  if (associated(auxvar%D_den_kg)) &
+    auxvar2%D_den_kg   = auxvar%D_den_kg
+  if (associated(auxvar%D_mobility)) &
+    auxvar2%D_mobility = auxvar%D_mobility
+  if (associated(auxvar%D_viscosity)) &
+    auxvar2%D_viscosity= auxvar%D_viscosity
+  if (associated(auxvar%D_por)) &
+    auxvar2%D_por      = auxvar%D_por
 
 end subroutine AuxVarFlowCopy
 
 ! ************************************************************************** !
 
-subroutine AuxVarFlowStrip(this)
+subroutine AuxVarFlowStrip(auxvar)
   !
   ! AuxVarFlowDestroy: Deallocates a flow auxiliary object
   !
-  ! Author: Paolo Orsini
-  ! Date: 8/5/16
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
   !
   use Utility_module, only : DeallocateArray
 
   implicit none
 
-  class(auxvar_flow_type) :: this
+  class(auxvar_flow_type) :: auxvar
 
-  call DeallocateArray(this%pres)
-  call DeallocateArray(this%sat)
-  call DeallocateArray(this%den)
-  call DeallocateArray(this%den_kg)
-  call DeallocateArray(this%mobility)
-  call DeallocateArray(this%viscosity)
+  call DeallocateArray(auxvar%pres)
+  call DeallocateArray(auxvar%sat)
+  call DeallocateArray(auxvar%den)
+  call DeallocateArray(auxvar%den_kg)
+  call DeallocateArray(auxvar%mobility)
+  call DeallocateArray(auxvar%viscosity)
 
-  if (this%has_derivs) then 
-    call DeallocateArray(this%D_pres)
-    call DeallocateArray(this%D_sat)
-    call DeallocateArray(this%D_pc)
-    call DeallocateArray(this%D_den)
-    call DeallocateArray(this%D_den_kg)
-    call DeallocateArray(this%D_mobility)
-    call DeallocateArray(this%D_viscosity)
-    call DeallocateArray(this%D_por)
+  if (associated(auxvar%fugacoeff)) &
+    call DeallocateArray(auxvar%fugacoeff)
+  if (associated(auxvar%xmass)) &
+    call DeallocateArray(auxvar%xmass)
+  if (associated(auxvar%liq_molarity)) &
+    call DeallocateArray(auxvar%liq_molarity)
+  if (associated(auxvar%gas_molefraction)) &
+   call DeallocateArray(auxvar%gas_molefraction)
+
+  if (associated(auxvar%mass_balance)) &
+   call DeallocateArray(auxvar%mass_balance)
+  if (associated(auxvar%mass_balance_delta)) &
+   call DeallocateArray(auxvar%mass_balance_delta)
+
+  if (auxvar%has_derivs) then
+    call DeallocateArray(auxvar%D_pres)
+    call DeallocateArray(auxvar%D_sat)
+    call DeallocateArray(auxvar%D_pc)
+    call DeallocateArray(auxvar%D_den)
+    call DeallocateArray(auxvar%D_den_kg)
+    call DeallocateArray(auxvar%D_mobility)
+    call DeallocateArray(auxvar%D_viscosity)
+    call DeallocateArray(auxvar%D_por)
   endif
 
 end subroutine AuxVarFlowStrip

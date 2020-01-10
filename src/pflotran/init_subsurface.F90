@@ -1006,10 +1006,10 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
       !TODO(geh): refactors so that we don't need all these variants?
       case(MPFLOW_MODE)
         call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Flow%zero_rows_local, &
-                      realization%patch%aux%Flow%zero_rows_local_ghosted, &
-                      realization%patch%aux%Flow%n_zero_rows, &
-                      realization%patch%aux%Flow%inactive_cells_exist, &
+                      realization%patch%aux%MpFlow%zero_rows_local, &
+                      realization%patch%aux%MpFlow%zero_rows_local_ghosted, &
+                      realization%patch%aux%MpFlow%n_zero_rows, &
+                      realization%patch%aux%MpFlow%inactive_cells_exist, &
                       option)
     end select
     deallocate(dof_is_active)

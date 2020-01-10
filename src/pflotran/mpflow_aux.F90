@@ -1,9 +1,14 @@
 module MpFlow_Aux_module
+  ! data types and modules for MPFLOW MODE
+
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
   use AuxVars_Flow_Energy_module
+  use Option_module
 
   implicit none
 
@@ -11,61 +16,66 @@ module MpFlow_Aux_module
 
   PetscReal, public :: flow_itol_scaled_res = 1.d-15
   PetscReal, public :: flow_itol_rel_update = UNINITIALIZED_DOUBLE
-  !PetscBool, public :: flow_using_newtontr = PETSC_FALSE
 
-  ! currently only liq. water and air gas as fluids (option%nfluids = 2)
-  PetscReal,public :: FMW_FLUIDS(2) = [FMWH2O,FMWAIR]
+  ! indexing
+
+  ! fluid(s)
+  PetscInt, public :: IFLUID1 = 1      ! fluid 1: LIQ_FLUID (1)
+  PetscInt, public :: IFLUID2 = 2      ! fluid 2: AIR_FLUID (2)
+
   ! currently only liq. water as flow species
-  PetscInt, public :: IFLOW1 = ONE_INTEGER       ! liq. water
-  PetscInt, public :: IFLOW2 = TWO_INTEGER       ! air (not-yet, AND TODO)
+  PetscInt, public :: IFLOWSPEC1 = 1       ! fluid spec 1: liq. water species
+  PetscInt, public :: IFLOWSPEC2 = 2       ! fluid spec 2: air species
+  !PetscInt, public :: IFLOWSPEC3 = 3       ! fluid spec 3: another AIR_FLUID, if any
+ PetscReal, public :: FMW_FLUIDS(2) = [FMWH2O,FMWAIR]  ! should be appended, if more fluid identified
 
-  ! 2 dofs currently
+  ! 2 dofs currently: pressure, temperature
   PetscInt, public :: IFDOF1 = MPFLOW_PRESSURE_DOF
   PetscInt, public :: IFDOF2 = MPFLOW_TEMPERATURE_DOF
-  PetscInt, public :: IFDOF3 = MPFLOW_CONDUCTANCE_DOF ! not-yet
+  PetscInt, public :: IFDOF3 = MPFLOW_CONDUCTANCE_DOF ! thermal
   PetscInt, public :: IFDOF4 = MPFLOW_ENTHALPY_DOF    ! not-yet
 
-  type, public, extends(auxvar_flow_energy_type) :: flow_auxvar_type
+  type, public, extends(auxvar_flow_energy_type) :: mpflow_auxvar_type
 
-    PetscReal :: transient_por
-    PetscReal :: air_pressure    ! unit: Pa ( air pressure of water-air interface. It's reference_pressure if an open system)
-
-    PetscReal :: molv_air                 ! vapor mole fraction in air mixture
-    PetscReal, pointer :: dmolv_air(:)    ! (nflowdof)
+    PetscReal :: air_pressure             ! unit: Pa ( air pressure of liq.water/ice-air interface. It's reference_pressure if an open system)
 
     PetscReal :: pres_fh2o                ! liq. water pressure on ice-included soil matrix
     PetscReal, pointer :: dpres_fh2o(:)   ! (nflowdof)
 
-    PetscReal :: vis
-    PetscReal :: kvr
-    PetscReal, pointer :: dkvr(:)         ! (nflowdof)
+    !relative permissivity for all fluid(s)
+    PetscReal, pointer :: kvr(:)          ! (nfluid)
+    PetscReal, pointer :: dkvr(:,:)       ! (nfluid, nflowdof)
 
+    ! effective thermal conductivity integrated for all fluid(s), including fluid changed to immobile or solid, and porous media for fluid(s)
     PetscReal :: Dk_eff
     PetscReal, pointer :: dDk_eff(:)      ! (nflowdof)
 
-  end type flow_auxvar_type
+  end type mpflow_auxvar_type
 
-
-  type, public :: flow_parameter_type
-    PetscReal :: dencpr   ! Rock (soil particle) densityXspecific_heat_capacity: MJ/m^3-K
+  type, public :: mpflow_parameter_type
+    PetscReal :: dencpr   ! porous media (e.g. soil/rock) particle density X specific_heat_capacity: MJ/m^3-K
     PetscReal :: ckdry    ! Thermal conductivity (dry)
     PetscReal :: ckwet    ! Thermal conductivity (saturated - wet)
     PetscReal :: alpha
     PetscReal :: ckfrozen ! Thermal conductivity (frozen/saturated soil)
     PetscReal :: alpha_fr ! exponent frozen
-    PetscReal, pointer :: sir(:)   ! (nphase)
-    PetscReal, pointer :: diffusion_coefficient(:)         !(nphase)
-    PetscReal, pointer :: diffusion_activation_energy(:)   !(nphase)
-  end type flow_parameter_type
+
+    PetscReal, pointer :: sr(:)                            !(nfluid) residue saturation
+    PetscReal, pointer :: diffusion_coefficient(:)         !(nfluid)
+    PetscReal, pointer :: diffusion_activation_energy(:)   !(nfluid)
+  end type mpflow_parameter_type
   
+  ! the following data-type is for domain-wide use
   type, public :: MpFlow_type
     PetscInt :: n_zero_rows
     PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-    type(flow_parameter_type), pointer :: flow_parameters(:)    ! material_id
-    type(flow_auxvar_type), pointer :: auxvars(:)               ! grid_id
+    type(mpflow_parameter_type), pointer :: mpflow_parameters(:)    ! (material number)
+    type(mpflow_auxvar_type), pointer :: auxvars(:)                 ! (gridcell number)
+    type(mpflow_auxvar_type), pointer :: auxvars_bc(:)              ! (gridcell number)
+    type(mpflow_auxvar_type), pointer :: auxvars_ss(:)              ! (gridcell number)
   end type MpFlow_type
 
   PetscReal, parameter :: eps       = 1.d-8
@@ -73,7 +83,7 @@ module MpFlow_Aux_module
 
   public :: MpFlowAuxCreate, MpFlowAuxDestroy, &
             MpFlowAuxVarCompute, MpFlowAuxVarInit, &
-            MpFlowAuxVarCopy, MpFlowAuxVarDestroy
+            MpFlowAuxVarCopy, MpFlowAuxVarStrip
 
   public :: DarcyFlowDerivative, &
             AdvectionDerivative, &
@@ -87,8 +97,8 @@ function MpFlowAuxCreate(option)
   ! 
   ! Allocate and initialize auxiliary object
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
 
   use Option_module
 
@@ -106,9 +116,11 @@ function MpFlowAuxCreate(option)
   aux%num_aux_bc = 0
   aux%num_aux_ss = 0
   nullify(aux%auxvars)
+  nullify(aux%auxvars_bc)
+  nullify(aux%auxvars_ss)
   aux%n_zero_rows = 0
 
-  nullify(aux%flow_parameters)
+  nullify(aux%mpflow_parameters)
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
 
@@ -120,176 +132,136 @@ end function MpFlowAuxCreate
 
 subroutine MpFlowAuxVarInit(auxvar,option)
   ! 
-  ! Initialize auxiliary object
+  ! Initialize a single auxiliary object
   ! 
-  ! Author: ???
-  ! Date: 02/14/08
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
   ! 
-#include "petsc/finclude/petscsys.h"
-  use petscsys
 
   use Option_module
   use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
 
+  use AuxVars_Flow_Energy_module
+
   implicit none
   
-  type(flow_auxvar_type) :: auxvar
+  type(mpflow_auxvar_type) :: auxvar
   type(option_type) :: option
-  
-  auxvar%transient_por = UNINITIALIZED_DOUBLE
-  auxvar%air_pressure  = UNINITIALIZED_DOUBLE
 
-  auxvar%molv_air      = UNINITIALIZED_DOUBLE
-  allocate(auxvar%dmolv_air(option%nflowspec))
-  auxvar%dmolv_air(:)  = UNINITIALIZED_DOUBLE
-
-  auxvar%pres_fh2o     = UNINITIALIZED_DOUBLE
-  allocate(auxvar%dpres_fh2o(option%nflowspec))
-  auxvar%dpres_fh2o(:) = UNINITIALIZED_DOUBLE
-
-  auxvar%vis       = UNINITIALIZED_DOUBLE
-  auxvar%kvr       = UNINITIALIZED_DOUBLE
-  allocate(auxvar%dkvr(option%nflowspec))
-  auxvar%dkvr(:)   = UNINITIALIZED_DOUBLE
-
-  auxvar%Dk_eff    = UNINITIALIZED_DOUBLE
-  allocate(auxvar%dDk_eff(option%nflowspec))
-  auxvar%dDK_eff(:)= UNINITIALIZED_DOUBLE
-
-  option%flow%numerical_derivatives = PETSC_FALSE
-
+  !
   call AuxVarFlowEnergyInit(auxvar,option)
+
+  !
+  auxvar%air_pressure  = UNINITIALIZED_DOUBLE
+  auxvar%pres_fh2o     = UNINITIALIZED_DOUBLE
+  nullify(auxvar%kvr)
+  allocate(auxvar%kvr(option%flow%nfluid))
+  auxvar%kvr           = UNINITIALIZED_DOUBLE
+  auxvar%Dk_eff        = UNINITIALIZED_DOUBLE
+
+  nullify(auxvar%dpres_fh2o)
+  nullify(auxvar%dkvr)
+  nullify(auxvar%dDk_eff)
+  if (.not.option%flow%numerical_derivatives) then
+    auxvar%has_derivs = PETSC_TRUE    ! not needed, but just in case
+
+    allocate(auxvar%dpres_fh2o(option%nflowdof))
+    auxvar%dpres_fh2o    = UNINITIALIZED_DOUBLE
+
+    allocate(auxvar%dkvr(option%flow%nfluid, option%nflowdof))
+    auxvar%dkvr          = UNINITIALIZED_DOUBLE
+    allocate(auxvar%dDk_eff(option%nflowdof))
+    auxvar%dDK_eff       = UNINITIALIZED_DOUBLE
+  endif
 
 end subroutine MpFlowAuxVarInit
 
 ! ************************************************************************** !
 
-subroutine MpFlowAuxVarCopy(auxvar,auxvar2,option)
+subroutine MpFlowAuxVarCopy(auxvar,auxvar2)
   ! 
-  ! Copies an auxiliary variable
+  ! Copies an auxiliary object
   ! 
-  ! Author: ???
-  ! Date: 12/13/07
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
   ! 
-
-  use Option_module
 
   implicit none
   
-  type(flow_auxvar_type) :: auxvar, auxvar2
-  type(option_type) :: option
+  class(mpflow_auxvar_type) :: auxvar, auxvar2
+
+  call AuxVarFlowEnergyCopy(auxvar, auxvar2)
 
   auxvar2%air_pressure = auxvar%air_pressure
-  auxvar2%transient_por= auxvar%transient_por
-
-  auxvar2%molv_air     = auxvar%molv_air
-  auxvar2%dmolv_air    = auxvar%dmolv_air
-
   auxvar2%pres_fh2o    = auxvar%pres_fh2o
-  auxvar2%dpres_fh2o   = auxvar%dpres_fh2o
-
-  auxvar2%vis  = auxvar%vis
   auxvar2%kvr  = auxvar%kvr
-  auxvar2%dkvr = auxvar%dkvr
-
   auxvar2%Dk_eff  = auxvar%Dk_eff
-  auxvar2%dDk_eff = auxvar%dDk_eff
 
-  !
-  auxvar2%temp = auxvar%temp
-  auxvar2%H = auxvar%H
-  auxvar2%U = auxvar%U
+  if (associated(auxvar%dpres_fh2o)) &
+    auxvar2%dpres_fh2o   = auxvar%dpres_fh2o
 
-  auxvar2%has_derivs = auxvar%has_derivs
-  if(auxvar%has_derivs) then
-    auxvar2%D_H = auxvar%D_H
-    auxvar2%D_U = auxvar%D_U
-  endif
+  if (associated(auxvar%dkvr)) &
+    auxvar2%dkvr = auxvar%dkvr
 
-  auxvar2%pres = auxvar%pres
-  auxvar2%pc = auxvar%pc
-  auxvar2%sat = auxvar%sat
-  auxvar2%den = auxvar%den
-  auxvar2%den_kg = auxvar%den_kg
-  auxvar2%mobility = auxvar%mobility
-  auxvar2%viscosity = auxvar%viscosity
+  if (associated(auxvar%dDk_eff)) &
+    auxvar2%dDk_eff = auxvar%dDk_eff
 
-  if (auxvar%has_derivs) then
-    auxvar2%D_pres = auxvar%D_pres
-    auxvar2%D_sat  = auxvar%D_sat
-    auxvar2%D_pc   = auxvar%D_pc
-    auxvar2%D_den  = auxvar%D_den
-    auxvar2%D_den_kg   = auxvar%D_den_kg
-    auxvar2%D_mobility = auxvar%D_mobility
-    auxvar2%D_por      = auxvar%D_por
-  endif
 
 end subroutine MpFlowAuxVarCopy
 
 ! ************************************************************************** !
 
-subroutine MpFlowAuxVarCompute(x, auxvar,              &
-                           auxvar_update, global_auxvar, &
-                           material_auxvar,              &
-                           characteristic_curves,        &
-                           th_parameter,                 &
+subroutine MpFlowAuxVarCompute(x,                 &
+                           characteristic_curves, &
+                           mpflow_parameter,      &
+                           auxvar,                &
                            option)
   ! 
   ! Computes auxillary variables for each grid cell when
-  ! ice and vapor phases are present
+  ! ice and vapor phases are present for water fluid
   ! 
-  ! Author: Satish Karra, LANL
-  ! Date: 11/16/11
-  ! 
+  ! Author: Fengming Yuan @CCSI/ORNL
+  ! Date: 11/07/2019
+  !
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
 
   use Option_module
   use Global_Aux_module
-  
   use EOS_Water_module
   use Characteristic_Curves_module
-  use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-  class(characteristic_curves_type), pointer :: characteristic_curves
   PetscReal, intent(in) :: x(option%nflowdof)
-  type(flow_auxvar_type) :: auxvar
-  PetscBool, intent(in) :: auxvar_update
-  type(global_auxvar_type) :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
-  type(flow_parameter_type) :: th_parameter
+  class(characteristic_curves_type), pointer :: characteristic_curves
+  type(mpflow_parameter_type) :: mpflow_parameter
+  type(mpflow_auxvar_type) :: auxvar
 
   ! local variables
   PetscErrorCode :: ierr
 
-  PetscReal :: pres_l, dpresl_dp
-  PetscReal :: temperature
+  PetscReal :: presl, presg, dpresl_dp
+  PetscReal :: Tk, tc
 
-  PetscReal :: dw_kg, dw_mol, dw_dp, dw_dt            ! liq. water density
-  PetscReal :: den_ice, dden_ice_dp, dden_ice_dt      ! ice density
-  PetscReal :: den_air, dden_air_dp, dden_air_dt      ! air density
+  PetscReal :: dw_kg, dw_mol, dw_dp, dw_dt            ! (liq.) water fluid density
+  PetscReal :: den_air, dden_air_dp, dden_air_dt      ! air fluid density
   PetscReal :: psat, dpsat_dt                         ! vapor pressure
-  PetscReal :: molv_air, dmolv_air_dt, dmolv_air_dp   ! vapor mole fraction in air
+  PetscReal :: den_ice, dden_ice_dp, dden_ice_dt      ! ice density
 
   PetscReal :: sl, dsl_dp, dsl_dt
   PetscReal :: sg, dsg_dp, dsg_dt
   PetscReal :: si, dsi_dp, dsi_dt
+  PetscReal :: ice_presl, ice_presl_dp, ice_presl_dt
 
-  PetscReal :: kr, dkr_dp, dkr_dt                ! liq. water permissivity
-  PetscReal :: visl, dvis_dp, dvis_dt            ! liq. water viscosity
+  PetscReal :: kr, dkr_dp, dkr_dt                 ! fluid rel. permissivity
+  PetscReal :: vis, dvis_dp, dvis_dt              ! fluid viscosity
 
-  PetscReal :: h, h_dp, h_dt                     ! liq. water enthalpy
-  PetscReal :: u, u_dp, u_dt                     ! liq. water internal energy
-  PetscReal :: u_ice, du_ice_dp, du_ice_dt       ! ice water internal energy
-  PetscReal :: u_air, du_air_dp, du_air_dt       ! air (inc. vapor) internal energy
-  PetscReal :: p_g, Tk_g
+  PetscReal :: h, h_dp, h_dt                      ! enthalpy
+  PetscReal :: u, u_dp, u_dt                      ! internal energy
   PetscReal :: C_g
-  PetscReal, parameter :: C_a  = 1.860d-3        ! in MJ/kg/K at 300K, air
-  PetscReal, parameter :: C_wv = 1.005d-3        ! in MJ/kg/K at 300K, vapor
 
   PetscReal :: Ke, dKe_dp, dKe_dt
   PetscReal :: Ke_fr, dKe_fr_dp, dKe_fr_dt
@@ -305,17 +277,31 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
 
   !----------------------------------------------------------------------------------------------------------------
 
-  ! air_pressure at water-air interface
-  auxvar%air_pressure = option%reference_pressure ! (TODO: in a closed-system, this is NOT the case)
-  !
-  pres_l      = x(1)
-  ! Check if the capillary pressure is less than -100MPa
-  pcmax = abs(characteristic_curves%saturation_function%pcmax)  ! non-negative
-  if (pres_l - auxvar%air_pressure <= -pcmax) then
-    pres_l = auxvar%air_pressure - pcmax
+  ! dofs
+  presl  = x(IFDOF1)   ! presl: liq. pressure for liq_fluid movement
+  presg  = option%reference_pressure   ! presg: air pressure for air_fluid movement (TODO: the diff is PC)
+  Tk     = x(IFDOF2)+TC2TK
+
+  ! isothermal, i.e. hydrology only
+  if(option%flow%isothermal) TK = option%reference_temperature+TC2TK
+  ! option%flow%isobaric, i.e. thermal process only
+  if(option%flow%isobaric) then
+    presl = option%reference_pressure
+    presg = option%reference_pressure
   endif
-  auxvar%pres(LIQUID_PHASE) = pres_l
-  auxvar%pc = max(0.d0, auxvar%air_pressure - pres_l)  ! always non-negative
+
+  !----------------------------------------------------------------
+  ! air pressure at water-air interface
+  auxvar%air_pressure = presg
+  !
+  !----------------------------------------------------------------
+  pcmax = abs(characteristic_curves%saturation_function%pcmax)  ! non-negative
+  if (presl - auxvar%air_pressure <= -pcmax) then
+    presl = auxvar%air_pressure - pcmax
+  endif
+  auxvar%pc = max(0.d0, auxvar%air_pressure - presl)  ! always non-negative
+  auxvar%pres(LIQ_FLUID) = presl
+  auxvar%pres(AIR_FLUID) = presg
 
   pcmin  = 0.d0  ! near-saturation PC zone (hint: a small positive value may be helpful ?)
   if (auxvar%pc <= pcmin) then
@@ -325,8 +311,10 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
     dpresl_dp = 0.d0
   endif
   !
-  auxvar%temp = x(2)
-  temperature = x(2)
+  !----------------------------------------------------------------
+  auxvar%tc   = Tk-TC2TK
+  auxvar%TK   = Tk-TC2TK
+
 
   !----------------------------------------------------------------
   auxvar%kvr = 0.d0
@@ -338,32 +326,23 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
   dt_trunc = 1.d0
   dp_trunc = 1.d0
 
-  ! isothermal, i.e. hydrology only (for simplifying water density calculation)
-  if(option%flow%isothermal) temperature = option%reference_temperature
-
-  !--------------------------------------------------------------------
-
   ! general bounds of P/T. We may need to further limit bounds for 3-phase water properties.
-  if (temperature>=100.d0 .or. temperature<=-273.d0) dt_trunc = 0.d0
-  temperature    = min(100.d0, max(-273.d0, temperature))
+  if (Tk<=0.d0) dt_trunc = 0.d0
+  Tk = max(0.d0, TK)
 
-  if (pres_l>=16.54d6) dp_trunc = 0.d0                         ! 16.54 MPa is upper limit for using IFC67 EOS.
-  if (pres_l<=auxvar%air_pressure-pcmax) dp_trunc = 0.d0
-  
+  if (presl>=16.54d6) dp_trunc = 0.d0  ! 16.54 MPa is upper limit for using IFC67 EOS.
 
 !***************  Characteristic Curves ***********************************
   
   ! using modules in 'characteristic_curves.F90' to calculate needed variables:
   ! saturations and derivatives for 3 phases
-  call MpFlowAuxVarComputeCharacteristicCurves(pres_l, temperature,    &
-                                           global_auxvar,  auxvar,       &
+  tc = Tk - TC2TK
+  call MpFlowAuxVarComputeCharacteristicCurves(presl, presg, tc,         &
                                            characteristic_curves,        &
                                            sl,  dsl_dp, dsl_dt,          &
                                            si,  dsi_dp, dsi_dt,          &
                                            sg,  dsg_dp, dsg_dt,          &
-                                           auxvar%pres_fh2o,             &
-                                           auxvar%dpres_fh2o(IFDOF1),    &
-                                           auxvar%dpres_fh2o(IFDOF2),    &
+                                  ice_presl, ice_presl_dp, ice_presl_dt, &
                                            kr,  dkr_dp, dkr_dt,          &
                                            option)
   if(DTRUNC_FLAG) then
@@ -374,58 +353,72 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
     dsg_dp = dsg_dp * dp_trunc
     dsg_dt = dsg_dt * dt_trunc
 
-    auxvar%dpres_fh2o(IFDOF1) = auxvar%dpres_fh2o(IFDOF1) * dp_trunc
-    auxvar%dpres_fh2o(IFDOF2) = auxvar%dpres_fh2o(IFDOF2) * dt_trunc
+    ice_presl_dp = ice_presl_dp * dp_trunc
+    ice_presl_dt = ice_presl_dt * dt_trunc
     dkr_dp = dkr_dp * dp_trunc
     dkr_dt = dkr_dt * dt_trunc
 
   endif
 
+  auxvar%pres_fh2o = ice_presl
+  if (auxvar%has_derivs) then
+    auxvar%dpres_fh2o(IFDOF1) = ice_presl_dp
+    auxvar%dpres_fh2o(IFDOF2) = ice_presl_dt
+  endif
 
 !***************  3-phase water properties **********************************************************
 
   ! ----- Liq. water ---------------------------------------------------------
-  auxvar%sat(LIQUID_PHASE)           = sl
-  auxvar%D_sat(LIQUID_PHASE, IFDOF1) = dsl_dp
-  auxvar%D_sat(LIQUID_PHASE, IFDOF2) = dsl_dt
-
+  auxvar%sat(LIQ_FLUID)           = sl
+  if (auxvar%has_derivs) then
+    auxvar%D_sat(LIQ_FLUID, IFDOF1) = dsl_dp
+    auxvar%D_sat(LIQ_FLUID, IFDOF2) = dsl_dt
+  endif
 
   ! Liq. water density/energy from available EOS (EOS_water.F90) could be crazy when below 0oC,
   ! So a trunction at/below 0.1oC, it may be helpful to avoid those
   tcmin = 0.1d0
   !--------- LIQ. Water Density
-  call EOSWaterDensity(max(tcmin, temperature),               &
-                       max(auxvar%air_pressure,pres_l),       &
+  call EOSWaterDensity(max(tcmin, tc),                    &
+                       max(auxvar%air_pressure,presl),    &
                         dw_kg, dw_mol, dw_dp, dw_dt,ierr)
   if (DTRUNC_FLAG) dw_dp = dw_dp * dpresl_dp
-  if (DTRUNC_FLAG .and. temperature<tcmin) dw_dt = 0.d0
+  if (DTRUNC_FLAG .and. tc<tcmin) dw_dt = 0.d0
 
-  auxvar%den(LIQUID_PHASE)           = dw_mol
-  auxvar%D_den(LIQUID_PHASE, IFDOF1) = dw_dp
-  auxvar%D_den(LIQUID_PHASE, IFDOF2) = dw_dt
+  auxvar%den(LIQ_FLUID)           = dw_mol
+  if (auxvar%has_derivs) then
+    auxvar%D_den(LIQ_FLUID, IFDOF1) = dw_dp
+    auxvar%D_den(LIQ_FLUID, IFDOF2) = dw_dt
+  endif
 
-  auxvar%den_kg(LIQUID_PHASE)           = dw_mol*FMWH2O  ! Not-use 'dw_kg' in case inconsistent 'FMWH2O'
-  auxvar%D_den_kg(LIQUID_PHASE, IFDOF1) = dw_dp*FMWH2O
-  auxvar%D_den_kg(LIQUID_PHASE, IFDOF2) = dw_dt*FMWH2O
+  auxvar%den_kg(LIQ_FLUID)           = dw_mol*FMWH2O  ! Not-use 'dw_kg' in case inconsistent 'FMWH2O'
+  if (auxvar%has_derivs) then
+    auxvar%D_den_kg(LIQ_FLUID, IFDOF1) = dw_dp*FMWH2O
+    auxvar%D_den_kg(LIQ_FLUID, IFDOF2) = dw_dt*FMWH2O
+  endif
 
   !----------- LIQ. Water Energy
-  call EOSWaterEnthalpy(max(tcmin, temperature),               &
-                        max(auxvar%air_pressure,pres_l),       &
+  call EOSWaterEnthalpy(max(tcmin, tc),                   &
+                        max(auxvar%air_pressure,presl),   &
                         h, h_dp, h_dt, ierr)
   if (DTRUNC_FLAG) h_dp = h_dp * dpresl_dp
-  if (DTRUNC_FLAG .and. temperature<tcmin) h_dt = 0.d0
+  if (DTRUNC_FLAG .and. tc<tcmin) h_dt = 0.d0
 
-  auxvar%H(LIQUID_PHASE)           = h * 1.d-6         ! J/kmol -> MJ/kmol
-  auxvar%D_H(LIQUID_PHASE, IFDOF1) = h_dp * 1.d-6
-  auxvar%D_H(LIQUID_PHASE, IFDOF2) = h_dt * 1.d-6
+  auxvar%H(LIQ_FLUID)           = h * 1.d-6         ! J/kmol -> MJ/kmol
+  if (auxvar%has_derivs) then
+    auxvar%D_H(LIQ_FLUID, IFDOF1) = h_dp * 1.d-6
+    auxvar%D_H(LIQ_FLUID, IFDOF2) = h_dt * 1.d-6
+  endif
 
-  u = h - pres_l/dw_mol
-  u_dp = h_dp - (dpresl_dp/dw_mol - pres_l/(dw_mol*dw_mol)*dw_dp)
-  u_dt = h_dt + pres_l/(dw_mol*dw_mol)*dw_dt
+  u = h - presl/dw_mol
+  u_dp = h_dp - (dpresl_dp/dw_mol - presl/(dw_mol*dw_mol)*dw_dp)
+  u_dt = h_dt + presl/(dw_mol*dw_mol)*dw_dt
 
-  auxvar%U(LIQUID_PHASE)           = u * 1.d-6         ! J/kmol -> MJ/kmol
-  auxvar%D_U(LIQUID_PHASE, IFDOF1) = u_dp * 1.d-6
-  auxvar%D_U(LIQUID_PHASE, IFDOF2) = u_dt * 1.d-6
+  auxvar%U(LIQ_FLUID)           = u * 1.d-6         ! J/kmol -> MJ/kmol
+  if (auxvar%has_derivs) then
+    auxvar%D_U(LIQ_FLUID, IFDOF1) = u_dp * 1.d-6
+    auxvar%D_U(LIQ_FLUID, IFDOF2) = u_dt * 1.d-6
+  endif
 
   !----------- LIQ. Water Viscosity
   ! A note here (F.-M. Yuan: 2017-01-17)
@@ -433,139 +426,119 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
   ! 'visl' ~ 0. around -133oC, which produces 'inf' for 'kr'
   tcmin = -63.d0
 
-  call EOSWaterSaturationPressure(max(tcmin,temperature), psat, dpsat_dt, ierr)
+  call EOSWaterSaturationPressure(max(tcmin,tc), psat, dpsat_dt, ierr)
   ! the lowest Tk of 200 for vapor exists in EOS-h2o phase-diagram, but here make it consistent with 'Viscosity'
-  if(DTRUNC_FLAG .and. temperature<=tcmin) dpsat_dt = 0.d0
+  if(DTRUNC_FLAG .and. tc<=tcmin) dpsat_dt = 0.d0
 
-  call EOSWaterViscosity(max(tcmin,temperature),       &
-                         pres_l,                       &
+  call EOSWaterViscosity(max(tcmin,tc),                &
+                         presl,                        &
                          psat, dpsat_dt,               &
-                         visl, dvis_dt,dvis_dp, ierr)
-  if(DTRUNC_FLAG .and. temperature<=tcmin) dvis_dt = 0.d0
+                         vis,  dvis_dt, dvis_dp, ierr)
+  if(DTRUNC_FLAG .and. tc<=tcmin) dvis_dt = 0.d0
   if(DTRUNC_FLAG) dvis_dp = dvis_dp*dpresl_dp
 
-  auxvar%vis = visl
-  auxvar%kvr = kr/visl
-  auxvar%dkvr(IFDOF1) = dkr_dp/visl - kr/(visl*visl)*dvis_dp
-  auxvar%dkvr(IFDOF2) = -kr/(visl*visl)*dvis_dt + dkr_dt/visl
+  auxvar%viscosity = vis
+  auxvar%kvr(LIQ_FLUID) = kr/vis
+  if (auxvar%has_derivs) then
+    auxvar%dkvr(LIQ_FLUID,IFDOF1) = dkr_dp/vis - kr/(vis*vis)*dvis_dp
+    auxvar%dkvr(LIQ_FLUID,IFDOF2) = -kr/(vis*vis)*dvis_dt + dkr_dt/vis
+  endif
 
   ! ----- ice water ---------------------------------------------------------
-  auxvar%sat(SOLID_PHASE)           = si
-  auxvar%D_sat(SOLID_PHASE, IFDOF1) = dsi_dp
-  auxvar%D_sat(SOLID_PHASE, IFDOF2) = dsi_dt
 
   ! for ice Ih, Tk limit is ~127K (-146oC) in EOS-h2o phase-diagram
   tcmin = -146.d0
   tcmax = 0.d0
   !---------------
-  call EOSWaterIceDensity(max(tcmin, min(tcmax,temperature)),    &
-                          max(auxvar%air_pressure,pres_l), &
+  call EOSWaterIceDensity(max(tcmin, min(tcmax,tc)),      &
+                          max(auxvar%air_pressure,presl), &
                           den_ice, dden_ice_dt, dden_ice_dp, ierr)
   if(DTRUNC_FLAG) dden_ice_dp = dden_ice_dp * dpresl_dp
-  if(DTRUNC_FLAG .and. (temperature<=tcmin .or. temperature>=tcmax)) dden_ice_dT = 0.d0
+  if(DTRUNC_FLAG .and. (tc<=tcmin .or. tc>=tcmax)) dden_ice_dT = 0.d0
 
-  auxvar%den(SOLID_PHASE)           = den_ice
-  auxvar%D_den(SOLID_PHASE, IFDOF1) = dden_ice_dp
-  auxvar%D_den(SOLID_PHASE, IFDOF2) = dden_ice_dt
-
-  auxvar%den_kg(SOLID_PHASE)           = den_ice*FMWH2O  ! Not-use 'dw_kg' in case inconsistent 'FMWH2O'
-  auxvar%D_den_kg(SOLID_PHASE, IFDOF1) = dden_ice_dp*FMWH2O
-  auxvar%D_den_kg(SOLID_PHASE, IFDOF2) = dden_ice_dt*FMWH2O
+  auxvar%den_kg(option%flow%nfluid+1)          = den_ice*FMWH2O  ! '%den' in kmol/m3 ONLY defined for fluids
+  if (auxvar%has_derivs) then
+    auxvar%D_den_kg(option%flow%nfluid+1,IFDOF1) = dden_ice_dp*FMWH2O
+    auxvar%D_den_kg(option%flow%nfluid+1,IFDOF2) = dden_ice_dt*FMWH2O
+  endif
 
   !--------------
-  call EOSWaterIceInternalEnergy(max(tcmin, min(tcmax,temperature)), &
-                                 max(auxvar%air_pressure,pres_l), &
-                                 PETSC_TRUE, &
-                                 u_ice, du_ice_dp, du_ice_dt)
-  if(DTRUNC_FLAG .and. (temperature<=tcmin .or. temperature>=tcmax)) du_ice_dt = 0.d0
+  call EOSWaterIceInternalEnergy(max(tcmin, min(tcmax,tc)),      &
+                                 max(auxvar%air_pressure,presl), &
+                                 PETSC_TRUE,                     &
+                                 u, u_dp, u_dt)
+  if(DTRUNC_FLAG .and. (tc<=tcmin .or. tc>=tcmax)) u_dt = 0.d0
 
-  auxvar%U(SOLID_PHASE)           = u_ice * 1.d-6         ! J/kmol -> MJ/kmol
-  auxvar%D_U(SOLID_PHASE, IFDOF1) = du_ice_dp * 1.d-6
-  auxvar%D_U(SOLID_PHASE, IFDOF2) = du_ice_dt * 1.d-6
+  auxvar%U(option%flow%nfluid+1)           = u * 1.d-6         ! J/kmol -> MJ/kmol
+  if (auxvar%has_derivs) then
+    auxvar%D_U(option%flow%nfluid+1,IFDOF1) = u_dp * 1.d-6
+    auxvar%D_U(option%flow%nfluid+1,IFDOF2) = u_dt * 1.d-6
+  endif
 
-  ! ----- Air (incl. vapor) ------------------------------------------------------------------------------------------------
+  call EOSWaterIceEnthalpy(max(tcmin, min(tcmax,tc)),      &
+                           max(auxvar%air_pressure,presl), &
+                           h, h_dp, h_dt, ierr)
+  if(DTRUNC_FLAG .and. (tc<=tcmin .or. tc>=tcmax)) h_dt = 0.d0
 
-  auxvar%sat(GAS_PHASE)           = sg
-  auxvar%D_sat(GAS_PHASE, IFDOF1) = dsg_dp
-  auxvar%D_sat(GAS_PHASE, IFDOF2) = dsg_dt
+  auxvar%H(option%flow%nfluid+1)           = h * 1.d-6         ! J/kmol -> MJ/kmol
+  if (auxvar%has_derivs) then
+    auxvar%D_H(option%flow%nfluid+1, IFDOF1) = h_dp * 1.d-6
+    auxvar%D_H(option%flow%nfluid+1,IFDOF2)  = h_dt * 1.d-6
+  endif
+
+  ! ----- Air (more checking NEEDED?) ------------------------------------------------------------------------------------------------
+
+  auxvar%sat(AIR_FLUID)           = sg
+  if (auxvar%has_derivs) then
+    auxvar%D_sat(AIR_FLUID, IFDOF1) = dsg_dp
+    auxvar%D_sat(AIR_FLUID, IFDOF2) = dsg_dt
+  endif
 
   ! Calculate the values and derivatives for air density and its internal energy
 
-  p_g      = max(pres_l, auxvar%air_pressure)
   ! the lowest Tk of ~200K for vapor exists in EOS-h2o phase-diagram
   tcmin    = -73.d0
-  Tk_g     = max(tcmin,temperature)+TC2TK
 
   !---------
-  den_air     = p_g/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3        ! in kmol/m3 for all air-mixture
-  dden_air_dp = -p_g/(IDEAL_GAS_CONSTANT*tk_g**2)*1.d-3
-  dden_air_dt = 1.d0/(IDEAL_GAS_CONSTANT*tk_g)*1.d-3
+  den_air     = presg/(IDEAL_GAS_CONSTANT*Tk)*1.d-3        ! in kmol/m3 for all air-mixture
+  dden_air_dp = -presg/(IDEAL_GAS_CONSTANT*Tk*Tk)*1.d-3
+  dden_air_dt = 1.d0/(IDEAL_GAS_CONSTANT*Tk)*1.d-3
   ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
   if(DTRUNC_FLAG) then
     ! the following is a MUST for reducing tiny-time step (NOT sure why).
     dden_air_dp = dden_air_dp*dpresl_dp    ! w.r.t from 'pw' to 'pres(1)' upon soil total saturation
-    if (tk_g<=tcmin) dden_air_dt = 0.d0
+    if (Tk<=tcmin) dden_air_dt = 0.d0
   endif
 
-  !----------
-  ! NOTE: vapor 'molv_air' is included in 'den_air', 'u_air'
-  ! (because 'molv_air', fraction of vapor in air-mixture, going to be as multiplier in all 'air' calculations in 'MpFlow.F90')
-#ifdef NO_VAPOR_DIFFUSION
-  molv_air     = 0.d0   ! no vapor assumed in open-air
-  dmolv_air_dt = 0.d0
-  dmolv_air_dp = 0.d0
-
-#else
-  call EOSWaterSaturationPressure(Tk_g-TC2TK, psat, dpsat_dt, ierr)
-  molv_air     = psat/p_g
-  dmolv_air_dt = dpsat_dt/p_g
-  dmolv_air_dp = -psat/p_g/p_g
-  ! F.-M. Yuan (2017-01-18): truncating 'derivatives' at the bounds
-  if(DTRUNC_FLAG) then
-    dmolv_air_dp = dmolv_air_dp * dpresl_dp
-    if (tk_g<=tcmin) then
-      dpsat_dt     = 0.d0
-      dmolv_air_dt = 0.d0
-    endif
+  auxvar%den(AIR_FLUID)           = den_air
+  if (auxvar%has_derivs) then
+    auxvar%D_den(AIR_FLUID, IFDOF1) = dden_air_dp
+    auxvar%D_den(AIR_FLUID, IFDOF2) = dden_air_dt
   endif
-#endif
-
-  if(DTRUNC_FLAG) then
-    dmolv_air_dp = dmolv_air_dp * dp_trunc
-    dmolv_air_dt = dmolv_air_dt * dt_trunc
-  endif
-  auxvar%molv_air          = molv_air
-  auxvar%dmolv_air(IFDOF1) = dmolv_air_dp
-  auxvar%dmolv_air(IFDOF2) = dmolv_air_dt
-
-  auxvar%den(GAS_PHASE)           = den_air*molv_air            ! Vapor only
-  auxvar%D_den(GAS_PHASE, IFDOF1) = den_air*dmolv_air_dp + dden_air_dp*molv_air
-  auxvar%D_den(GAS_PHASE, IFDOF2) = den_air*dmolv_air_dt + dden_air_dt*molv_air
 
   !-----------------------
-  C_g       = C_wv*molv_air*FMWH2O + C_a*(1.d0 - molv_air)*FMWAIR          ! in MJ/kmol/K
-  u_air     = C_g*tk_g                                                     ! in MJ/kmol
-  du_air_dp = (C_wv*FMWH2O-C_a*FMWAIR)*dmolv_air_dp*tk_g
-  du_air_dt = C_g + (C_wv*dmolv_air_dt*FMWH2O - C_a*dmolv_air_dt*FMWAIR)*tk_g
+  C_g   = C_AIR*FMWAIR          ! in MJ/kmol/K, vapor included in air
+  u     = C_g*Tk
+  u_dp = 0.d0 ! right ?
+  u_dt = C_g
   if(DTRUNC_FLAG) then
-    du_air_dp = du_air_dp * dp_trunc
-    du_air_dt = du_air_dt * dt_trunc
+    u_dp = u_dp * dp_trunc
+    u_dt = u_dt * dt_trunc
   endif
-  auxvar%U(GAS_PHASE)           = u_air
-  auxvar%D_U(GAS_PHASE, IFDOF1) = du_air_dp
-  auxvar%D_U(GAS_PHASE, IFDOF2) = du_air_dt
+  auxvar%U(AIR_FLUID)           = u
+  if (auxvar%has_derivs) then
+    auxvar%D_U(AIR_FLUID, IFDOF1) = u_dp
+    auxvar%D_U(AIR_FLUID, IFDOF2) = u_dt
+  endif
 
-
-
-
-  ! ----- Thermal conductivity (effective) ---------------------------------------------------------
+  ! ----- Thermal conductivity (effective, i.e. integrated over fluids and its porous media ) ------
 
   ! Parameters for computation of effective thermal conductivity
-  alpha    = th_parameter%alpha
-  alpha_fr = th_parameter%alpha_fr
-  Dk_wet = th_parameter%ckwet
-  Dk_dry = th_parameter%ckdry
-  Dk_ice = th_parameter%ckfrozen
+  alpha    = mpflow_parameter%alpha
+  alpha_fr = mpflow_parameter%alpha_fr
+  Dk_wet   = mpflow_parameter%ckwet
+  Dk_dry   = mpflow_parameter%ckdry
+  Dk_ice   = mpflow_parameter%ckfrozen
 
   !Soil Kersten number
   Ke = (sl + eps)**(alpha)
@@ -579,10 +552,11 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
 
   ! Effective thermal conductivity
   auxvar%Dk_eff = Dk_wet*Ke + Dk_ice*Ke_fr + (1.d0 - Ke - Ke_fr)*Dk_dry
-  ! derivative of 'Dk_eff': Dk_eff = Dk_dry + (Dk_wet-Dk_dry)*Ke + (Dk_ice-Dk_dry)*Ke_fr
-  auxvar%dDk_eff(IFDOF1) = (Dk_wet-Dk_dry)*dKe_dp + (Dk_ice-Dk_dry)*dKe_fr_dp
-  auxvar%dDk_eff(IFDOF2) = (Dk_wet-Dk_dry)*dKe_dt + (Dk_ice-Dk_dry)*dKe_fr_dt
-
+  if (auxvar%has_derivs) then
+    ! derivative of 'Dk_eff': Dk_eff = Dk_dry + (Dk_wet-Dk_dry)*Ke + (Dk_ice-Dk_dry)*Ke_fr
+    auxvar%dDk_eff(IFDOF1) = (Dk_wet-Dk_dry)*dKe_dp + (Dk_ice-Dk_dry)*dKe_fr_dp
+    auxvar%dDk_eff(IFDOF2) = (Dk_wet-Dk_dry)*dKe_dt + (Dk_ice-Dk_dry)*dKe_fr_dt
+  endif
 
   ! isothermal, i.e. hydrology only
   if(option%flow%isothermal) then
@@ -592,39 +566,27 @@ subroutine MpFlowAuxVarCompute(x, auxvar,              &
     auxvar%U      = 0.d0
 
     ! zeroing thermal states derivatives
-    auxvar%dDk_eff = 0.d0
-    auxvar%D_H     = 0.d0
-    auxvar%D_U     = 0.d0
-
+    if (auxvar%has_derivs) then
+      auxvar%dDk_eff = 0.d0
+      auxvar%D_H     = 0.d0
+      auxvar%D_U     = 0.d0
+    endif
   endif
 
  ! thermal process only
-  if(option%flow%onlythermal) then
+  if(option%flow%isobaric) then
     ! no flow (BUT do allowing water states changing with thermal process, if any)
-    auxvar%vis = 0.d0
-    auxvar%kvr = 0.d0
-    auxvar%dkvr= 0.d0
-  endif
-
-  ! Assign values to GLOBAL_auxvar, which shared with other MODEs in PFLOTRAN
-  ! when instruted so
-  if (auxvar_update) then
-
-    global_auxvar%pres(LIQUID_PHASE) = x(1)
-    global_auxvar%pres(SOLID_PHASE)  = auxvar%pres_fh2o
-    global_auxvar%pres(GAS_PHASE)    = p_g
-    global_auxvar%temp               = x(2)
-
-    global_auxvar%sat    = auxvar%sat
-    global_auxvar%den    = auxvar%den
-    global_auxvar%den_kg = auxvar%den_kg
+    auxvar%viscosity = 0.d0
+    auxvar%kvr       = 0.d0
+    if (auxvar%has_derivs) then
+      auxvar%dkvr    = 0.d0
+    endif
   endif
 
 end subroutine MpFlowAuxVarCompute
 
 ! ************************************************************************** !
-subroutine MpFlowAuxVarComputeCharacteristicCurves( presl,  tc,           &
-                                    global_auxvar, auxvar,                  &
+subroutine MpFlowAuxVarComputeCharacteristicCurves( presl, presg, tc,       &
                                     characteristic_curves,                  &
                                     sl,  dsl_dpl, dsl_dt,                   &
                                     si,  dsi_dpl, dsi_dt,                   &
@@ -641,7 +603,6 @@ subroutine MpFlowAuxVarComputeCharacteristicCurves( presl,  tc,           &
   !       (2) ANY permissivity function, from 'Characteristci_Curves_module' as well
 
   use Option_module
-  use Global_Aux_module
   use Characteristic_Curves_module
   use EOS_Water_module
 
@@ -649,9 +610,8 @@ subroutine MpFlowAuxVarComputeCharacteristicCurves( presl,  tc,           &
 
   type(option_type) :: option
   PetscReal, intent(in) :: presl    ! unit: Pa (liq water-air interface pressure: -pc+air_pressure)
+  PetscReal, intent(in) :: presg    ! unit: Pa (air pressure: air_pressure)
   PetscReal, intent(in) :: tc       ! unit: oC
-  type(flow_auxvar_type), intent(in) :: auxvar
-  type(global_auxvar_type), intent(in) :: global_auxvar
   class(characteristic_curves_type) :: characteristic_curves
 
   PetscReal, intent(out) :: sl,  dsl_dpl, dsl_dt
@@ -675,7 +635,7 @@ subroutine MpFlowAuxVarComputeCharacteristicCurves( presl,  tc,           &
 
   ! ----------------
   ! (0) inputs
-  pc = max(0.d0, auxvar%air_pressure - presl)   ! always non-negative (0 = saturated)
+  pc = max(0.d0, presg - presl)   ! always non-negative (0 = saturated)
   if (pc > abs(characteristic_curves%saturation_function%pcmax)) then
     pc = characteristic_curves%saturation_function%pcmax
   endif
@@ -915,9 +875,12 @@ end subroutine MpFlowAuxVarComputeCharacteristicCurves
 
 
 ! ************************************************************************** !
-subroutine DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
+! ************************************************************************** !
+! ************************************************************************** !
+
+subroutine DarcyFlowDerivative(mpflow_auxvar_up,    mpflow_auxvar_dn,     &
                                material_auxvar_up,  material_auxvar_dn,   &
-                               flow_parameter_up,   flow_parameter_dn,    &
+                               mpflow_parameter_up, mpflow_parameter_dn,  &
                                area, dist,                                &
                                option,                                    &
                                v_darcy,                                   &
@@ -937,9 +900,9 @@ subroutine DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
 
   implicit none
 
-  type(Flow_auxvar_type)      :: flow_auxvar_up, flow_auxvar_dn
+  type(mpflow_auxvar_type)    :: mpflow_auxvar_up, mpflow_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
-  type(Flow_parameter_type)   :: flow_parameter_up, flow_parameter_dn
+  type(mpflow_parameter_type) :: mpflow_parameter_up, mpflow_parameter_dn
   PetscReal, intent(in) :: area, dist(-1:3)
   type(option_type) :: option
   PetscBool, intent(in)  :: ifderivative
@@ -967,15 +930,15 @@ subroutine DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
   dq_up(:) = 0.d0
   dq_dn(:) = 0.d0
 
-  presl_up = flow_auxvar_up%pres(LIQUID_PHASE)
-  presl_dn = flow_auxvar_dn%pres(LIQUID_PHASE)
+  presl_up = mpflow_auxvar_up%pres(LIQ_FLUID)
+  presl_dn = mpflow_auxvar_dn%pres(LIQ_FLUID)
 
   !-------------------------------------------------------------------------
   call ConnectionCalculateDistances(dist,option%gravity,dd_up,dd_dn, &
                                     dist_gravity,upweight)
-  if (flow_auxvar_up%sat(LIQUID_PHASE) < flow_parameter_up%sir(LIQUID_PHASE)) then
+  if (mpflow_auxvar_up%sat(LIQ_FLUID) < mpflow_parameter_up%sr(LIQ_FLUID)) then
     upweight = 0.d0
-  elseif (flow_auxvar_dn%sat(LIQUID_PHASE) < flow_parameter_dn%sir(LIQUID_PHASE)) then
+  elseif (mpflow_auxvar_dn%sat(LIQ_FLUID) < mpflow_parameter_dn%sr(LIQ_FLUID)) then
     upweight = 1.d0
   end if
 
@@ -985,25 +948,25 @@ subroutine DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
 
   v_darcy = 0.d0
   ! Darcy Flow of liquid water
-  if (flow_auxvar_up%sat(LIQUID_PHASE) > flow_parameter_up%sir(LIQUID_PHASE) .or.  &
-      flow_auxvar_dn%sat(LIQUID_PHASE) > flow_parameter_dn%sir(LIQUID_PHASE)) then
+  if (mpflow_auxvar_up%sat(LIQ_FLUID) > mpflow_parameter_up%sr(LIQ_FLUID) .or.  &
+      mpflow_auxvar_dn%sat(LIQ_FLUID) > mpflow_parameter_dn%sr(LIQ_FLUID)) then
 
-    gravity = (upweight        *flow_auxvar_up%den_kg(LIQUID_PHASE)+  &
-               (1.d0-upweight) *flow_auxvar_dn%den_kg(LIQUID_PHASE))  &
+    gravity = (upweight        *mpflow_auxvar_up%den_kg(LIQ_FLUID)+  &
+               (1.d0-upweight) *mpflow_auxvar_dn%den_kg(LIQ_FLUID))  &
               * dist_gravity
 
 #if 0
     dphi = presl_up - presl_dn + gravity
 #else
-    dphi = flow_auxvar_up%pres_fh2o - flow_auxvar_dn%pres_fh2o + gravity
+    dphi = mpflow_auxvar_up%pres_fh2o - mpflow_auxvar_dn%pres_fh2o + gravity
 #endif
 
     if (dphi>=0.d0) then
-      den  = flow_auxvar_up%den(LIQUID_PHASE)
-      ukvr = flow_auxvar_up%kvr
+      den  = mpflow_auxvar_up%den(LIQ_FLUID)
+      ukvr = mpflow_auxvar_up%kvr(LIQ_FLUID)
     else
-      den  = flow_auxvar_dn%den(LIQUID_PHASE)
-      ukvr = flow_auxvar_dn%kvr
+      den  = mpflow_auxvar_dn%den(LIQ_FLUID)
+      ukvr = mpflow_auxvar_dn%kvr(LIQ_FLUID)
     endif
 
     if (dabs(ukvr)>floweps) then
@@ -1015,32 +978,32 @@ subroutine DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
     if(ifderivative) then
       do idof = 1, option%nflowdof
         dgravity_up(idof) = upweight*dist_gravity* &
-          flow_auxvar_up%D_den_kg(LIQUID_PHASE,idof)
+          mpflow_auxvar_up%D_den_kg(LIQ_FLUID,idof)
 
         dgravity_dn(idof) = (1.d0-upweight)*dist_gravity* &
-          flow_auxvar_dn%D_den_kg(LIQUID_PHASE,idof)
+          mpflow_auxvar_dn%D_den_kg(LIQ_FLUID,idof)
 
 #if 0
-        ddphi_up(idof) = dgravity_up(idof) + flow_auxvar_up%D_pres(LIQUID_PHASE, idof)
-        ddphi_dn(idof) = dgravity_dn(idof) - flow_auxvar_dn%D_pres(LIQUID_PHASE, idof)
+        ddphi_up(idof) = dgravity_up(idof) + mpflow_auxvar_up%D_pres(LIQ_FLUID, idof)
+        ddphi_dn(idof) = dgravity_dn(idof) - mpflow_auxvar_dn%D_pres(LIQ_FLUID, idof)
 #else
-        ddphi_up(idof) = dgravity_up(idof) + flow_auxvar_up%dpres_fh2o(idof)
-        ddphi_dn(idof) = dgravity_dn(idof) - flow_auxvar_dn%dpres_fh2o(idof)
+        ddphi_up(idof) = dgravity_up(idof) + mpflow_auxvar_up%dpres_fh2o(idof)
+        ddphi_dn(idof) = dgravity_dn(idof) - mpflow_auxvar_dn%dpres_fh2o(idof)
 #endif
 
         if (dphi>0.D0) then
-          dukvr_up(idof) = flow_auxvar_up%dkvr(idof)
+          dukvr_up(idof) = mpflow_auxvar_up%dkvr(LIQ_FLUID, idof)
           dukvr_dn(idof) = 0.d0
 
-          dden_up(idof)  = flow_auxvar_up%D_den(LIQUID_PHASE, idof)
+          dden_up(idof)  = mpflow_auxvar_up%D_den(LIQ_FLUID, idof)
           dden_dn(idof)  = 0.d0
 
         else
           dukvr_up(idof) = 0.d0
-          dukvr_dn(idof) = flow_auxvar_dn%dkvr(idof)
+          dukvr_dn(idof) = mpflow_auxvar_dn%dkvr(LIQ_FLUID, idof)
 
           dden_up(idof)  = 0.d0
-          dden_dn(idof)  = flow_auxvar_up%D_den(LIQUID_PHASE, idof)
+          dden_dn(idof)  = mpflow_auxvar_up%D_den(LIQ_FLUID, idof)
 
         end if
 
@@ -1068,7 +1031,8 @@ subroutine DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
 end subroutine DarcyFlowDerivative
 
 ! ************************************************************************** !
-subroutine AdvectionDerivative(flow_auxvar_up,   flow_auxvar_dn,   &
+
+subroutine AdvectionDerivative(mpflow_auxvar_up,   mpflow_auxvar_dn,   &
                               q, dq_up, dq_dn,                     &
                               option,                              &
                               qe,                                  &
@@ -1086,7 +1050,7 @@ subroutine AdvectionDerivative(flow_auxvar_up,   flow_auxvar_dn,   &
   implicit none
 
   type(option_type) :: option
-  type(Flow_auxvar_type):: flow_auxvar_up, flow_auxvar_dn
+  type(mpflow_auxvar_type):: mpflow_auxvar_up, mpflow_auxvar_dn
   PetscReal, intent(in) :: q    ! unit: kmol/sec, + from up -> dn; - from dn -> up
   PetscReal, intent(in) :: dq_up(option%nflowdof), dq_dn(option%nflowdof)
   PetscBool, intent(in) :: ifderivative
@@ -1105,9 +1069,9 @@ subroutine AdvectionDerivative(flow_auxvar_up,   flow_auxvar_dn,   &
 
   !-------------------------------------------------------------------------
   if (q>=0.d0) then
-    uh   = flow_auxvar_up%H(LIQUID_PHASE)    ! U or H (needs more thinking)
+    uh   = mpflow_auxvar_up%H(LIQ_FLUID)    ! U or H (needs more thinking)
   else
-    uh   = flow_auxvar_dn%H(LIQUID_PHASE)
+    uh   = mpflow_auxvar_dn%H(LIQ_FLUID)
   endif
   qe     = q*uh
 
@@ -1115,11 +1079,11 @@ subroutine AdvectionDerivative(flow_auxvar_up,   flow_auxvar_dn,   &
   if(ifderivative) then
     do idof = 1, option%nflowdof
       if (q>=0.D0) then
-        duh_up(idof)   = flow_auxvar_up%D_H(LIQUID_PHASE, idof)
+        duh_up(idof)   = mpflow_auxvar_up%D_H(LIQ_FLUID, idof)
         duh_dn(idof)   = 0.d0
       else
         duh_up(idof)   = 0.d0
-        duh_dn(idof)   = flow_auxvar_dn%D_H(LIQUID_PHASE, idof)
+        duh_dn(idof)   = mpflow_auxvar_dn%D_H(LIQ_FLUID, idof)
       end if
 
       !qe = q*uh
@@ -1135,12 +1099,18 @@ end subroutine AdvectionDerivative
 
 ! ************************************************************************** !
 
-subroutine ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,      &
+subroutine ConductionDerivative(mpflow_auxvar_up,   mpflow_auxvar_dn,  &
                               material_auxvar_up, material_auxvar_dn,  &
                               area, dist,                              &
                               option,                                  &
                               qe,                                      &
                               dqe_up, dqe_dn, ifderivative)
+  !
+  ! Computes the derivatives of energy conduction, given flux and its derivatives
+  !
+  ! Author: F-M. Yuan
+  ! Date: 02/13/2019
+  !
 
   use Option_module
   use Material_Aux_class, only : material_auxvar_type
@@ -1149,7 +1119,7 @@ subroutine ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,      &
   implicit none
 
   type(option_type) :: option
-  type(Flow_auxvar_type):: flow_auxvar_up, flow_auxvar_dn
+  type(mpflow_auxvar_type):: mpflow_auxvar_up, mpflow_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscBool, intent(in) :: ifderivative
   PetscReal, intent(in) :: area, dist(-1:3)
@@ -1163,12 +1133,12 @@ subroutine ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,      &
 
   PetscInt :: idof
   PetscReal :: Dke_up, Dke_dn, Dke
-  PetscReal :: dDke_up(option%nflowdof), dDke_dn(option%nflowdof)
+  PetscReal, pointer :: dDke_up(:), dDke_dn(:)
   PetscReal :: dDk_up(option%nflowdof), dDk_dn(option%nflowdof)
 
   !--------------------------------------------------------------------------------------------
-  tc_up = flow_auxvar_up%temp
-  tc_dn = flow_auxvar_dn%temp
+  tc_up = mpflow_auxvar_up%tc
+  tc_dn = mpflow_auxvar_dn%tc
 
   qe        = 0.d0
   dqe_up(:) = 0.d0
@@ -1178,8 +1148,8 @@ subroutine ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,      &
   call ConnectionCalculateDistances(dist, option%gravity, dd_up, dd_dn, &
                                     dist_gravity, upweight)
 
-  Dke_up = flow_auxvar_up%Dk_eff
-  Dke_dn = flow_auxvar_dn%Dk_eff
+  Dke_up = mpflow_auxvar_up%Dk_eff
+  Dke_dn = mpflow_auxvar_dn%Dk_eff
 
   Dke = 0.d0
   if(Dke_up /= 0.d0 .or. Dke_dn /= 0.d0) then
@@ -1193,8 +1163,8 @@ subroutine ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,      &
   if (ifderivative) then
     if(Dke /= 0.d0) then
 
-      dDke_up = flow_auxvar_up%dDk_eff
-      dDke_dn = flow_auxvar_dn%dDk_eff
+      dDke_up => mpflow_auxvar_up%dDk_eff
+      dDke_dn => mpflow_auxvar_dn%dDk_eff
 
       do idof = 1, option%nflowdof
        ! 1/Dke = dd_dn/Dke_dn + dd_up/Dke_up
@@ -1206,7 +1176,7 @@ subroutine ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,      &
           dd_dn*(dDke_dn(idof)/Dke_dn/Dke_dn)  ! d(1/Dk)
 
       end do
-      ! cond = Dke*area*(flow_auxvar_up%temp-flow_auxvar_dn%temp)
+      ! cond = Dke*area*(mpflow_auxvar_up%temp-mpflow_auxvar_dn%temp)
       dqe_up(IFDOF1) = area * dDk_up(IFDOF1) * &
                       (tc_up-tc_dn)
       dqe_dn(IFDOF1) = area * dDk_dn(IFDOF1) * &
@@ -1234,11 +1204,11 @@ subroutine VaporDiffusionDerivative(auxvar_up,global_auxvar_up, &
                             Jup,Jdn)
 
   !
-  ! Computes the derivatives of the internal flux terms
-  ! for the Jacobian
+  ! Computes the derivatives of vapor diffusion, given flux and its derivatives
   !
-  ! Author: ???
-  ! Date: 12/13/07
+  ! Author: F-M. Yuan
+  ! Date: 02/13/2019
+  !
   !
 
   use Option_module
@@ -1249,7 +1219,7 @@ subroutine VaporDiffusionDerivative(auxvar_up,global_auxvar_up, &
 
   implicit none
 
-  type(Flow_auxvar_type) :: auxvar_up, auxvar_dn
+  type(mpflow_auxvar_type) :: auxvar_up, auxvar_dn
   type(global_auxvar_type) :: global_auxvar_up, global_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
   PetscReal :: sir_up, sir_dn
@@ -1294,11 +1264,11 @@ subroutine VaporDiffusionDerivative(auxvar_up,global_auxvar_up, &
   dmolg_dt_dn = 0.d0
 
 
-    satg_up = auxvar_up%sat(GAS_PHASE)
-    satg_dn = auxvar_dn%sat(GAS_PHASE)
+    satg_up = auxvar_up%sat(AIR_FLUID)
+    satg_dn = auxvar_dn%sat(AIR_FLUID)
     if ((satg_up > eps) .and. (satg_dn > eps)) then
 
-      p_g = auxvar_up%pres(GAS_PHASE)
+      p_g = auxvar_up%pres(AIR_FLUID)
       deng_up = auxvar_up%ice%den_air
       deng_dn = auxvar_dn%ice%den_air
 
@@ -1393,34 +1363,32 @@ end subroutine VarporDiffusionDerivative
 
 ! ************************************************************************** !
 
-subroutine MpFlowAuxVarDestroy(auxvar)
+subroutine MpFlowAuxVarStrip(auxvar)
   ! 
   ! Deallocates a MpFlow auxiliary object's auxvar
-  ! 
-  ! Author: ???
-  ! Date: 02/14/08
+  !
+  ! Author: F-M. Yuan
+  ! Date: 02/13/2019
+  !
   ! 
 
   use Utility_module, only: DeallocateArray
 
   implicit none
 
-  type(flow_auxvar_type), pointer :: auxvar
+  type(mpflow_auxvar_type) :: auxvar
   
-  if (.not.associated(auxvar)) return
-
   call DeallocateArray(auxvar%pres)
-  call DeallocateArray(auxvar%dmolv_air)
-  call DeallocateArray(auxvar%dpres_fh2o)
-  call DeallocateArray(auxvar%dkvr)
-  call DeallocateArray(auxvar%dDk_eff)
+
+  if (auxvar%has_derivs) then
+    call DeallocateArray(auxvar%dpres_fh2o)
+    call DeallocateArray(auxvar%dkvr)
+    call DeallocateArray(auxvar%dDk_eff)
+  endif
 
   call AuxVarFlowEnergyStrip(auxvar)
-
-  !if(associated(auxvar)) deallocate(auxvar)
-  nullify(auxvar)
   
-end subroutine MpFlowAuxVarDestroy
+end subroutine MpFlowAuxVarStrip
 
 ! ************************************************************************** !
 
@@ -1435,8 +1403,8 @@ subroutine MpFlowAuxDestroy(aux)
   implicit none
 
   type(MpFlow_type), pointer :: aux
-  type(flow_auxvar_type), pointer :: auxvar
-  type(flow_parameter_type), pointer :: flow_parameter
+  type(mpflow_auxvar_type), pointer :: auxvar, auxvar_bc, auxvar_ss
+  type(mpflow_parameter_type), pointer :: mpflow_parameter
   PetscInt :: iaux
   
   if (.not.associated(aux)) return
@@ -1444,30 +1412,46 @@ subroutine MpFlowAuxDestroy(aux)
   if (associated(aux%auxvars)) then
     do iaux = 1, size(aux%auxvars)
       auxvar => aux%auxvars(iaux)
-      call MpFlowAuxVarDestroy(auxvar)
+      call MpFlowAuxVarStrip(auxvar)
     end do
   endif
   nullify(aux%auxvars)
 
-  if (associated(aux%flow_parameters)) then
-    do iaux = 1, size(aux%flow_parameters)
-      flow_parameter => aux%flow_parameters(iaux)
+  if (associated(aux%auxvars_bc)) then
+    do iaux = 1, size(aux%auxvars_bc)
+      auxvar_bc => aux%auxvars_bc(iaux)
+      call MpFlowAuxVarStrip(auxvar_bc)
+    end do
+  endif
+  nullify(aux%auxvars_bc)
 
-      if (associated(flow_parameter%sir)) deallocate(flow_parameter%sir)
-      nullify(flow_parameter%sir)
+  if (associated(aux%auxvars_ss)) then
+    do iaux = 1, size(aux%auxvars_ss)
+      auxvar_ss => aux%auxvars_ss(iaux)
+      call MpFlowAuxVarStrip(auxvar_ss)
+    end do
+  endif
+  nullify(aux%auxvars_ss)
 
-      if (associated(flow_parameter%diffusion_coefficient)) &
-        deallocate(flow_parameter%diffusion_coefficient)
-      nullify(flow_parameter%diffusion_coefficient)
+  if (associated(aux%mpflow_parameters)) then
+    do iaux = 1, size(aux%mpflow_parameters)
+      mpflow_parameter => aux%mpflow_parameters(iaux)
 
-      if (associated(flow_parameter%diffusion_activation_energy)) &
-        deallocate(flow_parameter%diffusion_activation_energy)
-      nullify(flow_parameter%diffusion_activation_energy)
+      if (associated(mpflow_parameter%sr)) deallocate(mpflow_parameter%sr)
+      nullify(mpflow_parameter%sr)
+
+      if (associated(mpflow_parameter%diffusion_coefficient)) &
+        deallocate(mpflow_parameter%diffusion_coefficient)
+      nullify(mpflow_parameter%diffusion_coefficient)
+
+      if (associated(mpflow_parameter%diffusion_activation_energy)) &
+        deallocate(mpflow_parameter%diffusion_activation_energy)
+      nullify(mpflow_parameter%diffusion_activation_energy)
 
     enddo
 
-    deallocate(aux%flow_parameters)
-    nullify(aux%flow_parameters)
+    deallocate(aux%mpflow_parameters)
+    nullify(aux%mpflow_parameters)
 
   endif
   

@@ -19,37 +19,43 @@ module Material_module
     PetscInt :: internal_id
     PetscBool :: active
     character(len=MAXWORDLENGTH) :: name
+
+    ! porous media
+    PetscReal :: matrix_density     ! [kg/m^3] ()
+    PetscReal :: porosity           ! [-] () usually 'matrix_density=bulk_density/(1-porosity)'
+    PetscReal :: tortuosity
+    PetscBool :: tortuosity_function_of_porosity
+    class(dataset_base_type), pointer :: porosity_dataset
+    class(dataset_base_type), pointer :: tortuosity_dataset
+
+    ! so-called, water retension curves and hydraulic conductivity/pressure curves, as charateristic curves
+    PetscInt :: saturation_function_id
+    character(len=MAXWORDLENGTH) :: saturation_function_name
+
+    ! hydraulic conductivity or alike
     PetscReal :: permeability(3,3)
     PetscBool :: isotropic_permeability
     PetscReal :: vertical_anisotropy_ratio ! (vertical / horizontal)
+
     PetscReal :: permeability_scaling_factor
-!    character(len=MAXWORDLENGTH) :: permeability_dataset_name
     class(dataset_base_type), pointer :: permeability_dataset
     class(dataset_base_type), pointer :: permeability_dataset_y
     class(dataset_base_type), pointer :: permeability_dataset_z
-    PetscReal :: porosity
-!    character(len=MAXWORDLENGTH) :: porosity_dataset_name
-    class(dataset_base_type), pointer :: porosity_dataset
-    class(dataset_base_type), pointer :: tortuosity_dataset
-    PetscReal :: tortuosity
-    PetscBool :: tortuosity_function_of_porosity
-    PetscInt :: saturation_function_id
-    character(len=MAXWORDLENGTH) :: saturation_function_name
-    PetscReal :: rock_density ! kg/m^3
-    PetscReal :: specific_heat ! J/kg-K
+
+    ! thermal properties
+    PetscReal :: specific_heat               ! J/kg-K
     PetscReal :: thermal_conductivity_dry
     PetscReal :: thermal_conductivity_wet
-    PetscReal :: alpha    ! conductivity saturation relation exponent
+    PetscReal :: alpha    ! exponenet coeff in thermal-conductivity~saturation relationship
 
     character(len=MAXWORDLENGTH) :: soil_compressibility_function
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
     PetscBool :: soil_reference_pressure_initial
     class(dataset_base_type), pointer :: soil_reference_pressure_dataset
-!    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
     class(dataset_base_type), pointer :: compressibility_dataset
 
-    ! ice properties
+    ! thermal-hydraulic properties when frozen
     PetscReal :: thermal_conductivity_frozen
     PetscReal :: alpha_fr
 
@@ -141,7 +147,7 @@ function MaterialPropertyCreate()
   material_property%tortuosity_func_porosity_pwr = UNINITIALIZED_DOUBLE
   material_property%saturation_function_id = 0
   material_property%saturation_function_name = ''
-  material_property%rock_density = UNINITIALIZED_DOUBLE
+  material_property%matrix_density = UNINITIALIZED_DOUBLE
   material_property%specific_heat = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_dry = UNINITIALIZED_DOUBLE
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
@@ -243,9 +249,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('ROCK_DENSITY') 
-        call InputReadDouble(input,option,material_property%rock_density)
+        call InputReadDouble(input,option,material_property%matrix_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
-        call InputReadAndConvertUnits(input,material_property%rock_density, &
+        call InputReadAndConvertUnits(input,material_property%matrix_density, &
                           'kg/m^3','MATERIAL_PROPERTY,rock density',option)
       case('SPECIFIC_HEAT','HEAT_CAPACITY') 
         call InputReadDouble(input,option,material_property%specific_heat)
@@ -492,6 +498,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                  material_property%permeability(3,3)) > 1.d-40) then
           material_property%isotropic_permeability = PETSC_FALSE
         endif
+
       case('PERM_FACTOR') 
       ! Permfactor is the multiplier to permeability to increase perm
       ! The perm increase could be due to pressure or other variable
@@ -527,6 +534,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
           end select
         enddo
         call InputPopBlock(input,option)
+
       case('PERMEABILITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%permeability_pwr)
@@ -581,12 +589,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
   if (option%iflowmode == MPFLOW_MODE) then
     if (.not. therm_k_frz) then
       option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
-          & in inputdeck for MODE TH ICE phase'
+          & in inputdeck for MODE MPFLOW ICE phase'
       call printErrMsg(option)
     endif
     if (.not. therm_k_exp_frz) then
       option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
-         &in inputdeck for MODE TH ICE phase'
+         &in inputdeck for MODE MPFLOW ICE phase'
       call printErrMsg(option)
     endif
   endif
@@ -947,7 +955,6 @@ subroutine MaterialSetup(material_property_array, &
   
   PetscInt :: num_characteristic_curves
   PetscInt :: num_mat_prop
-  PetscInt :: i
   
   num_mat_prop = size(material_property_array)
   num_characteristic_curves = size(characteristic_curves_array)
@@ -1223,9 +1230,9 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   type(material_property_type) :: material_property
   type(option_type) :: option
 
-  if (Initialized(material_property%rock_density)) then
+  if (Initialized(material_property%matrix_density)) then
     material_auxvar%soil_particle_density = &
-      material_property%rock_density
+      material_property%matrix_density
   endif
 
   if (soil_compressibility_index > 0) then

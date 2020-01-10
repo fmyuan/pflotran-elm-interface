@@ -2,6 +2,8 @@ module InlineSurface_Aux_module
 
 #include "petsc/finclude/petscsys.h"
   use petscsys
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
@@ -96,12 +98,12 @@ contains
     PetscReal :: Pref,Pl,g,rho
 
     ! We need to ensure that surface density stays consistent with the subsurface
-    auxvar%density = global_auxvar%den(1)
+    auxvar%density = global_auxvar%den(LIQ_FLUID)
 
     Pref = option%reference_pressure
-    Pl   = global_auxvar%pres(1)
-    rho  = global_auxvar%den_kg(1)
-    g    = ABS(option%gravity(3))
+    Pl   = global_auxvar%pres(LIQ_FLUID)
+    rho  = global_auxvar%den(LIQ_FLUID) * FMWH2O
+    g    = ABS(option%gravity(Z_DIRECTION))
     auxvar%surface_water_depth = MAX(0.0d0,(Pl-Pref)/(rho*g)-auxvar%half_cell_height)
 
   end subroutine InlineSurfaceAuxVarCompute

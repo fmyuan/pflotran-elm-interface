@@ -11,6 +11,12 @@ module Option_Flow_module
   private
 
   type, public :: flow_option_type 
+    ! fluid(s): it's NOT phase(s), rather moveable (mobile) matter or mixture by e.g. pressure
+    PetscInt :: nfluid      ! 1: liq_fluid, 2: +air_fluid, 3:+oil_fluid
+    PetscInt :: nspecliq    ! species no. in xxx_fluid, with ZERO(0) for non-existing of such a fluid
+    PetscInt :: nspecgas    !
+    PetscInt :: nspecoil    !
+    PetscInt :: nspecflow   !
   
     PetscReal :: dt    ! The size of the time step for flow mode.
 
@@ -24,12 +30,12 @@ module Option_Flow_module
     PetscBool :: flowSolverLinearDone
     PetscBool :: flowTimestepperDone
 
-    PetscInt  :: ice_model            ! specify water/ice/vapor phase partitioning model
-    PetscReal :: frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
 
     PetscBool :: only_vertical_flow
     PetscBool :: isothermal
-    PetscBool :: onlythermal
+    PetscBool :: isobaric
+    PetscInt  :: ice_model            ! specify water/ice/vapor phase partitioning model
+    PetscReal :: frzthw_halfwidth     ! freezing-thawing smoothing half-width (oC)
 
   end type flow_option_type
   
@@ -107,6 +113,12 @@ subroutine OptionFlowInitRealization(option)
   ! These variables should be initialized once at the beginning of every 
   ! PFLOTRAN realization or simulation of a single realization
 
+  option%nfluid    = 0
+  option%nspecliq  = UNINITIALIZED_INTEGER
+  option%nspecgas  = UNINITIALIZED_INTEGER
+  option%nspecoil  = UNINITIALIZED_INTEGER
+  option%nspecflow = UNINITIALIZED_INTEGER
+
   option%dt = 0.d0
     
   option%store_fluxes = PETSC_FALSE
@@ -121,7 +133,7 @@ subroutine OptionFlowInitRealization(option)
   option%flowTimestepperDone = PETSC_FALSE
 
   option%isothermal  = PETSC_FALSE
-  option%onlythermal = PETSC_FALSE
+  option%isobaric    = PETSC_FALSE
   option%ice_model        = PAINTER_EXPLICIT
   option%frzthw_halfwidth = UNINITIALIZED_DOUBLE
 

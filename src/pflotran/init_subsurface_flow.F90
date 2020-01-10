@@ -165,7 +165,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     enddo
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
 
-    ! Temperature for TH mode
+    ! Temperature for MPFLOW mode
     if (option%iflowmode == MPFLOW_MODE) then
       offset = MPFLOW_TEMPERATURE_DOF
       group_name = ''

@@ -251,7 +251,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   end select
 
   include_gas_phase = PETSC_FALSE
-  if (option%nfluids > 1) then
+  if (option%flow%nfluid > 1) then
     include_gas_phase = PETSC_TRUE
   endif
   if (output_option%print_hdf5_vel_cent .and. &
@@ -260,7 +260,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     ! velocities
     call OutputGetCellCenteredVelocities(realization_base, global_vec_vx, &
                                          global_vec_vy,global_vec_vz, &
-                                         LIQUID_PHASE)
+                                         LIQ_FLUID)
 
     string = "Liquid X-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call HDF5WriteStructDataSetFromVec(string,realization_base, &
@@ -277,7 +277,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     if (include_gas_phase) then
         call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                              global_vec_vy,global_vec_vz, &
-                                             GAS_PHASE)
+                                             AIR_FLUID)
         string = "Gas X-Velocity"
         call HDF5WriteStructDataSetFromVec(string,realization_base, &
                                            global_vec_vx,grp_id, &
@@ -302,33 +302,33 @@ subroutine OutputHDF5(realization_base,var_list_type)
     ! internal flux velocities
     if (grid%structured_grid%nx > 1) then
         string = "Liquid X-Flux Velocities"
-        call WriteHDF5FluxVelocities(string,realization_base,LIQUID_PHASE, &
+        call WriteHDF5FluxVelocities(string,realization_base,LIQ_FLUID, &
                                      X_DIRECTION,grp_id)
         if (include_gas_phase) then
           string = "Gas X-Flux Velocities"
-          call WriteHDF5FluxVelocities(string,realization_base,GAS_PHASE, &
+          call WriteHDF5FluxVelocities(string,realization_base,AIR_FLUID, &
                                        X_DIRECTION,grp_id)
         endif
     endif
 
     if (grid%structured_grid%ny > 1) then
         string = "Liquid Y-Flux Velocities"
-        call WriteHDF5FluxVelocities(string,realization_base,LIQUID_PHASE, &
+        call WriteHDF5FluxVelocities(string,realization_base,LIQ_FLUID, &
                                      Y_DIRECTION,grp_id)
         if (include_gas_phase) then
           string = "Gas Y-Flux Velocities"
-          call WriteHDF5FluxVelocities(string,realization_base,GAS_PHASE, &
+          call WriteHDF5FluxVelocities(string,realization_base,AIR_FLUID, &
                                        Y_DIRECTION,grp_id)
         endif
     endif
 
     if (grid%structured_grid%nz > 1) then
         string = "Liquid Z-Flux Velocities"
-        call WriteHDF5FluxVelocities(string,realization_base,LIQUID_PHASE, &
+        call WriteHDF5FluxVelocities(string,realization_base,LIQ_FLUID, &
                                      Z_DIRECTION,grp_id)
         if (include_gas_phase) then
           string = "Gas Z-Flux Velocities"
-          call WriteHDF5FluxVelocities(string,realization_base,GAS_PHASE, &
+          call WriteHDF5FluxVelocities(string,realization_base,AIR_FLUID, &
                                        Z_DIRECTION,grp_id)
         endif
     endif
@@ -752,7 +752,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     ! velocities
     call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                          global_vec_vy,global_vec_vz, &
-                                         LIQUID_PHASE)
+                                         LIQ_FLUID)
     do i = 1, 3
       select case(i)
         case(1)
@@ -779,10 +779,10 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
       endif
     enddo
 
-    if (option%nfluids > 1) then
+    if (option%flow%nfluid > 1) then
         call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                              global_vec_vy,global_vec_vz, &
-                                             GAS_PHASE)
+                                             AIR_FLUID)
       do i = 1, 3
         select case(i)
           case(1)
@@ -2850,19 +2850,19 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
   field => realization_base%field
 
 #if 0
-  if (option%nfluids == 1 .and. option%transport%nphase > 1) then
+  if (option%flow%nfluid == 1 .and. option%transport%nphase > 1) then
     option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for gas &
       &transport without flow in the gas phase.'
     call PrintErrMsg(option)
   endif
 #endif
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr);CHKERRQ(ierr)
-  local_size = local_size/(option%nfluids*MAX_FACE_PER_CELL + 1)
+  local_size = local_size/(option%flow%nfluid*MAX_FACE_PER_CELL + 1)
 
   allocate(double_array(local_size*(MAX_FACE_PER_CELL+1)))
   double_array = 0.d0
 
-  offset = option%nfluids*MAX_FACE_PER_CELL+1
+  offset = option%flow%nfluid*MAX_FACE_PER_CELL+1
 
   do idir = 1,3
 
@@ -2878,13 +2878,13 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id, &
         call VecGetArrayF90(field%vz_face_inst,vec_ptr1,ierr);CHKERRQ(ierr)
     end select
 
-    do iphase = 1,option%nfluids
+    do iphase = 1,option%flow%nfluid
 
       select case (iphase)
-        case (LIQUID_PHASE)
+        case (LIQ_FLUID)
           string = "Liquid " // string_dir // "-Velocity at cell face [m_per_" &
             // trim(output_option%tunit) // "]"
-        case (GAS_PHASE)
+        case (AIR_FLUID)
           string = "Gas " // string_dir // "-Velocity at cell face [m_per_" // &
             trim(output_option%tunit) // "]"
       end select

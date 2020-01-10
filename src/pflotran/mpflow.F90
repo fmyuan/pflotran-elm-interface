@@ -24,7 +24,6 @@ module MpFlow_module
             MpFlowUpdateSolution,     &
             MpFlowInitializeTimestep, &
             MpFlowComputeMassBalance, &
-            MpFlowResidualToMass,     &
             MpFlowUpdateAuxVars,      &
             MpFlowDestroy,            &
             MpFlowAccumulation
@@ -106,7 +105,7 @@ subroutine MpFlowSetupPatch(realization)
   use Region_module
   use Coupler_module
   use Connection_module
-  use Fluid_module
+  !use Fluid_module
   use Characteristic_Curves_module
  
   implicit none
@@ -117,22 +116,23 @@ subroutine MpFlowSetupPatch(realization)
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
-  type(fluid_property_type), pointer :: cur_fluid_property
+  !type(fluid_property_type), pointer :: cur_fluid_property
   character(len=MAXWORDLENGTH) :: word
 
 
   PetscInt :: ghosted_id, sum_connection
-  PetscInt :: i, iphase, material_id, sat_func_id
+  PetscInt :: i, material_id, sat_func_id
   PetscBool :: error_found
+  PetscInt :: iflag
   
   option => realization%option
   patch => realization%patch
   grid => patch%grid
     
-  patch%aux%Flow => MpFlowAuxCreate(option)
+  patch%aux%MpFlow => MpFlowAuxCreate(option)
 
-  ! flow_parameters
-  allocate(patch%aux%Flow%Flow_parameters(size(patch%material_property_array)))
+  ! mpflow_parameters of materials
+  allocate(patch%aux%MpFlow%mpflow_parameters(size(patch%material_property_array)))
   error_found = PETSC_FALSE
 
   do i = 1, size(patch%material_property_array)
@@ -177,42 +177,47 @@ subroutine MpFlowSetupPatch(realization)
 
     material_id = abs(patch%material_property_array(i)%ptr%internal_id)
 
-    patch%aux%Flow%Flow_parameters(material_id)%dencpr = &
-      patch%material_property_array(i)%ptr%rock_density*1.d-6* &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%dencpr = &
+      patch%material_property_array(i)%ptr%matrix_density*1.d-6* &
         patch%material_property_array(i)%ptr%specific_heat
 
-    patch%aux%Flow%Flow_parameters(material_id)%ckwet = &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%ckwet = &
       patch%material_property_array(i)%ptr%thermal_conductivity_wet*1.d-6
 
-    patch%aux%Flow%Flow_parameters(material_id)%ckdry = &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%ckdry = &
       patch%material_property_array(i)%ptr%thermal_conductivity_dry*1.d-6
 
-    patch%aux%Flow%Flow_parameters(material_id)%alpha = &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%alpha = &
       patch%material_property_array(i)%ptr%alpha
 
-    patch%aux%Flow%Flow_parameters(material_id)%ckfrozen = &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%ckfrozen = &
       patch%material_property_array(i)%ptr%thermal_conductivity_frozen*1.d-6
 
-    patch%aux%Flow%Flow_parameters(material_id)%alpha_fr = &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%alpha_fr = &
       patch%material_property_array(i)%ptr%alpha_fr
     !
 
-    allocate(patch%aux%Flow%Flow_parameters(material_id)%sir(option%nfluids))
+    allocate(patch%aux%MpFlow%mpflow_parameters(material_id)%sr(option%flow%nfluid))
     sat_func_id = patch%material_property_array(i)%ptr%saturation_function_id
-    patch%aux%Flow%Flow_parameters(material_id)%sir(:) = &
+    patch%aux%MpFlow%mpflow_parameters(material_id)%sr(:) = &
       CharCurvesGetGetResidualSats(patch%characteristic_curves_array(sat_func_id)%ptr,option)
 
-    allocate(patch%aux%Flow%Flow_parameters(material_id)%diffusion_coefficient(option%nfluids))
-    allocate(patch%aux%Flow%Flow_parameters(material_id)%diffusion_activation_energy(option%nfluids))
+    allocate(patch%aux%MpFlow%mpflow_parameters(material_id)%diffusion_coefficient(option%flow%nfluid))
+    allocate(patch%aux%MpFlow%mpflow_parameters(material_id)%diffusion_activation_energy(option%flow%nfluid))
 
   enddo
 
   ! allocate auxvar data structures for all grid cells
-  allocate(patch%aux%Flow%auxvars(grid%ngmax))
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+  option%iflag = 1 ! allocate mass_balance array
+#else
+  option%iflag = 0 ! be sure not to allocate mass_balance array
+#endif
+  allocate(patch%aux%MpFlow%auxvars(grid%ngmax))
   do ghosted_id = 1, grid%ngmax
-    call MpFlowAuxVarInit(patch%aux%Flow%auxvars(ghosted_id),option)
+    call MpFlowAuxVarInit(patch%aux%MpFlow%auxvars(ghosted_id),option)
   enddo
-  patch%aux%Flow%num_aux = grid%ngmax
+  patch%aux%MpFlow%num_aux = grid%ngmax
 
   ! count the number of boundary connections
   boundary_condition => patch%boundary_condition_list%first
@@ -223,23 +228,34 @@ subroutine MpFlowSetupPatch(realization)
                      boundary_condition%connection_set%num_connections
     boundary_condition => boundary_condition%next
   enddo
-  patch%aux%Flow%num_aux_bc = sum_connection
+  patch%aux%MpFlow%num_aux_bc = sum_connection
+  if (sum_connection>0) then
+    iflag = option%iflag    ! save the originally-set flag
+    option%iflag = 1        ! for BC, always has mass_balance data arrays
+    allocate(patch%aux%MpFlow%auxvars_bc(sum_connection))
+    do ghosted_id = 1, sum_connection
+        call MpFlowAuxVarInit(patch%aux%MpFlow%auxvars_bc(ghosted_id),option)
+    enddo
+    option%iflag = iflag    ! recover the original flag
+  endif
 
   ! Create aux vars for source/sink
   sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
-  patch%aux%Flow%num_aux_ss = sum_connection
-
-  ! initialize parameters
-  cur_fluid_property => realization%fluid_properties
-  do 
-    if (.not.associated(cur_fluid_property)) exit
-    iphase = cur_fluid_property%phase_id
-    cur_fluid_property => cur_fluid_property%next
-  enddo
-
+  patch%aux%MpFlow%num_aux_ss = sum_connection
+  if (sum_connection>0) then
+    iflag = option%iflag    ! save the originally-set flag
+    option%iflag = 1        ! for SrcSink, always has mass_balance data arrays
+    allocate(patch%aux%MpFlow%auxvars_ss(sum_connection))
+    do ghosted_id = 1, sum_connection
+        call MpFlowAuxVarInit(patch%aux%MpFlow%auxvars_ss(ghosted_id),option)
+    enddo
+    option%iflag = iflag    ! recover the original flag
+  endif
 end subroutine MpFlowSetupPatch
 
 
+! ************************************************************************** !
+! - Residual --------------------------------------------------------
 ! ************************************************************************** !
 
 subroutine MpFlowResidual(snes,xx,r,realization,ierr)
@@ -317,7 +333,7 @@ subroutine MpFlowResidual(snes,xx,r,realization,ierr)
 
     ! flag of PETSC_FALSE not to update patch global_auxvars
     ! because this is an iteration
-    cur_patch%aux%Flow%auxvars_up_to_date = PETSC_FALSE
+    cur_patch%aux%MpFlow%auxvars_up_to_date = PETSC_FALSE
 
     realization%patch => cur_patch
 
@@ -358,7 +374,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
   PetscReal, pointer :: accum_p(:)
 
-  PetscReal, pointer :: r_p(:), xx_loc_p(:)!, yy_p(:)
+  PetscReal, pointer :: r_p(:), xx_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: ithrm_up, ithrm_dn
@@ -372,13 +388,12 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(Flow_parameter_type), pointer :: Flow_parameters(:)
-  type(Flow_auxvar_type), pointer :: auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
-  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+
+  type(mpflow_parameter_type), pointer :: mpflow_parameters(:)
+  type(mpflow_auxvar_type), pointer :: auxvars(:)
+  type(mpflow_auxvar_type), pointer :: auxvars_bc(:)
+  type(mpflow_auxvar_type), pointer :: auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  !type(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -391,23 +406,27 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
   PetscReal :: sum_mass_flux(realization%patch%grid%ngmax)
 
+  PetscInt :: ifluid
+
   !---------------------------------------------------------------------------------------------
+  ifluid = IFLUID1   ! (TODO: adding IFLUID2 for air flow)
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
   field => realization%field
 
-  Flow_parameters => patch%aux%Flow%Flow_parameters
-  auxvars => patch%aux%Flow%auxvars
-  global_auxvars => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  global_auxvars_ss => patch%aux%Global%auxvars_ss
+  mpflow_parameters => patch%aux%MpFlow%mpflow_parameters
+  auxvars => patch%aux%MpFlow%auxvars
+  auxvars_bc => patch%aux%MpFlow%auxvars_bc
+  auxvars_ss => patch%aux%MpFlow%auxvars_ss
+
   material_auxvars => patch%aux%Material%auxvars
 
   call MpFlowUpdateAuxVarsPatch(realization)
 
   if (option%compute_mass_balance_new) then
-    call MpFlowZeroMassBalDeltaPatch(realization)
+    call MpFlowZeroMassBalanceDeltaPatch(realization)
 
     sum_mass_flux=0.d0
   endif
@@ -415,19 +434,17 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-  call VecGetArrayF90( r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
-
-  !call VecGetArrayF90(field%flow_yy,yy_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
+  call VecGetArrayF90( r, r_p, ierr);CHKERRQ(ierr)
 
   r_p = - accum_p
 
   ! Accumulation terms ------------------------------------
 
-  do local_id = 1, grid%nlmax  ! For each local node do...
+  do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     iend = local_id*option%nflowdof
@@ -435,17 +452,18 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
     itherm = int(ithrm_loc_p(ghosted_id))
 
-    call MpFlowAccumulation(auxvars(ghosted_id),    &
+    call MpFlowAccumulation(auxvars(ghosted_id),      &
                         material_auxvars(ghosted_id), &
-                        Flow_parameters(itherm),      &
-                        option,Res)
+                        mpflow_parameters(itherm),    &
+                        option,                       &
+                        Res)
 
     r_p(istart:iend) = r_p(istart:iend) + Res
 
     do ii=1,option%nflowdof
       if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
         write(string,*) 'local_id: ', local_id, 'Res: ', ii, Res(ii)
-        option%io_buffer = ' NaN or INF of Residuals @ th.F90: FlowResidualPatch - Accumulation of ' // &
+        option%io_buffer = ' NaN or INF of Residuals @ MpFlow.F90: FlowResidualPatch - Accumulation of ' // &
           trim(string)
         call printErrMsg(option)
       endif
@@ -475,9 +493,9 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       Res_src = 0.d0
       select case (source_sink%flow_condition%liq_rate%itype)
         case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+          qsrc1 = qsrc1 / FMW_FLUIDS(ifluid) ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * &
+          qsrc1 = qsrc1 / FMW_FLUIDS(ifluid) * &
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn) ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(VOLUMETRIC_RATE_SS)
           ! qsrc1 = m^3/sec
@@ -487,7 +505,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
           qsrc1 = qsrc1*auxvars(ghosted_id)%den(1)* & ! den = kmol/m^3
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMW_FLUIDS(ifluid)
 
         case default
           write(string,*) source_sink%flow_condition%liq_rate%itype
@@ -514,13 +532,13 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
       ! Update residual term associated with T
       Res_src(IFDOF2) = Res_src(IFDOF2) + &
-          qsrc1*auxvars(ghosted_id)%H(LIQUID_PHASE)
+          qsrc1*auxvars(ghosted_id)%H(LIQ_FLUID)
 
       r_p(istart:iend) = r_p(istart:iend) - Res_src
 
       if (option%compute_mass_balance_new) then
-        global_auxvars_ss(sum_connection)%mass_balance_delta(IFLOW1, LIQUID_PHASE) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(IFLOW1, LIQUID_PHASE) - Res_src(IFDOF1)
+        auxvars_ss(sum_connection)%mass_balance_delta(LIQ_FLUID, IFLOWSPEC1) = &
+          auxvars_ss(sum_connection)%mass_balance_delta(LIQ_FLUID, IFLOWSPEC1) - Res_src(IFDOF1)
 
         ! cumulative mass_balance_delta
         sum_mass_flux(ghosted_id) = sum_mass_flux(ghosted_id) - Res_src(IFDOF1)
@@ -528,7 +546,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       if (associated(patch%ss_flow_vol_fluxes)) then
         ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
         patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc1 / &
-                                           auxvars(ghosted_id)%den(LIQUID_PHASE)
+                                           auxvars(ghosted_id)%den(LIQ_FLUID)
       endif
       if (associated(patch%ss_flow_fluxes)) then
         patch%ss_flow_fluxes(1,sum_connection) = qsrc1
@@ -539,7 +557,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       do ii=1,option%nflowdof
         if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
           write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Res -', ii, Res(ii)
-          option%io_buffer = ' NaN or INF of Residuals @ th.F90: FlowResidualPatch - source_sink of ' // &
+          option%io_buffer = ' NaN or INF of Residuals @ MpFlow.F90: FlowResidualPatch - source_sink of ' // &
             trim(string)
           call printErrMsg(option)
         endif
@@ -577,15 +595,15 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
 
-      call MpFlowInternalFlux(auxvars(ghosted_id_up), &
-                  material_auxvars(ghosted_id_up),      &
-                  Flow_parameters(ithrm_up),            &
+      call MpFlowInternalFlux(auxvars(ghosted_id_up),  &
+                  material_auxvars(ghosted_id_up),     &
+                  mpflow_parameters(ithrm_up),         &
                   auxvars(ghosted_id_dn),              &
                   material_auxvars(ghosted_id_dn),     &
-                  Flow_parameters(ithrm_up),           &
-                  cur_connection_set%area(iconn),       &
-                  cur_connection_set%dist(:,iconn),     &
-                  option,                               &
+                  mpflow_parameters(ithrm_dn),         &
+                  cur_connection_set%area(iconn),      &
+                  cur_connection_set%dist(:,iconn),    &
+                  option,                              &
                   v_darcy, fluxe_bulk, fluxe_cond, Res)
 
       patch%internal_velocities(1,sum_connection) = v_darcy
@@ -594,11 +612,11 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
       if (option%compute_mass_balance_new) then
         ! contribution to up cells
-        global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) = &
-          global_auxvars(ghosted_id_up)%mass_balance_delta(1,1) - Res(1)
+        auxvars(ghosted_id_up)%mass_balance_delta(LIQ_FLUID, IFLOWSPEC1) = &
+          auxvars(ghosted_id_up)%mass_balance_delta(LIQ_FLUID, IFLOWSPEC1) - Res(1)
         ! contribution to dn cells
-        global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) = &
-          global_auxvars(ghosted_id_dn)%mass_balance_delta(1,1) + Res(1)
+        auxvars(ghosted_id_dn)%mass_balance_delta(LIQ_FLUID, IFLOWSPEC1) = &
+          auxvars(ghosted_id_dn)%mass_balance_delta(LIQ_FLUID, IFLOWSPEC1) + Res(1)
 
         ! cumulative mass_balance_delta for scaling
         sum_mass_flux(ghosted_id_up) = sum_mass_flux(ghosted_id_up) - Res(1)
@@ -622,7 +640,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       do ii=1,option%nflowdof
         if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
           write(string, *) ' @local_id -', local_id_up, local_id_dn, ' with Res -', ii, Res(ii)
-          option%io_buffer = ' NaN or INF of Residuals @ th.F90: FlowResidualPatch - interior flux between ' // &
+          option%io_buffer = ' NaN or INF of Residuals @ MpFlow.F90: FlowResidualPatch - interior flux between ' // &
             trim(string)
           call printErrMsg(option)
         endif
@@ -650,11 +668,11 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
       ithrm_dn = int(ithrm_loc_p(ghosted_id))
 
-      call MpFlowBCFlux(boundary_condition%flow_condition%itype,   &
+      call MpFlowBCFlux(boundary_condition%flow_condition%itype,     &
                       boundary_condition%flow_aux_real_var(:,iconn), &
                       auxvars(ghosted_id),                           &
                       material_auxvars(ghosted_id),                  &
-                      Flow_parameters(ithrm_dn),                     &
+                      mpflow_parameters(ithrm_dn),                   &
                       cur_connection_set%area(iconn),                &
                       cur_connection_set%dist(-1:3,iconn),           &
                       option,                                        &
@@ -670,8 +688,8 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(1,1) - Res(1)
+        auxvars_bc(sum_connection)%mass_balance_delta(1,1) = &
+          auxvars_bc(sum_connection)%mass_balance_delta(1,1) - Res(1)
 
         ! cumulative mass_balance_delta for scaling
         sum_mass_flux(ghosted_id) = sum_mass_flux(ghosted_id) - Res(1)
@@ -685,7 +703,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       do ii=1,option%nflowdof
         if(Res(ii) /= Res(ii) .or. abs(Res(ii))>huge(Res(ii)) ) then
           write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Res -', ii, Res(ii)
-          option%io_buffer = ' NaN or INF of Residuals @ th.F90: FlowResidualPatch - boundary_condition of ' // &
+          option%io_buffer = ' NaN or INF of Residuals @ MpFlow.F90: FlowResidualPatch - boundary_condition of ' // &
             trim(string)
           call printErrMsg(option)
         endif
@@ -719,16 +737,16 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
         iend = local_id_up*option%nflowdof
         istart = iend-option%nflowdof+1
         if(abs(r_p(istart))>1.d-20 .and. abs(sum_mass_flux(ghosted_id_up))>1.d-20) then
-          global_auxvars(ghosted_id_up)%mass_balance_delta = &
-            global_auxvars(ghosted_id_up)%mass_balance_delta * &
+          auxvars(ghosted_id_up)%mass_balance_delta = &
+            auxvars(ghosted_id_up)%mass_balance_delta * &
             (1.0d0-r_p(istart)/sum_mass_flux(ghosted_id_up))
         endif
 
         iend = local_id_dn*option%nflowdof
         istart = iend-option%nflowdof+1
         if(abs(r_p(istart))>1.d-20 .and. abs(sum_mass_flux(ghosted_id_dn))>1.d-20) then
-          global_auxvars(ghosted_id_dn)%mass_balance_delta = &
-            global_auxvars(ghosted_id_dn)%mass_balance_delta * &
+          auxvars(ghosted_id_dn)%mass_balance_delta = &
+            auxvars(ghosted_id_dn)%mass_balance_delta * &
             (1.0d0-r_p(istart)/sum_mass_flux(ghosted_id_dn))
         endif
 
@@ -752,8 +770,8 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
         istart = iend-option%nflowdof+1
 
         if(abs(r_p(istart))>1.d-20 .and. abs(sum_mass_flux(ghosted_id))>1.d-20) then
-          global_auxvars_bc(sum_connection)%mass_balance_delta = &
-            global_auxvars_bc(sum_connection)%mass_balance_delta * &
+          auxvars_bc(sum_connection)%mass_balance_delta =   &
+            auxvars_bc(sum_connection)%mass_balance_delta* &
             (1.0d0-r_p(istart)/sum_mass_flux(ghosted_id))
         endif
       enddo
@@ -774,8 +792,8 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
         istart = iend - option%nflowdof + 1
 
         if(abs(r_p(istart))>1.d-20 .and. abs(sum_mass_flux(ghosted_id))>1.d-20) then
-          global_auxvars_ss(sum_connection)%mass_balance_delta = &
-            global_auxvars_ss(sum_connection)%mass_balance_delta * &
+          auxvars_ss(sum_connection)%mass_balance_delta =  &
+            auxvars_ss(sum_connection)%mass_balance_delta* &
             (1.d0-r_p(istart)/sum_mass_flux(ghosted_id))
         endif
       enddo
@@ -793,14 +811,13 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
     r_p (istart:iend)= r_p(istart:iend)/material_auxvars(ghosted_id)%volume
   enddo
 
-  if (patch%aux%Flow%inactive_cells_exist) then
-    do i=1,patch%aux%Flow%n_zero_rows
-      r_p(patch%aux%Flow%zero_rows_local(i)) = 0.d0
+  if (patch%aux%MpFlow%inactive_cells_exist) then
+    do i=1,patch%aux%MpFlow%n_zero_rows
+      r_p(patch%aux%MpFlow%zero_rows_local(i)) = 0.d0
     enddo
   endif
 
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  !call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
@@ -816,6 +833,10 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
 
 end subroutine MpFlowResidualPatch
 
+
+
+! ************************************************************************** !
+! - Jacobian --------------------------------------------------------
 ! ************************************************************************** !
 
 subroutine MpFlowJacobian(A,B,realization,ierr)
@@ -905,29 +926,28 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Characteristic_Curves_module
 
   Mat :: AB
   type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
-  PetscInt :: ithrm_up, ithrm_dn
 
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: ii, jj
-  PetscInt :: local_id, ghosted_id
+  PetscInt :: istart, iend
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: ithrm_up, ithrm_dn
 
   PetscReal :: qsrc1
   PetscReal :: f_up
 
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
-            Jdn(realization%option%nflowdof,realization%option%nflowdof), &
-            Jsrc(realization%option%nflowdof,realization%option%nflowdof)
-
-  PetscInt :: istart, iend
+               Jdn(realization%option%nflowdof,realization%option%nflowdof), &
+               Jsrc(realization%option%nflowdof,realization%option%nflowdof)
 
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -938,60 +958,112 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(Flow_parameter_type), pointer :: Flow_parameters(:)
-  type(Flow_auxvar_type), pointer :: auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+  type(mpflow_parameter_type), pointer :: mpflow_parameters(:)
+  type(mpflow_auxvar_type), pointer :: auxvars(:)
+  !type(global_auxvar_type), pointer :: global_auxvars(:)
+  type(mpflow_auxvar_type), pointer :: auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: ithrm
   PetscReal :: Rdummy(realization%option%nflowdof)
   PetscReal :: v_darcy, fluxe_bulk, fluxe_cond
   PetscViewer :: viewer
+  PetscInt :: ifluid, idof
+
+  ! for 'NUMERICAL_JACOBIAN'
+  PetscInt :: icap
+  PetscReal :: pert
+  PetscReal :: Rpert(realization%option%nflowdof)
+  PetscReal :: Jpert(realization%option%nflowdof,realization%option%nflowdof)
+  PetscReal :: xx(realization%option%nflowdof),xx_pert(realization%option%nflowdof)
+  type(mpflow_auxvar_type) :: auxvar_pert
+  class(characteristic_curves_type), pointer :: characteristic_curves
 
   !---------------------------------------------------------------------------------
+  ifluid = IFLUID1
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
   field => realization%field
 
-  Flow_parameters => patch%aux%Flow%Flow_parameters
-  auxvars => patch%aux%Flow%auxvars
-  global_auxvars => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
+  mpflow_parameters => patch%aux%MpFlow%mpflow_parameters
+  auxvars => patch%aux%MpFlow%auxvars
+  auxvars_bc => patch%aux%MpFlow%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
-
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr);CHKERRQ(ierr)
 
 
   ! Accumulation terms ------------------------------------
-  do local_id = 1, grid%nlmax  ! For each local node do...
-    ghosted_id = grid%nL2G(local_id)
+  do local_id_up = 1, grid%nlmax  ! For each local node do...
+    ghosted_id_up = grid%nL2G(local_id_up)
     ! Ignore inactive cells with inactive materials
-    if (patch%imat(ghosted_id) <= 0) cycle
-    iend = local_id*option%nflowdof
+    if (patch%imat(ghosted_id_up) <= 0) cycle
+    iend = local_id_up*option%nflowdof
     istart = iend-option%nflowdof+1
+    ithrm_up = int(ithrm_loc_p(ghosted_id_up))
 
-    ithrm = int(ithrm_loc_p(ghosted_id))
-    call MpFlowAccumDerivative(auxvars(ghosted_id),      &
-                            material_auxvars(ghosted_id),  &
-                            Flow_parameters(ithrm),        &
-                            option,                        &
+    if (option%flow%numerical_derivatives) then
+      icap = int(icap_loc_p(ghosted_id_up))
+      characteristic_curves => patch%characteristic_curves_array(icap)%ptr
+
+      ! current 'res'
+      call MpFlowAccumulation(auxvars(ghosted_id_up),         &
+                            material_auxvars(ghosted_id_up),  &
+                            mpflow_parameters(ithrm_up),      &
+                            option,                           &
+                            Rdummy)
+
+      ! for 'NUMERICAL_JACOBIAN', set 'perturbance'
+      call MpFlowAuxVarInit(auxvar_pert,option)
+      call MpFlowAuxVarCopy(auxvars(ghosted_id_up), auxvar_pert)
+
+      xx(IFDOF1) = xx_loc_p(istart)
+      xx(IFDOF2) = xx_loc_p(iend)
+      do idof = 1, option%nflowdof
+        xx_pert = xx
+
+        pert = xx(idof)*perturbation_tolerance
+        if (idof == IFDOF1 .and. xx(IFDOF1)<option%reference_pressure) pert = -pert
+        if (idof == IFDOF2 .and. xx(IFDOF2)<0.d0) pert = -pert
+        xx_pert(idof) = xx(idof) + pert
+
+        call MpFlowAuxVarCompute(xx_pert,            &
+                      characteristic_curves,         &
+                      mpflow_parameters(ithrm_up),   &
+                      auxvar_pert,                   &
+                      option)
+
+        call MpFlowAccumulation(auxvar_pert,                 &
+                            material_auxvars(ghosted_id_up), &
+                            mpflow_parameters(ithrm_up),     &
+                            option,                          &
+                            Rpert)
+
+        Jpert(:, idof) = (Rpert(:)-Rdummy(:))/pert
+      enddo
+      Jup = Jpert
+      call MpFlowAuxVarStrip(auxvar_pert)
+
+    else
+      ! analytical jacobian
+      call MpFlowAccumDerivative(auxvars(ghosted_id_up),     &
+                            material_auxvars(ghosted_id_up), &
+                            mpflow_parameters(ithrm_up),     &
+                            option,                          &
                             Rdummy, Jup, PETSC_TRUE)
 
-
+    endif
 
     do ii=1,option%nflowdof
       do jj=1,option%nflowdof
         if(Jup(ii,jj) /= Jup(ii,jj) &
            .or. abs(Jup(ii,jj))>huge(Jup(ii,jj)) ) then
-          write(string, *) ' @local_id -', local_id, 'with Jacobin -', ii,jj,Jup(ii,jj)
-          option%io_buffer = ' NaN or INF of Jacobians @ th.F90: FlowJacobinPatch - Accumulation ' // &
+          write(string, *) ' @local_id -', local_id_up, 'with Jacobin -', ii,jj,Jup(ii,jj)
+          option%io_buffer = ' NaN or INF of Jacobians @ MpFlow.F90: FlowJacobinPatch - Accumulation ' // &
             trim(string)
           call printErrMsg(option)
         endif
@@ -1000,9 +1072,9 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
 
 
     ! scale by the volume of the cell
-    Jup = Jup/material_auxvars(ghosted_id)%volume
+    Jup = Jup/material_auxvars(ghosted_id_up)%volume
 
-    call MatSetValuesBlockedLocal(AB,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+    call MatSetValuesBlockedLocal(AB,1,ghosted_id_up-1,1,ghosted_id_up-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
   enddo
 
@@ -1027,29 +1099,29 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
     do iconn = 1, cur_connection_set%num_connections
 
       sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
+      local_id_dn = cur_connection_set%id_dn(iconn)
+      ghosted_id_dn = grid%nL2G(local_id_dn)
 
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id_dn) <= 0) cycle
 
       if (source_sink%flow_condition%liq_rate%itype /= HET_MASS_RATE_SS) &
         qsrc1 = source_sink%flow_condition%liq_rate%dataset%rarray(1)
 
       select case (source_sink%flow_condition%liq_rate%itype)
         case(MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+          qsrc1 = qsrc1 / FMW_FLUIDS(ifluid)                  ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
-          qsrc1 = qsrc1 / FMWH2O * &
-            source_sink%flow_aux_real_var(ONE_INTEGER,iconn) ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
-        case(VOLUMETRIC_RATE_SS)  ! assume local density for now
+          qsrc1 = qsrc1 / FMW_FLUIDS(ifluid) * &
+            source_sink%flow_aux_real_var(ONE_INTEGER,iconn)  ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
+        case(VOLUMETRIC_RATE_SS)
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*auxvars(ghosted_id)%den(LIQUID_PHASE) ! den = kmol/m^3
-        case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
+          qsrc1 = qsrc1*auxvars(ghosted_id_dn)%den(LIQ_FLUID)    ! den = kmol/m^3
+        case(SCALED_VOLUMETRIC_RATE_SS)
           ! qsrc1 = m^3/sec
-          qsrc1 = qsrc1*auxvars(ghosted_id)%den(LIQUID_PHASE)* & ! den = kmol/m^3
+          qsrc1 = qsrc1*auxvars(ghosted_id_dn)%den(LIQ_FLUID)* & ! den = kmol/m^3
                    source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
         case(HET_MASS_RATE_SS)
-          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
+          qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMW_FLUIDS(ifluid)
         case default
           write(string,*) source_sink%flow_condition%liq_rate%itype
           option%io_buffer='Flow mode source_sink%flow_condition%liq_rate%itype = ' // &
@@ -1063,18 +1135,17 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
       else
         ! extraction
         Jsrc(IFDOF2,IFDOF1) = &
-          -qsrc1*auxvars(ghosted_id)%D_H(LIQUID_PHASE, IFDOF1)
+          -qsrc1*auxvars(ghosted_id_dn)%D_H(LIQ_FLUID, IFDOF1)
         Jsrc(IFDOF2,IFDOF2) = &
-          -qsrc1*auxvars(ghosted_id)%D_H(LIQUID_PHASE, IFDOF2)
-        istart = ghosted_id*option%nflowdof
+          -qsrc1*auxvars(ghosted_id_dn)%D_H(LIQ_FLUID, IFDOF2)
       endif
 
       do ii=1,option%nflowdof
         do jj=1,option%nflowdof
           if(Jsrc(ii,jj) /= Jsrc(ii,jj) &
              .or. abs(Jsrc(ii,jj))>huge(Jsrc(ii,jj)) ) then
-            write(string, *) ' name -', source_sink%name, ' @local_id -', local_id, 'with Jacobin -', ii,jj, Jsrc
-            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: FlowJacobinPatch - Source_Sink of ' // &
+            write(string, *) ' name -', source_sink%name, ' @local_id -', local_id_dn, 'with Jacobin -', ii,jj, Jsrc
+            option%io_buffer = ' NaN or INF of Jacobians @ MpFlow.F90: FlowJacobinPatch - Source_Sink of ' // &
               trim(string)
             call printErrMsg(option)
           endif
@@ -1082,9 +1153,9 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
       enddo
 
       ! scale by the volume of the cell
-      Jsrc = Jsrc/material_auxvars(ghosted_id)%volume
+      Jsrc = Jsrc/material_auxvars(ghosted_id_dn)%volume
 
-      call MatSetValuesBlockedLocal(AB,1,ghosted_id-1,1,ghosted_id-1,Jsrc, &
+      call MatSetValuesBlockedLocal(AB,1,ghosted_id_dn-1,1,ghosted_id_dn-1,Jsrc, &
                                     ADD_VALUES,ierr);CHKERRQ(ierr)
 
 
@@ -1129,18 +1200,125 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
       ithrm_up = int(ithrm_loc_p(ghosted_id_up))
       ithrm_dn = int(ithrm_loc_p(ghosted_id_dn))
 
-      call MpFlowInternalFluxDerivative(auxvars(ghosted_id_up),      &
-                                      material_auxvars(ghosted_id_up), &
-                                      Flow_parameters(ithrm_up),       &
-                                      auxvars(ghosted_id_dn),          &
-                                      material_auxvars(ghosted_id_dn), &
-                                      Flow_parameters(ithrm_dn),       &
+      if (option%flow%numerical_derivatives) then
+
+        ! current 'res'
+        call MpFlowInternalFlux(auxvars(ghosted_id_up), &
+                   material_auxvars(ghosted_id_up),     &
+                   mpflow_parameters(ithrm_up),         &
+                   auxvars(ghosted_id_dn),              &
+                   material_auxvars(ghosted_id_dn),     &
+                   mpflow_parameters(ithrm_dn),         &
+                   cur_connection_set%area(iconn),      &
+                   cur_connection_set%dist(:,iconn),    &
+                   option,                              &
+                   v_darcy, fluxe_bulk, fluxe_cond,     &
+                   Rdummy)
+
+
+        ! for 'NUMERICAL_JACOBIAN' of 'up'
+        icap = int(icap_loc_p(ghosted_id_up))
+        characteristic_curves => patch%characteristic_curves_array(icap)%ptr
+
+        call MpFlowAuxVarInit(auxvar_pert,option)
+        call MpFlowAuxVarCopy(auxvars(ghosted_id_up), auxvar_pert)
+
+        iend   = local_id_up*option%nflowdof
+        istart = iend-option%nflowdof+1
+        xx(IFDOF1) = xx_loc_p(istart)
+        xx(IFDOF2) = xx_loc_p(iend)
+        do idof = 1, option%nflowdof
+          xx_pert = xx
+
+          pert = xx(idof)*perturbation_tolerance
+          if (idof == IFDOF1 .and. xx(IFDOF1)<option%reference_pressure) pert = -pert
+          if (idof == IFDOF2 .and. xx(IFDOF2)<0.d0) pert = -pert
+          xx_pert(idof) = xx(idof) + pert
+
+          call MpFlowAuxVarCompute(xx_pert,          &
+                        characteristic_curves,       &
+                        mpflow_parameters(ithrm_up), &
+                        auxvar_pert,                 &
+                        option)
+          call MpFlowInternalFlux(                        &
+                     auxvar_pert,                         &  ! 'auxvar_up' perturbation
+                     material_auxvars(ghosted_id_up),     &
+                     mpflow_parameters(ithrm_up),         &
+                     auxvars(ghosted_id_dn),              &
+                     material_auxvars(ghosted_id_dn),     &
+                     mpflow_parameters(ithrm_dn),         &
+                     cur_connection_set%area(iconn),      &
+                     cur_connection_set%dist(:,iconn),    &
+                     option,                              &
+                     v_darcy, fluxe_bulk, fluxe_cond,     &
+                     Rpert)
+
+
+          Jpert(:, idof) = (Rpert(:)-Rdummy(:))/pert
+        enddo
+        Jup = Jpert
+        call MpFlowAuxVarStrip(auxvar_pert)
+
+        ! for 'NUMERICAL_JACOBIAN' of 'dn'
+        icap = int(icap_loc_p(ghosted_id_dn))
+        characteristic_curves => patch%characteristic_curves_array(icap)%ptr
+
+        call MpFlowAuxVarInit(auxvar_pert,option)
+        call MpFlowAuxVarCopy(auxvars(ghosted_id_dn), auxvar_pert)
+
+        iend   = local_id_dn*option%nflowdof
+        istart = iend-option%nflowdof+1
+        xx(IFDOF1) = xx_loc_p(istart)
+        xx(IFDOF2) = xx_loc_p(iend)
+        do idof = 1, option%nflowdof
+          xx_pert = xx
+
+          pert = xx(idof)*perturbation_tolerance
+          if (idof == IFDOF1 .and. xx(IFDOF1)<option%reference_pressure) pert = -pert
+          if (idof == IFDOF2 .and. xx(IFDOF2)<0.d0) pert = -pert
+          xx_pert(idof) = xx(idof) + pert
+
+          call MpFlowAuxVarCompute(xx_pert,          &
+                        characteristic_curves,       &
+                        mpflow_parameters(ithrm_up), &
+                        auxvar_pert,                 &
+                        option)
+          call MpFlowInternalFlux(                        &
+                     auxvars(ghosted_id_up),              &
+                     material_auxvars(ghosted_id_up),     &
+                     mpflow_parameters(ithrm_up),         &
+                     auxvar_pert,                         &  ! 'auxvar_dn' perturbation
+                     material_auxvars(ghosted_id_dn),     &
+                     mpflow_parameters(ithrm_dn),         &
+                     cur_connection_set%area(iconn),      &
+                     cur_connection_set%dist(:,iconn),    &
+                     option,                              &
+                     v_darcy, fluxe_bulk, fluxe_cond,     &
+                     Rpert)
+
+
+          Jpert(:, idof) = (Rpert(:)-Rdummy(:))/pert
+        enddo
+        Jdn = Jpert
+        call MpFlowAuxVarStrip(auxvar_pert)
+        !
+
+      else
+        ! analytical jacobian
+
+        call MpFlowInternalFluxDerivative(auxvars(ghosted_id_up),          &
+                                      material_auxvars(ghosted_id_up),     &
+                                      mpflow_parameters(ithrm_up),         &
+                                      auxvars(ghosted_id_dn),              &
+                                      material_auxvars(ghosted_id_dn),     &
+                                      mpflow_parameters(ithrm_dn),         &
                                       cur_connection_set%area(iconn),      &
                                       cur_connection_set%dist(-1:3,iconn), &
                                       option,                              &
                                       v_darcy, fluxe_bulk, fluxe_cond,     &
                                       Rdummy, Jup, Jdn, PETSC_TRUE)
 
+      endif  ! end if (option%flow%numerical_derivatives)
 
 
 
@@ -1202,25 +1380,83 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
 
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
+      local_id_dn = cur_connection_set%id_dn(iconn)
+      ghosted_id_dn = grid%nL2G(local_id_dn)
+      if (patch%imat(ghosted_id_dn) <= 0) cycle
 
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
+      ithrm_dn  = int(ithrm_loc_p(ghosted_id_dn))
 
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (option%flow%numerical_derivatives) then
 
-      ithrm_dn  = int(ithrm_loc_p(ghosted_id))
-!      icap_dn = int(icap_loc_p(ghosted_id))
+        ! current 'res'
+        call MpFlowBCFlux(boundary_condition%flow_condition%itype,   &
+                      boundary_condition%flow_aux_real_var(:,iconn), &
+                      auxvars(ghosted_id_dn),                        &
+                      material_auxvars(ghosted_id_dn),               &
+                      mpflow_parameters(ithrm_dn),                   &
+                      cur_connection_set%area(iconn),                &
+                      cur_connection_set%dist(-1:3,iconn),           &
+                      option,                                        &
+                      v_darcy,                                       &
+                      fluxe_bulk, fluxe_cond,                        &
+                      Rdummy)
 
-      call MpFlowBCFluxDerivative(boundary_condition%flow_condition%itype,   &
+        ! for 'NUMERICAL_JACOBIAN' of 'dn'
+        icap = int(icap_loc_p(ghosted_id_dn))
+        characteristic_curves => patch%characteristic_curves_array(icap)%ptr
+
+        call MpFlowAuxVarInit(auxvar_pert,option)
+        call MpFlowAuxVarCopy(auxvars(ghosted_id_dn), auxvar_pert)
+
+        iend   = local_id_dn*option%nflowdof
+        istart = iend-option%nflowdof+1
+        xx(IFDOF1) = xx_loc_p(istart)
+        xx(IFDOF2) = xx_loc_p(iend)
+        do idof = 1, option%nflowdof
+          xx_pert = xx
+
+          pert = xx(idof)*perturbation_tolerance
+          if (idof == IFDOF1 .and. xx(IFDOF1)<option%reference_pressure) pert = -pert
+          if (idof == IFDOF2 .and. xx(IFDOF2)<0.d0) pert = -pert
+          xx_pert(idof) = xx(idof) + pert
+
+          call MpFlowAuxVarCompute(xx_pert,          &
+                        characteristic_curves,       &
+                        mpflow_parameters(ithrm_up), &
+                        auxvar_pert,                 &
+                        option)
+          call MpFlowBCFlux(boundary_condition%flow_condition%itype, &
+                      boundary_condition%flow_aux_real_var(:,iconn), &
+                      auxvar_pert,                                   &  ! 'auxvar_dn' perturbalated
+                      material_auxvars(ghosted_id_dn),               &
+                      mpflow_parameters(ithrm_dn),                   &
+                      cur_connection_set%area(iconn),                &
+                      cur_connection_set%dist(-1:3,iconn),           &
+                      option,                                        &
+                      v_darcy,                                       &
+                      fluxe_bulk, fluxe_cond,                        &
+                      Rdummy)
+
+          Jpert(:, idof) = (Rpert(:)-Rdummy(:))/pert
+        enddo
+        Jdn = Jpert
+        call MpFlowAuxVarStrip(auxvar_pert)
+        !
+
+      else
+        ! analytical jacobian
+        call MpFlowBCFluxDerivative(boundary_condition%flow_condition%itype,   &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
-                                auxvars(ghosted_id),                           &
-                                material_auxvars(ghosted_id),                  &
-                                Flow_parameters(ithrm_dn),                     &
+                                auxvars(ghosted_id_dn),                        &
+                                material_auxvars(ghosted_id_dn),               &
+                                mpflow_parameters(ithrm_dn),                   &
                                 cur_connection_set%area(iconn),                &
                                 cur_connection_set%dist(-1:3,iconn),           &
                                 option,                                        &
                                 v_darcy, fluxe_bulk, fluxe_cond,               &
                                 Rdummy, Jdn, PETSC_TRUE)
+
+      endif ! end of if(option%flow%numerical_derivatives)
 
       !
       Jdn = -Jdn
@@ -1229,8 +1465,8 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
         do jj=1,option%nflowdof
           if(Jdn(ii,jj) /= Jdn(ii,jj) .or. &
              abs(Jdn(ii,jj))>huge(Jdn(ii,jj)) ) then
-            write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id, 'with Jacobin -', ii,jj, Jdn(ii,jj)
-            option%io_buffer = ' NaN or INF of Jacobians @ th.F90: FlowJacobinPatch - Boundary_Condition of ' // &
+            write(string, *) ' name -', boundary_condition%name, ' @local_id -', local_id_dn, 'with Jacobin -', ii,jj, Jdn(ii,jj)
+            option%io_buffer = ' NaN or INF of Jacobians @ MpFlow.F90: FlowJacobinPatch - Boundary_Condition of ' // &
                 trim(string)
             call printErrMsg(option)
           endif
@@ -1238,9 +1474,9 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
       enddo
 
       !  scale by the volume of the cell
-      Jdn = Jdn/material_auxvars(ghosted_id)%volume
+      Jdn = Jdn/material_auxvars(ghosted_id_dn)%volume
 
-      call MatSetValuesBlockedLocal(AB,1,ghosted_id-1,1,ghosted_id-1,Jdn,ADD_VALUES, &
+      call MatSetValuesBlockedLocal(AB,1,ghosted_id_dn-1,1,ghosted_id_dn-1,Jdn,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)
 
     enddo
@@ -1263,16 +1499,18 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
   call MatAssemblyBegin(AB,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
   call MatAssemblyEnd(AB,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
 
-  if (patch%aux%Flow%inactive_cells_exist) then
+  if (patch%aux%MpFlow%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(AB,patch%aux%Flow%n_zero_rows, &
-                          patch%aux%Flow%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(AB,patch%aux%MpFlow%n_zero_rows, &
+                          patch%aux%MpFlow%zero_rows_local_ghosted,f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
 end subroutine MpFlowJacobianPatch
 
+! ************************************************************************** !
+! - Others --------------------------------------------------------
 ! ************************************************************************** !
 
 subroutine MpFlowMaxChange(realization,dpmax,dtmpmax)
@@ -1314,88 +1552,20 @@ end subroutine MpFlowMaxChange
 
 ! ************************************************************************** !
 
-subroutine MpFlowResidualToMass(realization)
-  !
-  ! Computes mass balance from residual equation
-  !
-  ! Author: ???
-  ! Date: 12/10/07
-  !
-
-  use Realization_Subsurface_class
-  use Patch_module
-  use Discretization_module
-  use Field_module
-  use Option_module
-  use Grid_module
-
-  implicit none
-
-  type(realization_subsurface_type) :: realization
-  type(field_type), pointer :: field
-  type(patch_type), pointer :: cur_patch
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option
-
-  PetscReal, pointer :: mass_balance_p(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  PetscErrorCode :: ierr
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: istart
-  PetscReal:: tempreal
-
-  option => realization%option
-  field => realization%field
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-
-    grid => cur_patch%grid
-    global_auxvars => cur_patch%aux%Global%auxvars
-
-    call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p,  &
-                        ierr);CHKERRQ(ierr)
-
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (cur_patch%imat(ghosted_id) <= 0) cycle
-
-      istart = (ghosted_id-1)*option%nflowdof+1
-
-      tempreal = global_auxvars(ghosted_id)%den_kg(1)/global_auxvars(ghosted_id)%den(1)
-
-      mass_balance_p(istart) = mass_balance_p(istart)/tempreal
-
-    enddo
-
-    call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p,  &
-                            ierr);CHKERRQ(ierr)
-
-    cur_patch => cur_patch%next
-  enddo
-
-end subroutine MpFlowResidualToMass
-
-! ************************************************************************** !
-
 subroutine MpFlowComputeMassBalance(realization, mass_balance)
   ! 
   ! MpFlowomputeMassBalance:
-  ! Adapted from RichardsComputeMassBalance: need to be checked
-  ! 
-  ! Author: Jitendra Kumar
-  ! Date: 07/21/2010
   ! 
 
   use Realization_Subsurface_class
   use Patch_module
 
   type(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nfluids)
+  PetscReal, pointer :: mass_balance(:,:)
    
   type(patch_type), pointer :: cur_patch
 
+  ! for all patch(es)
   mass_balance = 0.d0
 
   cur_patch => realization%patch_list%first
@@ -1413,12 +1583,7 @@ end subroutine MpFlowComputeMassBalance
 subroutine MpFlowComputeMassBalancePatch(realization,mass_balance)
   ! 
   ! MpFlowomputeMassBalancePatch:
-  ! Adapted from RichardsComputeMassBalancePatch: need to be checked
-  ! 
-  ! Author: Jitendra Kumar
-  ! Date: 07/21/2010
-  !       2018-09-06 modified by fmyuan to have 3-phase of water mass
-  ! 
+  !  Compute Sum of Mass_Balance for one Patch
  
   use Realization_Subsurface_class
   use Option_module
@@ -1432,72 +1597,83 @@ subroutine MpFlowComputeMassBalancePatch(realization,mass_balance)
   implicit none
   
   type(realization_subsurface_type) :: realization
-  PetscReal :: mass_balance(realization%option%nfluids)
+  PetscReal,pointer :: mass_balance(:,:)
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
   type(grid_type), pointer :: grid
-  type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(Flow_auxvar_type),pointer :: Flow_auxvars(:)
+  type(mpflow_auxvar_type),pointer :: mpflow_auxvars(:)
   PetscInt :: local_id
   PetscInt :: ghosted_id
-  PetscReal :: compressed_porosity
+  PetscInt :: iflowsp
+  PetscReal :: compressed_porosity, pres
   PetscReal :: por
-  PetscReal :: dum1
+  PetscReal :: tempreal
 
   option => realization%option
   patch => realization%patch
   grid => patch%grid
   field => realization%field
 
-  global_auxvars => patch%aux%Global%auxvars
+  !global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
-  Flow_auxvars => patch%aux%Flow%auxvars
+  mpflow_auxvars => patch%aux%MpFlow%auxvars
 
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvars(ghosted_id), &
-                                global_auxvars(ghosted_id)%pres(1), &
-                                compressed_porosity,dum1)
-      por = compressed_porosity
-    else
-      por = material_auxvars(ghosted_id)%porosity
-    endif
+  ! note: don't zero mass_balance here,
+  !       which already done prior to first patch of realization
+  do iflowsp = 1, option%flow%nspecflow
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
 
-    ! mass_liqwater = volume*saturation*density
-    mass_balance(LIQUID_PHASE) = mass_balance(LIQUID_PHASE) + &
-      global_auxvars(ghosted_id)%den_kg(LIQUID_PHASE)* &
-      global_auxvars(ghosted_id)%sat(LIQUID_PHASE)* &
-      por* &
-      material_auxvars(ghosted_id)%volume
+      if (soil_compressibility_index > 0) then
+        pres = max(mpflow_auxvars(ghosted_id)%pres(LIQ_FLUID), &
+                 mpflow_auxvars(ghosted_id)%pres(AIR_FLUID))
+        call MaterialCompressSoil(material_auxvars(ghosted_id), &
+                                 pres, &
+                                 compressed_porosity,tempreal)
+        por = compressed_porosity
+      else
+        por = material_auxvars(ghosted_id)%porosity
+      endif
 
-   ! mass_ice = volume*saturation_ice*density_ice
-   mass_balance(SOLID_PHASE) = mass_balance(SOLID_PHASE) + &
-      global_auxvars(ghosted_id)%den_kg(SOLID_PHASE)* &
-      global_auxvars(ghosted_id)%sat(SOLID_PHASE)* &
-      por* &
-      material_auxvars(ghosted_id)%volume
+      ! mass = por*volume*saturation*den_kg*fraction_in_fluid
+      tempreal = por*material_auxvars(ghosted_id)%volume
 
-   ! mass_vapor = volume*saturation_air*density_air*fraction_vapor
-   mass_balance(GAS_PHASE) = mass_balance(GAS_PHASE) + &
-      global_auxvars(ghosted_id)%den(GAS_PHASE)* &
-      global_auxvars(ghosted_id)%sat(GAS_PHASE)* &
-      Flow_auxvars(ghosted_id)%molv_air*FMWH2O* &
-      por* &
-      material_auxvars(ghosted_id)%volume
+      ! in 'liq_fluid'
+      if (option%flow%nspecliq>0) then
+        mass_balance(LIQ_FLUID, iflowsp) = mass_balance(LIQ_FLUID, iflowsp) + &
+          mpflow_auxvars(ghosted_id)%sat(LIQ_FLUID)* &
+          mpflow_auxvars(ghosted_id)%den_kg(LIQ_FLUID)* &
+          tempreal
+      endif
 
+      ! in 'air_fluid'
+      if (option%flow%nspecgas>0) then
+        mass_balance(AIR_FLUID, iflowsp) = mass_balance(AIR_FLUID, iflowsp) + &
+          mpflow_auxvars(ghosted_id)%sat(AIR_FLUID)* &
+          mpflow_auxvars(ghosted_id)%den_kg(AIR_FLUID)* &
+          tempreal
+      endif
 
+      ! immobilized (e.g. frozen) 'fluid'
+      tempreal = tempreal * (1.d0 - mpflow_auxvars(ghosted_id)%sat(LIQ_FLUID) &
+                                  - mpflow_auxvars(ghosted_id)%sat(AIR_FLUID) )
+      mass_balance(option%flow%nfluid+1,iflowsp) = &
+        mass_balance(option%flow%nfluid+1,iflowsp) + &
+        mpflow_auxvars(ghosted_id)%den_kg(option%flow%nfluid+1)* &
+        tempreal
+
+    enddo
   enddo
 
 end subroutine MpFlowComputeMassBalancePatch
 
 ! ************************************************************************** !
 
-subroutine MpFlowZeroMassBalDeltaPatch(realization)
+subroutine MpFlowZeroMassBalanceDeltaPatch(realization)
   ! 
   ! Zeros mass balance delta array
   ! 
@@ -1516,47 +1692,50 @@ subroutine MpFlowZeroMassBalDeltaPatch(realization)
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
-  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+  type(MpFlow_auxvar_type), pointer :: auxvars(:)
+#endif
+  type(MpFlow_auxvar_type), pointer :: auxvars_bc(:)
+  type(MpFlow_auxvar_type), pointer :: auxvars_ss(:)
 
   PetscInt :: iconn
 
   option => realization%option
   patch => realization%patch
 
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  global_auxvars_ss => patch%aux%Global%auxvars_ss
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+  auxvars    => patch%aux%MpFlow%auxvars
+#endif
+  auxvars_bc => patch%aux%MpFlow%auxvars_bc
+  auxvars_ss => patch%aux%MpFlow%auxvars_ss
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
-  do iconn = 1, patch%aux%Flow%num_aux
-    patch%aux%Global%auxvars(iconn)%mass_balance_delta = 0.d0
+  do iconn = 1, patch%aux%MpFlow%num_aux
+    auxvars(iconn)%mass_balance_delta = 0.d0
   enddo
 #endif
 
   ! Intel 10.1 on Chinook reports a SEGV if this conditional is not
   ! placed around the internal do loop - geh
-  if (patch%aux%Flow%num_aux_bc > 0) then
-    do iconn = 1, patch%aux%Flow%num_aux_bc
-      global_auxvars_bc(iconn)%mass_balance_delta = 0.d0
+  if (patch%aux%MpFlow%num_aux_bc > 0) then
+    do iconn = 1, patch%aux%MpFlow%num_aux_bc
+      auxvars_bc(iconn)%mass_balance_delta = 0.d0
     enddo
   endif
-  if (patch%aux%Flow%num_aux_ss > 0) then
-    do iconn = 1, patch%aux%Flow%num_aux_ss
-      global_auxvars_ss(iconn)%mass_balance_delta = 0.d0
+  if (patch%aux%MpFlow%num_aux_ss > 0) then
+    do iconn = 1, patch%aux%MpFlow%num_aux_ss
+      auxvars_ss(iconn)%mass_balance_delta = 0.d0
     enddo
   endif
  
-end subroutine MpFlowZeroMassBalDeltaPatch
+end subroutine MpFlowZeroMassBalanceDeltaPatch
 
 ! ************************************************************************** !
 
-subroutine MpFlowUpdateMassBalancePatch(realization)
+subroutine MpFlowUpdateMassBalanceDeltaPatch(realization)
   ! 
   ! Updates mass balance
-  ! 
-  ! Author: ???
-  ! Date: 12/13/11
-  ! 
+  !  Compute Mass_Balance Delta, since 'ZeroMassBalanceDelta' called, in a Patch for each gridcell
  
   use Realization_Subsurface_class
   use Option_module
@@ -1569,51 +1748,64 @@ subroutine MpFlowUpdateMassBalancePatch(realization)
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
-  type(global_auxvar_type), pointer :: global_auxvars_bc(:)
-  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+  type(MpFlow_auxvar_type), pointer :: auxvars(:)
+#endif
+  type(MpFlow_auxvar_type), pointer :: auxvars_bc(:)
+  type(MpFlow_auxvar_type), pointer :: auxvars_ss(:)
 
-  PetscInt :: iconn, iphase
+  PetscInt :: iconn, ifluid, iflowsp
 
   !---------------------------------------------------------------------
+
   option => realization%option
   patch => realization%patch
 
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  global_auxvars_ss => patch%aux%Global%auxvars_ss
-
-  do iphase = 1, option%nfluids
-
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
-    do iconn = 1, patch%aux%Flow%num_aux
-      patch%aux%Global%auxvars(iconn)%mass_balance(IFLOW1,iphase) = &
-        patch%aux%Global%auxvars(iconn)%mass_balance(IFLOW1,iphase) + &
-        patch%aux%Global%auxvars(iconn)%mass_balance_delta(IFLOW1,iphase)*FMWH2O* &
+  auxvars    => patch%aux%MpFlow%auxvars
+#endif
+  auxvars_bc => patch%aux%MpFlow%auxvars_bc
+  auxvars_ss => patch%aux%MpFlow%auxvars_ss
+
+  ! note: we don't zero mass_balance here, so it's upon where this subroutine called for 'balance' as accumulative or not.
+
+  iflowsp= IFLOWSPEC1
+  do ifluid = 1, option%flow%nfluid+1 ! extra '1' for immoblized mass of a fluid (eq. water->ice, vapor->ice, air->frozen air?)
+    ! here now water (indexed as 'IFLOW1') only.
+    ! NOTE- if no gas-fluid considered, vapor will not be accounted; if no liq-fluid, vapor to either ice or water will no be accounted
+#ifdef COMPUTE_INTERNAL_MASS_FLUX
+    do iconn = 1, patch%aux%MpFlow%num_aux
+      auxvars(iconn)%mass_balance(ifluid, iflowsp) = &
+        auxvars(iconn)%mass_balance(ifluid, iflowsp) + &
+        auxvars(iconn)%mass_balance_delta(ifluid, iflowsp)* &
+        FMW_FLUIDS(iflowsp)* &
         option%flow%dt
     enddo
 #endif
 
-    if (patch%aux%Flow%num_aux_bc > 0) then
-      do iconn = 1, patch%aux%Flow%num_aux_bc
-        global_auxvars_bc(iconn)%mass_balance(IFLOW1,iphase) = &
-          global_auxvars_bc(iconn)%mass_balance(IFLOW1,iphase) + &
-          global_auxvars_bc(iconn)%mass_balance_delta(IFLOW1,iphase)*FMWH2O* &
+    if (patch%aux%MpFlow%num_aux_bc > 0) then
+      do iconn = 1, patch%aux%MpFlow%num_aux_bc
+        auxvars_bc(iconn)%mass_balance(ifluid, iflowsp) = &
+          auxvars_bc(iconn)%mass_balance(ifluid, iflowsp)+ &
+          auxvars_bc(iconn)%mass_balance_delta(ifluid, iflowsp)* &
+          FMW_FLUIDS(iflowsp)* &
           option%flow%dt
       enddo
     endif
 
-    if (patch%aux%Flow%num_aux_ss > 0) then
-      do iconn = 1, patch%aux%Flow%num_aux_ss
-        global_auxvars_ss(iconn)%mass_balance(IFLOW1,iphase) = &
-          global_auxvars_ss(iconn)%mass_balance(IFLOW1,iphase) + &
-          global_auxvars_ss(iconn)%mass_balance_delta(IFLOW1,iphase)*FMWH2O* &
+    if (patch%aux%MpFlow%num_aux_ss > 0) then
+      do iconn = 1, patch%aux%MpFlow%num_aux_ss
+        auxvars_ss(iconn)%mass_balance(ifluid,iflowsp) = &
+          auxvars_ss(iconn)%mass_balance(ifluid, iflowsp)+ &
+          auxvars_ss(iconn)%mass_balance_delta(ifluid, iflowsp)* &
+          FMW_FLUIDS(IFLOWSPEC1)* &
           option%flow%dt
       enddo
     endif
 
   enddo
 
-
-end subroutine MpFlowUpdateMassBalancePatch
+end subroutine MpFlowUpdateMassBalanceDeltaPatch
 
 ! ************************************************************************** !
 
@@ -1640,7 +1832,7 @@ subroutine MpFlowUpdateAuxVars(realization)
 
     ! the flag to update global_auxvars
     ! because this is auxvar computing after solution
-    cur_patch%aux%Flow%auxvars_up_to_date = PETSC_TRUE
+    cur_patch%aux%MpFlow%auxvars_up_to_date = PETSC_TRUE
 
     call MpFlowUpdateAuxVarsPatch(realization)
     cur_patch => cur_patch%next
@@ -1680,13 +1872,12 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  type(Flow_auxvar_type), pointer :: Flow_auxvars(:)
+  type(mpflow_auxvar_type), pointer :: mpflow_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars_ss(:)
-  class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
-  !type(material_auxvar_type), pointer :: material_auxvars(:)
-  type(Flow_parameter_type), pointer :: Flow_parameters(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(mpflow_parameter_type), pointer :: mpflow_parameters(:)
   class(characteristic_curves_type), pointer :: characteristic_curves
 
   PetscInt :: ghosted_id, local_id, istart, iend, iconn, sum_connection, idof
@@ -1697,22 +1888,24 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
   PetscReal :: xx(realization%option%nflowdof)
 
   PetscErrorCode :: ierr
+  !------------------------------------------------------------------------------------
   
   option => realization%option
+
+  field => realization%field
   patch => realization%patch
   grid => patch%grid
-  field => realization%field
 
-  global_auxvars    => patch%aux%Global%auxvars
-  global_auxvars_bc => patch%aux%Global%auxvars_bc
-  global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars  => patch%aux%Material%auxvars
-  Flow_auxvars      => patch%aux%Flow%auxvars
-  Flow_parameters   => patch%aux%Flow%Flow_parameters
+  mpflow_auxvars    => patch%aux%MpFlow%auxvars
+  mpflow_parameters => patch%aux%MpFlow%mpflow_parameters
+
+  global_auxvars      => patch%aux%Global%auxvars
+  global_auxvars_bc   => patch%aux%Global%auxvars_bc
+  global_auxvars_ss   => patch%aux%Global%auxvars_ss
 
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-
   call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   do ghosted_id = 1, grid%ngmax
@@ -1729,17 +1922,24 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
     icap = int(icap_loc_p(ghosted_id))
     characteristic_curves => patch%characteristic_curves_array(icap)%ptr
 
-    call MpFlowAuxVarCompute(xx,        &
-            Flow_auxvars(ghosted_id),     &
-            patch%aux%Flow%auxvars_up_to_date, &
-            global_auxvars(ghosted_id),   &
-            material_auxvars(ghosted_id), &
-            characteristic_curves,        &
-            Flow_parameters(ithrm),       &
+    call MpFlowAuxVarCompute(xx,                 &
+            characteristic_curves,               &
+            mpflow_parameters(ithrm),            &
+            mpflow_auxvars(ghosted_id),          &
             option)
+
+    ! Assign values to GLOBAL_auxvar, which shared with other MODEs in PFLOTRAN
+    ! when instructed so (e.g. when iteration is done and thereafter passing 'mpflow_auxvar' to 'global_auxvar')
+    if (patch%aux%MpFlow%auxvars_up_to_date) then
+      global_auxvars(ghosted_id)%tc   = mpflow_auxvars(ghosted_id)%tc
+      global_auxvars(ghosted_id)%pres = mpflow_auxvars(ghosted_id)%pres
+      global_auxvars(ghosted_id)%sat  = mpflow_auxvars(ghosted_id)%sat
+      global_auxvars(ghosted_id)%den  = mpflow_auxvars(ghosted_id)%den
+    endif
 
   enddo
 
+  ! BCs
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
@@ -1754,7 +1954,8 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
 
       ! set global_auxvars to that connected cell at first,
       ! then, reset relevant vars to BC's values
-      call GlobalAuxVarCopy(global_auxvars(ghosted_id),global_auxvars_bc(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_bc(sum_connection))
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -1762,17 +1963,17 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
                HET_SURF_HYDROSTATIC_SEEPAGE_BC, &
                HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC)
             if (idof==IFDOF1) then
-              global_auxvars_bc(sum_connection)%pres(LIQUID_PHASE) = &
+              global_auxvars_bc(sum_connection)%pres(LIQ_FLUID) = &
                 boundary_condition%flow_aux_real_var(IFDOF1,iconn)
             elseif(idof==IFDOF2) then
-              global_auxvars_bc(sum_connection)%temp = &
+              global_auxvars_bc(sum_connection)%tc = &
                 boundary_condition%flow_aux_real_var(IFDOF2,iconn)
             endif
 
           case(HYDROSTATIC_CONDUCTANCE_BC, HET_HYDROSTATIC_CONDUCTANCE_BC)
             !(TODO) the following is incorrect?
             if(idof==IFDOF2) then
-              global_auxvars_bc(sum_connection)%temp = &
+              global_auxvars_bc(sum_connection)%tc = &
                 boundary_condition%flow_aux_real_var(IFDOF3,iconn)
             endif
 
@@ -1804,7 +2005,8 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
 
       ! set global_auxvars to that connected cell at first,
       ! then reset its relevant vars to SrcSink's
-      call GlobalAuxVarCopy(global_auxvars(ghosted_id),global_auxvars_bc(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_bc(sum_connection))
 
 #if 0
       ! (TODO)
@@ -1827,11 +2029,10 @@ subroutine MpFlowUpdateAuxVarsPatch(realization)
     source_sink => source_sink%next
   enddo
 
-
   call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
-
   call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+
 
 end subroutine MpFlowUpdateAuxVarsPatch
 
@@ -1906,16 +2107,17 @@ subroutine MpFlowUpdateSolutionPatch(realization)
   
   type(realization_subsurface_type) :: realization
   type(patch_type), pointer :: patch
-  type(Flow_auxvar_type), pointer :: auxvars(:)
+  type(mpflow_auxvar_type), pointer :: auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
 
   patch => realization%patch
-  auxvars => patch%aux%Flow%auxvars
+  auxvars => patch%aux%MpFlow%auxvars
   global_auxvars => patch%aux%Global%auxvars
   
-  if (realization%option%compute_mass_balance_new) then
-    call MpFlowUpdateMassBalancePatch(realization)
-  endif
+  ! (TODO checking here? - ONLY thing to do ?)
+  !if (realization%option%compute_mass_balance_new) then
+  !  call MpFlowUpdateMassBalancePatch(realization)
+  !endif
 
 end subroutine MpFlowUpdateSolutionPatch
 
@@ -1943,7 +2145,7 @@ subroutine MpFlowUpdateFixedAccumulation(realization)
 
     ! flag of PETSC_FALSE not to update patch global_auxvars
     ! because this is an iteration
-    cur_patch%aux%Flow%auxvars_up_to_date = PETSC_FALSE
+    cur_patch%aux%MpFlow%auxvars_up_to_date = PETSC_FALSE
 
     realization%patch => cur_patch
     call MpFlowUpdateFixedAccumPatch(realization)
@@ -1980,8 +2182,8 @@ subroutine MpFlowUpdateFixedAccumPatch(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(global_auxvar_type), pointer :: global_auxvars(:)
-  type(Flow_auxvar_type), pointer :: Flow_auxvars(:)
-  type(Flow_parameter_type), pointer :: Flow_parameters(:)
+  type(mpflow_auxvar_type), pointer :: mpflow_auxvars(:)
+  type(mpflow_parameter_type), pointer :: mpflow_parameters(:)
   class(characteristic_curves_type), pointer :: characteristic_curves
 
   !class(material_auxvar_type), pointer :: material_auxvars(:)  ! this unknownly would likely mess up %soil_properties(:)
@@ -2000,8 +2202,8 @@ subroutine MpFlowUpdateFixedAccumPatch(realization)
   patch => realization%patch
   grid => patch%grid
 
-  Flow_parameters => patch%aux%Flow%Flow_parameters
-  Flow_auxvars    => patch%aux%Flow%auxvars
+  mpflow_parameters => patch%aux%MpFlow%mpflow_parameters
+  mpflow_auxvars    => patch%aux%MpFlow%auxvars
   global_auxvars  => patch%aux%Global%auxvars
   material_auxvars=> patch%aux%Material%auxvars
 
@@ -2018,26 +2220,26 @@ subroutine MpFlowUpdateFixedAccumPatch(realization)
 
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
+
+    ! material property id
     ithrm = int(ithrm_loc_p(ghosted_id))
 
+    ! charateristic curve id
     icap = int(icap_loc_p(ghosted_id))
     characteristic_curves => patch%characteristic_curves_array(icap)%ptr
 
     xx(1) = xx_p(istart)
     xx(2) = xx_p(iend)
 
-    call MpFlowAuxVarCompute(xx,        &
-            Flow_auxvars(ghosted_id),     &
-            patch%aux%Flow%auxvars_up_to_date, &
-            global_auxvars(ghosted_id),   &
-            material_auxvars(ghosted_id), &
-            characteristic_curves,        &
-            Flow_parameters(ithrm),       &
+    call MpFlowAuxVarCompute(xx,                 &
+            characteristic_curves,               &
+            mpflow_parameters(ithrm),            &
+            mpflow_auxvars(ghosted_id),          &
             option)
     
-    call MpFlowAccumulation(Flow_auxvars(ghosted_id),  &
+    call MpFlowAccumulation(mpflow_auxvars(ghosted_id),  &
                           material_auxvars(ghosted_id),  &
-                          Flow_parameters(ithrm),        &
+                          mpflow_parameters(ithrm),        &
                           option,accum_p(istart:iend))
 
   enddo
@@ -2051,9 +2253,9 @@ end subroutine MpFlowUpdateFixedAccumPatch
 
 ! ************************************************************************** !
 
-subroutine MpFlowAccumDerivative(flow_auxvar,   &
+subroutine MpFlowAccumDerivative(mpflow_auxvar,   &
                              material_auxvar,     &
-                             flow_parameter,      &
+                             mpflow_parameter,    &
                              option,              &
                              R, J, ifderivative)
   ! 
@@ -2071,9 +2273,9 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
   
   implicit none
 
-  type(Flow_auxvar_type) :: flow_auxvar
+  type(mpflow_auxvar_type) :: mpflow_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(Flow_parameter_type) :: flow_parameter
+  type(mpflow_parameter_type) :: mpflow_parameter
   type(option_type) :: option
   PetscBool, intent(in)  :: ifderivative
   PetscReal, intent(out) :: R(option%nflowdof)
@@ -2087,7 +2289,7 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
   PetscReal :: dmass, deng
 
   PetscReal :: u_rock, du_rock(option%nflowdof)
-  PetscInt :: iphase, idof
+  PetscInt :: ifluid, idof
   PetscReal :: sat, dsat
   PetscReal :: den, dden
   PetscReal :: uh,  duh
@@ -2096,8 +2298,8 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
   R(:)   = 0.d0
   J(:,:) = 0.d0
 
-  presl = flow_auxvar%pres(LIQUID_PHASE)
-  tc    = flow_auxvar%temp
+  presl = mpflow_auxvar%pres(LIQ_FLUID)
+  tc    = mpflow_auxvar%tc
 
   vol   = material_auxvar%volume
   if (soil_compressibility_index > 0) then
@@ -2113,11 +2315,11 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
   dporXvol(IFDOF2) = 0.d0
 
   !------------------------------------------------------------------
-  ! NOTE: 'u' or 'h' for soil particles not included in 'Flow_auxvar' calculation
+  ! NOTE: 'u' or 'h' for soil particles not included in 'mpflow_auxvar' calculation
   !      AND, here assuming that no dependence on 'P' for both mass and energy
-  u_rock           = flow_parameter%dencpr*(tc + TC2TK)
+  u_rock            = mpflow_parameter%dencpr*(tc + TC2TK)
   du_rock(IFDOF1)   = 0.d0
-  du_rock(IFDOF2)   = flow_parameter%dencpr
+  du_rock(IFDOF2)   = mpflow_parameter%dencpr
   if (option%flow%isothermal) then
     u_rock         = 0.d0
     du_rock(IFDOF2) = 0.d0
@@ -2126,20 +2328,28 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
   !------------------------------------------------------------------
   mass = 0.d0
   eng  = u_rock * (1.d0 - por) * vol
-  do iphase = 1, option%nfluids
-    sat = Flow_auxvar%sat(iphase)
-    den = Flow_auxvar%den(iphase)
-    uh  = Flow_auxvar%U(iphase)
-    if (iphase==LIQUID_PHASE) uh = Flow_auxvar%H(iphase)    ! needs more thinking here (TODO)
+  !
+  do ifluid = 1, option%flow%nfluid+1  ! '+1' for immobilized fluid
+    if(ifluid>option%flow%nfluid) then
+      sat = 1.d0 - mpflow_auxvar%sat(AIR_FLUID) &
+                 - mpflow_auxvar%sat(LIQ_FLUID)
+    else
+      sat = mpflow_auxvar%sat(ifluid)
+    endif
+    den = mpflow_auxvar%den_kg(ifluid)/FMW_FLUIDS(IFLOWSPEC1)
+    uh  = mpflow_auxvar%U(ifluid)
+    if (ifluid==LIQ_FLUID) uh = mpflow_auxvar%H(ifluid)    ! needs more thinking here (TODO)
 
     mass = mass + porXvol*sat*den
     eng  = eng + porXvol*sat*den*uh
   end do
+
+  !residual
   R(IFDOF1) = mass/option%flow%dt
   R(IFDOF2) = eng/option%flow%dt
 
   !------------------------------------------------------------------
-  if (ifderivative) then
+  if (ifderivative .and. .not.option%flow%numerical_derivatives) then
     ! soil matrix (particles): u_rock * vol - u_rock * porXvol
     J(IFDOF2,IFDOF1) = vol*du_rock(IFDOF1) - &
       (u_rock*dporXvol(IFDOF1) + du_rock(IFDOF1)*porXvol)
@@ -2151,17 +2361,27 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
     do idof = 1, option%nflowdof
       dmass = 0.d0
       deng  = 0.d0
-      do iphase = 1, option%nfluids
+      do ifluid = 1, option%flow%nfluid+1  !'+1' for immobilized fluid
 
-        sat = Flow_auxvar%sat(iphase)
-        den = Flow_auxvar%den(iphase)
-        uh  = Flow_auxvar%U(iphase)                                ! no 'H' for solid/gas phases (TODO)
-        if (iphase==LIQUID_PHASE) uh = Flow_auxvar%H(iphase)       ! needs more thinking here (TODO)
+        if(ifluid>option%flow%nfluid) then
+          sat = 1.d0 - mpflow_auxvar%sat(AIR_FLUID) &
+                     - mpflow_auxvar%sat(LIQ_FLUID)
+          dsat = 0.d0- mpflow_auxvar%D_sat(AIR_FLUID, idof) &
+                     - mpflow_auxvar%D_sat(LIQ_FLUID, idof)
+        else
+          sat = mpflow_auxvar%sat(ifluid)
+          dsat = mpflow_auxvar%D_sat(ifluid, idof)
+        endif
 
-        dsat = Flow_auxvar%D_sat(iphase, idof)
-        dden = Flow_auxvar%D_den(iphase, idof)
-        duh  = Flow_auxvar%D_U(iphase, idof)                       ! no 'H' for solid/gas phases (TODO)
-        if (iphase==LIQUID_PHASE) duh = Flow_auxvar%D_H(iphase,idof)    ! needs more thinking here (TODO)
+        den = mpflow_auxvar%den_kg(ifluid)/FMW_FLUIDS(IFLOWSPEC1)
+        dden = mpflow_auxvar%D_den_kg(ifluid, idof)/FMW_FLUIDS(IFLOWSPEC1)
+
+        uh  = mpflow_auxvar%U(ifluid)
+        duh  = mpflow_auxvar%D_U(ifluid, idof)    ! no 'H' for solid/gas phases (TODO)
+        if (ifluid==LIQ_FLUID) then
+          uh = mpflow_auxvar%H(ifluid)            ! needs more thinking here (TODO)
+          duh = mpflow_auxvar%D_H(ifluid,idof)    ! needs more thinking here (TODO)
+        endif
 
         !mass = porXvol*sat*den
         dmass = dmass + &
@@ -2178,20 +2398,21 @@ subroutine MpFlowAccumDerivative(flow_auxvar,   &
 
       end do
 
+      !
       J(IFDOF1, idof) = J(IFDOF1, idof) + dmass
       J(IFDOF2, idof) = J(IFDOF2, idof) + deng
     end do
     !
     J = J/option%flow%dt
-  end if
+  endif
 
 end subroutine MpFlowAccumDerivative
 
 ! ************************************************************************** !
 
-subroutine MpFlowAccumulation(flow_auxvar,     &
+subroutine MpFlowAccumulation(mpflow_auxvar,     &
                             material_auxvar,     &
-                            flow_parameter,      &
+                            mpflow_parameter,    &
                             option,              &
                             Res)
   ! 
@@ -2207,17 +2428,17 @@ subroutine MpFlowAccumulation(flow_auxvar,     &
   
   implicit none
 
-  type(Flow_auxvar_type) :: flow_auxvar
+  type(mpflow_auxvar_type) :: mpflow_auxvar
   class(material_auxvar_type) :: material_auxvar
-  type(Flow_parameter_type) :: flow_parameter
+  type(mpflow_parameter_type) :: mpflow_parameter
   type(option_type) :: option
   PetscReal, intent(out) :: Res(option%nflowdof)
 
   PetscReal :: J(option%nflowdof,option%nflowdof)
   !
-  call MpFlowAccumDerivative(flow_auxvar,     &
+  call MpFlowAccumDerivative(mpflow_auxvar,     &
                            material_auxvar,     &
-                           flow_parameter,      &
+                           mpflow_parameter,    &
                            option,              &
                            Res, J, PETSC_FALSE)
 
@@ -2225,13 +2446,14 @@ end subroutine MpFlowAccumulation
 
 ! ************************************************************************** !
 
-subroutine MpFlowInternalFluxDerivative(flow_auxvar_up,                  &
-                              material_auxvar_up, flow_parameter_up,       &
-                              flow_auxvar_dn,                              &
-                              material_auxvar_dn, flow_parameter_dn,       &
-                              area, dist,                                  &
-                              option,                                      &
-                              v_darcy, fluxe_bulk, fluxe_cond,  Res,       &
+subroutine MpFlowInternalFluxDerivative(                               &
+                              mpflow_auxvar_up,                        &
+                              material_auxvar_up, mpflow_parameter_up, &
+                              mpflow_auxvar_dn,                        &
+                              material_auxvar_dn, mpflow_parameter_dn, &
+                              area, dist,                              &
+                              option,                                  &
+                              v_darcy, fluxe_bulk, fluxe_cond,  Res,   &
                               Jup, Jdn, ifderivative)
   !
   ! Computes the derivatives of fluxes btw two adjacent cells
@@ -2240,17 +2462,14 @@ subroutine MpFlowInternalFluxDerivative(flow_auxvar_up,                  &
   ! Date: 02/13/2019
   !
   !
-  ! Author: ???
-  ! Date: 12/13/07
-  !
   use Option_module
   use Condition_module
 
   implicit none
 
-  type(Flow_auxvar_type) :: flow_auxvar_up, flow_auxvar_dn
+  type(mpflow_auxvar_type) :: mpflow_auxvar_up, mpflow_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
-  type(Flow_parameter_type)   :: flow_parameter_up, flow_parameter_dn
+  type(mpflow_parameter_type) :: mpflow_parameter_up, mpflow_parameter_dn
   PetscReal, intent(in) :: area, dist(-1:3)
   type(option_type) :: option
   PetscBool, intent(in)  :: ifderivative
@@ -2275,9 +2494,9 @@ subroutine MpFlowInternalFluxDerivative(flow_auxvar_up,                  &
   dq_up = 0.d0
   dq_dn = 0.d0
 
-  call DarcyFlowDerivative(flow_auxvar_up,      flow_auxvar_dn,       &
+  call DarcyFlowDerivative(mpflow_auxvar_up,    mpflow_auxvar_dn,     &
                            material_auxvar_up,  material_auxvar_dn,   &
-                           flow_parameter_up,   flow_parameter_dn,    &
+                           mpflow_parameter_up, mpflow_parameter_dn,  &
                            area, dist,                                &
                            option,                                    &
                            v_darcy,                                   &
@@ -2301,7 +2520,7 @@ subroutine MpFlowInternalFluxDerivative(flow_auxvar_up,                  &
   qe     = 0.d0
   dqe_up = 0.d0
   dqe_dn = 0.d0
-  call ConductionDerivative(flow_auxvar_up,   flow_auxvar_dn,        &
+  call ConductionDerivative(mpflow_auxvar_up,   mpflow_auxvar_dn,    &
                             material_auxvar_up, material_auxvar_dn,  &
                             area, dist,                              &
                             option,                                  &
@@ -2323,7 +2542,7 @@ subroutine MpFlowInternalFluxDerivative(flow_auxvar_up,                  &
   qe     = 0.d0
   dqe_up = 0.d0
   dqe_dn = 0.d0
-  call AdvectionDerivative(flow_auxvar_up,   flow_auxvar_dn,    &
+  call AdvectionDerivative(mpflow_auxvar_up,   mpflow_auxvar_dn,    &
                            q, dq_up, dq_dn,                     &
                            option,                              &
                            qe,                                  &
@@ -2342,12 +2561,12 @@ end subroutine MpFlowInternalFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine MpFlowInternalFlux(flow_auxvar_up,                            &
-                              material_auxvar_up, flow_parameter_up,       &
-                              flow_auxvar_dn,                              &
-                              material_auxvar_dn, flow_parameter_dn,       &
-                              area, dist,                                  &
-                              option,                                      &
+subroutine MpFlowInternalFlux(mpflow_auxvar_up,                        &
+                              material_auxvar_up, mpflow_parameter_up, &
+                              mpflow_auxvar_dn,                        &
+                              material_auxvar_dn, mpflow_parameter_dn, &
+                              area, dist,                              &
+                              option,                                  &
                               v_darcy, fluxe_bulk, fluxe_cond,  Res)
   !
   ! Computes internal fluxes of two-adjacent cells
@@ -2359,9 +2578,9 @@ subroutine MpFlowInternalFlux(flow_auxvar_up,                            &
 
   implicit none
 
-  type(Flow_auxvar_type) :: flow_auxvar_up, flow_auxvar_dn
+  type(mpflow_auxvar_type) :: mpflow_auxvar_up, mpflow_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_up, material_auxvar_dn
-  type(Flow_parameter_type)   :: flow_parameter_up, flow_parameter_dn
+  type(mpflow_parameter_type) :: mpflow_parameter_up, mpflow_parameter_dn
   type(option_type) :: option
   PetscReal :: dist(-1:3), area
   PetscReal, intent(out) :: Res(option%nflowdof)
@@ -2373,26 +2592,26 @@ subroutine MpFlowInternalFlux(flow_auxvar_up,                            &
   PetscReal :: Jdn(option%nflowdof, option%nflowdof)
 
   !-----------------------------------------------------------------------------
-  call MpFlowInternalFluxDerivative(flow_auxvar_up,                      &
-                              material_auxvar_up, flow_parameter_up,       &
-                              flow_auxvar_dn,                              &
-                              material_auxvar_dn, flow_parameter_dn,       &
-                              area, dist,                                  &
-                              option,                                      &
-                              v_darcy, fluxe_bulk, fluxe_cond,  Res,       &
+  call MpFlowInternalFluxDerivative(mpflow_auxvar_up,                  &
+                              material_auxvar_up, mpflow_parameter_up, &
+                              mpflow_auxvar_dn,                        &
+                              material_auxvar_dn, mpflow_parameter_dn, &
+                              area, dist,                              &
+                              option,                                  &
+                              v_darcy, fluxe_bulk, fluxe_cond,  Res,   &
                               Jup, Jdn, PETSC_FALSE)
 
 end subroutine MpFlowInternalFlux
 
 
-! ************************************************************************** !
+! ************************************************************************************************** !
 
-subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
-                              flow_auxvar_dn,                        &
-                              material_auxvar_dn, flow_parameter_dn, &
-                              area, dist,                            &
-                              option,                                &
-                              v_darcy, fluxe_bulk, fluxe_cond,  Rdn, &
+subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,           &
+                              mpflow_auxvar_dn,                        &
+                              material_auxvar_dn, mpflow_parameter_dn, &
+                              area, dist,                              &
+                              option,                                  &
+                              v_darcy, fluxe_bulk, fluxe_cond,  Rdn,   &
                               Jdn, ifderivative)
   !
   ! Computes the derivatives of BCs (Jacobians)
@@ -2407,9 +2626,9 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   
   PetscInt :: ibndtype(:)
   PetscReal :: bc_aux_real_var(:)
-  type(Flow_auxvar_type) :: flow_auxvar_dn
+  type(mpflow_auxvar_type) :: mpflow_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
-  type(Flow_parameter_type)   :: flow_parameter_dn
+  type(mpflow_parameter_type) :: mpflow_parameter_dn
   PetscReal, intent(in) :: area, dist(-1:3)
   type(option_type) :: option
   PetscBool, intent(in)  :: ifderivative
@@ -2419,7 +2638,7 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   PetscReal, intent(out) :: Jdn(option%nflowdof, option%nflowdof)
 
   ! locals
-  type(Flow_auxvar_type), pointer :: flow_auxvar_bc
+  type(mpflow_auxvar_type) :: mpflow_auxvar_bc
 
   PetscInt :: idof
   PetscReal :: q, dq_bc(option%nflowdof), dq_dn(option%nflowdof)
@@ -2436,33 +2655,33 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   Jdn = 0.d0 
   
   ! duplicate BC-connected cell auxvar at first, and later on re-assign specific var accordingly
-  allocate(flow_auxvar_bc)
-  call MpFlowAuxVarInit(flow_auxvar_bc,option)
-  call MpFlowAuxVarCopy(flow_auxvar_dn,flow_auxvar_bc,option)
+  !
+  call MpFlowAuxVarInit(mpflow_auxvar_bc,option)
+  call MpFlowAuxVarCopy(mpflow_auxvar_dn,mpflow_auxvar_bc)
 
   select case(ibndtype(IFDOF1))
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
-      flow_auxvar_bc%pres(LIQUID_PHASE) = bc_aux_real_var(IFDOF1) ! all water pressure on soil pore
-      flow_auxvar_bc%pres(SOLID_PHASE)  = bc_aux_real_var(IFDOF1) ! liq. water pressure on ICE/soil pore
-      flow_auxvar_bc%pres_fh2o = bc_aux_real_var(IFDOF1)          ! currently this is what to calculated dPressure for flow
+      mpflow_auxvar_bc%pres(LIQ_FLUID) = bc_aux_real_var(IFDOF1) ! all water pressure on soil pore
+      mpflow_auxvar_bc%pres(SOLID_PHASE)  = bc_aux_real_var(IFDOF1) ! liq. water pressure on ICE/soil pore
+      mpflow_auxvar_bc%pres_fh2o = bc_aux_real_var(IFDOF1)          ! currently this is what to calculated dPressure for flow
       !TODO: needs pressure of air somehow
 
       ! the following may not be needed
-      flow_auxvar_bc%D_pres(:,:) = 0.d0
-      flow_auxvar_bc%D_pc(:) = 0.d0
-      flow_auxvar_bc%D_sat(:,:) = 0.d0
-      flow_auxvar_bc%D_den(:,:) = 0.d0
-      flow_auxvar_bc%D_den_kg(:,:) = 0.d0
-      flow_auxvar_bc%D_mobility(:,:) = 0.d0
-      flow_auxvar_bc%D_por(:) = 0.d0
-      flow_auxvar_bc%D_H(:,:) = 0.d0
-      flow_auxvar_bc%D_U(:,:) = 0.d0
+      mpflow_auxvar_bc%D_pres(:,:) = 0.d0
+      mpflow_auxvar_bc%D_pc(:) = 0.d0
+      mpflow_auxvar_bc%D_sat(:,:) = 0.d0
+      mpflow_auxvar_bc%D_den(:,:) = 0.d0
+      mpflow_auxvar_bc%D_den_kg(:,:) = 0.d0
+      mpflow_auxvar_bc%D_mobility(:,:) = 0.d0
+      mpflow_auxvar_bc%D_por(:) = 0.d0
+      mpflow_auxvar_bc%D_H(:,:) = 0.d0
+      mpflow_auxvar_bc%D_U(:,:) = 0.d0
 
   end select
 
   select case(ibndtype(IFDOF2))
     case(DIRICHLET_BC)
-      flow_auxvar_bc%temp = bc_aux_real_var(IFDOF2)
+      mpflow_auxvar_bc%tc = bc_aux_real_var(IFDOF2)
   end select
 
   q = 0.d0
@@ -2471,13 +2690,13 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
   select case(ibndtype(IFDOF1))
     case(DIRICHLET_BC,HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC)
 
-      call DarcyFlowDerivative(flow_auxvar_bc,      flow_auxvar_dn,       &
-                               material_auxvar_dn,  material_auxvar_dn,   &
-                               flow_parameter_dn,   flow_parameter_dn,    &
-                               area, dist,                                &
-                               option,                                    &
-                               v_darcy,                                   &
-                               q,                                         &
+      call DarcyFlowDerivative(mpflow_auxvar_bc,    mpflow_auxvar_dn,    &
+                               material_auxvar_dn,  material_auxvar_dn,  &
+                               mpflow_parameter_dn, mpflow_parameter_dn, &
+                               area, dist,                               &
+                               option,                                   &
+                               v_darcy,                                  &
+                               q,                                        &
                                dq_bc, dq_dn, ifderivative)
 
       if (ibndtype(IFDOF1) == HYDROSTATIC_SEEPAGE_BC) then
@@ -2542,7 +2761,7 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
         dqe_dn = 0.d0
       else
 
-        call ConductionDerivative(flow_auxvar_bc,   flow_auxvar_dn,    &
+        call ConductionDerivative(mpflow_auxvar_bc, mpflow_auxvar_dn,  &
                               material_auxvar_dn, material_auxvar_dn,  &
                               area, dist,                              &
                               option,                                  &
@@ -2574,7 +2793,7 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
 
   !--------------------
   ! thermal advection (after conduction term, so that having correct BC vars)
-  call AdvectionDerivative(flow_auxvar_bc,   flow_auxvar_dn,    &
+  call AdvectionDerivative(mpflow_auxvar_bc, mpflow_auxvar_dn,  &
                            q, dq_bc, dq_dn,                     &
                            option,                              &
                            qe,                                  &
@@ -2588,17 +2807,16 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,       &
     end do
   endif
 
-  if(associated(flow_auxvar_bc)) then
-    call MpFlowAuxVarDestroy(flow_auxvar_bc)
-  endif
+  call MpFlowAuxVarStrip(mpflow_auxvar_bc)
 
 end subroutine MpFlowBCFluxDerivative
 
 ! ************************************************************************** !
 
-subroutine MpFlowBCFlux(ibndtype, bc_aux_real_var,         &
-                      flow_auxvar_dn,                        &
-                      material_auxvar_dn, flow_parameter_dn, &
+subroutine MpFlowBCFlux(ibndtype, bc_aux_real_var,           &
+                      mpflow_auxvar_dn,                      &
+                      material_auxvar_dn,                    &
+                      mpflow_parameter_dn,                   &
                       area, dist,                            &
                       option,                                &
                       v_darcy, fluxe_bulk, fluxe_cond, Res)
@@ -2614,9 +2832,9 @@ subroutine MpFlowBCFlux(ibndtype, bc_aux_real_var,         &
   
   PetscInt, intent(in) :: ibndtype(:)
   PetscReal, intent(in):: bc_aux_real_var(:) ! from aux_real_var array
-  type(Flow_auxvar_type), intent(in) :: flow_auxvar_dn
+  type(mpflow_auxvar_type), intent(in) :: mpflow_auxvar_dn
   class(material_auxvar_type) :: material_auxvar_dn
-  type(Flow_parameter_type)   :: flow_parameter_dn
+  type(mpflow_parameter_type)   :: mpflow_parameter_dn
   type(option_type) :: option
   PetscReal :: dist(-1:3), area
   PetscReal, intent(out) :: Res(option%nflowdof)
@@ -2627,17 +2845,18 @@ subroutine MpFlowBCFlux(ibndtype, bc_aux_real_var,         &
   PetscReal :: Jdn(option%nflowdof, option%nflowdof)
 
   !-----------------------------------------------------------------------------
-  call MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,           &
-                              flow_auxvar_dn,                        &
-                              material_auxvar_dn, flow_parameter_dn, &
-                              area, dist,                            &
-                              option,                                &
-                              v_darcy, fluxe_bulk, fluxe_cond, Res,  &
+  call MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,               &
+                              mpflow_auxvar_dn,                        &
+                              material_auxvar_dn,                      &
+                              mpflow_parameter_dn,                     &
+                              area, dist,                              &
+                              option,                                  &
+                              v_darcy, fluxe_bulk, fluxe_cond, Res,    &
                               Jdn, PETSC_FALSE)
 
 end subroutine MpFlowBCFlux
 
-! ************************************************************************** !
+! ********************************************************************************************************* !
 
 subroutine MpFlowSetPlotVariables(realization,list)
   ! 
@@ -2706,10 +2925,20 @@ subroutine MpFlowSetPlotVariables(realization,list)
   
   endif
 
+  name = 'Gas Pressure'
+  units = 'Pa'
+  call OutputVariableAddToList(list,name,OUTPUT_PRESSURE,units, &
+          GAS_PRESSURE)
+
   name = 'Gas Saturation'
   units = ''
   call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
           GAS_SATURATION)
+
+  name = 'Gas Density'
+  units = 'kg/m^3'
+  call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
+          GAS_DENSITY)
 
   name = 'Ice Saturation'
   units = ''
@@ -2730,12 +2959,6 @@ subroutine MpFlowSetPlotVariables(realization,list)
                                  POROSITY_CURRENT)
                                  
   endif
-
-! name = 'Phase'
-! units = ''
-! output_variable%iformat = 1 ! integer
-! call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-!                              PHASE)
 
 end subroutine MpFlowSetPlotVariables
 
@@ -2798,7 +3021,7 @@ subroutine MpFlowDestroy(patch)
   type(patch_type) :: patch
   
   ! need to free array in aux vars
-  call MpFlowAuxDestroy(patch%aux%Flow)
+  call MpFlowAuxDestroy(patch%aux%MpFlow)
 
 end subroutine MpFlowDestroy
 

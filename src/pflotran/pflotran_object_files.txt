@@ -20,10 +20,11 @@ util_obj  = \
 eos_obj = \
 	${common_src}eos.o \
 	${common_src}eos_gas.o \
+	${common_src}eos_database.o \
+	${common_src}eos_water.o \
 
 mode_aux_obj = \
 	${common_src}auxiliary.o \
-	${common_src}auxvars_base.o \
 	${common_src}auxvars_flow.o \
 	${common_src}auxvars_flow_energy.o \
 	${common_src}pm_base_aux.o \
@@ -42,8 +43,6 @@ mode_obj = \
 # DO NOT place any object files that depend on the discretization within 
 # util_obj
 shared_mode_aux_obj = \
-	${common_src}eos_database.o \
-	${common_src}eos_water.o \
 	${common_src}geometry.o \
 	${common_src}global_aux.o \
 	${common_src}lookup_table.o \
@@ -97,6 +96,7 @@ io_obj = \
 	${common_src}output_common.o \
 	${common_src}output_ekg.o \
 	${common_src}output_hdf5.o \
+	${common_src}output_massbalance.o \
 	${common_src}output_observation.o \
 	${common_src}output_tecplot.o
 

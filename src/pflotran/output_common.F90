@@ -953,7 +953,7 @@ subroutine OutputGetFaceVelUGrid(realization_base)
 
   ! Create UGDM for
   call UGridCreateUGDM(grid%unstructured_grid,ugdm, &
-                       (option%nflowspec*MAX_FACE_PER_CELL + 1),option)
+                       (option%flow%nspecflow*MAX_FACE_PER_CELL + 1),option)
 
   ! Create vectors in natural order for velocity in x/y/z direction
   call UGridDMCreateVector(grid%unstructured_grid,ugdm,natural_vx_vec, &
@@ -963,9 +963,9 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   call UGridDMCreateVector(grid%unstructured_grid,ugdm,natural_vz_vec, &
                            NATURAL,option)
 
-  allocate(vx(option%nflowspec,MAX_FACE_PER_CELL,ugrid%nlmax))
-  allocate(vy(option%nflowspec,MAX_FACE_PER_CELL,ugrid%nlmax))
-  allocate(vz(option%nflowspec,MAX_FACE_PER_CELL,ugrid%nlmax))
+  allocate(vx(option%flow%nspecflow,MAX_FACE_PER_CELL,ugrid%nlmax))
+  allocate(vy(option%flow%nspecflow,MAX_FACE_PER_CELL,ugrid%nlmax))
+  allocate(vz(option%flow%nspecflow,MAX_FACE_PER_CELL,ugrid%nlmax))
 
   vx = 0.d0
   vy = 0.d0
@@ -979,7 +979,7 @@ subroutine OutputGetFaceVelUGrid(realization_base)
   vy_ptr = 0.d0
   vz_ptr = 0.d0
 
-  offset = 1 + option%nflowspec*MAX_FACE_PER_CELL
+  offset = 1 + option%flow%nspecflow*MAX_FACE_PER_CELL
 
   ! Save the number of faces of all cell
   do local_id = 1,grid%nlmax
@@ -1020,7 +1020,7 @@ subroutine OutputGetFaceVelUGrid(realization_base)
         enddo
       endif
 
-      do dof=1,option%nflowspec
+      do dof=1,option%flow%nspecflow
 
         ! Save velocity for iface_up of local_id_up cell using flowrate up-->dn
         vel_vector = cur_connection_set%dist(1:3,iconn)* &
@@ -1081,7 +1081,7 @@ subroutine OutputGetFaceVelUGrid(realization_base)
         if (face_id==ugrid%cell_to_face_ghosted(iface_dn,ghosted_id_dn)) exit
       enddo
 
-      do dof=1,option%nflowspec
+      do dof=1,option%flow%nspecflow
 
         ! Save velocity for iface_dn of local_id_dn cell using -ve flowrate up-->dn
         vel_vector = cur_connection_set%dist(1:3,iconn)* &
@@ -1652,7 +1652,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
 
-  type(flow_auxvar_type), pointer :: flow_auxvars(:)
+  type(mpflow_auxvar_type), pointer :: flow_auxvars(:)
 
   PetscReal, pointer :: vec_proc_ptr(:)
   PetscReal, pointer :: density(:)
@@ -1697,9 +1697,9 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
           upweight = 0.5d0
         select case (option%iflowmode)
            case(MPFLOW_MODE)
-              flow_auxvars => patch%aux%Flow%auxvars
-              if (flow_auxvars(ghosted_id_up)%kvr > eps .or. &
-                  flow_auxvars(ghosted_id_dn)%kvr > eps ) then
+              flow_auxvars => patch%aux%MpFlow%auxvars
+              if (flow_auxvars(ghosted_id_up)%kvr(LIQ_FLUID) > eps .or. &
+                  flow_auxvars(ghosted_id_dn)%kvr(LIQ_FLUID) > eps ) then
                 is_flowing = PETSC_TRUE
               endif   
         end select

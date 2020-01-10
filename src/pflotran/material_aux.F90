@@ -45,12 +45,12 @@ module Material_Aux_class
   type, public :: material_auxvar_type
     PetscInt :: id
     PetscReal :: volume
-    PetscReal :: porosity_0 ! initial porosity as defined in input file or 
-                            ! initial conditon
+    PetscReal :: porosity_0    ! initial porosity as defined in input file or
+                               ! initial conditon
     PetscReal :: porosity_base ! base porosity prescribed by pm outside flow 
                                ! (e.g. geomechanics, mineral precip/diss)
-    PetscReal :: porosity ! porosity used in calculation, which may be a 
-                          ! function of soil compressibity, etc.
+    PetscReal :: porosity      ! porosity used in calculation, which may be a
+                               ! function of soil compressibity, etc.
     PetscReal :: dporosity_dp
     PetscReal :: tortuosity
     PetscReal :: soil_particle_density

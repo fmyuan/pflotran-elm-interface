@@ -9,14 +9,13 @@ module Fluid_module
   private
 
   type, public :: fluid_property_type
+    character(len=MAXWORDLENGTH) :: fluid_type
+    PetscInt :: fluid_id
     PetscReal :: tort_bin_diff
-    PetscReal :: vap_air_diff_coef
     PetscReal :: exp_binary_diff
     PetscReal :: enh_binary_diff_coef
     PetscReal :: diff_base
     PetscReal :: diff_exp
-    character(len=MAXWORDLENGTH) :: phase_name
-    PetscInt :: phase_id
     PetscReal :: diffusion_coefficient
     PetscReal :: gas_diffusion_coefficient
     PetscReal :: diffusion_activation_energy
@@ -46,13 +45,12 @@ function FluidPropertyCreate()
   
   allocate(fluid_property)
   fluid_property%tort_bin_diff = 0.d0
-  fluid_property%vap_air_diff_coef = 2.13d-5
   fluid_property%exp_binary_diff = 0.d0
   fluid_property%enh_binary_diff_coef = 0.d0
   fluid_property%diff_base = 0.d0
   fluid_property%diff_exp = 0.d0
-  fluid_property%phase_name = 'LIQUID'
-  fluid_property%phase_id = 0
+  fluid_property%fluid_type = 'LIQUID'
+  fluid_property%fluid_id = 0
   fluid_property%diffusion_coefficient = 1.d-9
   fluid_property%gas_diffusion_coefficient = 2.13D-5
   ! for liquid, one can use 12.6 kJ/mol as an activation energy
@@ -99,9 +97,9 @@ subroutine FluidPropertyRead(fluid_property,input,option)
       
     select case(trim(keyword))
     
-      case('PHASE') 
-        call InputReadWord(input,option,fluid_property%phase_name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'phase','FLUID_PROPERTY')
+      case('TYPE')
+        call InputReadWord(input,option,fluid_property%fluid_type,PETSC_TRUE)
+        call InputErrorMsg(input,option,'TYPE','FLUID_PROPERTY')
       case('DIFFUSION_COEFFICIENT','LIQUID_DIFFUSION_COEFFICIENT') 
         call InputReadDouble(input,option,fluid_property%diffusion_coefficient)
         call InputErrorMsg(input,option,'diffusion coefficient', &
@@ -129,9 +127,13 @@ subroutine FluidPropertyRead(fluid_property,input,option)
   enddo  
   call InputPopBlock(input,option)
 
-  if (.not.(StringCompareIgnoreCase(fluid_property%phase_name,'LIQUID') .or. &
-            StringCompareIgnoreCase(fluid_property%phase_name,'GAS'))) then
-    option%io_buffer = 'PHASE in FLUID_PROPERTY should be LIQUID or GAS.'
+  if (.not.(StringCompareIgnoreCase(fluid_property%fluid_type,'LIQUID') .or. &
+            StringCompareIgnoreCase(fluid_property%fluid_type,'WATER') .or. &
+            StringCompareIgnoreCase(fluid_property%fluid_type,'GAS') .or. &
+            StringCompareIgnoreCase(fluid_property%fluid_type,'AIR') .or. &
+            StringCompareIgnoreCase(fluid_property%fluid_type,'OIL') &
+            )) then
+    option%io_buffer = 'TYPE in FLUID_PROPERTY should be LIQUID/WATER or GAS/AIR or OIL.'
     call PrintErrMsg(option)
   endif
 
