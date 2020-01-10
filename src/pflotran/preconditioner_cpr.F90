@@ -851,7 +851,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
     lambda_inv = 1.0d0/(j_pp*j_ss-j_ps*j_sp)
 
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
-    ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
+    ! inv(Lamda)*D_ss*r_p - inv(Labmda)*D_ps*r_s -> fac0*r_p + fac1*r_s
     fac0 = lambda_inv*j_ss
     fac1 = -lambda_inv*j_ps
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
