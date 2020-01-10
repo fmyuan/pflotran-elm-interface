@@ -1413,8 +1413,6 @@ end subroutine PMGeneralUpdateAuxVars
 
 subroutine PMGeneralMaxChange(this)
   ! 
-  ! Not needed given GeneralMaxChange is called in PostSolve
-  ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
