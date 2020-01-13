@@ -850,7 +850,8 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
 
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! inv(Lamda)*D_ss*r_p - inv(Labmda)*D_ps*r_s -> fac0*r_p + fac1*r_s
-    scaling_factor = abs(j_pp) + abs(j_ss)
+    ! scaling by the first column shown by Daniel's implementation
+    scaling_factor = abs(j_pp) + abs(j_sp)
     fac0 = lambda_inv*j_ss*scaling_factor
     fac1 = -lambda_inv*j_ps*scaling_factor
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
@@ -995,7 +996,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
                        
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
-    scaling_factor = abs(j_pp) + abs(j_ss)
+    ! scaling by the first column shown by Daniel's implementation
+    scaling_factor = abs(j_pp) + abs(j_sp)
     fac0 = 1.d0*scaling_factor
     fac1 = -j_ps_j_ss_inv*scaling_factor
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
