@@ -772,14 +772,12 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
   type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
-  ! the elements of the diagonal block:
-  PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
   ! misc workers:
   PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf, &
-               fac0, fac1
+               fac0, fac1, scaling_factor
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
-              first_row_index, loop_index, i, j, num_cols
+              diag_row_index, loop_index, i, j, num_cols
   PetscMPIInt :: rank, row_start, row_end
 
 
@@ -818,22 +816,22 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
     end do
    
-    first_row_index = -1
+    diag_row_index = -1
     do loop_index = 0,num_cols-1,block_size
       if (ctx%colIdx(loop_index) == first_row) then
-        first_row_index = loop_index
+        diag_row_index = loop_index
       endif
     enddo
    
-    if (first_row_index == -1) then
+    if (diag_row_index == -1) then
       ctx%option%io_buffer = 'MatGetSubQIMPESImmiscible, cannot find &
                               &diagonal entry, check matrix.'
       call PrintErrMsg(ctx%option)
     endif
 
     ! a.2) extract j_pp j_ps
-    j_pp = ctx%vals(first_row_index)
-    j_ps = ctx%vals(first_row_index+1)
+    j_pp = ctx%vals(diag_row_index)
+    j_ps = ctx%vals(diag_row_index+1)
     
     call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
     CHKERRQ(ierr)
@@ -846,14 +844,15 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
     end do
 
     ! b.1) extract [j_sp j_ss] and invert the value
-    j_sp = ctx%vals(first_row_index)
-    j_ss = ctx%vals(first_row_index+1)
+    j_sp = ctx%vals(diag_row_index)
+    j_ss = ctx%vals(diag_row_index+1)
     lambda_inv = 1.0d0/(j_pp*j_ss-j_ps*j_sp)
 
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! inv(Lamda)*D_ss*r_p - inv(Labmda)*D_ps*r_s -> fac0*r_p + fac1*r_s
-    fac0 = lambda_inv*j_ss
-    fac1 = -lambda_inv*j_ps
+    scaling_factor = abs(j_pp) + abs(j_ss)
+    fac0 = lambda_inv*j_ss*scaling_factor
+    fac1 = -lambda_inv*j_ps*scaling_factor
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
     call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
@@ -917,13 +916,12 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
   type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
-  ! the elements of the diagonal block:
-  PetscReal :: aa,bb,cc,dd,ee,ff,gg,hh,ii
   ! misc workers:
-  PetscReal :: j_ps, j_ss, j_ps_j_ss_inv, fac0, fac1
+  PetscReal :: j_ps, j_ss, j_ps_j_ss_inv, fac0, fac1, &
+               j_pp, j_sp, scaling_factor
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
-              first_row_index, loop_index, i, j, num_cols
+              diag_row_index, loop_index, i, j, num_cols
   PetscMPIInt :: rank, row_start, row_end
 
 
@@ -961,21 +959,22 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
       ctx%colIdx_keep(j) = ctx%colIdx(j)
     end do
    
-    first_row_index = -1
+    diag_row_index = -1
     do loop_index = 0,num_cols-1,block_size
       if (ctx%colIdx(loop_index) == first_row) then
-        first_row_index = loop_index
+        diag_row_index = loop_index
       endif
     enddo
    
-    if (first_row_index == -1) then
+    if (diag_row_index == -1) then
       ctx%option%io_buffer = 'MatGetSubQIMPESImmiscible, cannot find &
                               &diagonal entry, check matrix.'
       call PrintErrMsg(ctx%option)
     endif
 
-    ! a.2) extract j_ps
-    j_ps = ctx%vals(first_row_index+1)  
+    ! a.2) extract j_pp,j_ps
+    j_pp = ctx%vals(diag_row_index)
+    j_ps = ctx%vals(diag_row_index+1)  
     call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
     CHKERRQ(ierr)
 
@@ -987,7 +986,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
     end do
 
     ! b.1) extract j_sp, j_ss and invert the value
-    j_ss = ctx%vals(first_row_index+1)
+    j_sp = ctx%vals(diag_row_index)
+    j_ss = ctx%vals(diag_row_index+1)
     j_ps_j_ss_inv = j_ps*1.d0/j_ss
     num_col_blocks = num_cols/block_size
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
@@ -995,8 +995,9 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
                        
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
-    fac0 = 1.d0
-    fac1 = -j_ps_j_ss_inv
+    scaling_factor = abs(j_pp) + abs(j_ss)
+    fac0 = 1.d0*scaling_factor
+    fac1 = -j_ps_j_ss_inv*scaling_factor
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
     call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
@@ -1010,8 +1011,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
 
       ! Apply decoupling to the left hand side matrix
       ! App - Dps*Dss*Asp
-      ctx%insert_vals(j) = ctx%all_vals(0,cur_col_index) &
-                           - j_ps_j_ss_inv*ctx%all_vals(1,cur_col_index)
+      ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
+                           + fac1*ctx%all_vals(1,cur_col_index)
     end do
 
     ! e) set values
