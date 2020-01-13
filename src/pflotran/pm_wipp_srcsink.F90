@@ -3484,22 +3484,6 @@ end subroutine PMWSSUpdateChemSpecies
                       this%stoic_mat(7,10)*cwp%rxnrate_MgO_carb(i) + &
                       this%stoic_mat(8,10)*cwp%rxnrate_hydromag_conv(i)
 
-        ! Radiolysis calculation
-
-        if (wippflo_radiolysis) then
-          h2_produced_rad = 0.d0
-          brine_consumed_rad = 0.d0
-          call Radiolysis(cwp,wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
-                          material_auxvars(ghosted_id), option%time, dt, &
-                          this%radiolysis_parameters, &
-                          this%salt_wtpercent, h2_produced_rad, &
-                          brine_consumed_rad)
-          cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
-                                     h2_produced_rad / MW_H2
-          ! MAN: need to only take water out of the brine?
-          cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
-                                        brine_consumed_rad / MW_H2O
-        endif              
       !-----gas-generation-[mol-H2/m3-bulk/sec]---------------------------------
       !-----(see equations PA.67-69, PA.77, PA.82-83, PA.86, PA.89, sec PA-4.2.5)
         
@@ -3525,6 +3509,23 @@ end subroutine PMWSSUpdateChemSpecies
         ! Convert water weight to brine rate (bragflo BRH2O)
         cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) / &
                       (1.d0 - 1.d-2*this%salt_wtpercent)
+
+        ! Radiolysis calculation
+
+        if (wippflo_radiolysis) then
+          h2_produced_rad = 0.d0
+          brine_consumed_rad = 0.d0
+          call Radiolysis(cwp,wippflo_auxvars(ZERO_INTEGER,ghosted_id), &
+                          material_auxvars(ghosted_id), option%time, dt, &
+                          this%radiolysis_parameters, &
+                          this%salt_wtpercent, h2_produced_rad, &
+                          brine_consumed_rad)
+          cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
+                                     h2_produced_rad / MW_H2
+          ! MAN: need to only take water out of the brine?
+          cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
+                                        brine_consumed_rad / MW_H2O
+        endif
 
       !------source-term-calculation--------------------------------------------
 
@@ -4773,9 +4774,9 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
   xnew(:) = xold(:)
   
     ! [kg brine/kg H20] * [kg H20/mol H20] = kg brine/molH20]
-  wmbrrad = -1.d0*salt_wtpercent*MW_H2O 
+  wmbrrad = -1.d0/(1.d0 - 1.d-2*salt_wtpercent)*MW_H2O 
 
-  rthalf = 1.d10 * log(2.d0)/rad_inventory%half_life
+  rthalf = log(2.d0)/rad_inventory%half_life
 
   radex = exp(-dt*rthalf)
   
@@ -4817,7 +4818,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
       
       H(1) = rad_inventory%half_life(id1)
       
-      if (rad_inventory%daughter_id(id1) /= '') then
+      if (trim(rad_inventory%daughter_id(id1)) /= '') then
       
         ! Execute WHERE subroutine in Bragflo
         ! CALL WHERE(IDAUG(ID1),IDN,IDX): identifies stable isotope that
@@ -4829,7 +4830,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
         idx = 0
         do j = 1,num_species
         
-          if (rad_inventory%daughter_id(id1) == rad_inventory%id(j)) then
+          if (trim(rad_inventory%daughter_id(id1))  == &
+              trim(rad_inventory%id(j))) then
             idx = j
             exit
           endif
@@ -4844,7 +4846,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
         
           H(2) = rad_inventory%half_life(id2)
           
-          if (rad_inventory%daughter_id(id2) /= '') then
+          if (trim(rad_inventory%daughter_id(id2)) /= '') then
             
             ! CALL WHERE(IDAUG(ID2),IDN,IDX)
             
@@ -4852,7 +4854,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
             
             do j = 1,num_species
             
-              if (rad_inventory%daughter_id(id2) == rad_inventory%id(j)) then
+              if (trim(rad_inventory%daughter_id(id2)) == &
+                  trim(rad_inventory%id(j))) then
                 idx = j
                 exit
               endif
@@ -4866,7 +4869,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
             if (id3 /= 0) then
               H(3) = rad_inventory%half_life(id3)
               
-              if (rad_inventory%daughter_id(id3) /= '') then
+              if (trim(rad_inventory%daughter_id(id3)) /= '') then
               
                 ! CALL WHERE(IDAUG(ID3), IDN, IDX1)
               
@@ -4874,8 +4877,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
                 
                 do j = 1,num_species
                 
-                  if (rad_inventory%daughter_id(id3) == &
-                      rad_inventory%id(j)) then
+                  if (trim(rad_inventory%daughter_id(id3)) == &
+                      trim(rad_inventory%id(j))) then
                     idx1 = j
                     exit
                   endif
@@ -4895,8 +4898,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
                       
                       idx = 0
                       do j = 1,num_species
-                        if (rad_inventory%daughter_id(idx1) == &
-                            rad_inventory%id(j)) then
+                        if (trim(rad_inventory%daughter_id(idx1)) == &
+                            trim(rad_inventory%id(j))) then
                           idx = j
                           exit
                         endif
@@ -4925,7 +4928,7 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
                     
                     if (H(im)*25.d0 <= min(dt,radiolysis_parameters%&
                                            t_scale)) then
-                      if (im /= 4) cycle
+                      if (im == 4) cycle
                       if (im == 3) then
                         id3 = id4
                         H(3) = H(4)
@@ -4942,7 +4945,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
                       H(1) = H(2)
 
                       exit                      
-
+                    else
+                      exit
                     endif
                   else
                     exit
@@ -4977,8 +4981,10 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
         id1 = id2
         id2 = id3
         id3 = id4
-        id4 = 0.d0
+        id4 = 0
       endif
+
+      ! end of WHICH subroutine
       
       if (id1 == 0) cycle
       
@@ -5069,8 +5075,8 @@ subroutine Radiolysis(wp, wippflo_auxvar, material_auxvar, time, dt, &
       h2_source = h2_source + (isotope_in_solution + &
                   isotope_in_solid * brine_saturation * &
                   radiolysis_parameters%gdepfac) * &
-                  log(2.d0)/rad_inventory%half_life(i) * &
-                  rad_inventory%disintegration_energy(i) * &
+                  rthalf(i) * &
+                  1.d6 * rad_inventory%disintegration_energy(i) * &
                   radiolysis_parameters%gh2avg * dt
     
     endif
