@@ -919,7 +919,7 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
   PetscReal :: j_ps, j_ss, j_ps_j_ss_inv, fac0, fac1, &
-               j_pp, j_sp, scaling_factor
+               j_pp, j_sp
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
               diag_row_index, loop_index, i, j, num_cols
@@ -996,10 +996,8 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
                        
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
-    ! scaling by the first column shown by Daniel's implementation
-    scaling_factor = abs(j_pp) + abs(j_sp)
-    fac0 = 1.d0*scaling_factor
-    fac1 = -j_ps_j_ss_inv*scaling_factor
+    fac0 = 1.d0
+    fac1 = -j_ps_j_ss_inv
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
     call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
