@@ -18,7 +18,7 @@ module CPR_Preconditioner_module
   private
 
   type, public :: cpr_pc_type 
-    Mat :: A, Ap
+    Mat :: A, Ap, As
     ! The two stage CPR preconditioner calls two other preconditioners:
     PC :: T1_PC        ! T1 will be a SHELL pc that extracts the pressure system residual from the
                     ! input residual, then approximates the inverse of Ap acting on that residual
@@ -26,15 +26,19 @@ module CPR_Preconditioner_module
     KSP :: T1_KSP   ! Usually PCONLY, the PC for this KSP is hypre/boomeramg. This is called
                     ! by T1 (above) as the AMG part.
     PC :: T2_PC        ! A regular PC, usually BJACOBI
-    Vec :: T1r,r2, s, z, factors1vec, factors2vec
+    PC :: T3_PC
+    KSP :: T3_KSP
+    
+    Vec :: T1r,r2, s, z, factors1vec, factors2vec, factors3vec
     PetscInt ::  t2fillin, timescalled, asmoverlap, exrow_offset
-    PetscBool :: firstT1Call, firstT2call, asmfactorinplace, &
+    PetscBool :: firstT1Call, firstT2call, firstT3call, asmfactorinplace, &
                  t2shiftinblocks, zeroing, useGAMG, mv_output, t2_zeroing, &
                  skip_T1, amg_report, amg_manual
-    character(len=MAXWORDLENGTH) :: T1_type, T2_type, extract_type
+    character(len=MAXWORDLENGTH) :: T1_type, T2_type, T3_type, extract_type, &
+                                    CPR_type
     ! following are buffers/workers for the pressure system extraction.
     ! 1d arrays:
-    PetscReal, dimension(:), allocatable :: vals, insert_vals
+    PetscReal, dimension(:), allocatable :: vals, insert_vals, insert_vals2
     PetscInt, dimension(:), allocatable :: colIdx, colIdx_keep, insert_colIdx
     ! 2d arrays:
     PetscReal, dimension(:,:), allocatable :: all_vals
@@ -115,6 +119,12 @@ subroutine CPRApply(p, r, y,ierr)
   call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
   call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
 
+  if (ctx%CPR_type == "ADDITIVE") then
+    call PCApply(ctx%T3_PC,r,t1r,ierr); CHKERRQ(ierr)
+    call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
+    call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
+  end if
+
   call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr)
 
   call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr)
@@ -174,8 +184,59 @@ subroutine CPRT1Apply(p, x, y,ierr)
 
   call VecZeroEntries(y,ierr); CHKERRQ(ierr)
   call VecStrideScatter(z,0,y,INSERT_VALUES,ierr); CHKERRQ(ierr)
-
+ 
 end subroutine CPRT1Apply
+
+! ************************************************************************** !
+
+subroutine CPRT3Apply(p, x, y,ierr)
+
+  !
+  ! Author: Heeho Park
+  ! January 2020
+  ! 
+  
+  implicit none
+
+  ! fixed signature: will approximate
+  ! y = inv(A)r using shell preconditioner P:
+  PC :: p
+  Vec :: x
+  Vec :: y
+  PetscErrorCode :: ierr
+
+  ! PC context holds workers:
+  type(cpr_pc_type), pointer :: ctx
+  ! some other KSPs and PCs we'll use:
+  KSP :: ksp
+  PC :: amg_pc
+  ! misc workers, etc:
+  PetscInt :: b,start,end,k,its
+  Vec :: s, z
+
+  call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
+  s = ctx%s
+  z = ctx%z
+
+  call QIRHS(ctx%factors1Vec, ctx%factors3vec, x, s, ierr)
+
+  ksp = ctx%T3_KSP
+  
+  if (ctx%T3_type /= "NONE") then
+    call KSPSolve(ksp,s,z,ierr); CHKERRQ(ierr)
+    call KSPGetIterationNumber(ksp, its, ierr); CHKERRQ(ierr)
+  else
+    call KSPGetPC(ksp, amg_pc, ierr);CHKERRQ(ierr)
+    call PCApply(amg_pc,s,z,ierr); CHKERRQ(ierr)
+
+    if (ctx%amg_report) then
+      call PCView(amg_pc, PETSC_VIEWER_STDOUT_WORLD, ierr);CHKERRQ(ierr)
+    endif
+  endif
+  
+  call VecStrideScatter(z,1,y,INSERT_VALUES,ierr); CHKERRQ(ierr)
+  
+end subroutine CPRT3Apply
 
 !  end of CPR apply routines
 ! ************************************************************************** !
@@ -205,6 +266,7 @@ subroutine CPRSetup(p,ierr)
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
   call CPRSetupT1(ctx, ierr)
+  call CPRSetupT3(ctx, ierr)
   call CPRSetupT2(ctx, ierr)
 
 end subroutine CPRSetup
@@ -240,7 +302,6 @@ subroutine CPRSetupT1(ctx,  ierr)
     call PCSetOperators(ctx%T1_PC,A,A,ierr); CHKERRQ(ierr)
     call KSPSetOperators(ksp,ctx%Ap,ctx%Ap,ierr); CHKERRQ(ierr)
 
-
     ! now sparsity pattern of the Jacobian is defined, 
     ! allocate worker arrays that are big enough to 
     ! be used in the extraction routines coming up.
@@ -255,7 +316,8 @@ subroutine CPRSetupT1(ctx,  ierr)
   select case(ctx%extract_type)
     case('ABF')
       if (b == 2) then
-        call MatGetSubABFImmiscible(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
+        call MatGetSubABFImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                    ctx%factors3vec, ierr, ctx)
       else
         ctx%option%io_buffer = 'ABF not available for more than 3 unknowns per cell'
         call PrintErrMsg(ctx%option)
@@ -287,6 +349,33 @@ subroutine CPRSetupT1(ctx,  ierr)
   end select
 
 end subroutine CPRSetupT1
+
+! ************************************************************************** !
+
+subroutine CPRSetupT3(ctx,  ierr)
+
+  ! Author:  Heeho Park
+  ! January 2020
+
+  implicit none
+
+  type(cpr_pc_type) :: ctx
+  PetscErrorCode :: ierr
+
+  KSP :: ksp
+  Mat :: A
+
+  A = ctx%A
+  
+  if (ctx%firstT3Call) then
+    ksp = ctx%T3_KSP
+    call PCSetOperators(ctx%T3_PC,A,A,ierr); CHKERRQ(ierr)
+    call KSPSetOperators(ksp,ctx%As,ctx%As,ierr); CHKERRQ(ierr)
+
+    ctx%firstT3Call = .FALSE.
+  end if
+
+end subroutine CPRSetupT3
 
 ! ************************************************************************** !
 
@@ -449,6 +538,9 @@ subroutine CPRMake(p, ctx, c, ierr, option)
 
 
   call CPRCreateT1(c, ctx,  ierr); CHKERRQ(ierr)
+  if (ctx%CPR_type == "ADDITIVE") then
+    call CPRCreateT3_temp(c, ctx,  ierr); CHKERRQ(ierr)
+  end if
   call CPRCreateT2(c, ctx,  ierr); CHKERRQ(ierr)
 
 end subroutine CPRMake
@@ -525,7 +617,7 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
   call PCShellSetApply(ctx%T1_PC,CPRT1apply,ierr); CHKERRQ(ierr)
 
   call PCShellSetContext(ctx%T1_PC, ctx, ierr); CHKERRQ(ierr)
-
+  
 end subroutine CPRCreateT1
 
 ! ************************************************************************** !
@@ -602,6 +694,74 @@ subroutine CPRCreateT2(c, ctx, ierr)
 end subroutine CPRCreateT2
 
 !  end of CPR Creation Routines  
+! ************************************************************************** !
+subroutine CPRCreateT3_temp(c,  ctx,   ierr)
+  !
+  ! Author: Heeho Park
+  ! January 2020
+  ! 
+
+  implicit none
+
+  MPI_Comm :: c
+  type(cpr_pc_type) :: ctx
+  PetscErrorCode :: ierr
+
+  KSP :: ksp
+  PC :: prec
+
+  ! nice default options for boomeramg:
+  if (.NOT. ctx%amg_manual) then 
+    call SetCPRDefaults(ierr)
+  endif
+
+  call KSPCreate(c,ksp,ierr); CHKERRQ(ierr)
+
+  select case(ctx%T3_type)
+    case('RICHARDSON')
+      call KSPSetType(ksp,KSPRICHARDSON,ierr); CHKERRQ(ierr)
+    case('FGMRES')
+      call KSPSetType(ksp,KSPFGMRES,ierr); CHKERRQ(ierr)
+      call KSPSetTolerances(ksp, 1.0d-3, 1.d0-3, PETSC_DEFAULT_REAL, &
+                            PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr) 
+    case('GMRES')
+      call KSPSetType(ksp,KSPGMRES,ierr); CHKERRQ(ierr)
+    case default
+      ! really we will just skip over the ksp entirely
+      ! in this case, but for completeness..
+      call KSPSetType(ksp,KSPPREONLY,ierr); CHKERRQ(ierr)
+  end select
+
+  call KSPGetPC(ksp,prec,ierr); CHKERRQ(ierr)
+
+  if (ctx%useGAMG) then
+    call PCSetType(prec,PCGAMG,ierr); CHKERRQ(ierr)
+  else
+    call PCSetType(prec,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#else
+#if defined(PETSC_HAVE_LIBHYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#endif
+
+  endif
+
+  call KSPSetFromOptions(ksp,ierr); CHKERRQ(ierr)
+  call PetscObjectSetName(ksp,"T3",ierr); CHKERRQ(ierr)
+
+  ctx%T3_KSP = ksp
+  call PCCreate(C,ctx%T3_PC,ierr); CHKERRQ(ierr)
+  call PCSetType(ctx%T3_PC,PCSHELL,ierr); CHKERRQ(ierr)
+  call PCShellSetApply(ctx%T3_PC,CPRT3apply,ierr); CHKERRQ(ierr)
+
+  call PCShellSetContext(ctx%T3_PC, ctx, ierr); CHKERRQ(ierr)
+  
+end subroutine CPRCreateT3_temp
+
 ! ************************************************************************** !
 
 ! ************************************************************************** !
@@ -698,6 +858,7 @@ subroutine AllocateWorkersInCPRStash(ctx, n, b)
   ! insert_vals: a real buffer to hold the values we will
   !               insert to the reduced matrix
   allocate(ctx%insert_vals (0:entriesInAReducedRow))
+  allocate(ctx%insert_vals2 (0:entriesInAReducedRow))
   ! colIdx: an integer buffer to hold the column indexes
   !         output from matgetvals
   allocate(ctx%colIdx (0:entriesInARow))
@@ -733,6 +894,7 @@ subroutine DeallocateWorkersInCPRStash(ctx)
 
   if (allocated(ctx%vals))deallocate(ctx%vals)
   if (allocated(ctx%insert_vals))deallocate(ctx%insert_vals)
+  if (allocated(ctx%insert_vals2))deallocate(ctx%insert_vals2)
   if (allocated(ctx%colIdx))deallocate(ctx%colIdx)
   if (allocated(ctx%colIdx_keep))deallocate(ctx%colIdx_keep)
   if (allocated(ctx%insert_colIdx))deallocate(ctx%insert_colIdx)
@@ -748,7 +910,8 @@ end subroutine DeallocateWorkersInCPRStash
 
 
 ! ************************************************************************** !
-subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
+subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
+                                  factors3Vec, ierr, ctx)
   ! 
   ! extraction of the pressure system matrix of for the 
   ! CPR preconditioner with 
@@ -766,15 +929,15 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
   implicit none
 
 
-  Mat :: A, App
-  Vec :: factors1Vec
+  Mat :: A, App, Ass
+  Vec :: factors1Vec, factors3Vec
   PetscErrorCode :: ierr
   type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
   PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf, &
-               fac0, fac1, scaling_factor
+               fac0, fac1, fac3, fac4, scaling_factor
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
               diag_row_index, loop_index, i, j, num_cols
@@ -783,6 +946,7 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
 
   ctx%vals = 0.d0
   ctx%insert_vals = 0.d0
+  ctx%insert_vals2 = 0.d0
   ctx%all_vals = 0.d0
 
   ctx%colIdx = 0
@@ -859,6 +1023,15 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
     call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
 
+    if (ctx%CPR_type == "ADDITIVE") then
+      fac3 = -lambda_inv*j_sp
+      fac4 = lambda_inv*j_pp
+      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
+    
     num_col_blocks = num_cols/block_size
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
@@ -873,6 +1046,10 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
       ! apply decoupling to the left hand side
       ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
                            + fac1*ctx%all_vals(1,cur_col_index)
+      if (ctx%CPR_type == "ADDITIVE") then
+        ctx%insert_vals2(j) = fac3*ctx%all_vals(0,cur_col_index+1) &
+                              + fac4*ctx%all_vals(1,cur_col_index+1)
+      end if
     end do
 
     ! e) set values
@@ -880,6 +1057,14 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
     CHKERRQ(ierr)
+
+    if (ctx%CPR_type == "ADDITIVE") then
+      call MatSetValues(Ass, 1, insert_rows, num_col_blocks, &
+                        ctx%insert_colIdx(0:num_col_blocks-1), &
+                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
+    
   end do
 
   call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
@@ -887,6 +1072,13 @@ subroutine MatGetSubABFImmiscible(A, App, factors1Vec,  ierr, ctx)
 
   call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
+
+  if (ctx%CPR_type == "ADDITIVE") then
+    call MatAssemblyBegin(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call MatAssemblyEnd(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call VecAssemblyBegin(factors3Vec, ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(factors3vec, ierr);CHKERRQ(ierr)
+  end if
 
 end subroutine MatGetSubABFImmiscible
 

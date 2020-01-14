@@ -48,6 +48,20 @@ subroutine SolverCPRRead(stash, input, option, ierr)
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
+      case('CPR_TYPE')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'cpr_type','CPR OPTIONS')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('COMBINATIVE','DEFAULT')
+            stash%CPR_type = 'DEFAULT'
+          case('ADDITIVE')
+            stash%CPR_type = 'ADDITIVE'
+          case default
+            option%io_buffer  = 'CPR Preconditioner type: ' // trim(word) // &
+                                ' unknown.'
+            call PrintErrMsg(option)
+        end select
       case('CPRT2_TYPE')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cprT2_type','CPR OPTIONS')
@@ -87,8 +101,29 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case('FGMRES')
             !option%CPRT1_type = 'FGMRES'
             stash%T1_type = 'FGMRES'
+          case('GMRES')
+            stash%T1_type = 'GMRES'
           case default
             option%io_buffer  = 'CPR T1 KSP type: ' // trim(word) // &
+                                ' unknown.'
+            call PrintErrMsg(option)
+        end select
+
+      case('CPRT3_TYPE')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'cprT3_type','CPR OPTIONS')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('RICHARDSON')
+            !option%CPRT1_type = 'RICHARDSON'
+            stash%T3_type = 'RICHARDSON'
+          case('FGMRES')
+            !option%CPRT1_type = 'FGMRES'
+            stash%T3_type = 'FGMRES'
+          case('GMRES')
+            stash%T3_type = 'GMRES'
+          case default
+            option%io_buffer  = 'CPR T3 KSP type: ' // trim(word) // &
                                 ' unknown.'
             call PrintErrMsg(option)
         end select
@@ -488,9 +523,12 @@ subroutine SolverCPRInitializeStorage(ctx)
   ! ensure that first run flags are set correctly
   ctx%firstT1Call = PETSC_TRUE
   ctx%firstT2Call = PETSC_TRUE
+  ctx%firstT2Call = PETSC_TRUE
 
+  ctx%CPR_type = "Combinative"
   ctx%T1_type = "NONE"
   ctx%T2_type = "Jacobi"
+  ctx%T3_type = "NONE"
   ctx%extract_type = "QIMPES"
 
   ctx%asmfactorinplace = PETSC_FALSE
