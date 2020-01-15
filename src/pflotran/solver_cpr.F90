@@ -523,7 +523,7 @@ subroutine SolverCPRInitializeStorage(ctx)
   ! ensure that first run flags are set correctly
   ctx%firstT1Call = PETSC_TRUE
   ctx%firstT2Call = PETSC_TRUE
-  ctx%firstT2Call = PETSC_TRUE
+  ctx%firstT3Call = PETSC_TRUE
 
   ctx%CPR_type = "Combinative"
   ctx%T1_type = "NONE"

@@ -633,11 +633,6 @@ subroutine CPRCreateT3(c,  ctx,   ierr)
   KSP :: ksp
   PC :: prec
 
-  ! nice default options for boomeramg:
-  if (.NOT. ctx%amg_manual) then 
-    call SetCPRDefaults(ierr)
-  endif
-
   call KSPCreate(c,ksp,ierr); CHKERRQ(ierr)
 
   select case(ctx%T3_type)
