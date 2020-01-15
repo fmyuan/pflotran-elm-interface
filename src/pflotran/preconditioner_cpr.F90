@@ -311,6 +311,7 @@ subroutine CPRSetupT1(ctx,  ierr)
   end if
 
   call MatZeroEntries(ctx%Ap, ierr); CHKERRQ(ierr)
+  call MatZeroEntries(ctx%As, ierr); CHKERRQ(ierr)
 
   select case(ctx%extract_type)
     case('ABF')
