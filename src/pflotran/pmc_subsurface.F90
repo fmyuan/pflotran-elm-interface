@@ -1370,6 +1370,9 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                   NFLOWDOF, solver%cprstash%T1r, &
                                   GLOBAL, option)
   call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%T3r, &
+                                  GLOBAL, option)                                  
+  call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%r2, &
                                   GLOBAL, option)
 

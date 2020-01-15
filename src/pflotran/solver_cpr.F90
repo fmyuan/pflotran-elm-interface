@@ -53,9 +53,9 @@ subroutine SolverCPRRead(stash, input, option, ierr)
         call InputErrorMsg(input,option,'cpr_type','CPR OPTIONS')
         call StringToUpper(word)
         select case(trim(word))
-          case('COMBINATIVE','DEFAULT')
+          case('COMBINATIVE','DEFAULT','CPR1','CPR')
             stash%CPR_type = 'DEFAULT'
-          case('ADDITIVE')
+          case('ADDITIVE','CPR2')
             stash%CPR_type = 'ADDITIVE'
           case default
             option%io_buffer  = 'CPR Preconditioner type: ' // trim(word) // &

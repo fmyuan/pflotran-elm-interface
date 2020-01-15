@@ -1691,6 +1691,9 @@ subroutine SolverDestroy(solver)
       if (solver%cprstash%T1r /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%T1r, ierr);CHKERRQ(ierr)
       endif
+      if (solver%cprstash%T3r /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%T3r, ierr);CHKERRQ(ierr)
+      endif
       if (solver%cprstash%r2 /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%r2, ierr);CHKERRQ(ierr)
       endif

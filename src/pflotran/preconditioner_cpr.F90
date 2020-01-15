@@ -29,7 +29,7 @@ module CPR_Preconditioner_module
     PC :: T3_PC
     KSP :: T3_KSP
     
-    Vec :: T1r,r2, s, z, factors1vec, factors2vec, factors3vec
+    Vec :: T1r, T3r, r2, s, z, factors1vec, factors2vec, factors3vec
     PetscInt ::  t2fillin, timescalled, asmoverlap, exrow_offset
     PetscBool :: firstT1Call, firstT2call, firstT3call, asmfactorinplace, &
                  t2shiftinblocks, zeroing, useGAMG, mv_output, t2_zeroing, &
@@ -97,7 +97,7 @@ subroutine CPRApply(p, r, y,ierr)
   PetscErrorCode :: ierr
 
   ! worker vectors:
-  Vec :: t1r, r2
+  Vec :: t1r, t3r, r2
   ! PC context holds workers:
   type(cpr_pc_type), pointer :: ctx
   ! misc variables and parms:
@@ -108,26 +108,25 @@ subroutine CPRApply(p, r, y,ierr)
   one = 1.0
   r2 = ctx%r2
   t1r = ctx%T1r
+  t3r = ctx%T3r
   a = ctx%a
 
   if (ctx%skip_T1) then
     call VecZeroEntries(t1r,ierr); CHKERRQ(ierr)
   else
-    call PCApply(ctx%T1_PC,r,t1r,ierr); CHKERRQ(ierr)
+    call PCApply(ctx%T1_PC,r,t1r,ierr); CHKERRQ(ierr) ! CPR to pres blocks
   endif
 
-  call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
-  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
-
   if (ctx%CPR_type == "ADDITIVE") then
-    call PCApply(ctx%T3_PC,r,t1r,ierr); CHKERRQ(ierr)
-    call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
-    call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
+    call PCApply(ctx%T3_PC,r,t3r,ierr); CHKERRQ(ierr) ! CPR to sat blocks
+    call VecAYPX(t1r,one,t3r,ierr); CHKERRQ(ierr) ! t1r = t1r + t3r
   end if
+  
+  call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
+  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r2 = r-r2
 
   call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr)
-
-  call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr)
+  call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr) ! y = y + t1r
 
 end subroutine CPRApply
 
@@ -159,7 +158,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
   KSP :: ksp
   PC :: amg_pc
   ! misc workers, etc:
-  PetscInt :: b,start,end,k,its
+  PetscInt :: b,start,k,its
   Vec :: s, z
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
@@ -211,14 +210,14 @@ subroutine CPRT3Apply(p, x, y,ierr)
   KSP :: ksp
   PC :: amg_pc
   ! misc workers, etc:
-  PetscInt :: b,start,end,k,its
+  PetscInt :: b,start,k,its
   Vec :: s, z
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
   s = ctx%s
   z = ctx%z
 
-  call QIRHS(ctx%factors1Vec, ctx%factors3vec, x, s, ierr)
+  call QIRHS(ctx%factors3Vec, ctx%factors2vec, x, s, ierr)
 
   ksp = ctx%T3_KSP
   
@@ -363,15 +362,11 @@ subroutine CPRSetupT3(ctx,  ierr)
   PetscErrorCode :: ierr
 
   KSP :: ksp
-  Mat :: A
 
-  A = ctx%A
-  
   if (ctx%firstT3Call) then
     ksp = ctx%T3_KSP
-    call PCSetOperators(ctx%T3_PC,A,A,ierr); CHKERRQ(ierr)
+    call PCSetOperators(ctx%T3_PC,ctx%A,ctx%A,ierr); CHKERRQ(ierr)
     call KSPSetOperators(ksp,ctx%As,ctx%As,ierr); CHKERRQ(ierr)
-
     ctx%firstT3Call = .FALSE.
   end if
 
@@ -539,7 +534,7 @@ subroutine CPRMake(p, ctx, c, ierr, option)
 
   call CPRCreateT1(c, ctx,  ierr); CHKERRQ(ierr)
   if (ctx%CPR_type == "ADDITIVE") then
-    call CPRCreateT3_temp(c, ctx,  ierr); CHKERRQ(ierr)
+    call CPRCreateT3(c, ctx,  ierr); CHKERRQ(ierr)
   end if
   call CPRCreateT2(c, ctx,  ierr); CHKERRQ(ierr)
 
@@ -622,6 +617,75 @@ end subroutine CPRCreateT1
 
 ! ************************************************************************** !
 
+subroutine CPRCreateT3(c,  ctx,   ierr)
+  !
+  ! Author: Heeho Park
+  ! January 2020
+  ! 
+
+  implicit none
+
+  MPI_Comm :: c
+  type(cpr_pc_type) :: ctx
+  PetscErrorCode :: ierr
+
+  KSP :: ksp
+  PC :: prec
+
+  ! nice default options for boomeramg:
+  if (.NOT. ctx%amg_manual) then 
+    call SetCPRDefaults(ierr)
+  endif
+
+  call KSPCreate(c,ksp,ierr); CHKERRQ(ierr)
+
+  select case(ctx%T3_type)
+    case('RICHARDSON')
+      call KSPSetType(ksp,KSPRICHARDSON,ierr); CHKERRQ(ierr)
+    case('FGMRES')
+      call KSPSetType(ksp,KSPFGMRES,ierr); CHKERRQ(ierr)
+      call KSPSetTolerances(ksp, 1.0d-3, 1.d0-3, PETSC_DEFAULT_REAL, &
+                            PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr) 
+    case('GMRES')
+      call KSPSetType(ksp,KSPGMRES,ierr); CHKERRQ(ierr)
+    case default
+      ! really we will just skip over the ksp entirely
+      ! in this case, but for completeness..
+      call KSPSetType(ksp,KSPPREONLY,ierr); CHKERRQ(ierr)
+  end select
+
+  call KSPGetPC(ksp,prec,ierr); CHKERRQ(ierr)
+
+  if (ctx%useGAMG) then
+    call PCSetType(prec,PCGAMG,ierr); CHKERRQ(ierr)
+  else
+    call PCSetType(prec,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#else
+#if defined(PETSC_HAVE_LIBHYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#endif
+
+  endif
+
+  call KSPSetFromOptions(ksp,ierr); CHKERRQ(ierr)
+  call PetscObjectSetName(ksp,"T3",ierr); CHKERRQ(ierr)
+
+  ctx%T3_KSP = ksp
+  call PCCreate(C,ctx%T3_PC,ierr); CHKERRQ(ierr)
+  call PCSetType(ctx%T3_PC,PCSHELL,ierr); CHKERRQ(ierr)
+  call PCShellSetApply(ctx%T3_PC,CPRT3apply,ierr); CHKERRQ(ierr)
+
+  call PCShellSetContext(ctx%T3_PC, ctx, ierr); CHKERRQ(ierr)
+  
+end subroutine CPRCreateT3
+
+! ************************************************************************** !
+
 subroutine CPRCreateT2(c, ctx, ierr)
   ! 
   ! create the T2 preconditioner for the CPR PC
@@ -694,74 +758,6 @@ subroutine CPRCreateT2(c, ctx, ierr)
 end subroutine CPRCreateT2
 
 !  end of CPR Creation Routines  
-! ************************************************************************** !
-subroutine CPRCreateT3_temp(c,  ctx,   ierr)
-  !
-  ! Author: Heeho Park
-  ! January 2020
-  ! 
-
-  implicit none
-
-  MPI_Comm :: c
-  type(cpr_pc_type) :: ctx
-  PetscErrorCode :: ierr
-
-  KSP :: ksp
-  PC :: prec
-
-  ! nice default options for boomeramg:
-  if (.NOT. ctx%amg_manual) then 
-    call SetCPRDefaults(ierr)
-  endif
-
-  call KSPCreate(c,ksp,ierr); CHKERRQ(ierr)
-
-  select case(ctx%T3_type)
-    case('RICHARDSON')
-      call KSPSetType(ksp,KSPRICHARDSON,ierr); CHKERRQ(ierr)
-    case('FGMRES')
-      call KSPSetType(ksp,KSPFGMRES,ierr); CHKERRQ(ierr)
-      call KSPSetTolerances(ksp, 1.0d-3, 1.d0-3, PETSC_DEFAULT_REAL, &
-                            PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr) 
-    case('GMRES')
-      call KSPSetType(ksp,KSPGMRES,ierr); CHKERRQ(ierr)
-    case default
-      ! really we will just skip over the ksp entirely
-      ! in this case, but for completeness..
-      call KSPSetType(ksp,KSPPREONLY,ierr); CHKERRQ(ierr)
-  end select
-
-  call KSPGetPC(ksp,prec,ierr); CHKERRQ(ierr)
-
-  if (ctx%useGAMG) then
-    call PCSetType(prec,PCGAMG,ierr); CHKERRQ(ierr)
-  else
-    call PCSetType(prec,PCHYPRE,ierr); CHKERRQ(ierr)
-#if PETSC_VERSION_GE(3,11,99)
-#if defined(PETSC_HAVE_HYPRE)
-    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
-#endif
-#else
-#if defined(PETSC_HAVE_LIBHYPRE)
-    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
-#endif
-#endif
-
-  endif
-
-  call KSPSetFromOptions(ksp,ierr); CHKERRQ(ierr)
-  call PetscObjectSetName(ksp,"T3",ierr); CHKERRQ(ierr)
-
-  ctx%T3_KSP = ksp
-  call PCCreate(C,ctx%T3_PC,ierr); CHKERRQ(ierr)
-  call PCSetType(ctx%T3_PC,PCSHELL,ierr); CHKERRQ(ierr)
-  call PCShellSetApply(ctx%T3_PC,CPRT3apply,ierr); CHKERRQ(ierr)
-
-  call PCShellSetContext(ctx%T3_PC, ctx, ierr); CHKERRQ(ierr)
-  
-end subroutine CPRCreateT3_temp
-
 ! ************************************************************************** !
 
 ! ************************************************************************** !
@@ -1033,7 +1029,7 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     end if
     
     num_col_blocks = num_cols/block_size
-    call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
+    call MatRestoreRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
 
     ! d) prepare to set values
