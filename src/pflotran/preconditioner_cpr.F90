@@ -929,7 +929,7 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
   PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf, &
-               fac0, fac1, fac3, fac4, scaling_factor
+               fac0, fac1, fac3, fac4, scaling_factor, scaling_factor2
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
               diag_row_index, loop_index, i, j, num_cols
@@ -1007,6 +1007,9 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
     ! inv(Lamda)*D_ss*r_p - inv(Labmda)*D_ps*r_s -> fac0*r_p + fac1*r_s
     ! scaling by the first column shown by Daniel's implementation
+    ! this comes from numerical experiments done by David Ponting.
+    ! The scaling factor keeps the shape of long waves of diffusion
+    ! which AMG is really good at resolving; hence, gaining large speed-up.
     scaling_factor = abs(j_pp) + abs(j_sp)
     fac0 = lambda_inv*j_ss*scaling_factor
     fac1 = -lambda_inv*j_ps*scaling_factor
@@ -1016,8 +1019,9 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     CHKERRQ(ierr)
 
     if (ctx%CPR_type == "ADDITIVE") then
-      fac3 = -lambda_inv*j_sp
-      fac4 = lambda_inv*j_pp
+      scaling_factor2 = abs(j_ps) + abs(j_ss)
+      fac3 = -lambda_inv*j_sp*scaling_factor2
+      fac4 = lambda_inv*j_pp*scaling_factor2
       call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
       CHKERRQ(ierr)
       call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
@@ -1039,6 +1043,7 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
       ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
                            + fac1*ctx%all_vals(1,cur_col_index)
       if (ctx%CPR_type == "ADDITIVE") then
+        ! -lam_inv*Dsp*Aps+lam_inv*Dpp*Ass
         ctx%insert_vals2(j) = fac3*ctx%all_vals(0,cur_col_index+1) &
                               + fac4*ctx%all_vals(1,cur_col_index+1)
       end if
