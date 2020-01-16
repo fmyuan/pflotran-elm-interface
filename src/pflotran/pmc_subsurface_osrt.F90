@@ -357,6 +357,11 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
         num_linear_iterations
     enddo
 
+    if (option%compute_mass_balance_new) then
+      call RTZeroMassBalanceDelta(realization)
+      call RTComputeBCMassBalanceOS(realization)
+    endif
+
     sum_linear_iterations = sum_linear_iterations + sum_linear_iterations_temp
     call PetscTime(log_end_time,ierr);CHKERRQ(ierr)
     process_model%cumulative_transport_time = &

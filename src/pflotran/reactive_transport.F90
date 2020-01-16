@@ -41,7 +41,9 @@ module Reactive_Transport_module
             RTCheckpointKineticSorptionBinary, &
             RTCheckpointKineticSorptionHDF5, &
             RTExplicitAdvection, &
-            RTClearActivityCoefficients
+            RTClearActivityCoefficients, &
+            RTZeroMassBalanceDelta, &
+            RTComputeBCMassBalanceOS
   
 contains
 
@@ -2024,8 +2026,8 @@ subroutine RTComputeBCMassBalanceOS(realization)
   PetscInt :: flow_src_sink_type
   PetscReal :: qsrc(2)
   
-  PetscReal :: coef_up(realization%option%transport%nphase)
-  PetscReal :: coef_dn(realization%option%transport%nphase)
+  PetscReal :: coef_up(realization%reaction%naqcomp,realization%reaction%nphase)
+  PetscReal :: coef_dn(realization%reaction%naqcomp,realization%reaction%nphase)
   PetscReal :: coef_in(2), coef_out(2)
   PetscInt :: nphase
   PetscErrorCode :: ierr
