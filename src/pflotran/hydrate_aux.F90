@@ -2178,9 +2178,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pl, Xma, T
 !
         x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_L_STATE_X_MOLE_DOF) = hyd_auxvar%xmol(acid,lid) 
-                                       !max(0.d0,hyd_auxvar%xmol(acid,lid))
-        x(HYDRATE_ENERGY_DOF) = X(HYDRATE_ENERGY_DOF) !hyd_auxvar%temp
+        x(HYDRATE_L_STATE_X_MOLE_DOF) = max(0.d0,hyd_auxvar%xmol(acid,lid))
+        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(G_STATE)
 !     ********* Gas State (G) ********************************
@@ -2188,7 +2187,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
         x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) = hyd_auxvar%pres(apid)
-        x(HYDRATE_ENERGY_DOF) = X(HYDRATE_ENERGY_DOF) !hyd_auxvar%temp
+        x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(H_STATE)
 !     ********* Hydrate State (H) ********************************
