@@ -14,7 +14,7 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_central_diff_jacobian = PETSC_FALSE
   PetscBool, public :: hydrate_restrict_state_chng = PETSC_FALSE
   PetscReal, public :: window_epsilon = 1.d-4 !0.d0
-  PetscReal, public :: hydrate_phase_chng_epsilon = 1.d-6
+  PetscReal, public :: hydrate_phase_chng_epsilon = 0.d0 !1.d-6
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: hydrate_max_pressure_change = 5.d4
   PetscInt, public :: hydrate_max_it_before_damping = UNINITIALIZED_INTEGER
@@ -25,8 +25,11 @@ module Hydrate_Aux_module
   PetscBool, public :: hydrate_harmonic_diff_density = PETSC_TRUE
   PetscInt, public :: hydrate_newton_iteration_number = 0
   PetscBool, public :: hydrate_allow_state_change = PETSC_TRUE
+  PetscBool, public :: hydrate_force_iteration = PETSC_FALSE
+  PetscBool, public :: hydrate_state_changed = PETSC_FALSE
 
   PetscBool, public :: hyd_chk_max_dpl_liq_state_only = PETSC_FALSE
+  PetscBool, public :: hydrate_high_temp_ts_cut = PETSC_FALSE
 
   ! debugging
   PetscInt, public :: hydrate_ni_count
@@ -631,7 +634,7 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dpc_dsatl
   PetscReal :: dden_ice_dT, dden_ice_dP
   character(len=8) :: state_char
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr, eos_henry_ierr
   PetscReal :: dTf, h_sat_eff, i_sat_eff, liq_sat_eff, gas_sat_eff
   PetscReal :: solid_sat_eff
   PetscReal :: sigma, dP
@@ -1349,6 +1352,15 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call PrintErrMsgByRank(option)
 
   end select
+
+  !MAN Check EOS temperature
+  eos_henry_ierr = 0
+  call EOSGasHenry(hyd_auxvar%temp,hyd_auxvar%pres(spid),K_H_tilde, &
+                         eos_henry_ierr)
+  if (eos_henry_ierr /= 0) then
+     call HydrateEOSGasError(natural_id,eos_henry_ierr,hyd_auxvar,option)
+  endif
+
   cell_pressure = max(hyd_auxvar%pres(lid),hyd_auxvar%pres(gid), &
                       hyd_auxvar%pres(spid))
 
@@ -1533,6 +1545,7 @@ subroutine HydrateEOSGasError(natural_id,ierr,hyd_auxvar,option)
                                ' exceeds the equation of state temperature bound with ' // &
                                trim(StringWrite(hyd_auxvar%temp)) // ' [C].'
     call PrintErrMsgByRank(option)
+    hydrate_high_temp_ts_cut = PETSC_TRUE
   endif
 
   
@@ -2067,6 +2080,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
       endif
   end select
 
+  hydrate_state_changed = istatechng
 
   new_state = global_auxvar%istate
 
@@ -2161,19 +2175,20 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 
       case(L_STATE)
 !     ********* Aqueous State (A) ********************************
-!     Primary variables: Pa, Xma, T
+!     Primary variables: Pl, Xma, T
 !
         x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_L_STATE_X_MOLE_DOF) = hyd_auxvar%xmol(acid,lid)
-        x(HYDRATE_ENERGY_DOF) = x(HYDRATE_ENERGY_DOF)
+        x(HYDRATE_L_STATE_X_MOLE_DOF) = hyd_auxvar%xmol(acid,lid) 
+                                       !max(0.d0,hyd_auxvar%xmol(acid,lid))
+        x(HYDRATE_ENERGY_DOF) = X(HYDRATE_ENERGY_DOF) !hyd_auxvar%temp
 
       case(G_STATE)
 !     ********* Gas State (G) ********************************
 !     Primary variables: Pg, Pa, T
 !
-        x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) = hyd_auxvar%pres(apid)
-        x(HYDRATE_ENERGY_DOF) = x(HYDRATE_ENERGY_DOF)
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
+        x(HYDRATE_G_STATE_AIR_PRESSURE_DOF) = hyd_auxvar%pres(apid)
+        x(HYDRATE_ENERGY_DOF) = X(HYDRATE_ENERGY_DOF) !hyd_auxvar%temp
 
       case(H_STATE)
 !     ********* Hydrate State (H) ********************************
@@ -2196,7 +2211,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pg, Sg, T
 !
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid)
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid) + &
+                                        hydrate_phase_chng_epsilon
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(HG_STATE)
@@ -2204,7 +2220,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pg, Sg, T
 !
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid)
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(gid) + &
+                                        hydrate_phase_chng_epsilon
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(HA_STATE)
@@ -2212,7 +2229,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pg, Sh, T
 !
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(hid)
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(hid) + &
+                                        hydrate_phase_chng_epsilon
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(HI_STATE)
@@ -2243,7 +2261,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     ********* Hydrate, Gas, & Aqueous State (HGA) **************************
 !     Primary variables: Sl, Sh, T
 !
-        x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%sat(lid)
+        x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%sat(lid) - &
+                                        hydrate_phase_chng_epsilon
         x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(hid)
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
@@ -2252,7 +2271,8 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pg, Sl, Si
 !
         x(HYDRATE_GAS_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(lid)
+        x(HYDRATE_GAS_SATURATION_DOF) = hyd_auxvar%sat(lid) - &
+                                        hydrate_phase_chng_epsilon
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%sat(iid)
 
       case(HGI_STATE)
@@ -3710,6 +3730,5 @@ subroutine EOSHydrateEnthalpy(T,H)
 end subroutine EOSHydrateEnthalpy
 
 ! ************************************************************************** !
-
 
 end module Hydrate_Aux_module
