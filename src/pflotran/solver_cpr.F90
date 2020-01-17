@@ -182,6 +182,18 @@ subroutine SolverCPRRead(stash, input, option, ierr)
       case('CPR_MANUAL_AMG_CONFIG')
         stash%amg_manual = PETSC_TRUE
 
+      case('T1_NO_SCALE')
+        stash%T1_scale = PETSC_FALSE
+
+      case('T1_SCALE')
+        stash%T1_scale = PETSC_TRUE
+      
+      case('T3_NO_SCALE')
+        stash%T3_scale = PETSC_FALSE
+
+      case('T3_SCALE')
+        stash%T3_scale = PETSC_TRUE
+
       case('CPRGAMG')
         stash%useGAMG = PETSC_TRUE
 
@@ -525,10 +537,17 @@ subroutine SolverCPRInitializeStorage(ctx)
   ctx%firstT2Call = PETSC_TRUE
   ctx%firstT3Call = PETSC_TRUE
 
-  ctx%CPR_type = "Combinative"
+  ! apply cpr to pressure block only unless you expect saturation to be
+  ! diffusion dominated, then choose ADDITIVE
+  ctx%CPR_type = "COMBINATIVE"
   ctx%T1_type = "NONE"
+  ! typically scaling pressure blocks will help
+  ctx%T1_scale = PETSC_TRUE  
   ctx%T2_type = "Jacobi"
   ctx%T3_type = "NONE"
+  ! typically scaling saturation block won't help
+  ctx%T3_scale = PETSC_FALSE
+  ! most general method call
   ctx%extract_type = "QIMPES"
 
   ctx%asmfactorinplace = PETSC_FALSE

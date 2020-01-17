@@ -33,7 +33,7 @@ module CPR_Preconditioner_module
     PetscInt ::  t2fillin, timescalled, asmoverlap, exrow_offset
     PetscBool :: firstT1Call, firstT2call, firstT3call, asmfactorinplace, &
                  t2shiftinblocks, zeroing, useGAMG, mv_output, t2_zeroing, &
-                 skip_T1, amg_report, amg_manual
+                 skip_T1, amg_report, amg_manual, T1_scale, T3_scale
     character(len=MAXWORDLENGTH) :: T1_type, T2_type, T3_type, extract_type, &
                                     CPR_type
     ! following are buffers/workers for the pressure system extraction.
@@ -84,6 +84,7 @@ subroutine CPRApply(p, r, y,ierr)
   ! (output y)
   !
   ! Author: Sebastien Loisel, Daniel Stone 
+  ! Modified by: Heeho Park, Jan 2020.
   ! Date: Oct 2017 - March 2018
   ! 
 
@@ -118,16 +119,21 @@ subroutine CPRApply(p, r, y,ierr)
   endif
 
   if (ctx%CPR_type == "ADDITIVE") then
+    ! solving saturations blocks with amg if diffusion dominated
     call PCApply(ctx%T3_PC,r,t3r,ierr); CHKERRQ(ierr) ! CPR to sat blocks
-    call VecAYPX(t1r,one,t3r,ierr); CHKERRQ(ierr) ! t1r = t1r + t3r
+    call VecAYPX(t1r,one,t3r,ierr); CHKERRQ(ierr) ! t1r = t3r + t1r
   end if
   
-  call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
-  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r2 = r-r2
+  ! t1r and t3r are pressure and saturation amg solutions, respectively
+  ! r2 is a residual after the amg step, r is the original residual.
+  call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)  ! r2 = a*t1r  
+  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r2 = r - r2
 
-  call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr)
-  call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr) ! y = y + t1r
-
+  call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr) ! ILU(0) with Ay=r2
+  call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr) ! y = t1r + y
+  
+  !y is the overall changes to pressure and saturation
+  
 end subroutine CPRApply
 
 ! ************************************************************************** !
@@ -189,7 +195,12 @@ end subroutine CPRT1Apply
 ! ************************************************************************** !
 
 subroutine CPRT3Apply(p, x, y,ierr)
+  ! To be used as a PCSHELL apply routine
 
+  ! 
+  ! Applies the T3 part of the CPR preconditioner
+  ! to r (ourput y)
+  ! where saturation block information is running though amg
   !
   ! Author: Heeho Park
   ! January 2020
@@ -233,6 +244,7 @@ subroutine CPRT3Apply(p, x, y,ierr)
     endif
   endif
   
+  ! supposedly saturation is the 2nd unknown of the block.
   call VecStrideScatter(z,1,y,INSERT_VALUES,ierr); CHKERRQ(ierr)
   
 end subroutine CPRT3Apply
@@ -265,7 +277,9 @@ subroutine CPRSetup(p,ierr)
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
   call CPRSetupT1(ctx, ierr)
-  call CPRSetupT3(ctx, ierr)
+  if (ctx%CPR_type == "ADDITIVE") then
+    call CPRSetupT3(ctx, ierr)
+  end if
   call CPRSetupT2(ctx, ierr)
 
 end subroutine CPRSetup
@@ -354,8 +368,14 @@ end subroutine CPRSetupT1
 
 subroutine CPRSetupT3(ctx,  ierr)
 
+  ! Decoupling of saturation block is done while the pressure block
+  ! was decoupled in CPRSetupT1.
+  !
+  ! Only the simple declaration is required here.
+  !
   ! Author:  Heeho Park
   ! January 2020
+
 
   implicit none
 
@@ -619,6 +639,11 @@ end subroutine CPRCreateT1
 ! ************************************************************************** !
 
 subroutine CPRCreateT3(c,  ctx,   ierr)
+  !
+  ! The parameters and options of the AMG solver are consistent with
+  ! T1 and cannot create separtion options for this; for now.
+  ! if some solver, does well for parabolic equations then we'll separate
+  ! this from T1.
   !
   ! Author: Heeho Park
   ! January 2020
@@ -909,6 +934,8 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
   ! CPR preconditioner with 
   ! Alternate Block Factorization (ABF)
   ! Decoupling method for 2 unknowns (pressure and saturation)
+  ! in the case of ADDITIVE option,
+  ! this subroutine extracts both pressure and saturation system of the matrix
   
   ! Author:  Heeho Park
   ! Date: January 2020.
@@ -1010,7 +1037,11 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     ! this comes from numerical experiments done by David Ponting.
     ! The scaling factor keeps the shape of long waves of diffusion
     ! which AMG is really good at resolving; hence, gaining large speed-up.
-    scaling_factor = abs(j_pp) + abs(j_sp)
+    if (ctx%T1_scale) then 
+      scaling_factor = abs(j_pp) + abs(j_sp)
+    else
+      scaling_factor = 1.d0
+    end if
     fac0 = lambda_inv*j_ss*scaling_factor
     fac1 = -lambda_inv*j_ps*scaling_factor
     call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
@@ -1019,7 +1050,11 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     CHKERRQ(ierr)
 
     if (ctx%CPR_type == "ADDITIVE") then
-      scaling_factor2 = abs(j_ps) + abs(j_ss)
+      if (ctx%T3_scale) then
+        scaling_factor2 = abs(j_ps) + abs(j_ss)
+      else 
+        scaling_factor2 = 1.d0
+      end if
       fac3 = -lambda_inv*j_sp*scaling_factor2
       fac4 = lambda_inv*j_pp*scaling_factor2
       call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
@@ -1199,7 +1234,7 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
       ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
 
       ! Apply decoupling to the left hand side matrix
-      ! App - Dps*Dss*Asp
+      ! A_pp - D_ps*inv(D_ss)*A_sp
       ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
                            + fac1*ctx%all_vals(1,cur_col_index)
     end do
