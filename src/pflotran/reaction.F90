@@ -4503,7 +4503,9 @@ subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
 
   PetscInt, parameter :: iphase = 1
 
-  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+!geh  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+  ! to make compatible with constant KD
+  Lwater_m3bulk = 250.d0
 
   do irxn = 1, reaction%neqsmartkdrxn
     ikd = reaction%eqsmartkdspecid(irxn)
