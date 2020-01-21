@@ -1701,8 +1701,7 @@ subroutine SolverDestroy(solver)
       if (solver%cprstash%T1r /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%T1r, ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%T3r /= PETSC_NULL_VEC  .and. &
-          solver%cprstash%CPR_type == "ADDITIVE") then
+      if (solver%cprstash%T3r /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%T3r, ierr);CHKERRQ(ierr)
       endif
       if (solver%cprstash%r2 /= PETSC_NULL_VEC) then
@@ -1720,8 +1719,7 @@ subroutine SolverDestroy(solver)
       if (solver%cprstash%factors2vec /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%factors2vec, ierr);CHKERRQ(ierr)
       endif
-      if (solver%cprstash%factors3vec /= PETSC_NULL_VEC .and. &
-          solver%cprstash%CPR_type == "ADDITIVE") then
+      if (solver%cprstash%factors3vec /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%factors3vec, ierr);CHKERRQ(ierr)
       endif
       deallocate(solver%cprstash)
