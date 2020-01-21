@@ -337,7 +337,8 @@ subroutine CPRSetupT1(ctx,  ierr)
         call PrintErrMsg(ctx%option)
       end if
     case('QIMPES_TWO_UNKNOWNS')
-      call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%factors1vec, ierr, ctx)
+      call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                     ctx%factors3vec, ierr, ctx)
     case('QIMPES_THREE_UNKNOWNS')
       ! we have a more efficient version for 3x3 blocks so do that if we can instead
       if (b == 3) then
@@ -348,7 +349,8 @@ subroutine CPRSetupT1(ctx,  ierr)
     case('QIMPES')
       if (b == 2) then
         ! more efficient for 2x2 blocks
-        call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%factors1vec, ierr, ctx)
+        call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                       ctx%factors3vec, ierr, ctx)
       else if (b == 3) then
         call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx) 
       else
@@ -1050,6 +1052,8 @@ subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
     CHKERRQ(ierr)
 
     if (ctx%CPR_type == "ADDITIVE") then
+      ! this is effective when you expect saturation to be 
+      ! diffusion-dominant
       if (ctx%T3_scale) then
         scaling_factor2 = abs(j_ps) + abs(j_ss)
       else 
@@ -1117,7 +1121,8 @@ end subroutine MatGetSubABFImmiscible
 
 ! ************************************************************************** !
 
-subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
+subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
+                                     factors3Vec, ierr, ctx)
   ! 
   ! extraction of the pressure system matrix of for the 
   ! CPR preconditioner with 
@@ -1135,15 +1140,15 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
   implicit none
 
 
-  Mat :: A, App
-  Vec :: factors1Vec
+  Mat :: A, App, Ass
+  Vec :: factors1Vec, factors3Vec
   PetscErrorCode :: ierr
   type(cpr_pc_type) :: ctx
 
   PetscInt, dimension(0:0) :: insert_rows
   ! misc workers:
   PetscReal :: j_ps, j_ss, j_ps_j_ss_inv, fac0, fac1, &
-               j_pp, j_sp
+               j_pp, j_sp, fac3, fac4, j_sp_j_pp_inv
   PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
               first_row, cur_col_index, num_col_blocks, &
               diag_row_index, loop_index, i, j, num_cols
@@ -1213,7 +1218,13 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
     ! b.1) extract j_sp, j_ss and invert the value
     j_sp = ctx%vals(diag_row_index)
     j_ss = ctx%vals(diag_row_index+1)
-    j_ps_j_ss_inv = j_ps*1.d0/j_ss
+    if (j_ss == 0.d0) then
+      ! to avoid NaNs
+      j_ps_j_ss_inv = 0.d0
+    else
+      j_ps_j_ss_inv = j_ps*1.d0/j_ss
+    end if 
+    
     num_col_blocks = num_cols/block_size
     call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
                        ctx%vals, ierr); CHKERRQ(ierr)
@@ -1226,6 +1237,23 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
     CHKERRQ(ierr)
     call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
     CHKERRQ(ierr)
+    if (ctx%CPR_type == "ADDITIVE") then
+      ! -D_sp*inv(D_pp)*r_p + r_s -> fac3*r_p + fac4*r_s
+      ! this is effective when you expect saturation to be 
+      ! diffusion-dominant
+      if (j_pp == 0.d0) then
+        ! to avoid NaNs
+        j_sp_j_pp_inv = 0.d0
+      else
+        j_sp_j_pp_inv = j_sp*1.d0/j_pp
+      end if
+      fac3 = -j_sp_j_pp_inv
+      fac4 = 1.d0
+      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
    
     ! d) prepare to set values
     insert_rows = i + row_start/block_size
@@ -1237,6 +1265,11 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
       ! A_pp - D_ps*inv(D_ss)*A_sp
       ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
                            + fac1*ctx%all_vals(1,cur_col_index)
+      if (ctx%CPR_type == "ADDITIVE") then
+        ! -D_sp*inv(D_pp)*A_ps + A_ss
+        ctx%insert_vals2(j) = fac3*ctx%all_vals(0,cur_col_index+1) &
+                              + fac4*ctx%all_vals(1,cur_col_index+1)
+      end if
     end do
 
     ! e) set values
@@ -1244,13 +1277,25 @@ subroutine MatGetSubQIMPESImmiscible(A, App, factors1Vec,  ierr, ctx)
                       ctx%insert_colIdx(0:num_col_blocks-1), &
                       ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
     CHKERRQ(ierr)
+    if (ctx%CPR_type == "ADDITIVE") then
+      call MatSetValues(Ass, 1, insert_rows, num_col_blocks, &
+                        ctx%insert_colIdx(0:num_col_blocks-1), &
+                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
   end do
 
   call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
   call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
-  
   call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
   call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
+
+  if (ctx%CPR_type == "ADDITIVE") then
+    call MatAssemblyBegin(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call MatAssemblyEnd(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call VecAssemblyBegin(factors3Vec, ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(factors3vec, ierr);CHKERRQ(ierr)
+  end if
 
 end subroutine MatGetSubQIMPESImmiscible
 
