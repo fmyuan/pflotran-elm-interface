@@ -683,6 +683,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
   PetscReal :: x, y, z
   PetscReal :: x1, x2, y1, y2, z1
   PetscReal :: v1, v2, v3, v4
+  PetscReal :: c, c0, c1, c00, c01, c10, c11, c000, c001, c010, c100, c011, c101, c110, c111, xd, yd, zd, z2
   PetscInt :: index
   PetscInt :: ii, jj, kk
   PetscInt :: i_upper, j_upper, k_upper
@@ -946,6 +947,11 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           index = i + (j-1)*nx
           v1 = this%rarray(index)
           v2 = this%rarray(index+1)
+          print *, nx
+          print *, index
+          print *, "index v1"
+          print *, index+1
+          print *, "index v2"
           
           y1 = this%origin(2) + (j-1)*dy
           if (this%is_cell_centered) y1 = y1 + 0.5d0*dy
@@ -958,8 +964,78 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           
           real_value = InterpolateBilinear(x,y,x1,x2,y1,y2,v1,v2,v3,v4)
         case(DIM_XYZ)
-          option%io_buffer = 'Trilinear interpolation not yet supported'
-          call PrintErrMsgByRank(option)
+!           option%io_buffer = 'Trilinear interpolation not yet supported'
+!           call PrintErrMsgByRank(option)
+          dx = this%discretization(1)
+          dy = this%discretization(2)
+          dz = this%discretization(3)
+          
+          x1 = this%origin(1) + (i-1)*dx
+          if (this%is_cell_centered) x1 = x1 + 0.5d0*dx
+          x2 = x1 + dx
+
+          y1 = this%origin(2) + (j-1)*dy
+          if (this%is_cell_centered) y1 = y1 + 0.5d0*dy
+          y2 = y1 + dy
+
+          z1 = this%origin(3) + (k-1)*dz
+          if (this%is_cell_centered) z1 = z1 + 0.5d0*dz
+          z2 = z1 + dz         
+
+          nx = this%dims(1)
+          ny = this%dims(1)
+          
+          index = i + (j-1)*nx + (k-1)*nx*ny
+
+          c000 = this%rarray(index)
+          c100 = this%rarray(index+1)
+
+          index = i + j*nx + (k-1)*nx*ny
+          
+          c001 = this%rarray(index)
+          c101 = this%rarray(index+1)
+
+          index = i + (j-1)*nx + k*nx*ny
+          
+          c010 = this%rarray(index)
+          c110 = this%rarray(index+1)
+
+          index = i + j*nx + k*nx*ny
+          
+          c011 = this%rarray(index)
+          c111 = this%rarray(index+1)
+
+          if (x2>x1) then
+            xd = (x-x1)/(x2-x1)
+            c00 = c000*(1-xd) + c100*xd
+            c01 = c001*(1-xd) + c101*xd
+            c10 = c010*(1-xd) + c110*xd
+            c11 = c011*(1-xd) + c111*xd
+          else
+            c00 = c000
+            c01 = c001
+            c10 = c010
+            c11 = c011
+          endif
+
+          if (y2>y1) then
+            yd = (y-y1)/(y2-y1)
+            c0 = c00*(1-yd) + c10*yd
+            c1 = c01*(1-yd) + c11*yd
+          else
+            c0 = c00
+            c1 = c01
+          endif
+
+          if (z2>z1) then
+            zd = (z-z1)/(z2-z1)
+            c = c0*(1-zd) +c1*zd
+          else
+            c=c0
+           
+          real_value = c
+
+           
       end select
   end select
   
