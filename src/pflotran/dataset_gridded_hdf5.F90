@@ -947,11 +947,6 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           index = i + (j-1)*nx
           v1 = this%rarray(index)
           v2 = this%rarray(index+1)
-          print *, nx
-          print *, index
-          print *, "index v1"
-          print *, index+1
-          print *, "index v2"
           
           y1 = this%origin(2) + (j-1)*dy
           if (this%is_cell_centered) y1 = y1 + 0.5d0*dy
@@ -964,8 +959,39 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           
           real_value = InterpolateBilinear(x,y,x1,x2,y1,y2,v1,v2,v3,v4)
         case(DIM_XYZ)
-!           option%io_buffer = 'Trilinear interpolation not yet supported'
-!           call PrintErrMsgByRank(option)
+          if (i < 1 .or. i_upper > this%dims(1)) then
+            lerr = PETSC_TRUE
+            write(word,*) i
+            word = adjustl(word)
+            write(option%io_buffer,*) 'X value (', xx, &
+              ') outside of dataset X bounds (', this%origin(1), &
+              this%extent(1), '), i = ' // trim(word)
+            call PrintMsgByRank(option)
+          endif
+          if (j < 1 .or. j_upper > this%dims(2)) then
+            lerr = PETSC_TRUE
+            write(word,*) j
+            word = adjustl(word)
+            write(option%io_buffer,*) 'Y value (', yy, &
+              ') outside of dataset Y bounds (', this%origin(2), &
+              this%extent(2), '), j = ' // trim(word)
+            call PrintMsgByRank(option)
+          endif
+          if (k < 1 .or. k_upper > this%dims(3)) then
+            lerr = PETSC_TRUE
+            write(word,*) k
+            word = adjustl(word)
+            write(option%io_buffer,*) 'Z value (', zz, &
+              ') outside of dataset Z bounds (', this%origin(3), &
+              this%extent(3), '), k = ' // trim(word)
+            call PrintMsgByRank(option)
+          endif
+          if (lerr) then
+            option%io_buffer = trim(DatasetGriddedHDF5GetNameInfo(this)) // &
+              ' - See "Extent of Gridded Domain" above.'
+            call PrintErrMsgByRank(option)
+          endif
+
           dx = this%discretization(1)
           dy = this%discretization(2)
           dz = this%discretization(3)
@@ -1032,6 +1058,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
             c = c0*(1-zd) +c1*zd
           else
             c=c0
+          endif
            
           real_value = c
 
