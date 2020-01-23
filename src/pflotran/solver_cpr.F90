@@ -48,6 +48,20 @@ subroutine SolverCPRRead(stash, input, option, ierr)
     call StringToUpper(keyword)   
       
     select case(trim(keyword))
+      case('CPR_TYPE')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'cpr_type','CPR OPTIONS')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('COMBINATIVE','DEFAULT','CPR1','CPR')
+            stash%CPR_type = 'DEFAULT'
+          case('ADDITIVE','CPR2')
+            stash%CPR_type = 'ADDITIVE'
+          case default
+            option%io_buffer  = 'CPR Preconditioner type: ' // trim(word) // &
+                                ' unknown.'
+            call PrintErrMsg(option)
+        end select
       case('CPRT2_TYPE')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'cprT2_type','CPR OPTIONS')
@@ -87,8 +101,29 @@ subroutine SolverCPRRead(stash, input, option, ierr)
           case('FGMRES')
             !option%CPRT1_type = 'FGMRES'
             stash%T1_type = 'FGMRES'
+          case('GMRES')
+            stash%T1_type = 'GMRES'
           case default
             option%io_buffer  = 'CPR T1 KSP type: ' // trim(word) // &
+                                ' unknown.'
+            call PrintErrMsg(option)
+        end select
+
+      case('CPRT3_TYPE')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'cprT3_type','CPR OPTIONS')
+        call StringToUpper(word)
+        select case(trim(word))
+          case('RICHARDSON')
+            !option%CPRT1_type = 'RICHARDSON'
+            stash%T3_type = 'RICHARDSON'
+          case('FGMRES')
+            !option%CPRT1_type = 'FGMRES'
+            stash%T3_type = 'FGMRES'
+          case('GMRES')
+            stash%T3_type = 'GMRES'
+          case default
+            option%io_buffer  = 'CPR T3 KSP type: ' // trim(word) // &
                                 ' unknown.'
             call PrintErrMsg(option)
         end select
@@ -98,10 +133,16 @@ subroutine SolverCPRRead(stash, input, option, ierr)
         call InputErrorMsg(input,option,'cpr_extraction_type','CPR OPTIONS')
         call StringToUpper(word)
         select case(trim(word))
-          case('QIMPES_VARIABLE')
-            stash%T1_type = 'QIMPES_VARIABLE'
+          case('ABF')
+            stash%extract_type = 'ABF'
+          case('QIMPES_WIPP','QIMPES_IMMISCIBLE','QIMPES_TWO_UNKNOWNS')
+            stash%extract_type = 'QIMPES_TWO_UNKNOWNS'
+          case('QIMPES_VARIABLE','QIMPES_THREE_UNKNOWNS')
+            stash%extract_type = 'QIMPES_THREE_UNKNOWNS'
+          case('QIMPES','QIMPES_ANY_UNKNOWNS','QIMPES_ANY_UNKNOWN')
+            stash%extract_type = 'QIMPES'
           case('QIMPES_VARIABLE_FORCE')
-            stash%T1_type = 'QIMPES_VARIABLE_FORCE'
+            stash%extract_type = 'QIMPES_VARIABLE_FORCE'
           case default
             option%io_buffer  = 'CPR Extraction type: ' // trim(word) // &
                                 ' unknown.'
@@ -140,6 +181,18 @@ subroutine SolverCPRRead(stash, input, option, ierr)
 
       case('CPR_MANUAL_AMG_CONFIG')
         stash%amg_manual = PETSC_TRUE
+
+      case('T1_NO_SCALE')
+        stash%T1_scale = PETSC_FALSE
+
+      case('T1_SCALE')
+        stash%T1_scale = PETSC_TRUE
+      
+      case('T3_NO_SCALE')
+        stash%T3_scale = PETSC_FALSE
+
+      case('T3_SCALE')
+        stash%T3_scale = PETSC_TRUE
 
       case('CPRGAMG')
         stash%useGAMG = PETSC_TRUE
@@ -482,10 +535,20 @@ subroutine SolverCPRInitializeStorage(ctx)
   ! ensure that first run flags are set correctly
   ctx%firstT1Call = PETSC_TRUE
   ctx%firstT2Call = PETSC_TRUE
+  ctx%firstT3Call = PETSC_TRUE
 
+  ! apply cpr to pressure block only unless you expect saturation to be
+  ! diffusion dominated, then choose ADDITIVE
+  ctx%CPR_type = "COMBINATIVE"
   ctx%T1_type = "NONE"
+  ! typically scaling pressure blocks will help
+  ctx%T1_scale = PETSC_TRUE  
   ctx%T2_type = "Jacobi"
-  ctx%extract_type = "QIMPES_VARIABLE"
+  ctx%T3_type = "NONE"
+  ! typically scaling saturation block won't help
+  ctx%T3_scale = PETSC_FALSE
+  ! most general method call
+  ctx%extract_type = "QIMPES"
 
   ctx%asmfactorinplace = PETSC_FALSE
   ctx%t2shiftinblocks = PETSC_FALSE

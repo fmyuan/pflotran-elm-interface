@@ -18,7 +18,7 @@ module CPR_Preconditioner_module
   private
 
   type, public :: cpr_pc_type 
-    Mat :: A, Ap
+    Mat :: A, Ap, As
     ! The two stage CPR preconditioner calls two other preconditioners:
     PC :: T1_PC        ! T1 will be a SHELL pc that extracts the pressure system residual from the
                     ! input residual, then approximates the inverse of Ap acting on that residual
@@ -26,15 +26,19 @@ module CPR_Preconditioner_module
     KSP :: T1_KSP   ! Usually PCONLY, the PC for this KSP is hypre/boomeramg. This is called
                     ! by T1 (above) as the AMG part.
     PC :: T2_PC        ! A regular PC, usually BJACOBI
-    Vec :: T1r,r2, s, z, factors1vec, factors2vec
+    PC :: T3_PC
+    KSP :: T3_KSP
+    
+    Vec :: T1r, T3r, r2, s, z, factors1vec, factors2vec, factors3vec
     PetscInt ::  t2fillin, timescalled, asmoverlap, exrow_offset
-    PetscBool :: firstT1Call, firstT2call, asmfactorinplace, &
+    PetscBool :: firstT1Call, firstT2call, firstT3call, asmfactorinplace, &
                  t2shiftinblocks, zeroing, useGAMG, mv_output, t2_zeroing, &
-                 skip_T1, amg_report, amg_manual
-    character(len=MAXWORDLENGTH) :: T1_type, T2_type, extract_type
+                 skip_T1, amg_report, amg_manual, T1_scale, T3_scale
+    character(len=MAXWORDLENGTH) :: T1_type, T2_type, T3_type, extract_type, &
+                                    CPR_type
     ! following are buffers/workers for the pressure system extraction.
     ! 1d arrays:
-    PetscReal, dimension(:), allocatable :: vals, insert_vals
+    PetscReal, dimension(:), allocatable :: vals, insert_vals, insert_vals2
     PetscInt, dimension(:), allocatable :: colIdx, colIdx_keep, insert_colIdx
     ! 2d arrays:
     PetscReal, dimension(:,:), allocatable :: all_vals
@@ -80,6 +84,7 @@ subroutine CPRApply(p, r, y,ierr)
   ! (output y)
   !
   ! Author: Sebastien Loisel, Daniel Stone 
+  ! Modified by: Heeho Park, Jan 2020.
   ! Date: Oct 2017 - March 2018
   ! 
 
@@ -93,7 +98,7 @@ subroutine CPRApply(p, r, y,ierr)
   PetscErrorCode :: ierr
 
   ! worker vectors:
-  Vec :: t1r, r2
+  Vec :: t1r, t3r, r2
   ! PC context holds workers:
   type(cpr_pc_type), pointer :: ctx
   ! misc variables and parms:
@@ -104,21 +109,31 @@ subroutine CPRApply(p, r, y,ierr)
   one = 1.0
   r2 = ctx%r2
   t1r = ctx%T1r
+  t3r = ctx%T3r
   a = ctx%a
 
   if (ctx%skip_T1) then
     call VecZeroEntries(t1r,ierr); CHKERRQ(ierr)
   else
-    call PCApply(ctx%T1_PC,r,t1r,ierr); CHKERRQ(ierr)
+    call PCApply(ctx%T1_PC,r,t1r,ierr); CHKERRQ(ierr) ! CPR to pres blocks
   endif
 
-  call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)
-  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r1 <- r-r2
+  if (ctx%CPR_type == "ADDITIVE") then
+    ! solving saturations blocks with amg if diffusion dominated
+    call PCApply(ctx%T3_PC,r,t3r,ierr); CHKERRQ(ierr) ! CPR to sat blocks
+    call VecAYPX(t1r,one,t3r,ierr); CHKERRQ(ierr) ! t1r = t3r + t1r
+  end if
+  
+  ! t1r and t3r are pressure and saturation amg solutions, respectively
+  ! r2 is a residual after the amg step, r is the original residual.
+  call MatMult(a,t1r,r2,ierr); CHKERRQ(ierr)  ! r2 = a*t1r  
+  call VecAYPX(r2,-one,r,ierr); CHKERRQ(ierr) ! r2 = r - r2
 
-  call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr)
-
-  call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr)
-
+  call PCApply(ctx%T2_PC,r2,y,ierr); CHKERRQ(ierr) ! ILU(0) with Ay=r2
+  call VecAYPX(y,one,t1r,ierr); CHKERRQ(ierr) ! y = t1r + y
+  
+  !y is the overall changes to pressure and saturation
+  
 end subroutine CPRApply
 
 ! ************************************************************************** !
@@ -149,7 +164,7 @@ subroutine CPRT1Apply(p, x, y,ierr)
   KSP :: ksp
   PC :: amg_pc
   ! misc workers, etc:
-  PetscInt :: b,start,end,k,its
+  PetscInt :: b,start,k,its
   Vec :: s, z
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
@@ -174,8 +189,65 @@ subroutine CPRT1Apply(p, x, y,ierr)
 
   call VecZeroEntries(y,ierr); CHKERRQ(ierr)
   call VecStrideScatter(z,0,y,INSERT_VALUES,ierr); CHKERRQ(ierr)
-
+ 
 end subroutine CPRT1Apply
+
+! ************************************************************************** !
+
+subroutine CPRT3Apply(p, x, y,ierr)
+  ! To be used as a PCSHELL apply routine
+
+  ! 
+  ! Applies the T3 part of the CPR preconditioner
+  ! to r (ourput y)
+  ! where saturation block information is running though amg
+  !
+  ! Author: Heeho Park
+  ! January 2020
+  ! 
+  
+  implicit none
+
+  ! fixed signature: will approximate
+  ! y = inv(A)r using shell preconditioner P:
+  PC :: p
+  Vec :: x
+  Vec :: y
+  PetscErrorCode :: ierr
+
+  ! PC context holds workers:
+  type(cpr_pc_type), pointer :: ctx
+  ! some other KSPs and PCs we'll use:
+  KSP :: ksp
+  PC :: amg_pc
+  ! misc workers, etc:
+  PetscInt :: b,start,k,its
+  Vec :: s, z
+
+  call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
+  s = ctx%s
+  z = ctx%z
+
+  call QIRHS(ctx%factors3Vec, ctx%factors2vec, x, s, ierr)
+
+  ksp = ctx%T3_KSP
+  
+  if (ctx%T3_type /= "NONE") then
+    call KSPSolve(ksp,s,z,ierr); CHKERRQ(ierr)
+    call KSPGetIterationNumber(ksp, its, ierr); CHKERRQ(ierr)
+  else
+    call KSPGetPC(ksp, amg_pc, ierr);CHKERRQ(ierr)
+    call PCApply(amg_pc,s,z,ierr); CHKERRQ(ierr)
+
+    if (ctx%amg_report) then
+      call PCView(amg_pc, PETSC_VIEWER_STDOUT_WORLD, ierr);CHKERRQ(ierr)
+    endif
+  endif
+  
+  ! supposedly saturation is the 2nd unknown of the block.
+  call VecStrideScatter(z,1,y,INSERT_VALUES,ierr); CHKERRQ(ierr)
+  
+end subroutine CPRT3Apply
 
 !  end of CPR apply routines
 ! ************************************************************************** !
@@ -205,6 +277,9 @@ subroutine CPRSetup(p,ierr)
 
   call PCShellGetContext(p, ctx, ierr); CHKERRQ(ierr)
   call CPRSetupT1(ctx, ierr)
+  if (ctx%CPR_type == "ADDITIVE") then
+    call CPRSetupT3(ctx, ierr)
+  end if
   call CPRSetupT2(ctx, ierr)
 
 end subroutine CPRSetup
@@ -240,7 +315,6 @@ subroutine CPRSetupT1(ctx,  ierr)
     call PCSetOperators(ctx%T1_PC,A,A,ierr); CHKERRQ(ierr)
     call KSPSetOperators(ksp,ctx%Ap,ctx%Ap,ierr); CHKERRQ(ierr)
 
-
     ! now sparsity pattern of the Jacobian is defined, 
     ! allocate worker arrays that are big enough to 
     ! be used in the extraction routines coming up.
@@ -251,15 +325,37 @@ subroutine CPRSetupT1(ctx,  ierr)
   end if
 
   call MatZeroEntries(ctx%Ap, ierr); CHKERRQ(ierr)
+  call MatZeroEntries(ctx%As, ierr); CHKERRQ(ierr)
 
   select case(ctx%extract_type)
-    case('QIMPES_VARIABLE')
-       if (b == 3) then
-        ! we have a more efficient version for 3x3 blocks so do that if we can instead
-        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
+    case('ABF')
+      if (b == 2) then
+        call MatGetSubABFImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                    ctx%factors3vec, ierr, ctx)
       else
-        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,  b, ctx)
-      endif
+        ctx%option%io_buffer = 'ABF not available for more than 3 unknowns per cell'
+        call PrintErrMsg(ctx%option)
+      end if
+    case('QIMPES_TWO_UNKNOWNS')
+      call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                     ctx%factors3vec, ierr, ctx)
+    case('QIMPES_THREE_UNKNOWNS')
+      ! we have a more efficient version for 3x3 blocks so do that if we can instead
+      if (b == 3) then
+        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx)
+      else  ! talk to Daniel or Paolo to remove this statement - Heeho
+        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
+      end if 
+    case('QIMPES')
+      if (b == 2) then
+        ! more efficient for 2x2 blocks
+        call MatGetSubQIMPESImmiscible(A, ctx%Ap, ctx%As, ctx%factors1vec, &
+                                       ctx%factors3vec, ierr, ctx)
+      else if (b == 3) then
+        call MatGetSubQIMPES(A, ctx%Ap, ctx%factors1vec,  ierr, ctx) 
+      else
+        call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
+      end if
     case('QIMPES_VARIABLE_FORCE')
       ! force to use the variables block size implementation even for 3x3 blocks
       call MatGetSubQIMPES_var(A, ctx%Ap, ctx%factors1vec,  ierr,   b,  ctx)
@@ -269,6 +365,35 @@ subroutine CPRSetupT1(ctx,  ierr)
   end select
 
 end subroutine CPRSetupT1
+
+! ************************************************************************** !
+
+subroutine CPRSetupT3(ctx,  ierr)
+
+  ! Decoupling of saturation block is done while the pressure block
+  ! was decoupled in CPRSetupT1.
+  !
+  ! Only the simple declaration is required here.
+  !
+  ! Author:  Heeho Park
+  ! January 2020
+
+
+  implicit none
+
+  type(cpr_pc_type) :: ctx
+  PetscErrorCode :: ierr
+
+  KSP :: ksp
+
+  if (ctx%firstT3Call) then
+    ksp = ctx%T3_KSP
+    call PCSetOperators(ctx%T3_PC,ctx%A,ctx%A,ierr); CHKERRQ(ierr)
+    call KSPSetOperators(ksp,ctx%As,ctx%As,ierr); CHKERRQ(ierr)
+    ctx%firstT3Call = .FALSE.
+  end if
+
+end subroutine CPRSetupT3
 
 ! ************************************************************************** !
 
@@ -431,6 +556,9 @@ subroutine CPRMake(p, ctx, c, ierr, option)
 
 
   call CPRCreateT1(c, ctx,  ierr); CHKERRQ(ierr)
+  if (ctx%CPR_type == "ADDITIVE") then
+    call CPRCreateT3(c, ctx,  ierr); CHKERRQ(ierr)
+  end if
   call CPRCreateT2(c, ctx,  ierr); CHKERRQ(ierr)
 
 end subroutine CPRMake
@@ -507,8 +635,77 @@ subroutine CPRCreateT1(c,  ctx,   ierr)
   call PCShellSetApply(ctx%T1_PC,CPRT1apply,ierr); CHKERRQ(ierr)
 
   call PCShellSetContext(ctx%T1_PC, ctx, ierr); CHKERRQ(ierr)
-
+  
 end subroutine CPRCreateT1
+
+! ************************************************************************** !
+
+subroutine CPRCreateT3(c,  ctx,   ierr)
+  !
+  ! The parameters and options of the AMG solver are consistent with
+  ! T1 and cannot create separtion options for this; for now.
+  ! if some solver, does well for parabolic equations then we'll separate
+  ! this from T1.
+  !
+  ! Author: Heeho Park
+  ! January 2020
+  ! 
+
+  implicit none
+
+  MPI_Comm :: c
+  type(cpr_pc_type) :: ctx
+  PetscErrorCode :: ierr
+
+  KSP :: ksp
+  PC :: prec
+
+  call KSPCreate(c,ksp,ierr); CHKERRQ(ierr)
+
+  select case(ctx%T3_type)
+    case('RICHARDSON')
+      call KSPSetType(ksp,KSPRICHARDSON,ierr); CHKERRQ(ierr)
+    case('FGMRES')
+      call KSPSetType(ksp,KSPFGMRES,ierr); CHKERRQ(ierr)
+      call KSPSetTolerances(ksp, 1.0d-3, 1.d0-3, PETSC_DEFAULT_REAL, &
+                            PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr) 
+    case('GMRES')
+      call KSPSetType(ksp,KSPGMRES,ierr); CHKERRQ(ierr)
+    case default
+      ! really we will just skip over the ksp entirely
+      ! in this case, but for completeness..
+      call KSPSetType(ksp,KSPPREONLY,ierr); CHKERRQ(ierr)
+  end select
+
+  call KSPGetPC(ksp,prec,ierr); CHKERRQ(ierr)
+
+  if (ctx%useGAMG) then
+    call PCSetType(prec,PCGAMG,ierr); CHKERRQ(ierr)
+  else
+    call PCSetType(prec,PCHYPRE,ierr); CHKERRQ(ierr)
+#if PETSC_VERSION_GE(3,11,99)
+#if defined(PETSC_HAVE_HYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#else
+#if defined(PETSC_HAVE_LIBHYPRE)
+    call PCHYPRESetType(prec,"boomeramg",ierr); CHKERRQ(ierr)
+#endif
+#endif
+
+  endif
+
+  call KSPSetFromOptions(ksp,ierr); CHKERRQ(ierr)
+  call PetscObjectSetName(ksp,"T3",ierr); CHKERRQ(ierr)
+
+  ctx%T3_KSP = ksp
+  call PCCreate(C,ctx%T3_PC,ierr); CHKERRQ(ierr)
+  call PCSetType(ctx%T3_PC,PCSHELL,ierr); CHKERRQ(ierr)
+  call PCShellSetApply(ctx%T3_PC,CPRT3apply,ierr); CHKERRQ(ierr)
+
+  call PCShellSetContext(ctx%T3_PC, ctx, ierr); CHKERRQ(ierr)
+  
+end subroutine CPRCreateT3
 
 ! ************************************************************************** !
 
@@ -680,6 +877,7 @@ subroutine AllocateWorkersInCPRStash(ctx, n, b)
   ! insert_vals: a real buffer to hold the values we will
   !               insert to the reduced matrix
   allocate(ctx%insert_vals (0:entriesInAReducedRow))
+  allocate(ctx%insert_vals2 (0:entriesInAReducedRow))
   ! colIdx: an integer buffer to hold the column indexes
   !         output from matgetvals
   allocate(ctx%colIdx (0:entriesInARow))
@@ -715,6 +913,7 @@ subroutine DeallocateWorkersInCPRStash(ctx)
 
   if (allocated(ctx%vals))deallocate(ctx%vals)
   if (allocated(ctx%insert_vals))deallocate(ctx%insert_vals)
+  if (allocated(ctx%insert_vals2))deallocate(ctx%insert_vals2)
   if (allocated(ctx%colIdx))deallocate(ctx%colIdx)
   if (allocated(ctx%colIdx_keep))deallocate(ctx%colIdx_keep)
   if (allocated(ctx%insert_colIdx))deallocate(ctx%insert_colIdx)
@@ -727,6 +926,378 @@ end subroutine DeallocateWorkersInCPRStash
 
 ! end of suplementary setup/init/deinit/routines  
 ! ************************************************************************** !
+
+
+! ************************************************************************** !
+subroutine MatGetSubABFImmiscible(A, App, Ass, factors1Vec,  &
+                                  factors3Vec, ierr, ctx)
+  ! 
+  ! extraction of the pressure system matrix of for the 
+  ! CPR preconditioner with 
+  ! Alternate Block Factorization (ABF)
+  ! Decoupling method for 2 unknowns (pressure and saturation)
+  ! in the case of ADDITIVE option,
+  ! this subroutine extracts both pressure and saturation system of the matrix
+  
+  ! Author:  Heeho Park
+  ! Date: January 2020.
+
+  ! applies to 2x2 blocks ONLY (composed of Jacobian element, j)
+  ! [j_pp j_ps]
+  ! [j_sp j_ss]
+  
+
+  implicit none
+
+
+  Mat :: A, App, Ass
+  Vec :: factors1Vec, factors3Vec
+  PetscErrorCode :: ierr
+  type(cpr_pc_type) :: ctx
+
+  PetscInt, dimension(0:0) :: insert_rows
+  ! misc workers:
+  PetscReal :: j_pp, j_ps, j_sp, j_ss, lambda_inv, d_ss_abf, d_ps_abf, &
+               fac0, fac1, fac3, fac4, scaling_factor, scaling_factor2
+  PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
+              first_row, cur_col_index, num_col_blocks, &
+              diag_row_index, loop_index, i, j, num_cols
+  PetscMPIInt :: rank, row_start, row_end
+
+
+  ctx%vals = 0.d0
+  ctx%insert_vals = 0.d0
+  ctx%insert_vals2 = 0.d0
+  ctx%all_vals = 0.d0
+
+  ctx%colIdx = 0
+  ctx%colIdx_keep = 0
+  ctx%insert_colIdx = 0
+  num_cols = 0
+
+  call MPI_Comm_Rank(PETSC_COMM_WORLD, rank, ierr)
+  call MatGetOwnershipRange(A, row_start, row_end, ierr); CHKERRQ(ierr)
+  call MatGetBlockSize(A,block_size,ierr); CHKERRQ(ierr)
+  call MatGetSize(A, rows, cols, ierr); CHKERRQ(ierr)
+  if (rows /= cols) then
+     ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
+    call PrintErrMsg(ctx%option)
+  endif
+  num_blocks = rows/block_size
+  num_blocks_local = (row_end-row_start)/block_size
+
+
+  ! loop over the row blocks
+  do i = 0,num_blocks_local-1
+
+    first_row = i*block_size + row_start
+
+    ! a) extract [j_pp j_ps] of the diagonal block
+    !    and all the values of the first row
+    call MatGetRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ! a.1) store all the values in the first row and their indices
+      ctx%all_vals(0, j) = ctx%vals(j)
+      ctx%colIdx_keep(j) = ctx%colIdx(j)
+    end do
+   
+    diag_row_index = -1
+    do loop_index = 0,num_cols-1,block_size
+      if (ctx%colIdx(loop_index) == first_row) then
+        diag_row_index = loop_index
+      endif
+    enddo
+   
+    if (diag_row_index == -1) then
+      ctx%option%io_buffer = 'MatGetSubQIMPESImmiscible, cannot find &
+                              &diagonal entry, check matrix.'
+      call PrintErrMsg(ctx%option)
+    endif
+
+    ! a.2) extract j_pp j_ps
+    j_pp = ctx%vals(diag_row_index)
+    j_ps = ctx%vals(diag_row_index+1)
+    
+    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
+    CHKERRQ(ierr)
+
+    ! b) extract second row
+    call MatGetRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, ctx%vals, &
+                  ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ctx%all_vals(1, j) = ctx%vals(j)
+    end do
+
+    ! b.1) extract [j_sp j_ss] and invert the value
+    j_sp = ctx%vals(diag_row_index)
+    j_ss = ctx%vals(diag_row_index+1)
+    lambda_inv = 1.0d0/(j_pp*j_ss-j_ps*j_sp)
+
+    ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
+    ! inv(Lamda)*D_ss*r_p - inv(Labmda)*D_ps*r_s -> fac0*r_p + fac1*r_s
+    ! scaling by the first column shown by Daniel's implementation
+    ! this comes from numerical experiments done by David Ponting.
+    ! The scaling factor keeps the shape of long waves of diffusion
+    ! which AMG is really good at resolving; hence, gaining large speed-up.
+    if (ctx%T1_scale) then 
+      scaling_factor = abs(j_pp) + abs(j_sp)
+    else
+      scaling_factor = 1.d0
+    end if
+    fac0 = lambda_inv*j_ss*scaling_factor
+    fac1 = -lambda_inv*j_ps*scaling_factor
+    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+
+    if (ctx%CPR_type == "ADDITIVE") then
+      ! this is effective when you expect saturation to be 
+      ! diffusion-dominant
+      if (ctx%T3_scale) then
+        scaling_factor2 = abs(j_ps) + abs(j_ss)
+      else 
+        scaling_factor2 = 1.d0
+      end if
+      fac3 = -lambda_inv*j_sp*scaling_factor2
+      fac4 = lambda_inv*j_pp*scaling_factor2
+      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
+    
+    num_col_blocks = num_cols/block_size
+    call MatRestoreRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, &
+                       ctx%vals, ierr); CHKERRQ(ierr)
+
+    ! d) prepare to set values
+    insert_rows = i + row_start/block_size
+    do j = 0,num_col_blocks-1
+      cur_col_index = j*block_size
+      ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
+
+      ! lam_inv*Dss*App-lam_inv*Dps*Asp
+      ! apply decoupling to the left hand side
+      ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
+                           + fac1*ctx%all_vals(1,cur_col_index)
+      if (ctx%CPR_type == "ADDITIVE") then
+        ! -lam_inv*Dsp*Aps+lam_inv*Dpp*Ass
+        ctx%insert_vals2(j) = fac3*ctx%all_vals(0,cur_col_index+1) &
+                              + fac4*ctx%all_vals(1,cur_col_index+1)
+      end if
+    end do
+
+    ! e) set values
+    call MatSetValues(App, 1, insert_rows, num_col_blocks, &
+                      ctx%insert_colIdx(0:num_col_blocks-1), &
+                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+
+    if (ctx%CPR_type == "ADDITIVE") then
+      call MatSetValues(Ass, 1, insert_rows, num_col_blocks, &
+                        ctx%insert_colIdx(0:num_col_blocks-1), &
+                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
+    
+  end do
+
+  call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+  call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+
+  call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
+
+  if (ctx%CPR_type == "ADDITIVE") then
+    call MatAssemblyBegin(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call MatAssemblyEnd(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call VecAssemblyBegin(factors3Vec, ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(factors3vec, ierr);CHKERRQ(ierr)
+  end if
+
+end subroutine MatGetSubABFImmiscible
+
+
+! ************************************************************************** !
+
+subroutine MatGetSubQIMPESImmiscible(A, App, Ass, factors1Vec, &
+                                     factors3Vec, ierr, ctx)
+  ! 
+  ! extraction of the pressure system matrix of for the 
+  ! CPR preconditioner with 
+  ! Quasi Implicit Pressure Explicit Saturation (IMPES)
+  ! Decoupling method for 2 unknowns (pressure and saturation)
+  
+  ! Author:  Heeho Park
+  ! Date: January 2020.
+
+  ! applies to 2x2 blocks ONLY (composed of Jacobian element, j)
+  ! [j_pp j_ps]
+  ! [j_sp j_ss]
+  
+
+  implicit none
+
+
+  Mat :: A, App, Ass
+  Vec :: factors1Vec, factors3Vec
+  PetscErrorCode :: ierr
+  type(cpr_pc_type) :: ctx
+
+  PetscInt, dimension(0:0) :: insert_rows
+  ! misc workers:
+  PetscReal :: j_ps, j_ss, j_ps_j_ss_inv, fac0, fac1, &
+               j_pp, j_sp, fac3, fac4, j_sp_j_pp_inv
+  PetscInt :: block_size, rows, cols, num_blocks, num_blocks_local, &
+              first_row, cur_col_index, num_col_blocks, &
+              diag_row_index, loop_index, i, j, num_cols
+  PetscMPIInt :: rank, row_start, row_end
+
+
+  ctx%vals = 0.d0
+  ctx%insert_vals = 0.d0
+  ctx%all_vals = 0.d0
+
+  ctx%colIdx = 0
+  ctx%colIdx_keep = 0
+  ctx%insert_colIdx = 0
+  num_cols = 0
+
+  call MPI_Comm_Rank(PETSC_COMM_WORLD, rank, ierr)
+  call MatGetOwnershipRange(A, row_start, row_end, ierr); CHKERRQ(ierr)
+  call MatGetBlockSize(A,block_size,ierr); CHKERRQ(ierr)
+  call MatGetSize(A, rows, cols, ierr); CHKERRQ(ierr)
+  if (rows /= cols) then
+     ctx%option%io_buffer = 'MatGetSubQIMPES, given a nonsquare matrix'
+    call PrintErrMsg(ctx%option)
+  endif
+  num_blocks = rows/block_size
+  num_blocks_local = (row_end-row_start)/block_size
+
+
+  ! loop over the row blocks
+  do i = 0,num_blocks_local-1
+
+    first_row = i*block_size + row_start
+
+    ! a) extract j_ps of the diagonal block and all the values of the first row
+    call MatGetRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ! a.1) store all the values in the first row and their indices
+      ctx%all_vals(0, j) = ctx%vals(j)
+      ctx%colIdx_keep(j) = ctx%colIdx(j)
+    end do
+   
+    diag_row_index = -1
+    do loop_index = 0,num_cols-1,block_size
+      if (ctx%colIdx(loop_index) == first_row) then
+        diag_row_index = loop_index
+      endif
+    enddo
+   
+    if (diag_row_index == -1) then
+      ctx%option%io_buffer = 'MatGetSubQIMPESImmiscible, cannot find &
+                              &diagonal entry, check matrix.'
+      call PrintErrMsg(ctx%option)
+    endif
+
+    ! a.2) extract j_pp,j_ps
+    j_pp = ctx%vals(diag_row_index)
+    j_ps = ctx%vals(diag_row_index+1)  
+    call MatRestoreRow(A, first_row, num_cols, ctx%colIdx, ctx%vals, ierr)
+    CHKERRQ(ierr)
+
+    ! b) extract second row
+    call MatGetRow(A, first_row+1, num_cols, PETSC_NULL_INTEGER, ctx%vals, &
+                  ierr); CHKERRQ(ierr)
+    do j = 0,num_cols-1
+      ctx%all_vals(1, j) = ctx%vals(j)
+    end do
+
+    ! b.1) extract j_sp, j_ss and invert the value
+    j_sp = ctx%vals(diag_row_index)
+    j_ss = ctx%vals(diag_row_index+1)
+    if (j_ss == 0.d0) then
+      ! to avoid NaNs
+      j_ps_j_ss_inv = 0.d0
+    else
+      j_ps_j_ss_inv = j_ps*1.d0/j_ss
+    end if 
+    
+    num_col_blocks = num_cols/block_size
+    call MatRestoreRow(a, first_row+1, num_cols, PETSC_NULL_INTEGER, &
+                       ctx%vals, ierr); CHKERRQ(ierr)
+                       
+    ! c) storing factors to later multiply to the RHS vector, b, in QIRHS
+    ! r_p - D_ps*inv(D_ss)*r_s -> fac0*r_p + fac1*r_s
+    fac0 = 1.d0
+    fac1 = -j_ps_j_ss_inv
+    call VecSetValue(factors1Vec, first_row, fac0, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+    call VecSetValue(factors1Vec, first_row+1, fac1, INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+    if (ctx%CPR_type == "ADDITIVE") then
+      ! -D_sp*inv(D_pp)*r_p + r_s -> fac3*r_p + fac4*r_s
+      ! this is effective when you expect saturation to be 
+      ! diffusion-dominant
+      if (j_pp == 0.d0) then
+        ! to avoid NaNs
+        j_sp_j_pp_inv = 0.d0
+      else
+        j_sp_j_pp_inv = j_sp*1.d0/j_pp
+      end if
+      fac3 = -j_sp_j_pp_inv
+      fac4 = 1.d0
+      call VecSetValue(factors3Vec, first_row, fac3, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+      call VecSetValue(factors3Vec, first_row+1, fac4, INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
+   
+    ! d) prepare to set values
+    insert_rows = i + row_start/block_size
+    do j = 0,num_col_blocks-1
+      cur_col_index = j*block_size
+      ctx%insert_colIdx(j) = ctx%colIdx_keep(cur_col_index)/block_size
+
+      ! Apply decoupling to the left hand side matrix
+      ! A_pp - D_ps*inv(D_ss)*A_sp
+      ctx%insert_vals(j) = fac0*ctx%all_vals(0,cur_col_index) &
+                           + fac1*ctx%all_vals(1,cur_col_index)
+      if (ctx%CPR_type == "ADDITIVE") then
+        ! -D_sp*inv(D_pp)*A_ps + A_ss
+        ctx%insert_vals2(j) = fac3*ctx%all_vals(0,cur_col_index+1) &
+                              + fac4*ctx%all_vals(1,cur_col_index+1)
+      end if
+    end do
+
+    ! e) set values
+    call MatSetValues(App, 1, insert_rows, num_col_blocks, &
+                      ctx%insert_colIdx(0:num_col_blocks-1), &
+                      ctx%insert_vals(0:num_col_blocks-1), INSERT_VALUES, ierr)
+    CHKERRQ(ierr)
+    if (ctx%CPR_type == "ADDITIVE") then
+      call MatSetValues(Ass, 1, insert_rows, num_col_blocks, &
+                        ctx%insert_colIdx(0:num_col_blocks-1), &
+                        ctx%insert_vals2(0:num_col_blocks-1), INSERT_VALUES, ierr)
+      CHKERRQ(ierr)
+    end if
+  end do
+
+  call MatAssemblyBegin(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+  call MatAssemblyEnd(App,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+  call VecAssemblyBegin(factors1Vec, ierr);CHKERRQ(ierr)
+  call VecAssemblyEnd(factors1vec, ierr);CHKERRQ(ierr)
+
+  if (ctx%CPR_type == "ADDITIVE") then
+    call MatAssemblyBegin(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call MatAssemblyEnd(Ass,MAT_FINAL_ASSEMBLY,ierr); CHKERRQ(ierr)
+    call VecAssemblyBegin(factors3Vec, ierr);CHKERRQ(ierr)
+    call VecAssemblyEnd(factors3vec, ierr);CHKERRQ(ierr)
+  end if
+
+end subroutine MatGetSubQIMPESImmiscible
 
 
 ! ************************************************************************** !
@@ -1071,6 +1642,19 @@ subroutine QIRHS(factors, worker, r, rhat, ierr)
 
   PetscInt :: b, k
 
+  ! Explanation:
+  ! residual = [p1,s1,t1,p2,s2,t2, ... pn,sn,tn] 
+  ! as in pressure saturation temperature
+  ! factors = [fac0_1,fac1_1,fac2_1,fac0_2,fac1_2,fac2_3 ... ]
+  ! fac could be j_ps*inv(j_ss)
+  ! multipily factor to residual element by element
+  ! worker =  [p1*fac0_1,s1*fac1_1,t1*fac2_1 ... ]
+  ! then VecStrideGather collapses the results applying addition
+  ! rhat[1] = p1*fac0_1 + s1*fac1_1 + t1*fac2_1
+  ! rhat[2] = p2*fac0_2 + s2*fac1_2 + t2*fac2_2
+  ! so that size(rhat) = size(r)/b
+  ! - Heeho Park
+  
   call VecPointwiseMult(worker, factors, r, ierr);CHKERRQ(ierr)
   call VecGetBlockSize(worker,b,ierr); CHKERRQ(ierr)
   k = 0
