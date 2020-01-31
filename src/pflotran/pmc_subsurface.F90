@@ -1361,10 +1361,17 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                     cpr_ap_mat_type, &
                                     solver%cprstash%Ap, &
                                     option)
-
+  call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                    ONEDOF, &
+                                    cpr_ap_mat_type, &
+                                    solver%cprstash%As, &
+                                    option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%T1r, &
                                   GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%T3r, &
+                                  GLOBAL, option)                                  
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%r2, &
                                   GLOBAL, option)
@@ -1381,6 +1388,9 @@ subroutine CPRWorkersCreate(pm, solver, option)
                                   GLOBAL, option)
   call DiscretizationCreateVector(pm%realization%discretization, &
                                   NFLOWDOF, solver%cprstash%factors2vec, &
+                                  GLOBAL, option)
+  call DiscretizationCreateVector(pm%realization%discretization, &
+                                  NFLOWDOF, solver%cprstash%factors3vec, &
                                   GLOBAL, option)
 end subroutine CPRWorkersCreate
 
