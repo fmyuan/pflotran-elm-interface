@@ -3523,7 +3523,7 @@ end subroutine PMWSSUpdateChemSpecies
           cwp%gas_generation_rate(i) = cwp%gas_generation_rate(i) + &
                                      h2_produced_rad / MW_H2 * &
                                      cwp%scaling_factor(i)
-          ! MAN: need to only take water out of the brine?
+          ! Only takes water out of the brine
           cwp%brine_generation_rate(i) = cwp%brine_generation_rate(i) + &
                                         brine_consumed_rad / MW_H2O * &
                                         cwp%scaling_factor(i)
