@@ -182,14 +182,14 @@ module TOWG_module
       PetscBool :: analytical_derivatives
     end subroutine TOWGSrcSinkDummy
 
-    subroutine TOWGCheckUpdatePreDummy(line_search,X,dX,changed,realization, &
+    subroutine TOWGCheckUpdatePreDummy(snes,X,dX,changed,realization, &
                                        max_it_before_damping,damping_factor, &
                                        max_pressure_change,ierr)
       use Realization_Subsurface_class
 #include "petsc/finclude/petscsnes.h"
       use petscsnes
       implicit none
-      SNESLineSearch :: line_search
+      SNES :: snes
       Vec :: X
       Vec :: dX
       PetscBool :: changed
@@ -5656,7 +5656,7 @@ end subroutine TOWGJacobian
 
 ! ************************************************************************** !
 
-subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
+subroutine TOWGImsTLCheckUpdatePre(snes,X,dX,changed,realization, &
                                    max_it_before_damping,damping_factor, &
                                    max_pressure_change,ierr)
   ! 
@@ -5671,7 +5671,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -5705,7 +5705,7 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
+
   PetscInt :: newton_iteration
 
   
@@ -5714,7 +5714,6 @@ subroutine TOWGImsTLCheckUpdatePre(line_search,X,dX,changed,realization, &
   field => realization%field
   patch => realization%patch
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -5833,7 +5832,7 @@ end subroutine TOWGImsTLCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
+subroutine TOWGBlackOilCheckUpdatePre(snes,X,dX,changed,realization, &
                                       max_it_before_damping,damping_factor, &
                                       max_pressure_change,ierr)
 !------------------------------------------------------------------------------
@@ -5851,7 +5850,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -5883,7 +5882,7 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
+
   PetscInt :: newton_iteration,istate
 
   PetscReal :: scand
@@ -5900,7 +5899,6 @@ subroutine TOWGBlackOilCheckUpdatePre(line_search,X,dX,changed,realization, &
 
   global_auxvars => patch%aux%Global%auxvars
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)

@@ -319,24 +319,14 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                  PMCheckConvergence, &
-                                  this%pm_ptr%pm, &
-#else
-                                        PMCheckConvergencePtr, &
-                                        this%pm_ptr, &
-#endif
+                                  PMCheckConvergencePtr, &
+                                  this%pm_ptr, &
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       if (pm%check_post_convergence) then
         call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                        PMCheckUpdatePost, &
-                                        this%pm_ptr%pm, &
-#else
                                         PMCheckUpdatePostPtr, &
                                         this%pm_ptr, &
-#endif
                                         ierr);CHKERRQ(ierr)
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE

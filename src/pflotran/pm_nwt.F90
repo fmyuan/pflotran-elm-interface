@@ -645,7 +645,7 @@ end subroutine PMNWTCheckConvergence
 
 ! ************************************************************************** !
 
-subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMNWTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! In the case of the log formulation, ensures that the update
   ! vector does not exceed a prescribed tolerance
@@ -661,7 +661,7 @@ subroutine PMNWTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_nwt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -758,7 +758,7 @@ end subroutine PMNWTCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMNWTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMNWTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                 X1_changed,ierr)
   ! 
   ! Checks convergence after the solution update
@@ -776,7 +776,7 @@ subroutine PMNWTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_nwt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

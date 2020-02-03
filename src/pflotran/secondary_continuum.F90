@@ -1387,7 +1387,7 @@ end subroutine SecondaryRTResJacMulti
 
 ! ************************************************************************** !
 
-subroutine SecondaryRTUpdateIterate(line_search,P0,dP,P1,dX_changed, &
+subroutine SecondaryRTUpdateIterate(snes,P0,dP,P1,dX_changed, &
                                     X1_changed,realization,ierr)
   ! 
   ! Checks update after the update is done
@@ -1405,7 +1405,7 @@ subroutine SecondaryRTUpdateIterate(line_search,P0,dP,P1,dX_changed, &
  
   implicit none
   
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: P0
   Vec :: dP
   Vec :: P1
