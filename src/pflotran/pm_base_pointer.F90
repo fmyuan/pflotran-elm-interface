@@ -25,9 +25,7 @@ module PM_Base_Pointer_module
     class(pm_base_type), pointer :: pm
   end type pm_base_pointer_type
 
-  public :: PMResidual, &
-            PMJacobian, &
-            PMRHSFunction, &
+  public :: PMRHSFunction, &
             PMResidualPtr, &
             PMJacobianPtr, &
             PMCheckUpdatePrePtr, &
@@ -38,35 +36,6 @@ module PM_Base_Pointer_module
             PMIJacobianPtr
 
 contains
-
-! ************************************************************************** !
-
-subroutine PMResidual(snes,xx,r,this,ierr)
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/14/13
-  ! 
-
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-  use Option_module
-  use Realization_Subsurface_class
-  
-  implicit none
-
-  SNES :: snes
-  Vec :: xx
-  Vec :: r
-  class(pm_base_type) :: this
-  PetscErrorCode :: ierr
-  
-#ifdef DEBUG
-  print *, 'PMResidual()'
-#endif
-
-  call this%Residual(snes,xx,r,ierr)
-
-end subroutine PMResidual
 
 ! ************************************************************************** !
 
@@ -96,34 +65,6 @@ subroutine PMResidualPtr(snes,xx,r,this,ierr)
   call this%pm%Residual(snes,xx,r,ierr)
 
 end subroutine PMResidualPtr
-
-! ************************************************************************** !
-
-subroutine PMJacobian(snes,xx,A,B,this,ierr)
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/14/13
-  ! 
-
-#include "petsc/finclude/petscsnes.h"
-  use petscsnes
-  use Option_module
-  
-  implicit none
-
-  SNES :: snes
-  Vec :: xx
-  Mat :: A, B
-  class(pm_base_type) :: this
-  PetscErrorCode :: ierr
-  
-#ifdef DEBUG
-  print *, 'PMJacobian()'
-#endif
-
-  call this%Jacobian(snes,xx,A,B,ierr)
-    
-end subroutine PMJacobian
 
 ! ************************************************************************** !
 
