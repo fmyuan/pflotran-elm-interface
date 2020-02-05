@@ -136,6 +136,7 @@ module Hydrate_Aux_module
   PetscReal, parameter :: lambda_hyd = 0.49d0 !W/m-K
 
   PetscInt, public :: HYDRATE_PERM_SCALING_FUNCTION = 0
+  PetscInt, public :: HYDRATE_PHASE_BOUNDARY = 1
   PetscBool, public :: HYDRATE_PERM_SCALING = PETSC_FALSE
   PetscBool, public :: HYDRATE_EFF_SAT_SCALING = PETSC_FALSE
   PetscBool, public :: HYDRATE_WITH_GIBBS_THOMSON = PETSC_FALSE
@@ -927,11 +928,11 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       call EOSWaterSaturationPressure(hyd_auxvar%temp, &
                                           hyd_auxvar%pres(spid),ierr)
 
-      hyd_auxvar%pres(spid) = 1.d-6
+      !hyd_auxvar%pres(spid) = 1.d-6
       hyd_auxvar%pres(cpid) = 0.d0
       ! Setting air pressure equal to gas pressure makes forming hydrate
       ! easier
-      hyd_auxvar%pres(apid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(spid)
+      hyd_auxvar%pres(apid) = hyd_auxvar%pres(gid) !- hyd_auxvar%pres(spid)
       hyd_auxvar%pres(lid) = hyd_auxvar%pres(gid)
       hyd_auxvar%pres(vpid) = hyd_auxvar%pres(gid) - hyd_auxvar%pres(apid)
 
@@ -2197,7 +2198,7 @@ subroutine HydrateAuxVarUpdateState(x,hyd_auxvar,global_auxvar, &
 !     Primary variables: Pg, Xma, T
 !
         x(HYDRATE_LIQUID_PRESSURE_DOF) = hyd_auxvar%pres(gid)
-        x(HYDRATE_L_STATE_X_MOLE_DOF) = hyd_auxvar%xmol(acid,lid)
+        x(HYDRATE_L_STATE_X_MOLE_DOF) = max(0.d0,hyd_auxvar%xmol(acid,lid))
         x(HYDRATE_ENERGY_DOF) = hyd_auxvar%temp
 
       case(G_STATE)
@@ -3493,30 +3494,41 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   dP = 0.d0
 
   if (T < TQD) then
-    !Moridis, 2003
-    !PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
-    !      - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * T_temp**3 &
-    !      - 1.03669656828834d-7 * T_temp**4 + 1.09882180475307d-10 * T_temp**5)
-    !Kamath, 1984
-    PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
+    select case(HYDRATE_PHASE_BOUNDARY)
+      case(1)
+        !Kamath, 1984
+        PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
+      case(2)
+        !Moridis, 2003
+        PE = exp(-43.8921173434628 + 0.776302133739303 * T_temp &
+             - 7.27291427030502d-3 * T_temp**2 + 3.85413985900724d-5 * &
+             T_temp**3 - 1.03669656828834d-7 * T_temp**4 + &
+             1.09882180475307d-10 * T_temp**5)
+    end select
   else
-    !Moridis, 2003
-    !PE = exp(-1.9413850446456d5 + 3.31018213397926d3 * T_temp &
-    !      - 22.5540264493806* T_temp**2 + 0.0767559117787059 * T_temp**3 &
-    !      - 1.30465829788791d-4 * T_temp**4 + 8.86065316687571d-8 * T_temp**5)
-    !if (HYDRATE_ADJUST_GHSZ_SOLUBILITY) then
-    !  dP = PE - exp(-1.9413850446456d5 + 3.31018213397926d3 * (T_temp-dTf) &
-    !      - 22.5540264493806*(T_temp-dTf)**2 + 0.0767559117787059 * &
-    !      (T_temp-dTf)**3 - 1.30465829788791d-4 * (T_temp-dTf)**4 + &
-    !      8.86065316687571d-8 * (T_temp-dTf)**5)
-    !endif
-
-    !Kamath, 1984
-    PE = exp(3.898d1-8.533d3/T_temp)*1.d-3
-    !if (HYDRATE_ADJUST_GHSZ_SOLUBILITY) then
-    !  dP = PE - exp(3.899d1 - 8.533d3/(T_temp - dTf))* 1.d-3
-    !  dP = dP * 1.d6
-    !endif
+    select case(HYDRATE_PHASE_BOUNDARY)
+      case(1)
+        !Kamath, 1984
+        PE = exp(3.898d1-8.533d3/T_temp)*1.d-3
+        if (HYDRATE_ADJUST_GHSZ_SOLUBILITY) then
+          dP = PE - exp(3.898d1 - 8.533d3/(T_temp - dTf))* 1.d-3
+          dP = dP * 1.d6
+        endif
+      case(2)
+        !Moridis, 2003
+        PE = exp(-1.9413850446456d5 + 3.31018213397926d3 * T_temp &
+             - 22.5540264493806* T_temp**2 + 0.0767559117787059 * T_temp**3 &
+             - 1.30465829788791d-4 * T_temp**4 + 8.86065316687571d-8 * &
+             T_temp**5)
+        if (HYDRATE_ADJUST_GHSZ_SOLUBILITY) then
+            dP = PE - exp(-1.9413850446456d5 + 3.31018213397926d3 * &
+                 (T_temp-dTf) &
+             - 22.5540264493806*(T_temp-dTf)**2 + 0.0767559117787059 * &
+             (T_temp-dTf)**3 - 1.30465829788791d-4 * (T_temp-dTf)**4 + &
+             8.86065316687571d-8 * (T_temp-dTf)**5)
+        dP = dP * 1.d6
+        endif
+    end select
 
   endif
 
@@ -3621,17 +3633,22 @@ subroutine HydrateGHSZSolubilityCorrection(T,P,dP,K_H)
 
   ! Inverting the Moridis equation
   if (T > TQD) then
-    !Lower-order
-    !T3 = 9.0622d0 * log((P-dP)*1.d-6) + 264.66d0
+    select case (HYDRATE_PHASE_BOUNDARY)
+      case(1)
+        !Kamath
+        T3 = -8.533d3/(log((P-dP)/1.d6*1.d3)-3.898d1)
+      case(2)
+        !Moridis
+        !Lower-order
+        T3 = 9.0622d0 * log((P-dP)*1.d-6) + 264.66d0
 
-    !Higher-order
-    !logP = log((P-dP)*1.d-6)
-    !T3 = -1.09874018d-2*logP**6 + 1.73301550d-1*logP**5 - &
-    !     9.67897401d-1*logP**4 + 2.34919362d0*logP**3  - 2.77146625d0*logP**2 +&
-    !     1.13889445d1*logP + 2.63495959d2
+        !Higher-order
+        !logP = log((P-dP)*1.d-6)
+        !T3 = -1.09874018d-2*logP**6 + 1.73301550d-1*logP**5 - &
+        !     9.67897401d-1*logP**4 + 2.34919362d0*logP**3  - &
+        !     2.77146625d0*logP**2 + 1.13889445d1*logP + 2.63495959d2
 
-    !Kamath
-    T3 = -8.533d3/(log((P-dP)/1.d6*1.d3)-3.898d1)
+    end select
   else
     T3 = T + 273.15d0
   endif
