@@ -137,6 +137,7 @@ module Hydrate_Aux_module
 
   PetscInt, public :: HYDRATE_PERM_SCALING_FUNCTION = 0
   PetscInt, public :: HYDRATE_PHASE_BOUNDARY = 1
+  PetscInt, public :: HYDRATE_HENRYS_CONSTANT = 1
   PetscBool, public :: HYDRATE_PERM_SCALING = PETSC_FALSE
   PetscBool, public :: HYDRATE_EFF_SAT_SCALING = PETSC_FALSE
   PetscBool, public :: HYDRATE_WITH_GIBBS_THOMSON = PETSC_FALSE
@@ -3593,15 +3594,18 @@ subroutine HenrysConstantMethane(T,K_H)
 
   T_temp = T + 273.15d0
 
-  !Carroll & Mather  Units: Pa/mol frac
-  K_H = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
+  select case(HYDRATE_HENRYS_CONSTANT)
+    case(1)
+      !Carroll & Mather  Units: Pa/mol frac
+      K_H = exp(5.1345 + 7837.d0/T_temp - 1.509d6/(T_temp**2) + 2.06d7/ &
             (T_temp**3)) *1.d3
-
-  !Cramer, 1982
-  !K_H = 1.d5*(24582.4d0 + 6.71091d2*T + 6.87067d0*T **2 - &
-  !            1.773079d-1*T**3 + 1.09652d-03*T**4 - &
-  !            3.19599d-6*T**5 + 4.46172d-9*T**6 - &
-  !            2.40294d-12*T**7)
+    case(2)
+      !Cramer, 1982
+      K_H = 1.d5*(24582.4d0 + 6.71091d2*T + 6.87067d0*T**2 - &
+                  1.773079d-1*T**3 + 1.09652d-03*T**4 - &
+                  3.19599d-6*T**5 + 4.46172d-9*T**6 - &
+                  2.40294d-12*T**7)
+  end select
 
 end subroutine HenrysConstantMethane
 

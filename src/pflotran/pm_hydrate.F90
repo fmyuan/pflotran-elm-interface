@@ -273,6 +273,18 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_PHASE_BOUNDARY',option)
         end select
+      case('HENRYS_CONSTANT')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'hydrate phase boundary', &
+                                 error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('CRAMER')
+            HYDRATE_HENRYS_CONSTANT = 2
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE_HENRYS_CONSTANT',option)
+        end select
       case('EFFECTIVE_SAT_SCALING')
         HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
       case('WITH_GIBBS_THOMSON')
