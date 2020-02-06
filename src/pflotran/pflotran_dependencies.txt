@@ -18,11 +18,12 @@ characteristic_curves.o : characteristic_curves_base.o \
                           characteristic_curves_common.o \
                           characteristic_curves_owg.o \
                           characteristic_curves_table.o \
-                          characteristic_curves_wipp.o input_aux.o option.o \
-                          pflotran_constants.o string.o
+                          characteristic_curves_wipp.o dataset_ascii.o \
+                          input_aux.o option.o pflotran_constants.o string.o
 characteristic_curves_base.o : material_aux.o option.o pflotran_constants.o
-characteristic_curves_common.o : characteristic_curves_base.o material_aux.o \
-                                 option.o pflotran_constants.o utility.o
+characteristic_curves_common.o : characteristic_curves_base.o dataset_ascii.o \
+                                 material_aux.o option.o pflotran_constants.o \
+                                 utility.o
 characteristic_curves_owg.o : characteristic_curves_base.o \
                               characteristic_curves_common.o \
                               characteristic_curves_table.o \

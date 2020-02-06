@@ -168,6 +168,8 @@ subroutine CharacteristicCurvesRead(this,input,option)
             this%saturation_function => SF_KRP12_Create()
           case('IGHCC2_COMP')
             this%saturation_function => SF_IGHCC2_Comp_Create()
+          case('LOOKUP_TABLE')
+            this%saturation_function => SF_Table_Create()
           case default
             call InputKeywordUnrecognized(input,word,'SATURATION_FUNCTION', &
                                           option)
@@ -383,6 +385,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('IGHCC2_COMP_GAS')
             rel_perm_function_ptr => RPF_IGHCC2_Comp_Gas_Create()
             phase_keyword = 'GAS'
+          case('TABLE_LIQ')
+            rel_perm_function_ptr => RPF_TABLE_Liq_Create()
+            phase_keyword = 'LIQUID'
+          case('TABLE_GAS')
+            rel_perm_function_ptr => RPF_TABLE_Gas_Create()
+            phase_keyword = 'GAS'
           case('CONSTANT')
             rel_perm_function_ptr => RPF_Constant_Create()
             ! phase_keyword = 'NONE'
@@ -593,6 +601,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -600,8 +609,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: keyword, internal_units
+  character(len=MAXSTRINGLENGTH) :: error_string, table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
 
@@ -639,6 +648,8 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
       error_string = trim(error_string) // 'BRAGFLO_KRP12'
     class is(sat_func_IGHCC2_Comp_type)
       error_string = trim(error_string) // 'IGHCC2_COMP'
+    class is (sat_func_Table_type) 
+      error_string = trim(error_string) // 'LOOKUP_TABLE'
   end select
   
   call InputPushBlock(input,option)
@@ -971,6 +982,15 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputKeywordUnrecognized(input,keyword, &
                    'saturation function IGHCC2 Comparison',option)
         end select
+      class is (sat_func_Table_type)
+        select case(keyword)
+          case('FILE')
+            internal_units = 'unitless , Pa'
+            call InputReadFilename(input,option,table_name)
+            call DatasetAsciiReadFile(sf%pc_dataset,table_name, &
+                                      temp_string, internal_units, &
+                                      error_string,option)
+        end select
     !------------------------------------------
       class default
         option%io_buffer = 'Read routine not implemented for ' &
@@ -1025,6 +1045,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
   use Option_module
   use Input_Aux_module
   use String_module
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -1034,7 +1055,9 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, new_phase_keyword
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: table_name, temp_string
   PetscBool :: found
   PetscBool :: smooth
 
@@ -1113,6 +1136,10 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'IGHCC2_COMP_LIQ'
     class is(rpf_IGHCC2_Comp_gas_type)
       error_string = trim(error_string) // 'IGHCC2_COMP_GAS'
+    class is(rpf_Table_liq_type)
+      error_string = trim(error_string) // 'LOOKUP_TABLE_LIQ'
+    class is(rpf_Table_gas_type)
+      error_string = trim(error_string) // 'LOOKUP_TABLE_GAS'
     class is(rel_perm_func_constant_type)
       error_string = trim(error_string) // 'CONSTANT'
   end select
@@ -1606,6 +1633,37 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
           case default
             call InputKeywordUnrecognized(input,keyword, &
               'IGHCC2 Comparison gas rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_Table_liq_type)
+        select case(keyword)
+          case('FILE')
+            internal_units = 'unitless , unitless'
+            call InputReadFilename(input,option,table_name)
+            call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
+                                      temp_string, internal_units, &
+                                      error_string,option)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+              'Lookup Table liquid rel perm function', &
+              option)
+        end select
+    !------------------------------------------
+      class is(rpf_Table_gas_type)
+        select case(keyword)
+          case('FILE')
+            internal_units = 'unitless , unitless'
+            call InputReadFilename(input,option,table_name)
+            call DatasetAsciiReadFile(rpf%rpf_dataset,table_name, &
+                                      temp_string, internal_units, &
+                                      error_string,option)
+          case('GAS_RESIDUAL_SATURATION')
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case default
+            call InputKeywordUnrecognized(input,keyword, &
+              'Lookup Table gas rel perm function', &
               option)
         end select
     !------------------------------------------
