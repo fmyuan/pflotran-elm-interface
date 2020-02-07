@@ -3497,7 +3497,8 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
   if (T < TQD) then
     select case(HYDRATE_PHASE_BOUNDARY)
       case(1)
-        !Kamath, 1984
+        !Kamath, 1984. The reason this is default is because it is
+        !              invertible.
         PE = exp(1.4717d1-1.88679d3/T_temp)*1.d-3
       case(2)
         !Moridis, 2003
@@ -3541,7 +3542,7 @@ end subroutine HydratePE
 subroutine HydrateMethanogenesis(z,offset,hydrate_parameter,q_meth)
 
   ! A simple methanogenesis source parameterized as a function of depth
-  ! assuming top of domain is the seafloor
+  ! assuming top of domain is the seafloor.
   ! Author: Michael Nole
   ! Date: 03/05/19
   !
@@ -3564,6 +3565,7 @@ subroutine HydrateMethanogenesis(z,offset,hydrate_parameter,q_meth)
   z_smt = methanogenesis%z_smt
 
   if (offset - z > z_smt) then
+    ! Malinverno, 2011
     q_meth = k_alpha * lambda * alpha * exp(-lambda/omega * (offset - &
                                     z - z_smt))
   else

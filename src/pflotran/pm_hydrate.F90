@@ -275,7 +275,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         end select
       case('HENRYS_CONSTANT')
         call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'hydrate phase boundary', &
+        call InputErrorMsg(input,option,'hydrate Henrys constant', &
                                  error_string)
         call StringToUpper(word)
         select case(word)
