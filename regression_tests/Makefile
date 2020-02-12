@@ -85,7 +85,7 @@ STANDARD_CFG = \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	general/hydrate/hydrate.cfg \
-        ngee/ngee.cfg \
+	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
@@ -94,10 +94,10 @@ STANDARD_CFG = \
 	wipp/wipp_flow/condition/condition.cfg \
 	wipp/wipp_flow/input_format/input_format.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-        wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg \
+	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg \
 	wipp/nuts/nuts.cfg \
-        wipp/transport/batch/wipp_batch.cfg \
-        wipp/transport/wipp_regular.cfg \
+	wipp/transport/batch/wipp_batch.cfg \
+	wipp/transport/wipp_regular.cfg \
 	toil_ims/toil_ims.cfg \
 	towg/ims/towg_ims.cfg \
 	towg/tl/towg_tl.cfg \
@@ -107,7 +107,7 @@ STANDARD_CFG = \
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
 	CPR_preconditioner/CPR_preconditioner.cfg \
-        wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
+	wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
 ifneq ($(strip $(PARMETIS_LIB)),)
@@ -119,8 +119,8 @@ STANDARD_CFG += \
 	default/regions/cell_mapping/cell_mapping_ug.cfg \
 	geomech/uniaxial_strain/uniaxial_strain.cfg \
 	geomech/uniaxial_loading/uniaxial_loading.cfg \
-        geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
-        geomech/terzaghi/terzaghi.cfg \
+	geomech/uniaxial_loading_biot/uniaxial_loading_biot.cfg \
+	geomech/terzaghi/terzaghi.cfg \
 	surfaceflow/surface_flow_only/surface_only.cfg \
 	surfaceflow/surface_th/surface_th.cfg \
 	surfaceflow/inlinesurface/inlinesurface.cfg
@@ -138,7 +138,7 @@ GEOCHEMISTRY_CFG = \
 	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
-        ngee/ngee.cfg \
+	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	ufd/ufd.cfg \
@@ -159,7 +159,7 @@ FLOW_CFG = \
 	default/scco2/mphase/mphase.cfg \
 	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
-        toil_ims/toil_ims.cfg \
+	toil_ims/toil_ims.cfg \
 	towg/ims/towg_ims.cfg \
 	towg/tl/towg_tl.cfg \
 	towg/bo/towg_bo.cfg \
@@ -173,8 +173,8 @@ TRANSPORT_CFG = \
 	default/dispersion/dispersion.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/velocity/velocity.cfg \
-        wipp/transport/batch/wipp_batch.cfg \
-        wipp/transport/wipp_regular.cfg
+	wipp/transport/batch/wipp_batch.cfg \
+	wipp/transport/wipp_regular.cfg
 
 MESH_CFG = \
 	default/discretization/discretization.cfg
@@ -209,7 +209,7 @@ NOHDF5_CFG = \
 WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
-        wipp/transport/batch/wipp_batch.cfg 
+	wipp/transport/batch/wipp_batch.cfg 
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 
