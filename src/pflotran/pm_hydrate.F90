@@ -261,6 +261,28 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
     select case(trim(word))
       case('SCALE_PERM_BY_HYD_SAT')
         HYDRATE_PERM_SCALING = PETSC_TRUE
+      case('HYDRATE_PHASE_BOUNDARY')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hydrate phase boundary')
+        call StringToUpper(word)
+        select case(word)
+          case('MORIDIS')
+            HYDRATE_PHASE_BOUNDARY = 2
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE_PHASE_BOUNDARY',option)
+        end select
+      case('HENRYS_CONSTANT')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hydrate henrys constant')
+        call StringToUpper(word)
+        select case(word)
+          case('CRAMER')
+            HYDRATE_HENRYS_CONSTANT = 2
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE_HENRYS_CONSTANT',option)
+        end select
       case('EFFECTIVE_SAT_SCALING')
         HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
       case('WITH_GIBBS_THOMSON')
