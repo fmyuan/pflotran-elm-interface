@@ -106,7 +106,8 @@ STANDARD_CFG = \
 
 ifneq ($(strip $(HYPRE_LIB)),)
 STANDARD_CFG += \
-	CPR_preconditioner/CPR_preconditioner.cfg
+	CPR_preconditioner/CPR_preconditioner.cfg \
+        wipp/wipp_flow/cpr_wipp/cpr_wipp.cfg
 endif
 
 ifneq ($(strip $(PARMETIS_LIB)),)
