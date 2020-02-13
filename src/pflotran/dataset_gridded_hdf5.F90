@@ -959,7 +959,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
           
           real_value = InterpolateBilinear(x,y,x1,x2,y1,y2,v1,v2,v3,v4)
         case(DIM_XYZ)
-          if (i < 1 .or. i_upper > this%dims(1)) then
+          if (i < 1 .or. i+1 > this%dims(1)) then
             lerr = PETSC_TRUE
             write(word,*) i
             word = adjustl(word)
@@ -968,7 +968,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
               this%extent(1), '), i = ' // trim(word)
             call PrintMsgByRank(option)
           endif
-          if (j < 1 .or. j_upper > this%dims(2)) then
+          if (j < 1 .or. j+1 > this%dims(2)) then
             lerr = PETSC_TRUE
             write(word,*) j
             word = adjustl(word)
@@ -977,7 +977,7 @@ subroutine DatasetGriddedHDF5InterpolateReal(this,xx,yy,zz,real_value,option)
               this%extent(2), '), j = ' // trim(word)
             call PrintMsgByRank(option)
           endif
-          if (k < 1 .or. k_upper > this%dims(3)) then
+          if (k < 1 .or. k+1 > this%dims(3)) then
             lerr = PETSC_TRUE
             write(word,*) k
             word = adjustl(word)
