@@ -2263,8 +2263,10 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
         HG_STATE
     case(HA_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = HA_STATE
-      if (associated(hydrate%liquid_pressure) .and.  hydrate% &
-                              liquid_pressure%itype == HYDROSTATIC_BC) then
+!      if (associated(hydrate%liquid_pressure) .and.  hydrate% &
+!                              liquid_pressure%itype == HYDROSTATIC_BC) then  ! pointer SEGEV fault here
+      if (associated(hydrate%liquid_pressure)) then
+      if (hydrate%liquid_pressure%itype == HYDROSTATIC_BC) then
         if (hydrate%temperature%itype /= DIRICHLET_BC) then
           option%io_buffer = 'Hydrostatic hydrate-aq. state pressure BC for &
             &flow condition "' // trim(flow_condition%name) // &
@@ -2285,6 +2287,7 @@ subroutine PatchUpdateCouplerAuxVarsH(patch,coupler,option)
           endif
         enddo
         dof1 = PETSC_TRUE; dof2 = PETSC_TRUE; dof3 = PETSC_TRUE;
+      endif
       endif
     case(HI_STATE)
       coupler%flow_aux_int_var(HYDRATE_STATE_INDEX,1:num_connections) = &
