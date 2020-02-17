@@ -19,6 +19,7 @@ module Timestepper_BE_class
     PetscInt :: cumulative_newton_iterations       ! Total number of Newton iterations
     PetscInt :: cumulative_linear_iterations     ! Total number of linear iterations
     PetscInt :: cumulative_wasted_linear_iterations
+    PetscInt :: cumulative_wasted_newton_iterations
 
     PetscInt :: iaccel        ! Accelerator index
     ! An array of multiplicative factors that specify how to increase time step.
@@ -115,6 +116,7 @@ subroutine TimestepperBEInit(this)
   this%cumulative_newton_iterations = 0
   this%cumulative_linear_iterations = 0
   this%cumulative_wasted_linear_iterations = 0
+  this%cumulative_wasted_newton_iterations = 0
 
   this%iaccel = 5
   this%ntfac = 13
@@ -293,7 +295,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
-  PetscInt :: sum_wasted_linear_iterations,lpernl,nnl
+  PetscInt :: sum_wasted_linear_iterations,sum_wasted_newton_iterations,lpernl,nnl
   character(len=MAXWORDLENGTH) :: tunit
   
   PetscReal :: tconv
@@ -317,6 +319,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   tunit = process_model%output_option%tunit
   sum_linear_iterations = 0
   sum_wasted_linear_iterations = 0
+  sum_wasted_newton_iterations = 0
   sum_newton_iterations = 0
   icut = 0
   
@@ -351,7 +354,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   
     if (snes_reason <= 0 .or. .not. process_model%AcceptSolution()) then
       sum_wasted_linear_iterations = sum_wasted_linear_iterations + &
-        num_linear_iterations
+           num_linear_iterations
+      sum_wasted_newton_iterations = sum_wasted_newton_iterations + &
+           num_newton_iterations
       ! The Newton solver diverged, so try reducing the time step.
       icut = icut + 1
       this%time_step_cut_flag = PETSC_TRUE
@@ -434,7 +439,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   this%cumulative_linear_iterations = &
     this%cumulative_linear_iterations + sum_linear_iterations
   this%cumulative_wasted_linear_iterations = &
-    this%cumulative_wasted_linear_iterations + sum_wasted_linear_iterations
+       this%cumulative_wasted_linear_iterations + sum_wasted_linear_iterations
+  this%cumulative_wasted_newton_iterations = &
+       this%cumulative_wasted_newton_iterations + sum_wasted_newton_iterations
   this%cumulative_time_step_cuts = &
     this%cumulative_time_step_cuts + icut
 
@@ -1081,6 +1088,9 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
             this%cumulative_time_step_cuts
     write(string,'(i12)') this%cumulative_wasted_linear_iterations
     write(*,'(a)') trim(this%name) // ' TS BE Wasted Linear Iterations = ' // &
+         trim(adjustl(string))
+    write(string,'(i12)') this%cumulative_wasted_newton_iterations
+    write(*,'(a)') trim(this%name) // ' TS BE Wasted Newton Iterations = ' // &
       trim(adjustl(string))
     write(string,'(f12.1)') this%cumulative_solver_time
     write(*,'(a)') trim(this%name) // ' TS BE SNES time = ' // &
