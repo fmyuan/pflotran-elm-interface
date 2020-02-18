@@ -19,9 +19,8 @@ module Option_module
     type(transport_option_type), pointer :: transport
 
     PetscInt :: id                         ! id of realization
-    PetscInt :: successful_exit_code       ! code passed out of PFLOTRAN
-                                           ! indicating successful completion
-                                           ! of simulation
+    PetscInt :: exit_code                  ! code passed out of PFLOTRAN
+                                           ! at end of simulation
     PetscMPIInt :: global_comm             ! MPI_COMM_WORLD
     PetscMPIInt :: global_rank             ! rank in MPI_COMM_WORLD
     PetscMPIInt :: global_commsize         ! size of MPI_COMM_WORLD
@@ -358,7 +357,7 @@ subroutine OptionInitAll(option)
   call OptionTransportInitAll(option%transport)
 
   option%id = 0
-  option%successful_exit_code = 0
+  option%exit_code = 0
 
   option%global_comm = 0
   option%global_rank = 0
@@ -1602,7 +1601,7 @@ subroutine OptionFinalize(option)
   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                             '-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
-  iflag = option%successful_exit_code
+  iflag = option%exit_code
   call OptionDestroy(option)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)

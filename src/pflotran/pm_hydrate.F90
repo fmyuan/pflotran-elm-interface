@@ -966,7 +966,7 @@ end subroutine PMHydrateJacobian
 
 ! ************************************************************************** !
 
-subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Michael Nole 
   ! Date: 07/23/19
@@ -984,7 +984,7 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_hydrate_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -1024,7 +1024,6 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal :: scale, temp_scale
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration
   ! MAN: END OLD
 
@@ -1045,7 +1044,6 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   spid = option%saturation_pressure_id
   apid = option%air_pressure_id
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   hydrate_allow_state_change = PETSC_FALSE
@@ -1238,7 +1236,7 @@ end subroutine PMHydrateCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Michael Nole 
@@ -1257,7 +1255,7 @@ subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_hydrate_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

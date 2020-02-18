@@ -466,7 +466,7 @@ end subroutine PMTOWGPreSolve
 
 ! ************************************************************************** !
 
-subroutine PMTOWGCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMTOWGCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Paolo Orsini (OGS)
   ! Date: 10/22/15
@@ -477,13 +477,13 @@ subroutine PMTOWGCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_towg_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
 
-  call TOWGCheckUpdatePre(line_search,X,dX,changed,this%realization, &
+  call TOWGCheckUpdatePre(snes,X,dX,changed,this%realization, &
                           this%max_it_before_damping,this%damping_factor, &
                           this%trunc_max_pressure_change,ierr)
 

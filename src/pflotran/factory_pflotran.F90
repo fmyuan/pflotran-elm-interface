@@ -603,7 +603,7 @@ subroutine PFLOTRANInitCommandLineSettings(option)
  
   string = '-successful_exit_code'
   call InputGetCommandLineInt(string,i,option_found,option)
-  if (option_found) option%successful_exit_code = i
+  if (option_found) option%exit_code = i
  
   string = '-keyword_screen_output'
   call InputGetCommandLineTruth(string,option%keyword_logging_screen_output, &
