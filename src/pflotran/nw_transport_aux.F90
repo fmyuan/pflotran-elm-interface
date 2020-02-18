@@ -28,7 +28,6 @@ module NW_Transport_Aux_module
     PetscReal, pointer :: auxiliary_data(:)
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
-    PetscBool :: truncate_output
   end type nw_transport_auxvar_type
     
   type, public :: nw_transport_type
@@ -45,6 +44,7 @@ module NW_Transport_Aux_module
     ! number of zeroed rows in Jacobian for inactive cells
     PetscInt :: n_zero_rows
     PetscBool :: inactive_cells_exist
+    PetscBool :: truncate_output
     ! nwt_auxvars for local and ghosted grid cells
     type(nw_transport_auxvar_type), pointer :: auxvars(:)
     ! nwt_auxvars for boundary connections
@@ -177,6 +177,7 @@ function NWTAuxCreate()
   nullify(aux%zero_rows_local)  
   nullify(aux%zero_rows_local_ghosted) 
   aux%inactive_cells_exist = PETSC_FALSE
+  aux%truncate_output = PETSC_TRUE
 
   NWTAuxCreate => aux
   
@@ -205,9 +206,7 @@ subroutine NWTAuxVarInit(auxvar,reaction_nw,option)
   nspecies = reaction_nw%params%nspecies
   nauxiliary = reaction_nw%params%nauxiliary
   nphase = reaction_nw%params%nphase
-  
-  auxvar%truncate_output = PETSC_TRUE
-  
+    
   allocate(auxvar%total_bulk_conc(nspecies))
   auxvar%total_bulk_conc = 0.d0
   allocate(auxvar%aqueous_eq_conc(nspecies))
