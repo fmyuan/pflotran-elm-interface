@@ -337,6 +337,7 @@ subroutine SimulationBaseFinalizeRun(this)
 
   use Logging_module
   use Timestepper_Base_class
+  use String_module, only : StringWrite
   
   implicit none
   
@@ -354,14 +355,15 @@ subroutine SimulationBaseFinalizeRun(this)
   if (this%stop_flag /= TS_STOP_END_SIMULATION) then
     select case(this%stop_flag)
       case(TS_STOP_WALLCLOCK_EXCEEDED)
-        string = "Wallclock stop time exceeded.  Exiting!!!"
+        string = 'Wallclock stop time exceeded.  Exiting!'
       case(TS_STOP_MAX_TIME_STEP)
-        string = "Maximum timestep exceeded.  Exiting!!!"
+        string = 'Maximum timestep exceeded.  Exiting!'
       case(TS_STOP_FAILURE)
-        string = "Simulation failed.  Exiting!!!"
+        string = 'Simulation failed.  Exiting!'
         this%option%exit_code = EXIT_FAILURE
       case default
-        string = "Simulation stopped for unknown reason."
+        string = 'Simulation stopped for unknown reason (' // &
+                 trim(StringWrite(this%stop_flag)) // ').'
     end select
     if (OptionPrintToScreen(this%option)) write(*,'(/,a,/)') trim(string)
   endif
