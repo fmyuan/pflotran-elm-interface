@@ -919,7 +919,11 @@ subroutine HydrateAuxVarCompute(x,hyd_auxvar,global_auxvar,material_auxvar, &
       hyd_auxvar%sat(gid) = 0.d0
       hyd_auxvar%sat(iid) = 0.d0
 
+      call HydratePE(hyd_auxvar%temp, 0.d0, PE_hyd, dP, characteristic_curves, &
+                     material_auxvar,option)
       call HenrysConstantMethane(hyd_auxvar%temp,K_H_tilde)
+
+      K_H_tilde_hyd = K_H_tilde
       
       if (HYDRATE_ADJUST_GHSZ_SOLUBILITY) then
         call HydrateGHSZSolubilityCorrection(hyd_auxvar%temp,hyd_auxvar% &
@@ -3528,7 +3532,7 @@ subroutine HydratePE(T, sat, PE, dP, characteristic_curves, material_auxvar, &
              - 22.5540264493806*(T_temp-dTf)**2 + 0.0767559117787059 * &
              (T_temp-dTf)**3 - 1.30465829788791d-4 * (T_temp-dTf)**4 + &
              8.86065316687571d-8 * (T_temp-dTf)**5)
-        dP = dP * 1.d6
+            dP = dP * 1.d6
         endif
     end select
 
