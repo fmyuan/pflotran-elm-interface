@@ -242,7 +242,7 @@ subroutine PMMiscibleUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMMiscibleUpdateTimestep
 
@@ -294,7 +294,7 @@ end subroutine PMMiscibleJacobian
 
 ! ************************************************************************** !
 
-subroutine PMMiscibleCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMMiscibleCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -305,19 +305,19 @@ subroutine PMMiscibleCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_miscible_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call MiscibleCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call MiscibleCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMMiscibleCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMMiscibleCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMMiscibleCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -329,7 +329,7 @@ subroutine PMMiscibleCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_miscible_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -337,7 +337,7 @@ subroutine PMMiscibleCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call MiscibleCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+  call MiscibleCheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
 end subroutine PMMiscibleCheckUpdatePost

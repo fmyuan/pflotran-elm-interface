@@ -178,34 +178,19 @@ subroutine PMCGeomechanicsSetupSolvers(this)
   call PrintMsg(option)
 
   call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                              PMCheckConvergence, &
-                              this%pm_ptr%pm, &
-#else
                               PMCheckConvergencePtr, &
                               this%pm_ptr, &
-#endif
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
   call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                       PMResidual, &
-                       this%pm_ptr%pm, &
-#else
                        PMResidualPtr, &
                        this%pm_ptr, &
-#endif
                        ierr);CHKERRQ(ierr)
   call SNESSetJacobian(solver%snes, &
                        solver%J, &
                        solver%Jpre, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                       PMJacobian, &
-                       this%pm_ptr%pm, &
-#else
                        PMJacobianPtr, &
                        this%pm_ptr, &
-#endif
                        ierr);CHKERRQ(ierr)
 
   call SolverSetSNESOptions(solver,option)

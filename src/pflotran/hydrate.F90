@@ -12,8 +12,7 @@ module Hydrate_module
   
   private 
 
-  public :: HydrateRead, &
-            HydrateSetup, &
+  public :: HydrateSetup, &
             HydrateInitializeTimestep, &
             HydrateUpdateSolution, &
             HydrateTimeCut,&
@@ -28,102 +27,6 @@ module Hydrate_module
             HydrateDestroy
 
 contains
-
-! ************************************************************************** !
-
-subroutine HydrateRead(input,meth,option)
-
-  use Input_Aux_module
-  use Option_module
-  use String_module
-
-  implicit none
-
-  type(input_type), pointer :: input
-  type(methanogenesis_type), pointer :: meth
-  type(option_type), pointer :: option
-
-  character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXWORDLENGTH) :: word
-  PetscInt :: temp_int
-
-  call InputPushBlock(input,option)
-  do
-
-    call InputReadPflotranString(input,option)
-    if (input%ierr /= 0) exit
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,word)
-    call InputErrorMsg(input,option,'keyword','HYDRATE')
-    call StringToUpper(word)
-
-    select case(trim(word))
-      case('SCALE_PERM_BY_HYD_SAT')
-        HYDRATE_PERM_SCALING = PETSC_TRUE
-      case('EFFECTIVE_SAT_SCALING')
-        HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
-      case('WITH_GIBBS_THOMSON')
-        HYDRATE_WITH_GIBBS_THOMSON = PETSC_TRUE
-      case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
-        HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_TRUE
-      case('WITH_SEDIMENTATION')
-        HYDRATE_WITH_SEDIMENTATION = PETSC_TRUE
-      case('NO_PC')
-        HYDRATE_NO_PC = PETSC_TRUE
-      case('METHANOGENESIS')
-        if (.not. associated(meth)) then
-          allocate(meth)
-        endif
-        call InputPushBlock(input,option)
-        do
-          call InputReadPflotranString(input,option)
-          if (input%ierr /= 0) exit
-          if (InputCheckExit(input,option)) exit
-
-          call InputReadCard(input,option,word)
-          call InputErrorMsg(input,option,'keyword','HYDRATE')
-          call StringToUpper(word)
-          select case(trim(word))
-            case('NAME')
-              call InputReadWord(input,option,word,PETSC_TRUE)
-              call InputErrorMsg(input,option,'methanogenesis source name', &
-                                 error_string)
-              call StringToUpper(word)
-              meth%source_name = trim(word)
-            case('ALPHA')
-              call InputReadDouble(input,option,meth%alpha)
-              call InputErrorMsg(input,option,'alpha',error_string)
-            case('LAMBDA')
-              call InputReadDouble(input,option,meth%lambda)
-              call InputErrorMsg(input,option,'lambda',error_string)
-            case('V_SED')
-              call InputReadDouble(input,option,meth%omega)
-              call InputErrorMsg(input,option,'v_sed',error_string)
-            case('SMT_DEPTH')
-              call InputReadDouble(input,option,meth%z_smt)
-              call InputErrorMsg(input,option,'smt_depth',error_string)
-            case('K_ALPHA')
-              call InputReadDouble(input,option,meth%k_alpha)
-              call InputErrorMsg(input,option,'k_alpha',error_string)
-          end select
-        enddo
-        call InputPopBlock(input,option)
-      case('PERM_SCALING_FUNCTION')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'keyword','hyd_perm_scaling_function')
-        call StringToUpper(word)
-        select case(trim(word))
-          case('DAI_AND_SEOL')
-            temp_int = 1
-            HYDRATE_PERM_SCALING_FUNCTION = temp_int
-        end select
-    end select
-
-  enddo
-  call InputPopBlock(input,option)
-  
-end subroutine HydrateRead
 
 ! ************************************************************************** !
 
@@ -165,7 +68,6 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
@@ -273,29 +175,6 @@ subroutine HydrateSetup(realization)
   allocate(patch%aux%Hydrate%row_zeroing_array(grid%nlmax))
   patch%aux%Hydrate%row_zeroing_array = 0
   
-  ! initialize parameters
-  cur_fluid_property => realization%fluid_properties
-  do 
-    if (.not.associated(cur_fluid_property)) exit
-    patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(cur_fluid_property%phase_id) = &
-        cur_fluid_property%diffusion_coefficient
-    cur_fluid_property => cur_fluid_property%next
-  enddo  
-  ! check whether diffusion coefficients are initialized.
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(LIQUID_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Liquid phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
-      diffusion_coefficient(GAS_PHASE))) then
-    option%io_buffer = &
-      UninitializedMessage('Gas phase diffusion coefficient','')
-    call PrintErrMsg(option)
-  endif
-
   list => realization%output_option%output_snap_variable_list
   call HydrateSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
@@ -307,11 +186,6 @@ subroutine HydrateSetup(realization)
 
 
   call PatchSetupUpwindDirection(patch,option)
-
-  if (.not. associated(patch%methanogenesis)) then
-    allocate(patch%methanogenesis)
-  endif
-
 
 end subroutine HydrateSetup
 
@@ -346,7 +220,6 @@ subroutine HydrateInitializeTimestep(realization)
 end subroutine HydrateInitializeTimestep
 
 ! ************************************************************************** !
-
 subroutine HydrateUpdateSolution(realization)
   ! 
   ! Updates data in module after a successful time
@@ -771,7 +644,7 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
-  PetscInt :: ghosted_start, ghosted_end, ssn, i
+  PetscInt :: ghosted_start, ghosted_end, i
   PetscInt :: iphasebc, iphase
   PetscInt :: offset
   PetscInt :: istate
@@ -996,22 +869,26 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
   source_sink => patch%source_sink_list%first
-  ssn = 0
+  sum_connection = 0
   do
   
     if (.not.associated(source_sink)) exit
-    do i = 1,source_sink%region%num_cells
       
-      ssn = ssn+1
-      qsrc = source_sink%flow_condition%hydrate%rate%dataset%rarray(:)
-      hyd_auxvar = hyd_auxvars(ZERO_INTEGER,source_sink%region%cell_ids(i))
-      global_auxvar = global_auxvars(source_sink%region%cell_ids(i))
-      hyd_auxvar_ss = hyd_auxvars_ss(ssn)
-      global_auxvar_ss = global_auxvars_ss(ssn)
-    
-      if (associated(hyd_auxvar%d)) then
-        allocate(hyd_auxvar_ss%d)
-      endif
+    qsrc = source_sink%flow_condition%hydrate%rate%dataset%rarray(:)
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      flow_src_sink_type = source_sink%flow_condition%hydrate%rate%itype
+
+      global_auxvar = global_auxvars(ghosted_id)
+      hyd_auxvar = hyd_auxvars(ZERO_INTEGER, ghosted_id)
+      hyd_auxvar_ss = hyd_auxvars_ss(sum_connection)
+      global_auxvar_ss = global_auxvars_ss(sum_connection)
     
       flow_src_sink_type = source_sink%flow_condition%hydrate%rate%itype
     
@@ -1098,14 +975,12 @@ subroutine HydrateUpdateAuxVars(realization,update_state)
       ! Compute state variables 
       call HydrateAuxVarCompute(xxss,hyd_auxvar_ss, &
                                 global_auxvar_ss, &
-                                material_auxvars(source_sink% &
-                                region%cell_ids(1)), &
+                                material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                 patch%sat_func_id(source_sink%region% &
                                 cell_ids(1)))%ptr, &
                                 source_sink%region%cell_ids(1), &
                                 option)
-      hyd_auxvars_ss(ssn) = hyd_auxvar_ss
     enddo
     source_sink => source_sink%next
   enddo
@@ -1148,6 +1023,7 @@ subroutine HydrateUpdateFixedAccum(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(material_parameter_type), pointer :: material_parameter
 
+  type(hydrate_parameter_type), pointer :: hydrate_parameter
   PetscInt :: ghosted_id, local_id, local_start, local_end, natural_id
   PetscInt :: imat
   PetscReal, pointer :: xx_p(:)
@@ -1166,7 +1042,8 @@ subroutine HydrateUpdateFixedAccum(realization)
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   material_parameter => patch%aux%Material%material_parameter
-    
+  hydrate_parameter => patch%aux%Hydrate%hydrate_parameter
+
   call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
@@ -1192,7 +1069,8 @@ subroutine HydrateUpdateFixedAccum(realization)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
-                             z(ghosted_id),maxval(grid%z),patch%methanogenesis,&
+                             z(ghosted_id),maxval(grid%z), &
+                             hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,accum_p(local_start:local_end), &
                              Jac_dummy,PETSC_FALSE, &
@@ -1274,7 +1152,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   PetscReal, pointer :: vec_p(:)
   
   PetscReal :: qsrc(3)
-  PetscInt :: ssn
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
@@ -1316,7 +1193,17 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   ! Communication -----------------------------------------
   ! These 3 must be called before HydrateUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
-  
+ 
+  ! do update state
+  hydrate_high_temp_ts_cut = PETSC_FALSE
+  ! MAN: add Newton-TR compatibility
+  !hydrate_allow_state_change = PETSC_TRUE
+  !hydrate_state_changed = PETSC_FALSE
+  !if (hydrate_sub_newton_iter_num > 1 .and. hydrate_using_newtontr) then
+  !  ! when newtonTR is active and has inner iterations to re-evaluate the 
+  !  ! residual,primary variables must not change. -hdp
+  !  hydrate_allow_state_change = PETSC_FALSE
+  !endif
                                              ! do update state
   call HydrateUpdateAuxVars(realization,hydrate_allow_state_change)
 
@@ -1355,7 +1242,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     call HydrateAccumulation(hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                              global_auxvars(ghosted_id), &
                              material_auxvars(ghosted_id),patch%grid% &
-                             z(ghosted_id),0.d0,patch%methanogenesis,&
+                             z(ghosted_id),0.d0,&
+                             hydrate_parameter,&
                              material_parameter%soil_heat_capacity(imat), &
                              option,Res,Jac_dummy,&
                              hydrate_analytical_derivatives, &
@@ -1398,7 +1286,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        patch%flow_upwind_direction(:,iconn), &
-                       patch%methanogenesis, &
                        hydrate_parameter,option,v_darcy,Res, &
                        Jac_dummy,Jac_dummy, &
                        hydrate_analytical_derivatives, &
@@ -1464,7 +1351,6 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction_bc(:,iconn), &
-                     patch%methanogenesis, &
                      hydrate_parameter,option, &
                      v_darcy,Res,Jac_dummy, &
                      hydrate_analytical_derivatives, &
@@ -1493,10 +1379,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
   sum_connection = 0
-  ssn=0
   do 
     if (.not.associated(source_sink)) exit
-    ssn=ssn+1
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
@@ -1518,7 +1402,7 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
       flow_src_sink_type=source_sink%flow_condition%hydrate%rate%itype
       
       call HydrateSrcSink(option,qsrc,flow_src_sink_type, &
-                          hyd_auxvars_ss(ssn), &
+                          hyd_auxvars_ss(sum_connection), &
                           hyd_auxvars(ZERO_INTEGER,ghosted_id), &
                           global_auxvars(ghosted_id), &
                           ss_flow_vol_flux, &
@@ -1549,6 +1433,10 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
     do i=1,patch%aux%Hydrate%n_inactive_rows
       r_p(patch%aux%Hydrate%inactive_rows_local(i)) = 0.d0
     enddo
+  endif
+
+  if (hydrate_high_temp_ts_cut) then
+    r_p(:) = 1.d20
   endif
   
   call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
@@ -1648,7 +1536,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection 
-  PetscInt :: ssn
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity 
   PetscInt, pointer :: zeros(:)
@@ -1680,6 +1567,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
 
+  hydrate_force_iteration = PETSC_FALSE
 
   call MatGetType(A,mat_type,ierr);CHKERRQ(ierr)
   if (mat_type == MATMFFD) then
@@ -1716,7 +1604,7 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               grid%z(ghosted_id),maxval(grid%z), &
-                              patch%methanogenesis, &
+                              hydrate_parameter, &
                               material_parameter%soil_heat_capacity(imat), &
                               option,Jup) 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
@@ -1768,7 +1656,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
-                     patch%methanogenesis, &
                      hydrate_parameter,option,&
                      Jup,Jdn)
       if (local_id_up > 0) then
@@ -1836,7 +1723,6 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &
-                      patch%methanogenesis, &
                       hydrate_parameter,option, &
                       Jdn)
 
@@ -1860,14 +1746,14 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
 
   ! Source/sinks
   source_sink => patch%source_sink_list%first 
-  ssn=0
+  sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections
-      ssn = ssn+1
+      sum_connection = sum_connection + 1
       
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
@@ -1881,7 +1767,8 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
       endif
       
       Jup = 0.d0
-      call HydrateSrcSinkDerivative(option,source_sink,hyd_auxvars_ss(ssn), &
+      call HydrateSrcSinkDerivative(option,source_sink,hyd_auxvars_ss( &
+                        sum_connection), &
                         hyd_auxvars(:,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         scale,Jup)
@@ -1893,8 +1780,8 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
     source_sink => source_sink%next
   enddo
   
-  call HydrateSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
-                        hyd_auxvars,option)
+!  call HydrateSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
+!                        hyd_auxvars,option)
 
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)

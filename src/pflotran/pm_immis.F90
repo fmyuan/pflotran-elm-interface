@@ -232,7 +232,7 @@ subroutine PMImmisUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   dtt = max(dtt,dt_min)
   dt = dtt
 
-  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt)
+  call RealizationLimitDTByCFL(this%realization,this%cfl_governor,dt,dt_max)
   
 end subroutine PMImmisUpdateTimestep
 
@@ -284,7 +284,7 @@ end subroutine PMImmisJacobian
 
 ! ************************************************************************** !
 
-subroutine PMImmisCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMImmisCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -295,19 +295,19 @@ subroutine PMImmisCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_immis_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call ImmisCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call ImmisCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
+subroutine PMImmisCheckUpdatePost(this,snes,P0,dP,P1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -319,7 +319,7 @@ subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
   implicit none
   
   class(pm_immis_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: P0
   Vec :: dP
   Vec :: P1
@@ -327,7 +327,7 @@ subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call ImmisCheckUpdatePost(line_search,P0,dP,P1,dX_changed, &
+  call ImmisCheckUpdatePost(snes,P0,dP,P1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePost

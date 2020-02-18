@@ -205,7 +205,7 @@ module General_Aux_module
     type(general_parameter_type), pointer :: general_parameter
     type(general_auxvar_type), pointer :: auxvars(:,:)
     type(general_auxvar_type), pointer :: auxvars_bc(:)
-    type(general_auxvar_type), pointer :: auxvars_ss(:)
+    type(general_auxvar_type), pointer :: auxvars_ss(:,:)
   end type general_type
 
   interface GeneralAuxVarDestroy
@@ -422,6 +422,7 @@ subroutine GeneralAuxVarCopy(auxvar,auxvar2,option)
   type(option_type) :: option
 
   auxvar2%istate_store = auxvar%istate_store
+  auxvar2%istatechng = auxvar%istatechng
   auxvar2%pres = auxvar%pres
   auxvar2%temp = auxvar%temp
   auxvar2%sat = auxvar%sat
@@ -1691,15 +1692,9 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          min_perturbation
        if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
            1.d3 * perturbation_tolerance) then
-!         I think it should be what's below, has to confirm with M. Nole. -hdp
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * & 
-                   (perturbation_tolerance * x(GENERAL_LIQUID_STATE_X_MOLE_DOF)&
-                    + min_mole_fraction_pert)
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
        else
-!         I think it should be what's below, has to confirm with M. Nole. -hdp         
-         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance * &
-                                     x(GENERAL_LIQUID_STATE_X_MOLE_DOF) + &
-                                     min_mole_fraction_pert
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
        endif
        pert(GENERAL_ENERGY_DOF) = -1.d0 * &
          (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)

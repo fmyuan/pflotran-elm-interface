@@ -84,6 +84,7 @@ subroutine SurfaceJumpStart(simulation)
   use Realization_Surface_class
   use Option_module
   use Timestepper_Surface_class
+  use Timestepper_Base_class
   use Output_Aux_module
   use Output_module
   use Logging_module  
@@ -174,6 +175,8 @@ subroutine SurfaceJumpStart(simulation)
                        &has been met.  Stopping....'  
     call PrintMsg(option)
     call PrintMsg(option,'')
+    option%status = DONE
+    simulation%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
 
@@ -198,6 +201,8 @@ subroutine SurfaceJumpStart(simulation)
                        &has been met.  Stopping....'  
     call PrintMsg(option)
     call PrintMsg(option,'')
+    option%status = DONE
+    simulation%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
 
