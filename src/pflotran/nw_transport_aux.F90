@@ -124,6 +124,7 @@ module NW_Transport_Aux_module
     type(nwt_params_type), pointer :: params !TODO(jenn): move to nw_transport_type
     type(nwt_print_type), pointer :: print_what 
     PetscBool :: reaction_nw_on
+    PetscBool :: truncate_output
   end type reaction_nw_type
 
   interface NWTAuxVarDestroy
@@ -177,7 +178,7 @@ function NWTAuxCreate()
   nullify(aux%zero_rows_local)  
   nullify(aux%zero_rows_local_ghosted) 
   aux%inactive_cells_exist = PETSC_FALSE
-  aux%truncate_output = PETSC_TRUE
+  aux%truncate_output = PETSC_FALSE
 
   NWTAuxCreate => aux
   
@@ -263,6 +264,7 @@ function NWTReactionCreate()
   nullify(reaction_nw%species_print)
   nullify(reaction_nw%rad_decay_rxn_list)
   reaction_nw%reaction_nw_on = PETSC_TRUE
+  reaction_nw%truncate_output = PETSC_FALSE
   
   nullify(reaction_nw%params)
   allocate(reaction_nw%params)
@@ -565,15 +567,17 @@ subroutine NWTReadOutput(reaction_nw,input,option)
       case('ALL_CONCENTRATIONS')
         reaction_nw%print_what%all_concs = PETSC_TRUE
       case('TOTAL_BULK_CONCENTRATION')
-        reaction_nw%print_what%total_bulk_conc= PETSC_TRUE
+        reaction_nw%print_what%total_bulk_conc = PETSC_TRUE
       case('AQUEOUS_CONCENTRATION')
-        reaction_nw%print_what%aqueous_eq_conc= PETSC_TRUE
+        reaction_nw%print_what%aqueous_eq_conc = PETSC_TRUE
       case('MINERAL_CONCENTRATION')
-        reaction_nw%print_what%mnrl_eq_conc= PETSC_TRUE
+        reaction_nw%print_what%mnrl_eq_conc = PETSC_TRUE
       case('SORBED_CONCENTRATION')
-        reaction_nw%print_what%sorb_eq_conc= PETSC_TRUE
+        reaction_nw%print_what%sorb_eq_conc = PETSC_TRUE
       case('MINERAL_VOLUME_FRACTION')
-        reaction_nw%print_what%mnrl_vol_frac= PETSC_TRUE
+        reaction_nw%print_what%mnrl_vol_frac = PETSC_TRUE
+      case('TRUNCATE_OUTPUT')
+        reaction_nw%truncate_output = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
