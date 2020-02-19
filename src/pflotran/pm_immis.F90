@@ -284,7 +284,7 @@ end subroutine PMImmisJacobian
 
 ! ************************************************************************** !
 
-subroutine PMImmisCheckUpdatePre(this,snes,X,dX,changed,ierr)
+subroutine PMImmisCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -295,19 +295,19 @@ subroutine PMImmisCheckUpdatePre(this,snes,X,dX,changed,ierr)
   implicit none
   
   class(pm_immis_type) :: this
-  SNES :: snes
+  SNESLineSearch :: line_search
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call ImmisCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
+  call ImmisCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMImmisCheckUpdatePost(this,snes,P0,dP,P1,dX_changed, &
+subroutine PMImmisCheckUpdatePost(this,line_search,P0,dP,P1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -319,7 +319,7 @@ subroutine PMImmisCheckUpdatePost(this,snes,P0,dP,P1,dX_changed, &
   implicit none
   
   class(pm_immis_type) :: this
-  SNES :: snes
+  SNESLineSearch :: line_search
   Vec :: P0
   Vec :: dP
   Vec :: P1
@@ -327,7 +327,7 @@ subroutine PMImmisCheckUpdatePost(this,snes,P0,dP,P1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call ImmisCheckUpdatePost(snes,P0,dP,P1,dX_changed, &
+  call ImmisCheckUpdatePost(line_search,P0,dP,P1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePost

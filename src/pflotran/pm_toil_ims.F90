@@ -436,7 +436,7 @@ end subroutine PMTOilImsJacobian
 
 ! ************************************************************************** !
 
-!subroutine PMTOilImsCheckUpdatePre(this,snes,P,dP,changed,ierr)
+!subroutine PMTOilImsCheckUpdatePre(this,line_search,P,dP,changed,ierr)
 !  ! 
 !  ! Author: Paolo Orsini (OGS)
 !  ! Date: 10/22/15
@@ -447,19 +447,19 @@ end subroutine PMTOilImsJacobian
 !  implicit none
 !  
 !  class(pm_toil_ims_type) :: this
-!  SNES :: snes
+!  SNESLineSearch :: line_search
 !  Vec :: P
 !  Vec :: dP
 !  PetscBool :: changed
 !  PetscErrorCode :: ierr
 !  
-!  call TOilImsCheckUpdatePre(snes,P,dP,changed,this%realization,ierr)
+!  call TOilImsCheckUpdatePre(line_search,P,dP,changed,this%realization,ierr)
 !
 !end subroutine PMTOilImsCheckUpdatePre
 
 ! ************************************************************************** !
 ! use function below when switching to latest code
-subroutine PMTOilImsCheckUpdatePre(this,snes,X,dX,changed,ierr)
+subroutine PMTOilImsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! Author: Paolo Orsini (OGS)
   ! Date: 11/09/15
@@ -477,7 +477,7 @@ subroutine PMTOilImsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   implicit none
   
   class(pm_toil_ims_type) :: this
-  SNES :: snes
+  SNESLineSearch :: line_search
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -507,6 +507,7 @@ subroutine PMTOilImsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
+  SNES :: snes
   PetscInt :: newton_iteration
 
   PetscReal :: slc, soc, ds_out_l, ds_out_o, del_sat_cand, sat_fac, &
@@ -530,6 +531,7 @@ subroutine PMTOilImsCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   patch => this%realization%patch
 
+  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
@@ -652,7 +654,7 @@ end subroutine PMTOilImsCheckUpdatePre
 ! ************************************************************************** !
 ! ************************************************************************** !
 
-!subroutine PMTOilImsCheckUpdatePost(this,snes,P0,dP,P1,dP_changed, &
+!subroutine PMTOilImsCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
 !                                    P1_changed,ierr)
 !  ! 
 !  ! Author: Paolo Orsini
@@ -664,7 +666,7 @@ end subroutine PMTOilImsCheckUpdatePre
 !  implicit none
 !  
 !  class(pm_toil_ims_type) :: this
-!  SNES :: snes
+!  SNESLineSearch :: line_search
 !  Vec :: P0
 !  Vec :: dP
 !  Vec :: P1
@@ -672,14 +674,14 @@ end subroutine PMTOilImsCheckUpdatePre
 !  PetscBool :: P1_changed
 !  PetscErrorCode :: ierr
 !  
-!  call TOilImsCheckUpdatePost(snes,P0,dP,P1,dP_changed, &
+!  call TOilImsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
 !                                   P1_changed,this%realization,ierr)
 !
 !end subroutine PMTOilImsCheckUpdatePost
 
 ! ************************************************************************** !
 ! use function below when switching to the latest code
-subroutine PMTOilImsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
+subroutine PMTOilImsCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Paolo Orsini
@@ -701,7 +703,7 @@ subroutine PMTOilImsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_toil_ims_type) :: this
-  SNES :: snes
+  SNESLineSearch :: line_search
   Vec :: X0
   Vec :: dX
   Vec :: X1

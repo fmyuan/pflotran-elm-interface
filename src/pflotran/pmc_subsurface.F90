@@ -319,14 +319,24 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       call SNESSetConvergenceTest(solver%snes, &
-                                  PMCheckConvergencePtr, &
-                                  this%pm_ptr, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                  PMCheckConvergence, &
+                                  this%pm_ptr%pm, &
+#else
+                                        PMCheckConvergencePtr, &
+                                        this%pm_ptr, &
+#endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       if (pm%check_post_convergence) then
         call SNESLineSearchSetPostCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                        PMCheckUpdatePost, &
+                                        this%pm_ptr%pm, &
+#else
                                         PMCheckUpdatePostPtr, &
                                         this%pm_ptr, &
+#endif
                                         ierr);CHKERRQ(ierr)
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
@@ -356,10 +366,17 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       end select
 
         if (add_pre_check) then
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+            call SNESLineSearchSetPreCheck(linesearch, &
+                                           PMCheckUpdatePre, &
+                                           this%pm_ptr%pm, &
+                                           ierr);CHKERRQ(ierr)
+#else
             call SNESLineSearchSetPreCheck(linesearch, &
                                            PMCheckUpdatePrePtr, &
                                            this%pm_ptr, &
                                            ierr);CHKERRQ(ierr)
+#endif
         endif
 
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
@@ -478,15 +495,25 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
     if (trans_coupling == GLOBAL_IMPLICIT) then
       call SNESSetConvergenceTest(solver%snes, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                  PMCheckConvergence, &
+                                  this%pm_ptr%pm, &
+#else
                                   PMCheckConvergencePtr, &
                                   this%pm_ptr, &
+#endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
     endif
     if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
         check_post_convergence) then
       call SNESLineSearchSetPostCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                      PMCheckUpdatePost, &
+                                      this%pm_ptr%pm, &
+#else
                                       PMCheckUpdatePostPtr, &
                                       this%pm_ptr, &
+#endif
                                       ierr);CHKERRQ(ierr)
       if (this%pm_ptr%pm%print_EKG) then
         check_post_convergence = PETSC_TRUE
@@ -494,8 +521,13 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     endif
     if (check_update) then
       call SNESLineSearchSetPreCheck(linesearch, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                                     PMCheckUpdatePre, &
+                                     this%pm_ptr%pm, &
+#else
                                      PMCheckUpdatePrePtr, &
                                      this%pm_ptr, &
+#endif
                                      ierr);CHKERRQ(ierr)
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")
@@ -505,14 +537,24 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
   call SNESSetFunction(this%timestepper%solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                       PMResidual, &
+                       this%pm_ptr%pm, &
+#else
                        PMResidualPtr, &
                        this%pm_ptr, &
+#endif
                        ierr);CHKERRQ(ierr)
   call SNESSetJacobian(this%timestepper%solver%snes, &
                        solver%J, &
                        solver%Jpre, &
+#if defined(USE_PM_AS_PETSC_CONTEXT)
+                       PMJacobian, &
+                       this%pm_ptr%pm, &
+#else
                        PMJacobianPtr, &
                        this%pm_ptr, &
+#endif
                        ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
 
