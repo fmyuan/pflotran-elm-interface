@@ -483,7 +483,7 @@ end subroutine PMTHJacobian
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMTHCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! This routine
   ! 
@@ -503,7 +503,7 @@ subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_th_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -635,7 +635,7 @@ end subroutine PMTHCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMTHCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                   X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -651,7 +651,7 @@ subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_th_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

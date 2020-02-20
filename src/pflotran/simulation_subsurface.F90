@@ -261,6 +261,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
     call PrintMsg(option)
     call PrintMsg(option,'')
     option%status = DONE
+    this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
 
@@ -286,6 +287,7 @@ subroutine SubsurfaceSimulationJumpStart(this)
     call PrintMsg(option)
     call PrintMsg(option,'')
     option%status = DONE
+    this%stop_flag = TS_STOP_MAX_TIME_STEP
     return
   endif
 
@@ -384,8 +386,12 @@ subroutine SubsurfaceFinalizeRun(this)
       call RCLMRxnDestroy()
     endif
   endif
-  call RegressionOutput(this%regression,this%realization, &
-                        flow_timestepper,tran_timestepper)  
+
+  select case(this%stop_flag)
+    case(TS_STOP_END_SIMULATION,TS_STOP_MAX_TIME_STEP)
+      call RegressionOutput(this%regression,this%realization, &
+                            flow_timestepper,tran_timestepper)
+  end select
   
 end subroutine SubsurfaceFinalizeRun
 

@@ -377,7 +377,7 @@ end subroutine PMMphaseJacobian
 
 ! ************************************************************************** !
 
-subroutine PMMphaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMMphaseCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -388,19 +388,19 @@ subroutine PMMphaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_mphase_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call MphaseCheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call MphaseCheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMMphaseCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMMphaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMMphaseCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                    X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -412,7 +412,7 @@ subroutine PMMphaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_mphase_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -420,7 +420,7 @@ subroutine PMMphaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call MphaseCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+  call MphaseCheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                                X1_changed,this%realization,ierr)
 
 end subroutine PMMphaseCheckUpdatePost

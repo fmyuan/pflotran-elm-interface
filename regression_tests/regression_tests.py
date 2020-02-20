@@ -51,13 +51,14 @@ _MAJOR_FAILURE = 2
 #errors
 _NULL_ERROR = 0
 _GENERAL_ERROR = 1
-_USER_ERROR = 2
-_CODE_CRASH_ERROR = 3
-_CONFIG_ERROR = 4
-_MISSING_INFO_ERROR = 5
-_PRE_PROCESS_ERROR = 6
-_POST_PROCESS_ERROR = 7
-_TIMEOUT_ERROR = 8
+_PFLOTRAN_USER_ERROR = 2
+_PFLOTRAN_CRASH = 3
+_PFLOTRAN_FAILURE = 4
+_CONFIG_ERROR = 5
+_MISSING_INFO_ERROR = 6
+_PRE_PROCESS_ERROR = 7
+_POST_PROCESS_ERROR = 8
+_TIMEOUT_ERROR = 9
 
 class TestStatus(object):
     """
@@ -111,6 +112,7 @@ class RegressionTest(object):
         self._TOL_MAX_THRESHOLD = 3
         self._PFLOTRAN_SUCCESS = 86
         self._PFLOTRAN_USER_ERROR = 87
+        self._PFLOTRAN_FAILURE = 88
         self._RESTART_PREFIX = "tmp-restart"
         # misc test parameters
         self._pprint = pprint.PrettyPrinter(indent=2)
@@ -219,7 +221,7 @@ class RegressionTest(object):
                     self._run_test(mpiexec, executable, restart_name, 
                                    dry_run, status, testlog)
                 elif not status.skipped:
-                    status.error = _USER_ERROR
+                    status.error = _PFLOTRAN_USER_ERROR
                     message = self._txtwrap.fill(
                         "ERROR: restart test '{0}' did not generate a "
                         "required checkpoint file. This can occur if the "
@@ -377,10 +379,14 @@ class RegressionTest(object):
             else:
                 if pflotran_status == self._PFLOTRAN_USER_ERROR:
                     # error was caught and the code properly shut down
-                    status.error = _USER_ERROR
-                    string = 'failed due to user error'
-                else:
-                    status.error = _CODE_CRASH_ERROR
+                    status.error = _PFLOTRAN_USER_ERROR
+                    string = 'failed due to a user error'
+                elif pflotran_status == self._PFLOTRAN_FAILURE:
+                    # error was caught and the code properly shut down
+                    status.error = _PFLOTRAN_FAILURE
+                    string = 'failed due to an internal error (e.g. convergence issues, etc.)'
+                else: # implicitly PFLOTRAN_CRASH
+                    status.error = _PFLOTRAN_CRASH
                     string = 'crashed'
                 message = self._txtwrap.fill(
                     "ERROR : {name} : pflotran returned an error "
@@ -1555,9 +1561,11 @@ class RegressionTestManager(object):
 #            print('error {}'.format(status.error))
             if status.error == _GENERAL_ERROR:
                 print("G", end='', file=sys.stdout)
-            elif status.error == _USER_ERROR:
+            elif status.error == _PFLOTRAN_USER_ERROR:
                 print("U", end='', file=sys.stdout)
-            elif status.error == _CODE_CRASH_ERROR:
+            elif status.error == _PFLOTRAN_FAILURE:
+                print("V", end='', file=sys.stdout)
+            elif status.error == _PFLOTRAN_CRASH:
                 print("X", end='', file=sys.stdout)
             elif status.error == _CONFIG_ERROR:
                 print("C", end='', file=sys.stdout)
@@ -1754,11 +1762,10 @@ class RegressionTestManager(object):
             u_tests = self._available_tests
         else:
             # check that the processed user supplied names are valid
-            # convert user supplied names to lower case
             u_suites = []
             for suite in user_suites:
-                if suite.lower() in self._available_suites:
-                    u_suites.append(suite.lower())
+                if suite in self._available_suites:
+                    u_suites.append(suite)
                 else:
                     message = self._txtwrap.fill(
                         "WARNING : {0} : Skipping requested suite '{1}' (not "
@@ -1769,7 +1776,7 @@ class RegressionTestManager(object):
             u_tests = []
             for test in user_tests:
                 if test in self._available_tests:
-                    u_tests.append(test.lower())
+                    u_tests.append(test)
                 else:
                     message = self._txtwrap.fill(
                         "WARNING : {0} : Skipping test '{1}' (not present or "
@@ -2238,7 +2245,8 @@ def main(options):
     print("    M - failed regression test (results are FAR outside error tolerances)")
     print("    G - general error")
     print("    U - user error")
-    print("    X - code crashed")
+    print("    V - simulator failure (e.g. failure to converge)")
+    print("    X - simulator crash")
     print("    T - time out error")
     print("    C - configuration file [.cfg] error")
     print("    I - missing information (e.g. missing files)")

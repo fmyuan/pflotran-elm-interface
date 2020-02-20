@@ -749,7 +749,7 @@ end subroutine PMRTJacobian
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMRTCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! In the case of the log formulation, ensures that the update
   ! vector does not exceed a prescribed tolerance
@@ -765,7 +765,7 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_rt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -857,7 +857,7 @@ end subroutine PMRTCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMRTCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                X1_changed,ierr)
   ! 
   ! Checks convergence after to update
@@ -877,7 +877,7 @@ subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_rt_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -946,7 +946,7 @@ subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   endif
   
   if (option%use_mc) then  
-    call SecondaryRTUpdateIterate(line_search,X0,dX,X1,dX_changed, &
+    call SecondaryRTUpdateIterate(snes,X0,dX,X1,dX_changed, &
                                   X1_changed,this%realization,ierr)
   endif
   

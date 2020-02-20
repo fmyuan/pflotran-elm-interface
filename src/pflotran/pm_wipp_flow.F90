@@ -495,6 +495,8 @@ subroutine PMWIPPFloRead(this,input)
         enddo
         allocate(this%dirichlet_dofs_ints(2,icount))
         this%dirichlet_dofs_ints = temp_int_array(1:2,1:icount)
+      case('WITH_RADIOLYSIS')
+        wippflo_radiolysis = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'WIPP Flow Mode',option)
     end select
@@ -1298,7 +1300,7 @@ end subroutine PMWIPPFloJacobian
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMWIPPFloCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -1315,7 +1317,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_wippflo_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -1335,7 +1337,7 @@ end subroutine PMWIPPFloCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -1354,7 +1356,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_wippflo_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

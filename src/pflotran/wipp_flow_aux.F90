@@ -82,6 +82,9 @@ module WIPP_Flow_Aux_module
   ! these variables, which are global to general, can be modified
   PetscInt, public :: dof_to_primary_variable(2)
   
+  ! radiolysis
+  PetscBool, public :: wippflo_radiolysis = PETSC_FALSE
+  
   type, public :: wippflo_auxvar_type
     PetscReal :: pres(6)   ! (iphase)
     PetscReal :: sat(2)    ! (iphase)

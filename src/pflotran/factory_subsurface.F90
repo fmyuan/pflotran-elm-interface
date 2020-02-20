@@ -1371,7 +1371,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   type(option_type), pointer :: option
   type(waypoint_list_type), pointer :: sync_waypoint_list
   character(len=MAXSTRINGLENGTH) :: string
-  SNESLineSearch :: linesearch
   PetscInt :: ndof
   PetscBool, allocatable :: dof_is_active(:)
   PetscBool :: failure
@@ -1505,7 +1504,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
   class(realization_subsurface_type), pointer :: realization
   class(pm_base_type), pointer :: cur_pm
   type(option_type), pointer :: option
-  SNESLineSearch :: linesearch
   PetscErrorCode :: ierr
 
   realization => simulation%realization

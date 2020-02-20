@@ -72,7 +72,8 @@ function PMHydrateCreate()
   ! 
   use Variables_module, only : LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                               GAS_SATURATION
+                               GAS_SATURATION, HYDRATE_SATURATION, &
+                               LIQUID_SATURATION, ICE_SATURATION
   use Upwind_Direction_module
 
   implicit none
@@ -149,15 +150,16 @@ function PMHydrateCreate()
             shape(rel_update_inf_tol)) * &
             1.d0 ! change to 0.d0 to zero tolerances
   allocate(this)
-  allocate(this%max_change_ivar(6))
+  allocate(this%max_change_ivar(9))
   this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                 LIQUID_MOLE_FRACTION, TEMPERATURE, &
-                                GAS_SATURATION]
-  allocate(this%max_change_isubvar(6))
+                                GAS_SATURATION, HYDRATE_SATURATION, &
+                                LIQUID_SATURATION, ICE_SATURATION]
+  allocate(this%max_change_isubvar(9))
                                    ! UNINITIALIZED_INTEGER avoids zeroing of 
                                    ! pressures not represented in phase
                                        ! 2 = air in xmol(air,liquid)
-  this%max_change_isubvar = [0,0,0,2,0,0]
+  this%max_change_isubvar = [0,0,0,2,0,0,0,0,0]
   this%damping_factor = -1.d0
   this%hydrate_newton_max_iter = 8
   
@@ -182,6 +184,7 @@ function PMHydrateCreate()
   this%converged_cell(:,:,:) = 0
 
   allocate(this%hydrate_parameters)
+  nullify(this%hydrate_parameters%methanogenesis)
 
   PMHydrateCreate => this
   
@@ -258,6 +261,28 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
     select case(trim(word))
       case('SCALE_PERM_BY_HYD_SAT')
         HYDRATE_PERM_SCALING = PETSC_TRUE
+      case('HYDRATE_PHASE_BOUNDARY')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hydrate phase boundary')
+        call StringToUpper(word)
+        select case(word)
+          case('MORIDIS')
+            HYDRATE_PHASE_BOUNDARY = 2
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE_PHASE_BOUNDARY',option)
+        end select
+      case('HENRYS_CONSTANT')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'keyword','hydrate henrys constant')
+        call StringToUpper(word)
+        select case(word)
+          case('CRAMER')
+            HYDRATE_HENRYS_CONSTANT = 2
+          case default
+            call InputKeywordUnrecognized(input,word,&
+                 'HYDRATE_HENRYS_CONSTANT',option)
+        end select
       case('EFFECTIVE_SAT_SCALING')
         HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
       case('WITH_GIBBS_THOMSON')
@@ -704,11 +729,11 @@ recursive subroutine PMHydrateInitializeRun(this)
   PetscErrorCode :: ierr
 
   ! need to allocate vectors for max change
-  call VecDuplicateVecsF90(this%realization%field%work,SIX_INTEGER, &
+  call VecDuplicateVecsF90(this%realization%field%work,NINE_INTEGER, &
                            this%realization%field%max_change_vecs, &
                            ierr);CHKERRQ(ierr)
   ! set initial values
-  do i = 1, 6
+  do i = 1, 9
     call RealizationGetVariable(this%realization, &
                                 this%realization%field%max_change_vecs(i), &
                                 this%max_change_ivar(i), &
@@ -941,7 +966,7 @@ end subroutine PMHydrateJacobian
 
 ! ************************************************************************** !
 
-subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Michael Nole 
   ! Date: 07/23/19
@@ -959,7 +984,7 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_hydrate_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -999,7 +1024,6 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal :: scale, temp_scale
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration
   ! MAN: END OLD
 
@@ -1020,7 +1044,6 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   spid = option%saturation_pressure_id
   apid = option%air_pressure_id
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   hydrate_allow_state_change = PETSC_FALSE
@@ -1213,7 +1236,7 @@ end subroutine PMHydrateCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Michael Nole 
@@ -1232,7 +1255,7 @@ subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_hydrate_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -1307,6 +1330,18 @@ subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
       if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
         converged_relative = PETSC_FALSE
       endif
+
+      if (converged_abs_update_real(idof,istate) < dX_abs) then
+        converged_abs_update_real(idof,istate) = dX_abs
+        converged_abs_update_cell(idof,istate) = natural_id
+      endif
+      if (dX_X0 > this%rel_update_inf_tol(idof,istate)) then
+        converged_relative = PETSC_FALSE
+      endif
+      if (converged_rel_update_real(idof,istate) < dX_X0) then
+        converged_rel_update_real(idof,istate) = dX_X0
+        converged_rel_update_cell(idof,istate) = natural_id
+      endif
       
       ! only enter this condition if both are not converged
       if (.not.(converged_absolute .or. converged_relative)) then
@@ -1379,6 +1414,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   PetscBool :: converged_absolute
   PetscBool :: converged_scaled
   PetscMPIInt :: mpi_int
+  PetscBool :: flags(181)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=14), parameter :: state_string(15) = &
     ['Liquid State  ','Gas State     ','Hydrate State ','Ice State     ', &
@@ -1388,19 +1424,19 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
   character(len=17), parameter :: dof_string(3,15) = &
     reshape(['Liquid Pressure  ','Air Mole Fraction','Temperature      ', &
              'Gas Pressure     ','Air Pressure     ','Temperature      ', &
+             'Gas Pressure     ','Air Mole Frac Hyd','Temperature      ', &
+             'Gas Pressure     ','Air Mole Frac Ice','Temperature      ', &
              'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      ', &
-             'Placeholder      ','Placeholder      ','Placeholder      '], &
+             'Gas Pressure     ','Gas Saturation   ','Temperature      ', &
+             'Gas Pressure     ','Hydrate Sat      ','Temperature      ', &
+             'Gas Pressure     ','Hydrate Sat      ','Temperature      ', &
+             'Gas Pressure     ','Ice Saturation   ','Temperature      ', &
+             'Gas Pressure     ','Air Mole Fraction','Liquid Saturation', &
+             'Liquid Saturation','Hydrate Sat      ','Temperature      ', &
+             'Gas Pressure     ','Liquid Saturation','Ice Saturation   ', &
+             'Hydrate Sat      ','Ice Saturation   ','Temperature      ', &
+             'Gas Pressure     ','Liquid Saturation','Ice Saturation   ', &
+             'Gas Saturation   ','Liquid Saturation','Ice Saturation   '], &
              shape(dof_string))
   character(len=15), parameter :: tol_string(MAX_INDEX) = &
     ['Absolute Update','Relative Update','Residual       ','Scaled Residual']
@@ -1480,11 +1516,18 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
                                        converged_scaled_residual_real(:,:)
     this%converged_cell(:,:,SCALED_RESIDUAL_INDEX) = &
                                        converged_scaled_residual_cell(:,:)
-    mpi_int = 9*MAX_INDEX
+    !mpi_int = 9*MAX_INDEX
+    flags(1:45*MAX_INDEX) = reshape(this%converged_flag,(/45*MAX_INDEX/))
+    flags(181) = .not.hydrate_high_temp_ts_cut
+    mpi_int = 181
     ! do not perform an all reduce on cell id as this info is not printed 
     ! in parallel
-    call MPI_Allreduce(MPI_IN_PLACE,this%converged_flag,mpi_int, &
+    call MPI_Allreduce(MPI_IN_PLACE,flags,mpi_int, &
                        MPI_LOGICAL,MPI_LAND,option%mycomm,ierr)
+    this%converged_flag = reshape(flags(1:45*MAX_INDEX),(/3,15,MAX_INDEX/))
+    hydrate_high_temp_ts_cut = .not.flags(181)
+
+    mpi_int = 45*MAX_INDEX
     call MPI_Allreduce(MPI_IN_PLACE,this%converged_real,mpi_int, &
                        MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   
@@ -1550,6 +1593,37 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
         call OptionPrint(string,option)
       endif
     endif
+
+    if (hydrate_high_temp_ts_cut) then
+      hydrate_high_temp_ts_cut = PETSC_FALSE
+      string = '    Exceeded Hydrate Mode EOS max temperature'
+      call OptionPrint(string,option)
+      option%convergence = CONVERGENCE_CUT_TIMESTEP
+    endif
+
+    ! MAN: Add Newton TR compatibility
+    !if (hydrate_using_newtontr .and. hydrate_state_changed) then
+    !    ! if we reach convergence in an inner newton iteration of TR
+    !    ! then we must force an outer iteration to allow state change
+    !    ! in case the solutions are out-of-bounds of the states -hdp
+    !    hydrate_force_iteration = PETSC_TRUE
+    !endif
+    !
+    !if (hydrate_using_newtontr .and. &
+    !    hydrate_sub_newton_iter_num > 1 .and. &
+    !    hydrate_force_iteration .and. &
+    !    option%convergence == CONVERGENCE_CONVERGED) then
+    !    ! This is a complicated case but necessary.
+    !    ! right now PFLOTRAN declares convergence with a negative rho in tr.c
+    !    ! this should not be happening thus cutting timestep.
+    !    option%convergence = CONVERGENCE_CUT_TIMESTEP
+    !endif
+
+
+    !call MPI_Allreduce(MPI_IN_PLACE,hydrate_force_iteration,ONE_INTEGER, &
+    !                   MPI_LOGICAL,MPI_LOR,option%mycomm,ierr)
+    !option%force_newton_iteration = hydrate_force_iteration
+
   endif
 
   call PMSubsurfaceFlowCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
@@ -1650,8 +1724,8 @@ subroutine PMHydrateMaxChange(this)
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
-  PetscReal :: max_change_local(6)
-  PetscReal :: max_change_global(6)
+  PetscReal :: max_change_local(9)
+  PetscReal :: max_change_global(9)
   PetscReal :: max_change
   PetscInt :: i, j
   PetscInt :: local_id, ghosted_id
@@ -1669,9 +1743,10 @@ subroutine PMHydrateMaxChange(this)
   max_change_global = 0.d0
   max_change_local = 0.d0
   
-  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-  !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION]
-  do i = 1, 6
+  !max change variables:[LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+  !                      LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION,
+  !                      HYDRATE_SATURATION, LIQUID_SATUARTION, ICE_SATUARTION]
+  do i = 1, 9
     call RealizationGetVariable(realization,field%work, &
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
@@ -1702,29 +1777,32 @@ subroutine PMHydrateMaxChange(this)
                             ierr);CHKERRQ(ierr)
     call VecCopy(field%work,field%max_change_vecs(i),ierr);CHKERRQ(ierr)
   enddo
-  call MPI_Allreduce(max_change_local,max_change_global,SIX_INTEGER, &
+  call MPI_Allreduce(max_change_local,max_change_global,NINE_INTEGER, &
                       MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
   ! print them out
   if (OptionPrintToScreen(option)) then
     write(*,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
       & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4,&
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:6)
+      & " dsg= ",1pe12.4,/,15x," dsh= ",1pe12.4," dsl= ",1pe12.4,&
+      & " dsi= ",1pe12.4)') &
+      max_change_global(1:9)
   endif
   if (OptionPrintToFile(option)) then
     write(option%fid_out,'("  --> max chng: dpl= ",1pe12.4, " dpg= ",1pe12.4,&
       & " dpa= ",1pe12.4,/,15x," dxa= ",1pe12.4,"  dt= ",1pe12.4, &
-      & " dsg= ",1pe12.4)') &
-      max_change_global(1:6)
+      & " dsg= ",1pe12.4,/,15x," dsh= ",1pe12.4," dsl= ",1pe12.4,&
+      & " dsi= ",1pe12.4)') &
+      max_change_global(1:9)
   endif
 
-  ! max change variables: [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
-  !                        LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION]
+  ! max change variables:[LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
+  !                       LIQUID_MOLE_FRACTION, TEMPERATURE, GAS_SATURATION,
+  !                       HYDRATE_SATURATION, LIQUID_SATURATION, ICE_SATURATION]
   ! ignore air pressure as it jumps during phase change
   this%max_pressure_change = maxval(max_change_global(1:2))
   this%max_xmol_change = max_change_global(4)
   this%max_temperature_change = max_change_global(5)
-  this%max_saturation_change = max_change_global(6)
+  this%max_saturation_change = maxval(max_change_global(6:9))
   
 end subroutine PMHydrateMaxChange
 
