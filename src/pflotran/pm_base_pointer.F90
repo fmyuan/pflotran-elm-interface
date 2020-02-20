@@ -137,7 +137,7 @@ end subroutine PMIJacobianPtr
 
 ! ************************************************************************** !
 
-subroutine PMCheckUpdatePrePtr(line_search,X,dX,changed,this,ierr)
+subroutine PMCheckUpdatePrePtr(linesearch,X,dX,changed,this,ierr)
   ! 
   ! Wrapper for native call to XXXCheckUpdatePre
   ! 
@@ -146,20 +146,23 @@ subroutine PMCheckUpdatePrePtr(line_search,X,dX,changed,this,ierr)
   ! 
    implicit none
 
-  SNESLineSearch :: line_search
+  SNESLineSearch :: linesearch
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
+
+  SNES :: snes
   
-  call this%pm%CheckUpdatePre(line_search,X,dX,changed,ierr)
+  call SNESLineSearchGetSNES(linesearch,snes,ierr);CHKERRQ(ierr)
+  call this%pm%CheckUpdatePre(snes,X,dX,changed,ierr)
     
 end subroutine PMCheckUpdatePrePtr
 
 ! ************************************************************************** !
 
-subroutine PMCheckUpdatePostPtr(line_search,X0,dX,X1,dX_changed,X1_changed, &
+subroutine PMCheckUpdatePostPtr(linesearch,X0,dX,X1,dX_changed,X1_changed, &
                                 this,ierr)
   ! 
   ! Wrapper for native call to XXXCheckUpdatePost
@@ -169,7 +172,7 @@ subroutine PMCheckUpdatePostPtr(line_search,X0,dX,X1,dX_changed,X1_changed, &
   ! 
   implicit none
 
-  SNESLineSearch :: line_search
+  SNESLineSearch :: linesearch
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -177,8 +180,11 @@ subroutine PMCheckUpdatePostPtr(line_search,X0,dX,X1,dX_changed,X1_changed, &
   PetscBool :: X1_changed
   type(pm_base_pointer_type) :: this
   PetscErrorCode :: ierr
+
+  SNES :: snes
   
-  call this%pm%CheckUpdatePost(line_search,X0,dX,X1,dX_changed,X1_changed,ierr)
+  call SNESLineSearchGetSNES(linesearch,snes,ierr);CHKERRQ(ierr)
+  call this%pm%CheckUpdatePost(snes,X0,dX,X1,dX_changed,X1_changed,ierr)
     
 end subroutine PMCheckUpdatePostPtr
 
