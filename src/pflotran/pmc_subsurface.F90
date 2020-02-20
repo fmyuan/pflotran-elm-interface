@@ -44,10 +44,6 @@ function PMCSubsurfaceCreate()
   
   class(pmc_subsurface_type), pointer :: pmc
 
-#ifdef DEBUG
-  print *, 'PMCSubsurface%Create()'
-#endif
-  
   allocate(pmc)
   call pmc%Init()
   
@@ -70,10 +66,6 @@ subroutine PMCSubsurfaceInit(this)
   implicit none
   
   class(pmc_subsurface_type) :: this
-  
-#ifdef DEBUG
-  print *, 'PMCSubsurface%Init()'
-#endif
   
   call PMCBaseInit(this)
   this%name = 'PMCSubsurface'
@@ -162,10 +154,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   SNESType :: snes_type
   PetscErrorCode :: ierr
 
-#ifdef DEBUG
-  call PrintMsg(this%option,'PMCSubsurface%SetupSolvers()')
-#endif
-
   option => this%option
   solver => this%timestepper%solver
   
@@ -176,7 +164,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   NWT = 2
 
   call SolverCreateSNES(solver,option%mycomm)
-  call SNESGetLineSearch(this%timestepper%solver%snes,linesearch, &
+  call SNESGetLineSearch(solver%snes,linesearch, &
                          ierr);CHKERRQ(ierr)
   ! set solver pointer within pm for convergence purposes
   call this%pm_ptr%pm%SetSolver(solver)
@@ -186,7 +174,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       call PrintMsg(option,"  Beginning setup of FLOW SNES ")
       if (solver%J_mat_type == MATAIJ .and. &
           option%iflowmode /= RICHARDS_MODE) then
-
         option%io_buffer = 'AIJ matrix not supported for current &
           &mode: '// option%flowmode
         call PrintErrMsg(option)
@@ -266,16 +253,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
 
-            if (solver%Jpre_mat_type == solver%J_mat_type) then
+      if (solver%Jpre_mat_type == solver%J_mat_type) then
         solver%J = solver%Jpre
-            else
-              call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                                NFLOWDOF, &
-                                                solver%J_mat_type, &
-                                                solver%J, &
-                                                option)
+      else
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          NFLOWDOF, &
+                                          solver%J_mat_type, &
+                                          solver%J, &
+                                          option)
 
-              call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
+        call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
       endif
 
       if (solver%use_galerkin_mg) then
@@ -293,6 +280,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       ! by default turn off line search
+!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
@@ -319,24 +307,14 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                  PMCheckConvergence, &
-                                  this%pm_ptr%pm, &
-#else
-                                        PMCheckConvergencePtr, &
-                                        this%pm_ptr, &
-#endif
+                                  PMCheckConvergencePtr, &
+                                  this%pm_ptr, &
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       if (pm%check_post_convergence) then
         call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                        PMCheckUpdatePost, &
-                                        this%pm_ptr%pm, &
-#else
                                         PMCheckUpdatePostPtr, &
                                         this%pm_ptr, &
-#endif
                                         ierr);CHKERRQ(ierr)
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
@@ -366,17 +344,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       end select
 
         if (add_pre_check) then
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-            call SNESLineSearchSetPreCheck(linesearch, &
-                                           PMCheckUpdatePre, &
-                                           this%pm_ptr%pm, &
-                                           ierr);CHKERRQ(ierr)
-#else
             call SNESLineSearchSetPreCheck(linesearch, &
                                            PMCheckUpdatePrePtr, &
                                            this%pm_ptr, &
                                            ierr);CHKERRQ(ierr)
-#endif
         endif
 
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
@@ -472,6 +443,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       ! this could be changed in the future if there is a way to 
       ! ensure that the linesearch update does not perturb 
       ! concentrations negative.
+!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, &
                              ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
@@ -495,25 +467,15 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
     if (trans_coupling == GLOBAL_IMPLICIT) then
       call SNESSetConvergenceTest(solver%snes, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                  PMCheckConvergence, &
-                                  this%pm_ptr%pm, &
-#else
                                   PMCheckConvergencePtr, &
                                   this%pm_ptr, &
-#endif
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
     endif
     if (this%pm_ptr%pm%print_EKG .or. option%use_mc .or. &
         check_post_convergence) then
       call SNESLineSearchSetPostCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                      PMCheckUpdatePost, &
-                                      this%pm_ptr%pm, &
-#else
                                       PMCheckUpdatePostPtr, &
                                       this%pm_ptr, &
-#endif
                                       ierr);CHKERRQ(ierr)
       if (this%pm_ptr%pm%print_EKG) then
         check_post_convergence = PETSC_TRUE
@@ -521,13 +483,8 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
     endif
     if (check_update) then
       call SNESLineSearchSetPreCheck(linesearch, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                                     PMCheckUpdatePre, &
-                                     this%pm_ptr%pm, &
-#else
                                      PMCheckUpdatePrePtr, &
                                      this%pm_ptr, &
-#endif
                                      ierr);CHKERRQ(ierr)
     endif
     call PrintMsg(option,"  Finished setting up TRAN SNES ")
@@ -535,26 +492,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   endif ! RT or NWT
       
 
-  call SNESSetFunction(this%timestepper%solver%snes, &
+  call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                       PMResidual, &
-                       this%pm_ptr%pm, &
-#else
                        PMResidualPtr, &
                        this%pm_ptr, &
-#endif
                        ierr);CHKERRQ(ierr)
-  call SNESSetJacobian(this%timestepper%solver%snes, &
+  call SNESSetJacobian(solver%snes, &
                        solver%J, &
                        solver%Jpre, &
-#if defined(USE_PM_AS_PETSC_CONTEXT)
-                       PMJacobian, &
-                       this%pm_ptr%pm, &
-#else
                        PMJacobianPtr, &
                        this%pm_ptr, &
-#endif
                        ierr);CHKERRQ(ierr)
   call SolverSetSNESOptions(solver,option)
 

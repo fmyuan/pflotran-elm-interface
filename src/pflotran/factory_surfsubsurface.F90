@@ -240,7 +240,7 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
       call pm_surface_flow%Setup()
       call TSSetRHSFunction(timestepper%solver%ts, &
                             pm_surface_flow%residual_vec, &
-                            PMRHSFunction, &
+                            PMRHSFunctionPtr, &
                             pmc_surface%pm_ptr, &
                             ierr);CHKERRQ(ierr)
     endif
@@ -250,7 +250,7 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
       call pm_surface_th%Setup()
       call TSSetRHSFunction(timestepper%solver%ts, &
                             pm_surface_th%residual_vec, &
-                            PMRHSFunction, &
+                            PMRHSFunctionPtr, &
                             pmc_surface%pm_ptr, &
                             ierr);CHKERRQ(ierr)
     endif
