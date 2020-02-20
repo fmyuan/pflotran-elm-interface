@@ -5705,7 +5705,6 @@ subroutine TOWGImsTLCheckUpdatePre(snes,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-
   PetscInt :: newton_iteration
 
   
@@ -5882,7 +5881,6 @@ subroutine TOWGBlackOilCheckUpdatePre(snes,X,dX,changed,realization, &
   PetscReal :: scale, temp_scale, temp_real
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-
   PetscInt :: newton_iteration,istate
 
   PetscReal :: scand
