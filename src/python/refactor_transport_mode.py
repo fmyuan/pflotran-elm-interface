@@ -6,11 +6,14 @@ import fnmatch
 
 def refactor_options(f,f2):
     options_block_started = False
+    skip_file_flag = False
     while True:
         line = f.readline()
         string = line.strip().upper()
         if string.startswith('MODE'):
             # return as file has already been fixed.
+            # flag causes the script to skip file
+            skip_file_flag = True
             break
         elif string.startswith('/') or string.startswith('END'):
             if options_block_started:
@@ -33,13 +36,17 @@ def refactor_options(f,f2):
                 new_line = '      OPTIONS\n'
                 f2.write(new_line)
             f2.write('  '+line.rstrip()+'\n')
+    return skip_file_flag
 
 
 def refactor_file(filename):
     f = open(filename,'r')
     f2 = open(filename+'.tmp','w')
     flag = False
+    skip_file_flag = False
     while True:
+        if skip_file_flag:
+            break
         line = f.readline()
         if not line:
             break
@@ -49,19 +56,19 @@ def refactor_file(filename):
             f2.write(line)
             new_line = '      MODE RT\n'
             f2.write(new_line)
-            refactor_options(f,f2)
+            skip_file_flag = refactor_options(f,f2)
             continue
         if string.startswith('NUCLEAR_WASTE_TRANSPORT'):
             flag = True
             f2.write(line.replace('NUCLEAR_WASTE_TRANSPORT','SUBSURFACE_TRANSPORT'))
             new_line = '      MODE NWT\n'
             f2.write(new_line)
-            refactor_options(f,f2)
+            skip_file_flag = refactor_options(f,f2)
             continue
         f2.write(line)
     f.close()
     f2.close()
-    if flag:
+    if flag and not skip_file_flag:
         print('File {} has been updated.'.format(filename))
         # using shutil.move adds ^M to end of lines.
         os.remove(filename)
