@@ -442,7 +442,7 @@ nw_transport.o : condition.o connection.o coupler.o debug.o discretization.o \
                  material_aux.o nw_transport_aux.o nw_transport_equilibrium.o \
                  option.o output_aux.o pflotran_constants.o \
                  realization_subsurface.o string.o transport_constraint_nwt.o \
-                 utility.o
+                 utility.o wipp_flow_aux.o
 nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
                      pflotran_constants.o reaction_base.o string.o utility.o \
                      variables.o
@@ -550,8 +550,7 @@ pm_base.o : input_aux.o option.o output_aux.o pflotran_constants.o \
             realization_base.o solver.o string.o
 pm_base_aux.o : auxvars_base.o grid.o matrix_zeroing.o option.o \
                 pflotran_constants.o utility.o
-pm_base_pointer.o : option.o pflotran_constants.o pm_base.o \
-                    realization_subsurface.o
+pm_base_pointer.o : pflotran_constants.o pm_base.o
 pm_flash2.o : eos_water.o flash2.o flash2_aux.o input_aux.o option.o \
               pflotran_constants.o pm_base.o pm_subsurface_flow.o \
               realization_subsurface.o string.o utility.o
@@ -933,7 +932,7 @@ shape_function.o : gauss.o grid_unstructured_cell.o pflotran_constants.o
 simulation_aux.o : option.o pflotran_constants.o
 simulation_base.o : checkpoint.o eos.o input_aux.o logging.o option.o output.o \
                     output_aux.o pflotran_constants.o pm_base.o pmc_base.o \
-                    simulation_aux.o timestepper_base.o waypoint.o
+                    simulation_aux.o string.o timestepper_base.o waypoint.o
 simulation_geomechanics.o : geomechanics_realization.o \
                             geomechanics_regression.o option.o output.o \
                             output_aux.o pflotran_constants.o pmc_base.o \
@@ -1027,8 +1026,8 @@ timestepper_BE.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
                    output.o output_ekg.o pflotran_constants.o pm_base.o \
                    solver.o string.o timestepper_base.o utility.o
 timestepper_KSP.o : checkpoint.o convergence.o hdf5_aux.o input_aux.o option.o \
-                    output.o output_ekg.o pflotran_constants.o pm_base.o \
-                    solver.o string.o timestepper_base.o utility.o
+                    pflotran_constants.o pm_base.o solver.o string.o \
+                    timestepper_base.o utility.o
 timestepper_TS.o : input_aux.o option.o output.o pflotran_constants.o \
                    pm_base.o pm_surface_flow.o solver.o string.o \
                    surface_flow.o timestepper_base.o utility.o waypoint.o
