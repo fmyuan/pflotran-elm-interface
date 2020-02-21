@@ -170,13 +170,13 @@ subroutine PMCSubsurfaceOSRTStepDT(this,stop_flag)
   PetscInt :: stop_flag
 
   type(option_type), pointer :: option
-  type(pm_osrt_type), pointer :: process_model
+  class(pm_osrt_type), pointer :: process_model
   class(realization_subsurface_type), pointer :: realization
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(solver_type), pointer :: solver
-  type(timestepper_KSP_type), pointer :: timestepper
+  class(timestepper_KSP_type), pointer :: timestepper
   class(reaction_rt_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
   class(material_auxvar_type), pointer :: material_auxvars(:)
