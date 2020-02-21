@@ -1094,7 +1094,7 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
         call InputErrorMsg(input,option,'mode',error_string)
         call StringToUpper(word)
         select case(word)
-          case('RT')
+          case('GIRT')
             pm => PMRTCreate()
             option%itranmode = RT_MODE
           case('OSRT')
@@ -1131,8 +1131,8 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
       print *, 'SIMULATION'
       print *, '  SIMULATION_TYPE SUBSURFACE'
       print *, '  PROCESS_MODELS'
-      print *, '    SUBSURFACE_TRANSPORT transport'
-      print *, '      MODE RT'
+      print *, '    SUBSURFACE_TRANSPORT'
+      print *, '      MODE GIRT'
       print *, '      OPTIONS'
       print *, '      /'
       print *, '    /'
@@ -1521,8 +1521,8 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
     select type(cur_pm)
       class is(pm_rt_type)
         if (.not.associated(realization%reaction)) then
-          option%io_buffer = 'SUBSURFACE_TRANSPORT MODE RT is specified &
-            &in the SIMULATION block without the corresponding &
+          option%io_buffer = 'SUBSURFACE_TRANSPORT MODE GIRT/OSRT is &
+            &specified in the SIMULATION block without the corresponding &
             &process model without a corresponding CHEMISTRY block within &
             &the SUBSURFACE block.'
           call PrintErrMsg(option)
@@ -2047,7 +2047,7 @@ subroutine SubsurfaceReadRequiredCards(simulation,input)
         call InputPushCard(input,card,option)
         if (option%itranmode /= RT_MODE) then
           option%io_buffer = 'CHEMISTRY card is included, but &
-            &SUBSURFACE_TRANSPORT MODE RT was not specified in the &
+            &SUBSURFACE_TRANSPORT MODE GIRT/OSRT was not specified in the &
             &SIMULATION block.'
           call PrintErrMsg(option)
         endif

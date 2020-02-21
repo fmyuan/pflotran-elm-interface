@@ -8,7 +8,7 @@ SIMULATION
       MODE GENERAL
     /
     SUBSURFACE_TRANSPORT transport
-      MODE RT
+      MODE GIRT
     /
   /
 END

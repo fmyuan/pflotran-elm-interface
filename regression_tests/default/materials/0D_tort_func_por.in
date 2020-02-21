@@ -11,7 +11,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      MODE RT
+      MODE GIRT
     /
   /
 END

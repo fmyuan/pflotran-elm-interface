@@ -8,7 +8,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      MODE RT
+      MODE GIRT
     /
     AUXILIARY SALINITY
       SPECIES Tracer 58.442469d0

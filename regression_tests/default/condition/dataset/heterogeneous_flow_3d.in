@@ -7,10 +7,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-#      MODE RT
-#      OPTIONS
-#        MAX_CFL 1.
-      /
+      MODE GIRT
     /
   /
 END

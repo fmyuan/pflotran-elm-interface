@@ -11,7 +11,7 @@ SIMULATION
       /
     /
     SUBSURFACE_TRANSPORT transport
-      MODE RT
+      MODE GIRT
       OPTIONS
         SKIP_RESTART
       /

@@ -54,7 +54,7 @@ def refactor_file(filename):
         if string.startswith('SUBSURFACE_TRANSPORT'):
             flag = True
             f2.write(line)
-            new_line = '      MODE RT\n'
+            new_line = '      MODE GIRT\n'
             f2.write(new_line)
             skip_file_flag = refactor_options(f,f2)
             continue

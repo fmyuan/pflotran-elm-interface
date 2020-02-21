@@ -8,7 +8,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      MODE RT
+      MODE GIRT
     /
   /
   RESTART 543_hanford_srfcplx_base-restart.chk 0.d0
