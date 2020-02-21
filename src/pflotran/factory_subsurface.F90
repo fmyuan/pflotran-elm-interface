@@ -1139,11 +1139,13 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
       print *, '  /'
       print *, 'END'
       print *
-      option%io_buffer = "PFLOTRAN's SUBSURFACE_TRANSPORT PROCESS_MODEL &
-        &has been refactored to use a MODE keyword and an OPTIONS block. &
-        &Please use the keywords above in reformatting the SIMULATION block. &
-        &The MODE card is the only required card."
     endif
+    option%io_buffer = "PFLOTRAN's SUBSURFACE_TRANSPORT &
+      &process model has been refactored to use the &
+      &combination of the SUBSURFACE_TRANSPORT and 'MODE &
+      &GIRT' keywords and an (optional) OPTIONS block. &
+      &Please use the keywords above in reformatting the &
+      &SIMULATION block."
     call PrintErrMsg(option)
   endif
 
