@@ -4648,8 +4648,8 @@ subroutine THResidualSourceSink(r,realization,ierr)
   endif
 
   if (patch%aux%TH%inactive_cells_exist) then
-    do i=1,patch%aux%TH%n_zero_rows
-      r_p(patch%aux%TH%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%TH%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%TH%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -5489,12 +5489,14 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL_MODE_DOES_NOT_WORK
   zero = 0.d0
-  call MatZeroRowsLocal(A,n_zero_rows,zero_rows_local_ghosted,zero, &
+  call MatZeroRowsLocal(A,patch%aux%%matrix_zeroing%n_inactive_rows, &
+                        patch%aux%%matrix_zeroing% &
+                          inactive_rows_local_ghosted,zero, &
                         PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
-  do i=1, n_zero_rows
-    ii = mod(zero_rows_local(i),option%nflowdof)
-    ip1 = zero_rows_local_ghosted(i)
+  do i=1, patch%aux%TH%matrix_zeroing%n_inactive_rows
+    ii = mod(patch%aux%TH%matrix_zeroing%inactive_rows_local(i),option%nflowdof)
+    ip1 = patch%aux%TH%matrix_zeroing%inactive_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     else if (ii == option%nflowdof-1) then
@@ -5511,8 +5513,9 @@ subroutine THJacobianSourceSink(A,realization,ierr)
 #else
   if (patch%aux%TH%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%TH%n_zero_rows, &
-                          patch%aux%TH%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(A,patch%aux%TH%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%TH%matrix_zeroing% &
+                            inactive_rows_local_ghosted,f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

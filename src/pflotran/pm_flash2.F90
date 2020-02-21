@@ -54,7 +54,7 @@ function PMFlash2Create()
   class(pm_flash2_type), pointer :: flash2_pm
   
   allocate(flash2_pm)
-  call PMSubsurfaceFlowCreate(flash2_pm)
+  call PMSubsurfaceFlowInit(flash2_pm)
   flash2_pm%name = 'Flash2 Flow'
   flash2_pm%header = 'FLASH2 FLOW'
 

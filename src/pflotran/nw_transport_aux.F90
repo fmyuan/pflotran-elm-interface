@@ -4,6 +4,7 @@ module NW_Transport_Aux_module
   use petscsys
   use PFLOTRAN_Constants_module
   use Reaction_Base_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -37,12 +38,6 @@ module NW_Transport_Aux_module
     PetscInt :: num_aux_bc  
     ! number of nwt_auxvars objects for source/sinks
     PetscInt :: num_aux_ss  
-    ! ids of zero rows in local, non-ghosted numbering
-    PetscInt, pointer :: zero_rows_local(:) 
-    ! ids of zero rows in ghosted numbering
-    PetscInt, pointer :: zero_rows_local_ghosted(:)
-    ! number of zeroed rows in Jacobian for inactive cells
-    PetscInt :: n_zero_rows
     PetscBool :: inactive_cells_exist
     PetscBool :: truncate_output
     ! nwt_auxvars for local and ghosted grid cells
@@ -51,6 +46,8 @@ module NW_Transport_Aux_module
     type(nw_transport_auxvar_type), pointer :: auxvars_bc(:)
     ! nwt_auxvars for source/sinks
     type(nw_transport_auxvar_type), pointer :: auxvars_ss(:)
+    ! matrix zeroing handling inactive cells
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type nw_transport_type
   
   type, public :: nwt_params_type
@@ -174,9 +171,7 @@ function NWTAuxCreate()
   nullify(aux%auxvars)      
   nullify(aux%auxvars_bc)   
   nullify(aux%auxvars_ss)   
-  aux%n_zero_rows = 0    
-  nullify(aux%zero_rows_local)  
-  nullify(aux%zero_rows_local_ghosted) 
+  nullify(aux%matrix_zeroing)
   aux%inactive_cells_exist = PETSC_FALSE
   aux%truncate_output = PETSC_FALSE
 
@@ -1087,8 +1082,7 @@ subroutine NWTAuxDestroy(aux)
   call NWTAuxVarDestroy(aux%auxvars)
   call NWTAuxVarDestroy(aux%auxvars_bc)
   call NWTAuxVarDestroy(aux%auxvars_ss)
-  call DeallocateArray(aux%zero_rows_local)
-  call DeallocateArray(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   deallocate(aux)
   nullify(aux)

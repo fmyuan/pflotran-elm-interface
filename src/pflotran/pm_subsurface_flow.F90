@@ -66,7 +66,7 @@ module PM_Subsurface_Flow_class
 !    procedure, public :: Destroy => PMSubsurfaceFlowDestroy
   end type pm_subsurface_flow_type
   
-  public :: PMSubsurfaceFlowCreate, &
+  public :: PMSubsurfaceFlowInit, &
             PMSubsurfaceFlowSetup, &
             PMSubsurfaceFlowInitializeTimestepA, &
             PMSubsurfaceFlowInitializeTimestepB, &
@@ -87,7 +87,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowCreate(this)
+subroutine PMSubsurfaceFlowInit(this)
   ! 
   ! Intializes shared members of subsurface process models
   ! 
@@ -98,6 +98,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   
   class(pm_subsurface_flow_type) :: this
   
+  call PMBaseInit(this)
   nullify(this%realization)
   nullify(this%comm1)
   this%store_porosity_for_ts_cut = PETSC_FALSE
@@ -122,9 +123,7 @@ subroutine PMSubsurfaceFlowCreate(this)
   this%temperature_change_limit = UNINITIALIZED_DOUBLE
   this%logging_verbosity = 0
 
-  call PMBaseInit(this)
-
-end subroutine PMSubsurfaceFlowCreate
+end subroutine PMSubsurfaceFlowInit
 
 ! ************************************************************************** !
 

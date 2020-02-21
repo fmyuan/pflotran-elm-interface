@@ -224,8 +224,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
   ! sim_aux: Set pointer
   simulation%flow_process_model_coupler%sim_aux => simulation%sim_aux
-  if (associated(simulation%rt_process_model_coupler)) &
-    simulation%rt_process_model_coupler%sim_aux => simulation%sim_aux
+  if (associated(simulation%tran_process_model_coupler)) &
+    simulation%tran_process_model_coupler%sim_aux => simulation%sim_aux
   if (option%ngeomechdof>0 .and. &
      associated(simulation%geomech_process_model_coupler)) &
     simulation%geomech_process_model_coupler%sim_aux => simulation%sim_aux

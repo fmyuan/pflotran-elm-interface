@@ -23,7 +23,9 @@ module PMC_Subsurface_class
     procedure, public :: Destroy => PMCSubsurfaceDestroy
   end type pmc_subsurface_type
   
-  public :: PMCSubsurfaceCreate
+  public :: PMCSubsurfaceCreate, &
+            PMCSubsurfaceInit, &
+            PMCSubsurfaceStrip
   
 contains
 
@@ -640,6 +642,11 @@ subroutine PMCSubsurfaceGetAuxData(this)
 
   class(pmc_subsurface_type) :: this
 
+  !TODO(geh): create a class for get/set and add it to a dynamic linked list
+  !           based on the process models involved. there is no need to
+  !           extend this class just to override this function as there
+  !           may be more than one PM for which to apply get/set. the 
+  !           proposed accomplishes the task.
   if (this%option%surf_flow_on) call PMCSubsurfaceGetAuxDataFromSurf(this)
   if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
 
@@ -1249,12 +1256,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 end subroutine PMCSubsurfaceSetAuxDataForGeomech
 
 ! ************************************************************************** !
-!
-! PMCSubsurfaceFinalizeRun: Finalizes the time stepping
-! author: Glenn Hammond
-! date: 03/18/13
-!
-! ************************************************************************** !
+
 recursive subroutine PMCSubsurfaceFinalizeRun(this)
   ! 
   ! Finalizes the time stepping

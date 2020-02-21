@@ -123,6 +123,10 @@ function PMGeneralCreate()
 #endif  
 
   allocate(this)
+  call PMSubsurfaceFlowInit(this)
+  this%name = 'General Multiphase Flow'
+  this%header = 'GENERAL MULTIPHASE FLOW'
+
   allocate(this%max_change_ivar(6))
   this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                 LIQUID_MOLE_FRACTION, TEMPERATURE, &
@@ -135,10 +139,6 @@ function PMGeneralCreate()
   this%damping_factor = -1.d0
   this%general_newton_max_iter = 8
   
-  call PMSubsurfaceFlowCreate(this)
-  this%name = 'General Multiphase Flow'
-  this%header = 'GENERAL MULTIPHASE FLOW'
-
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE

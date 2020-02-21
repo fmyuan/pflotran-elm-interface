@@ -5,6 +5,7 @@ module Mphase_Aux_module
   use Mphase_pckr_module
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -61,9 +62,6 @@ module Mphase_Aux_module
   end type mphase_parameter_type
   
   type, public :: mphase_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -76,6 +74,7 @@ module Mphase_Aux_module
     type(mphase_auxvar_type), pointer :: auxvars(:)
     type(mphase_auxvar_type), pointer :: auxvars_bc(:)
     type(mphase_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type mphase_type
 
 
@@ -110,13 +109,11 @@ function MphaseAuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
+  nullify(aux%matrix_zeroing)
   allocate(aux%mphase_parameter)
   nullify(aux%mphase_parameter%sir)
   nullify(aux%mphase_parameter%ckwet)
   nullify(aux%mphase_parameter%dencpr)
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
   nullify(aux%res_old_AR)
   nullify(aux%res_old_FL)
   nullify(aux%delx)
@@ -676,10 +673,8 @@ subroutine MphaseAuxDestroy(aux)
     nullify(aux%auxvars_ss)
   endif
   
-  if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
-  nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
-  nullify(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
+
   if (associated(aux%mphase_parameter)) then
     if (associated(aux%mphase_parameter%dencpr)) deallocate(aux%mphase_parameter%dencpr)
     nullify(aux%mphase_parameter%dencpr)

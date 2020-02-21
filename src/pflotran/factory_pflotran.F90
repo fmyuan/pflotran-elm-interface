@@ -252,9 +252,29 @@ subroutine PFLOTRANReadSimulation(simulation,option)
             case('SUBSURFACE_FLOW')
               call SubsurfaceReadFlowPM(input,option,new_pm)
             case('SUBSURFACE_TRANSPORT')
-              call SubsurfaceReadRTPM(input,option,new_pm)
+              call SubsurfaceReadTransportPM(input,option,new_pm)
             case('NUCLEAR_WASTE_TRANSPORT')
-              call SubsurfaceReadNWTPM(input,option,new_pm)
+              if (OptionPrintToScreen(option)) then
+                print *
+                print *, 'SIMULATION'
+                print *, '  SIMULATION_TYPE SUBSURFACE'
+                print *, '  PROCESS_MODELS'
+                print *, '    SUBSURFACE_TRANSPORT'
+                print *, '      MODE NWT'
+                print *, '      OPTIONS'
+                print *, '      /'
+                print *, '    /'
+                print *, '  /'
+                print *, 'END'
+                print *
+              endif
+              option%io_buffer = "PFLOTRAN's NUCLEAR_WASTE_TRANSPORT &
+                &process model has been refactored to use the &
+                &combination of the SUBSURFACE_TRANSPORT and 'MODE &
+                &NWT' keywords and an (optional) OPTIONS block. &
+                &Please use the keywords above in reformatting the &
+                &SIMULATION block."
+              call PrintErrMsg(option)
             case('WASTE_FORM')
               call SubsurfaceReadWasteFormPM(input,option,new_pm)
             case('UFD_DECAY')

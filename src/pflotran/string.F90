@@ -50,6 +50,9 @@ module String_module
     module procedure StringWriteES1
     module procedure StringWriteES2
     module procedure StringWriteString
+    module procedure StringWriteIArray
+    module procedure StringWriteESArray1
+    module procedure StringWriteESArray2
   end interface
 
   interface StringWriteF
@@ -846,6 +849,85 @@ function StringCenter(string,center_column,center_characters)
   StringCenter = string
  
 end function StringCenter
+
+! ************************************************************************** !
+
+function StringWriteIArray(i_array)
+  ! 
+  ! Writes an array of integers to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/12/19
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteIArray
+
+  PetscInt :: i_array(:)
+
+  PetscInt :: i
+
+  StringWriteIArray = ''
+  do i = 1, size(i_array)
+    StringWriteIArray = trim(StringWriteIArray) // ' ' // &
+                        trim(StringWrite(i_array(i)))
+  enddo
+
+end function StringWriteIArray
+
+! ************************************************************************** !
+
+function StringWriteESArray1(es_array)
+  ! 
+  ! Writes a double precision array in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/12/19
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteESArray1
+
+  PetscReal :: es_array(:)
+
+  PetscInt :: i
+
+  StringWriteESArray1 = ''
+  do i = 1, size(es_array)
+    StringWriteESArray1 = trim(StringWriteESArray1) // ' ' // &
+                          trim(StringWrite(es_array(i)))
+  enddo
+
+end function StringWriteESArray1
+
+! ************************************************************************** !
+
+function StringWriteESArray2(format_string,es_array)
+  ! 
+  ! Writes a double precision array in scientific notation to a string
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/12/19
+  ! 
+
+  implicit none
+ 
+  character(len=MAXSTRINGLENGTH) :: StringWriteESArray2
+
+  character(len=*) format_string
+  PetscReal :: es_array(:)
+
+  PetscInt :: i
+
+  StringWriteESArray2 = ''
+  do i = 1, size(es_array)
+    StringWriteESArray2 = trim(StringWriteESArray2) // ' ' // &
+                          trim(StringWrite(format_string,es_array(i)))
+  enddo
+
+end function StringWriteESArray2
 
 ! ************************************************************************** !
 

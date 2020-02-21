@@ -3394,8 +3394,8 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   endif
 
   if (patch%aux%TOil_ims%inactive_cells_exist) then
-    do i=1,patch%aux%TOil_ims%n_inactive_rows
-      r_p(patch%aux%TOil_ims%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%TOil_ims%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%TOil_ims%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -3791,15 +3791,16 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (patch%aux%TOil_ims%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%TOil_ims%n_inactive_rows, &
-                          patch%aux%TOil_ims%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%TOil_ims%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%TOil_ims%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
 
   if (toil_ims_isothermal) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    zeros => patch%aux%Toil_ims%row_zeroing_array
+    zeros => patch%aux%Toil_ims%matrix_zeroing%row_zeroing_array
     ! zero energy residual
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)

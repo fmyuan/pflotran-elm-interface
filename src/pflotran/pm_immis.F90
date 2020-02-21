@@ -54,7 +54,7 @@ function PMImmisCreate()
   
   allocate(immis_pm)
 
-  call PMSubsurfaceFlowCreate(immis_pm)
+  call PMSubsurfaceFlowInit(immis_pm)
   immis_pm%name = 'Immisible Flow'
   immis_pm%header = 'IMMISCIBLE FLOW'
 

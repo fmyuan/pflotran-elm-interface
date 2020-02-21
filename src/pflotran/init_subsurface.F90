@@ -1027,15 +1027,25 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
   ! Date: 03/11/16
 
   use Realization_Subsurface_class
+  use Patch_module
   use Option_module
+  use Matrix_Zeroing_module
 
   class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
   PetscBool, allocatable :: dof_is_active(:)
   PetscInt :: ndof
+
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
+  PetscBool :: inactive_cells_exist
+
+  inactive_cells_exist = PETSC_FALSE
+  nullify(matrix_zeroing)
   
   option => realization%option
+  patch => realization%patch
   
   if (option%nflowdof > 0) then
     allocate(dof_is_active(option%nflowdof))
@@ -1051,107 +1061,85 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
     end select
 #endif
     select case(option%iflowmode)
-      !TODO(geh): refactors so that we don't need all these variants?
       case(RICHARDS_MODE,RICHARDS_TS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Richards%zero_rows_local, &
-                      realization%patch%aux%Richards%zero_rows_local_ghosted, &
-                      realization%patch%aux%Richards%n_zero_rows, &
-                      realization%patch%aux%Richards%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%Richards%matrix_zeroing
       case(TH_MODE,TH_TS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TH%zero_rows_local, &
-                      realization%patch%aux%TH%zero_rows_local_ghosted, &
-                      realization%patch%aux%TH%n_zero_rows, &
-                      realization%patch%aux%TH%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%TH%matrix_zeroing
       case(MPH_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Mphase%zero_rows_local, &
-                      realization%patch%aux%Mphase%zero_rows_local_ghosted, &
-                      realization%patch%aux%Mphase%n_zero_rows, &
-                      realization%patch%aux%Mphase%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%Mphase%matrix_zeroing
       case(G_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%General%inactive_rows_local, &
-                    realization%patch%aux%General%inactive_rows_local_ghosted, &
-                      realization%patch%aux%General%n_inactive_rows, &
-                      realization%patch%aux%General%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%General%matrix_zeroing
       case(H_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Hydrate%inactive_rows_local, &
-                    realization%patch%aux%Hydrate%inactive_rows_local_ghosted, &
-                      realization%patch%aux%Hydrate%n_inactive_rows, &
-                      realization%patch%aux%Hydrate%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%Hydrate%matrix_zeroing
       case(WF_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%WIPPFlo%inactive_rows_local, &
-                    realization%patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
-                      realization%patch%aux%WIPPFlo%n_inactive_rows, &
-                      realization%patch%aux%WIPPFlo%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%WIPPFlo%matrix_zeroing
       case(TOIL_IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOil_ims%inactive_rows_local, &
-                   realization%patch%aux%TOil_ims%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOil_ims%n_inactive_rows, &
-                      realization%patch%aux%TOil_ims%inactive_cells_exist, &
-                      option)
+        matrix_zeroing => patch%aux%TOil_ims%matrix_zeroing
+      case(TOWG_MODE)
+        matrix_zeroing => patch%aux%TOWG%matrix_zeroing
+      case(IMS_MODE)
+        matrix_zeroing => patch%aux%Immis%matrix_zeroing
+      case(MIS_MODE)
+        matrix_zeroing => patch%aux%Miscible%matrix_zeroing
+      case(FLASH2_MODE)
+        matrix_zeroing => patch%aux%Flash2%matrix_zeroing
+    end select
+    call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
+                                       inactive_cells_exist,option)
+    select case(option%iflowmode)
+      case(RICHARDS_MODE,RICHARDS_TS_MODE)
+        patch%aux%Richards%matrix_zeroing => matrix_zeroing
+        patch%aux%Richards%inactive_cells_exist = inactive_cells_exist
+      case(TH_MODE,TH_TS_MODE)
+        patch%aux%TH%matrix_zeroing => matrix_zeroing
+        patch%aux%TH%inactive_cells_exist = inactive_cells_exist
+      case(MPH_MODE)
+        patch%aux%Mphase%matrix_zeroing => matrix_zeroing
+        patch%aux%Mphase%inactive_cells_exist = inactive_cells_exist
+      case(G_MODE)
+        patch%aux%General%matrix_zeroing => matrix_zeroing
+        patch%aux%General%inactive_cells_exist = inactive_cells_exist
+      case(H_MODE)
+        patch%aux%Hydrate%matrix_zeroing => matrix_zeroing
+        patch%aux%Hydrate%inactive_cells_exist = inactive_cells_exist
+      case(WF_MODE)
+        patch%aux%WIPPFlo%matrix_zeroing => matrix_zeroing
+        patch%aux%WIPPFlo%inactive_cells_exist = inactive_cells_exist
+      case(TOIL_IMS_MODE)
+        patch%aux%TOil_ims%matrix_zeroing => matrix_zeroing
+        patch%aux%TOil_ims%inactive_cells_exist = inactive_cells_exist
       case(TOWG_MODE)
         !PO: same for all pm_XXX_aux - can be defined in PM_Base_Aux_module
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%TOWG%inactive_rows_local, &
-                   realization%patch%aux%TOWG%inactive_rows_local_ghosted, &
-                      realization%patch%aux%TOWG%n_inactive_rows, &
-                      realization%patch%aux%TOWG%inactive_cells_exist, &
-                      option)
+        patch%aux%TOWG%matrix_zeroing => matrix_zeroing
+        patch%aux%TOWG%inactive_cells_exist = inactive_cells_exist
       case(IMS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Immis%zero_rows_local, &
-                      realization%patch%aux%Immis%zero_rows_local_ghosted, &
-                      realization%patch%aux%Immis%n_zero_rows, &
-                      realization%patch%aux%Immis%inactive_cells_exist, &
-                      option)
+        patch%aux%Immis%matrix_zeroing => matrix_zeroing
+        patch%aux%Immis%inactive_cells_exist = inactive_cells_exist
       case(MIS_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Miscible%zero_rows_local, &
-                      realization%patch%aux%Miscible%zero_rows_local_ghosted, &
-                      realization%patch%aux%Miscible%n_zero_rows, &
-                      realization%patch%aux%Miscible%inactive_cells_exist, &
-                      option)
+        patch%aux%Miscible%matrix_zeroing => matrix_zeroing
+        patch%aux%Miscible%inactive_cells_exist = inactive_cells_exist
       case(FLASH2_MODE)
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%Flash2%zero_rows_local, &
-                      realization%patch%aux%Flash2%zero_rows_local_ghosted, &
-                      realization%patch%aux%Flash2%n_zero_rows, &
-                      realization%patch%aux%Flash2%inactive_cells_exist, &
-                      option)
+        patch%aux%Flash2%matrix_zeroing => matrix_zeroing
+        patch%aux%Flash2%inactive_cells_exist = inactive_cells_exist
     end select
     deallocate(dof_is_active)
   endif
+
+  nullify(matrix_zeroing)
+  inactive_cells_exist = PETSC_FALSE
 
   if (option%ntrandof > 0) then
     select case(option%itranmode)
       case(RT_MODE,EXPLICIT_ADVECTION)
         ! remove ndof above if this is moved
-        if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+        if (option%transport%reactive_transport_coupling == &
+            GLOBAL_IMPLICIT) then
           ndof = realization%reaction%ncomp
         else
           ndof = 1
         endif
         allocate(dof_is_active(ndof))
         dof_is_active = PETSC_TRUE  
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%RT%zero_rows_local, &
-                      realization%patch%aux%RT%zero_rows_local_ghosted, &
-                      realization%patch%aux%RT%n_zero_rows, &
-                      realization%patch%aux%RT%inactive_cells_exist, &
-                      option)
-        deallocate(dof_is_active)
       case(NWT_MODE)
         if (option%transport%nw_transport_coupling == GLOBAL_IMPLICIT) then
           ndof = realization%reaction_nw%params%nspecies
@@ -1160,13 +1148,23 @@ subroutine InitSubsurfaceSetupZeroArrays(realization)
         endif
         allocate(dof_is_active(ndof))
         dof_is_active = PETSC_TRUE 
-        call InitSubsurfaceCreateZeroArray(realization%patch,dof_is_active, &
-                      realization%patch%aux%NWT%zero_rows_local, &
-                      realization%patch%aux%NWT%zero_rows_local_ghosted, &
-                      realization%patch%aux%NWT%n_zero_rows, &
-                      realization%patch%aux%NWT%inactive_cells_exist, &
-                      option)
-        deallocate(dof_is_active)
+    end select
+    select case(option%itranmode)
+      case(RT_MODE,EXPLICIT_ADVECTION)
+        matrix_zeroing => patch%aux%RT%matrix_zeroing
+      case(NWT_MODE)
+        matrix_zeroing => patch%aux%NWT%matrix_zeroing
+    end select
+    call InitSubsurfaceCreateZeroArray(patch,dof_is_active,matrix_zeroing, &
+                                       inactive_cells_exist,option)
+    deallocate(dof_is_active)
+    select case(option%itranmode)
+      case(RT_MODE,EXPLICIT_ADVECTION)
+        patch%aux%RT%matrix_zeroing => matrix_zeroing
+        patch%aux%RT%inactive_cells_exist = inactive_cells_exist
+      case(NWT_MODE)
+        patch%aux%NWT%matrix_zeroing => matrix_zeroing
+        patch%aux%NWT%inactive_cells_exist = inactive_cells_exist
     end select
   endif  
 
@@ -1175,37 +1173,36 @@ end subroutine InitSubsurfaceSetupZeroArrays
 ! ************************************************************************** !
 
 subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
-                                         inactive_rows_local, &
-                                         inactive_rows_local_ghosted, &
-                                         n_inactive_rows, &
+                                         matrix_zeroing, &
                                          inactive_cells_exist, &
                                          option)
   ! 
   ! Computes the zeroed rows for inactive grid cells
   ! 
   ! Author: Glenn Hammond
-  ! Date: 12/13/07, 03/02/16
+  ! Date: 12/13/07, 03/02/16, 12/04/19
   ! 
   use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
   use Field_module
+  use String_module
+  use Matrix_Zeroing_module
   use Utility_module, only : DeallocateArray
   
   implicit none
 
   type(patch_type) :: patch
   PetscBool :: dof_is_active(:)
-  PetscInt, pointer :: inactive_rows_local(:)
-  PetscInt, pointer :: inactive_rows_local_ghosted(:)
-  PetscInt :: n_inactive_rows
+  type(matrix_zeroing_type), pointer :: matrix_zeroing
   PetscBool :: inactive_cells_exist
   type(option_type) :: option
   
   PetscInt :: ncount, idof
   PetscInt :: local_id, ghosted_id
   PetscInt :: ndof, n_active_dof
+  PetscInt :: n_inactive_rows
 
   type(grid_type), pointer :: grid
   PetscInt :: flag
@@ -1221,8 +1218,6 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
   
   n_inactive_rows = 0
   inactive_cells_exist = PETSC_FALSE
-  call DeallocateArray(inactive_rows_local)
-  call DeallocateArray(inactive_rows_local_ghosted)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -1233,11 +1228,8 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
     endif
   enddo
 
-  allocate(inactive_rows_local(n_inactive_rows))
-  allocate(inactive_rows_local_ghosted(n_inactive_rows))
+  call MatrixZeroingInitInactive(matrix_zeroing,n_inactive_rows)
 
-  inactive_rows_local = 0
-  inactive_rows_local_ghosted = 0
   ncount = 0
 
   do local_id = 1, grid%nlmax
@@ -1246,18 +1238,20 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
       do idof = 1, ndof
         ncount = ncount + 1
         ! 1-based indexing
-        inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
         ! 0-based indexing
-        inactive_rows_local_ghosted(ncount) = (ghosted_id-1)*ndof+idof-1
+        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+          (ghosted_id-1)*ndof+idof-1
       enddo
     else if (n_active_dof < ndof) then
       do idof = 1, ndof
         if (dof_is_active(idof)) cycle
         ncount = ncount + 1
         ! 1-based indexing
-        inactive_rows_local(ncount) = (local_id-1)*ndof+idof
+        matrix_zeroing%inactive_rows_local(ncount) = (local_id-1)*ndof+idof
         ! 0-based indexing
-        inactive_rows_local_ghosted(ncount) = (ghosted_id-1)*ndof+idof-1
+        matrix_zeroing%inactive_rows_local_ghosted(ncount) = &
+          (ghosted_id-1)*ndof+idof-1
       enddo
     endif
   enddo
@@ -1269,8 +1263,9 @@ subroutine InitSubsurfaceCreateZeroArray(patch,dof_is_active, &
   endif
      
   if (ncount /= n_inactive_rows) then
-    print *, 'Error:  Mismatch in non-zero row count!', ncount, n_inactive_rows
-    stop
+    option%io_buffer = 'Error:  Mismatch in non-zero row count! ' // &
+      StringWrite(ncount) // ' ' // StringWrite(n_inactive_rows)
+    call PrintErrMsgByRank(option)
   endif
 
 end subroutine InitSubsurfaceCreateZeroArray

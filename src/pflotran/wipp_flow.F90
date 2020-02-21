@@ -50,6 +50,7 @@ subroutine WIPPFloSetup(realization)
   use Output_Aux_module
   use Characteristic_Curves_module
   use WIPP_Characteristic_Curve_module
+  use Matrix_Zeroing_module
  
   implicit none
   
@@ -149,10 +150,6 @@ subroutine WIPPFloSetup(realization)
   endif
   patch%aux%WIPPFlo%num_aux_ss = sum_connection
 
-  ! create array for zeroing Jacobian entries if inactive
-  allocate(patch%aux%WIPPFlo%row_zeroing_array(grid%nlmax))
-  patch%aux%WIPPFlo%row_zeroing_array = 0
-  
   list => realization%output_option%output_snap_variable_list
   call WIPPFloSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
@@ -1247,8 +1244,8 @@ subroutine WIPPFloResidual(snes,xx,r,realization,pmwss_ptr,ierr)
   endif
 
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
-    do i=1,patch%aux%WIPPFlo%n_inactive_rows
-      r_p(patch%aux%WIPPFlo%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%WIPPFlo%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
   
@@ -1669,8 +1666,9 @@ subroutine WIPPFloJacobian(snes,xx,A,B,realization,pmwss_ptr,ierr)
   ! zero out inactive cells
   if (patch%aux%WIPPFlo%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%WIPPFlo%n_inactive_rows, &
-                          patch%aux%WIPPFlo%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%WIPPFlo%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%WIPPFlo%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

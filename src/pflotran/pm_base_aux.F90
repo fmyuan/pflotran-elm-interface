@@ -4,19 +4,17 @@ module PM_Base_Aux_module
   use petscsys
   use AuxVars_Base_module
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
 
   private
 
   type, public :: pm_base_aux_type 
-    PetscInt :: n_inactive_rows
-    PetscInt, pointer :: inactive_rows_local(:), inactive_rows_local_ghosted(:)
-    PetscInt, pointer :: row_zeroing_array(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
 
     !if required to operate with auxvar_base objects use pointers below
     !they must point to doughter classes auxvars (e.g. see: well_flow, well_flow_eenergy) 
@@ -58,10 +56,7 @@ subroutine PMBaseAuxInit(this)
   !nullify(this%auxvars_base)
   !nullify(this%auxvars_bc_base)
   !nullify(this%auxvars_ss_base)
-  this%n_inactive_rows = 0
-  nullify(this%inactive_rows_local)
-  nullify(this%inactive_rows_local_ghosted)
-  nullify(this%row_zeroing_array)
+  nullify(this%matrix_zeroing)
 
 end subroutine PMBaseAuxInit
 
@@ -84,8 +79,7 @@ subroutine PMBaseAuxSetup(this,grid,option)
   type(grid_type) :: grid
   type(option_type) :: option
 
-  allocate(this%row_zeroing_array(grid%nlmax))
-  this%row_zeroing_array = 0
+  call MatrixZeroingInitRowZeroing(this%matrix_zeroing,grid%nlmax)
 
   !note
   !inactive_rows_local and inactive_rows_local_ghosted
@@ -109,9 +103,7 @@ subroutine PMBaseAuxStrip(this)
 
   class(pm_base_aux_type) :: this
 
-  call DeallocateArray(this%inactive_rows_local)
-  call DeallocateArray(this%inactive_rows_local_ghosted)
-  call DeallocateArray(this%row_zeroing_array)
+  call MatrixZeroingDestroy(this%matrix_zeroing)
  
 end subroutine PMBaseAuxStrip
 

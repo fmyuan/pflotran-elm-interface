@@ -846,6 +846,7 @@ subroutine BasisInit(reaction,option)
   type(radioactive_decay_rxn_type), pointer :: cur_radiodecay_rxn
   type(microbial_rxn_type), pointer :: cur_microbial_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
+  type(smart_kd_rxn_type), pointer :: cur_smart_kd_rxn
   type(kd_rxn_type), pointer :: cur_kd_rxn, sec_cont_cur_kd_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
@@ -3421,6 +3422,71 @@ subroutine BasisInit(reaction,option)
 
   endif 
   
+  ! Smart Kd reactions
+  
+  if (reaction%neqsmartkdrxn > 0) then
+
+    ! allocate arrays
+    allocate(reaction%eqsmartkdspecid(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdrefspecid(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdrefspechigh(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdlow(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdhigh(reaction%neqsmartkdrxn))
+    allocate(reaction%eqsmartkdpower(reaction%neqsmartkdrxn))
+    reaction%eqsmartkdspecid = 0
+    reaction%eqsmartkdrefspecid = 0
+    reaction%eqsmartkdrefspechigh = 0.d0
+    reaction%eqsmartkdlow = 0.d0
+    reaction%eqsmartkdhigh = 0.d0
+    reaction%eqsmartkdpower = 0.d0
+
+    cur_smart_kd_rxn => reaction%smart_kd_rxn_list
+    irxn = 0
+    do  
+      if (.not.associated(cur_smart_kd_rxn)) exit
+
+      irxn = irxn + 1
+
+      found = PETSC_FALSE
+      do i = 1, reaction%naqcomp
+        if (StringCompare(cur_smart_kd_rxn%kd_species_name, &
+                          reaction%primary_species_names(i), &
+                          MAXWORDLENGTH)) then
+          reaction%eqsmartkdspecid(irxn) = i
+          found = PETSC_TRUE
+          exit      
+        endif
+      enddo
+      if (.not.found) then
+        option%io_buffer = 'KD species ' // &
+                 trim(cur_smart_kd_rxn%kd_species_name) // &
+                 ' in smart kd reaction not found among primary species list.'
+        call PrintErrMsg(option)
+      endif
+      found = PETSC_FALSE
+      do i = 1, reaction%naqcomp
+        if (StringCompare(cur_smart_kd_rxn%ref_species_name, &
+                          reaction%primary_species_names(i), &
+                          MAXWORDLENGTH)) then
+          reaction%eqsmartkdrefspecid(irxn) = i
+          found = PETSC_TRUE
+          exit      
+        endif
+      enddo
+      if (.not.found) then
+        option%io_buffer = 'Reference species ' // &
+                 trim(cur_smart_kd_rxn%ref_species_name) // &
+                 ' in smart kd reaction not found among primary species list.'
+        call PrintErrMsg(option)
+      endif
+      reaction%eqsmartkdrefspechigh(irxn) = cur_smart_kd_rxn%ref_species_high
+      reaction%eqsmartkdlow(irxn) = cur_smart_kd_rxn%KD_low
+      reaction%eqsmartkdhigh(irxn) = cur_smart_kd_rxn%KD_high
+      reaction%eqsmartkdpower(irxn) = cur_smart_kd_rxn%KD_power
+      cur_smart_kd_rxn => cur_smart_kd_rxn%next
+    enddo
+  endif
+
   ! Kd reactions
   
   if (reaction%neqkdrxn > 0) then
