@@ -3,7 +3,7 @@ from h5py import *
 import numpy
 import math
 
-filename = 'parameters-16.h5'
+filename = '../../infiltrometer/parameters-16.h5'
 h5in = File(filename,mode='r')
 
 print("reading datasets")
