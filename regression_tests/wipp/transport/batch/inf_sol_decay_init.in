@@ -7,7 +7,8 @@ SIMULATION
   
   PROCESS_MODELS
   
-    NUCLEAR_WASTE_TRANSPORT  nw_trans
+    SUBSURFACE_TRANSPORT  nw_trans
+      MODE NWT
     END
     
   END

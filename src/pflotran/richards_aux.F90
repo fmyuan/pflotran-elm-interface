@@ -8,6 +8,7 @@ module Richards_Aux_module
 #endif
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -50,9 +51,6 @@ module Richards_Aux_module
   end type richards_auxvar_type
   
   type, public :: richards_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: auxvars_cell_pressures_up_to_date
     PetscBool :: inactive_cells_exist
@@ -63,6 +61,7 @@ module Richards_Aux_module
 #ifdef BUFFER_MATRIX
     type(matrix_buffer_type), pointer :: matrix_buffer
 #endif
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type richards_type
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-6
@@ -102,12 +101,10 @@ function RichardsAuxCreate()
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
 #ifdef BUFFER_MATRIX
   nullify(aux%matrix_buffer)
 #endif
+  nullify(aux%matrix_zeroing)
 
   RichardsAuxCreate => aux
   
@@ -496,8 +493,7 @@ subroutine RichardsAuxDestroy(aux)
   endif
   nullify(aux%auxvars_ss)
   
-  call DeallocateArray(aux%zero_rows_local)
-  call DeallocateArray(aux%zero_rows_local_ghosted)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
 #ifdef BUFFER_MATRIX
   if (associated(aux%matrix_buffer)) then

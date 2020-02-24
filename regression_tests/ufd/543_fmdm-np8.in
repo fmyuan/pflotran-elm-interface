@@ -7,7 +7,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
     WASTE_FORM mpm
       TYPE FMDM

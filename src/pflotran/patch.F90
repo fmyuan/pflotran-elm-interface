@@ -6749,26 +6749,46 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
             patch%aux%NWT%auxvars(grid%nL2G(local_id))%total_bulk_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(AQUEOUS_EQ_CONC)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
-            patch%aux%NWT%auxvars(grid%nL2G(local_id))%aqueous_eq_conc(isubvar)
+              patch%aux%NWT%auxvars(grid%nL2G(local_id))%aqueous_eq_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(MNRL_EQ_CONC)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%mnrl_eq_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(SORB_EQ_CONC)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%sorb_eq_conc(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
         case(MNRL_VOLUME_FRACTION)
           do local_id=1,grid%nlmax
             vec_ptr(local_id) = &
               patch%aux%NWT%auxvars(grid%nL2G(local_id))%mnrl_vol_frac(isubvar)
+            if ( (patch%aux%NWT%truncate_output) .and. &
+                 ((vec_ptr(local_id) < 1.d-99) .and. (vec_ptr(local_id) > 0.d0)) ) then
+              vec_ptr(local_id) = 1.d-99
+            endif
           enddo
       end select
     
@@ -8246,7 +8266,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
         case(MNRL_VOLUME_FRACTION)
           value = patch%aux%NWT%auxvars(ghosted_id)%mnrl_vol_frac(isubvar)
       end select
-    
+      if ( (patch%aux%NWT%truncate_output) .and. &
+           ((value < 1.d-99) .and. (value > 0.d0)) ) then
+        value = 1.d-99
+      endif
+          
     case(PH,PE,EH,O2,PRIMARY_MOLALITY,PRIMARY_MOLARITY,SECONDARY_MOLALITY, &
          SECONDARY_MOLARITY, TOTAL_MOLALITY,TOTAL_MOLARITY, &
          MINERAL_VOLUME_FRACTION,MINERAL_RATE,MINERAL_SATURATION_INDEX, &

@@ -47,6 +47,7 @@ subroutine HydrateSetup(realization)
   use Fluid_module
   use Material_Aux_class
   use Output_Aux_module
+  use Matrix_Zeroing_module
  
   implicit none
   
@@ -68,6 +69,7 @@ subroutine HydrateSetup(realization)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_bc(:)
   type(hydrate_auxvar_type), pointer :: hyd_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(fluid_property_type), pointer :: cur_fluid_property
 
   option => realization%option
   patch => realization%patch
@@ -171,10 +173,29 @@ subroutine HydrateSetup(realization)
   endif
   patch%aux%Hydrate%num_aux_ss = sum_connection
 
-  ! create array for zeroing Jacobian entries if isothermal and/or no air
-  allocate(patch%aux%Hydrate%row_zeroing_array(grid%nlmax))
-  patch%aux%Hydrate%row_zeroing_array = 0
-  
+  ! initialize parameters
+  cur_fluid_property => realization%fluid_properties
+  do 
+    if (.not.associated(cur_fluid_property)) exit
+    patch%aux%Hydrate%hydrate_parameter% &
+      diffusion_coefficient(cur_fluid_property%phase_id) = &
+        cur_fluid_property%diffusion_coefficient
+    cur_fluid_property => cur_fluid_property%next
+  enddo  
+  ! check whether diffusion coefficients are initialized.
+  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
+      diffusion_coefficient(LIQUID_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Liquid phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(patch%aux%Hydrate%hydrate_parameter% &
+      diffusion_coefficient(GAS_PHASE))) then
+    option%io_buffer = &
+      UninitializedMessage('Gas phase diffusion coefficient','')
+    call PrintErrMsg(option)
+  endif
+
   list => realization%output_option%output_snap_variable_list
   call HydrateSetPlotVariables(realization,list)
   list => realization%output_option%output_obs_variable_list
@@ -1430,8 +1451,8 @@ subroutine HydrateResidual(snes,xx,r,realization,ierr)
   enddo
   
   if (patch%aux%Hydrate%inactive_cells_exist) then
-    do i=1,patch%aux%Hydrate%n_inactive_rows
-      r_p(patch%aux%Hydrate%inactive_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Hydrate%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Hydrate%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -1800,8 +1821,9 @@ subroutine HydrateJacobian(snes,xx,A,B,realization,ierr)
   ! zero out isothermal and inactive cells
   if (patch%aux%Hydrate%inactive_cells_exist) then
     qsrc = 1.d0 ! solely a temporary variable in this conditional
-    call MatZeroRowsLocal(A,patch%aux%Hydrate%n_inactive_rows, &
-                          patch%aux%Hydrate%inactive_rows_local_ghosted, &
+    call MatZeroRowsLocal(A,patch%aux%Hydrate%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%Hydrate%matrix_zeroing% &
+                            inactive_rows_local_ghosted, &
                           qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

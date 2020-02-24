@@ -82,6 +82,17 @@ module Reaction_Aux_module
     type(ion_exchange_cation_type), pointer :: next
   end type ion_exchange_cation_type
 
+  type, public :: smart_kd_rxn_type
+    PetscInt :: id
+    character(len=MAXWORDLENGTH) :: kd_species_name
+    character(len=MAXWORDLENGTH) :: ref_species_name
+    PetscReal :: ref_species_high
+    PetscReal :: KD_high
+    PetscReal :: KD_low
+    PetscReal :: KD_power
+    type(smart_kd_rxn_type), pointer :: next
+  end type smart_kd_rxn_type    
+
   type, public :: kd_rxn_type
     PetscInt :: id
     PetscInt :: itype
@@ -180,6 +191,7 @@ module Reaction_Aux_module
     type(ion_exchange_rxn_type), pointer :: ion_exchange_rxn_list
     type(general_rxn_type), pointer :: general_rxn_list
     type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn_list
+    type(smart_kd_rxn_type), pointer :: smart_kd_rxn_list
     type(kd_rxn_type), pointer :: kd_rxn_list
     type(aq_species_type), pointer :: redox_species_list
     type(generic_parameter_type), pointer :: aq_diffusion_coefficients
@@ -305,6 +317,15 @@ module Reaction_Aux_module
     PetscReal, pointer :: generalh2ostoich(:)
     PetscReal, pointer :: general_kf(:)
     PetscReal, pointer :: general_kr(:)  
+
+    ! smart kd rxn
+    PetscInt :: neqsmartkdrxn
+    PetscInt, pointer :: eqsmartkdspecid(:)
+    PetscInt, pointer :: eqsmartkdrefspecid(:)
+    PetscReal, pointer :: eqsmartkdrefspechigh(:)
+    PetscReal, pointer :: eqsmartkdlow(:)
+    PetscReal, pointer :: eqsmartkdhigh(:)
+    PetscReal, pointer :: eqsmartkdpower(:)
     
     ! kd rxn
     PetscInt :: neqkdrxn
@@ -386,6 +407,8 @@ module Reaction_Aux_module
             RadioactiveDecayRxnDestroy, &
             GeneralRxnCreate, &
             GeneralRxnDestroy, &
+            SmartKDRxnCreate, &
+            SmartKDRxnDestroy, &
             KDRxnCreate, &
             KDRxnDestroy, &
             ColloidCreate, &
@@ -464,6 +487,7 @@ function ReactionCreate()
   nullify(reaction%ion_exchange_rxn_list)
   nullify(reaction%radioactive_decay_rxn_list)
   nullify(reaction%general_rxn_list)
+  nullify(reaction%smart_kd_rxn_list)
   nullify(reaction%kd_rxn_list)
   nullify(reaction%redox_species_list)
   nullify(reaction%aq_diffusion_coefficients)
@@ -562,6 +586,14 @@ function ReactionCreate()
   nullify(reaction%radiodecaystoich)
   nullify(reaction%radiodecayforwardspecid)
   nullify(reaction%radiodecay_kf)
+
+  reaction%neqsmartkdrxn = 0
+  nullify(reaction%eqsmartkdspecid)
+  nullify(reaction%eqsmartkdrefspecid)
+  nullify(reaction%eqsmartkdrefspechigh)
+  nullify(reaction%eqsmartkdlow)
+  nullify(reaction%eqsmartkdhigh)
+  nullify(reaction%eqsmartkdpower)
 
   reaction%neqkdrxn = 0
   nullify(reaction%eqkdspecid)
@@ -823,6 +855,36 @@ function GeneralRxnCreate()
   GeneralRxnCreate => rxn
   
 end function GeneralRxnCreate
+
+! ************************************************************************** !
+
+function SmartKDRxnCreate()
+  ! 
+  ! Allocate and initialize a smart KD sorption reaction
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/19
+  ! 
+
+  implicit none
+    
+  type(smart_kd_rxn_type), pointer :: SmartKDRxnCreate
+
+  type(smart_kd_rxn_type), pointer :: rxn
+  
+  allocate(rxn)
+  rxn%id = 0
+  rxn%kd_species_name = ''
+  rxn%ref_species_name = ''
+  rxn%ref_species_high = UNINITIALIZED_DOUBLE
+  rxn%KD_low = UNINITIALIZED_DOUBLE
+  rxn%KD_high = UNINITIALIZED_DOUBLE
+  rxn%KD_power = UNINITIALIZED_DOUBLE
+  nullify(rxn%next)
+  
+  SmartKDRxnCreate => rxn
+  
+end function SmartKDRxnCreate
 
 ! ************************************************************************** !
 
@@ -1962,6 +2024,27 @@ end subroutine GeneralRxnDestroy
 
 ! ************************************************************************** !
 
+subroutine SmartKDRxnDestroy(rxn)
+  ! 
+  ! Deallocates a smart KD reaction
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/19
+  ! 
+
+  implicit none
+    
+  type(smart_kd_rxn_type), pointer :: rxn
+
+  if (.not.associated(rxn)) return
+  
+  deallocate(rxn)  
+  nullify(rxn)
+
+end subroutine SmartKDRxnDestroy
+
+! ************************************************************************** !
+
 subroutine KDRxnDestroy(rxn)
   ! 
   ! Deallocates a KD reaction
@@ -2095,6 +2178,7 @@ subroutine ReactionDestroy(reaction,option)
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn, &
                                                prev_radioactive_decay_rxn
+  type(smart_kd_rxn_type), pointer :: smart_kd_rxn, prev_smart_kd_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(option_type) :: option
 
@@ -2155,6 +2239,16 @@ subroutine ReactionDestroy(reaction,option)
   enddo    
   nullify(reaction%general_rxn_list)
   
+  ! smart kd reactions
+  smart_kd_rxn => reaction%smart_kd_rxn_list
+  do
+    if (.not.associated(smart_kd_rxn)) exit
+    prev_smart_kd_rxn => smart_kd_rxn
+    smart_kd_rxn => smart_kd_rxn%next
+    call SmartKDRxnDestroy(prev_smart_kd_rxn)
+  enddo    
+  nullify(reaction%smart_kd_rxn_list)
+
   ! kd reactions
   kd_rxn => reaction%kd_rxn_list
   do
@@ -2258,6 +2352,13 @@ subroutine ReactionDestroy(reaction,option)
   call DeallocateArray(reaction%generalh2ostoich)
   call DeallocateArray(reaction%general_kf)
   call DeallocateArray(reaction%general_kr)
+
+  call DeallocateArray(reaction%eqsmartkdspecid)
+  call DeallocateArray(reaction%eqsmartkdrefspecid)
+  call DeallocateArray(reaction%eqsmartkdrefspechigh)
+  call DeallocateArray(reaction%eqsmartkdlow)
+  call DeallocateArray(reaction%eqsmartkdhigh)
+  call DeallocateArray(reaction%eqsmartkdpower)
   
   call DeallocateArray(reaction%eqkdspecid)
   call DeallocateArray(reaction%eqkdtype)

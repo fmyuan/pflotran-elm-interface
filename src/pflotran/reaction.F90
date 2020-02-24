@@ -157,6 +157,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
+  type(smart_kd_rxn_type), pointer :: smart_kd_rxn, prev_smart_kd_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
@@ -175,6 +176,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   nullify(prev_cation)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
+  nullify(prev_smart_kd_rxn)
   nullify(prev_kd_rxn)
   nullify(prev_ionx_rxn)
   
@@ -556,6 +558,88 @@ subroutine ReactionReadPass1(reaction,input,option)
 
           select case(trim(word))
 
+            case('SMART_KD_REACTIONS')
+              call InputPushBlock(input,option)
+              do
+                call InputReadPflotranString(input,option)
+                if (InputError(input)) exit
+                if (InputCheckExit(input,option)) exit
+
+                reaction%neqsmartkdrxn = reaction%neqsmartkdrxn + 1
+
+                smart_kd_rxn => SmartKDRxnCreate()
+                ! first string is species name
+                call InputReadCard(input,option,word)
+                call InputErrorMsg(input,option,'kd species name', &
+                                   'CHEMISTRY,SMART_KD_REACTIONS')
+                smart_kd_rxn%kd_species_name = trim(word)
+                call InputPushBlock(input,option)
+                do 
+                  call InputReadPflotranString(input,option)
+                  if (InputError(input)) exit
+                  if (InputCheckExit(input,option)) exit
+
+                  call InputReadCard(input,option,word)
+                  call InputErrorMsg(input,option,'keyword', &
+                                     'CHEMISTRY,SMART_KD_REACTIONS')
+                  call StringToUpper(word)
+                  
+                  ! default type is linear
+                  select case(trim(word))
+                    case('REFERENCE_SPECIES')
+                      call InputReadWord(input,option,word,PETSC_TRUE)
+                      call InputErrorMsg(input,option,'REFERENCE_SPECIES', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                      smart_kd_rxn%ref_species_name = word
+                    case('REFERENCE_SPECIES_HIGH')
+                      call InputReadDouble(input,option, &
+                                           smart_kd_rxn%ref_species_high)
+                      call InputErrorMsg(input,option, &
+                                         'REFERENCE_SPECIES_HIGH', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('KD_LOW')
+                      call InputReadDouble(input,option,smart_kd_rxn%KD_low)
+                      call InputErrorMsg(input,option,'KD_LOW', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('KD_HIGH')
+                      call InputReadDouble(input,option,smart_kd_rxn%KD_high)
+                      call InputErrorMsg(input,option,'KD_HIGH', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case('KD_POWER')
+                      call InputReadDouble(input,option, &
+                                           smart_kd_rxn%KD_power)
+                      call InputErrorMsg(input,option,'KD_POWER', &
+                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                    case default
+                      call InputKeywordUnrecognized(input,word, &
+                              'CHEMISTRY,SORPTION,SMART_KD_REACTIONS',option)
+                  end select
+                enddo
+                call InputPopBlock(input,option)
+                if (Uninitialized(smart_kd_rxn%ref_species_high) .or. &
+                    Uninitialized(smart_kd_rxn%KD_low) .or. &
+                    Uninitialized(smart_kd_rxn%KD_high) .or. &
+                    Uninitialized(smart_kd_rxn%KD_power) .or. &
+                    len_trim(smart_kd_rxn%ref_species_name) < 0) then
+                  option%io_buffer = 'REFERENCE_SPECIES, &
+                    &REFERENCE_SPECIES_HIGH, KD_LOW, KD_HIGH, KD_POWER must &
+                    &be defined for SMART_KD_REACTIONs.'
+                  call PrintErrMsg(option)
+                endif
+                ! add to list
+                if (.not.associated(reaction%smart_kd_rxn_list)) then
+                  reaction%smart_kd_rxn_list => smart_kd_rxn
+                  smart_kd_rxn%id = 1
+                endif
+                if (associated(prev_smart_kd_rxn)) then
+                  prev_smart_kd_rxn%next => smart_kd_rxn
+                  smart_kd_rxn%id = prev_smart_kd_rxn%id + 1
+                endif
+                prev_smart_kd_rxn => smart_kd_rxn
+                nullify(smart_kd_rxn)
+              enddo
+              call InputPopBlock(input,option)
+
             case('ISOTHERM_REACTIONS')
               call InputPushBlock(input,option)
               do
@@ -936,6 +1020,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   call GasSpeciesListMergeDuplicates(reaction%gas%list)
   
   reaction%neqsorb = reaction%neqionxrxn + &
+                     reaction%neqsmartkdrxn + &
                      reaction%neqkdrxn + &
                      reaction%surface_complexation%neqsrfcplxrxn
   reaction%nsorb = reaction%neqsorb + &
@@ -1053,6 +1138,17 @@ subroutine ReactionReadPass2(reaction,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'SORPTION','CHEMISTRY') 
           select case(trim(word))
+            case('SMART_KD_REACTIONS')
+              do
+                call InputReadPflotranString(input,option)
+                call InputReadStringErrorMsg(input,option,card)
+                if (InputCheckExit(input,option)) exit
+                call InputReadWord(input,option,word,PETSC_TRUE)
+                call InputErrorMsg(input,option,word, &
+                                    'CHEMISTRY,SORPTION,SMART_KD_REACTIONS') 
+                ! skip over remaining cards to end of each kd entry
+                call InputSkipToEnd(input,option,word)
+              enddo
             case('ISOTHERM_REACTIONS')
               do
                 call InputReadPflotranString(input,option)
@@ -3413,8 +3509,8 @@ end subroutine RJumpStartKineticSorption
 
 ! ************************************************************************** !
 
-subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
-                  num_iterations_,reaction,option)
+subroutine RReact(tran_xx,rt_auxvar,global_auxvar,material_auxvar, &
+                  num_iterations_,reaction,natural_id,option,ierror)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson
   ! 
@@ -3422,17 +3518,19 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   ! Date: 05/04/10
   ! 
   use Option_module
+  use String_module
   
   implicit none
   
   class(reaction_rt_type), pointer :: reaction
+  PetscReal :: tran_xx(reaction%ncomp)
   type(reactive_transport_auxvar_type) :: rt_auxvar 
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
-  PetscReal :: tran_xx_p(reaction%ncomp)
-  type(option_type) :: option
   PetscInt :: num_iterations_
-  PetscReal :: sign_(reaction%ncomp)
+  PetscInt :: natural_id
+  type(option_type) :: option
+  PetscInt :: ierror
   
   PetscReal :: residual(reaction%ncomp)
   PetscReal :: res(reaction%ncomp)
@@ -3441,52 +3539,50 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
   PetscReal :: prev_solution(reaction%ncomp)
   PetscReal :: new_solution(reaction%ncomp)
   PetscReal :: update(reaction%ncomp)
+  PetscReal :: conc(reaction%ncomp)
   PetscReal :: maximum_relative_change
   PetscReal :: accumulation_coef
   PetscReal :: fixed_accum(reaction%ncomp)
   PetscInt :: num_iterations
+  PetscInt :: ncomp
+  PetscInt :: naqcomp
+  PetscInt :: nimmobile
   PetscInt :: icomp
   PetscInt :: immobile_start, immobile_end
   PetscReal :: ratio, min_ratio
   PetscReal :: scale
-  
+
   PetscInt, parameter :: iphase = 1
+
+  ncomp = reaction%ncomp
+  naqcomp = reaction%naqcomp
+  nimmobile = reaction%immobile%nimmobile
+  if (nimmobile > 0) then
+    immobile_start = reaction%offset_immobile + 1
+    immobile_end = reaction%offset_immobile + nimmobile
+  endif
 
   one_over_dt = 1.d0/option%tran_dt
   num_iterations = 0
 
-  ! calculate fixed portion of accumulation term
-  ! fixed_accum is overwritten in RTAccumulation
-  ! Since RTAccumulation uses rt_auxvar%total, we must overwrite the 
-  ! rt_auxvar total variables
-  ! aqueous
-  rt_auxvar%total(:,iphase) = tran_xx_p(1:reaction%naqcomp)
-  
   if (reaction%ncoll > 0) then
     option%io_buffer = 'Colloids not set up for operator split mode.'
     call PrintErrMsg(option)
   endif
 
 ! skip chemistry if species nonreacting 
-#if 1  
   if (.not.reaction%use_full_geochemistry) then
-    rt_auxvar%pri_molal(:) = tran_xx_p(1:reaction%naqcomp) / &
+    rt_auxvar%pri_molal(:) = rt_auxvar%total(:,iphase) / &
                              global_auxvar%den_kg(iphase)*1.d3
     return
   endif
-#endif  
-  
-  ! update immobile concentrations
-  if (reaction%immobile%nimmobile > 0) then
-    immobile_start = reaction%offset_immobile + 1
-    immobile_end = reaction%offset_immobile + reaction%immobile%nimmobile
-    rt_auxvar%immobile(1:reaction%immobile%nimmobile)  = &
-      tran_xx_p(immobile_start:immobile_end)
-  endif
-  
+
   if (.not.option%use_isothermal) then
     call RUpdateTempDependentCoefs(global_auxvar,reaction,PETSC_FALSE,option)
   endif
+
+  ! NOTE: total^* and immobile^k are already up to date in rt_auxvar for 
+  !       use in the fixed accumulation below.
 
   ! still need code to overwrite other phases
   call RTAccumulation(rt_auxvar,global_auxvar,material_auxvar,reaction, &
@@ -3496,9 +3592,17 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
                            option,fixed_accum)  
   endif
 
-  ! now update activity coefficients
-  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
+!TODO(geh): activity coefficient will be updated earlier. otherwise, they
+!           will be repeatedly updated due to time step cut
+!  ! now update activity coefficients
+!  if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
+!    call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
+!  endif
+
+  ! initialize guesses to stored solution
+  rt_auxvar%pri_molal(:) = tran_xx(1:naqcomp)
+  if (nimmobile > 0) then
+    rt_auxvar%immobile(:) = tran_xx(immobile_start:immobile_end)
   endif
   
   do
@@ -3534,13 +3638,16 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
-    call RSolve(residual,J,rt_auxvar%pri_molal,update,reaction%ncomp, &
-                reaction%use_log_formulation)
+    conc(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
+    if (nimmobile > 0) then
+      conc(immobile_start:immobile_end) = rt_auxvar%immobile(:)
+    endif
+
+    call RSolve(residual,J,conc,update,ncomp,reaction%use_log_formulation)
     
-    prev_solution(1:reaction%naqcomp) = rt_auxvar%pri_molal(1:reaction%naqcomp)
-    if (reaction%immobile%nimmobile > 0) then
-      prev_solution(immobile_start:immobile_end) = &
-        rt_auxvar%immobile(1:reaction%immobile%nimmobile)
+    prev_solution(1:naqcomp) = rt_auxvar%pri_molal(1:naqcomp)
+    if (nimmobile > 0) then
+      prev_solution(immobile_start:immobile_end) = rt_auxvar%immobile(:)
     endif
 
     if (reaction%use_log_formulation) then
@@ -3549,7 +3656,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     else ! linear upage
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
-      do icomp = 1, reaction%ncomp
+      do icomp = 1, ncomp
         if (prev_solution(icomp) <= update(icomp)) then
           ratio = abs(prev_solution(icomp)/update(icomp))
           if (ratio < min_ratio) min_ratio = ratio
@@ -3576,10 +3683,19 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
       else if (num_iterations <= 500) then
         scale = 0.001d0
       else
-        print *, 'Maximum iterations in RReact: stop: ',num_iterations
-        print *, 'Maximum iterations in RReact: residual: ',residual
-        print *, 'Maximum iterations in RReact: new solution: ',new_solution
-        stop
+        print *, 'Maximum iterations in RReact: stop: ' // &
+                 trim(StringWrite(num_iterations))
+        print *, 'Maximum iterations in RReact: residual: ' // &
+                 trim(StringWrite(residual))
+        print *, 'Maximum iterations in RReact: new solution: ' // &
+                 trim(StringWrite(new_solution))
+        print *, 'Grid cell: ' // trim(StringWrite(natural_id))
+        if (option%mycommsize > 1) then
+          print *, 'Process rank: ' // trim(StringWrite(option%myrank))
+        endif
+        num_iterations_ = num_iterations
+        ierror = 1
+        return
       endif
       if (scale < 0.99d0) then
         ! apply scaling
@@ -3587,9 +3703,9 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
       endif
     endif
     
-    rt_auxvar%pri_molal(1:reaction%naqcomp) = new_solution(1:reaction%naqcomp)
-    if (reaction%immobile%nimmobile > 0) then
-      rt_auxvar%immobile(1:reaction%immobile%nimmobile) = &
+    rt_auxvar%pri_molal(1:naqcomp) = new_solution(1:naqcomp)
+    if (nimmobile > 0) then
+      rt_auxvar%immobile(1:nimmobile) = &
         new_solution(immobile_start:immobile_end)
     endif    
   
@@ -4335,11 +4451,88 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   endif
   
+  if (reaction%neqsmartkdrxn > 0) then
+    call RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
+                           reaction,option)
+  endif
+  
   if (reaction%neqkdrxn > 0) then
     call RTotalSorbKD(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
   endif
   
 end subroutine RTotalSorb
+
+! ************************************************************************** !
+
+subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
+                             reaction,option)
+  ! 
+  ! Computes the total sorbed component concentrations and
+  ! derivative with respect to free-ion for the smart KD model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/21/2019
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+  class(reaction_rt_type) :: reaction
+  type(option_type) :: option
+  
+  PetscInt :: irxn
+  PetscInt :: ikd
+  PetscInt :: iref
+  PetscReal :: Lwater_m3bulk
+  PetscReal :: kd_species_molality
+  PetscReal :: ref_species_molality
+  PetscReal :: ref_high
+  PetscReal :: KD_low
+  PetscReal :: KD_high_minus_low
+  PetscReal :: KD_power
+  PetscReal :: KD
+  PetscReal :: dKD_dref
+  PetscReal :: total_sorb
+  PetscReal :: dtotal_sorb_dckd
+  PetscReal :: dtotal_sorb_dcref
+  PetscReal :: tempreal
+
+  PetscInt, parameter :: iphase = 1
+
+!geh  Lwater_m3bulk = material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0
+  ! to make compatible with constant KD
+  Lwater_m3bulk = 250.d0
+
+  do irxn = 1, reaction%neqsmartkdrxn
+    ikd = reaction%eqsmartkdspecid(irxn)
+    kd_species_molality = rt_auxvar%pri_molal(ikd)
+    iref = reaction%eqsmartkdrefspecid(irxn)
+    ref_high = reaction%eqsmartkdrefspechigh(irxn)
+    ref_species_molality = rt_auxvar%pri_molal(iref)
+    KD_power = reaction%eqsmartkdpower(irxn)
+    KD_low = reaction%eqsmartkdlow(irxn)
+    KD_high_minus_low = reaction%eqsmartkdhigh(irxn) - KD_low
+
+    ! R = KD_low + ref_species_molality ** KD_power * KD_high_minus_low
+    tempreal = (ref_species_molality/ref_high)**KD_power
+    KD = KD_low + tempreal * KD_high_minus_low
+    dKD_dref = KD_power * tempreal / ref_species_molality * KD_high_minus_low
+
+    total_sorb = KD * kd_species_molality * Lwater_m3bulk
+    dtotal_sorb_dckd = KD * Lwater_m3bulk
+    dtotal_sorb_dcref = dKD_dref * kd_species_molality * Lwater_m3bulk
+    rt_auxvar%total_sorb_eq(ikd) = rt_auxvar%total_sorb_eq(ikd) + total_sorb
+    rt_auxvar%dtotal_sorb_eq(ikd,ikd) = &
+      rt_auxvar%dtotal_sorb_eq(ikd,ikd) + dtotal_sorb_dckd
+    rt_auxvar%dtotal_sorb_eq(ikd,iref) = &
+      rt_auxvar%dtotal_sorb_eq(ikd,iref) + dtotal_sorb_dcref
+  enddo
+
+end subroutine RTotalSorbSmartKD
 
 ! ************************************************************************** !
 
@@ -5105,6 +5298,7 @@ subroutine RAge(rt_auxvar,global_auxvar,material_auxvar,option,reaction,Res)
       material_auxvar%porosity*global_auxvar%sat(iphase)*1000.d0* &
       material_auxvar%volume
   endif
+
 end subroutine RAge
 
 ! ************************************************************************** !

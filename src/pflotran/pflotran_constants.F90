@@ -46,6 +46,7 @@ module PFLOTRAN_Constants_module
   ! EXIT codes
   PetscInt, parameter, public :: EXIT_SUCCESS = 0
   PetscInt, parameter, public :: EXIT_USER_ERROR = 87
+  PetscInt, parameter, public :: EXIT_FAILURE = 88
   
   ! formula weights
   PetscReal, parameter, public :: FMWNACL = 58.44277d0

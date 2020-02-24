@@ -7,7 +7,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
@@ -147,8 +147,6 @@ END
 
 #=========================== solver options ===================================
 TIMESTEPPER FLOW
-  INITIALIZE_TO_STEADY_STATE 1.d-8
-  RUN_AS_STEADY_STATE
 END
 
 TIMESTEPPER TRANSPORT

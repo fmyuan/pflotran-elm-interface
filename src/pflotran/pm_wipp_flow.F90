@@ -150,13 +150,12 @@ subroutine PMWIPPFloInitObject(this)
   class(pm_wippflo_type) :: this
   
   allocate(this%max_change_ivar(3))
-  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
-  nullify(this%pmwss_ptr)
-  
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'WIPP Immiscible Multiphase Flow'
   this%header = 'WIPP IMMISCIBLE MULTIPHASE FLOW'
 
+  this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
+  nullify(this%pmwss_ptr)
   this%check_post_convergence = PETSC_TRUE
 
   ! defaults from BRAGFLO input deck or recommended values from user manual
@@ -1301,7 +1300,7 @@ end subroutine PMWIPPFloJacobian
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMWIPPFloCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -1318,7 +1317,7 @@ subroutine PMWIPPFloCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_wippflo_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -1338,7 +1337,7 @@ end subroutine PMWIPPFloCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMWIPPFloCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -1357,7 +1356,7 @@ subroutine PMWIPPFloCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_wippflo_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

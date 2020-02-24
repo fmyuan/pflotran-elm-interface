@@ -49,7 +49,6 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
-  character(len=MAXWORDLENGTH) :: card
   type(surface_complexation_type), pointer :: surface_complexation
   type(surface_complex_type), pointer :: srfcplx, cur_srfcplx, prev_srfcplx, &
                                          cur_srfcplx_in_rxn
@@ -89,6 +88,9 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         srfcplx_rxn%itype = SRFCMPLX_RXN_EQUILIBRIUM
       case('MULTIRATE_KINETIC')
         srfcplx_rxn%itype = SRFCMPLX_RXN_MULTIRATE_KINETIC
+        ! have to equilibrate initial sorbed concentrations at each cell
+        ! can overwrite with DO_NOT_EQUILIBRATE_AT_EACH_CELL in constraint
+        reaction%equilibrate_at_each_cell = PETSC_TRUE
       case('KINETIC')
         srfcplx_rxn%itype = SRFCMPLX_RXN_KINETIC
       case('COMPLEX_KINETICS')
@@ -107,7 +109,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
           call InputPushBlock(input,option)
           do
             call InputReadPflotranString(input,option)
-            call InputReadStringErrorMsg(input,option,card)
+            call InputReadStringErrorMsg(input,option,word)
             if (InputCheckExit(input,option)) exit
             call InputReadCard(input,option,word,PETSC_TRUE)
             call InputErrorMsg(input,option,'word', &

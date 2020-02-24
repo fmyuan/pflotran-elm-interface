@@ -163,7 +163,7 @@ function PMHydrateCreate()
   this%damping_factor = -1.d0
   this%hydrate_newton_max_iter = 8
   
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'Hydrate Multiphase Flow'
   this%header = 'GAS HYDRATE + MULTIPHASE FLOW'
 
@@ -260,14 +260,14 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
 
     select case(trim(word))
       case('SCALE_PERM_BY_HYD_SAT')
-        HYDRATE_PERM_SCALING = PETSC_TRUE
+        hydrate_perm_scaling = PETSC_TRUE
       case('HYDRATE_PHASE_BOUNDARY')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'keyword','hydrate phase boundary')
         call StringToUpper(word)
         select case(word)
           case('MORIDIS')
-            HYDRATE_PHASE_BOUNDARY = 2
+            hydrate_phase_boundary = 2
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_PHASE_BOUNDARY',option)
@@ -278,23 +278,23 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         call StringToUpper(word)
         select case(word)
           case('CRAMER')
-            HYDRATE_HENRYS_CONSTANT = 2
+            hydrate_henrys_constant = 2
           case default
             call InputKeywordUnrecognized(input,word,&
                  'HYDRATE_HENRYS_CONSTANT',option)
         end select
       case('EFFECTIVE_SAT_SCALING')
-        HYDRATE_EFF_SAT_SCALING = PETSC_TRUE
+        hydrate_eff_sat_scaling = PETSC_TRUE
       case('WITH_GIBBS_THOMSON')
-        HYDRATE_WITH_GIBBS_THOMSON = PETSC_TRUE
+        hydrate_with_gibbs_thomson = PETSC_TRUE
       case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
-        HYDRATE_ADJUST_GHSZ_SOLUBILITY = PETSC_TRUE
+        hydrate_adjust_ghsz_solubility = PETSC_TRUE
       case('WITH_SEDIMENTATION')
-        HYDRATE_WITH_SEDIMENTATION = PETSC_TRUE
+        hydrate_with_sedimentation = PETSC_TRUE
       case('NO_PC')
-        HYDRATE_NO_PC = PETSC_TRUE
+        hydrate_no_pc = PETSC_TRUE
       case('METHANOGENESIS')
-        HYDRATE_WITH_METHANOGENESIS = PETSC_TRUE
+        hydrate_with_methanogenesis = PETSC_TRUE
         if (.not. associated(pm_hydrate%hydrate_parameters%methanogenesis)) then
           pm_hydrate%hydrate_parameters%methanogenesis => &
                      HydrateMethanogenesisCreate()
@@ -341,7 +341,7 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         select case(trim(word))
           case('DAI_AND_SEOL')
             temp_int = 1
-            HYDRATE_PERM_SCALING_FUNCTION = temp_int
+            hydrate_perm_scaling_function = temp_int
         end select
     end select
 
@@ -966,7 +966,7 @@ end subroutine PMHydrateJacobian
 
 ! ************************************************************************** !
 
-subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMHydrateCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Michael Nole 
   ! Date: 07/23/19
@@ -984,7 +984,7 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_hydrate_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -1024,7 +1024,6 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   PetscReal :: scale, temp_scale
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
-  SNES :: snes
   PetscInt :: newton_iteration
   ! MAN: END OLD
 
@@ -1045,7 +1044,6 @@ subroutine PMHydrateCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   spid = option%saturation_pressure_id
   apid = option%air_pressure_id
 
-  call SNESLineSearchGetSNES(line_search,snes,ierr)
   call SNESGetIterationNumber(snes,newton_iteration,ierr)
 
   hydrate_allow_state_change = PETSC_FALSE
@@ -1238,7 +1236,7 @@ end subroutine PMHydrateCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMHydrateCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                     X1_changed,ierr)
   ! 
   ! Author: Michael Nole 
@@ -1257,7 +1255,7 @@ subroutine PMHydrateCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_hydrate_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

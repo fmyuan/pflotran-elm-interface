@@ -97,7 +97,7 @@ subroutine PMRichardsInit(this)
   
   class(pm_richards_type) :: this
   
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   
 end subroutine PMRichardsInit
 
@@ -366,7 +366,7 @@ end subroutine PMRichardsJacobian
 
 ! ************************************************************************** !
 
-subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMRichardsCheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -385,7 +385,7 @@ subroutine PMRichardsCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_richards_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -495,7 +495,7 @@ end subroutine PMRichardsCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMRichardsCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMRichardsCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                      X1_changed,ierr)
   ! 
   ! Author: Glenn Hammond
@@ -511,7 +511,7 @@ subroutine PMRichardsCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_richards_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1

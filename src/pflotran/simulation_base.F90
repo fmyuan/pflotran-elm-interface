@@ -336,7 +336,8 @@ subroutine SimulationBaseFinalizeRun(this)
   ! 
 
   use Logging_module
-  use Timestepper_Base_class, only : TS_STOP_WALLCLOCK_EXCEEDED
+  use Timestepper_Base_class
+  use String_module, only : StringWrite
   
   implicit none
   
@@ -345,14 +346,26 @@ subroutine SimulationBaseFinalizeRun(this)
   PetscErrorCode :: ierr
   
   class(pmc_base_type), pointer :: cur_process_model_coupler
+  character(MAXSTRINGLENGTH) :: string
 
 #ifdef DEBUG
   call PrintMsg(this%option,'SimulationBaseFinalizeRun()')
 #endif
   
-  if (this%stop_flag == TS_STOP_WALLCLOCK_EXCEEDED) then
-    call PrintMsg(this%option,"Wallclock stop time exceeded.  Exiting!!!")
-    call PrintMsg(this%option,"")
+  if (this%stop_flag /= TS_STOP_END_SIMULATION) then
+    select case(this%stop_flag)
+      case(TS_STOP_WALLCLOCK_EXCEEDED)
+        string = 'Wallclock stop time exceeded.  Exiting!'
+      case(TS_STOP_MAX_TIME_STEP)
+        string = 'Maximum timestep exceeded.  Exiting!'
+      case(TS_STOP_FAILURE)
+        string = 'Simulation failed.  Exiting!'
+        this%option%exit_code = EXIT_FAILURE
+      case default
+        string = 'Simulation stopped for unknown reason (' // &
+                 trim(StringWrite(this%stop_flag)) // ').'
+    end select
+    if (OptionPrintToScreen(this%option)) write(*,'(/,a,/)') trim(string)
   endif
   
   if (associated(this%process_model_coupler_list)) then

@@ -3,6 +3,7 @@ module WIPP_Flow_Aux_module
 #include "petsc/finclude/petscsys.h"
   use petscsys
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -108,10 +109,6 @@ module WIPP_Flow_Aux_module
   end type wippflo_parameter_type
   
   type, public :: wippflo_type
-    PetscInt :: n_inactive_rows
-    PetscInt, pointer :: inactive_rows_local(:), inactive_rows_local_ghosted(:)
-    PetscInt, pointer :: row_zeroing_array(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -119,6 +116,7 @@ module WIPP_Flow_Aux_module
     type(wippflo_auxvar_type), pointer :: auxvars(:,:)
     type(wippflo_auxvar_type), pointer :: auxvars_bc(:)
     type(wippflo_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type wippflo_type
 
   interface WIPPFloAuxVarDestroy
@@ -185,10 +183,7 @@ function WIPPFloAuxCreate(option)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_inactive_rows = 0
-  nullify(aux%inactive_rows_local)
-  nullify(aux%inactive_rows_local_ghosted)
-  nullify(aux%row_zeroing_array)
+  nullify(aux%matrix_zeroing)
 
   allocate(aux%wippflo_parameter)
   aux%wippflo_parameter%check_post_converged = PETSC_FALSE
@@ -1057,9 +1052,7 @@ subroutine WIPPFloAuxDestroy(aux)
   call WIPPFloAuxVarDestroy(aux%auxvars_bc)
   call WIPPFloAuxVarDestroy(aux%auxvars_ss)
 
-  call DeallocateArray(aux%inactive_rows_local)
-  call DeallocateArray(aux%inactive_rows_local_ghosted)
-  call DeallocateArray(aux%row_zeroing_array)
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
 
   if (associated(aux%wippflo_parameter)) then
   endif

@@ -2558,8 +2558,8 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 
 
   if (patch%aux%Flash2%inactive_cells_exist) then
-    do i=1,patch%aux%Flash2%n_zero_rows
-      r_p(patch%aux%Flash2%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Flash2%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Flash2%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -3259,8 +3259,8 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
   endif
  
   if (patch%aux%Flash2%inactive_cells_exist) then
-    do i=1,patch%aux%Flash2%n_zero_rows
-      r_p(patch%aux%Flash2%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Flash2%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Flash2%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
  
@@ -3884,8 +3884,9 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 
   if (patch%aux%Flash2%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%Flash2%n_zero_rows, &
-                          patch%aux%Flash2%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(A,patch%aux%Flash2%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%Flash2%matrix_zeroing% &
+                            inactive_rows_local_ghosted,f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif
@@ -4578,12 +4579,15 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
 ! zero out isothermal and inactive cells
 #ifdef ISOTHERMAL
   zero = 0.d0
-  call MatZeroRowsLocal(A,n_zero_rows,zero_rows_local_ghosted,zero, &
+  call MatZeroRowsLocal(A,patch%aux%Flash2%matrix_zeroing%n_inactive_rows, &
+                        patch%aux%Flash2%matrix_zeroing% &
+                          inactive_rows_local_ghosted,zero, &
                         PETSC_NULL_VEC,PETSC_NULL_VEC, &
                         ierr);CHKERRQ(ierr)
-  do i=1, n_zero_rows
-    ii = mod(zero_rows_local(i),option%nflowdof)
-    ip1 = zero_rows_local_ghosted(i)
+  do i=1, patch%aux%Flash2%matrix_zeroing%n_inactive_rows
+    ii = mod(patch%aux%Flash2%matrix_zeroing%inactive_rows_local(i), &
+             option%nflowdof)
+    ip1 = patch%aux%Flash2%matrix_zeroing%inactive_rows_local_ghosted(i)
     if (ii == 0) then
       ip2 = ip1-1
     elseif (ii == option%nflowdof-1) then
@@ -4603,8 +4607,9 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
 
   if (patch%aux%Flash2%inactive_cells_exist) then
     f_up = 1.d0
-    call MatZeroRowsLocal(A,patch%aux%Flash2%n_zero_rows, &
-                          patch%aux%Flash2%zero_rows_local_ghosted,f_up, &
+    call MatZeroRowsLocal(A,patch%aux%Flash2%matrix_zeroing%n_inactive_rows, &
+                          patch%aux%Flash2%matrix_zeroing% &
+                            inactive_rows_local_ghosted,f_up, &
                           PETSC_NULL_VEC,PETSC_NULL_VEC, &
                           ierr);CHKERRQ(ierr)
   endif

@@ -654,7 +654,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
 #endif
   
   if (OptionPrintToScreen(option)) then
-    write(*,'(/,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
+    write(*,'(/,x,a," PETSc TS steps = ",i6," newton = ",i8," linear = ",i10, &
             & " cuts = ",i6)') &
             trim(this%name), &
             this%steps, &
@@ -662,7 +662,7 @@ recursive subroutine TimestepperTSFinalizeRun(this,option)
             this%cumulative_linear_iterations, &
             this%cumulative_time_step_cuts
     write(string,'(f12.1)') this%cumulative_solver_time
-    write(*,'(a)') trim(this%name) // ' PETSc TS SNES time = ' // &
+    write(*,'(x,a)') trim(this%name) // ' PETSc TS SNES time = ' // &
       trim(adjustl(string)) // ' seconds'
   endif
   
