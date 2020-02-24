@@ -1,0 +1,147 @@
+#Description: Test problem for dynamic KD model
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      MODE OSRT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS 
+    1
+  /
+END
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    UO2++
+    Tracer
+  /
+  SORPTION
+    SMART_KD_REACTIONS
+      UO2++
+        REFERENCE_SPECIES Tracer
+        REFERENCE_SPECIES_HIGH 1.d-3
+        KD_LOW 5.56
+        KD_HIGH 62.37
+        KD_POWER 3.26
+      /
+    /
+  /
+  DATABASE ../../../database/hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  MOLAL
+  OUTPUT
+    ALL
+    TOTAL
+    TOTAL_SORBED
+    KD
+  /
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+#=========================== fluid properties =================================
+EOS WATER
+  DENSITY CONSTANT 1.d3
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+  ROCK_DENSITY 2000.d0   ! bulk density = 1600 kg/m^3
+END
+
+#=========================== output options ===================================
+skip
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+  PERIODIC TIME 0.125 y
+  MASS_BALANCE
+  PRINT_COLUMN_IDS
+  FORMAT HDF5
+END
+noskip
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1.d0 y
+  INITIAL_TIMESTEP_SIZE 1.d0 y
+  MAXIMUM_TIMESTEP_SIZE 1.d0 y
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1.d20 -1.d20 -1.d20
+    1.d20 1.d20 1.d20
+  /
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION source
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 U_source
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT groundwater
+  EQUILIBRATE_AT_EACH_CELL
+  CONCENTRATIONS
+    UO2++    2.4830E-11       T
+    Tracer   1.e-7            F
+  /
+END
+
+CONSTRAINT U_source
+  CONCENTRATIONS
+    UO2++    2.34845e-7       T
+    Tracer   2.5e-4           F
+  /
+END
+
+CONSTRAINT river_water
+  CONCENTRATIONS
+    UO2++    2.4830E-11       T
+    Tracer   1.e-3            F
+  /
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  TRANSPORT_CONDITION source
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil
+END
+
+END_SUBSURFACE
