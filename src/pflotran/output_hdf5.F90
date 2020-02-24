@@ -3247,7 +3247,7 @@ subroutine OutputHDF5Provenance_input(option, pflotran_id)
   allocate(input_buffer(input_line_count))
   call InputReadToBuffer(input, input_buffer, option)
   call h5tcopy_f(H5T_FORTRAN_S1, input_string_type, hdf5_err)
-  size_t_int = MAXWORDLENGTH
+  size_t_int = MAXSTRINGLENGTH
   call h5tset_size_f(input_string_type, size_t_int, hdf5_err)
   call OutputHDF5DatasetStringArray(pflotran_id, input_string_type, &
                                     "pflotran_input_file", &
