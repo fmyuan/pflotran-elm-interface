@@ -287,6 +287,8 @@ subroutine PMHydrateReadParameters(input,pm_hydrate,option)
         hydrate_eff_sat_scaling = PETSC_TRUE
       case('WITH_GIBBS_THOMSON')
         hydrate_with_gibbs_thomson = PETSC_TRUE
+      case('GT_3PHASE')
+        hydrate_gt_3phase = PETSC_TRUE
       case('ADJUST_SOLUBILITY_WITHIN_GHSZ')
         hydrate_adjust_ghsz_solubility = PETSC_TRUE
       case('WITH_SEDIMENTATION')
