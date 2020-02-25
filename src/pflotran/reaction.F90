@@ -157,7 +157,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   type(general_rxn_type), pointer :: general_rxn, prev_general_rxn
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn
   type(radioactive_decay_rxn_type), pointer :: prev_radioactive_decay_rxn
-  type(smart_kd_rxn_type), pointer :: smart_kd_rxn, prev_smart_kd_rxn
+  type(dynamic_kd_rxn_type), pointer :: dynamic_kd_rxn, prev_dynamic_kd_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
   type(kd_rxn_type), pointer :: sec_cont_kd_rxn, sec_cont_prev_kd_rxn
   type(generic_parameter_type), pointer :: generic_list
@@ -176,7 +176,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   nullify(prev_cation)
   nullify(prev_general_rxn)
   nullify(prev_radioactive_decay_rxn)
-  nullify(prev_smart_kd_rxn)
+  nullify(prev_dynamic_kd_rxn)
   nullify(prev_kd_rxn)
   nullify(prev_ionx_rxn)
   
@@ -558,21 +558,21 @@ subroutine ReactionReadPass1(reaction,input,option)
 
           select case(trim(word))
 
-            case('SMART_KD_REACTIONS')
+            case('DYNAMIC_KD_REACTIONS')
               call InputPushBlock(input,option)
               do
                 call InputReadPflotranString(input,option)
                 if (InputError(input)) exit
                 if (InputCheckExit(input,option)) exit
 
-                reaction%neqsmartkdrxn = reaction%neqsmartkdrxn + 1
+                reaction%neqdynamickdrxn = reaction%neqdynamickdrxn + 1
 
-                smart_kd_rxn => SmartKDRxnCreate()
+                dynamic_kd_rxn => DynamicKDRxnCreate()
                 ! first string is species name
                 call InputReadCard(input,option,word)
                 call InputErrorMsg(input,option,'kd species name', &
-                                   'CHEMISTRY,SMART_KD_REACTIONS')
-                smart_kd_rxn%kd_species_name = trim(word)
+                                   'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                dynamic_kd_rxn%kd_species_name = trim(word)
                 call InputPushBlock(input,option)
                 do 
                   call InputReadPflotranString(input,option)
@@ -581,7 +581,7 @@ subroutine ReactionReadPass1(reaction,input,option)
 
                   call InputReadCard(input,option,word)
                   call InputErrorMsg(input,option,'keyword', &
-                                     'CHEMISTRY,SMART_KD_REACTIONS')
+                                     'CHEMISTRY,DYNAMIC_KD_REACTIONS')
                   call StringToUpper(word)
                   
                   ! default type is linear
@@ -589,54 +589,54 @@ subroutine ReactionReadPass1(reaction,input,option)
                     case('REFERENCE_SPECIES')
                       call InputReadWord(input,option,word,PETSC_TRUE)
                       call InputErrorMsg(input,option,'REFERENCE_SPECIES', &
-                                         'CHEMISTRY,SMART_KD_REACTIONS')
-                      smart_kd_rxn%ref_species_name = word
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
+                      dynamic_kd_rxn%ref_species_name = word
                     case('REFERENCE_SPECIES_HIGH')
                       call InputReadDouble(input,option, &
-                                           smart_kd_rxn%ref_species_high)
+                                           dynamic_kd_rxn%ref_species_high)
                       call InputErrorMsg(input,option, &
                                          'REFERENCE_SPECIES_HIGH', &
-                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
                     case('KD_LOW')
-                      call InputReadDouble(input,option,smart_kd_rxn%KD_low)
+                      call InputReadDouble(input,option,dynamic_kd_rxn%KD_low)
                       call InputErrorMsg(input,option,'KD_LOW', &
-                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
                     case('KD_HIGH')
-                      call InputReadDouble(input,option,smart_kd_rxn%KD_high)
+                      call InputReadDouble(input,option,dynamic_kd_rxn%KD_high)
                       call InputErrorMsg(input,option,'KD_HIGH', &
-                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
                     case('KD_POWER')
                       call InputReadDouble(input,option, &
-                                           smart_kd_rxn%KD_power)
+                                           dynamic_kd_rxn%KD_power)
                       call InputErrorMsg(input,option,'KD_POWER', &
-                                         'CHEMISTRY,SMART_KD_REACTIONS')
+                                         'CHEMISTRY,DYNAMIC_KD_REACTIONS')
                     case default
                       call InputKeywordUnrecognized(input,word, &
-                              'CHEMISTRY,SORPTION,SMART_KD_REACTIONS',option)
+                              'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS',option)
                   end select
                 enddo
                 call InputPopBlock(input,option)
-                if (Uninitialized(smart_kd_rxn%ref_species_high) .or. &
-                    Uninitialized(smart_kd_rxn%KD_low) .or. &
-                    Uninitialized(smart_kd_rxn%KD_high) .or. &
-                    Uninitialized(smart_kd_rxn%KD_power) .or. &
-                    len_trim(smart_kd_rxn%ref_species_name) < 0) then
+                if (Uninitialized(dynamic_kd_rxn%ref_species_high) .or. &
+                    Uninitialized(dynamic_kd_rxn%KD_low) .or. &
+                    Uninitialized(dynamic_kd_rxn%KD_high) .or. &
+                    Uninitialized(dynamic_kd_rxn%KD_power) .or. &
+                    len_trim(dynamic_kd_rxn%ref_species_name) < 0) then
                   option%io_buffer = 'REFERENCE_SPECIES, &
                     &REFERENCE_SPECIES_HIGH, KD_LOW, KD_HIGH, KD_POWER must &
-                    &be defined for SMART_KD_REACTIONs.'
+                    &be defined for DYNAMIC_KD_REACTIONs.'
                   call PrintErrMsg(option)
                 endif
                 ! add to list
-                if (.not.associated(reaction%smart_kd_rxn_list)) then
-                  reaction%smart_kd_rxn_list => smart_kd_rxn
-                  smart_kd_rxn%id = 1
+                if (.not.associated(reaction%dynamic_kd_rxn_list)) then
+                  reaction%dynamic_kd_rxn_list => dynamic_kd_rxn
+                  dynamic_kd_rxn%id = 1
                 endif
-                if (associated(prev_smart_kd_rxn)) then
-                  prev_smart_kd_rxn%next => smart_kd_rxn
-                  smart_kd_rxn%id = prev_smart_kd_rxn%id + 1
+                if (associated(prev_dynamic_kd_rxn)) then
+                  prev_dynamic_kd_rxn%next => dynamic_kd_rxn
+                  dynamic_kd_rxn%id = prev_dynamic_kd_rxn%id + 1
                 endif
-                prev_smart_kd_rxn => smart_kd_rxn
-                nullify(smart_kd_rxn)
+                prev_dynamic_kd_rxn => dynamic_kd_rxn
+                nullify(dynamic_kd_rxn)
               enddo
               call InputPopBlock(input,option)
 
@@ -1020,7 +1020,7 @@ subroutine ReactionReadPass1(reaction,input,option)
   call GasSpeciesListMergeDuplicates(reaction%gas%list)
   
   reaction%neqsorb = reaction%neqionxrxn + &
-                     reaction%neqsmartkdrxn + &
+                     reaction%neqdynamickdrxn + &
                      reaction%neqkdrxn + &
                      reaction%surface_complexation%neqsrfcplxrxn
   reaction%nsorb = reaction%neqsorb + &
@@ -1138,14 +1138,14 @@ subroutine ReactionReadPass2(reaction,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'SORPTION','CHEMISTRY') 
           select case(trim(word))
-            case('SMART_KD_REACTIONS')
+            case('DYNAMIC_KD_REACTIONS')
               do
                 call InputReadPflotranString(input,option)
                 call InputReadStringErrorMsg(input,option,card)
                 if (InputCheckExit(input,option)) exit
                 call InputReadWord(input,option,word,PETSC_TRUE)
                 call InputErrorMsg(input,option,word, &
-                                    'CHEMISTRY,SORPTION,SMART_KD_REACTIONS') 
+                                    'CHEMISTRY,SORPTION,DYNAMIC_KD_REACTIONS') 
                 ! skip over remaining cards to end of each kd entry
                 call InputSkipToEnd(input,option,word)
               enddo
@@ -4451,9 +4451,9 @@ subroutine RTotalSorb(rt_auxvar,global_auxvar,material_auxvar,reaction,option)
     call RTotalSorbEqIonx(rt_auxvar,global_auxvar,reaction,option)
   endif
   
-  if (reaction%neqsmartkdrxn > 0) then
-    call RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
-                           reaction,option)
+  if (reaction%neqdynamickdrxn > 0) then
+    call RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
+                             reaction,option)
   endif
   
   if (reaction%neqkdrxn > 0) then
@@ -4464,11 +4464,11 @@ end subroutine RTotalSorb
 
 ! ************************************************************************** !
 
-subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
-                             reaction,option)
+subroutine RTotalSorbDynamicKD(rt_auxvar,global_auxvar,material_auxvar, &
+                               reaction,option)
   ! 
   ! Computes the total sorbed component concentrations and
-  ! derivative with respect to free-ion for the smart KD model
+  ! derivative with respect to free-ion for the dynamic KD model
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/21/2019
@@ -4507,15 +4507,15 @@ subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
   ! to make compatible with constant KD
   Lwater_m3bulk = 250.d0
 
-  do irxn = 1, reaction%neqsmartkdrxn
-    ikd = reaction%eqsmartkdspecid(irxn)
+  do irxn = 1, reaction%neqdynamickdrxn
+    ikd = reaction%eqdynamickdspecid(irxn)
     kd_species_molality = rt_auxvar%pri_molal(ikd)
-    iref = reaction%eqsmartkdrefspecid(irxn)
-    ref_high = reaction%eqsmartkdrefspechigh(irxn)
+    iref = reaction%eqdynamickdrefspecid(irxn)
+    ref_high = reaction%eqdynamickdrefspechigh(irxn)
     ref_species_molality = rt_auxvar%pri_molal(iref)
-    KD_power = reaction%eqsmartkdpower(irxn)
-    KD_low = reaction%eqsmartkdlow(irxn)
-    KD_high_minus_low = reaction%eqsmartkdhigh(irxn) - KD_low
+    KD_power = reaction%eqdynamickdpower(irxn)
+    KD_low = reaction%eqdynamickdlow(irxn)
+    KD_high_minus_low = reaction%eqdynamickdhigh(irxn) - KD_low
 
     ! R = KD_low + ref_species_molality ** KD_power * KD_high_minus_low
     tempreal = (ref_species_molality/ref_high)**KD_power
@@ -4532,7 +4532,7 @@ subroutine RTotalSorbSmartKD(rt_auxvar,global_auxvar,material_auxvar, &
       rt_auxvar%dtotal_sorb_eq(ikd,iref) + dtotal_sorb_dcref
   enddo
 
-end subroutine RTotalSorbSmartKD
+end subroutine RTotalSorbDynamicKD
 
 ! ************************************************************************** !
 
