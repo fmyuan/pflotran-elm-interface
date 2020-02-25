@@ -8,7 +8,7 @@ SIMULATION
       MODE RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
   RESTART 543_hanford_srfcplx_base-restart.h5 0.d0

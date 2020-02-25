@@ -1627,7 +1627,9 @@ class RegressionTestManager(object):
         """
         Add the current test status to the overall status for the file.
         """
-        self._file_status.fail += status.fail
+        # status.fail may be greater than 1
+        if (status.fail > 0):
+          self._file_status.fail += 1
         self._file_status.warning += status.warning
         # status.error may be greater than 1
         if (status.error > 0):
@@ -2119,7 +2121,7 @@ def summary_report(run_time, report, dry_run, outfile):
 
     print("\n", file=outfile)
 
-    return num_failures
+    return num_failures + num_errors
 
 
 def append_command_to_log(command, testlog, tempfile):
@@ -2248,8 +2250,8 @@ def main(options):
     print("    T - time out error")
     print("    C - configuration file [.cfg] error")
     print("    I - missing information (e.g. missing files)")
-    print("    A - pre-processing error (e.g. error in simulation setup scripts")
-    print("    B - post-processing error (e.g. error in solution comparison)")
+    print("    B - pre-processing error (e.g. error in simulation setup scripts")
+    print("    A - post-processing error (e.g. error in solution comparison)")
     print("    S - test skipped")
     print("    W - warning")
     print("    ? - unknown\n")

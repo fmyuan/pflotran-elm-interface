@@ -93,7 +93,7 @@ function PMTHCreate()
 
   nullify(this%commN)
 
-  call PMSubsurfaceFlowCreate(this)
+  call PMSubsurfaceFlowInit(this)
   this%name = 'TH Flow'
   this%header = 'TH FLOW'
 

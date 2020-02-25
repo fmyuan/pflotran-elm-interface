@@ -120,8 +120,8 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                                       nwt_auxvar%mnrl_eq_conc(ispecies)/ &
                                       (por*mnrl_molar_density(ispecies))
         if (dry_out) then
-          nwt_auxvar%aqueous_eq_conc(ispecies) = 1.0d-20
-          nwt_auxvar%sorb_eq_conc(ispecies) = 1.0d-20
+          nwt_auxvar%aqueous_eq_conc(ispecies) = 0.0d0
+          nwt_auxvar%sorb_eq_conc(ispecies) = 0.0d0
         else
           nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
@@ -139,8 +139,8 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
                           nwt_auxvar%mnrl_vol_frac(ispecies)* &
                           material_auxvar%porosity*mnrl_molar_density(ispecies)
         if (dry_out) then
-          nwt_auxvar%aqueous_eq_conc(ispecies) = 1.0d-20
-          nwt_auxvar%sorb_eq_conc(ispecies) = 1.0d-20
+          nwt_auxvar%aqueous_eq_conc(ispecies) = 0.0d0
+          nwt_auxvar%sorb_eq_conc(ispecies) = 0.0d0
         else
           nwt_auxvar%aqueous_eq_conc(ispecies) = solubility(ispecies)  
           nwt_auxvar%sorb_eq_conc(ispecies) = solubility(ispecies)* &
@@ -209,25 +209,33 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   PetscReal :: ppt_mass_conc    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass_conc   ! [mol/m^3-bulk]
   
-  PetscReal :: extra_mass_conc
+  PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
 
   if (.not.dry_out) then
+  !---- Cell is wet ----!
     if (aqueous_eq_conc > solubility) then
       extra_mass_conc = aqueous_eq_conc - solubility  ! [mol/m^3-liq]
       aqueous_eq_conc = solubility
       sorb_mass_conc = aqueous_eq_conc*ele_kd
       ppt_mass_conc = extra_mass_conc - sorb_mass_conc
+      if (ppt_mass_conc < 0.d0) then
+      ! this means that more mass wants to be sorbed than is available,
+      ! so sorbed mass needs to be reduced (ppt_mass_conc is negative)
+        sorb_mass_conc = sorb_mass_conc + ppt_mass_conc
+        ppt_mass_conc = max(0.d0,ppt_mass_conc)
+      endif
       ! convert units back to [mol/m^3-bulk]
       ppt_mass_conc = ppt_mass_conc*global_auxvar%sat(LIQUID_PHASE)* &
                       material_auxvar%porosity
     else
       sorb_mass_conc = aqueous_eq_conc*ele_kd
-      ppt_mass_conc = 1.0d-20
+      ppt_mass_conc = 0.d0
     endif
   else
+  !---- Cell is dry ---!
     ppt_mass_conc = total_bulk_conc
-    sorb_mass_conc = 1.0d-20
-    aqueous_eq_conc = 1.0d-20
+    sorb_mass_conc = 0.d0
+    aqueous_eq_conc = 0.d0
   endif
 
 end subroutine NWTEqDissPrecipSorb

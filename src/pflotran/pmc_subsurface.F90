@@ -23,7 +23,9 @@ module PMC_Subsurface_class
     procedure, public :: Destroy => PMCSubsurfaceDestroy
   end type pmc_subsurface_type
   
-  public :: PMCSubsurfaceCreate
+  public :: PMCSubsurfaceCreate, &
+            PMCSubsurfaceInit, &
+            PMCSubsurfaceStrip
   
 contains
 
@@ -44,10 +46,6 @@ function PMCSubsurfaceCreate()
   
   class(pmc_subsurface_type), pointer :: pmc
 
-#ifdef DEBUG
-  print *, 'PMCSubsurface%Create()'
-#endif
-  
   allocate(pmc)
   call pmc%Init()
   
@@ -70,10 +68,6 @@ subroutine PMCSubsurfaceInit(this)
   implicit none
   
   class(pmc_subsurface_type) :: this
-  
-#ifdef DEBUG
-  print *, 'PMCSubsurface%Init()'
-#endif
   
   call PMCBaseInit(this)
   this%name = 'PMCSubsurface'
@@ -162,10 +156,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   SNESType :: snes_type
   PetscErrorCode :: ierr
 
-#ifdef DEBUG
-  call PrintMsg(this%option,'PMCSubsurface%SetupSolvers()')
-#endif
-
   option => this%option
   solver => this%timestepper%solver
   
@@ -176,7 +166,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   NWT = 2
 
   call SolverCreateSNES(solver,option%mycomm)
-  call SNESGetLineSearch(this%timestepper%solver%snes,linesearch, &
+  call SNESGetLineSearch(solver%snes,linesearch, &
                          ierr);CHKERRQ(ierr)
   ! set solver pointer within pm for convergence purposes
   call this%pm_ptr%pm%SetSolver(solver)
@@ -186,7 +176,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       call PrintMsg(option,"  Beginning setup of FLOW SNES ")
       if (solver%J_mat_type == MATAIJ .and. &
           option%iflowmode /= RICHARDS_MODE) then
-
         option%io_buffer = 'AIJ matrix not supported for current &
           &mode: '// option%flowmode
         call PrintErrMsg(option)
@@ -266,16 +255,16 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       call MatSetOptionsPrefix(solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
 
-            if (solver%Jpre_mat_type == solver%J_mat_type) then
+      if (solver%Jpre_mat_type == solver%J_mat_type) then
         solver%J = solver%Jpre
-            else
-              call DiscretizationCreateJacobian(pm%realization%discretization, &
-                                                NFLOWDOF, &
-                                                solver%J_mat_type, &
-                                                solver%J, &
-                                                option)
+      else
+        call DiscretizationCreateJacobian(pm%realization%discretization, &
+                                          NFLOWDOF, &
+                                          solver%J_mat_type, &
+                                          solver%J, &
+                                          option)
 
-              call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
+        call MatSetOptionsPrefix(solver%J,"flow_",ierr);CHKERRQ(ierr)
       endif
 
       if (solver%use_galerkin_mg) then
@@ -293,6 +282,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       ! by default turn off line search
+!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
@@ -455,6 +445,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       ! this could be changed in the future if there is a way to 
       ! ensure that the linesearch update does not perturb 
       ! concentrations negative.
+!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, &
                              ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
@@ -503,12 +494,12 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   endif ! RT or NWT
       
 
-  call SNESSetFunction(this%timestepper%solver%snes, &
+  call SNESSetFunction(solver%snes, &
                        this%pm_ptr%pm%residual_vec, &
                        PMResidualPtr, &
                        this%pm_ptr, &
                        ierr);CHKERRQ(ierr)
-  call SNESSetJacobian(this%timestepper%solver%snes, &
+  call SNESSetJacobian(solver%snes, &
                        solver%J, &
                        solver%Jpre, &
                        PMJacobianPtr, &
@@ -651,6 +642,11 @@ subroutine PMCSubsurfaceGetAuxData(this)
 
   class(pmc_subsurface_type) :: this
 
+  !TODO(geh): create a class for get/set and add it to a dynamic linked list
+  !           based on the process models involved. there is no need to
+  !           extend this class just to override this function as there
+  !           may be more than one PM for which to apply get/set. the 
+  !           proposed accomplishes the task.
   if (this%option%surf_flow_on) call PMCSubsurfaceGetAuxDataFromSurf(this)
   if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
 
@@ -1260,12 +1256,7 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 end subroutine PMCSubsurfaceSetAuxDataForGeomech
 
 ! ************************************************************************** !
-!
-! PMCSubsurfaceFinalizeRun: Finalizes the time stepping
-! author: Glenn Hammond
-! date: 03/18/13
-!
-! ************************************************************************** !
+
 recursive subroutine PMCSubsurfaceFinalizeRun(this)
   ! 
   ! Finalizes the time stepping

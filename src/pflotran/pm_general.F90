@@ -123,6 +123,10 @@ function PMGeneralCreate()
 #endif  
 
   allocate(this)
+  call PMSubsurfaceFlowInit(this)
+  this%name = 'General Multiphase Flow'
+  this%header = 'GENERAL MULTIPHASE FLOW'
+
   allocate(this%max_change_ivar(6))
   this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, AIR_PRESSURE, &
                                 LIQUID_MOLE_FRACTION, TEMPERATURE, &
@@ -135,10 +139,6 @@ function PMGeneralCreate()
   this%damping_factor = -1.d0
   this%general_newton_max_iter = 8
   
-  call PMSubsurfaceFlowCreate(this)
-  this%name = 'General Multiphase Flow'
-  this%header = 'GENERAL MULTIPHASE FLOW'
-
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
   fix_upwind_direction = PETSC_FALSE
@@ -733,7 +733,6 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
 
   PetscReal, pointer :: X_p(:),dX_p(:)
 
-  ! MAN: OLD
   PetscReal, pointer :: r_p(:)
   type(field_type), pointer :: field
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
@@ -752,7 +751,6 @@ subroutine PMGeneralCheckUpdatePre(this,snes,X,dX,changed,ierr)
   PetscReal, parameter :: tolerance = 0.99d0
   PetscReal, parameter :: initial_scale = 1.d0
   PetscInt :: newton_iteration
-  ! MAN: END OLD
 
   call VecGetArrayF90(dX,dX_p,ierr); CHKERRQ(ierr)
   call VecGetArrayReadF90(X,X_p,ierr);CHKERRQ(ierr)

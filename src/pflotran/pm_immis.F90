@@ -54,7 +54,7 @@ function PMImmisCreate()
   
   allocate(immis_pm)
 
-  call PMSubsurfaceFlowCreate(immis_pm)
+  call PMSubsurfaceFlowInit(immis_pm)
   immis_pm%name = 'Immisible Flow'
   immis_pm%header = 'IMMISCIBLE FLOW'
 
@@ -328,7 +328,7 @@ subroutine PMImmisCheckUpdatePost(this,snes,P0,dP,P1,dX_changed, &
   PetscErrorCode :: ierr
   
   call ImmisCheckUpdatePost(snes,P0,dP,P1,dX_changed, &
-                               X1_changed,this%realization,ierr)
+                            X1_changed,this%realization,ierr)
 
 end subroutine PMImmisCheckUpdatePost
 #endif

@@ -123,6 +123,8 @@ subroutine TranConstraintBaseRdSelectCase(this,input,keyword,found,option)
   select case(trim(keyword))
     case('EQUILIBRATE_AT_EACH_CELL')
       this%equilibrate_at_each_cell = PETSC_TRUE
+    case('DO_NOT_EQUILIBRATE_AT_EACH_CELL')
+      this%equilibrate_at_each_cell = PETSC_FALSE
     case default
       found = PETSC_FALSE
   end select 

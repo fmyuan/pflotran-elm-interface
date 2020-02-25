@@ -313,6 +313,9 @@ subroutine PMNWTInitializeRun(this)
   ! update the boundary conditions
   call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
   
+  this%realization%patch%aux%NWT%truncate_output = &
+    this%realization%reaction_nw%truncate_output
+  
   call PMNWTUpdateSolution(this)
   
 end subroutine PMNWTInitializeRun

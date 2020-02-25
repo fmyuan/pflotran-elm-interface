@@ -54,7 +54,7 @@ function PMFlash2Create()
   class(pm_flash2_type), pointer :: flash2_pm
   
   allocate(flash2_pm)
-  call PMSubsurfaceFlowCreate(flash2_pm)
+  call PMSubsurfaceFlowInit(flash2_pm)
   flash2_pm%name = 'Flash2 Flow'
   flash2_pm%header = 'FLASH2 FLOW'
 
@@ -289,7 +289,7 @@ end subroutine PMFlash2Jacobian
 
 ! ************************************************************************** !
 
-subroutine PMFlash2CheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMFlash2CheckUpdatePre(this,snes,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -300,19 +300,19 @@ subroutine PMFlash2CheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   
   class(pm_flash2_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call Flash2CheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
+  call Flash2CheckUpdatePre(snes,X,dX,changed,this%realization,ierr)
 
 end subroutine PMFlash2CheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMFlash2CheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                    X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
@@ -324,7 +324,7 @@ subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   implicit none
   
   class(pm_flash2_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
@@ -332,7 +332,7 @@ subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call Flash2CheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+  call Flash2CheckUpdatePost(snes,X0,dX,X1,dX_changed, &
                              X1_changed,this%realization,ierr)
 
 end subroutine PMFlash2CheckUpdatePost
