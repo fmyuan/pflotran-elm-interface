@@ -900,7 +900,7 @@ region.o : geometry.o grid_structured.o grid_unstructured_cell.o input_aux.o \
 regression.o : discretization.o grid.o input_aux.o option.o output.o \
                output_aux.o output_common.o pflotran_constants.o \
                realization_subsurface.o string.o timestepper_BE.o \
-               timestepper_TS.o timestepper_base.o utility.o
+               timestepper_KSP.o timestepper_TS.o timestepper_base.o utility.o
 richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              field.o global_aux.o grid.o inlinesurface.o inlinesurface_aux.o \
              logging.o material.o material_aux.o matrix_buffer.o option.o \

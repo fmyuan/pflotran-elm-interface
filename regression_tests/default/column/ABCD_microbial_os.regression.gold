@@ -93,3 +93,9 @@
        75:         1
        80:         1
       100:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.5079975128174E-02
+   Time Steps:          111
+   Linear Solver Iterations:          333
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.2836908975533E-02
