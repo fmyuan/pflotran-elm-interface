@@ -24,6 +24,7 @@ END
 #=========================== hydrate ==========================================
 HYDRATE
   ADJUST_SOLUBILITY_WITHIN_GHSZ
+  HYDRATE_PHASE_BOUNDARY MORIDIS
 END
 #=========================== discretization ===================================
 GRID

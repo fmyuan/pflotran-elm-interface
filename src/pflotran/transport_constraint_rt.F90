@@ -219,6 +219,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
   character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: block_string
   PetscInt :: icomp, imnrl, iimmobile
+  PetscInt :: jcomp, jmnrl
+  PetscInt :: tempint
   PetscInt :: isrfcplx
   PetscInt :: length
   type(aq_species_constraint_type), pointer :: aq_species_constraint
@@ -269,10 +271,9 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
           icomp = icomp + 1        
           
           if (icomp > reaction%naqcomp) then
-            option%io_buffer = 'Number of concentration constraints ' // &
-                               'exceeds number of primary chemical ' // &
-                               'components in constraint: ' // &
-                                trim(constraint%name)
+            option%io_buffer = 'Number of concentration constraints exceeds &
+              &number of primary chemical components in constraint: ' // &
+              trim(constraint%name)
             call PrintErrMsg(option)
           endif
           
@@ -310,8 +311,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_TOTAL_AQ_PLUS_SORB
               case('S')
-                option%io_buffer = '"S" constraint type no longer ' // &
-                  'supported as of March 4, 2013.'
+                option%io_buffer = '"S" constraint type no longer &
+                  &supported as of March 4, 2013.'
                 call PrintErrMsg(option)
               case('P','PH')
                 aq_species_constraint%constraint_type(icomp) = CONSTRAINT_PH
@@ -366,16 +367,30 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         
         if (icomp < reaction%naqcomp) then
           option%io_buffer = &
-                   'Number of concentration constraints is less than ' // &
-                   'number of primary species in aqueous constraint.'
+                   'Number of concentration constraints is less than &
+                   &number of primary species in aqueous constraint.'
           call PrintErrMsg(option)
         endif
         if (icomp > reaction%naqcomp) then
           option%io_buffer = &
-                   'Number of concentration constraints is greater than ' // &
-                   'number of primary species in aqueous constraint.'
-          call PrintWrnMsg(option)
+                   'Number of concentration constraints is greater than &
+                   &number of primary species in aqueous constraint.'
+          call PrintErrMsg(option)
         endif
+
+        do icomp = 1, reaction%naqcomp
+          tempint = 0
+          do jcomp = 1, reaction%naqcomp
+            if (StringCompare(aq_species_constraint%names(icomp), &
+                              aq_species_constraint%names(jcomp), &
+                              MAXWORDLENGTH)) tempint = tempint + 1
+          enddo
+          if (tempint > 1) then
+            option%io_buffer = 'Duplicated primary species in concentration &
+              &constraint: ' // trim(aq_species_constraint%names(icomp))
+            call PrintErrMsg(option)
+          endif
+        enddo
         
         if (associated(constraint%aqueous_species)) &
           call AqueousSpeciesConstraintDestroy(constraint%aqueous_species)
@@ -397,10 +412,10 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
           icomp = icomp + 1        
           
           if (icomp > reaction%naqcomp) then
-            option%io_buffer = 'Number of free ion guess constraints ' // &
-                               'exceeds number of primary chemical ' // &
-                               'components in constraint: ' // &
-                                trim(constraint%name)
+            option%io_buffer = 'Number of free ion guess constraints &
+                               &exceeds number of primary chemical &
+                               &components in constraint: ' // &
+                               trim(constraint%name)
             call PrintErrMsg(option)
           endif
           
@@ -418,17 +433,31 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
         if (icomp < reaction%naqcomp) then
           option%io_buffer = &
-                   'Number of free ion guess constraints is less than ' // &
-                   'number of primary species in aqueous constraint.'
+                   'Number of free ion guess constraints is less than &
+                   &number of primary species in aqueous constraint.'
           call PrintErrMsg(option)
         endif
         if (icomp > reaction%naqcomp) then
           option%io_buffer = &
-                   'Number of free ion guess constraints is greater than ' // &
-                   'number of primary species in aqueous constraint.'
-          call PrintWrnMsg(option)
+                   'Number of free ion guess constraints is greater than &
+                   &number of primary species in aqueous constraint.'
+          call PrintErrMsg(option)
         endif
-        
+
+        do icomp = 1, reaction%naqcomp
+          tempint = 0
+          do jcomp = 1, reaction%naqcomp
+            if (StringCompare(free_ion_guess_constraint%names(icomp), &
+                              free_ion_guess_constraint%names(jcomp), &
+                              MAXWORDLENGTH)) tempint = tempint + 1
+          enddo
+          if (tempint > 1) then
+            option%io_buffer = 'Duplicated primary species in free ion &
+              &guess constraint: ' // trim(aq_species_constraint%names(icomp))
+            call PrintErrMsg(option)
+          endif
+        enddo
+
         if (associated(constraint%free_ion_guess)) &
           call GuessConstraintDestroy(constraint%free_ion_guess)
         constraint%free_ion_guess => free_ion_guess_constraint
@@ -451,8 +480,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
           if (imnrl > reaction%mineral%nkinmnrl) then
             option%io_buffer = &
-                     'Number of mineral constraints exceeds number of ' // &
-                     'kinetic minerals in constraint: ' // &
+                     'Number of mineral constraints exceeds number of &
+                     &kinetic minerals in constraint: ' // &
                       trim(constraint%name)
             call PrintErrMsg(option)
           endif
@@ -512,13 +541,27 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         
         if (imnrl < reaction%mineral%nkinmnrl) then
           option%io_buffer = &
-                   'Mineral lists in constraints must provide a volume ' // &
-                   'fraction and surface area for all kinetic minerals ' // &
-                   '(listed under MINERAL_KINETICS card in CHEMISTRY), ' // &
-                   'regardless of whether or not they are present (just ' // &
-                   'assign a zero volume fraction if not present).'
+                   'Mineral lists in constraints must provide a volume &
+                   &fraction and surface area for all kinetic minerals &
+                   &(listed under MINERAL_KINETICS card in CHEMISTRY), &
+                   &regardless of whether or not they are present (just &
+                   &assign a zero volume fraction if not present).'
           call PrintErrMsg(option)
         endif
+
+        do imnrl = 1, reaction%mineral%nkinmnrl
+          tempint = 0
+          do jmnrl = 1, reaction%mineral%nkinmnrl
+            if (StringCompare(mineral_constraint%names(imnrl), &
+                              mineral_constraint%names(jmnrl), &
+                              MAXWORDLENGTH)) tempint = tempint + 1
+          enddo
+          if (tempint > 1) then
+            option%io_buffer = 'Duplicated minerals in mineral &
+              &constraint: ' // trim(mineral_constraint%names(imnrl))
+            call PrintErrMsg(option)
+          endif
+        enddo
         
         if (associated(constraint%minerals)) then
           call MineralConstraintDestroy(constraint%minerals)
@@ -543,8 +586,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
           if (isrfcplx > reaction%surface_complexation%nkinsrfcplx) then
             option%io_buffer = &
-                     'Number of surface complex constraints exceeds ' // &
-                     'number of kinetic surface complexes in constraint: ' // &
+                     'Number of surface complex constraints exceeds &
+                     &number of kinetic surface complexes in constraint: ' // &
                       trim(constraint%name)
             call PrintErrMsg(option)
           endif
@@ -562,11 +605,26 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         
         if (isrfcplx < reaction%surface_complexation%nkinsrfcplx) then
           option%io_buffer = &
-                   'Number of surface complex constraints is less than ' // &
-                   'number of kinetic surface complexes in surface ' // &
-                   'complex constraint.'
+                   'Number of surface complex constraints is less than &
+                   &number of kinetic surface complexes in surface &
+                   &complex constraint.'
           call PrintErrMsg(option)
         endif
+        
+        do icomp = 1, reaction%surface_complexation%nkinsrfcplx
+          tempint = 0
+          do jcomp = 1, reaction%surface_complexation%nkinsrfcplx
+            if (StringCompare(srfcplx_constraint%names(icomp), &
+                              srfcplx_constraint%names(jcomp), &
+                              MAXWORDLENGTH)) tempint = tempint + 1
+          enddo
+          if (tempint > 1) then
+            option%io_buffer = 'Duplicated surface complex in surface &
+              &complex constraint: ' // &
+              trim(srfcplx_constraint%names(icomp))
+            call PrintErrMsg(option)
+          endif
+        enddo
         
         if (associated(constraint%surface_complexes)) then
           call SurfaceComplexConstraintDestroy(constraint%surface_complexes)
@@ -590,8 +648,8 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
 
           if (icomp > reaction%ncoll) then
             option%io_buffer = &
-                     'Number of colloid constraints exceeds number of ' // &
-                     'colloids in constraint: ' // &
+                     'Number of colloid constraints exceeds number of &
+                     &colloids in constraint: ' // &
                       trim(constraint%name)
             call PrintErrMsg(option)
           endif
@@ -614,13 +672,27 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         
         if (icomp < reaction%ncoll) then
           option%io_buffer = &
-                   'Colloid lists in constraints must provide mobile ' // &
-                   'and immobile concentrations for all colloids ' // &
-                   '(listed under the COLLOIDS card in CHEMISTRY), ' // &
-                   'regardless of whether or not they are present (just ' // &
-                   'assign a small value (e.g. 1.d-40) if not present).'
+                   'Colloid lists in constraints must provide mobile &
+                   &and immobile concentrations for all colloids &
+                   &(listed under the COLLOIDS card in CHEMISTRY), &
+                   &regardless of whether or not they are present (just &
+                   &assign a small value (e.g. 1.d-40) if not present).'
           call PrintErrMsg(option)
         endif
+        
+        do icomp = 1, reaction%ncoll
+          tempint = 0
+          do jcomp = 1, reaction%ncoll
+            if (StringCompare(colloid_constraint%names(icomp), &
+                              colloid_constraint%names(jcomp), &
+                              MAXWORDLENGTH)) tempint = tempint + 1
+          enddo
+          if (tempint > 1) then
+            option%io_buffer = 'Duplicated colloid in colloid constraint: ' // &
+              trim(colloid_constraint%names(icomp))
+            call PrintErrMsg(option)
+          endif
+        enddo
         
         if (associated(constraint%colloids)) then
           call ColloidConstraintDestroy(constraint%colloids)
@@ -697,12 +769,27 @@ subroutine TranConstraintRTRead(constraint,reaction,input,option)
         
         if (iimmobile < reaction%immobile%nimmobile) then
           option%io_buffer = &
-                   'Immobile lists in constraints must provide a ' // &
-                   'concentration for all immobile species ' // &
-                   '(listed under IMMOBILE card in CHEMISTRY), ' // &
-                   'regardless of whether or not they are present.'
+                   'Immobile lists in constraints must provide a &
+                   &concentration for all immobile species &
+                   &(listed under IMMOBILE card in CHEMISTRY), &
+                   &regardless of whether or not they are present.'
           call PrintErrMsg(option)
         endif
+        
+        do icomp = 1, reaction%immobile%nimmobile
+          tempint = 0
+          do jcomp = 1, reaction%immobile%nimmobile
+            if (StringCompare(immobile_constraint%names(icomp), &
+                              immobile_constraint%names(jcomp), &
+                              MAXWORDLENGTH)) tempint = tempint + 1
+          enddo
+          if (tempint > 1) then
+            option%io_buffer = 'Duplicated immobile speies in immobile &
+              &constraint: ' // &
+              trim(immobile_constraint%names(icomp))
+            call PrintErrMsg(option)
+          endif
+        enddo
         
         if (associated(constraint%immobile_species)) then
           call ImmobileConstraintDestroy(constraint%immobile_species)

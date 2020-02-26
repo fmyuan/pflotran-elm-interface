@@ -13,6 +13,8 @@ module Solver_module
   private
 
   type, public :: solver_type
+    !TODO(geh): remove itype in favor of setting prefix through call to
+    !           nonlinear/linear solver read routine
     PetscInt :: itype            ! type: flow or transport
     PetscReal :: linear_atol       ! absolute tolerance
     PetscReal :: linear_rtol       ! relative tolerance
@@ -87,6 +89,8 @@ module Solver_module
             SolverDestroy, &
             SolverReadLinear, &
             SolverReadNewton, &
+            SolverCreateKSP, &
+            SolverSetKSPOptions, &
             SolverCreateSNES, &
             SolverSetSNESOptions, &
             SolverCreateTS, &
@@ -186,12 +190,12 @@ end function SolverCreate
 
 ! ************************************************************************** !
 
-subroutine SolverCreateSNES(solver,comm)
+subroutine SolverCreateKSP(solver,comm)
   ! 
-  ! Create PETSc SNES object
+  ! Create PETSc KSP object
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/12/08
+  ! Date: 12/06/19
   ! 
 
   implicit none
@@ -201,23 +205,22 @@ subroutine SolverCreateSNES(solver,comm)
   PetscMPIInt :: comm
   PetscErrorCode :: ierr
   
-  call SNESCreate(comm,solver%snes,ierr);CHKERRQ(ierr)
-  call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
+  call KSPCreate(comm,solver%ksp,ierr);CHKERRQ(ierr)
+  call KSPSetFromOptions(solver%ksp,ierr);CHKERRQ(ierr)
 
-  ! grab handles for ksp and pc
-  call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
+  ! grab handle for pc
   call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
 
-end subroutine SolverCreateSNES
+end subroutine SolverCreateKSP
 
 ! ************************************************************************** !
 
-subroutine SolverSetSNESOptions(solver, option)
+subroutine SolverSetKSPOptions(solver, option)
   ! 
-  ! Sets options for SNES
+  ! Sets options for KSP
   ! 
   ! Author: Glenn Hammond
-  ! Date: 02/12/08
+  ! Date: 12/06/19
   ! 
   use Option_module
 
@@ -226,14 +229,38 @@ subroutine SolverSetSNESOptions(solver, option)
   type(solver_type) :: solver
   type(option_type) :: option
 
-  SNESLineSearch :: linesearch
-  KSP, pointer :: sub_ksps(:)
-  PC :: pc
-  PetscInt :: nsub_ksp
-  PetscInt :: first_sub_ksp
   PetscErrorCode :: ierr
-  PetscInt :: i
+
+  call SolverSetupCustomKSP(solver,option)
+  call SolverSetupPCGalerkinMG(solver, option)
+  ! KSPSetFromOptions must come after custom setup in order to override 
+  ! from command line
+  call KSPSetFromOptions(solver%ksp,ierr);CHKERRQ(ierr)
+  call SolverSetupPCShiftAndPivoting(solver,option)
+  call KSPGetTolerances(solver%ksp,solver%linear_rtol,solver%linear_atol, &
+                        solver%linear_dtol,solver%linear_max_iterations, &
+                        ierr);CHKERRQ(ierr)
+
+end subroutine SolverSetKSPOptions
+
+! ************************************************************************** !
+
+subroutine SolverSetupCustomKSP(solver, option)
+  ! 
+  ! Sets options for KSP and PC when specified through input file
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/06/19
+  ! 
+  use Option_module
+
+  implicit none
   
+  type(solver_type) :: solver
+  type(option_type) :: option
+
+  PetscErrorCode :: ierr
+
   ! if ksp_type or pc_type specified in input file, set them here
   if (len_trim(solver%ksp_type) > 1) then
     call KSPSetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
@@ -256,19 +283,26 @@ subroutine SolverSetSNESOptions(solver, option)
     call KSPSetErrorIfNotConverged(solver%ksp,PETSC_TRUE,ierr);CHKERRQ(ierr)
   endif
 
-  ! Set the tolerances for the Newton solver.
-  call SNESSetTolerances(solver%snes, solver%newton_atol, solver%newton_rtol, &
-                         solver%newton_stol,solver%newton_max_iterations, &
-                         solver%newton_maxf,ierr);CHKERRQ(ierr)
-  call SNESSetDivergenceTolerance(solver%snes,solver%newton_dtol, &
-                                  ierr);CHKERRQ(ierr)
+end subroutine SolverSetupCustomKSP
 
-  ! set inexact newton, currently applies default settings
-  if (solver%inexact_newton) then
-    call SNESKSPSetUseEW(solver%snes,PETSC_TRUE,ierr);CHKERRQ(ierr)
-  endif
+! ************************************************************************** !
 
-!  call SNESLineSearchSet(solver%snes,SNESLineSearchNo,PETSC_NULL)
+subroutine SolverSetupPCGalerkinMG(solver, option)
+  ! 
+  ! Sets up a Galerkin multigrid approach
+  ! 
+  ! Author: Richard Mills
+  ! Date: 12/06/19
+  ! 
+  use Option_module
+
+  implicit none
+  
+  type(solver_type) :: solver
+  type(option_type) :: option
+
+  PetscInt :: i
+  PetscErrorCode :: ierr
 
   ! Setup for n-level Galerkin multigrid.
   if (solver%use_galerkin_mg) then
@@ -282,17 +316,32 @@ subroutine SolverSetSNESOptions(solver, option)
       call PCMGSetGalerkin(solver%pc,PC_MG_GALERKIN_MAT,ierr);CHKERRQ(ierr)
     enddo
   endif
-  
-  ! allow override from command line; for some reason must come before
-  ! LineSearchParams, or they crash
-  ! Note that SNESSetFromOptions() calls KSPSetFromOptions(), which calls
-  ! PCSetFromOptions(), so these should not be called separately (doing so
-  ! causes unintended results when PCCOMPOSITE is used).
-  call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
 
-  ! get the ksp_type and pc_type incase of command line override.
-  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
-  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
+end subroutine SolverSetupPCGalerkinMG
+
+! ************************************************************************** !
+
+subroutine SolverSetupPCShiftAndPivoting(solver, option)
+  ! 
+  ! Sets up a shift and pivoting in order to avoid near-zero values on 
+  ! the matrix diagonal
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/06/19
+  ! 
+  use Option_module
+
+  implicit none
+  
+  type(solver_type) :: solver
+  type(option_type) :: option
+
+  KSP, pointer :: sub_ksps(:)
+  PC :: pc
+  PetscInt :: nsub_ksp
+  PetscInt :: first_sub_ksp
+  PetscInt :: i
+  PetscErrorCode :: ierr
 
   if (solver%linear_shift) then
     ! the below must come after SNESSetFromOptions
@@ -361,6 +410,88 @@ subroutine SolverSetSNESOptions(solver, option)
     endif
   endif
 
+end subroutine SolverSetupPCShiftAndPivoting
+
+! ************************************************************************** !
+
+subroutine SolverCreateSNES(solver,comm)
+  ! 
+  ! Create PETSc SNES object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/12/08
+  ! 
+
+  implicit none
+  
+  type(solver_type) :: solver
+
+  PetscMPIInt :: comm
+  PetscErrorCode :: ierr
+  
+  call SNESCreate(comm,solver%snes,ierr);CHKERRQ(ierr)
+  call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
+
+  ! grab handles for ksp and pc
+  call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
+  call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
+
+end subroutine SolverCreateSNES
+
+! ************************************************************************** !
+
+subroutine SolverSetSNESOptions(solver, option)
+  ! 
+  ! Sets options for SNES
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/12/08
+  ! 
+  use Option_module
+
+  implicit none
+  
+  type(solver_type) :: solver
+  type(option_type) :: option
+
+  SNESLineSearch :: linesearch
+  KSP, pointer :: sub_ksps(:)
+  PC :: pc
+  PetscInt :: nsub_ksp
+  PetscInt :: first_sub_ksp
+  PetscErrorCode :: ierr
+  PetscInt :: i
+  
+  ! if ksp_type or pc_type specified in input file, set them here
+  call SolverSetupCustomKSP(solver,option)
+  call SolverSetupPCGalerkinMG(solver,option)
+
+  ! Set the tolerances for the Newton solver.
+  call SNESSetTolerances(solver%snes, solver%newton_atol, solver%newton_rtol, &
+                         solver%newton_stol,solver%newton_max_iterations, &
+                         solver%newton_maxf,ierr);CHKERRQ(ierr)
+  call SNESSetDivergenceTolerance(solver%snes,solver%newton_dtol, &
+                                  ierr);CHKERRQ(ierr)
+
+  ! set inexact newton, currently applies default settings
+  if (solver%inexact_newton) then
+    call SNESKSPSetUseEW(solver%snes,PETSC_TRUE,ierr);CHKERRQ(ierr)
+  endif
+
+  
+  ! allow override from command line; for some reason must come before
+  ! LineSearchParams, or they crash
+  ! Note that SNESSetFromOptions() calls KSPSetFromOptions(), which calls
+  ! PCSetFromOptions(), so these should not be called separately (doing so
+  ! causes unintended results when PCCOMPOSITE is used).
+  call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
+
+  ! get the ksp_type and pc_type incase of command line override.
+  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
+  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
+
+  call SolverSetupPCShiftAndPivoting(solver,option)
+
   call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
   call SNESLineSearchSetTolerances(linesearch, solver%newton_stol,       &
           PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
@@ -372,7 +503,7 @@ subroutine SolverSetSNESOptions(solver, option)
                          solver%newton_maxf,ierr);CHKERRQ(ierr)
 
   call KSPGetTolerances(solver%ksp,solver%linear_rtol,solver%linear_atol, &
-                         solver%linear_dtol,solver%linear_max_iterations, &
+                        solver%linear_dtol,solver%linear_max_iterations, &
                         ierr);CHKERRQ(ierr)
 
 end subroutine SolverSetSNESOptions
@@ -1012,6 +1143,7 @@ subroutine SolverReadNewton(solver,input,option)
         call PrintErrMsg(option)
 
       case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
+        !TODO(geh): move to PM
         if (.not.option%use_mc) then
           option%io_buffer = 'NEWTON ITOL_SEC not supported without ' // &
             'MULTIPLE_CONTINUUM keyword.'
@@ -1678,18 +1810,31 @@ subroutine SolverDestroy(solver)
       if (solver%cprstash%T1_KSP /= PETSC_NULL_KSP) then
         call KSPDestroy(solver%cprstash%T1_KSP, ierr);CHKERRQ(ierr)
       endif
+      if (solver%cprstash%T3_KSP /= PETSC_NULL_KSP .and. &
+          solver%cprstash%CPR_type == "ADDITIVE") then
+        call KSPDestroy(solver%cprstash%T3_KSP, ierr);CHKERRQ(ierr)
+      endif
       if (solver%cprstash%T1_PC /= PETSC_NULL_PC) then
         call PCDestroy(solver%cprstash%T1_PC, ierr);CHKERRQ(ierr)
       endif
       if (solver%cprstash%T2_PC /= PETSC_NULL_PC) then
         call PCDestroy(solver%cprstash%T2_PC, ierr);CHKERRQ(ierr)
       endif
-
+      if (solver%cprstash%T3_PC /= PETSC_NULL_PC .and. &
+          solver%cprstash%CPR_type == "ADDITIVE") then
+        call PCDestroy(solver%cprstash%T3_PC, ierr);CHKERRQ(ierr)
+      endif
       if (solver%cprstash%Ap /= PETSC_NULL_MAT) then
         call MatDestroy(solver%cprstash%Ap, ierr);CHKERRQ(ierr)
       endif
+      if (solver%cprstash%As /= PETSC_NULL_MAT) then
+        call MatDestroy(solver%cprstash%As, ierr);CHKERRQ(ierr)
+      endif
       if (solver%cprstash%T1r /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%T1r, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%T3r /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%T3r, ierr);CHKERRQ(ierr)
       endif
       if (solver%cprstash%r2 /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%r2, ierr);CHKERRQ(ierr)
@@ -1705,6 +1850,9 @@ subroutine SolverDestroy(solver)
       endif
       if (solver%cprstash%factors2vec /= PETSC_NULL_VEC) then
         call VecDestroy(solver%cprstash%factors2vec, ierr);CHKERRQ(ierr)
+      endif
+      if (solver%cprstash%factors3vec /= PETSC_NULL_VEC) then
+        call VecDestroy(solver%cprstash%factors3vec, ierr);CHKERRQ(ierr)
       endif
       deallocate(solver%cprstash)
       nullify(solver%cprstash)

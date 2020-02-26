@@ -1,0 +1,347 @@
+!==============================================================================
+! 2-D problem with gas generation and high initial liquid saturation
+!==============================================================================
+
+!=========================== SIMULATION MOD ===================================
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW FLOW
+      MODE WIPP_FLOW
+      OPTIONS
+        HARMONIC_PERMEABILITY_ONLY
+        DO_NOT_SCALE_JACOBIAN
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! H2 kg/kmol
+        LIQUID_RESIDUAL_INFINITY_TOL 1.d-6
+        GAS_RESIDUAL_INFINITY_TOL 1.d-6
+        MAX_ALLOW_REL_LIQ_PRES_CHANG_NI 1.d-5
+        GAS_SAT_THRESH_FORCE_EXTRA_NI   1.d-3
+        GAS_SAT_THRESH_FORCE_TS_CUT    0.20
+        MAX_ALLOW_GAS_SAT_CHANGE_TS   1.0d-2
+        GAS_SAT_CHANGE_TS_GOVERNOR    3.d-1
+        GAS_SAT_GOV_SWITCH_ABS_TO_REL    1.d-2
+        MIN_LIQ_PRES_FORCE_TS_CUT   -1.d8   ! Pa
+        MAX_ALLOW_LIQ_PRES_CHANGE_TS  1.d7   ! Pa
+        LIQ_PRES_CHANGE_TS_GOVERNOR   5.d5   ! Pa
+      END
+    END
+  END
+END
+
+SUBSURFACE
+
+!=========================== TIMESTEPPER ======================================
+TIMESTEPPER FLOW
+  TIMESTEP_REDUCTION_FACTOR 0.5d0
+  TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.25d0
+END
+
+!=========================== REGRESSION =======================================
+REGRESSION
+  CELLS
+    3
+    14
+    13
+    25
+  /
+  CELLS_PER_PROCESS 2
+END
+
+!=========================== FLUID PROPERTIES =================================
+FLUID_PROPERTY
+  PHASE LIQUID
+  DIFFUSION_COEFFICIENT 0.d0
+END
+
+FLUID_PROPERTY
+  PHASE GAS
+  DIFFUSION_COEFFICIENT 0d0
+END
+
+!=========================== FLUID CONDITIONS =================================
+EOS WATER
+  DENSITY exponential 1.2200000d+03 1.0132500d+05 3.1000000d-10
+  VISCOSITY constant 2.1000000d-03
+  ENTHALPY constant 1.8990000d+06
+END
+
+EOS GAS
+  DENSITY RKS
+    HYDROGEN
+    USE_EFFECTIVE_PROPERTIES
+    USE_CUBIC_ROOT_SOLUTION
+    TC 4.36000E+01
+    PC 2.04700E+06
+    AC 0.00000E+00
+    A 4.27470E-01
+    B 8.66400E-02
+  END
+  VISCOSITY CONSTANT 8.9338900d-06
+  HENRYS_CONSTANT CONSTANT 1.0000000d+10
+END
+
+REFERENCE_PRESSURE 101325.d0
+REFERENCE_TEMPERATURE 27.d0 ! 300.15 K
+
+!=========================== GRID =============================================
+GRID
+  TYPE STRUCTURED
+  NXYZ 5 1 8      
+  DXYZ
+    2.d0
+    2.d0
+    2.d0
+  END
+  GRAVITY -0.000000 0.000000 -9.806650
+END
+
+
+!=========================== REGIONS ==========================================
+REGION ALL
+  COORDINATES
+    0.d0  0.d0 0.d0
+    10.d0 2.d0 16.d0
+  END
+END
+
+REGION R_WAS_AREA_CORNER
+  COORDINATES
+    0.d0 0.d0 12.d0
+    2.d0 2.d0 16.d0
+  END
+END
+
+REGION R_WAS_AREA_TOP
+  COORDINATES
+    2.d0 0.d0 12.d0
+    4.d0 2.d0 14.d0
+  END
+END
+
+REGION R_WAS_AREA_MID
+  COORDINATES
+    4.d0 0.d0 6.d0
+    8.d0 2.d0 10.d0
+  END
+END
+
+REGION R_WAS_AREA_BOT
+  COORDINATES
+    2.d0 0.d0 0.d0
+    6.d0 2.d0 4.d0
+  END
+END
+
+!=========================== MATERIAL PROPERTIES ==============================
+
+MATERIAL_PROPERTY M_WP
+  ID 1
+  POROSITY 8.4800000d-01
+  TORTUOSITY 1.0000000d+00
+  ROCK_DENSITY 2.6500000d+03
+  HEAT_CAPACITY 830.
+  THERMAL_CONDUCTIVITY_WET 2.
+  THERMAL_CONDUCTIVITY_DRY 0.5
+  SOIL_COMPRESSIBILITY_FUNCTION BRAGFLO
+  BULK_COMPRESSIBILITY 0.0000000d+00
+  SOIL_REFERENCE_PRESSURE INITIAL_PRESSURE
+  PERMEABILITY
+    PERM_X_LOG10 -12.6198d0
+    PERM_Y_LOG10 -12.6198d0
+    PERM_Z_LOG10 -12.6198d0
+  END
+  CHARACTERISTIC_CURVES CC_WP
+END
+
+CHARACTERISTIC_CURVES CC_WP
+  SATURATION_FUNCTION BRAGFLO_KRP12
+    KPC 1
+    LAMBDA 2.8900000d+00
+    PCT_A 1.0132500d+05
+    PCT_EXP 0.000000d+00
+    LIQUID_RESIDUAL_SATURATION 5.5090000d-01
+    MAX_CAPILLARY_PRESSURE 1.0000000d+08
+    S_MIN 0.015
+    S_EFFMIN 1.0d-3
+  END
+  PERMEABILITY_FUNCTION BRAGFLO_KRP12_LIQ
+    PHASE LIQUID
+    LAMBDA 2.8900000d+00
+    LIQUID_RESIDUAL_SATURATION 5.5090000d-01
+    GAS_RESIDUAL_SATURATION 1.4800000d-01
+  END
+  PERMEABILITY_FUNCTION BRAGFLO_KRP12_GAS
+    PHASE GAS
+    LAMBDA 2.8900000d+00
+    LIQUID_RESIDUAL_SATURATION 5.5090000d-01
+    GAS_RESIDUAL_SATURATION 1.4800000d-01
+  END
+END
+
+!=========================== SOLVER OPTIONS ===================================
+NEWTON_SOLVER FLOW
+  ATOL 1.0000000d-8
+  STOL 1.0000000d-8
+  RTOL 1.0000000d-8
+  MAXIMUM_NUMBER_OF_ITERATIONS 20
+END
+
+LINEAR_SOLVER FLOW
+  SOLVER FGMRES
+  PRECONDITIONER CPR
+  CPR_OPTIONS
+    CPR_TYPE ADDITIVE
+    CPR_EXTRACTION_TYPE ABF !QIMPES_VARIABLE_FORCE
+    T1_SCALE
+    T3_SCALE
+  END
+  ! REALLY TIGHT Tolerance to make sure the solvers are working
+  RTOL 1.d-15
+  ATOL 1.d-15
+END
+
+TIMESTEPPER FLOW
+  TIMESTEP_MAXIMUM_GROWTH_FACTOR 1.250000
+  MAXIMUM_CONSECUTIVE_TS_CUTS 30
+  TS_ACCELERATION 10 #hardwired
+  DT_FACTOR 1.25 1.25 1.25 1.1 1.0 1.0 0.8 0.6 0.4 0.33 #hardwired
+  MAXIMUM_NUMBER_OF_TIMESTEPS 15
+END
+
+!=========================== OUTPUT OPTIONS ===================================
+OUTPUT
+  PERIODIC TIME 5.d0 yr
+  FORMAT HDF5
+  VARIABLES
+    LIQUID_PRESSURE
+    GAS_PRESSURE
+    POROSITY
+    LIQUID_SATURATION
+    GAS_SATURATION
+    CAPILLARY_PRESSURE
+    LIQUID_DENSITY
+    GAS_DENSITY
+  END
+END
+
+!=========================== TIMES ============================================
+TIME
+  FINAL_TIME 100.0d0 y
+  INITIAL_TIMESTEP_SIZE 3.1709800d-08 y
+  MAXIMUM_TIMESTEP_SIZE 55.d0 y at 0.0d0 y
+END
+
+!=========================== FLOW CONDITIONS ==================================
+FLOW_CONDITION INITIAL
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    LIQUID_SATURATION DIRICHLET
+  END
+  LIQUID_PRESSURE 1.280390D+05
+  LIQUID_SATURATION 6.500000D-01
+END
+
+!=========================== INITIAL AND BOUNDARY CONDITIONS ==================
+INITIAL_CONDITION
+  FLOW_CONDITION INITIAL
+  REGION ALL
+END
+
+!=========================== STRATA ===========================================
+STRATA
+  MATERIAL M_WP
+  REGION ALL
+END
+
+END_SUBSURFACE
+
+!=========================== GAS GENERATION AND WATER BALANCE =================
+
+WIPP_SOURCE_SINK
+  BRUCITEC  5.40958610500549d-08  ![mol-MgOH2/kg-MgO/s] MgO inundated hydration rate in Salado brine
+  BRUCITEH  1.90935050526199d-08  ![mol-MgOH2/kg-MgO/s] MgO humid hydration rate
+  HYMAGCON  6.47595498826265d-10  ![mol-hydromag/kg-hydromag/s] hydromagnesite to magnesite conversion rate
+  SAT_WICK  0.322252637147903d0   ![-] wicking saturation parameter
+  SALT_PERCENT  3.2400d1          ![100*kg salt/kg water] weight percent salt in brine (rxns produce brine, not just water)
+  GRATMICI  2.38570594086619d-10  ![mol-cell/kg-cell/s] inundated biodegradation rate for cellulose
+  GRATMICH  3.38837738770187d-11  ![mol-cell/kg-cell/s] humid biodegradation rate for cellulose
+  CORRMCO2  6.67748215472072d-15  ![m/s] inundated steel corrosion rate without microbial gas generation
+  HUMCORR   0.d0    ![m/s] humid steel corrosion rate
+  ASDRUM    6.d0    ![m2] surface area of corrodable metal per drum
+  ALPHARXN -1.d3    ![-]
+  SOCMIN    1.5d-2  ![-]
+  BIOGENFC  0.725563609600067   ![-]
+  PROBDEG   1       ![-]
+
+  STOICHIOMETRIC_MATRIX
+  # hydro  H2     H2O       Fe      Cell   FeOH2  FeS    MgO    MgOH2  MgCO3 
+    0.0d0  1.0d0 -2.0d0     -1.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # anoxic iron corrosion reaction
+    0.0d0  0.0d0  0.91293d0  0.0d0 -1.0d0  0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 # microbial gas generation reaction
+    0.0d0 -1.0d0  2.0d0      0.0d0  0.0d0 -1.0d0  1.0d0  0.0d0  0.0d0  0.0d0 # iron hydroxide sulfidation
+    0.0d0  0.0d0  0.0d0     -1.0d0  0.0d0  0.0d0  1.0d0  0.0d0  0.0d0  0.0d0 # metallic iron sulfidation
+    0.0d0  0.0d0 -1.0d0      0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  1.0d0  0.0d0 # MgO hydration
+    0.25d0 0.0d0  0.0d0      0.0d0  0.0d0  0.0d0  0.0d0  0.0d0 -1.25d0 0.0d0 # Mg(OH)2 (brucite) carbonation
+    0.0d0  0.0d0  0.0d0      0.0d0  0.0d0  0.0d0  0.0d0 -1.0d0  0.0d0  1.0d0 # MgO carbonation
+   -1.0d0  0.0d0  4.0d0      0.0d0  0.0d0  0.0d0  0.0d0  0.0d0  1.0d0  4.0d0 # hydromagnesite conversion
+  END 
+  # note: multiple inventories may be included, but here there is only one
+  INVENTORY INV1 #each inventory is specific to region it is going in, so SCALE_BY_VOLUME when using whole repo inventory
+    VREPOS     438406.08 m^3 ! optional - only needed if a WASTE_PANEL including this inventory needs to SCALE_BY_VOLUME
+    SOLIDS #total kg in repository
+      IRONCHW  1.09d7 kg   ! mass of Fe-based material in CH waste
+      IRONRHW  1.35d6 kg   ! mass of Fe-based material in RH waste
+      IRNCCHW  3.00d7 kg   ! mass of Fe containers for CH waste
+      IRNCRHW  6.86d6 kg   ! mass of Fe containers for RH waste
+      CELLCHW  3.55d6 kg   ! mass of cellulosics in CH waste
+      CELLRHW  1.18d5 kg   ! mass of cellulosics in RH waste
+      CELCCHW  7.23d5 kg   ! mass of cellulosics in container materials for CH waste
+      CELCRHW  0.d0   kg   ! mass of cellulosics in container materials for RH waste
+      CELECHW  2.60d5 kg   ! mass of cellulosics in emplacement materials for CH waste
+      CELERHW  0.d0   kg   ! mass of cellulosics in emplacement materials for RH waste
+      RUBBCHW  1.09d6 kg   ! mass of rubber in CH waste
+      RUBBRHW  8.80d4 kg   ! mass of rubber in RH waste
+      RUBCCHW  6.91d4 kg   ! mass of rubber in container materials for CH waste
+      RUBCRHW  4.18d3 kg   ! mass of rubber in container materials for RH waste
+      RUBECHW  0.d0   kg   ! mass of rubber in emplacement materials for CH waste
+      RUBERHW  0.d0   kg   ! mass of rubber in emplacement materials for RH waste
+      PLASCHW  5.20d6 kg   ! mass of plastics in CH waste
+      PLASRHW  2.93d5 kg   ! mass of plastics in RH waste
+      PLSCCHW  2.47d6 kg   ! mass of plastics in container materials for CH waste
+      PLSCRHW  3.01d5 kg   ! mass of plastics in container materials for RH waste
+      PLSECHW  1.25d6 kg   ! mass of plastics in emplacement materials for CH waste
+      PLSERHW  0.d0   kg   ! mass of plastics in emplacement materials for RH waste
+      PLASFAC  1.7d0       ! mass ratio of plastics to equivalent carbon
+      MGO_EF   1.2d0       ! MgO excess factor: ratio mol-MgO/mol-Organic-C
+      DRMCONC  1.8669852   ! [-/m3] number of metal drums per m3 in a panel in ideal packing (DRROOM/VROOM = 6804/3644.378))
+    END
+    AQUEOUS
+      NITRATE 2.74d7   ! moles in panel  QINIT[B:32]
+      SULFATE 4.91d6   ! moles in panel  QINIT[B:31]
+    END
+  END
+
+  WASTE_PANEL WP1
+    REGION R_WAS_AREA_CORNER
+    INVENTORY INV1
+    SCALE_BY_VOLUME YES
+  END
+  
+  WASTE_PANEL WP2
+    REGION R_WAS_AREA_TOP
+    INVENTORY INV1
+    SCALE_BY_VOLUME YES
+  END
+
+  WASTE_PANEL WP3
+    REGION R_WAS_AREA_MID
+    INVENTORY INV1
+    SCALE_BY_VOLUME YES
+  END
+  
+  WASTE_PANEL WP4
+    REGION R_WAS_AREA_BOT
+    INVENTORY INV1
+    SCALE_BY_VOLUME YES
+  END
+  
+END_WIPP_SOURCE_SINK

@@ -4,6 +4,7 @@ module TH_Aux_module
   use petscsys
 
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -114,8 +115,6 @@ module TH_Aux_module
   end type TH_parameter_type
   
   type, public :: TH_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -123,6 +122,7 @@ module TH_Aux_module
     type(TH_auxvar_type), pointer :: auxvars(:)
     type(TH_auxvar_type), pointer :: auxvars_bc(:)
     type(TH_auxvar_type), pointer :: auxvars_ss(:)
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
   end type TH_type
 
   PetscReal, parameter :: epsilon = 1.d-6
@@ -165,7 +165,7 @@ function THAuxCreate(option)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
+  nullify(aux%matrix_zeroing)
 
   allocate(aux%TH_parameter)
   nullify(aux%TH_parameter%dencpr)
@@ -178,9 +178,6 @@ function THAuxCreate(option)
   nullify(aux%TH_parameter%diffusion_coefficient)
   nullify(aux%TH_parameter%diffusion_activation_energy)
   
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
-
   allocate(aux%TH_parameter%diffusion_coefficient(option%nphase))
   allocate(aux%TH_parameter%diffusion_activation_energy(option%nphase))
   aux%TH_parameter%diffusion_coefficient = 1.d-9
@@ -1091,11 +1088,9 @@ subroutine THAuxDestroy(aux)
   nullify(aux%auxvars_bc)
   if (associated(aux%auxvars_ss)) deallocate(aux%auxvars_ss)
   nullify(aux%auxvars_ss)
-  if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
-  nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) &
-    deallocate(aux%zero_rows_local_ghosted)
-  nullify(aux%zero_rows_local_ghosted)
+
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
+
   if (associated(aux%TH_parameter)) then
     if (associated(aux%TH_parameter%diffusion_coefficient)) &
       deallocate(aux%TH_parameter%diffusion_coefficient)

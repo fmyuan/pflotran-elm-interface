@@ -5,6 +5,7 @@ module Immis_Aux_module
   use Mphase_pckr_module
   
   use PFLOTRAN_Constants_module
+  use Matrix_Zeroing_module
 
   implicit none
   
@@ -61,9 +62,6 @@ type, public :: Immis_auxvar_elem_type
   end type Immis_parameter_type
     
   type, public :: Immis_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
@@ -71,7 +69,7 @@ type, public :: Immis_auxvar_elem_type
     type(Immis_auxvar_type), pointer :: auxvars(:)
     type(Immis_auxvar_type), pointer :: auxvars_bc(:)
     type(Immis_auxvar_type), pointer :: auxvars_ss(:)
-
+    type(matrix_zeroing_type), pointer :: matrix_zeroing
     PetscReal, pointer :: res_old_AR(:,:), res_old_FL(:,:), delx(:,:)
   end type Immis_type
 
@@ -108,13 +106,11 @@ function ImmisAuxCreate()
   aux%num_aux_bc = 0
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
-  aux%n_zero_rows = 0
+  nullify(aux%matrix_zeroing)
   allocate(aux%immis_parameter)
   nullify(aux%immis_parameter%sir)
   nullify(aux%immis_parameter%ckwet)
   nullify(aux%immis_parameter%dencpr)
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
   nullify(aux%res_old_FL)
   nullify(aux%res_old_AR)
   nullify(aux%delx)
@@ -553,10 +549,9 @@ subroutine ImmisAuxDestroy(aux, option)
   nullify(aux%auxvars)
   if (associated(aux%auxvars_bc)) deallocate(aux%auxvars_bc)
   nullify(aux%auxvars_bc)
-  if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
-  nullify(aux%zero_rows_local)
-  if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
-  nullify(aux%zero_rows_local_ghosted)
+
+  call MatrixZeroingDestroy(aux%matrix_zeroing)
+
   if (associated(aux%res_old_AR)) deallocate(aux%res_old_AR)
   nullify(aux%res_old_AR)
   if (associated(aux%res_old_FL)) deallocate(aux%res_old_FL)

@@ -22,6 +22,7 @@ program pflotran_interface_main
   use Simulation_Surf_Subsurf_class , only : simulation_surfsubsurface_type
   use Realization_Base_class        , only : realization_base_type
   use Realization_surface_class     , only : realization_surface_type
+  use Timestepper_Base_class        , only : TS_STOP_END_SIMULATION
 
   use PFLOTRAN_Constants_module
 
@@ -173,6 +174,9 @@ program pflotran_interface_main
      ! PassSaturationValuesToCLM()
      
   enddo
+
+  ! flag ensures shutdown due to successful run.
+  pflotran_m%simulation%stop_flag = TS_STOP_END_SIMULATION
   
   ! Finalize PFLOTRAN Stepper
   !call pflotranModelStepperRunFinalize(pflotran_m)

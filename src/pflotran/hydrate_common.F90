@@ -449,7 +449,7 @@ subroutine HydrateFlux(hyd_auxvar_up,global_auxvar_up, &
   ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
   ! need to make sure this has a direction, so condition upon gravity?
   ! sedimentation and methanogenesis are linked right now
-  if (HYDRATE_WITH_SEDIMENTATION .and. HYDRATE_WITH_METHANOGENESIS) then
+  if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
     methanogenesis => hydrate_parameter%methanogenesis
     v_sed = methanogenesis%omega
     dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
@@ -1250,7 +1250,7 @@ subroutine HydrateBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! q[m^3/sec] = sedimentation velocity[m/sec] * area[m^2]
   ! need to make sure this has a direction, so condition upon gravity
   ! sedimentation and methanogenesis are linked right now.
-  if (HYDRATE_WITH_SEDIMENTATION .and. HYDRATE_WITH_METHANOGENESIS) then
+  if (hydrate_with_sedimentation .and. hydrate_with_methanogenesis) then
     methanogenesis => hydrate_parameter%methanogenesis
     v_sed = methanogenesis%omega
     dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))

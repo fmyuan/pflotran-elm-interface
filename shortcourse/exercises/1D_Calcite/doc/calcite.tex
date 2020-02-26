@@ -219,7 +219,7 @@ SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_TRANSPORT transport \bluecomment{! process model name}
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END
@@ -701,7 +701,7 @@ SIMULATION
       \magentacomment{MODE RICHARDS}       \bluecomment{! single phase variably-}
     \magentacomment{/}                     \bluecomment{!   saturated flow}
     SUBSURFACE_TRANSPORT transport
-      GLOBAL_IMPLICIT
+      MODE GIRT
     /
   /
 END

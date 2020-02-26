@@ -1917,8 +1917,8 @@ subroutine RichardsResidualSourceSink(r,realization,ierr)
   enddo
 
   if (patch%aux%Richards%inactive_cells_exist) then
-    do i=1,patch%aux%Richards%n_zero_rows
-      r_p(patch%aux%Richards%zero_rows_local(i)) = 0.d0
+    do i=1,patch%aux%Richards%matrix_zeroing%n_inactive_rows
+      r_p(patch%aux%Richards%matrix_zeroing%inactive_rows_local(i)) = 0.d0
     enddo
   endif
 
@@ -2842,8 +2842,10 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
   if (option%use_matrix_buffer) then
     if (patch%aux%Richards%inactive_cells_exist) then
       call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer, &
-                                patch%aux%Richards%n_zero_rows, &
-                                patch%aux%Richards%zero_rows_local_ghosted)
+                                patch%aux%Richards%matrix_zeroing% &
+                                  n_inactive_rows, &
+                                patch%aux%Richards%matrix_zeroing% &
+                                  inactive_rows_local_ghosted)
     endif
     call MatrixBufferSetValues(A,patch%aux%Richards%matrix_buffer)
   endif
@@ -2858,8 +2860,10 @@ subroutine RichardsJacobianSourceSink(A,realization,ierr)
 #endif
     if (patch%aux%Richards%inactive_cells_exist) then
       qsrc = 1.d0 ! solely a temporary variable in this conditional
-      call MatZeroRowsLocal(A,patch%aux%Richards%n_zero_rows, &
-                            patch%aux%Richards%zero_rows_local_ghosted, &
+      call MatZeroRowsLocal(A,patch%aux%Richards%matrix_zeroing% &
+                              n_inactive_rows, &
+                            patch%aux%Richards%matrix_zeroing% &
+                              inactive_rows_local_ghosted, &
                             qsrc,PETSC_NULL_VEC,PETSC_NULL_VEC, &
                             ierr);CHKERRQ(ierr)
     endif

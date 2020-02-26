@@ -180,6 +180,8 @@ end subroutine PMBaseJacobian
 
 ! ************************************************************************** !
 
+!TODO(geh): replace anything TS BE-related with an array that can be
+!           packed/unpacked on either side.
 subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac, &
                                 time_step_max_growth_factor)
@@ -197,10 +199,10 @@ end subroutine PMBaseUpdateTimestep
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+subroutine PMBaseCheckUpdatePre(this,snes,X,dX,changed,ierr)
   implicit none
   class(pm_base_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X
   Vec :: dX
   PetscBool :: changed
@@ -211,11 +213,11 @@ end subroutine PMBaseCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+subroutine PMBaseCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
                                  X1_changed,ierr)
   implicit none
   class(pm_base_type) :: this
-  SNESLineSearch :: line_search
+  SNES :: snes
   Vec :: X0
   Vec :: dX
   Vec :: X1
