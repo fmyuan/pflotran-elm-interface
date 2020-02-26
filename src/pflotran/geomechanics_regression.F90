@@ -139,7 +139,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
 
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','GEOMECHANICS_REGRESSION,VARIABLES')
-          call StringToLower(word)
+          call StringToUpper(word)
           new_variable => GeomechanicsRegressionVariableCreate()
           new_variable%name = word
           if (.not.associated(geomechanics_regression%variable_list)) then

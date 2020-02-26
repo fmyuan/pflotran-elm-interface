@@ -1284,35 +1284,35 @@ subroutine FlowConditionRead(condition,input,option)
           end select
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
-          call StringToLower(word)
+          call StringToUpper(word)
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('mass_rate')
+            case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_unit_string = 'kg/sec'
-            case('total_mass_rate')
+            case('TOTAL_MASS_RATE')
               sub_condition_ptr%itype = TOTAL_MASS_RATE_SS
               rate_unit_string = 'kg/sec'
-            case('energy_rate')
+            case('ENERGY_RATE')
               sub_condition_ptr%itype = ENERGY_RATE_SS
               energy_rate_unit_string = 'MJ/sec|MW'
-            case('heterogeneous_energy_rate')
+            case('HETEROGENEOUS_ENERGY_RATE')
               sub_condition_ptr%itype = HET_ENERGY_RATE_SS
               energy_rate_unit_string = 'MJ/sec|MW'
-            case('scaled_mass_rate','scaled_volumetric_rate', &
-                 'scaled_energy_rate')
+            case('SCALED_MASS_RATE','SCALED_VOLUMETRIC_RATE', &
+                 'SCALED_ENERGY_RATE')
               select case(word)
-                case('scaled_mass_rate')
+                case('SCALED_MASS_RATE')
                   sub_condition_ptr%itype = SCALED_MASS_RATE_SS
                   rate_unit_string = 'kg/sec'
-                case('scaled_volumetric_rate')
+                case('SCALED_VOLUMETRIC_RATE')
                   sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
                   rate_unit_string = 'm^3/sec'
-                case('scaled_energy_rate')
+                case('SCALED_ENERGY_RATE')
                   sub_condition_ptr%itype = SCALED_ENERGY_RATE_SS
                   energy_rate_unit_string = 'MW|MJ/sec'
               end select
@@ -1321,14 +1321,14 @@ subroutine FlowConditionRead(condition,input,option)
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -2032,39 +2032,39 @@ subroutine FlowConditionGeneralRead(condition,input,option)
           end select
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
-          call StringToLower(word)
+          call StringToUpper(word)
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('hydrostatic')
+            case('HYDROSTATIC')
               sub_condition_ptr%itype = HYDROSTATIC_BC
-            case('conductance')
+            case('CONDUCTANCE')
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
-            case('seepage')
+            case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
-            case('mass_rate')
+            case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('total_mass_rate')
+            case('TOTAL_MASS_RATE')
               sub_condition_ptr%itype = TOTAL_MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('scaled_mass_rate')
+            case('SCALED_MASS_RATE')
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -2078,23 +2078,23 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                   '" scaled_mass_rate type'
                 call PrintErrMsg(option)
               endif
-            case('volumetric_rate')
+            case('VOLUMETRIC_RATE')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
-            case('scaled_volumetric_rate')
+            case('SCALED_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -2108,15 +2108,15 @@ subroutine FlowConditionGeneralRead(condition,input,option)
                   '" scaled_volumetric_rate type'
                 call PrintErrMsg(option)
               endif
-            case('heterogeneous_volumetric_rate')
+            case('HETEROGENEOUS_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = HET_VOL_RATE_SS
               rate_string = 'm^3/sec'
-            case('heterogeneous_mass_rate')
+            case('HETEROGENEOUS_MASS_RATE')
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('heterogeneous_dirichlet')
+            case('HETEROGENEOUS_DIRICHLET')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
-            case('heterogeneous_surface_seepage')
+            case('HETEROGENEOUS_SURFACE_SEEPAGE')
               sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -2568,39 +2568,39 @@ subroutine FlowConditionHydrateRead(condition,input,option)
           end select
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
-          call StringToLower(word)
+          call StringToUpper(word)
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('hydrostatic')
+            case('HYDROSTATIC')
               sub_condition_ptr%itype = HYDROSTATIC_BC
-            case('conductance')
+            case('CONDUCTANCE')
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
-            case('seepage')
+            case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
-            case('mass_rate')
+            case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('total_mass_rate')
+            case('TOTAL_MASS_RATE')
               sub_condition_ptr%itype = TOTAL_MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('scaled_mass_rate')
+            case('SCALED_MASS_RATE')
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -2614,23 +2614,23 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                   '" scaled_mass_rate type'
                 call printErrMsg(option)
               endif
-            case('volumetric_rate')
+            case('VOLUMETRIC_RATE')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
-            case('scaled_volumetric_rate')
+            case('SCALED_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -2644,15 +2644,15 @@ subroutine FlowConditionHydrateRead(condition,input,option)
                   '" scaled_volumetric_rate type'
                 call printErrMsg(option)
               endif
-            case('heterogeneous_volumetric_rate')
+            case('HETEROGENEOUS_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = HET_VOL_RATE_SS
               rate_string = 'm^3/sec'
-            case('heterogeneous_mass_rate')
+            case('HETEROGENEOUS_MASS_RATE')
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('heterogeneous_dirichlet')
+            case('HETEROGENEOUS_DIRICHLET')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
-            case('heterogeneous_surface_seepage')
+            case('HETEROGENEOUS_SURFACE_SEEPAGE')
               sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -3132,40 +3132,40 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
 
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
-          call StringToLower(word)
+          call StringToUpper(word)
 
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('hydrostatic')
+            case('HYDROSTATIC')
               sub_condition_ptr%itype = HYDROSTATIC_BC
-            case('conductance')
+            case('CONDUCTANCE')
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
-            case('seepage')
+            case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
-            case('zero_gradient')
+            case('ZERO_GRADIENT')
               sub_condition_ptr%itype = ZERO_GRADIENT_BC
-            case('mass_rate')
+            case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('scaled_mass_rate')
+            case('SCALED_MASS_RATE')
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = &
                       trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                case('perm')
+                case('PERM')
                   sub_condition_ptr%isubtype = SCALE_BY_PERM
                 case default
                   string = 'flow condition "' // trim(condition%name) // &
@@ -3179,23 +3179,23 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                   '" scaled_mass_rate type'
                 call PrintErrMsg(option)
               endif
-            case('volumetric_rate')
+            case('VOLUMETRIC_RATE')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
-            case('scaled_volumetric_rate')
+            case('SCALED_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -3208,21 +3208,21 @@ subroutine FlowConditionTOilImsRead(condition,input,option)
                   trim(condition%name) // '" scaled_volumetric_rate type'
                 call PrintErrMsg(option)
               endif
-            case('heterogeneous_volumetric_rate')
+            case('HETEROGENEOUS_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = HET_VOL_RATE_SS
               rate_string = 'm^3/sec'
-            case('heterogeneous_mass_rate')
+            case('HETEROGENEOUS_MASS_RATE')
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('heterogeneous_dirichlet')
+            case('HETEROGENEOUS_DIRICHLET')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
-            case('heterogeneous_surface_seepage')
+            case('HETEROGENEOUS_SURFACE_SEEPAGE')
               sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
-            case('bhp')
+            case('BHP')
               sub_condition_ptr%itype = WELL_BHP
-            case('bhp_min')
+            case('BHP_MIN')
               sub_condition_ptr%itype = WELL_BHP_MIN
-            case('bhp_max')
+            case('BHP_MAX')
               sub_condition_ptr%itype = WELL_BHP_MAX
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -3666,36 +3666,36 @@ subroutine FlowConditionTOWGRead(condition,input,option)
           !sub_condition_ptr => FlowPMSubConditionPtr(word,condition,option)
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')
-          call StringToLower(word)
+          call StringToUpper(word)
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('hydrostatic')
+            case('HYDROSTATIC')
               sub_condition_ptr%itype = HYDROSTATIC_BC
-            case('conductance')
+            case('CONDUCTANCE')
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
-            case('seepage')
+            case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
-            case('mass_rate')
+            case('MASS_RATE')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('scaled_mass_rate')
+            case('SCALED_MASS_RATE')
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               rate_string = 'kg/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -3709,23 +3709,23 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                   '" scaled_mass_rate type'
                 call PrintErrMsg(option)
               endif
-            case('volumetric_rate')
+            case('VOLUMETRIC_RATE')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
-            case('scaled_volumetric_rate')
+            case('SCALED_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
               rate_string = 'm^3/sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (input%ierr == 0) then
                 call InputPushCard(input,word,option)
-                call StringToLower(word)
+                call StringToUpper(word)
                 sub_condition_ptr%ctype = trim(sub_condition_ptr%ctype) // word
                 select case(word)
-                  case('neighbor_perm')
+                  case('NEIGHBOR_PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_NEIGHBOR_PERM
-                  case('volume')
+                  case('VOLUME')
                     sub_condition_ptr%isubtype = SCALE_BY_VOLUME
-                  case('perm')
+                  case('PERM')
                     sub_condition_ptr%isubtype = SCALE_BY_PERM
                   case default
                     string = 'flow condition "' // trim(condition%name) // &
@@ -3739,13 +3739,13 @@ subroutine FlowConditionTOWGRead(condition,input,option)
                   '" scaled_volumetric_rate type'
                 call PrintErrMsg(option)
               endif
-            case('heterogeneous_volumetric_rate')
+            case('HETEROGENEOUS_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = HET_VOL_RATE_SS
               rate_string = 'm^3/sec'
-            case('heterogeneous_mass_rate')
+            case('HETEROGENEOUS_MASS_RATE')
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_string = 'kg/sec'
-            case('heterogeneous_dirichlet')
+            case('HETEROGENEOUS_DIRICHLET')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -4617,19 +4617,19 @@ subroutine TranConditionRead(condition,constraint_list, &
       case('TYPE') ! read condition type (dirichlet, neumann, etc) for each dof
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'TYPE','CONDITION')
-        call StringToLower(word)
+        call StringToUpper(word)
         select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               condition%itype = DIRICHLET_BC
-            case('dirichlet_zero_gradient')
+            case('DIRICHLET_ZERO_GRADIENT')
               condition%itype = DIRICHLET_ZERO_GRADIENT_BC
-            case('equilibrium')
+            case('EQUILIBRIUM')
               condition%itype = EQUILIBRIUM_SS
-            case('neumann')
+            case('NEUMANN')
               condition%itype = NEUMANN_BC
-            case('mole','mole_rate')
+            case('MOLE','MOLE_RATE')
               condition%itype = MASS_RATE_SS
-            case('zero_gradient')
+            case('ZERO_GRADIENT')
               condition%itype = ZERO_GRADIENT_BC
             case default
               call InputKeywordUnrecognized(input,word, &
@@ -4833,7 +4833,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   string2 = trim(input%buf)
   call InputReadWord(input,option,word,PETSC_TRUE)
   call InputErrorMsg(input,option,'file or value','CONDITION')
-  call StringToLower(word)
+  call StringToUpper(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
     call InputPushCard(input,word,option)

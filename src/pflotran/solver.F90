@@ -707,9 +707,9 @@ subroutine SolverReadLinear(solver,input,option)
               call InputReadCard(input,option,word)
               call InputErrorMsg(input,option,'type', &
                                  'LINEAR SOLVER, HYPRE options')  
-              call StringToLower(word)
+              call StringToUpper(word)
               select case(trim(word))
-                case('pilut','parasails','boomeramg','euclid')
+                case('PILUT','PARASAILS','BOOMERAMG','EUCLID')
                   string = trim(prefix) // 'pc_hypre_type'
                   call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                             trim(string),trim(word), &
@@ -723,7 +723,7 @@ subroutine SolverReadLinear(solver,input,option)
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG cycle type', &
                                  'LINEAR SOLVER, HYPRE options')  
-              call StringToLower(word)
+              call StringToUpper(word)
               string = trim(prefix) // 'pc_hypre_boomeramg_cycle_type'
               select case(trim(word))
                 case('V')
