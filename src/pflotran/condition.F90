@@ -1341,53 +1341,53 @@ subroutine FlowConditionRead(condition,input,option)
                   trim(condition%name) // '" ' // trim(string)
                 call PrintErrMsg(option)
                 endif
-            case('hydrostatic')
+            case('HYDROSTATIC')
               sub_condition_ptr%itype = HYDROSTATIC_BC
-            case('conductance')
+            case('CONDUCTANCE')
               sub_condition_ptr%itype = HYDROSTATIC_CONDUCTANCE_BC
-            case('zero_gradient')
+            case('ZERO_GRADIENT')
               sub_condition_ptr%itype = ZERO_GRADIENT_BC
-            case('well','production_well', 'injection_well')
+            case('WELL','PRODUCTION_WELL', 'INJECTION_WELL')
               sub_condition_ptr%itype = WELL_SS
-            case('seepage')
+            case('SEEPAGE')
               sub_condition_ptr%itype = HYDROSTATIC_SEEPAGE_BC
-            case('dirichlet_seepage')
+            case('DIRICHLET_SEEPAGE')
               sub_condition_ptr%itype = DIRICHLET_SEEPAGE_BC
-            case('dirichlet_conductance')
+            case('DIRICHLET_CONDUCTANCE')
               sub_condition_ptr%itype = DIRICHLET_CONDUCTANCE_BC
-            case('volumetric_rate')
+            case('VOLUMETRIC_RATE')
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
               rate_unit_string = 'm^3/sec'
-            case('equilibrium')
+            case('EQUILIBRIUM')
               sub_condition_ptr%itype = EQUILIBRIUM_SS
-            case('unit_gradient')
+            case('UNIT_GRADIENT')
               if (.not.associated(sub_condition_ptr,pressure)) then
                 option%io_buffer = 'unit_gradient flow condition type may &
                   &only be associated with a PRESSURE flow condition.'
                 call PrintErrMsg(option)
               endif
               sub_condition_ptr%itype = UNIT_GRADIENT_BC
-            case('heterogeneous_volumetric_rate')
+            case('HETEROGENEOUS_VOLUMETRIC_RATE')
               sub_condition_ptr%itype = HET_VOL_RATE_SS
               rate_unit_string = 'm^3/sec'
-            case('heterogeneous_mass_rate')
+            case('HETEROGENEOUS_MASS_RATE')
               sub_condition_ptr%itype = HET_MASS_RATE_SS
               rate_unit_string = 'kg/sec'
-            case('heterogeneous_dirichlet')
+            case('HETEROGENEOUS_DIRICHLET')
               sub_condition_ptr%itype = HET_DIRICHLET_BC
-            case('heterogeneous_seepage')
+            case('HETEROGENEOUS_SEEPAGE')
               sub_condition_ptr%itype = HET_HYDROSTATIC_SEEPAGE_BC
-            case('heterogeneous_conductance')
+            case('HETEROGENEOUS_CONDUCTANCE')
               sub_condition_ptr%itype = HET_HYDROSTATIC_CONDUCTANCE_BC
-            case('heterogeneous_surface_seepage')
+            case('HETEROGENEOUS_SURFACE_SEEPAGE')
               sub_condition_ptr%itype = HET_SURF_HYDROSTATIC_SEEPAGE_BC
-            case('spillover')
+            case('SPILLOVER')
               sub_condition_ptr%itype = SPILLOVER_BC
-            case('surface_dirichlet')
+            case('SURFACE_DIRICHLET')
               sub_condition_ptr%itype = SURFACE_DIRICHLET
-            case('surface_zero_gradheight')
+            case('SURFACE_ZERO_GRADHEIGHT')
               sub_condition_ptr%itype = SURFACE_ZERO_GRADHEIGHT
-            case('surface_spillover')
+            case('SURFACE_SPILLOVER')
               sub_condition_ptr%itype = SURFACE_SPILLOVER
             case default
               call InputKeywordUnrecognized(input,word,'condition bc type',option)
@@ -4838,7 +4838,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
   if (StringStartsWithAlpha(word)) then
     call InputPushCard(input,word,option)
     if (length == FOUR_INTEGER .and. &
-        StringCompare(word,'file',FOUR_INTEGER)) then 
+        StringCompare(word,'FILE',FOUR_INTEGER)) then 
       input%err_buf2 = trim(keyword) // ', FILE'
       input%err_buf = 'keyword'
       call InputReadFilename(input,option,string2)
@@ -4927,7 +4927,7 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
                                   data_internal_units,error_string,option)
         dataset_ascii%filename = filename
       endif
-    else if (StringCompare(word,'dataset')) then
+    else if (StringCompare(word,'DATASET')) then
       call InputReadWord(input,option,word,PETSC_TRUE)
       input%err_buf2 = trim(keyword) // ', DATASET'
       input%err_buf = 'dataset name'
@@ -4935,11 +4935,11 @@ subroutine ConditionReadValues(input,option,keyword,dataset_base, &
       call DatasetDestroy(dataset_base)
       dataset_base => DatasetBaseCreate()
       dataset_base%name = word
-    else if (length==FOUR_INTEGER .and. StringCompare(word,'list',length)) then 
+    else if (length==FOUR_INTEGER .and. StringCompare(word,'LIST',length)) then 
       error_string = 'CONDITION,' // trim(keyword) // ',LIST'
       call DatasetAsciiReadList(dataset_ascii,input,data_external_units, &
                                 data_internal_units,error_string,option)
-    else if (StringCompare(word,'dbase_value')) then
+    else if (StringCompare(word,'DBASE_VALUE')) then
       input%buf = trim(string2)
       error_string = 'CONDITION,' // trim(keyword) // ',SINGLE'
       call DatasetAsciiReadSingle(dataset_ascii,input,data_external_units, &
