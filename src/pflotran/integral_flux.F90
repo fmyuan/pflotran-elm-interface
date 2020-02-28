@@ -25,7 +25,7 @@ module Integral_Flux_module
     type(plane_type), pointer :: plane
     PetscReal, pointer :: coordinates_and_directions(:,:)
     PetscInt, pointer :: vertices(:,:)
-!    PetscInt, pointer :: cell_ids(:,:)
+    PetscInt, pointer :: cell_ids(:,:)
     PetscBool :: invert_direction
     PetscInt :: flux_calculation_option !0=signed, 1=positive_only, 2=absolute
     PetscInt, pointer :: internal_connections(:)
@@ -80,7 +80,7 @@ function IntegralFluxCreate()
   nullify(integral_flux%plane)
   nullify(integral_flux%coordinates_and_directions)
   nullify(integral_flux%vertices)
-!  nullify(integral_flux%cell_ids)
+  nullify(integral_flux%cell_ids)
   nullify(integral_flux%internal_connections)
   nullify(integral_flux%boundary_connections)
   nullify(integral_flux%integral_value)
@@ -229,7 +229,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         allocate(integral_flux%vertices(4,icount))
         integral_flux%vertices = int_array(:,1:icount)
         call DeallocateArray(int_array)
-#if 0
+#if 1
       case('CELL_IDS')
         allocate(int_array(2,100))
         int_array = UNINITIALIZED_INTEGER
@@ -411,8 +411,6 @@ subroutine IntegralFluxGetInstantaneous(integral_flux, internal_fluxes, &
                                      abs(-internal_fluxes(1:num_values,-iconn))
         endif
       else
-        option%io_buffer = "cas normal"
-        call PrintMsg(option)
         if (iconn > 0) then
           sum_array(1:num_values) = sum_array(1:num_values) + &
                                     internal_fluxes(1:num_values,iconn)
@@ -623,7 +621,7 @@ subroutine IntegralFluxDestroy(integral_flux)
   nullify(integral_flux%plane) 
   call DeallocateArray(integral_flux%coordinates_and_directions)
   call DeallocateArray(integral_flux%vertices)
-!  call DeallocateArray(integral_flux%cell_ids)
+  call DeallocateArray(integral_flux%cell_ids)
   call DeallocateArray(integral_flux%internal_connections)
   call DeallocateArray(integral_flux%boundary_connections)
   call DeallocateArray(integral_flux%integral_value)

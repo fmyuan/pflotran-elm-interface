@@ -10105,6 +10105,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   type(plane_type), pointer :: plane
   PetscReal,pointer :: coordinates_and_directions(:,:)
   PetscInt,pointer :: vertices(:,:)
+  PetscInt,pointer :: by_cell_ids(:,:)
   type(grid_type), pointer :: grid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -10154,6 +10155,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   plane => integral_flux%plane
   coordinates_and_directions => integral_flux%coordinates_and_directions
   vertices => integral_flux%vertices
+  by_cell_ids => integral_flux%cell_ids
   num_to_be_found = 0
 
   if (associated(polygon)) then
@@ -10238,6 +10240,13 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
       call PrintErrMsg(option)
     endif
     num_to_be_found = size(vertices,2)
+    allocate(yet_to_be_found(num_to_be_found))
+    yet_to_be_found = PETSC_TRUE
+  endif
+  
+  if (associated(by_cell_ids)) then
+    error_string = 'cell ids match the an actual face between these cells'
+    num_to_be_found = size(by_cell_ids,2)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
   endif
@@ -10419,6 +10428,20 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
               found = PETSC_TRUE
               if (reverse_direction) same_direction = PETSC_FALSE
               exit
+            endif
+          enddo
+        endif
+        if (.not.found .and. associated(by_cell_ids)) then
+          do i = 1, num_to_be_found
+            if (natural_id_dn == by_cell_ids(1,i) .and. &
+                natural_id_up == by_cell_ids(2,i)) then
+              yet_to_be_found(i) = PETSC_FALSE
+              same_direction = PETSC_FALSE
+              found = PETSC_TRUE
+            elseif (natural_id_up == by_cell_ids(1,i) .and. &
+                    natural_id_dn == by_cell_ids(2,i)) then
+              yet_to_be_found(i) = PETSC_FALSE
+              found = PETSC_TRUE
             endif
           enddo
         endif
