@@ -7004,9 +7004,15 @@ subroutine PatchGetVariable1(patch,field,reaction_base,option, &
             enddo
           endif
         case(GAS_CONCENTRATION)
+          iphase = 2
           do local_id=1,grid%nlmax
-            vec_ptr(local_id) = &
-              patch%aux%RT%auxvars(grid%nL2G(local_id))%gas_pp(isubvar)
+            ghosted_id = grid%nL2G(local_id)
+            if (patch%aux%Global%auxvars(ghosted_id)%sat(iphase) > 0.d0) then
+              vec_ptr(local_id) = &
+                patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
+            else
+              vec_ptr(local_id) = 0.d0
+            endif
           enddo
         case(MINERAL_VOLUME_FRACTION)
           do local_id=1,grid%nlmax
@@ -8407,7 +8413,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction_base,option, &
             endif
           endif
         case(GAS_CONCENTRATION)
-          value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
+          iphase = 2
+          if (patch%aux%Global%auxvars(ghosted_id)%sat(iphase) > 0.d0) then
+            value = patch%aux%RT%auxvars(ghosted_id)%gas_pp(isubvar)
+          else
+            value = 0.d0
+          endif
         case(MINERAL_VOLUME_FRACTION)
           value = patch%aux%RT%auxvars(ghosted_id)%mnrl_volfrac(isubvar)
         case(MINERAL_SURFACE_AREA)
