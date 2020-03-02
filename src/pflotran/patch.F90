@@ -10439,18 +10439,25 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
           enddo
         endif
         if (.not.found .and. associated(by_cell_ids)) then
-          do i = 1, num_to_be_found
-            if (natural_id_dn == by_cell_ids(1,i) .and. &
-                natural_id_up == by_cell_ids(2,i)) then
-              yet_to_be_found(i) = PETSC_FALSE
-              same_direction = PETSC_FALSE
-              found = PETSC_TRUE
-            elseif (natural_id_up == by_cell_ids(1,i) .and. &
-                    natural_id_dn == by_cell_ids(2,i)) then
-              yet_to_be_found(i) = PETSC_FALSE
-              found = PETSC_TRUE
-            endif
-          enddo
+          select case(ipass)
+            case(1) ! internal connections
+              do i = 1, num_to_be_found
+                if (natural_id_dn == by_cell_ids(1,i) .and. &
+                    natural_id_up == by_cell_ids(2,i)) then
+                  yet_to_be_found(i) = PETSC_FALSE
+                  same_direction = PETSC_FALSE
+                  found = PETSC_TRUE
+                  exit
+                elseif (natural_id_up == by_cell_ids(1,i) .and. &
+                        natural_id_dn == by_cell_ids(2,i)) then
+                  yet_to_be_found(i) = PETSC_FALSE
+                  found = PETSC_TRUE
+                  exit
+                endif
+              enddo
+            case(2) ! boundary connections
+              ! not yet supported
+          end select
         endif
         if (found) then
           icount = icount + 1
