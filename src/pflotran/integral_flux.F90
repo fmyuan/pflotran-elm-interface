@@ -426,48 +426,50 @@ subroutine IntegralFluxGetInstantaneous(integral_flux, internal_fluxes, &
   if (associated(integral_flux%boundary_connections)) then
     do i = 1, size(integral_flux%boundary_connections)
       iconn = integral_flux%boundary_connections(i)
-      if (integral_flux%flux_calculation_option == POSITIVE_FLUXES_ONLY &
-          .and. .not. integral_flux%invert_direction) then
-        if (iconn > 0) then
-          do j=1, num_values
-            sum_array(j) = sum_array(j) + max(boundary_fluxes(j,iconn),0.d0)
-          enddo
-        else
-          ! negative connection ids indicate inversion of flux
-          do j=1, num_values
-            sum_array(j) = sum_array(j) + max(-boundary_fluxes(j,-iconn),0.d0)
-          enddo
-        endif
-      elseif (integral_flux%flux_calculation_option == POSITIVE_FLUXES_ONLY &
-          .and. integral_flux%invert_direction) then
-        if (iconn > 0) then
-          do j=1, num_values
-            sum_array(j) = sum_array(j) + min(boundary_fluxes(j,iconn),0.d0)
-          enddo
-        else
-          do j=1, num_values
-            sum_array(j) = sum_array(j) + min(-boundary_fluxes(j,-iconn),0.d0)
-          enddo
-        endif
-      elseif (integral_flux%flux_calculation_option == ABSOLUTE_FLUXES) then
-        if (iconn > 0) then
-          sum_array(1:num_values) = sum_array(1:num_values) + &
-                                     abs(boundary_fluxes(1:num_values,iconn))
-        else
-          sum_array(1:num_values) = sum_array(1:num_values) + &
-                                     abs(-boundary_fluxes(1:num_values,-iconn))
-        endif
-      else !default case
-        if (iconn > 0) then
-          sum_array(1:num_values) = sum_array(1:num_values) + &
-                                     boundary_fluxes(1:num_values,iconn)
-        else
-          sum_array(1:num_values) = sum_array(1:num_values) - &
-                                     boundary_fluxes(1:num_values,-iconn)
-        endif
-      endif
+      select case(integral_flux%flux_calculation_option)
+        case(POSITIVE_FLUXES_ONLY)
+          if (integral_flux%invert_direction) then
+            if (iconn > 0) then
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + min(boundary_fluxes(j,iconn),0.d0)
+              enddo
+            else
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + min(-boundary_fluxes(j,-iconn),0.d0)
+              enddo
+            endif
+          else
+            if (iconn > 0) then
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + max(boundary_fluxes(j,iconn),0.d0)
+              enddo
+            else
+              ! negative connection ids indicate inversion of flux
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + max(-boundary_fluxes(j,-iconn),0.d0)
+              enddo
+            endif
+          endif
+        case(ABSOLUTE_FLUXES)
+          if (iconn > 0) then
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       abs(boundary_fluxes(1:num_values,iconn))
+          else
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       abs(-boundary_fluxes(1:num_values,-iconn))
+          endif
+        case(SIGNED_FLUXES) !default
+          if (iconn > 0) then
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       boundary_fluxes(1:num_values,iconn)
+          else
+            sum_array(1:num_values) = sum_array(1:num_values) - &
+                                       boundary_fluxes(1:num_values,-iconn)
+          endif
+      end select
     enddo
   endif
+  
   if (integral_flux%invert_direction .and. &
       integral_flux%flux_calculation_option == SIGNED_FLUXES) then
     sum_array = -1.d0 * sum_array
