@@ -10270,7 +10270,9 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
           sum_connection = 0
           icount = 0
         endif
-        cur_connection_set => boundary_condition%connection_set
+        if (associated(boundary_condition)) then
+          cur_connection_set => boundary_condition%connection_set
+        endif
     end select
     do
       if (.not.associated(cur_connection_set)) exit
@@ -10359,7 +10361,12 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
           enddo
         endif
         if (.not.found .and. associated(vertices)) then
-          face_id = grid%unstructured_grid%connection_to_face(iconn)
+          select case(ipass)
+            case(1) ! internal connections
+              face_id = grid%unstructured_grid%connection_to_face(iconn)
+            case(2) ! boundary connections
+              face_id = boundary_condition%connection_set%face_id(iconn)
+          end select
           do ivert = 1, MAX_VERT_PER_FACE
             face_vertices_natural(ivert) = &
               grid%unstructured_grid% &
