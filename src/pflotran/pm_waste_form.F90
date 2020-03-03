@@ -5674,7 +5674,7 @@ subroutine CritReadValues(input, option, keyword, dataset_base, &
   string2 = trim(input%buf)
   call InputReadWord(input,option,word,PETSC_TRUE)
   call InputErrorMsg(input,option,'file or value','CONDITION')
-  call StringToLower(word)
+  call StringToUpper(word)
   length = len_trim(word)
   if (StringStartsWithAlpha(word)) then
     call InputPushCard(input,word,option)

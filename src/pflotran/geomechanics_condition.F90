@@ -375,14 +375,14 @@ subroutine GeomechConditionRead(condition,input,option)
           end select
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'TYPE','CONDITION')   
-          call StringToLower(word)
+          call StringToUpper(word)
           sub_condition_ptr%ctype = word
           select case(word)
-            case('dirichlet')
+            case('DIRICHLET')
               sub_condition_ptr%itype = DIRICHLET_BC
-            case('neumann')
+            case('NEUMANN')
               sub_condition_ptr%itype = NEUMANN_BC
-            case('zero_gradient')
+            case('ZERO_GRADIENT')
               sub_condition_ptr%itype = ZERO_GRADIENT_BC
             case default
               call InputKeywordUnrecognized(input,word, &

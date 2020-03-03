@@ -139,7 +139,7 @@ subroutine GeomechanicsRegressionRead(geomechanics_regression,input,option)
 
           call InputReadCard(input,option,word)
           call InputErrorMsg(input,option,'variable','GEOMECHANICS_REGRESSION,VARIABLES')
-          call StringToLower(word)
+          call StringToUpper(word)
           new_variable => GeomechanicsRegressionVariableCreate()
           new_variable%name = word
           if (.not.associated(geomechanics_regression%variable_list)) then
@@ -503,8 +503,9 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
   ! 
   ! Author: Satish Karra
   ! Date: 06/22/2016
-  ! 
-
+  !
+  
+  use String_module
   use Geomechanics_Realization_class
   use Timestepper_Steady_class
   use Option_module
@@ -558,7 +559,7 @@ subroutine GeomechanicsRegressionOutput(geomechanics_regression, &
     cur_variable1 => geomechanics_regression%variable_list
     do
       if (.not.associated(cur_variable1)) exit
-      if (cur_variable%name == cur_variable1%name) then
+      if (StringCompareIgnoreCase(cur_variable%name,cur_variable1%name)) then
         found = PETSC_TRUE
         exit
        endif

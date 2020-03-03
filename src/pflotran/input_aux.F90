@@ -1966,11 +1966,11 @@ subroutine InputGetCommandLineTruth(string,truth_value,found,option)
         truth_value = PETSC_TRUE
         exit
       endif
-      call StringToLower(word)
+      call StringToUpper(word)
       select case(trim(word))
-        case('yes','true','1','on')
+        case('YES','TRUE','1','ON')
           truth_value = PETSC_TRUE
-        case('no','false','0','off')
+        case('NO','FALSE','0','OFF')
           truth_value = PETSC_FALSE
         case default
           option%io_buffer = 'Truth argument for command line argument "' // &

@@ -217,7 +217,7 @@ subroutine SolverCPRRead(stash, input, option, ierr)
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG cycle type', &
                                  'CPR OPTIONS, HYPRE options')
-              call StringToLower(word)
+              call StringToUpper(word)
               string = '-pc_hypre_boomeramg_cycle_type'
               select case(trim(word))
                 case('V')
