@@ -13,6 +13,10 @@ module Integral_Flux_module
 
   PetscInt, parameter, public :: INTEGRATE_FLOW = 1
   PetscInt, parameter, public :: INTEGRATE_TRANSPORT = 2
+  
+  PetscInt, parameter, public :: SIGNED_FLUXES = 0
+  PetscInt, parameter, public :: POSITIVE_FLUXES_ONLY = 1
+  PetscInt, parameter, public :: ABSOLUTE_FLUXES = 2
 
   type, public :: integral_flux_type
     PetscInt :: id
@@ -21,7 +25,9 @@ module Integral_Flux_module
     type(plane_type), pointer :: plane
     PetscReal, pointer :: coordinates_and_directions(:,:)
     PetscInt, pointer :: vertices(:,:)
+    PetscInt, pointer :: cell_ids(:,:)
     PetscBool :: invert_direction
+    PetscInt :: flux_calculation_option !0=signed, 1=positive_only, 2=absolute
     PetscInt, pointer :: internal_connections(:)
     PetscInt, pointer :: boundary_connections(:)
     PetscReal, pointer :: integral_value(:)
@@ -69,10 +75,12 @@ function IntegralFluxCreate()
   integral_flux%name = ''
   integral_flux%id = 0
   integral_flux%invert_direction = PETSC_FALSE
+  integral_flux%flux_calculation_option = SIGNED_FLUXES !signed
   nullify(integral_flux%polygon)
   nullify(integral_flux%plane)
   nullify(integral_flux%coordinates_and_directions)
   nullify(integral_flux%vertices)
+  nullify(integral_flux%cell_ids)
   nullify(integral_flux%internal_connections)
   nullify(integral_flux%boundary_connections)
   nullify(integral_flux%integral_value)
@@ -127,6 +135,19 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         call InputErrorMsg(input,option,'name','INTEGRAL_FLUX')    
       case('INVERT_DIRECTION')
         integral_flux%invert_direction = PETSC_TRUE
+      case('FLUXES_OPTION')
+        call InputReadCard(input,option,keyword)
+        call StringToUpper(keyword)
+        select case(trim(keyword))
+          case('SIGNED_FLUXES')
+            integral_flux%flux_calculation_option = SIGNED_FLUXES
+          case('POSITIVE_FLUXES_ONLY')
+            integral_flux%flux_calculation_option = POSITIVE_FLUXES_ONLY
+          case('ABSOLUTE_FLUXES')
+            integral_flux%flux_calculation_option = ABSOLUTE_FLUXES
+          case default
+            call InputKeywordUnrecognized(input,keyword,'INTEGRAL_FLUX,FLUXES_OPTION',option)
+        end select
       case('POLYGON')
         call GeometryReadCoordinates(input,option,integral_flux%name, &
                                      integral_flux%polygon)
@@ -208,6 +229,26 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         enddo
         allocate(integral_flux%vertices(4,icount))
         integral_flux%vertices = int_array(:,1:icount)
+        call DeallocateArray(int_array)
+      case('CELL_IDS')
+        allocate(int_array(2,100))
+        int_array = UNINITIALIZED_INTEGER
+        error_string = 'INTEGRAL_FLUX,CELL_IDS'
+        icount = 0
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit  
+          icount = icount + 1
+          if (icount > size(int_array,2)) then
+            call ReallocateArray(int_array)
+          endif
+          call InputReadInt(input,option,int_array(1,icount))
+          call InputErrorMsg(input,option,'cell id 1',error_string)
+          call InputReadInt(input,option,int_array(2,icount))
+          call InputErrorMsg(input,option,'cell id 2',error_string)
+        enddo
+        allocate(integral_flux%cell_ids(2,icount))
+        integral_flux%cell_ids = int_array(:,1:icount)
         call DeallocateArray(int_array)
       case default
         call InputKeywordUnrecognized(input,keyword,'INTEGRAL_FLUX',option)
@@ -329,36 +370,108 @@ subroutine IntegralFluxGetInstantaneous(integral_flux, internal_fluxes, &
   type(option_type) :: option
   
   PetscInt :: i
+  PetscInt :: j
   PetscInt :: iconn
   
   sum_array = 0.d0
+  
   if (associated(integral_flux%internal_connections)) then
     do i = 1, size(integral_flux%internal_connections)
       iconn = integral_flux%internal_connections(i)
-      if (iconn > 0) then
-        sum_array(1:num_values) = sum_array(1:num_values) + &
-                                  internal_fluxes(1:num_values,iconn)
-      else
-        ! negative connection ids indicate inversion of flux
-        sum_array(1:num_values) = sum_array(1:num_values) - &
-                                  internal_fluxes(1:num_values,-iconn)
-      endif
+      select case(integral_flux%flux_calculation_option)
+        case(POSITIVE_FLUXES_ONLY)
+          if (integral_flux%invert_direction) then
+            if (iconn > 0) then
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + min(internal_fluxes(j,iconn),0.)
+              enddo
+            else
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + min(-internal_fluxes(j,-iconn),0.)
+              enddo
+            endif
+          else
+            if (iconn > 0) then
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + max(internal_fluxes(j,iconn),0.)
+              enddo
+            else
+              ! negative connection ids indicate inversion of flux
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + max(-internal_fluxes(j,-iconn),0.)
+              enddo
+            endif
+          endif
+        case(ABSOLUTE_FLUXES)
+          if (iconn > 0) then
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       abs(internal_fluxes(1:num_values,iconn))
+          else
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       abs(-internal_fluxes(1:num_values,-iconn))
+          endif
+        case(SIGNED_FLUXES)
+          if (iconn > 0) then
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                      internal_fluxes(1:num_values,iconn)
+          else
+            ! negative connection ids indicate inversion of flux
+            sum_array(1:num_values) = sum_array(1:num_values) - &
+                                      internal_fluxes(1:num_values,-iconn)
+          endif
+      end select
     enddo
   endif
+  
   if (associated(integral_flux%boundary_connections)) then
     do i = 1, size(integral_flux%boundary_connections)
       iconn = integral_flux%boundary_connections(i)
-      if (iconn > 0) then
-        sum_array(1:num_values) = sum_array(1:num_values) + &
-                                  boundary_fluxes(1:num_values,iconn)
-      else
-        ! negative connection ids indicate inversion of flux
-        sum_array(1:num_values) = sum_array(1:num_values) - &
-                                  boundary_fluxes(1:num_values,-iconn)
-      endif
+      select case(integral_flux%flux_calculation_option)
+        case(POSITIVE_FLUXES_ONLY)
+          if (integral_flux%invert_direction) then
+            if (iconn > 0) then
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + min(boundary_fluxes(j,iconn),0.d0)
+              enddo
+            else
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + min(-boundary_fluxes(j,-iconn),0.d0)
+              enddo
+            endif
+          else
+            if (iconn > 0) then
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + max(boundary_fluxes(j,iconn),0.d0)
+              enddo
+            else
+              ! negative connection ids indicate inversion of flux
+              do j=1, num_values
+                sum_array(j) = sum_array(j) + max(-boundary_fluxes(j,-iconn),0.d0)
+              enddo
+            endif
+          endif
+        case(ABSOLUTE_FLUXES)
+          if (iconn > 0) then
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       abs(boundary_fluxes(1:num_values,iconn))
+          else
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       abs(-boundary_fluxes(1:num_values,-iconn))
+          endif
+        case(SIGNED_FLUXES) !default
+          if (iconn > 0) then
+            sum_array(1:num_values) = sum_array(1:num_values) + &
+                                       boundary_fluxes(1:num_values,iconn)
+          else
+            sum_array(1:num_values) = sum_array(1:num_values) - &
+                                       boundary_fluxes(1:num_values,-iconn)
+          endif
+      end select
     enddo
   endif
-  if (integral_flux%invert_direction) then
+  
+  if (integral_flux%invert_direction .and. &
+      integral_flux%flux_calculation_option == SIGNED_FLUXES) then
     sum_array = -1.d0 * sum_array
   endif
 
@@ -510,6 +623,7 @@ subroutine IntegralFluxDestroy(integral_flux)
   nullify(integral_flux%plane) 
   call DeallocateArray(integral_flux%coordinates_and_directions)
   call DeallocateArray(integral_flux%vertices)
+  call DeallocateArray(integral_flux%cell_ids)
   call DeallocateArray(integral_flux%internal_connections)
   call DeallocateArray(integral_flux%boundary_connections)
   call DeallocateArray(integral_flux%integral_value)

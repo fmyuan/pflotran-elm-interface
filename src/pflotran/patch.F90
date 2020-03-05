@@ -10116,6 +10116,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   type(plane_type), pointer :: plane
   PetscReal,pointer :: coordinates_and_directions(:,:)
   PetscInt,pointer :: vertices(:,:)
+  PetscInt,pointer :: by_cell_ids(:,:)
   type(grid_type), pointer :: grid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
@@ -10165,6 +10166,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   plane => integral_flux%plane
   coordinates_and_directions => integral_flux%coordinates_and_directions
   vertices => integral_flux%vertices
+  by_cell_ids => integral_flux%cell_ids
   num_to_be_found = 0
 
   if (associated(polygon)) then
@@ -10252,6 +10254,13 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
   endif
+  
+  if (associated(by_cell_ids)) then
+    error_string = 'cell ids match the an actual face between these cells'
+    num_to_be_found = size(by_cell_ids,2)
+    allocate(yet_to_be_found(num_to_be_found))
+    yet_to_be_found = PETSC_TRUE
+  endif
 
   array_size = 100
   allocate(connections(array_size))
@@ -10266,13 +10275,17 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         sum_connection = 0
         icount = 0
       case(2) ! boundary connections
-        ! sets up first boundayr condition in list
+        ! sets up first boundary condition in list
         if (.not.associated(boundary_condition)) then
           boundary_condition => patch%boundary_condition_list%first
           sum_connection = 0
           icount = 0
         endif
-        cur_connection_set => boundary_condition%connection_set
+        if (associated(boundary_condition)) then
+          cur_connection_set => boundary_condition%connection_set
+        else
+          nullify(cur_connection_set)
+        endif
     end select
     do
       if (.not.associated(cur_connection_set)) exit
@@ -10361,7 +10374,12 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
           enddo
         endif
         if (.not.found .and. associated(vertices)) then
-          face_id = grid%unstructured_grid%connection_to_face(iconn)
+          select case(ipass)
+            case(1) ! internal connections
+              face_id = grid%unstructured_grid%connection_to_face(iconn)
+            case(2) ! boundary connections
+              face_id = boundary_condition%connection_set%face_id(iconn)
+          end select
           do ivert = 1, MAX_VERT_PER_FACE
             face_vertices_natural(ivert) = &
               grid%unstructured_grid% &
@@ -10433,6 +10451,27 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
             endif
           enddo
         endif
+        if (.not.found .and. associated(by_cell_ids)) then
+          select case(ipass)
+            case(1) ! internal connections
+              do i = 1, num_to_be_found
+                if (natural_id_dn == by_cell_ids(1,i) .and. &
+                    natural_id_up == by_cell_ids(2,i)) then
+                  yet_to_be_found(i) = PETSC_FALSE
+                  same_direction = PETSC_FALSE
+                  found = PETSC_TRUE
+                  exit
+                elseif (natural_id_up == by_cell_ids(1,i) .and. &
+                        natural_id_dn == by_cell_ids(2,i)) then
+                  yet_to_be_found(i) = PETSC_FALSE
+                  found = PETSC_TRUE
+                  exit
+                endif
+              enddo
+            case(2) ! boundary connections
+              ! not yet supported
+          end select
+        endif
         if (found) then
           icount = icount + 1
           if (icount > size(connections)) then
@@ -10456,7 +10495,9 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         icount = 0
         ipass = ipass + 1
       case(2) ! boundary connections
-        boundary_condition => boundary_condition%next
+        if (associated(boundary_condition)) then
+          boundary_condition => boundary_condition%next
+        endif
         if (.not.associated(boundary_condition)) then
           if (icount > 0) then
             allocate(integral_flux%boundary_connections(icount))
