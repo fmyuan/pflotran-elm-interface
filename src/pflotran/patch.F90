@@ -10264,7 +10264,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         sum_connection = 0
         icount = 0
       case(2) ! boundary connections
-        ! sets up first boundayr condition in list
+        ! sets up first boundary condition in list
         if (.not.associated(boundary_condition)) then
           boundary_condition => patch%boundary_condition_list%first
           sum_connection = 0
@@ -10272,6 +10272,8 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         endif
         if (associated(boundary_condition)) then
           cur_connection_set => boundary_condition%connection_set
+        else
+          nullify(cur_connection_set)
         endif
     end select
     do
@@ -10482,7 +10484,9 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
         icount = 0
         ipass = ipass + 1
       case(2) ! boundary connections
-        boundary_condition => boundary_condition%next
+        if (associated(boundary_condition)) then
+          boundary_condition => boundary_condition%next
+        endif
         if (.not.associated(boundary_condition)) then
           if (icount > 0) then
             allocate(integral_flux%boundary_connections(icount))
