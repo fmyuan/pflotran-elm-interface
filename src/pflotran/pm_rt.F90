@@ -333,6 +333,8 @@ recursive subroutine PMRTInitializeRun(this)
   use Variables_module, only : POROSITY
   use Material_Aux_class, only : POROSITY_BASE 
   use Material_module, only : MaterialGetAuxVarVecLoc
+  use String_module, only : StringWrite
+  use Utility_module, only : Equal
 
   implicit none
   
@@ -385,6 +387,13 @@ recursive subroutine PMRTInitializeRun(this)
   endif
   ! check on MAX_STEPS < 0 to quit after initialization.
 #endif  
+
+  ! ensure that time step size was set to zero
+  if (.not.Equal(this%option%tran_dt,0.d0)) then
+    this%option%io_buffer = 'Non-zero transport time step (' // &
+      trim(StringWrite(this%option%tran_dt)) // ') during initialization.'
+    call PrintErrMsg(this%option)
+  endif
     
 end subroutine PMRTInitializeRun
 

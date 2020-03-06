@@ -394,6 +394,8 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Variables_module, only : POROSITY
   use Material_Aux_class, only : POROSITY_INITIAL, POROSITY_BASE, &
                                  POROSITY_CURRENT
+  use String_module, only : StringWrite
+  use Utility_module, only : Equal
   use Well_Data_class
 
   implicit none
@@ -457,6 +459,13 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
 
   if (WellDataGetFlag()) then
     call this%InitialiseAllWells()
+  endif
+
+  ! ensure that time step size was set to zero
+  if (.not.Equal(this%option%flow_dt,0.d0)) then
+    this%option%io_buffer = 'Non-zero flow time step (' // &
+      trim(StringWrite(this%option%flow_dt)) // ') during initialization.'
+    call PrintErrMsg(this%option)
   endif
 
 end subroutine PMSubsurfaceFlowInitializeRun

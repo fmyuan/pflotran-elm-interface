@@ -19,6 +19,9 @@ module Timestepper_Base_class
   PetscInt, parameter, public :: TS_STOP_WALLCLOCK_EXCEEDED = 3
   PetscInt, parameter, public :: TS_STOP_FAILURE = 4
 
+  PetscReal, parameter :: default_dt_init = 1.d0  ! one second
+  PetscReal, parameter :: default_dt_min = 1.d-20 ! ten zeptoseconds
+
   type, public :: timestepper_base_type
   
     character(len=MAXWORDLENGTH) :: name
@@ -55,6 +58,7 @@ module Timestepper_Base_class
     PetscReal :: target_time    ! time at end of "synchronized" time step 
     PetscBool :: print_ekg
 
+    type(waypoint_list_type), pointer :: local_waypoint_list
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
 
@@ -64,6 +68,7 @@ module Timestepper_Base_class
     
     procedure, public :: ReadInput => TimestepperBaseRead
     procedure, public :: Init => TimestepperBaseInit
+    procedure, public :: SetWaypointPtr => TimestepperBaseSetWaypointPtr
     procedure, public :: InitializeRun => TimestepperBaseInitializeRun
     procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
     procedure, public :: StepDT => TimestepperBaseStepDT
@@ -162,10 +167,10 @@ subroutine TimestepperBaseInit(this)
   this%target_time = 0.d0
   
   this%prev_dt = 0.d0
-  this%dt = 1.d0
-  this%dt_init = 1.d0
-  this%dt_min = 1.d-20   ! Ten zeptoseconds.
-  this%dt_max = 3.1536d6 ! One-tenth of a year.  
+  this%dt = UNINITIALIZED_DOUBLE
+  this%dt_init = UNINITIALIZED_DOUBLE
+  this%dt_min = UNINITIALIZED_DOUBLE
+  this%dt_max = UNINITIALIZED_DOUBLE
   
   this%time_step_cut_flag = PETSC_FALSE
   
@@ -173,6 +178,7 @@ subroutine TimestepperBaseInit(this)
   this%steady_state_rel_tol = 1.d-8
   this%run_as_steady_state = PETSC_FALSE
   
+  nullify(this%local_waypoint_list)
   nullify(this%cur_waypoint)
   nullify(this%prev_waypoint)
   this%revert_dt = PETSC_FALSE
@@ -181,6 +187,32 @@ subroutine TimestepperBaseInit(this)
   this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list)
+  ! 
+  ! Initializes the timestepper for the simulation.  This is more than just
+  ! initializing parameters.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/21/14
+  ! 
+
+  use Option_module
+  
+  implicit none
+
+  class(timestepper_base_type) :: this
+  class(waypoint_list_type) :: outer_waypoint_list
+
+  if (associated(this%local_waypoint_list)) then
+    this%cur_waypoint => this%local_waypoint_list%first
+  else
+    this%cur_waypoint => outer_waypoint_list%first
+  endif
+  
+end subroutine TimestepperBaseSetWaypointPtr
 
 ! ************************************************************************** !
 
@@ -200,6 +232,9 @@ subroutine TimestepperBaseInitializeRun(this,option)
   class(timestepper_base_type) :: this
   type(option_type) :: option
   
+  if (Uninitialized(this%dt_min)) this%dt_min = default_dt_min
+  if (Uninitialized(this%dt_init)) this%dt_init = default_dt_init
+  if (Uninitialized(this%dt)) this%dt = this%dt_init
   call this%PrintInfo(option)
   option%time = this%target_time
   ! cur_waypoint may be null due to restart of a simulation that reached 
@@ -252,6 +287,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   use Option_module
   use String_module
   use Input_Aux_module
+  use Units_module
   
   implicit none
   
@@ -260,7 +296,10 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   type(input_type) :: input
   type(option_type) :: option
 
+  type(waypoint_type), pointer :: waypoint
   character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH), parameter :: internal_units = 'sec'
 
   error_string = 'TIMESTEPPER'
 
@@ -272,29 +311,36 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
                          error_string)
     case('MAX_STEPS','MAXIMUM_NUMBER_OF_TIMESTEPS')
       call InputReadInt(input,option,this%max_time_step)
-      call InputErrorMsg(input,option,'max_time_step',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('MAX_TS_CUTS','MAXIMUM_CONSECUTIVE_TS_CUTS')
       call InputReadInt(input,option,this%max_time_step_cuts)
-      call InputErrorMsg(input,option,'max_time_step_cuts',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('MAX_NUM_CONTIGUOUS_REVERTS')
       call InputReadInt(input,option,this%max_num_contig_revert)
-      call InputErrorMsg(input,option,'max_num_contig_reverts',error_string)
-    case('MINIMUM_TIMESTEP_SIZE','TIMESTEP_MINIMUM_SIZE')
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('INITIAL_TIMESTEP_SIZE')
+      call InputReadDouble(input,option,this%dt_init)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
+      this%dt_init = this%dt_init* &
+                     UnitsConvertToInternal(word,internal_units,option)
+    case('MINIMUM_TIMESTEP_SIZE')
       call InputReadDouble(input,option,this%dt_min)
       call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadAndConvertUnits(input,this%dt_min,'sec', &
-                                    trim(error_string)//','//keyword,option)
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
+      this%dt_min = this%dt_min* &
+                    UnitsConvertToInternal(word,internal_units,option)
     case('TIMESTEP_REDUCTION_FACTOR')
       call InputReadDouble(input,option,this%time_step_reduction_factor)
-      call InputErrorMsg(input,option,'timestep reduction factor',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('TIMESTEP_MAXIMUM_GROWTH_FACTOR')
       call InputReadDouble(input,option,this%time_step_max_growth_factor)
-      call InputErrorMsg(input,option,'timestep maximum growth factor', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('TIMESTEP_OVERSTEP_REL_TOLERANCE')
       call InputReadDouble(input,option,this%time_step_tolerance)
-      call InputErrorMsg(input,option,'timestep overstep tolerance', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('INITIALIZE_TO_STEADY_STATE')
       option%io_buffer = 'INITIALIZE_TO_STEADY_STATE capability has been &
                          &disabled.'
@@ -310,6 +356,39 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
     case('PRINT_EKG')
       this%print_ekg = PETSC_TRUE
       option%print_ekg = PETSC_TRUE
+    case('MAXIMUM_TIMESTEP_SIZE')
+      waypoint => WaypointCreate()
+      call InputReadDouble(input,option,waypoint%dt_max)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
+      waypoint%dt_max = waypoint%dt_max* &
+                        UnitsConvertToInternal(word,internal_units,option)
+      call InputReadCard(input,option,word)
+      if (input%ierr == 0) then
+        call StringToUpper(word)
+        if (StringCompare(word,'AT',TWO_INTEGER)) then
+          call InputReadDouble(input,option,waypoint%time)
+          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time', &
+                             error_string)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time Units', &
+                             error_string)
+          waypoint%time = waypoint%time* &
+                          UnitsConvertToInternal(word,internal_units,option)
+        else
+          option%io_buffer = 'Keyword under "MAXIMUM_TIMESTEP_SIZE" &
+                             &after maximum timestep size should &
+                             &be "AT".'
+          call PrintErrMsg(option)
+        endif
+      else
+        waypoint%time = 0.d0
+      endif
+      if (.not.associated(this%local_waypoint_list)) then
+        this%local_waypoint_list => WaypointListCreate()
+      endif
+      call WaypointInsertInList(waypoint,this%local_waypoint_list)
     case('MAX_PRESSURE_CHANGE','MAX_TEMPERATURE_CHANGE', &
          'MAX_CONCENTRATION_CHANGE','MAX_SATURATION_CHANGE', &
          'PRESSURE_DAMPENING_FACTOR','SATURATION_CHANGE_LIMIT', &
@@ -966,10 +1045,13 @@ subroutine TimestepperBaseStrip(this)
   ! Author: Glenn Hammond
   ! Date: 07/22/13
   ! 
-
   implicit none
   
   class(timestepper_base_type) :: this
+
+  if (associated(this%local_waypoint_list)) then
+    call WaypointListDestroy(this%local_waypoint_list)
+  endif
   
 end subroutine TimestepperBaseStrip
 

@@ -1421,16 +1421,12 @@ subroutine SubsurfaceInitSimulation(simulation)
 
   !TODO(geh): refactor
   if (associated(simulation%flow_process_model_coupler)) then
-    if (associated(simulation%flow_process_model_coupler%timestepper)) then
-      simulation%flow_process_model_coupler%timestepper%cur_waypoint => &
-        simulation%waypoint_list_subsurface%first
-    endif
+    call simulation%flow_process_model_coupler%timestepper% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
   endif
   if (associated(simulation%tran_process_model_coupler)) then
-    if (associated(simulation%tran_process_model_coupler%timestepper)) then
-      simulation%tran_process_model_coupler%timestepper%cur_waypoint => &
-        simulation%waypoint_list_subsurface%first
-    endif
+    call simulation%tran_process_model_coupler%timestepper% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
   endif
 
   !TODO(geh): refactor
@@ -1587,18 +1583,6 @@ recursive subroutine SetUpPMApproach(pmc,simulation)
 
     end select
 
-    ! set time stepper
-    select type(cur_pm)
-      class is(pm_subsurface_flow_type)
-        pmc%timestepper%dt = option%flow_dt
-
-      class is(pm_rt_type)
-        pmc%timestepper%dt = option%tran_dt
-        
-      class is(pm_nwt_type)
-        pmc%timestepper%dt = option%tran_dt
-
-    end select
     cur_pm%output_option => simulation%output_option
     call cur_pm%Setup()
     cur_pm => cur_pm%next
@@ -3630,7 +3614,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !.....................
       case ('TIME')
 !        dt_init = UNINITIALIZED_DOUBLE
-        dt_init = 1.d0
+        dt_init = UNINITIALIZED_DOUBLE
         dt_min = UNINITIALIZED_DOUBLE
         call InputPushBlock(input,option)
         do
@@ -3721,22 +3705,31 @@ subroutine SubsurfaceReadInput(simulation,input)
           end select
         enddo
         call InputPopBlock(input,option)
+        ! we store dt_init and dt_min in local variables so that they 
+        ! cannot overwrite what has previously been set in the respective
+        ! timestepper object member variable
         if (Initialized(dt_init)) then
           if (associated(flow_timestepper)) then
-            flow_timestepper%dt_init = dt_init
-            option%flow_dt = dt_init
+            if (Uninitialized(flow_timestepper%dt_init)) then
+              flow_timestepper%dt_init = dt_init
+            endif
           endif
           if (associated(tran_timestepper)) then
-            tran_timestepper%dt_init = dt_init
-            option%tran_dt = dt_init
+            if (Uninitialized(tran_timestepper%dt_init)) then
+              tran_timestepper%dt_init = dt_init
+            endif
           endif
         endif
         if (Initialized(dt_min)) then
           if (associated(flow_timestepper)) then
-            flow_timestepper%dt_min = dt_min
+            if (Uninitialized(flow_timestepper%dt_min)) then
+              flow_timestepper%dt_min = dt_min
+            endif
           endif
           if (associated(tran_timestepper)) then
-            tran_timestepper%dt_min = dt_min
+            if (Uninitialized(tran_timestepper%dt_min)) then
+              tran_timestepper%dt_min = dt_min
+            endif
           endif
         endif
 
