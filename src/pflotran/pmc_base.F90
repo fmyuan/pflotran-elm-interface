@@ -42,6 +42,7 @@ module PMC_Base_class
   contains
     procedure, public :: Init => PMCBaseInit
     procedure, public :: InitializeRun
+    procedure, public :: SetWaypointPtr => PMCBaseSetWaypointPtr
     procedure, public :: InputRecord => PMCBaseInputRecord
     procedure, public :: CastToBase => PMCCastToBase
     procedure, public :: SetTimestepper => PMCBaseSetTimestepper
@@ -214,6 +215,29 @@ recursive subroutine PMCBaseInputRecord(this)
   endif
   
 end subroutine PMCBaseInputRecord
+
+! ************************************************************************** !
+
+subroutine PMCBaseSetWaypointPtr(this,outer_waypoint_list)
+  ! 
+  ! Initializes the timestepper for the simulation.  This is more than just
+  ! initializing parameters.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/21/14
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  class(pmc_base_type) :: this
+  type(waypoint_list_type), pointer :: outer_waypoint_list
+
+  call this%timestepper%SetWaypointPtr(outer_waypoint_list, &
+                                       this%is_master,this%option)
+
+end subroutine PMCBaseSetWaypointPtr
 
 ! ************************************************************************** !
 

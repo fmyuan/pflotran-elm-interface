@@ -221,7 +221,7 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
                                             waypoint_list_surfsubsurface,option)
       
     if (associated(simulation%surf_flow_process_model_coupler)) then
-      call simulation%surf_flow_process_model_coupler%timestepper% &
+      call simulation%surf_flow_process_model_coupler% &
              SetWaypointPtr(simulation%waypoint_list_surfsubsurface)
     endif
     call InitSurfaceSetupSolvers(surf_realization,timestepper%solver, &

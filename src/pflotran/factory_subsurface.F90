@@ -1420,16 +1420,6 @@ subroutine SubsurfaceInitSimulation(simulation)
                                     simulation%waypoint_list_subsurface)
 
   !TODO(geh): refactor
-  if (associated(simulation%flow_process_model_coupler)) then
-    call simulation%flow_process_model_coupler%timestepper% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
-  if (associated(simulation%tran_process_model_coupler)) then
-    call simulation%tran_process_model_coupler%timestepper% &
-           SetWaypointPtr(simulation%waypoint_list_subsurface)
-  endif
-
-  !TODO(geh): refactor
   ! initialize global auxiliary variable object
   call GlobalSetup(realization)
 
@@ -1488,8 +1478,16 @@ subroutine SubsurfaceInitSimulation(simulation)
   ! point the top process model coupler to Output
   simulation%process_model_coupler_list%Output => Output
 
-  ! setup the waypoint list
+  ! setup the outer waypoint lists
   call SetupWaypointList(simulation)
+  if (associated(simulation%flow_process_model_coupler)) then
+    call simulation%flow_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
+  if (associated(simulation%tran_process_model_coupler)) then
+    call simulation%tran_process_model_coupler% &
+           SetWaypointPtr(simulation%waypoint_list_subsurface)
+  endif
 
   if (realization%debug%print_couplers) then
     call InitCommonVerifyAllCouplers(realization)
@@ -1764,7 +1762,6 @@ subroutine SetupWaypointList(simulation)
   call CheckpointPeriodicTimeWaypoints(simulation%checkpoint_option, &
                                        simulation%waypoint_list_subsurface, &
                                        option)
-
   ! clean up waypoints
   if (.not.option%steady_state) then
    ! fill in holes in waypoint data
@@ -2215,6 +2212,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
   type(integral_flux_type), pointer :: integral_flux
+  class(pmc_subsurface_type), pointer :: master_pmc
 
   type(waypoint_type), pointer :: waypoint
 
@@ -2237,6 +2235,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   class(data_mediator_dataset_type), pointer :: flow_data_mediator
   class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(waypoint_list_type), pointer :: waypoint_list
+  type(waypoint_list_type), pointer :: waypoint_list_time_card
   type(input_type), pointer :: input, input_parent
 
   PetscReal :: dt_init
@@ -2255,6 +2254,9 @@ subroutine SubsurfaceReadInput(simulation,input)
 
   internal_units = 'not_assigned'
   nullify(default_time_storage)
+  nullify(waypoint_list_time_card)
+  nullify(flow_timestepper)
+  nullify(tran_timestepper)
 
   realization => simulation%realization
   output_option => simulation%output_option
@@ -2267,38 +2269,14 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
-#if 0
-  if ((option%iflowmode == RICHARDS_TS_MODE) .or. &
-      (option%iflowmode == TH_TS_MODE)) then
-    flow_timestepper => TimestepperTSCreate()
-  else
-    flow_timestepper => TimestepperBECreate()
-  endif
-  flow_timestepper%solver%itype = FLOW_CLASS
-
-  if (associated(simulation%tran_process_model_coupler)) then
-    select type(pm=>simulation%tran_process_model_coupler%pm_ptr%pm)
-      class is(pm_rt_type)
-        if (pm%operator_split) then
-          tran_timestepper => TimestepperKSPCreate()
-        else
-          tran_timestepper => TimestepperBECreate()
-        endif
-      class is(pm_nwt_type)
-        tran_timestepper => TimestepperBECreate()
-    end select
-  else
-    tran_timestepper => TimestepperBECreate()
-  endif
-  tran_timestepper%solver%itype = TRANSPORT_CLASS
-#endif
-
-  nullify(flow_timestepper)
   if (associated(simulation%flow_process_model_coupler)) then
     flow_timestepper => simulation%flow_process_model_coupler%timestepper
   endif
-  nullify(tran_timestepper)
+  master_pmc => simulation%flow_process_model_coupler
   if (associated(simulation%tran_process_model_coupler)) then
+    if (.not.associated(master_pmc)) then
+      master_pmc => simulation%tran_process_model_coupler
+    endif
     tran_timestepper => simulation%tran_process_model_coupler%timestepper
   endif
 
@@ -3613,7 +3591,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !.....................
       case ('TIME')
-!        dt_init = UNINITIALIZED_DOUBLE
         dt_init = UNINITIALIZED_DOUBLE
         dt_min = UNINITIALIZED_DOUBLE
         call InputPushBlock(input,option)
@@ -3648,6 +3625,7 @@ subroutine SubsurfaceReadInput(simulation,input)
               waypoint%final = PETSC_TRUE
               waypoint%time = temp_real*temp_real2
               waypoint%print_snap_output = PETSC_TRUE
+              ! do not place final time in waypoint_list_time_card
               call WaypointInsertInList(waypoint,waypoint_list)
             case('INITIAL_TIMESTEP_SIZE')
               call InputReadDouble(input,option,temp_real)
@@ -3699,7 +3677,11 @@ subroutine SubsurfaceReadInput(simulation,input)
               else
                 waypoint%time = 0.d0
               endif
-              call WaypointInsertInList(waypoint,waypoint_list)
+              if (.not.associated(waypoint_list_time_card)) then
+                waypoint_list_time_card => WaypointListCreate()
+              endif
+              call WaypointInsertInList(waypoint, &
+                                        waypoint_list_time_card)
             case default
               call InputKeywordUnrecognized(input,word,'TIME',option)
           end select
@@ -3709,6 +3691,12 @@ subroutine SubsurfaceReadInput(simulation,input)
         ! cannot overwrite what has previously been set in the respective
         ! timestepper object member variable
         if (Initialized(dt_init)) then
+          if (Initialized(master_pmc%timestepper%dt_init)) then
+            option%io_buffer = 'INITIAL_TIMESTEP_SIZE may included under &
+              &either the TIME or TIMESTEPPER ' // &
+              trim(master_pmc%timestepper%name) // ' card, but not both.'
+            call PrintErrMsg(option)
+          endif
           if (associated(flow_timestepper)) then
             if (Uninitialized(flow_timestepper%dt_init)) then
               flow_timestepper%dt_init = dt_init
@@ -3721,6 +3709,12 @@ subroutine SubsurfaceReadInput(simulation,input)
           endif
         endif
         if (Initialized(dt_min)) then
+          if (Initialized(master_pmc%timestepper%dt_min)) then
+            option%io_buffer = 'MINIMUM_TIMESTEP_SIZE may included under &
+              &either the TIME or TIMESTEPPER ' // &
+              trim(master_pmc%timestepper%name) // ' card, but not both.'
+            call PrintErrMsg(option)
+          endif
           if (associated(flow_timestepper)) then
             if (Uninitialized(flow_timestepper%dt_min)) then
               flow_timestepper%dt_min = dt_min
@@ -3895,6 +3889,26 @@ subroutine SubsurfaceReadInput(simulation,input)
       simulation%tran_process_model_coupler%timestepper => temp_timestepper
       nullify(temp_timestepper)
     endif
+  endif
+
+  ! must come after setup of timestepper steady above. otherwise, the
+  ! destruction of the waypoint lists will fail with to pointer to the
+  ! same list.
+  if (associated(master_pmc%timestepper%local_waypoint_list) .and. &
+      associated(waypoint_list_time_card)) then
+    option%io_buffer = 'MAXIMUM_TIMESTEP_SIZE may included under either &
+      &the TIME or TIMESTEPPER ' // trim(master_pmc%timestepper%name) // &
+      ' card, but not both.'
+    call PrintErrMsg(option)
+  endif
+  if (associated(waypoint_list_time_card)) then
+    call WaypointListMerge(simulation%waypoint_list_subsurface, &
+                           waypoint_list_time_card,option)
+    ! DO NOT destroy as both pointer point to the same list
+    nullify(waypoint_list_time_card)
+  else
+    call WaypointListMerge(simulation%waypoint_list_subsurface, &
+                           master_pmc%timestepper%local_waypoint_list,option)
   endif
 
 end subroutine SubsurfaceReadInput

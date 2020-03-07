@@ -190,7 +190,8 @@ end subroutine TimestepperBaseInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list)
+subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list, &
+                                         pmc_is_master,option)
   ! 
   ! Initializes the timestepper for the simulation.  This is more than just
   ! initializing parameters.
@@ -204,9 +205,41 @@ subroutine TimestepperBaseSetWaypointPtr(this,outer_waypoint_list)
   implicit none
 
   class(timestepper_base_type) :: this
-  class(waypoint_list_type) :: outer_waypoint_list
+  type(waypoint_list_type), pointer :: outer_waypoint_list
+  type(option_type) :: option
+  PetscBool :: pmc_is_master
 
-  if (associated(this%local_waypoint_list)) then
+  type(waypoint_type), pointer :: waypoint
+
+  if (associated(this%local_waypoint_list,outer_waypoint_list)) then
+    ! same list
+    this%cur_waypoint => outer_waypoint_list%first
+    ! to avoid destroying twice
+    nullify(this%local_waypoint_list) 
+  else if (associated(this%local_waypoint_list)) then
+    if (pmc_is_master) then
+      option%io_buffer = 'Something went wrong within PMCBaseSetWaypointPtr. &
+        &Please send your input deck to pflotran-dev@googlegroups.com'
+      call PrintErrMsg(option)
+    endif
+    ! insert final waypoint from outer waypoint list
+    waypoint => outer_waypoint_list%last
+    do
+      if (.not.associated(waypoint)) exit
+      if (waypoint%final) exit
+      waypoint => waypoint%prev
+    enddo
+    if (.not.associated(waypoint)) then
+      option%io_buffer = 'A final waypoint does not exist in waypoint list. &
+        &Please send your input deck to pflotran-dev@googlegroups.com'
+      call PrintErrMsg(option)
+    endif
+    waypoint => WaypointCreate(waypoint) ! creates a new copy
+    call WaypointInsertInList(waypoint,this%local_waypoint_list)
+    nullify(waypoint)
+    call WaypointListFillIn(this%local_waypoint_list,option)
+    call WaypointListRemoveExtraWaypnts(this%local_waypoint_list, &
+                                        option)
     this%cur_waypoint => this%local_waypoint_list%first
   else
     this%cur_waypoint => outer_waypoint_list%first
@@ -1049,9 +1082,7 @@ subroutine TimestepperBaseStrip(this)
   
   class(timestepper_base_type) :: this
 
-  if (associated(this%local_waypoint_list)) then
-    call WaypointListDestroy(this%local_waypoint_list)
-  endif
+  call WaypointListDestroy(this%local_waypoint_list)
   
 end subroutine TimestepperBaseStrip
 

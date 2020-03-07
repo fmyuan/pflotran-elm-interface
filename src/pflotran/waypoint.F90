@@ -375,7 +375,8 @@ subroutine WaypointListFillIn(waypoint_list,option)
     call PrintErrMsg(option)
   endif
   
-  ! assign that value to the first waypoint, if waypoint%dt_max not already > 1.d-40
+  ! assign that value to the first waypoint, if waypoint%dt_max not 
+  ! already > 1.d-40
   waypoint => waypoint_list%first
   if (waypoint%dt_max < 1.d-40) waypoint%dt_max = dt_max
   
