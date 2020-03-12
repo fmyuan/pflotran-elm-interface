@@ -133,7 +133,8 @@ class RegressionTest(object):
         self._skip_check_regression = False
         self._check_performance = False
         self._test_name = None
-        self._ascii_output_filenames = None
+        self._diff_ascii_output_filenames = None
+        self._compare_ascii_output_filenames = None
         self._output_files = None
         # assign default tolerances for different classes of variables
         # absolute min and max thresholds for determining whether to
@@ -531,12 +532,12 @@ class RegressionTest(object):
                                            status,testlog)
 
         # Compare ascii output files
-        if self._ascii_output_filenames is not None:
+        if self._diff_ascii_output_filenames is not None: 
             if self._stochastic_realizations is not None:
                 print("Skipping comparison of ASCII output for stochastic run.",
                       file=testlog)
             else:
-                filenames = self._ascii_output_filenames.split()
+                filenames = self._diff_ascii_output_filenames.split()
                 for current_filename in filenames:
                     if not os.path.isfile(current_filename):
                         message = self._txtwrap.fill(
@@ -564,8 +565,51 @@ class RegressionTest(object):
 
                     print("    diff {0} {1}".format(gold_filename, 
                           current_filename), file=testlog)
+                    
+                    self._diff_ascii_output(current_output, gold_output, 
+                                               status, testlog)
+
+                if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
+                    print("    Passed ASCII output comparison check.", 
+                          file=testlog)
+                    
+        if self._compare_ascii_output_filenames is not None:
+            if self._stochastic_realizations is not None:
+                print("Skipping comparison of ASCII output for stochastic run.",
+                      file=testlog)
+            else:
+                filenames = self._diff_ascii_output_filenames.split()
+                for current_filename in filenames:
+                    if not os.path.isfile(current_filename):
+                        message = self._txtwrap.fill(
+                            "ERROR: could not find ASCII output test file "
+                            "'{0}'. Please check the standard output file "
+                            "for errors.".format(current_filename))
+                        print("".join(['\n', message, '\n']), file=testlog)
+                        status.error = _MISSING_INFO_ERROR
+                        return
+                    else:
+                        with open(current_filename, 'rU') as current_file:
+                            current_output = current_file.readlines()
+
+                    gold_filename = current_filename + ".gold"
+                    if not os.path.isfile(gold_filename):
+                        message = self._txtwrap.fill(
+                            "ERROR: could not find ASCII output gold file "
+                            "'{0}'.".format(gold_filename))
+                        print("".join(['\n', message, '\n']), file=testlog)
+                        status.error = _MISSING_INFO_ERROR
+                        return
+                    else:
+                        with open(gold_filename, 'rU') as gold_file:
+                            gold_output = gold_file.readlines()
+
+                    print("    diff {0} {1}".format(gold_filename, 
+                          current_filename), file=testlog)
+                    
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog)
+
                 if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
                     print("    Passed ASCII output comparison check.", 
                           file=testlog)
@@ -816,10 +860,10 @@ class RegressionTest(object):
 
         if status.fail == _NULL_FAILURE and status.error == _NULL_ERROR:
             print("    Passed hdf5 check.", file=testlog)
-
-    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog):
-        """Check that ascii file output has not changed from the baseline.
+    def _diff_ascii_output(self, ascii_current, ascii_gold, status, testlog):
+        """Diff ascii file output has not changed from the baseline.
         """
+                        
         diff = difflib.ndiff(ascii_current,ascii_gold,
                              charjunk=difflib.IS_CHARACTER_JUNK)
         count = 0
@@ -832,6 +876,55 @@ class RegressionTest(object):
             diff_lines = difflib.context_diff(ascii_current,ascii_gold)
             for line in list(diff_lines):
                 testlog.write('      '+line)
+        
+        
+    def _compare_ascii_output(self, ascii_current, ascii_gold, status, testlog):
+        """Compare ascii file output headers and values has not changed from 
+           the baseline.
+        """
+        
+        if ascii_gold[0] != ascii_current[0]:
+            print('headers do not match')
+        else:
+            headers = ascii_gold[0].split(',')
+            ascii_gold.pop(0)
+            ascii_current.pop(0)
+
+        for i in range(len(ascii_gold)):
+            gold_values = ascii_gold[i].split()
+            current_values = ascii_current[i].split() #check same length
+            tol = self._tolerance[self.__GENERIC]
+            tolerance_type = tol[self._TOL_TYPE]
+            tolerance = tol[self._TOL_TYPE]
+            
+            for k in range(len(gold_values)):
+
+                name = headers[k]
+ #               compare_values('ABSOLUTE',gold_values[k],current_values[k],0,name)
+        
+        
+                current = float(current_values)
+                previous = float(gold_values)
+                
+                if tolerance_type == self._ABSOLUTE:
+                    delta = abs(previous - current)
+                elif (tolerance_type == self._RELATIVE or
+                    tolerance_type == self._PERCENT):
+                    if previous != 0:
+                        delta = abs((previous - current) / previous)
+                    elif current != 0:
+                        delta = abs((previous - current) / current)
+                    else:
+                    # both are zero
+                        delta = 0.0
+                        if tolerance_type == self._PERCENT:
+                            delta *= 100.0
+                
+                if delta > tolerance:
+                    print("    FAIL: {0} : {1} > {2} [{3}]".format(
+                          name, delta, tolerance, tolerance_type))
+        
+
 
     def update(self, status, testlog):
         """
@@ -1245,8 +1338,12 @@ class RegressionTest(object):
         if timeout:
             self._timeout = float(timeout[0])
 
-        # compare these ascii output files wiht gold standards
-        self._ascii_output_filenames = test_data.pop('compare_ascii_output', 
+        # compare these ascii output files with gold standards
+        self._diff_ascii_output_filenames = test_data.pop('diff_ascii_output', 
+                                                     None)
+        
+        # compare these ascii output files with gold standards
+        self._compare_ascii_output_filenames = test_data.pop('compare_ascii_output', 
                                                      None)
 
         # list of output files that must exist at end of simulation
