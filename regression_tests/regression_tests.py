@@ -578,7 +578,7 @@ class RegressionTest(object):
                 print("Skipping comparison of ASCII output for stochastic run.",
                       file=testlog)
             else:
-                filenames = self._diff_ascii_output_filenames.split()
+                filenames = self._compare_ascii_output_filenames.split()
                 for current_filename in filenames:
                     if not os.path.isfile(current_filename):
                         message = self._txtwrap.fill(
@@ -884,7 +884,8 @@ class RegressionTest(object):
         """
         
         if ascii_gold[0] != ascii_current[0]:
-            print('headers do not match')
+            print("    FAIL: Headers do not match in ascii output", file=testlog)
+            status.fail = _MINOR_FAILURE
         else:
             headers = ascii_gold[0].split(',')
             ascii_gold.pop(0)
@@ -893,19 +894,16 @@ class RegressionTest(object):
         for i in range(len(ascii_gold)):
             gold_values = ascii_gold[i].split()
             current_values = ascii_current[i].split() #check same length
-            tol = self._tolerance[self.__GENERIC]
+            tol = self._tolerance[self._GENERIC]
             tolerance_type = tol[self._TOL_TYPE]
-            tolerance = tol[self._TOL_TYPE]
-            
+            tolerance = tol[self._TOL_VALUE]
+                        
             for k in range(len(gold_values)):
-
                 name = headers[k]
- #               compare_values('ABSOLUTE',gold_values[k],current_values[k],0,name)
-        
-        
-                current = float(current_values)
-                previous = float(gold_values)
-                
+
+                current = float(current_values[k])
+                previous = float(gold_values[k])
+
                 if tolerance_type == self._ABSOLUTE:
                     delta = abs(previous - current)
                 elif (tolerance_type == self._RELATIVE or
@@ -922,8 +920,11 @@ class RegressionTest(object):
                 
                 if delta > tolerance:
                     print("    FAIL: {0} : {1} > {2} [{3}]".format(
-                          name, delta, tolerance, tolerance_type))
-        
+                          name, delta, tolerance, tolerance_type), file=testlog)
+                    status.fail = _MINOR_FAILURE
+                elif self._debug:                                
+                    print("    PASS: {0} : {1} <= {2} [{3}]".format(
+                          name, delta, tolerance, tolerance_type), file=testlog)
 
 
     def update(self, status, testlog):

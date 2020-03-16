@@ -100,7 +100,8 @@ STANDARD_CFG = \
 	toil_ims/toil_ims.cfg \
 	towg/ims/towg_ims.cfg \
 	towg/tl/towg_tl.cfg \
-	towg/bo/towg_bo.cfg
+	towg/bo/towg_bo.cfg \
+	default/integral_flux/integral_flux.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
 ifneq ($(strip $(HYPRE_LIB)),)
