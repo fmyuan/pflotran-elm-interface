@@ -532,88 +532,60 @@ class RegressionTest(object):
                                            status,testlog)
 
         # Compare ascii output files
-        if self._diff_ascii_output_filenames is not None: 
-            if self._stochastic_realizations is not None:
-                print("Skipping comparison of ASCII output for stochastic run.",
-                      file=testlog)
-            else:
-                filenames = self._diff_ascii_output_filenames.split()
-                for current_filename in filenames:
-                    if not os.path.isfile(current_filename):
-                        message = self._txtwrap.fill(
-                            "ERROR: could not find ASCII output test file "
-                            "'{0}'. Please check the standard output file "
-                            "for errors.".format(current_filename))
-                        print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = _MISSING_INFO_ERROR
-                        return
-                    else:
-                        with open(current_filename, 'rU') as current_file:
-                            current_output = current_file.readlines()
-
-                    gold_filename = current_filename + ".gold"
-                    if not os.path.isfile(gold_filename):
-                        message = self._txtwrap.fill(
-                            "ERROR: could not find ASCII output gold file "
-                            "'{0}'.".format(gold_filename))
-                        print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = _MISSING_INFO_ERROR
-                        return
-                    else:
-                        with open(gold_filename, 'rU') as gold_file:
-                            gold_output = gold_file.readlines()
-
-                    print("    diff {0} {1}".format(gold_filename, 
-                          current_filename), file=testlog)
-                    
-                    self._diff_ascii_output(current_output, gold_output, 
-                                               status, testlog)
-
-                if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
-                    print("    Passed ASCII output comparison check.", 
-                          file=testlog)
-                    
+        if self._diff_ascii_output_filenames is not None:
+            self._check_ascii_files(self._diff_ascii_output_filenames,testlog,
+                                   status)
         if self._compare_ascii_output_filenames is not None:
-            if self._stochastic_realizations is not None:
-                print("Skipping comparison of ASCII output for stochastic run.",
-                      file=testlog)
-            else:
-                filenames = self._compare_ascii_output_filenames.split()
-                for current_filename in filenames:
-                    if not os.path.isfile(current_filename):
-                        message = self._txtwrap.fill(
-                            "ERROR: could not find ASCII output test file "
-                            "'{0}'. Please check the standard output file "
-                            "for errors.".format(current_filename))
-                        print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = _MISSING_INFO_ERROR
-                        return
-                    else:
-                        with open(current_filename, 'rU') as current_file:
-                            current_output = current_file.readlines()
+            self._check_ascii_files(self._compare_ascii_output_filenames,
+                                    testlog,status,diff=False)                   
 
-                    gold_filename = current_filename + ".gold"
-                    if not os.path.isfile(gold_filename):
-                        message = self._txtwrap.fill(
-                            "ERROR: could not find ASCII output gold file "
-                            "'{0}'.".format(gold_filename))
-                        print("".join(['\n', message, '\n']), file=testlog)
-                        status.error = _MISSING_INFO_ERROR
-                        return
-                    else:
-                        with open(gold_filename, 'rU') as gold_file:
-                            gold_output = gold_file.readlines()
 
-                    print("    diff {0} {1}".format(gold_filename, 
-                          current_filename), file=testlog)
-                    
+    def _check_ascii_files(self,ascii_filenames,testlog,status,diff=True):
+        if self._stochastic_realizations is not None:
+            print("Skipping comparison of ASCII output for stochastic run.",
+                     file=testlog)
+        else:
+            filenames = ascii_filenames.split()
+            for current_filename in filenames:
+                if not os.path.isfile(current_filename):
+                    message = self._txtwrap.fill(
+                        "ERROR: could not find ASCII output test file "
+                        "'{0}'. Please check the standard output file "
+                        "for errors.".format(current_filename))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    status.error = _MISSING_INFO_ERROR
+                    return
+                else:
+                    with open(current_filename, 'rU') as current_file:
+                        current_output = current_file.readlines()
+
+                gold_filename = current_filename + ".gold"
+                if not os.path.isfile(gold_filename):
+                    message = self._txtwrap.fill(
+                        "ERROR: could not find ASCII output gold file "
+                        "'{0}'.".format(gold_filename))
+                    print("".join(['\n', message, '\n']), file=testlog)
+                    status.error = _MISSING_INFO_ERROR
+                    return
+                else:
+                    with open(gold_filename, 'rU') as gold_file:
+                        gold_output = gold_file.readlines()
+
+                print("    diff {0} {1}".format(gold_filename, 
+                      current_filename), file=testlog)
+                
+                if diff:
+                    self._diff_ascii_output(current_output, gold_output, 
+                                            status, testlog)
+                else:
                     self._compare_ascii_output(current_output, gold_output, 
                                                status, testlog)
-
+            if diff:
                 if status.error == _NULL_ERROR and status.fail == _NULL_FAILURE:
                     print("    Passed ASCII output comparison check.", 
                           file=testlog)
-
+                    
+    
     def _compare_regression_files(self, current_filename, gold_filename, 
                                   status, testlog):
         """
@@ -891,40 +863,40 @@ class RegressionTest(object):
             ascii_gold.pop(0)
             ascii_current.pop(0)
 
-        for i in range(len(ascii_gold)):
-            gold_values = ascii_gold[i].split()
-            current_values = ascii_current[i].split() #check same length
-            tol = self._tolerance[self._GENERIC]
-            tolerance_type = tol[self._TOL_TYPE]
-            tolerance = tol[self._TOL_VALUE]
-                        
-            for k in range(len(gold_values)):
-                name = headers[k]
-
-                current = float(current_values[k])
-                previous = float(gold_values[k])
-
-                if tolerance_type == self._ABSOLUTE:
-                    delta = abs(previous - current)
-                elif (tolerance_type == self._RELATIVE or
-                    tolerance_type == self._PERCENT):
-                    if previous != 0:
-                        delta = abs((previous - current) / previous)
-                    elif current != 0:
-                        delta = abs((previous - current) / current)
-                    else:
-                    # both are zero
-                        delta = 0.0
-                        if tolerance_type == self._PERCENT:
-                            delta *= 100.0
-                
-                if delta > tolerance:
-                    print("    FAIL: {0} : {1} > {2} [{3}]".format(
-                          name, delta, tolerance, tolerance_type), file=testlog)
-                    status.fail = _MINOR_FAILURE
-                elif self._debug:                                
-                    print("    PASS: {0} : {1} <= {2} [{3}]".format(
-                          name, delta, tolerance, tolerance_type), file=testlog)
+            for i in range(len(ascii_gold)):
+                gold_values = ascii_gold[i].split()
+                current_values = ascii_current[i].split() 
+                tol = self._tolerance[self._GENERIC]
+                tolerance_type = tol[self._TOL_TYPE]
+                tolerance = tol[self._TOL_VALUE]
+                            
+                for k in range(len(gold_values)):
+                    name = headers[k]
+    
+                    current = float(current_values[k])
+                    previous = float(gold_values[k])
+    
+                    if tolerance_type == self._ABSOLUTE:
+                        delta = abs(previous - current)
+                    elif (tolerance_type == self._RELATIVE or
+                        tolerance_type == self._PERCENT):
+                        if previous != 0:
+                            delta = abs((previous - current) / previous)
+                        elif current != 0:
+                            delta = abs((previous - current) / current)
+                        else:
+                        # both are zero
+                            delta = 0.0
+                            if tolerance_type == self._PERCENT:
+                                delta *= 100.0
+                    
+                    if delta > tolerance:
+                        print("    FAIL: {0} : {1} > {2} [{3}]".format(
+                              name, delta, tolerance, tolerance_type), file=testlog)
+                        status.fail = _MINOR_FAILURE
+                    elif self._debug:                                
+                        print("    PASS: {0} : {1} <= {2} [{3}]".format(
+                              name, delta, tolerance, tolerance_type), file=testlog)
 
 
     def update(self, status, testlog):
