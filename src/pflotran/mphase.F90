@@ -2073,6 +2073,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Material_module
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z
+  use Global_module
 
   implicit none
 
@@ -2122,6 +2123,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before MphaseUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
+  call GlobalUpdateState(realization)
 
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                PERMEABILITY_X,ZERO_INTEGER)
