@@ -3963,6 +3963,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   PetscErrorCode :: ierr
   PetscBool :: equilibrate_constraint
   PetscInt :: num_iterations
+  PetscBool :: update_auxvar
+
   type(global_auxvar_type), pointer :: global_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -4150,6 +4152,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
   endif
 #endif        
 
+        equilibrate_constraint = constraint_coupler%equilibrate_at_each_cell
+        update_auxvar = PETSC_TRUE
         if (option%iflowmode /= MPH_MODE .and. &
             option%iflowmode /= FLASH2_MODE) then
   !       Note: the  DIRICHLET_BC is not time dependent in this case (icall)    
@@ -4194,6 +4198,34 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                 endif
   !geh          enddo
             case(ZERO_GRADIENT_BC)
+              update_auxvar = PETSC_TRUE
+              if (patch%boundary_velocities(iphase,sum_connection) >= &
+                  0.d0) then
+                ! same as dirichlet above
+                xxbc(istartaq_loc:iendaq_loc) = &
+                  basis_molarity_p(1:reaction%naqcomp) / &
+                  global_auxvars_bc(sum_connection)%den_kg(iphase) * &
+                  1000.d0
+                if (reaction%ncoll > 0) then
+                  xxbc(istartcoll_loc:iendcoll_loc) = &
+                    basis_coll_conc_p(1:reaction%ncoll) / &
+                    global_auxvars_bc(sum_connection)%den_kg(iphase) * &
+                    1000.d0
+                endif
+              else
+                equilibrate_constraint = PETSC_FALSE
+                update_auxvar = PETSC_FALSE
+                ! same as zero_gradient below
+                xxbc(istartaq_loc:iendaq_loc) = xx_loc_p(istartaq:iendaq)
+                if (reaction%ncoll > 0) then
+                  xxbc(istartcoll_loc:iendcoll_loc) = &
+                    basis_coll_conc_p(1:reaction%ncoll) / &
+                    global_auxvars_bc(sum_connection)%den_kg(iphase) * &
+                    1000.d0
+                endif
+              endif
+
+#if 0
               xxbc(istartaq_loc:iendaq_loc) = xx_loc_p(istartaq:iendaq)
               if (reaction%ncoll > 0) then
                 xxbc(istartcoll_loc:iendcoll_loc) = &
@@ -4201,7 +4233,9 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                   global_auxvars_bc(sum_connection)%den_kg(iphase) * &
                   1000.d0
               endif
+#endif
           end select
+if (update_auxvar) then
           ! no need to update boundary fluid density since it is already set
           rt_auxvars_bc(sum_connection)%pri_molal = &
             xxbc(istartaq_loc:iendaq_loc)
@@ -4232,6 +4266,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                                global_auxvars_bc(sum_connection), &
                                patch%aux%Material%auxvars(ghosted_id), &
                                reaction,option)
+endif
         else
           equilibrate_constraint = PETSC_TRUE
         ! Chuan needs to fill this in.
