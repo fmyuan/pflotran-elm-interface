@@ -695,7 +695,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
         endif
       case(OBSERVATION_FLUX)
         coupler => CouplerGetPtrFromList(observation%linkage_name, &
-                                         patch%boundary_condition_list)
+                                         patch%boundary_condition_list,option)
         if (associated(coupler)) then
           observation%connection_set => coupler%connection_set
         else

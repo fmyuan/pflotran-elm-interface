@@ -335,6 +335,10 @@ subroutine SubsurfaceSimulationJumpStart(this)
 
   if (this%realization%debug%print_couplers) then
     call OutputPrintCouplers(this%realization,ZERO_INTEGER)
+    if (this%realization%discretization%itype == UNSTRUCTURED_GRID .and. &
+        this%realization%patch%grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+      call OutputPrintCouplersH5(this%realization,ZERO_INTEGER)
+    endif
   endif  
 
 end subroutine SubsurfaceSimulationJumpStart

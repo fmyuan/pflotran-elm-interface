@@ -487,7 +487,7 @@ end function CouplerGetNumConnectionsInList
 
 ! ************************************************************************** !
 
-function CouplerGetPtrFromList(coupler_name,coupler_list)
+function CouplerGetPtrFromList(coupler_name,coupler_list,option)
   ! 
   ! Returns a pointer to the coupler matching
   ! coupler_name
@@ -495,7 +495,7 @@ function CouplerGetPtrFromList(coupler_name,coupler_list)
   ! Author: Glenn Hammond
   ! Date: 11/01/07
   ! 
-
+  use Option_module
   use String_module
 
   implicit none
@@ -504,6 +504,7 @@ function CouplerGetPtrFromList(coupler_name,coupler_list)
   character(len=MAXWORDLENGTH) :: coupler_name
   PetscInt :: length
   type(coupler_list_type) :: coupler_list
+  type(option_type) :: option
 
   type(coupler_type), pointer :: coupler
     
@@ -520,6 +521,11 @@ function CouplerGetPtrFromList(coupler_name,coupler_list)
     endif
     coupler => coupler%next
   enddo
+
+  option%io_buffer = 'Coupler "' // trim(coupler_name) // &
+    '" not found in CouplerGetPtrFromList().  Please ensure that all &
+    &initial and boundary conditions and source/sinks are named.'
+  call PrintErrMsg(option)
   
 end function CouplerGetPtrFromList
 
