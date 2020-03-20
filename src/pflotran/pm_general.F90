@@ -30,7 +30,8 @@ module PM_General_class
     PetscReal :: damping_factor
     PetscInt :: general_newton_max_iter
   contains
-    procedure, public :: ReadSimulationBlock => PMGeneralRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMGeneralReadSimOptionsBlock
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual
@@ -161,9 +162,9 @@ end function PMGeneralCreate
 
 ! ************************************************************************** !
 
-subroutine PMGeneralRead(this,input)
+subroutine PMGeneralReadSimOptionsBlock(this,input)
   ! 
-  ! Sets up SNES solvers.
+  ! Read simulation options for GENERAL mode
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/04/15
@@ -207,8 +208,8 @@ subroutine PMGeneralRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
-                                               error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
@@ -431,7 +432,7 @@ subroutine PMGeneralRead(this,input)
     call PrintErrMsg(option)
   endif
 
-end subroutine PMGeneralRead
+end subroutine PMGeneralReadSimOptionsBlock
 
 ! ************************************************************************** !
 

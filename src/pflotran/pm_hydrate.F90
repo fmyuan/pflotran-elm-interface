@@ -32,7 +32,8 @@ module PM_Hydrate_class
     PetscReal :: damping_factor
     PetscInt :: hydrate_newton_max_iter
   contains
-    procedure, public :: ReadSimulationBlock => PMHydrateRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMHydrateReadSimOptionsBlock
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -406,7 +407,7 @@ subroutine PMHydrateAssignParameters(realization, pm)
 end subroutine PMHydrateAssignParameters
 
 ! ************************************************************************** !
-subroutine PMHydrateRead(this,input)
+subroutine PMHydrateReadSimOptionsBlock(this,input)
   ! 
   ! Sets up SNES solvers.
   ! 
@@ -452,8 +453,8 @@ subroutine PMHydrateRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
-                                               error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
@@ -710,7 +711,7 @@ subroutine PMHydrateRead(this,input)
   enddo  
   call InputPopBlock(input,option)
 
-end subroutine PMHydrateRead
+end subroutine PMHydrateReadSimOptionsBlock
 
 ! ************************************************************************** !
 

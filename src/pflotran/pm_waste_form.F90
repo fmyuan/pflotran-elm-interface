@@ -404,7 +404,7 @@ module PM_Waste_Form_class
   contains
     procedure, public :: SetRealization => PMWFSetRealization
     procedure, public :: Setup => PMWFSetup
-    procedure, public :: ReadPMBlock => PMWFRead
+    procedure, public :: ReadPMBlock => PMWFReadPMBlock
     procedure, public :: InitializeRun => PMWFInitializeRun
     procedure, public :: InitializeTimestep => PMWFInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWFFinalizeTimestep
@@ -903,7 +903,7 @@ end function PMWFCreate
 
 ! ************************************************************************** !
 
-subroutine PMWFRead(this,input)
+subroutine PMWFReadPMBlock(this,input)
   ! 
   ! Reads input file parameters associated with the waste form process model
   ! 
@@ -963,8 +963,6 @@ subroutine PMWFRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
-    if (found) cycle    
     
     select case(trim(word))
     !-------------------------------------
@@ -1114,7 +1112,7 @@ subroutine PMWFRead(this,input)
     cur_waste_form => cur_waste_form%next
   enddo
     
-end subroutine PMWFRead
+end subroutine PMWFReadPMBlock
 
 ! ************************************************************************** !
 

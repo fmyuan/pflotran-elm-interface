@@ -1068,7 +1068,7 @@ subroutine SubsurfaceReadFlowPM(input,option,pm)
                              trim(error_string)
           call PrintErrMsg(option)
         endif
-        call pm%ReadSimulationBlock(input)
+        call pm%ReadSimulationOptionsBlock(input)
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
@@ -1148,7 +1148,7 @@ subroutine SubsurfaceReadTransportPM(input,option,pm)
                              trim(error_string)
           call PrintErrMsg(option)
         endif
-        call pm%ReadSimulationBlock(input)
+        call pm%ReadSimulationOptionsBlock(input)
       case('GLOBAL_IMPLICIT')
         print_refactor_msg = PETSC_TRUE
         exit
@@ -1225,7 +1225,8 @@ subroutine SubsurfaceReadWasteFormPM(input,option,pm)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMBaseReadSelectCase(pm,input,word,found,error_string,option)
+    call PMBaseReadSimOptionsSelectCase(pm,input,word,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(word)
@@ -1297,7 +1298,8 @@ subroutine SubsurfaceReadUFDDecayPM(input,option,pm)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMBaseReadSelectCase(pm,input,word,found,error_string,option)
+    call PMBaseReadSimOptionsSelectCase(pm,input,word,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(word)

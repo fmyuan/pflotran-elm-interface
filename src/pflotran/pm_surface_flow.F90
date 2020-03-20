@@ -11,7 +11,8 @@ module PM_Surface_Flow_class
 
   type, public, extends(pm_surface_type) :: pm_surface_flow_type
   contains
-    procedure, public :: ReadSimulationBlock => PMSurfaceFlowRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMSurfaceFlowReadSimOptions
     procedure, public :: UpdateTimestep => PMSurfaceFlowUpdateTimestep
     procedure, public :: PreSolve => PMSurfaceFlowPreSolve
     procedure, public :: PostSolve => PMSurfaceFlowPostSolve
@@ -54,7 +55,7 @@ end function PMSurfaceFlowCreate
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceFlowRead(this,input)
+subroutine PMSurfaceFlowReadSimOptions(this,input)
   ! 
   ! Reads input file parameters associated with the Surface process model
   ! 
@@ -103,7 +104,7 @@ subroutine PMSurfaceFlowRead(this,input)
   enddo
   call InputPopBlock(input,option)
 
-end subroutine PMSurfaceFlowRead
+end subroutine PMSurfaceFlowReadSimOptions
 
 ! ************************************************************************** !
 

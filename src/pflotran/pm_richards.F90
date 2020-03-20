@@ -26,8 +26,9 @@ module PM_Richards_class
     PetscReal :: abs_update_inf_tol
     PetscReal :: rel_update_inf_tol
   contains
-    procedure, public :: ReadSimulationBlock => PMRichardsReadOptions
-    procedure, public :: ReadNewton => PMRichardsReadNewtonSelectCase
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMRichardsReadSimOptionsBlock
+    procedure, public :: ReadNewtonBlock => PMRichardsReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMRichardsInitializeTimestep
     procedure, public :: Residual => PMRichardsResidual
     procedure, public :: Jacobian => PMRichardsJacobian
@@ -104,7 +105,7 @@ end subroutine PMRichardsInit
 
 ! ************************************************************************** !
 
-subroutine PMRichardsReadOptions(this,input)
+subroutine PMRichardsReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Richards process model
   ! 
@@ -146,8 +147,8 @@ subroutine PMRichardsReadOptions(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,word,found, &
-                                               error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -164,7 +165,7 @@ subroutine PMRichardsReadOptions(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMRichardsReadOptions
+end subroutine PMRichardsReadSimOptionsBlock
 
 ! ************************************************************************** !
 

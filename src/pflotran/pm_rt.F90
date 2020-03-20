@@ -37,7 +37,7 @@ module PM_RT_class
     PetscBool :: operator_split
   contains
     procedure, public :: Setup => PMRTSetup
-    procedure, public :: ReadSimulationBlock => PMRTRead
+    procedure, public :: ReadSimulationOptionsBlock => PMRTReadSimOptionsBlock
     procedure, public :: SetRealization => PMRTSetRealization
     procedure, public :: InitializeRun => PMRTInitializeRun
     procedure, public :: FinalizeRun => PMRTFinalizeRun
@@ -140,7 +140,7 @@ end subroutine PMRTInit
 
 ! ************************************************************************** !
 
-subroutine PMRTRead(this,input)
+subroutine PMRTReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the reactive transport 
   ! process model
@@ -180,8 +180,8 @@ subroutine PMRTRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMBaseReadOptionsSelectCase(this,input,keyword,found, &
-                                     error_string,option)
+    call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(trim(keyword))
@@ -223,7 +223,7 @@ subroutine PMRTRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMRTRead
+end subroutine PMRTReadSimOptionsBlock
 
 ! ************************************************************************** !
 

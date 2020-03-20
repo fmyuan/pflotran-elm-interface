@@ -57,7 +57,8 @@ module PM_NWT_class
     type(pm_nwt_params_type), pointer :: params
   contains
     procedure, public :: Setup => PMNWTSetup 
-    procedure, public :: ReadSimulationBlock => PMNWTReadSimulationBlock
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMNWTReadSimOptionsBlock
     procedure, public :: SetRealization => PMNWTSetRealization 
     procedure, public :: InitializeRun => PMNWTInitializeRun  
     procedure, public :: FinalizeRun => PMNWTFinalizeRun
@@ -155,7 +156,7 @@ end function PMNWTCreate
 
 ! ************************************************************************** !
 
-subroutine PMNWTReadSimulationBlock(this,input)
+subroutine PMNWTReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the nuclear waste transport 
   ! process model in the SIMULATION block.
@@ -194,7 +195,8 @@ subroutine PMNWTReadSimulationBlock(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+    call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                        error_string,option)
     if (found) cycle
 
     select case(trim(keyword))
@@ -231,7 +233,7 @@ subroutine PMNWTReadSimulationBlock(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMNWTReadSimulationBlock
+end subroutine PMNWTReadSimOptionsBlock
 
 ! ************************************************************************** !
   

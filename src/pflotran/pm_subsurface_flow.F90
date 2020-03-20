@@ -45,7 +45,8 @@ module PM_Subsurface_Flow_class
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
-    procedure, public :: ReadTS => PMSubsurfaceFlowReadTSSelectCase
+    procedure, public :: ReadTSBlock => PMSubsurfaceFlowReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMSubsurfaceFlowReadNewtonSelectCase
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
     procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
@@ -81,7 +82,7 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
-            PMSubsurfaceFlowReadOptionsSelectCase, &
+            PMSubsurfFlowReadSimOptionsSC, &
             PMSubsurfaceFlowReadTSSelectCase, &
             PMSubsurfaceFlowReadNewtonSelectCase, &
             PMSubsurfaceFlowDestroy
@@ -130,8 +131,8 @@ end subroutine PMSubsurfaceFlowInit
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
-                                                 error_string,option)
+subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                         error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
   !       model
@@ -155,9 +156,11 @@ subroutine PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
   type(option_type) :: option
 
   found = PETSC_TRUE
-  call PMBaseReadOptionsSelectCase(this,input,keyword,found,error_string,option)
+  call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                      error_string,option)
   if (found) return
 
+  found = PETSC_TRUE
   select case(trim(keyword))
   
     case('MULTIPLE_CONTINUUM')
@@ -205,7 +208,7 @@ subroutine PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
   end select  
   
-end subroutine PMSubsurfaceFlowReadOptionsSelectCase
+end subroutine PMSubsurfFlowReadSimOptionsSC
 
 ! ************************************************************************** !
 
@@ -289,16 +292,17 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
   implicit none
   
   class(pm_subsurface_flow_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: error_string
-  type(option_type) :: option
+  type(option_type), pointer :: option
 
-!  found = PETSC_TRUE
+!  found = PETSC_FALSE
 !  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
 !  if (found) return
 
+  found = PETSC_TRUE
   select case(trim(keyword))
   
     case('PRESSURE_DAMPENING_FACTOR')

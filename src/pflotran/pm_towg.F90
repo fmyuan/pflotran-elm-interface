@@ -31,7 +31,7 @@ module PM_TOWG_class
     !procedure(TOWGMaxChangeDummy), pointer :: MaxChange => null()
     !procedure(MaxChange), pointer :: MaxChange => null()
   contains
-    procedure, public :: ReadSimulationBlock => PMTOWGRead
+    procedure, public :: ReadSimulationOptionsBlock => PMTOWGReadSimOptionsBlock
     procedure, public :: InitializeRun => PMTOWGInitializeRun
     procedure, public :: InitializeTimestep => PMTOWGInitializeTimestep
     procedure, public :: Residual => PMTOWGResidual
@@ -171,7 +171,7 @@ end function PMTOWGCreate
 
 ! ************************************************************************** !
 
-subroutine PMTOWGRead(this,input)
+subroutine PMTOWGReadSimOptionsBlock(this,input)
   ! 
   ! Read TOWG options and set up miscibility, and functions to be use in 
   ! the Residual and Jacobian 
@@ -215,8 +215,8 @@ subroutine PMTOWGRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
-                                               error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
@@ -317,7 +317,7 @@ subroutine PMTOWGRead(this,input)
   !    call PrintErrMsg(option)
   !end select
 
-end subroutine PMTOWGRead
+end subroutine PMTOWGReadSimOptionsBlock
 
 ! ************************************************************************** !
 

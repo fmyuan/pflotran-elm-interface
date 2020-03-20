@@ -212,7 +212,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
 
     select case(trim(keyword))
       case ('TIMESTEPPER')
-        error_string = trim(error_string) // 'TIMESTEPPER'
+        error_string = trim(error_string) // ',TIMESTEPPER'
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -225,11 +225,12 @@ subroutine PMCBaseReadNumericalMethods(this,input)
           call this%timestepper%ReadSelectCase(input,keyword,found, &
                                                error_string,option)
           found2 = PETSC_TRUE
-          call this%pm_list%ReadTS(input,keyword,found2,error_string,option)
+          call this%pm_list%ReadTSBLock(input,keyword,found2, &
+                                        error_string,option)
           if (found .and. found2) then
             option%io_buffer = 'Keyword "' // trim(keyword) // '" is &
               &defined more than once for process model "' // &
-              trim(this%pm_list%name) // '" under' // trim(error_string) // '.'
+              trim(this%pm_list%name) // '" under ' // trim(error_string) // '.'
             call PrintErrMsgToDev(option,'send your input deck.')
           elseif (.not.(found .or. found2)) then 
             call InputKeywordUnrecognized(input,keyword,error_string,option)
@@ -238,7 +239,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
         this%timestepper%solver%print_ekg = this%timestepper%print_ekg
         call InputPopBlock(input,option)
       case ('NEWTON_SOLVER')
-        error_string = trim(error_string) // 'NEWTON_SOLVER'
+        error_string = trim(error_string) // ',NEWTON_SOLVER'
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -251,11 +252,12 @@ subroutine PMCBaseReadNumericalMethods(this,input)
           call SolverReadNewtonSelectCase(this%timestepper%solver,input, &
                                           keyword,found,error_string,option)
           found2 = PETSC_TRUE
-          call this%pm_list%ReadNewton(input,keyword,found2,error_string,option)
+          call this%pm_list%ReadNewtonBlock(input,keyword,found2, &
+                                            error_string,option)
           if (found .and. found2) then
             option%io_buffer = 'Keyword "' // trim(keyword) // '" is &
               &defined more than once for process model "' // &
-              trim(this%pm_list%name) // '" under' // trim(error_string) // '.'
+              trim(this%pm_list%name) // '" under ' // trim(error_string) // '.'
             call PrintErrMsgToDev(option,'send your input deck.')
           elseif (.not.(found .or. found2)) then 
             call InputKeywordUnrecognized(input,keyword,error_string,option)

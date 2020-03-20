@@ -33,8 +33,8 @@ module PM_TH_class
     PetscReal :: rel_update_inf_tol(2)
   contains
     procedure, public :: Setup => PMTHSetup
-    procedure, public :: ReadSimulationBlock => PMTHReadOptions
-    procedure, public :: ReadNewton => PMTHReadNewtonSelectCase
+    procedure, public :: ReadSimulationOptionsBlock => PMTHReadSimOptionsBlock
+    procedure, public :: ReadNewtonBlock => PMTHReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMTHInitializeTimestep
     procedure, public :: Residual => PMTHResidual
     procedure, public :: Jacobian => PMTHJacobian
@@ -109,7 +109,7 @@ end function PMTHCreate
 
 ! ************************************************************************** !
 
-subroutine PMTHReadOptions(this,input)
+subroutine PMTHReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the TH process model
   ! 
@@ -151,8 +151,8 @@ subroutine PMTHReadOptions(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,word,found, &
-                                               error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -190,7 +190,7 @@ subroutine PMTHReadOptions(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMTHReadOptions
+end subroutine PMTHReadSimOptionsBlock
 
 ! ************************************************************************** !
 

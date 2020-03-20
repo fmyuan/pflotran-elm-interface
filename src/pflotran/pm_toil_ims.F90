@@ -16,7 +16,8 @@ module PM_TOilIms_class
     PetscInt, pointer :: max_change_isubvar(:)
   contains
     ! all the routines below needs to be replaced, uncomment as I develop them
-    procedure, public :: ReadSimulationBlock => PMTOilImsRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMTOilImsReadSimOptionsBlock
     procedure, public :: InitializeRun => PMTOilImsInitializeRun
     procedure, public :: InitializeTimestep => PMTOilImsInitializeTimestep
     procedure, public :: Residual => PMTOilImsResidual
@@ -79,7 +80,7 @@ end function PMTOilImsCreate
 
 ! ************************************************************************** !
 
-subroutine PMTOilImsRead(this,input)
+subroutine PMTOilImsReadSimOptionsBlock(this,input)
   ! 
   ! Reads input specific to pm_toil_Ims.
   ! 
@@ -121,8 +122,8 @@ subroutine PMTOilImsRead(this,input)
     call StringToUpper(keyword)   
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
-                                               error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
           
     select case(trim(keyword))
@@ -192,7 +193,7 @@ subroutine PMTOilImsRead(this,input)
   enddo  
   call InputPopBlock(input,option)
   
-end subroutine PMTOilImsRead
+end subroutine PMTOilImsReadSimOptionsBlock
 
 ! ************************************************************************** !
 

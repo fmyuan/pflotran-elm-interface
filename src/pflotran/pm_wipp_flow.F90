@@ -76,7 +76,8 @@ module PM_WIPP_Flow_class
     PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
  
   contains
-    procedure, public :: ReadSimulationBlock => PMWIPPFloRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMWIPPFloReadSimOptionsBlock
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
     procedure, public :: InitializeTimestep => PMWIPPFloInitializeTimestep
     procedure, public :: Residual => PMWIPPFloResidual
@@ -202,9 +203,9 @@ end subroutine PMWIPPFloInitObject
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloRead(this,input)
+subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   ! 
-  ! Read WIPP FLOW input block
+  ! Read WIPP FLOW options input block
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -251,8 +252,8 @@ subroutine PMWIPPFloRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
-                                               error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(keyword))
@@ -531,7 +532,7 @@ subroutine PMWIPPFloRead(this,input)
   this%neg_log10_rel_gas_sat_change_ni = &
     -1.d0*log10(this%max_allow_rel_gas_sat_change_ni)
    
-end subroutine PMWIPPFloRead
+end subroutine PMWIPPFloReadSimOptionsBlock
 
 ! ************************************************************************** !
 
