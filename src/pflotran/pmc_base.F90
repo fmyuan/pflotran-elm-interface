@@ -41,6 +41,7 @@ module PMC_Base_class
     procedure(Output), nopass, pointer :: Output
   contains
     procedure, public :: Init => PMCBaseInit
+    procedure, public :: ReadNumericalMethods => PMCBaseReadNumericalMethods
     procedure, public :: InitializeRun
     procedure, public :: SetWaypointPtr => PMCBaseSetWaypointPtr
     procedure, public :: InputRecord => PMCBaseInputRecord
@@ -166,6 +167,110 @@ subroutine PMCBaseInit(this)
   nullify(this%pm_ptr%pm)
   
 end subroutine PMCBaseInit
+
+! ************************************************************************** !
+
+subroutine PMCBaseReadNumericalMethods(this,input)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/09/20
+  ! 
+  use Input_Aux_module
+  use Solver_module
+  use String_module
+
+  implicit none
+  
+  class(pmc_base_type) :: this
+  type(input_type), pointer :: input
+
+  type(option_type), pointer :: option
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found, found2
+
+  option => this%option
+
+  if (.not.associated(this%timestepper)) then
+    option%io_buffer = 'No time integrator is used with process model "' // &
+      trim(this%pm_list%name) // '". Therefore, a NUMERICAL_METHODS card &
+      &may not be used.'
+  endif
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    error_string = 'SUBSURFACE,NUMERICAL_METHODS'
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    select case(trim(keyword))
+      case ('TIMESTEPPER')
+        error_string = trim(error_string) // 'TIMESTEPPER'
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadCard(input,option,keyword)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+
+          found = PETSC_TRUE
+          call this%timestepper%ReadSelectCase(input,keyword,found, &
+                                               error_string,option)
+          found2 = PETSC_TRUE
+          call this%pm_list%ReadTS(input,keyword,found2,error_string,option)
+          if (found .and. found2) then
+            option%io_buffer = 'Keyword "' // trim(keyword) // '" is &
+              &defined more than once for process model "' // &
+              trim(this%pm_list%name) // '" under' // trim(error_string) // '.'
+            call PrintErrMsgToDev(option,'send your input deck.')
+          elseif (.not.(found .or. found2)) then 
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+          endif
+        enddo
+        this%timestepper%solver%print_ekg = this%timestepper%print_ekg
+        call InputPopBlock(input,option)
+      case ('NEWTON_SOLVER')
+        error_string = trim(error_string) // 'NEWTON_SOLVER'
+        call InputPushBlock(input,option)
+        do
+          call InputReadPflotranString(input,option)
+          if (InputCheckExit(input,option)) exit
+          call InputReadCard(input,option,keyword)
+          call InputErrorMsg(input,option,'keyword',error_string)
+          call StringToUpper(keyword)
+
+          found = PETSC_TRUE
+          call SolverReadNewtonSelectCase(this%timestepper%solver,input, &
+                                          keyword,found,error_string,option)
+          found2 = PETSC_TRUE
+          call this%pm_list%ReadNewton(input,keyword,found2,error_string,option)
+          if (found .and. found2) then
+            option%io_buffer = 'Keyword "' // trim(keyword) // '" is &
+              &defined more than once for process model "' // &
+              trim(this%pm_list%name) // '" under' // trim(error_string) // '.'
+            call PrintErrMsgToDev(option,'send your input deck.')
+          elseif (.not.(found .or. found2)) then 
+            call InputKeywordUnrecognized(input,keyword,error_string,option)
+          endif
+        enddo
+        call InputPopBlock(input,option)
+      case ('LINEAR_SOLVER')
+        call SolverReadLinear(this%timestepper%solver,input,option)
+      case default
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+  enddo
+  call InputPopBlock(input,option)
+
+end subroutine PMCBaseReadNumericalMethods
 
 ! ************************************************************************** !
 

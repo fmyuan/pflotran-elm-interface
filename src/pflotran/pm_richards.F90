@@ -26,7 +26,8 @@ module PM_Richards_class
     PetscReal :: abs_update_inf_tol
     PetscReal :: rel_update_inf_tol
   contains
-    procedure, public :: ReadSimulationBlock => PMRichardsRead
+    procedure, public :: ReadSimulationBlock => PMRichardsReadOptions
+    procedure, public :: ReadNewton => PMRichardsReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMRichardsInitializeTimestep
     procedure, public :: Residual => PMRichardsResidual
     procedure, public :: Jacobian => PMRichardsJacobian
@@ -103,12 +104,13 @@ end subroutine PMRichardsInit
 
 ! ************************************************************************** !
 
-subroutine PMRichardsRead(this,input)
+subroutine PMRichardsReadOptions(this,input)
   ! 
   ! Reads input file parameters associated with the Richards process model
   ! 
   ! Author: Glenn Hammond
-  ! Date: 01/29/15
+  ! Date: 03/16/20
+
   use Input_Aux_module
   use String_module
   use Utility_module
@@ -124,7 +126,6 @@ subroutine PMRichardsRead(this,input)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
-  PetscReal :: Mannings_coeff
   PetscBool :: found
   PetscReal :: tempreal
 
@@ -145,66 +146,104 @@ subroutine PMRichardsRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,word,found, &
+                                               error_string,option)
     if (found) cycle
     
     select case(trim(word))
-
-      ! Tolerances
-
-      ! All Residual
-      case('RESIDUAL_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol = tempreal
-        this%residual_scaled_inf_tol = tempreal
-
-      ! Absolute Residual
-      case('RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol = tempreal
-
-      ! Scaled Residual
-      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_scaled_inf_tol = tempreal
-
-      ! All Updates
-      case('UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol = tempreal
-        this%rel_update_inf_tol = tempreal
-
-      ! Absolute Updates
-      case('ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol = tempreal
-
-      ! Relative Updates
-      case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol = tempreal
-
       case('INLINE_SURFACE_REGION')
         option%inline_surface_flow = PETSC_TRUE
         call InputReadWord(input,option,word,PETSC_FALSE)
         option%inline_surface_region_name = word
       case('INLINE_SURFACE_MANNINGS_COEFF')
-        call InputReadDouble(input,option,Mannings_coeff)
-        option%inline_surface_Mannings_coeff = Mannings_coeff
+        call InputReadDouble(input,option,tempreal)
+        option%inline_surface_Mannings_coeff = tempreal
       case default
         call InputKeywordUnrecognized(input,word,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMRichardsRead
+end subroutine PMRichardsReadOptions
+
+! ************************************************************************** !
+
+subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
+                                          error_string,option)
+  ! 
+  ! Reads input file parameters associated with the Richards process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use EOS_Water_module  
+  use Option_module
+  use Richards_Aux_module
+ 
+  implicit none
+  
+  class(pm_richards_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+
+  option => this%option
+  
+  error_string = 'Richards Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+! Tolerances
+    ! All Residual
+    case('RESIDUAL_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol = tempreal
+      this%residual_scaled_inf_tol = tempreal
+    ! Absolute Residual
+    case('RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol = tempreal
+    ! Scaled Residual
+    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_scaled_inf_tol = tempreal
+    ! All Updates
+    case('UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol = tempreal
+      this%rel_update_inf_tol = tempreal
+    ! Absolute Updates
+    case('ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol = tempreal
+    ! Relative Updates
+    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol = tempreal
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMRichardsReadNewtonSelectCase
 
 ! ************************************************************************** !
 

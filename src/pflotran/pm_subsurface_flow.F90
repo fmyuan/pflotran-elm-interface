@@ -45,6 +45,7 @@ module PM_Subsurface_Flow_class
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
+    procedure, public :: ReadTS => PMSubsurfaceFlowReadTSSelectCase
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
     procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
@@ -80,7 +81,9 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
-            PMSubsurfaceFlowReadSelectCase, &
+            PMSubsurfaceFlowReadOptionsSelectCase, &
+            PMSubsurfaceFlowReadTSSelectCase, &
+            PMSubsurfaceFlowReadNewtonSelectCase, &
             PMSubsurfaceFlowDestroy
   
 contains
@@ -127,8 +130,8 @@ end subroutine PMSubsurfaceFlowInit
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                          error_string,option)
+subroutine PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
+                                                 error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
   !       model
@@ -151,8 +154,87 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
-  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+  found = PETSC_TRUE
+  call PMBaseReadOptionsSelectCase(this,input,keyword,found,error_string,option)
   if (found) return
+
+  select case(trim(keyword))
+  
+    case('MULTIPLE_CONTINUUM')
+      option%use_mc = PETSC_TRUE
+
+!geh: this is an orphan keyword
+    case('RESERVOIR_DEFAULTS')
+      option%flow%resdef = PETSC_TRUE
+      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
+        &process model options'
+      call PrintMsg(option)
+
+      option%flow%numerical_derivatives = PETSC_FALSE
+      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has &
+        &been automatically selected (RESERVOIR_DEFAULTS)'
+      call PrintMsg(option)
+
+      this%pressure_change_governor=5.5d6
+      call InputDefaultMsg(input,option,'dpmxe')
+      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
+        &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
+      call PrintMsg(option)
+
+    case('FIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_TRUE
+    case('UNFIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_FALSE
+    case('COUNT_UPWIND_DIRECTION_FLIP')
+      count_upwind_direction_flip = PETSC_TRUE
+    case('UPWIND_DIR_UPDATE_FREQUENCY')
+      call InputReadInt(input,option,upwind_dir_update_freq)
+      call InputErrorMsg(input,option,keyword,error_string)
+      
+    case('LOGGING_VERBOSITY')
+      call InputReadInt(input,option,this%logging_verbosity)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('REVERT_PARAMETERS_ON_RESTART')
+      this%revert_parameters_on_restart = PETSC_TRUE
+
+    case('REPLACE_INIT_PARAMS_ON_RESTART')
+      this%replace_init_params_on_restart = PETSC_TRUE
+
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMSubsurfaceFlowReadOptionsSelectCase
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  ! 
+  ! Read timestepper settings specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use AuxVars_Flow_module
+  use Upwind_Direction_module
+ 
+  implicit none
+  
+  class(pm_subsurface_flow_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
 
   found = PETSC_TRUE
   select case(trim(keyword))
@@ -178,6 +260,47 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,this%saturation_change_governor)
       call InputDefaultMsg(input,option,'dsmxe')
 
+    case('MAX_CFL')
+      call InputReadDouble(input,option,this%cfl_governor)
+      call InputErrorMsg(input,option,'MAX_CFL',error_string)
+
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMSubsurfaceFlowReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                                error_string,option)
+  ! 
+  ! Read Newton solver tolerances specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/09/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use AuxVars_Flow_module
+  use Upwind_Direction_module
+ 
+  implicit none
+  
+  class(pm_subsurface_flow_type) :: this
+  type(input_type) :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+!  found = PETSC_TRUE
+!  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+
+  select case(trim(keyword))
+  
     case('PRESSURE_DAMPENING_FACTOR')
       call InputReadDouble(input,option,this%pressure_dampening_factor)
       call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
@@ -198,13 +321,6 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
                          error_string)
 
-    case('MAX_CFL')
-      call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL',error_string)
-
-    case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
-
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
       if (option%flow%resdef) then
@@ -216,28 +332,15 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
 
-    case('RESERVOIR_DEFAULTS')
-      option%flow%resdef = PETSC_TRUE
-      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
-        &process model options'
-      call PrintMsg(option)
-
-      option%flow%numerical_derivatives = PETSC_FALSE
-      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has &
-        &been automatically selected (RESERVOIR_DEFAULTS)'
-      call PrintMsg(option)
-
-      this%pressure_change_governor=5.5d6
-      call InputDefaultMsg(input,option,'dpmxe')
-      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
-        &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
-      call PrintMsg(option)
-
     case('ANALYTICAL_DERIVATIVES')
       option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
         &Please use ANALYTICAL_JACOBIAN instead.'
       call PrintErrMsg(option)
 
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+! begin specific to OpenGoSim PMs
     case('ANALYTICAL_JACOBIAN_COMPARE')
       option%flow%numerical_derivatives_compare = PETSC_TRUE
 
@@ -245,23 +348,6 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
     ! in future testing/implementation phases.
     case('NUMERICAL_AS_ALYT')
       option%flow%num_as_alyt_derivs = PETSC_TRUE
-
-    case('FIX_UPWIND_DIRECTION')
-      fix_upwind_direction = PETSC_TRUE
-    case('UNFIX_UPWIND_DIRECTION')
-      fix_upwind_direction = PETSC_FALSE
-    case('COUNT_UPWIND_DIRECTION_FLIP')
-      count_upwind_direction_flip = PETSC_TRUE
-    case('UPWIND_DIR_UPDATE_FREQUENCY')
-      call InputReadInt(input,option,upwind_dir_update_freq)
-      call InputErrorMsg(input,option,keyword,error_string)
-      
-    case('USE_INFINITY_NORM_CONVERGENCE')
-      this%check_post_convergence = PETSC_TRUE
-
-    case('LOGGING_VERBOSITY')
-      call InputReadInt(input,option,this%logging_verbosity)
-      call InputErrorMsg(input,option,keyword,error_string)
 
     case('DEBUG_TOL')
       call InputReadDouble(input,option,flow_aux_debug_tol)
@@ -272,18 +358,13 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
 
     case('GEOMETRIC_PENALTY')
       flow_aux_use_GP= PETSC_TRUE
-
-    case('REVERT_PARAMETERS_ON_RESTART')
-      this%revert_parameters_on_restart = PETSC_TRUE
-
-    case('REPLACE_INIT_PARAMS_ON_RESTART')
-      this%replace_init_params_on_restart = PETSC_TRUE
+! end specific to OpenGoSim PMs
 
     case default
       found = PETSC_FALSE
   end select  
   
-end subroutine PMSubsurfaceFlowReadSelectCase
+end subroutine PMSubsurfaceFlowReadNewtonSelectCase
 
 ! ************************************************************************** !
 

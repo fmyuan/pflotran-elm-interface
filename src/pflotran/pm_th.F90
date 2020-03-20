@@ -33,7 +33,8 @@ module PM_TH_class
     PetscReal :: rel_update_inf_tol(2)
   contains
     procedure, public :: Setup => PMTHSetup
-    procedure, public :: ReadSimulationBlock => PMTHRead
+    procedure, public :: ReadSimulationBlock => PMTHReadOptions
+    procedure, public :: ReadNewton => PMTHReadNewtonSelectCase
     procedure, public :: InitializeTimestep => PMTHInitializeTimestep
     procedure, public :: Residual => PMTHResidual
     procedure, public :: Jacobian => PMTHJacobian
@@ -108,12 +109,13 @@ end function PMTHCreate
 
 ! ************************************************************************** !
 
-subroutine PMTHRead(this,input)
+subroutine PMTHReadOptions(this,input)
   ! 
   ! Reads input file parameters associated with the TH process model
   ! 
   ! Author: Glenn Hammond
   ! Date: 01/29/15
+
   use Input_Aux_module
   use String_module
   use Utility_module
@@ -130,14 +132,10 @@ subroutine PMTHRead(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
-  PetscInt :: lid, eid
   PetscReal :: tempreal
 
   option => this%option
 
-  lid = option%liquid_phase
-  eid = option%energy_id
-  
   error_string = 'TH Options'
   
   input%ierr = 0
@@ -153,80 +151,11 @@ subroutine PMTHRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,word,found, &
+                                               error_string,option)
     if (found) cycle
     
     select case(trim(word))
-
-      ! Tolerances
-
-      ! All Residual
-      case('RESIDUAL_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol(:) = tempreal
-        this%residual_scaled_inf_tol(:) = tempreal
-
-      ! Absolute Residual
-      case('RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_abs_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
-        call InputErrorMsg(input,option,word,error_string)
-      case('ENERGY_RESIDUAL_ABS_INF_TOL')
-        call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
-        call InputErrorMsg(input,option,word,error_string)
-
-      ! Scaled Residual
-      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%residual_scaled_inf_tol(:) = tempreal
-      case('LIQUID_RESIDUAL_SCALED_INF_TOL')
-        call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
-        call InputErrorMsg(input,option,word,error_string)
-      case('ENERGY_RESIDUAL_SCALED_INF_TOL')
-        call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
-        call InputErrorMsg(input,option,word,error_string)
-
-      ! All Updates
-      case('UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(:) = tempreal
-        this%rel_update_inf_tol(:) = tempreal
-
-      ! Absolute Updates
-      case('ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(:) = tempreal
-      case('PRES_ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(1) = tempreal
-      case('TEMP_ABS_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%abs_update_inf_tol(2) = tempreal
-
-      ! Relative Updates
-      case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(:) = tempreal
-      case('PRES_REL_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(1) = tempreal
-      case('TEMP_REL_UPDATE_INF_TOL')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,word,error_string)
-        this%rel_update_inf_tol(2) = tempreal
-
       case('FREEZING')
         th_use_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
@@ -261,7 +190,125 @@ subroutine PMTHRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMTHRead
+end subroutine PMTHReadOptions
+
+! ************************************************************************** !
+
+subroutine PMTHReadNewtonSelectCase(this,input,keyword,found, &
+                                    error_string,option)
+  ! 
+  ! Reads input file parameters associated with the TH process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use TH_Aux_module
+ 
+  implicit none
+  
+  class(pm_th_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+  PetscInt :: lid, eid
+
+  option => this%option
+
+  lid = option%liquid_phase
+  eid = option%energy_id
+  
+  error_string = 'TH Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+
+    ! Tolerances
+
+    ! All Residual
+    case('RESIDUAL_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol(:) = tempreal
+      this%residual_scaled_inf_tol(:) = tempreal
+
+    ! Absolute Residual
+    case('RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol(:) = tempreal
+    case('LIQUID_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    ! Scaled Residual
+    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_scaled_inf_tol(:) = tempreal
+    case('LIQUID_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    ! All Updates
+    case('UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(:) = tempreal
+      this%rel_update_inf_tol(:) = tempreal
+
+    ! Absolute Updates
+    case('ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(:) = tempreal
+    case('PRES_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(1) = tempreal
+    case('TEMP_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(2) = tempreal
+
+    ! Relative Updates
+    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(:) = tempreal
+    case('PRES_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(1) = tempreal
+    case('TEMP_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(2) = tempreal
+
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMTHReadNewtonSelectCase
 
 ! ************************************************************************** !
 

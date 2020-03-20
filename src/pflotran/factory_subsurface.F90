@@ -2819,6 +2819,36 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
 
+      case ('NUMERICAL_METHODS')
+        call InputReadCard(input,option,word,PETSC_FALSE)
+        call StringToUpper(word)
+        select case(word)
+          case('FLOW')
+            if (associated(simulation%flow_process_model_coupler)) then
+              call simulation%flow_process_model_coupler% &
+                     ReadNumericalMethods(input)
+            else
+              option%io_buffer = 'A SUBSURFACE_FLOW process model must &
+                &be defined to read NUMERICAL_METHODS for FLOW.'
+              call PrintErrMsg(option)
+            endif
+          case('TRAN','TRANSPORT')
+            if (associated(simulation%tran_process_model_coupler)) then
+              call simulation%tran_process_model_coupler% &
+                     ReadNumericalMethods(input)
+            else
+              option%io_buffer = 'A SUBSURFACE_TRANSPORT process model must &
+                &be defined to read NUMERICAL_METHODS for TRANSPORT.'
+              call PrintErrMsg(option)
+            endif
+          case default
+            option%io_buffer = 'NUMERICAL_METHODS must specify FLOW or &
+                               &TRANSPORT.'
+            call PrintErrMsg(option)
+        end select
+
+!....................
+
       case ('TIMESTEPPER')
         call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)

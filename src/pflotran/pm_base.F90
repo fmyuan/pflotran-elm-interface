@@ -29,6 +29,8 @@ module PM_Base_class
   contains
     procedure, public :: Setup => PMBaseSetup
     procedure, public :: ReadSimulationBlock => PMBaseRead
+    procedure, public :: ReadNewton => PMBaseReadSelectCase
+    procedure, public :: ReadTS => PMBaseReadSelectCase
     procedure, public :: ReadPMBlock => PMBaseRead
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
@@ -68,6 +70,7 @@ module PM_Base_class
   public :: PMBaseInit, &
             PMBaseInputRecord, &
             PMBaseReadSelectCase, &
+            PMBaseReadOptionsSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
             PMBaseJacobian, &
@@ -105,13 +108,31 @@ subroutine PMBaseRead(this,input)
   implicit none
   class(pm_base_type) :: this
   type(input_type), pointer :: input
-  print *, 'Must extend PMBaseRead for: ' // trim(this%name)
+  print *, 'A member routine PMBaseRead must extend for: ' // trim(this%name)
   stop
 end subroutine PMBaseRead
 
 ! ************************************************************************** !
 
-subroutine PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+subroutine PMBaseReadSelectCase(this,input,keyword,found, &
+                                error_string,option)
+  use Input_Aux_module
+  implicit none
+  class(pm_base_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+  print *, 'A member routine PMBaseReadSelectCase must extend for: ' // &
+           trim(this%name)
+  stop
+end subroutine PMBaseReadSelectCase
+
+! ************************************************************************** !
+
+subroutine PMBaseReadOptionsSelectCase(this,input,keyword,found, &
+                                       error_string,option)
 
   use Input_Aux_module
 
@@ -132,7 +153,7 @@ subroutine PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
       found = PETSC_FALSE
   end select
 
-end subroutine PMBaseReadSelectCase
+end subroutine PMBaseReadOptionsSelectCase
 
 ! ************************************************************************** !
 

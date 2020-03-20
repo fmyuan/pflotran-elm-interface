@@ -67,6 +67,7 @@ module Timestepper_Base_class
   contains
     
     procedure, public :: ReadInput => TimestepperBaseRead
+    procedure, public :: ReadSelectCase => TimestepperBaseReadSelectCase
     procedure, public :: Init => TimestepperBaseInit
     procedure, public :: SetWaypointPtr => TimestepperBaseSetWaypointPtr
     procedure, public :: InitializeRun => TimestepperBaseInitializeRun
@@ -99,7 +100,7 @@ module Timestepper_Base_class
   end type stepper_base_header_type
   
   public :: TimestepperBaseCreate, &
-            TimestepperBaseProcessKeyword, &
+            TimestepperBaseReadSelectCase, &
             TimestepperBaseStrip, &
             TimestepperBaseInit, &
             TimestepperBaseSetHeader, &
@@ -187,6 +188,182 @@ subroutine TimestepperBaseInit(this)
   this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseRead(this,input,option)
+  ! 
+  ! Reads parameters associated with time stepper
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
+  ! 
+  use Option_module
+  use String_module
+  use Input_Aux_module
+
+  implicit none
+
+  class(timestepper_base_type) :: this
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  PetscBool :: found
+
+  error_string = 'SUBSURFACE,TIMESTEPPER'
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    found = PETSC_TRUE
+    call this%ReadSelectCase(input,keyword,found,error_string,option)
+    if (.not.found) then
+      call InputKeywordUnrecognized(input,keyword,error_string,option)
+    endif
+  
+  enddo
+  call InputPopBlock(input,option)
+
+  this%solver%print_ekg = this%print_ekg
+
+end subroutine TimestepperBaseRead
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
+                                         error_string,option)
+  ! 
+  ! Updates time step
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/20/13
+  ! 
+
+  use Option_module
+  use String_module
+  use Input_Aux_module
+  use Units_module
+  
+  implicit none
+  
+  class(timestepper_base_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
+
+  type(waypoint_type), pointer :: waypoint
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH), parameter :: internal_units = 'sec'
+
+  select case(trim(keyword))
+
+    case('NUM_STEPS_AFTER_TS_CUT')
+      call InputReadInt(input,option,this%constant_time_step_threshold)
+      call InputErrorMsg(input,option,'num_constant_time_steps_after_ts_cut', &
+                         error_string)
+    case('MAX_STEPS','MAXIMUM_NUMBER_OF_TIMESTEPS')
+      call InputReadInt(input,option,this%max_time_step)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_TS_CUTS','MAXIMUM_CONSECUTIVE_TS_CUTS')
+      call InputReadInt(input,option,this%max_time_step_cuts)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_NUM_CONTIGUOUS_REVERTS')
+      call InputReadInt(input,option,this%max_num_contig_revert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('INITIAL_TIMESTEP_SIZE')
+      call InputReadDouble(input,option,this%dt_init)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
+      this%dt_init = this%dt_init* &
+                     UnitsConvertToInternal(word,internal_units,option)
+    case('MINIMUM_TIMESTEP_SIZE')
+      call InputReadDouble(input,option,this%dt_min)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
+      this%dt_min = this%dt_min* &
+                    UnitsConvertToInternal(word,internal_units,option)
+    case('TIMESTEP_REDUCTION_FACTOR')
+      call InputReadDouble(input,option,this%time_step_reduction_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('TIMESTEP_MAXIMUM_GROWTH_FACTOR')
+      call InputReadDouble(input,option,this%time_step_max_growth_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('TIMESTEP_OVERSTEP_REL_TOLERANCE')
+      call InputReadDouble(input,option,this%time_step_tolerance)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('INITIALIZE_TO_STEADY_STATE')
+      option%io_buffer = 'INITIALIZE_TO_STEADY_STATE capability has been &
+                         &disabled.'
+      call PrintErrMsg(option)
+      this%init_to_steady_state = PETSC_TRUE
+      call InputReadDouble(input,option,this%steady_state_rel_tol)
+      call InputErrorMsg(input,option,'steady state convergence relative &
+                         &tolerance',error_string)
+    case('RUN_AS_STEADY_STATE')
+      option%io_buffer = 'RUN_AS_STEADY_STATE capability has been disabled.'
+      call PrintErrMsg(option)
+      this%run_as_steady_state = PETSC_TRUE
+    case('PRINT_EKG')
+      this%print_ekg = PETSC_TRUE
+      option%print_ekg = PETSC_TRUE
+    case('MAXIMUM_TIMESTEP_SIZE')
+      waypoint => WaypointCreate()
+      call InputReadDouble(input,option,waypoint%dt_max)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
+      waypoint%dt_max = waypoint%dt_max* &
+                        UnitsConvertToInternal(word,internal_units,option)
+      call InputReadCard(input,option,word)
+      if (input%ierr == 0) then
+        call StringToUpper(word)
+        if (StringCompare(word,'AT',TWO_INTEGER)) then
+          call InputReadDouble(input,option,waypoint%time)
+          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time', &
+                             error_string)
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time Units', &
+                             error_string)
+          waypoint%time = waypoint%time* &
+                          UnitsConvertToInternal(word,internal_units,option)
+        else
+          option%io_buffer = 'Keyword under "MAXIMUM_TIMESTEP_SIZE" &
+                             &after maximum timestep size should &
+                             &be "AT".'
+          call PrintErrMsg(option)
+        endif
+      else
+        waypoint%time = 0.d0
+      endif
+      if (.not.associated(this%local_waypoint_list)) then
+        this%local_waypoint_list => WaypointListCreate()
+      endif
+      call WaypointInsertInList(waypoint,this%local_waypoint_list)
+    case('SATURATION_CHANGE_LIMIT', &
+         'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
+      option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
+        &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
+      call PrintErrMsg(option)
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine TimestepperBaseReadSelectCase
 
 ! ************************************************************************** !
 
@@ -282,158 +459,6 @@ subroutine TimestepperBaseInitializeRun(this,option)
   endif
 
 end subroutine TimestepperBaseInitializeRun
-
-! ************************************************************************** !
-
-subroutine TimestepperBaseRead(this,input,option)
-  ! 
-  ! Reads parameters associated with time stepper
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 02/23/08
-  ! 
-
-  use Option_module
-  use Input_Aux_module
-  
-  implicit none
-
-  class(timestepper_base_type) :: this
-  type(input_type), pointer :: input
-  type(option_type) :: option
-  
-  option%io_buffer = 'TimestepperBaseRead not supported.  Requires extension.'
-  call PrintErrMsg(option)
-
-end subroutine TimestepperBaseRead
-
-! ************************************************************************** !
-
-subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
-  ! 
-  ! Updates time step
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/20/13
-  ! 
-
-  use Option_module
-  use String_module
-  use Input_Aux_module
-  use Units_module
-  
-  implicit none
-  
-  class(timestepper_base_type) :: this
-  character(len=MAXWORDLENGTH) :: keyword
-  type(input_type) :: input
-  type(option_type) :: option
-
-  type(waypoint_type), pointer :: waypoint
-  character(len=MAXSTRINGLENGTH) :: error_string
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH), parameter :: internal_units = 'sec'
-
-  error_string = 'TIMESTEPPER'
-
-  select case(trim(keyword))
-
-    case('NUM_STEPS_AFTER_TS_CUT')
-      call InputReadInt(input,option,this%constant_time_step_threshold)
-      call InputErrorMsg(input,option,'num_constant_time_steps_after_ts_cut', &
-                         error_string)
-    case('MAX_STEPS','MAXIMUM_NUMBER_OF_TIMESTEPS')
-      call InputReadInt(input,option,this%max_time_step)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('MAX_TS_CUTS','MAXIMUM_CONSECUTIVE_TS_CUTS')
-      call InputReadInt(input,option,this%max_time_step_cuts)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('MAX_NUM_CONTIGUOUS_REVERTS')
-      call InputReadInt(input,option,this%max_num_contig_revert)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('INITIAL_TIMESTEP_SIZE')
-      call InputReadDouble(input,option,this%dt_init)
-      call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
-      this%dt_init = this%dt_init* &
-                     UnitsConvertToInternal(word,internal_units,option)
-    case('MINIMUM_TIMESTEP_SIZE')
-      call InputReadDouble(input,option,this%dt_min)
-      call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
-      this%dt_min = this%dt_min* &
-                    UnitsConvertToInternal(word,internal_units,option)
-    case('TIMESTEP_REDUCTION_FACTOR')
-      call InputReadDouble(input,option,this%time_step_reduction_factor)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('TIMESTEP_MAXIMUM_GROWTH_FACTOR')
-      call InputReadDouble(input,option,this%time_step_max_growth_factor)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('TIMESTEP_OVERSTEP_REL_TOLERANCE')
-      call InputReadDouble(input,option,this%time_step_tolerance)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('INITIALIZE_TO_STEADY_STATE')
-      option%io_buffer = 'INITIALIZE_TO_STEADY_STATE capability has been &
-                         &disabled.'
-      call PrintErrMsg(option)
-      this%init_to_steady_state = PETSC_TRUE
-      call InputReadDouble(input,option,this%steady_state_rel_tol)
-      call InputErrorMsg(input,option,'steady state convergence relative &
-                         &tolerance',error_string)
-    case('RUN_AS_STEADY_STATE')
-      option%io_buffer = 'RUN_AS_STEADY_STATE capability has been disabled.'
-      call PrintErrMsg(option)
-      this%run_as_steady_state = PETSC_TRUE
-    case('PRINT_EKG')
-      this%print_ekg = PETSC_TRUE
-      option%print_ekg = PETSC_TRUE
-    case('MAXIMUM_TIMESTEP_SIZE')
-      waypoint => WaypointCreate()
-      call InputReadDouble(input,option,waypoint%dt_max)
-      call InputErrorMsg(input,option,keyword,error_string)
-      call InputReadWord(input,option,word,PETSC_TRUE)
-      call InputErrorMsg(input,option,trim(keyword)//' Units',error_string)
-      waypoint%dt_max = waypoint%dt_max* &
-                        UnitsConvertToInternal(word,internal_units,option)
-      call InputReadCard(input,option,word)
-      if (input%ierr == 0) then
-        call StringToUpper(word)
-        if (StringCompare(word,'AT',TWO_INTEGER)) then
-          call InputReadDouble(input,option,waypoint%time)
-          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time', &
-                             error_string)
-          call InputReadWord(input,option,word,PETSC_TRUE)
-          call InputErrorMsg(input,option,trim(keyword)//' "AT" Time Units', &
-                             error_string)
-          waypoint%time = waypoint%time* &
-                          UnitsConvertToInternal(word,internal_units,option)
-        else
-          option%io_buffer = 'Keyword under "MAXIMUM_TIMESTEP_SIZE" &
-                             &after maximum timestep size should &
-                             &be "AT".'
-          call PrintErrMsg(option)
-        endif
-      else
-        waypoint%time = 0.d0
-      endif
-      if (.not.associated(this%local_waypoint_list)) then
-        this%local_waypoint_list => WaypointListCreate()
-      endif
-      call WaypointInsertInList(waypoint,this%local_waypoint_list)
-    case('MAX_PRESSURE_CHANGE','MAX_TEMPERATURE_CHANGE', &
-         'MAX_CONCENTRATION_CHANGE','MAX_SATURATION_CHANGE', &
-         'PRESSURE_DAMPENING_FACTOR','SATURATION_CHANGE_LIMIT', &
-         'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
-      option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
-        &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
-      call PrintErrMsg(option)
-    case default
-      call InputKeywordUnrecognized(input,keyword,error_string,option)
-  end select
-
-end subroutine TimestepperBaseProcessKeyword
 
 ! ************************************************************************** !
 

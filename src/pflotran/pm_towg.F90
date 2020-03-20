@@ -215,8 +215,8 @@ subroutine PMTOWGRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)    
+    call PMSubsurfaceFlowReadOptionsSelectCase(this,input,keyword,found, &
+                                               error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
