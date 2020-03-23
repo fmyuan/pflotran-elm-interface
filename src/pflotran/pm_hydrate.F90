@@ -34,6 +34,7 @@ module PM_Hydrate_class
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMHydrateReadSimOptionsBlock
+    procedure, public :: ReadNewtonBlock => PMHydrateReadNewtonSelectCase
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -407,6 +408,7 @@ subroutine PMHydrateAssignParameters(realization, pm)
 end subroutine PMHydrateAssignParameters
 
 ! ************************************************************************** !
+
 subroutine PMHydrateReadSimOptionsBlock(this,input)
   ! 
   ! Sets up SNES solvers.
@@ -458,10 +460,103 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-      case('CENTRAL_DIFFERENCE_JACOBIAN')
-        hydrate_central_diff_jacobian = PETSC_TRUE
       case('NO_STATE_TRANSITION_PRINTING')    
         hydrate_print_state_transition = PETSC_FALSE
+      case('PHASE_CHANGE_EPSILON')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        hydrate_phase_chng_epsilon = tempreal
+      
+      case('RESTRICT_STATE_CHANGE')
+        hydrate_restrict_state_chng = PETSC_TRUE
+      
+      case('NO_STATE_TRANSITION_OUTPUT')
+        hydrate_print_state_transition = PETSC_FALSE
+      
+      case('GAS_COMPONENT_FORMULA_WEIGHT')
+        !geh: assuming gas component is index 2
+        call InputReadDouble(input,option,fmw_comp(2))
+        call InputErrorMsg(input,option,'gas component formula wt.', &
+             error_string)
+      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
+         !heeho: assuming liquid component is index 1
+         call InputReadDouble(input,option,fmw_comp(1))
+         call InputErrorMsg(input,option,'liquid component formula wt.', &
+             error_string)
+      case('TWO_PHASE_ENERGY_DOF')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
+        call HydrateAuxSetEnergyDOF(word,option)
+      case('DEBUG_CELL')
+        call InputReadInt(input,option,hydrate_debug_cell_id)
+        call InputErrorMsg(input,option,'debug cell id',error_string)
+      case('NO_TEMP_DEPENDENT_DIFFUSION')
+        hydrate_temp_dep_gas_air_diff = PETSC_FALSE
+      case('DIFFUSE_XMASS')
+        hydrate_diffuse_xmol = PETSC_FALSE
+      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
+        hydrate_harmonic_diff_density = PETSC_TRUE
+      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
+        hydrate_harmonic_diff_density = PETSC_FALSE
+      case('IMMISCIBLE')
+        hydrate_immiscible = PETSC_TRUE
+      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
+        hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
+      case default
+        call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
+    end select
+    
+  enddo  
+  call InputPopBlock(input,option)
+
+end subroutine PMHydrateReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
+                                         error_string,option)
+  ! 
+  ! Reads input file parameters associated with the HYDRATE process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use Hydrate_Aux_module
+ 
+  implicit none
+  
+  class(pm_hydrate_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+  PetscInt :: lid, gid, eid
+
+  option => this%option
+
+  lid = 1 !option%liquid_phase
+  gid = 2 !option%gas_phase
+  eid = 3 !option%energy_id
+
+  error_string = 'HYDRATE Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+      case('CENTRAL_DIFFERENCE_JACOBIAN')
+        hydrate_central_diff_jacobian = PETSC_TRUE
       case('HYDRATE_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -482,18 +577,8 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%hydrate_newton_max_iter = tempreal
-      case('PHASE_CHANGE_EPSILON')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,keyword,error_string)
-        hydrate_phase_chng_epsilon = tempreal
-      
-      case('RESTRICT_STATE_CHANGE')
-        hydrate_restrict_state_chng = PETSC_TRUE
+
       ! Tolerances
-      
-      case('NO_STATE_TRANSITION_OUTPUT')
-        hydrate_print_state_transition = PETSC_FALSE
-      
       ! All Residual
       case('RESIDUAL_INF_TOL')
         call InputReadDouble(input,option,tempreal)
@@ -643,20 +728,7 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,'window epsilon',error_string)
-      case('GAS_COMPONENT_FORMULA_WEIGHT')
-        !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,'gas component formula wt.', &
-             error_string)
-      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
-         !heeho: assuming liquid component is index 1
-         call InputReadDouble(input,option,fmw_comp(1))
-         call InputErrorMsg(input,option,'liquid component formula wt.', &
-             error_string)
-      case('TWO_PHASE_ENERGY_DOF')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
-        call HydrateAuxSetEnergyDOF(word,option)
+
       case('MAXIMUM_PRESSURE_CHANGE')
         call InputReadDouble(input,option,hydrate_max_pressure_change)
         call InputErrorMsg(input,option,'maximum pressure change', &
@@ -669,49 +741,12 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputReadDouble(input,option,hydrate_damping_factor)
         call InputErrorMsg(input,option,'damping factor',error_string)
         this%damping_factor = hydrate_damping_factor
-#if 0        
-      case('GOVERN_MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,this%dPmax_allowable)
-        call InputErrorMsg(input,option,'maximum allowable pressure change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_TEMPERATURE_CHANGE')
-        call InputReadDouble(input,option,this%dTmax_allowable)
-        call InputErrorMsg(input,option, &
-                           'maximum allowable temperature change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_SATURATION_CHANGE')
-        call InputReadDouble(input,option,this%dSmax_allowable)
-        call InputErrorMsg(input,option,'maximum allowable saturation change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_MOLE_FRACTION_CHANGE')
-        call InputReadDouble(input,option,this%dXmax_allowable)
-        call InputErrorMsg(input,option, &
-                           'maximum allowable mole fraction change', &
-                           error_string)
-#endif
-      case('DEBUG_CELL')
-        call InputReadInt(input,option,hydrate_debug_cell_id)
-        call InputErrorMsg(input,option,'debug cell id',error_string)
-      case('NO_TEMP_DEPENDENT_DIFFUSION')
-        hydrate_temp_dep_gas_air_diff = PETSC_FALSE
-      case('DIFFUSE_XMASS')
-        hydrate_diffuse_xmol = PETSC_FALSE
-      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
-        hydrate_harmonic_diff_density = PETSC_TRUE
-      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
-        hydrate_harmonic_diff_density = PETSC_FALSE
-      case('IMMISCIBLE')
-        hydrate_immiscible = PETSC_TRUE
-      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
-        hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
-      case default
-        call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
-    end select
-    
-  enddo  
-  call InputPopBlock(input,option)
+    case default
+      found = PETSC_FALSE
 
-end subroutine PMHydrateReadSimOptionsBlock
+  end select
+  
+end subroutine PMHydrateReadNewtonSelectCase
 
 ! ************************************************************************** !
 

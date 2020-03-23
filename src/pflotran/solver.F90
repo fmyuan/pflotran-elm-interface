@@ -1171,18 +1171,6 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
       call InputReadDouble(input,option,solver%newton_inf_upd_tol)
       call InputErrorMsg(input,option,'newton_inf_upd_tol',error_string)
 
-    case('ITOL_SCALED_RESIDUAL')
-      option%io_buffer = 'Flow NEWTON_SOLVER ITOL_SCALED_RESIDUAL is ' // &
-        'now specific to each process model and must be defined in ' // &
-        'the SIMULATION/PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block.'
-      call PrintErrMsg(option)
-        
-    case('ITOL_RELATIVE_UPDATE')
-      option%io_buffer = 'Flow NEWTON_SOLVER ITOL_RELATIVE_UPDATE is ' // &
-        'now specific to each process model and must be defined in ' // &
-        'the SIMULATION/PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block.'
-      call PrintErrMsg(option)
-
     case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
       !TODO(geh): move to PM
       if (.not.option%use_mc) then

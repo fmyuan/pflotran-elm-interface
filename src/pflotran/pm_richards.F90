@@ -115,7 +115,6 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
   use Input_Aux_module
   use String_module
   use Utility_module
-  use EOS_Water_module  
   use Option_module
   use Richards_Aux_module
  
@@ -173,6 +172,7 @@ subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
                                           error_string,option)
   ! 
   ! Reads input file parameters associated with the Richards process model
+  ! Newton solver convergence
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/16/20
@@ -180,7 +180,6 @@ subroutine PMRichardsReadNewtonSelectCase(this,input,keyword,found, &
   use Input_Aux_module
   use String_module
   use Utility_module
-  use EOS_Water_module  
   use Option_module
   use Richards_Aux_module
  
