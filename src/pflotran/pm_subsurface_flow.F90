@@ -242,7 +242,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
   found = PETSC_TRUE
   select case(trim(keyword))
   
-    case('MAX_PRESSURE_CHANGE')
+    case('PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputDefaultMsg(input,option,'dpmxe')
       if (option%flow%resdef) then
@@ -251,19 +251,19 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
         call PrintMsg(option)
       endif
 
-    case('MAX_TEMPERATURE_CHANGE')
+    case('TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
       call InputDefaultMsg(input,option,'dtmpmxe')
   
-    case('MAX_CONCENTRATION_CHANGE')
+    case('CONCENTRATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%xmol_change_governor)
       call InputDefaultMsg(input,option,'dcmxe')
 
-    case('MAX_SATURATION_CHANGE')
+    case('SATURATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%saturation_change_governor)
       call InputDefaultMsg(input,option,'dsmxe')
 
-    case('MAX_CFL')
+    case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,'MAX_CFL',error_string)
 

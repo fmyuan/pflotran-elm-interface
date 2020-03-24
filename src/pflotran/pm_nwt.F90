@@ -203,27 +203,27 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
       case('GLOBAL_IMPLICIT')
         option%transport%nw_transport_coupling = GLOBAL_IMPLICIT
       case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-      case('MAX_VOLUME_FRACTION_CHANGE')
+      case('VOLUME_FRACTION_CHANGE_GOVERNOR')
         call InputReadDouble(input,option,this%controls%volfrac_change_governor)
-        call InputErrorMsg(input,option,'MAX_VOLUME_FRACTION_CHANGE', &
+        call InputErrorMsg(input,option,keyword, &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('ITOL_RELATIVE_UPDATE')
         call InputReadDouble(input,option,nwt_itol_rel_update)
-        call InputErrorMsg(input,option,'ITOL_RELATIVE_UPDATE', &
+        call InputErrorMsg(input,option,keyword, &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
         this%controls%check_post_convergence = PETSC_TRUE
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,nwt_min_saturation)
-        call InputErrorMsg(input,option,'MINIMUM_SATURATION', &
+        call InputErrorMsg(input,option,keyword, &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('NUMERICAL_JACOBIAN')
         option%transport%numerical_derivatives = PETSC_TRUE
       !TODO(jenn) Why is temperature_dependent_diffusion in the SIMULATION block read?
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%params%temperature_dependent_diffusion = PETSC_TRUE
-      case('MAX_CFL')
+      case('CFL_GOVERNOR')
         call InputReadDouble(input,option,this%controls%cfl_governor)
-        call InputErrorMsg(input,option,'MAX_CFL', &
+        call InputErrorMsg(input,option,keyword, &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE          

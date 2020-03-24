@@ -191,7 +191,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
       case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
         this%operator_split = PETSC_TRUE
         option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
-      case('MAX_VOLUME_FRACTION_CHANGE')
+      case('VOLUME_FRACTION_CHANGE_GOVERNOR')
         call InputReadDouble(input,option,this%volfrac_change_governor)
         call InputDefaultMsg(input,option,'maximum volume fraction change')
       case('ITOL_RELATIVE_UPDATE')
@@ -211,7 +211,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         call PrintErrMsg(option)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%temperature_dependent_diffusion = PETSC_TRUE
-      case('MAX_CFL')
+      case('CFL_GOVERNOR')
         call InputReadDouble(input,option,this%cfl_governor)
         call InputErrorMsg(input,option,'MAX_CFL', &
                            'SUBSURFACE_TRANSPORT OPTIONS')

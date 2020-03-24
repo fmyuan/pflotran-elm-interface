@@ -93,11 +93,11 @@ subroutine PMSurfaceReadSelectCase(this,input,keyword,found,option)
   found = PETSC_TRUE
   select case(trim(keyword))
 
-    case('MAX_PRESSURE_CHANGE')
+    case('PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputDefaultMsg(input,option,'dpmxe')
 
-    case('MAX_TEMPERATURE_CHANGE')
+    case('TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
       call InputDefaultMsg(input,option,'dtmpmxe')
 
