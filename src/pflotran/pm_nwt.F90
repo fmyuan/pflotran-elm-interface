@@ -59,6 +59,8 @@ module PM_NWT_class
     procedure, public :: Setup => PMNWTSetup 
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMNWTReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMNWTReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMNWTReadNewtonSelectCase
     procedure, public :: SetRealization => PMNWTSetRealization 
     procedure, public :: InitializeRun => PMNWTInitializeRun  
     procedure, public :: FinalizeRun => PMNWTFinalizeRun
@@ -203,28 +205,13 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
       case('GLOBAL_IMPLICIT')
         option%transport%nw_transport_coupling = GLOBAL_IMPLICIT
       case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-      case('VOLUME_FRACTION_CHANGE_GOVERNOR')
-        call InputReadDouble(input,option,this%controls%volfrac_change_governor)
-        call InputErrorMsg(input,option,keyword, &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,nwt_itol_rel_update)
-        call InputErrorMsg(input,option,keyword, &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-        this%controls%check_post_convergence = PETSC_TRUE
+        option%transport%nw_transport_coupling = OPERATOR_SPLIT
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,nwt_min_saturation)
         call InputErrorMsg(input,option,keyword, &
                            'NUCLEAR_WASTE_TRANSPORT OPTIONS')
-      case('NUMERICAL_JACOBIAN')
-        option%transport%numerical_derivatives = PETSC_TRUE
-      !TODO(jenn) Why is temperature_dependent_diffusion in the SIMULATION block read?
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%params%temperature_dependent_diffusion = PETSC_TRUE
-      case('CFL_GOVERNOR')
-        call InputReadDouble(input,option,this%controls%cfl_governor)
-        call InputErrorMsg(input,option,keyword, &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE          
       case default
@@ -234,6 +221,91 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
   call InputPopBlock(input,option)
   
 end subroutine PMNWTReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMNWTReadTSSelectCase(this,input,keyword,found, &
+                                 error_string,option)
+  ! 
+  ! Read timestepper settings specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('CFL_GOVERNOR')
+      call InputReadDouble(input,option,this%controls%cfl_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('VOLUME_FRACTION_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%controls%volfrac_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMNWTReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
+                                    error_string,option)
+  ! 
+  ! Reads input file parameters associated with the NWT process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/25/20
+
+  use Input_Aux_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_nwt_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+
+  option => this%option
+  
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('NUMERICAL_JACOBIAN')
+      option%transport%numerical_derivatives = PETSC_TRUE
+    case('ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%controls%check_post_convergence = PETSC_TRUE
+  case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMNWTReadNewtonSelectCase
 
 ! ************************************************************************** !
   

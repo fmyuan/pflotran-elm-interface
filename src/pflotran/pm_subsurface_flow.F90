@@ -244,7 +244,7 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
   
     case('PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
-      call InputDefaultMsg(input,option,'dpmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
       if (option%flow%resdef) then
         option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, &
           &overwritting the RESERVOIR_DEFAULTS default'
@@ -253,19 +253,19 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
 
     case('TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
-      call InputDefaultMsg(input,option,'dtmpmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
   
     case('CONCENTRATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%xmol_change_governor)
-      call InputDefaultMsg(input,option,'dcmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('SATURATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%saturation_change_governor)
-      call InputDefaultMsg(input,option,'dsmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case default
       found = PETSC_FALSE
@@ -307,23 +307,19 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
   
     case('PRESSURE_DAMPENING_FACTOR')
       call InputReadDouble(input,option,this%pressure_dampening_factor)
-      call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('SATURATION_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%saturation_change_limit)
-      call InputErrorMsg(input,option,'SATURATION_CHANGE_LIMIT', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
                            
     case('PRESSURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%pressure_change_limit)
-      call InputErrorMsg(input,option,'PRESSURE_CHANGE_LIMIT', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
                            
     case('TEMPERATURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%temperature_change_limit)
-      call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
@@ -355,10 +351,10 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case('DEBUG_TOL')
       call InputReadDouble(input,option,flow_aux_debug_tol)
-      call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('DEBUG_RELTOL')
       call InputReadDouble(input,option,flow_aux_debug_reltol)
-      call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('GEOMETRIC_PENALTY')
       flow_aux_use_GP= PETSC_TRUE
