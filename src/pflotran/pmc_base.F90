@@ -223,7 +223,7 @@ subroutine PMCBaseReadNumericalMethods(this,input)
 
           ! leave in this order as PM overrides TS
           found = PETSC_TRUE
-          call this%pm_list%ReadTSBLock(input,keyword,found, &
+          call this%pm_list%ReadTSBlock(input,keyword,found, &
                                         error_string,option)
           if (.not.found) then
             found = PETSC_TRUE
