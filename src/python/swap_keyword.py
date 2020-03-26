@@ -4,8 +4,8 @@ import shutil
 import os
 import fnmatch
 
-keyword_old = 'old'
-keyword_new = 'new'
+keyword_old = sys.argv[1].strip()
+keyword_new = sys.argv[2].strip()
 
 def swap_file(filename):
   f = open(filename,'r')
