@@ -202,10 +202,6 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('GLOBAL_IMPLICIT')
-        option%transport%nw_transport_coupling = GLOBAL_IMPLICIT
-      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-        option%transport%nw_transport_coupling = OPERATOR_SPLIT
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,nwt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)

@@ -187,12 +187,6 @@ subroutine PMRTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('GLOBAL_IMPLICIT')
-        this%operator_split = PETSC_FALSE
-        option%transport%reactive_transport_coupling = OPERATOR_SPLIT
-      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-        this%operator_split = PETSC_TRUE
-        option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,rt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)

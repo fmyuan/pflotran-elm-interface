@@ -965,12 +965,6 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('MAX_DLNC')
         call InputReadDouble(input,option,reaction%max_dlnC)
         call InputErrorMsg(input,option,trim(word),'CHEMISTRY')
-      case('OPERATOR_SPLIT','OPERATOR_SPLITTING')
-        option%io_buffer = 'OPERATOR_SPLIT functionality has not been &
-          &reimplemented in the refactored PFLOTRAN at this time.  Please &
-          &use GLOBAL_IMPLICIT (remove OPERATOR_SPLIT(TING)).'
-        call PrintErrMsgToDev(option,'if you really need operator splitting')
-        option%transport%reactive_transport_coupling = OPERATOR_SPLIT    
       case('EXPLICIT_ADVECTION')
         option%itranmode = EXPLICIT_ADVECTION
         call InputReadCard(input,option,word)
