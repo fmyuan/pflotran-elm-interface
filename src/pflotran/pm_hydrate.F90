@@ -476,20 +476,18 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         !geh: assuming gas component is index 2
         call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,'gas component formula wt.', &
-             error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
-         !heeho: assuming liquid component is index 1
-         call InputReadDouble(input,option,fmw_comp(1))
-         call InputErrorMsg(input,option,'liquid component formula wt.', &
-             error_string)
+        !heeho: assuming liquid component is index 1
+        call InputReadDouble(input,option,fmw_comp(1))
+        call InputErrorMsg(input,option,keyword,error_string)
       case('TWO_PHASE_ENERGY_DOF')
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
         call HydrateAuxSetEnergyDOF(word,option)
       case('DEBUG_CELL')
         call InputReadInt(input,option,hydrate_debug_cell_id)
-        call InputErrorMsg(input,option,'debug cell id',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('NO_TEMP_DEPENDENT_DIFFUSION')
         hydrate_temp_dep_gas_air_diff = PETSC_FALSE
       case('DIFFUSE_XMASS')
@@ -727,19 +725,17 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
 
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
-        call InputErrorMsg(input,option,'window epsilon',error_string)
-
+        call InputErrorMsg(input,option,keyword,error_string)
+  
       case('MAXIMUM_PRESSURE_CHANGE')
         call InputReadDouble(input,option,hydrate_max_pressure_change)
-        call InputErrorMsg(input,option,'maximum pressure change', &
-                           error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('MAX_ITERATION_BEFORE_DAMPING')
         call InputReadInt(input,option,hydrate_max_it_before_damping)
-        call InputErrorMsg(input,option,'maximum iteration before damping', &
-                           error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('DAMPING_FACTOR')
         call InputReadDouble(input,option,hydrate_damping_factor)
-        call InputErrorMsg(input,option,'damping factor',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
         this%damping_factor = hydrate_damping_factor
     case default
       found = PETSC_FALSE

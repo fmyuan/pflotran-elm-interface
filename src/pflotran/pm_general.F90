@@ -228,20 +228,18 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         !geh: assuming gas component is index 2
         call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,'gas component formula wt.', &
-             error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
          !heeho: assuming liquid component is index 1
-         call InputReadDouble(input,option,fmw_comp(1))
-         call InputErrorMsg(input,option,'liquid component formula wt.', &
-             error_string)
+        call InputReadDouble(input,option,fmw_comp(1))
+        call InputErrorMsg(input,option,keyword,error_string)
       case('TWO_PHASE_ENERGY_DOF')
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
         call GeneralAuxSetEnergyDOF(word,option)
       case('GAS_PHASE_AIR_MASS_DOF')
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'gas_phase_air_mass_dof',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
         call GeneralAuxSetAirMassDOF(word,option)
         this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
         this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
@@ -251,7 +249,7 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
         general_no_air = PETSC_TRUE
       case('DEBUG_CELL')
         call InputReadInt(input,option,general_debug_cell_id)
-        call InputErrorMsg(input,option,'debug cell id',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('NO_TEMP_DEPENDENT_DIFFUSION')
         general_temp_dep_gas_air_diff = PETSC_FALSE
       case('DIFFUSE_XMASS')
@@ -447,18 +445,16 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
 
     case('WINDOW_EPSILON') 
       call InputReadDouble(input,option,window_epsilon)
-      call InputErrorMsg(input,option,'window epsilon',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('MAXIMUM_PRESSURE_CHANGE')
       call InputReadDouble(input,option,general_max_pressure_change)
-      call InputErrorMsg(input,option,'maximum pressure change', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('MAX_ITERATION_BEFORE_DAMPING')
       call InputReadInt(input,option,general_max_it_before_damping)
-      call InputErrorMsg(input,option,'maximum iteration before damping', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('DAMPING_FACTOR')
       call InputReadDouble(input,option,general_damping_factor)
-      call InputErrorMsg(input,option,'damping factor',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
       this%damping_factor = general_damping_factor
     case default
       found = PETSC_FALSE

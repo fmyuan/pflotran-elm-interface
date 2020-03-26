@@ -314,51 +314,43 @@ subroutine PMTOWGReadNewtonSelectCase(this,input,keyword,found, &
   select case(trim(keyword))
     case('ITOL_SCALED_RESIDUAL')
       call InputReadDouble(input,option,this%itol_scaled_res)
-      call InputDefaultMsg(input,option,'towg itol_scaled_res')
+      call InputErrorMsg(input,option,keyword,error_string)
       this%check_post_convergence = PETSC_TRUE
     case('ITOL_RELATIVE_UPDATE')
       call InputReadDouble(input,option,this%itol_rel_update)
-      call InputDefaultMsg(input,option,'towg itol_rel_update')
+      call InputErrorMsg(input,option,keyword,error_string)
       this%check_post_convergence = PETSC_TRUE        
     case('TOUGH2_ITOL_SCALED_RESIDUAL')
       ! tgh2_itol_scld_res_e1 is an array: assign same value to all entries
       tempreal = UNINITIALIZED_DOUBLE
       call InputReadDouble(input,option,tempreal)
       ! tempreal will remain uninitialized if the read fails.
-      call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e1')
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E1', &
+                         error_string)
       if (Initialized(tempreal)) then
         this%tgh2_itol_scld_res_e1 = tempreal
       endif
       call InputReadDouble(input,option,this%tgh2_itol_scld_res_e2)
-      call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e2')
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E2', &
+                         error_string)
       this%tough2_conv_criteria = PETSC_TRUE
       this%check_post_convergence = PETSC_TRUE
     case('T2_ITOL_SCALED_RESIDUAL_TEMP')
       call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option, &
-                         'tough_itol_scaled_residual_e1 for temperature', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
       this%tgh2_itol_scld_res_e1(3,:) = tempreal
     case('WINDOW_EPSILON') 
       call InputReadDouble(input,option,towg_window_epsilon)
-      call InputErrorMsg(input,option,'towg window epsilon',error_string)
-    ! read this in the gas EOS
-    !case('GAS_COMPONENT_FORMULA_WEIGHT')
-    !  !geh: assuming gas component is index 2
-    !  call InputReadDouble(input,option,fmw_comp(2))
-    !  call InputErrorMsg(input,option,'gas component formula wt.', &
-    !                     error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('MAXIMUM_PRESSURE_CHANGE')
       call InputReadDouble(input,option,this%trunc_max_pressure_change)
-      call InputErrorMsg(input,option,'maximum pressure change', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('MAX_ITERATION_BEFORE_DAMPING')
       call InputReadInt(input,option,this%max_it_before_damping)
-      call InputErrorMsg(input,option,'maximum iteration before damping', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case('DAMPING_FACTOR')
       call InputReadDouble(input,option,this%damping_factor)
-      call InputErrorMsg(input,option,'damping factor',error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
 

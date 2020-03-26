@@ -208,8 +208,7 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
         option%transport%nw_transport_coupling = OPERATOR_SPLIT
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,nwt_min_saturation)
-        call InputErrorMsg(input,option,keyword, &
-                           'NUCLEAR_WASTE_TRANSPORT OPTIONS')
+        call InputErrorMsg(input,option,keyword,error_string)
       case('TEMPERATURE_DEPENDENT_DIFFUSION')
         this%params%temperature_dependent_diffusion = PETSC_TRUE
       case('MULTIPLE_CONTINUUM')

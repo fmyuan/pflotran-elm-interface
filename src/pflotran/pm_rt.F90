@@ -195,8 +195,7 @@ subroutine PMRTReadSimOptionsBlock(this,input)
         option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,rt_min_saturation)
-        call InputErrorMsg(input,option,'min_saturation', &
-                           'SUBSURFACE_TRANSPORT OPTIONS')
+        call InputErrorMsg(input,option,keyword,error_string)
       case('INCLUDE_GAS_PHASE')
         option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
                            &has been deprecated.'

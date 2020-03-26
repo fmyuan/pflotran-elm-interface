@@ -94,7 +94,7 @@ subroutine PMSurfaceFlowReadSimOptions(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSurfaceReadSelectCase(this,input,word,found,option)
+    call PMSurfaceReadSelectCase(this,input,word,found,error_string,option)
     if (found) cycle
 
     select case(trim(word))
