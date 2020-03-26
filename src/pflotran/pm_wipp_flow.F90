@@ -999,8 +999,8 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   if (Initialized(this%pressure_change_governor) .or. &
       Initialized(this%temperature_change_governor) .or. &
       Initialized(this%saturation_change_governor)) then
-    option%io_buffer = 'MAX_PRESSURE_CHANGE, MAX_TEMPERATURE_CHANGE, &
-      MAX_CONCENTRATION_CHANGE may not be used with WIPP_FLOW.'
+    option%io_buffer = 'PRESSURE_CHANGE_GOVERNOR, TEMPERATURE_CHANGE_GOVERNOR, &
+      or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
     call PrintErrMsg(option)
   endif
   
