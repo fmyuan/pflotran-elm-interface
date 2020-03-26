@@ -81,7 +81,7 @@ newton_trans_keywords = [
 def write_list(f,list_):
     if len(list_) > 0:
         for line in list_:
-            f.write('  '+line)
+            f.write('  '+line.rstrip()+'\n')
         f.write('\n') 
         
 def write_block(f,process,list_):    
@@ -119,6 +119,7 @@ def refactor_file(filename,replace_file_flag):
     subsurface_card_found = False
     flow_process_model_found = False
     tran_process_model_found = False
+    skip_count = 0
     while True:
         line = f.readline()
 
@@ -129,6 +130,15 @@ def refactor_file(filename,replace_file_flag):
         card = ''
         if len(w) > 0:
           card = w[0].strip().upper()
+
+        if card == 'SKIP':
+            skip_count += 1
+
+        if card == 'NOSKIP':
+            skip_count -= 1
+
+        if skip_count > 0:
+            continue
 
         if card.startswith('SUBSURFACE_FLOW'):
             flow_process_model_found = True
@@ -207,6 +217,7 @@ def refactor_file(filename,replace_file_flag):
     f2 = open(filename+'.tmp','w')
 
     skip_mode = 0
+    skip_count = 0   # this integer applies to the SKIP/NOSKIP card stack
     insert_mode = False
     while True:
         line = f.readline()
@@ -216,6 +227,16 @@ def refactor_file(filename,replace_file_flag):
         card = ''
         if len(w) > 0:
             card = w[0].strip().upper()
+
+        if card == 'SKIP':
+            skip_count += 1
+
+        if card == 'NOSKIP':
+            skip_count -= 1
+
+        if skip_count > 0:
+            f2.write(line)
+            continue
 
         if card.startswith(tupl):
             skip_mode = 1
