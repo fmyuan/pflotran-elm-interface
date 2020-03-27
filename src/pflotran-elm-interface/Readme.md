@@ -2,9 +2,10 @@
 
 This is the interface, including minimal PFLOTRAN codes, for coupling PFLOTRAN into CLM in DOE sponsored NGEE-Arctic Project. 
 
-The model coupling aims to provide a full alternative solution for CLM-CN's surface-subsurface C/N biogeochemistry and thermal-hydrology, i.e. PFLOTRAN.
+The model coupling aims to provide a full alternative solution for CLM-CN's surface-subsurface C/N/REDOX biogeochemistry, i.e. PFLOTRAN.
 
-***This interface is specifically released for ```PETSC v.3.9x or above```, and ```E3SM v1.1 or above```. ***
+***This interface is specifically released for ```PETSC v.3.9x or above```, and ```E3SM v1.1 or above```. *** 
+*(NOTE:  if would like a test for BGC and TH coupling, branch 'default-release-v3.7' may be what you're look for first)*
 
 
 ## How do I get set up? ##
@@ -14,7 +15,7 @@ The model coupling aims to provide a full alternative solution for CLM-CN's surf
 git clone https://github.com/fmyuan/pflotran-elm-interface.git
 ```
 
-*NOTE: when git clone, checkout branch 'default-release-v3.9'*
+*NOTE: when git clone, checkout branch 'default-release-v?.??'*, if need early version of PFLOTRAN with 'v?.??' corresponding to preferred PETSc version. 
 
 
 **(2)** *if coupling CLM with PFLOTRAN, need to build a library named as **libpflotran.a**.*
@@ -114,7 +115,7 @@ endif()
    -->
    <environment_variables>
      <!-- The following pflotran is with PETSc-v3.8.x or above on CADES-->
-     <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface-v3.8x/src/clm-pflotran</env>
+     <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-dev/src/pflotran-elm-interface</env>
 
      <!-- by blanking the following 2 names, PETSC libs excluded in e3sm.exe when NOT coupling with PFLOTRAN -->
      <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_DIR}/include</env>
@@ -126,7 +127,7 @@ endif()
 ```
 <environment_variables>
 <!--
-  <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface-v3.8x/src/clm-pflotran</env>
+  <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-dev/src/pflotran-elm-interface</env>
   <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_PATH}/include</env>
   <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_PATH}/lib -lpetsc -lmetis -lparmetis</env>
 -->
@@ -134,4 +135,4 @@ endif()
 ```
 
 
-***UPDATED: 2019-08-07***
+***UPDATED: 2019-03-26***

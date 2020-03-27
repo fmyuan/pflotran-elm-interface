@@ -1,12 +1,13 @@
 # README #
 
-This is repository for coupling PFLOTRAN into CLM in DOE sponsored NGEE-Arctic Project. It's keeping updates from PLOTRAN-Dev as soon as possible.
+This is repository for coupling PFLOTRAN into ELM in DOE sponsored NGEE-Arctic Project. It's keeping updates from PLOTRAN-Dev as soon as possible.
 
 The model coupling aims to provide a full alternative solution for CLM-CN's surface-subsurface C/N biogeochemistry and thermal-hydrology, i.e. PFLOTRAN.
 
-This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM repository, branch /fmyuan/lnd/elm-pflotran.
+This repository is the PFLOTRAN portion for coupling. The ELM portion is in E3SM repository, branch /fmyuan/lnd/elm-pflotran.
 
-***UPDATE: (2019-04-05) The coupling with E3SM Land Model (ELM) now is working.***
+***UPDATE: (2020-03-26) The coupling with E3SM Land Model (ELM) now is working.***
+(E3SM Branches tested: **fmyuan/lnd/elm-pflotran**, or,  **fmyuan/lnd/HumHol_v2**)
 
 ### Branches and Versions ###
 
@@ -17,27 +18,28 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in E3SM
  - the most updated PFLOTRAN codes forked from https://bitbucket.org/pflotran/pflotran
  - only a few minor changes. 
  - NOT suggested to use coupling run, rather as a stand-alone PFLOTRAN. 
- - updated: **2019-04-01**
+ - updated: **2020-02-12**
 
-***(1) pflotran-elm-interface*** 
+***(1) pflotran-elm-interface*** (**Default**)
 
- - the current development version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (C) portion. 
- - **PFLOTRAN**: It's keeping updating with master, and with most recent ***PETSc-dev***
+ - the current development version of elm-pflotran, specifically for testing biogeochemistry (BGC) portion. 
+ - **PFLOTRAN**: It's keeping updating with recent master (f08b131141ddb91dcfe902d37fa49a1dcf0844dc) on **11/13/2019**, and with the most recent ***PETSc-dev***
 
-***(2)default-release-v3.7***
+***(2) rebase2020monthly***
+- rebased pflotran-elm-interface with master, but not yet fully tested (***Feb 2020***).
+
+***(3) default-release-v3.8*** and above
+- for maintenance purpose, simply saved past versions, which mostly consistent with PETSc version. 
+- for BGC coupled PFLOTRAN, with PETSc 3.8.x and above. TH coupling is not available.
+- It's working with **ELM v1.1 above**. May not be working with CLM.
+
+***(4) default-release-v3.7***
  - The current STABLE version of clm-pflotran, specifically for testing all thermal-hydrology (TH) and biogeochemistry (BGC) portion. 
- - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's older (**Updated: 2017-03-09**) than 'default', and with ***PETSc-dev*** version **3.7.x**.
+ - **PFLOTRAN**: 6571d9ae3d1cdd699bfc993155c958173e76c20f [6571d9a]. It's much older (**Updated: 2017-03-09**) than 'master', and with ***PETSc-dev*** version **3.7.x**.
  - Stable CLM Version: **CLM4_5_35**. (2017-04-25).  *STATUS*: TH & BGC coupling is STABLE. 
  - Target ELM Version: **ELM v1**.  *STATUS*: STABLE for ```BGC```. (2017-06-27); UNDER test for ```TH mode``` 
 
-***(3)default-release-v3.8***
- - for BGC coupled PFLOTRAN, with PETSc 3.8.x. TH coupling is not available.
- - It's working with **ELM v1.1 above**. May not be working with CLM.
- 
-***(4)default-release-v3.9***
- - for BGC coupled PFLOTRAN, with PETSc 3.9.x. TH coupling is not available.
- - It's working with **ELM v1.1 above**. May not be working with CLM.
- 
+  
 
 ### How do I get set up? ###
 
@@ -88,7 +90,7 @@ to unlink PFLOTRAN source code files, and only leave PFLOTRAN-ELM interface code
 ```
 make PETSC_DIR=$PETSC_DIR column_mode=TRUE libpflotran.a
 
-(OR, make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE smoothing2=TRUE debugbuild=TRUE libpflotran.a
+(OR, make PETSC_DIR=$PETSC_DIR column_mode=TRUE debugbuild=TRUE libpflotran.a
 for a library with '-g -O0')
 
 ```
@@ -113,7 +115,7 @@ for a library with '-g -O0')
   endif
 
 ```
-**(ELM master since@2019-07)**
+**Macro.cmake: *ELM master since@2019-07)***
 ```
   if("${MODEL}" STREQUAL "clm")
     set(FFLAGS "${FFLAGS}  $(PFLOTRAN_INC)")
@@ -127,23 +129,56 @@ for a library with '-g -O0')
   endif()
 
 ```
-*II.* **config_compilers.xml** editing for each supported machine. *NOTE*: after './case.setup', edit **'env_mach_specific.xml'** to modify PETSC_PATH (or PETSC_DIR), CLM_PFLOTRAN_SOURCE_DIR, as **user-defined**.
+**IF don't want to modify Macro.make Macro.cmake** after case.setup as above, please add those 2 into **config_compliers.xml** as following:
+```
+<FFLAGS>
+   ......
+
+  <!-- A NOTE here: $(PFLOTRAN_INC) may be empty, or both PETSC and actual PFLOTRAN include dir, or only PETSC include dir -->
+  <append MODEL="clm"> $(PFLOTRAN_INC) </append>
+</FFLAGS>
+
+......
+
+<LDFLAGS>
+  ......
+  <!-- A NOTE here: $(PFLOTRAN_LIB) may be empty, or both PETSC libraries and actual PFLOTRAN libray, or only PETSC libraries -->
+  <append MODEL="driver"> $(PFLOTRAN_LIB) </append>
+</LDFLAGS>
+```
+
+
+*II.* **config_machines.xml** editing for each supported machine. *OR*: after './case.setup', edit **'env_mach_specific.xml'** to add (OR delete, if don't want to build ELM with pflotran codes.  
+
+*NOTE*: 
+PETSC_PATH (or PETSC_DIR), CLM_PFLOTRAN_SOURCE_DIR, can be full paths OR pre-defined in your '.bashrc' or '.bash_profile' in your HOME, as **user defined as in your environmental setting**.
+e.g. on ORNL CADES, 
+```
+export PETSC_DIR=$CCSI_USERTOOLS/petsc-x/openmpi-1.10-gcc-5.3
+export PETSC_ARCH=arch-orcondo-openmpi-gcc53-nodebug
+export CLM_PFLOTRAN_SOURCE_DIR=/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-dev/src/pflotran-elm-interface
 
 ```
-      <!-- for CLM-PFLOTRAN coupling, the PETSC_PATH must be defined specifically upon machines -->
-      <environment_variables>
-        <env name="PETSC_PATH" compiler="gnu" mpilib="openmpi">/software/user_tools/current/cades-ccsi/petsc4pf/openmpi-1.10-gcc-5.3</env>      
-        <!-- hack for PFLOTRAN coupling (this is a temporary solution, and user must manually edit env_mach_specific.xml after case.setup, IF needed)-->
-        <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface/src/clm-pflotran</env>
-        <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_DIR}/include</env>
-        <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_DIR}/lib -lpetsc -lmetis -lparmetis</env>
-      </environment_variables>       
+
+
+```
+<!-- hack for PFLOTRAN coupling to build ELM model.
+     this is a temporary solution, and user must manually edit the following after cloning codes.
+     By default, model will build as PFLOTRAN coupled and run as non-coupled.
+-->
+<environment_variables>
+  <!-- for CLM-PFLOTRAN coupling, the $PETSC_DIR and $CLM_PFLOTRAN_SOURCE_DIR must be user-defined specifically upon machines, e.g. in .bashrc -->
+  <!-- pflotran codes are pre-built as libpflotran.a in $CLM_PFLOTRAN_SOURCE_DIR -->
+  <env name="PETSC_PATH">$ENV{PETSC_DIR}</env>
+  <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_DIR}/include</env>
+  <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_DIR}/lib -lpetsc -lparmetis -lmetis</env>
+</environment_variables>
 
 ```
 
 
 
-*III.* Specifically, for **ELM** build with PFLOTRAN, as external module.
+*III.* Specifically, for **ELM** build with PFLOTRAN, as ***external module***.
 (e.g. https://github.com/fmyuan/E3SM.git, branch 'elm-pflotran-II')
 In this way, ELM source codes will have copied all PFLOTRAN source codes ONLY into:
 ```
@@ -161,4 +196,4 @@ If setting software environments (specifically PETSc library), the whole ELM bui
 
 
 
-***UPDATED: 2019-08-06***
+***UPDATED: 2020-03-26***
