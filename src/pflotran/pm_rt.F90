@@ -366,7 +366,9 @@ recursive subroutine PMRTInitializeRun(this)
   
   ! update boundary concentrations so that activity coefficients can be 
   ! calculated at first time step
-  call RTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+  !geh: need to update cells also, as the flow solution may have changed
+  !     during restart and transport may have been skipped
+  call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE,PETSC_FALSE)
   ! pass PETSC_FALSE to turn off update of kinetic state variables
   call PMRTUpdateSolution2(this,PETSC_FALSE)
   
