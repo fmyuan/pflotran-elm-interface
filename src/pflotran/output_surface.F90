@@ -369,7 +369,9 @@ subroutine OutputWriteTecplotZoneHeader(fid,surf_realization,variable_count, &
                   ', K=' // &
                   trim(StringFormatInt(grid%structured_grid%nz))
       else
-        string2 = 'POINT format currently not supported for unstructured'
+        option%io_buffer = &
+          'POINT format currently not supported for unstructured'
+        call PrintErrMsg(option)
       endif
       string2 = trim(string2) // &
               ', DATAPACKING=POINT'
