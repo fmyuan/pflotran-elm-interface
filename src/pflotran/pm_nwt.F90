@@ -311,7 +311,9 @@ subroutine PMNWTInitializeRun(this)
   call RealizUnInitializedVarsTran(this%realization)
   
   ! update the boundary conditions
-  call NWTUpdateAuxVars(this%realization,PETSC_FALSE,PETSC_TRUE)
+  !geh: need to update cells also, as the flow solution may have changed
+  !     during restart and transport may have been skipped
+  call NWTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_TRUE)
   
   this%realization%patch%aux%NWT%truncate_output = &
     this%realization%reaction_nw%truncate_output

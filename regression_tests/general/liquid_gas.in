@@ -41,10 +41,6 @@ TIMESTEPPER FLOW
 #  MAX_STEPS -1
 /
 
-NEWTON_SOLVER FLOW
-  MAXIT 15
-/
-
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
@@ -57,6 +53,7 @@ GRID
 
 #=========================== solver options ===================================
 NEWTON_SOLVER FLOW
+  MAXIT 15
   RTOL 1.d-8
   ATOL 1.d-8
   STOL 1.d-30
