@@ -1083,8 +1083,6 @@ subroutine PMSubsurfaceFlowRestartBinary(this,viewer)
   
   call RestartFlowProcessModelBinary(viewer,this%realization)
   call PMSubsurfaceFlowRestartUpdate(this)
-  call this%UpdateAuxVars()
-  call this%UpdateSolution()
   
 end subroutine PMSubsurfaceFlowRestartBinary
 
@@ -1128,9 +1126,6 @@ subroutine PMSubsurfaceFlowRestartHDF5(this, pm_grp_id)
 
   call RestartFlowProcessModelHDF5(pm_grp_id, this%realization)
   call PMSubsurfaceFlowRestartUpdate(this)
-  call this%UpdateAuxVars()
-  call this%UpdateSolution()
-
 
 end subroutine PMSubsurfaceFlowRestartHDF5
 
@@ -1142,6 +1137,8 @@ subroutine PMSubsurfaceFlowRestartUpdate(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 05/31/19
+
+  use Global_module
 
   class(pm_subsurface_flow_type) :: this
 
@@ -1157,6 +1154,10 @@ subroutine PMSubsurfaceFlowRestartUpdate(this)
     !     with the checkpointed values.
     call RealizStoreRestartFlowParams(this%realization)
   endif
+  call this%UpdateAuxVars()
+  ! push pressures, saturations, etc. to global object
+  call GlobalUpdateAuxVars(this%realization,TIME_NULL,UNINITIALIZED_DOUBLE)
+  call this%UpdateSolution()
 
 end subroutine PMSubsurfaceFlowRestartUpdate
 
