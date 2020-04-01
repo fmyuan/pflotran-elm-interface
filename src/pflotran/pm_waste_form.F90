@@ -2889,6 +2889,13 @@ subroutine PMWFInitializeTimestep(this)
         ! note: do nothing here because the cumulative mass update for dsnf
         ! and/or wipp mechanisms has already occured (if breached)
       class default
+        if (cur_waste_form%breached .and. dabs(sum(cur_waste_form% &
+            cumulative_mass)) < 1.d-40) then
+          cur_waste_form%cumulative_mass = cur_waste_form%cumulative_mass + &
+                       cur_waste_form%inst_release_amount * &
+                       cur_waste_form%volume* &
+                       cur_waste_form%mechanism%matrix_density*1.d3 
+        endif
         cur_waste_form%cumulative_mass = cur_waste_form%cumulative_mass + &
           cur_waste_form%instantaneous_mass_rate*dt
     end select
@@ -4316,13 +4323,13 @@ subroutine PMWFOutputHeader(this)
                              icolumn)
     do i = 1, cur_waste_form%mechanism%num_species
       variable_string = trim(cur_waste_form%mechanism%rad_species_list(i)%name) &
-                        // ' Cum. Mass Flux'
+                        // ' Cum. Release'
       ! cumulative
       units_string = 'mol'
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                                icolumn)
       variable_string = trim(cur_waste_form%mechanism%rad_species_list(i)%name) &
-                        // ' Inst. Mass Flux'
+                        // ' Mass Flux'
       ! instantaneous
       units_string = 'mol/s' !// trim(adjustl(output_option%tunit))
       call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
