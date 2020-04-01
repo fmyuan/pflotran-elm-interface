@@ -2329,6 +2329,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
 ! -------------------------------------------------
   type(pre_canister_inventory_type), pointer :: preinventory
   type(canister_inventory_type), pointer :: inventory
+  type(rad_inventory_type), pointer :: rad_inventory
   PetscReal :: vol_scaling_factor
   PetscReal :: MOL_NO3
   PetscReal :: F_NO3
@@ -2336,6 +2337,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   PetscReal :: D_c 
   PetscReal :: D_m 
   PetscReal :: D_s
+  PetscInt :: i
 ! -------------------------------------------------
   
   !-----PROBDEG-calculations-----------------------------------------------
@@ -2360,6 +2362,7 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
   
   preinventory => waste_panel%canister_inventory%preinventory
   inventory => waste_panel%canister_inventory
+  rad_inventory => waste_panel%rad_inventory
   !-----inventory-totals-------------------------------------units---------
   inventory%Fe_in_panel = &                                ! [kg]
         preinventory%ironchw + preinventory%ironrhw + &    ! [kg]
@@ -2405,6 +2408,11 @@ subroutine PMWSSProcessAfterRead(this,waste_panel)
         inventory%Nitrate_in_panel*vol_scaling_factor      ! [kg]
     inventory%Sulfate_in_panel = &                         ! [kg] 
         inventory%Sulfate_in_panel*vol_scaling_factor      ! [kg]
+    if (associated(rad_inventory)) then
+      do i = 1,rad_inventory%num_species
+        rad_inventory%mass(i) = rad_inventory%mass(i) * vol_scaling_factor
+      enddo
+    endif
   endif
   !-----(see equation PA.76, PA.75, PA.93, section PA-4.2.5)---------------
   !-----mass-concentrations----------------------------------units---------
