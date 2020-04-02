@@ -136,7 +136,7 @@ function SolverCreate()
   solver%newton_atol = PETSC_DEFAULT_REAL
   solver%newton_rtol = PETSC_DEFAULT_REAL
   solver%newton_stol = PETSC_DEFAULT_REAL
-  solver%newton_dtol = 1.d20 
+  solver%newton_dtol = PETSC_DEFAULT_REAL
   solver%max_norm = 1.d20     ! set to a large value
   solver%newton_inf_res_tol = UNINITIALIZED_DOUBLE
   solver%newton_inf_upd_tol = UNINITIALIZED_DOUBLE
@@ -501,7 +501,8 @@ subroutine SolverSetSNESOptions(solver, option)
   call SNESGetTolerances(solver%snes,solver%newton_atol,solver%newton_rtol, &
                          solver%newton_stol,solver%newton_max_iterations, &
                          solver%newton_maxf,ierr);CHKERRQ(ierr)
-
+  call SNESGetDivergenceTolerance(solver%snes,solver%newton_dtol, &
+                                  ierr);CHKERRQ(ierr)
   call KSPGetTolerances(solver%ksp,solver%linear_rtol,solver%linear_atol, &
                         solver%linear_dtol,solver%linear_max_iterations, &
                         ierr);CHKERRQ(ierr)
