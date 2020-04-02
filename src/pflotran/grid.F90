@@ -700,9 +700,9 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           enddo
         endif
       case (DEFINED_BY_POLY_BOUNDARY_FACE)
-        if (grid%itype /= POLYHEDRA_UNSTRUCTURED_GRID) then
+        if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
           option%io_buffer = 'Regions defined through poly boundary faces are &
-                             &only supported for POLYHEDRA_UNSTRUCTURED_GRID.'
+                             &only supported for IMPLICIT_UNSTRUCTURED_GRID.'
           call PrintErrMsg(option)
         endif
         call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
@@ -713,11 +713,6 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           region%num_cells = size(region%cell_ids)
         endif
       case (DEFINED_BY_POLY_CELL_CENTER)
-        if (grid%itype /= POLYHEDRA_UNSTRUCTURED_GRID) then
-          option%io_buffer = 'Regions defined through poly cell centers are &
-                             &only supported for POLYHEDRA_UNSTRUCTURED_GRID.'
-          call PrintErrMsg(option)
-        endif
         call GridMapCellsInPolVol(grid, &
                                   region%polygonal_volume, &
                                   region%name,option, &
