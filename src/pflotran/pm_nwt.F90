@@ -203,10 +203,10 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
 
     select case(trim(keyword))
 !geh: remove begin
-      case('MAX_VOLUME_FRACTION_CHANGE')
+      case('MAX_VOLUME_FRACTION_CHANGE','VOLUME_FRACTION_CHANGE_GOVERNOR')
         call InputReadDouble(input,option,this%controls%volfrac_change_governor)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_CFL')
+      case('MAX_CFL','CFL_GOVERNOR')
         call InputReadDouble(input,option,this%controls%cfl_governor)
         call InputErrorMsg(input,option,keyword,error_string)
       case('NUMERICAL_JACOBIAN')

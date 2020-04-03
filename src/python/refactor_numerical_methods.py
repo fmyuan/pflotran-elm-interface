@@ -151,6 +151,10 @@ def refactor_file(filename,replace_file_flag):
         elif card.startswith('SUBSURFACE'):
             subsurface_card_found = True
 
+        elif card.startswith('CPR_OPTIONS'):
+                # skip file
+                return
+
         elif card.startswith('EXTERNAL_FILE'):
             if not subsurface_card_found:
                 # skip file

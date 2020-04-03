@@ -163,23 +163,23 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
   found = PETSC_TRUE
   select case(trim(keyword))
 !geh: remove begin
-    case('MAX_PRESSURE_CHANGE')
+    case('MAX_PRESSURE_CHANGE','PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
-    case('MAX_TEMPERATURE_CHANGE')
+    case('MAX_TEMPERATURE_CHANGE','TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
   
-    case('MAX_CONCENTRATION_CHANGE')
+    case('MAX_CONCENTRATION_CHANGE','CONCENTRATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%xmol_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
-    case('MAX_SATURATION_CHANGE')
+    case('MAX_SATURATION_CHANGE','SATURATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%saturation_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
-    case('MAX_CFL')
+    case('MAX_CFL','CFL_GOVERNOR')
       call InputReadDouble(input,option,this%cfl_governor)
       call InputErrorMsg(input,option,keyword,error_string)
 
