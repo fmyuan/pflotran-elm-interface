@@ -202,6 +202,20 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
+!geh: remove begin
+      case('MAX_VOLUME_FRACTION_CHANGE')
+        call InputReadDouble(input,option,this%controls%volfrac_change_governor)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('MAX_CFL')
+        call InputReadDouble(input,option,this%controls%cfl_governor)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('NUMERICAL_JACOBIAN')
+        option%transport%numerical_derivatives = PETSC_TRUE
+      case('ITOL_RELATIVE_UPDATE')
+        call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%controls%check_post_convergence = PETSC_TRUE
+!geh: remove end
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,nwt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)

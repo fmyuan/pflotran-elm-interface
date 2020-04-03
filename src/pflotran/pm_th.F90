@@ -128,7 +128,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
   class(pm_th_type) :: this
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
@@ -146,16 +146,83 @@ subroutine PMTHReadSimOptionsBlock(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadCard(input,option,word)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(word)
+    call StringToUpper(keyword)
 
     found = PETSC_FALSE
-    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                        error_string,option)
     if (found) cycle
     
-    select case(trim(word))
+    select case(trim(keyword))
+!geh: remove begin
+    case('RESIDUAL_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol(:) = tempreal
+      this%residual_scaled_inf_tol(:) = tempreal
+
+    ! Absolute Residual
+    case('RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol(:) = tempreal
+    case('LIQUID_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(option%liquid_phase))
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,this%residual_abs_inf_tol(option%energy_id))
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    ! Scaled Residual
+    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_scaled_inf_tol(:) = tempreal
+    case('LIQUID_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(option%liquid_phase))
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('ENERGY_RESIDUAL_SCALED_INF_TOL')
+      call InputReadDouble(input,option,this%residual_scaled_inf_tol(option%energy_id))
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    ! All Updates
+    case('UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(:) = tempreal
+      this%rel_update_inf_tol(:) = tempreal
+
+    ! Absolute Updates
+    case('ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(:) = tempreal
+    case('PRES_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(1) = tempreal
+    case('TEMP_ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol(2) = tempreal
+
+    ! Relative Updates
+    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(:) = tempreal
+    case('PRES_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(1) = tempreal
+    case('TEMP_REL_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol(2) = tempreal
+!geh: remove end
+
       case('FREEZING')
         th_use_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
@@ -164,9 +231,9 @@ subroutine PMTHReadSimOptionsBlock(this,input)
         call EOSWaterSetDensity('PAINTER')
         call EOSWaterSetEnthalpy('PAINTER')
       case('ICE_MODEL')
-        call InputReadCard(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case (trim(word))
+        call InputReadCard(input,option,keyword,PETSC_FALSE)
+        call StringToUpper(keyword)
+        select case (trim(keyword))
           case ('PAINTER_EXPLICIT')
             th_ice_model = PAINTER_EXPLICIT
           case ('PAINTER_KARRA_IMPLICIT')
@@ -185,7 +252,7 @@ subroutine PMTHReadSimOptionsBlock(this,input)
             call PrintErrMsg(option)
           end select
       case default
-        call InputKeywordUnrecognized(input,word,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

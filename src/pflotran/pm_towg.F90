@@ -221,6 +221,48 @@ subroutine PMTOWGReadSimOptionsBlock(this,input)
     if (found) cycle
     
     select case(trim(keyword))
+!geh: remove begin
+    case('ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,this%itol_scaled_res)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE
+    case('ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,this%itol_rel_update)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%check_post_convergence = PETSC_TRUE        
+    case('TOUGH2_ITOL_SCALED_RESIDUAL')
+      ! tgh2_itol_scld_res_e1 is an array: assign same value to all entries
+      tempreal = UNINITIALIZED_DOUBLE
+      call InputReadDouble(input,option,tempreal)
+      ! tempreal will remain uninitialized if the read fails.
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E1', &
+                         error_string)
+      if (Initialized(tempreal)) then
+        this%tgh2_itol_scld_res_e1 = tempreal
+      endif
+      call InputReadDouble(input,option,this%tgh2_itol_scld_res_e2)
+      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E2', &
+                         error_string)
+      this%tough2_conv_criteria = PETSC_TRUE
+      this%check_post_convergence = PETSC_TRUE
+    case('T2_ITOL_SCALED_RESIDUAL_TEMP')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%tgh2_itol_scld_res_e1(3,:) = tempreal
+    case('WINDOW_EPSILON') 
+      call InputReadDouble(input,option,towg_window_epsilon)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAXIMUM_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,this%trunc_max_pressure_change)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ITERATION_BEFORE_DAMPING')
+      call InputReadInt(input,option,this%max_it_before_damping)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('DAMPING_FACTOR')
+      call InputReadDouble(input,option,this%damping_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+!geh: remove end
+
       case('TL_OMEGA')
         call InputReadDouble(input,option,val_tl_omega)
         call InputDefaultMsg(input,option,'towg tl_omega')

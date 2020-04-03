@@ -2271,6 +2271,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
+!geh: remove begin
   if (associated(simulation%flow_process_model_coupler)) then
     flow_timestepper => simulation%flow_process_model_coupler%timestepper
   endif
@@ -2281,6 +2282,7 @@ subroutine SubsurfaceReadInput(simulation,input)
     endif
     tran_timestepper => simulation%tran_process_model_coupler%timestepper
   endif
+!geh: remove end
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
@@ -2851,6 +2853,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !....................
 
+!geh: remove begin
       case ('TIMESTEPPER')
         call InputReadCard(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
@@ -2923,6 +2926,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             option%io_buffer = 'NEWTON_SOLVER must specify FLOW or TRANSPORT.'
             call PrintErrMsg(option)
         end select
+!geh: remove begin
 !....................
 
       case ('FLUID_PROPERTY')
@@ -3719,6 +3723,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           end select
         enddo
         call InputPopBlock(input,option)
+!geh: remove begin
         ! we store dt_init and dt_min in local variables so that they 
         ! cannot overwrite what has previously been set in the respective
         ! timestepper object member variable
@@ -3758,6 +3763,7 @@ subroutine SubsurfaceReadInput(simulation,input)
             endif
           endif
         endif
+!geh: remove end
 
 !......................
       case ('HDF5_READ_GROUP_SIZE')
@@ -3854,6 +3860,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
       case ('END_SUBSURFACE')
 
+!geh: remove begin
 #if 0
         if (option%flow%resdef) then
           ! it is possible for a card to be skipped when we would like to set defaults for it,
@@ -3868,6 +3875,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           endif
         endif
 #endif
+!geh: remove end
 
         exit
 

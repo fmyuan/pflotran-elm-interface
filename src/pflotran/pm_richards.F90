@@ -123,7 +123,7 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
   class(pm_richards_type) :: this
   type(input_type), pointer :: input
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
@@ -141,25 +141,59 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
     
-    call InputReadCard(input,option,word)
+    call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword',error_string)
-    call StringToUpper(word)
+    call StringToUpper(keyword)
 
     found = PETSC_FALSE
-    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
                                        error_string,option)
     if (found) cycle
     
-    select case(trim(word))
+    select case(trim(keyword))
+!geh: remove begin
+    case('RESIDUAL_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol = tempreal
+      this%residual_scaled_inf_tol = tempreal
+    ! Absolute Residual
+    case('RESIDUAL_ABS_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_abs_inf_tol = tempreal
+    ! Scaled Residual
+    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%residual_scaled_inf_tol = tempreal
+    ! All Updates
+    case('UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol = tempreal
+      this%rel_update_inf_tol = tempreal
+    ! Absolute Updates
+    case('ABS_UPDATE_INF_TOL')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%abs_update_inf_tol = tempreal
+    ! Relative Updates
+    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+      call InputReadDouble(input,option,tempreal)
+      call InputErrorMsg(input,option,keyword,error_string)
+      this%rel_update_inf_tol = tempreal
+!geh: remove end
+
       case('INLINE_SURFACE_REGION')
         option%inline_surface_flow = PETSC_TRUE
-        call InputReadWord(input,option,word,PETSC_FALSE)
-        option%inline_surface_region_name = word
+        call InputReadWord(input,option,keyword,PETSC_FALSE)
+        option%inline_surface_region_name = keyword
       case('INLINE_SURFACE_MANNINGS_COEFF')
         call InputReadDouble(input,option,tempreal)
         option%inline_surface_Mannings_coeff = tempreal
       case default
-        call InputKeywordUnrecognized(input,word,error_string,option)
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
   enddo
   call InputPopBlock(input,option)

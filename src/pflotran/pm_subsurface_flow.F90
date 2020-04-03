@@ -162,6 +162,82 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
+!geh: remove begin
+    case('MAX_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,this%pressure_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('MAX_TEMPERATURE_CHANGE')
+      call InputReadDouble(input,option,this%temperature_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+  
+    case('MAX_CONCENTRATION_CHANGE')
+      call InputReadDouble(input,option,this%xmol_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('MAX_SATURATION_CHANGE')
+      call InputReadDouble(input,option,this%saturation_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('MAX_CFL')
+      call InputReadDouble(input,option,this%cfl_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('PRESSURE_DAMPENING_FACTOR')
+      call InputReadDouble(input,option,this%pressure_dampening_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('SATURATION_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%saturation_change_limit)
+      call InputErrorMsg(input,option,keyword,error_string)
+                           
+    case('PRESSURE_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%pressure_change_limit)
+      call InputErrorMsg(input,option,keyword,error_string)
+                           
+    case('TEMPERATURE_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%temperature_change_limit)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('NUMERICAL_JACOBIAN')
+      option%flow%numerical_derivatives = PETSC_TRUE
+      if (option%flow%resdef) then
+        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
+          &overwritting the RESERVOIR_DEFAULTS default'
+        call PrintMsg(option)
+      endif
+
+    case('ANALYTICAL_JACOBIAN')
+      option%flow%numerical_derivatives = PETSC_FALSE
+
+    case('ANALYTICAL_DERIVATIVES')
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
+        &Please use ANALYTICAL_JACOBIAN instead.'
+      call PrintErrMsg(option)
+
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+! begin specific to OpenGoSim PMs
+    case('ANALYTICAL_JACOBIAN_COMPARE')
+      option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    ! artifact from testing, currently does nothing; will be used again
+    ! in future testing/implementation phases.
+    case('NUMERICAL_AS_ALYT')
+      option%flow%num_as_alyt_derivs = PETSC_TRUE
+
+    case('DEBUG_TOL')
+      call InputReadDouble(input,option,flow_aux_debug_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('DEBUG_RELTOL')
+      call InputReadDouble(input,option,flow_aux_debug_reltol)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('GEOMETRIC_PENALTY')
+      flow_aux_use_GP= PETSC_TRUE
+
+!geh: remove end
   
     case('MULTIPLE_CONTINUUM')
       option%use_mc = PETSC_TRUE
