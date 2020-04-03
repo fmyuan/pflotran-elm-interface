@@ -271,16 +271,17 @@ def refactor_file(filename,replace_file_flag):
                      '================================\n')
                 if write_flow:
                     f2.write('NUMERICAL_METHODS FLOW\n\n')
-
                     if timestepper_flow:
                         write_block(f2,'TIMESTEPPER',timestepper_flow)
                     if newton_solver_flow:
                         write_block(f2,'NEWTON_SOLVER',newton_solver_flow)   
                     if linear_solver_flow:
                         write_block(f2,'LINEAR_SOLVER',linear_solver_flow)
-                    f2.write('END\n\n')
+                    f2.write('END\n')
 
                 if write_tran:
+                    if write_flow:
+                        f2.write('\n')
                     f2.write('NUMERICAL_METHODS TRANSPORT\n\n')
                     if timestepper_tran:
                         write_block(f2,'TIMESTEPPER',timestepper_tran)
@@ -288,7 +289,7 @@ def refactor_file(filename,replace_file_flag):
                         write_block(f2,'NEWTON_SOLVER',newton_solver_tran)
                     if linear_solver_tran:
                         write_block(f2,'LINEAR_SOLVER',linear_solver_tran)
-                    f2.write('END\n\n')
+                    f2.write('END\n')
             insert_mode = False
     f.close()
     f2.close()
