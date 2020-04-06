@@ -19,6 +19,7 @@ module PM_TOilIms_class
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMTOilImsReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMToilImsReadNewtonSelectCase
+    procedure, public :: SetupSolvers => PMTOilImsSetupSolvers
     procedure, public :: InitializeRun => PMTOilImsInitializeRun
     procedure, public :: InitializeTimestep => PMTOilImsInitializeTimestep
     procedure, public :: Residual => PMTOilImsResidual
@@ -261,6 +262,27 @@ subroutine PMToilImsReadNewtonSelectCase(this,input,keyword,found, &
   end select
   
 end subroutine PMToilImsReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMToilImsSetupSolvers(this,solver)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_toil_ims_type) :: this
+  type(solver_type), pointer :: solver
+
+  call PMBaseSetupSolvers(this,solver)
+
+  ! helps accommodate rise in residual due to change in state
+  solver%newton_dtol = 1.d20
+
+end subroutine PMToilImsSetupSolvers
 
 ! ************************************************************************** !
 

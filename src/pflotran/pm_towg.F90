@@ -33,6 +33,7 @@ module PM_TOWG_class
   contains
     procedure, public :: ReadSimulationOptionsBlock => PMTOWGReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMTOWGReadNewtonSelectCase
+    procedure, public :: SetupSolvers => PMTOWGSetupSolvers
     procedure, public :: InitializeRun => PMTOWGInitializeRun
     procedure, public :: InitializeTimestep => PMTOWGInitializeTimestep
     procedure, public :: Residual => PMTOWGResidual
@@ -399,6 +400,27 @@ subroutine PMTOWGReadNewtonSelectCase(this,input,keyword,found, &
   end select
   
 end subroutine PMTOWGReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOWGSetupSolvers(this,solver)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_towg_type) :: this
+  type(solver_type), pointer :: solver
+
+  call PMBaseSetupSolvers(this,solver)
+
+  ! helps accommodate rise in residual due to change in state
+  solver%newton_dtol = 1.d20
+
+end subroutine PMTOWGSetupSolvers
 
 ! ************************************************************************** !
 
