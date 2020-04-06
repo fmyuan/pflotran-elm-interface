@@ -2864,9 +2864,6 @@ subroutine SubsurfaceReadInput(simulation,input)
               cycle
             endif
             call flow_timestepper%ReadInput(input,option)
-            if (option%flow%resdef) then
-              option%flow%flowTimestepperDone = PETSC_TRUE
-            endif
           case('TRAN','TRANSPORT')
             if (.not. associated(tran_timestepper)) then
               call InputSkipToEND(input,option,word)
@@ -2890,9 +2887,6 @@ subroutine SubsurfaceReadInput(simulation,input)
               cycle
             endif
             call SolverReadLinear(flow_timestepper%solver,input,option)
-            if (option%flow%resdef) then
-              option%flow%flowSolverLinearDone = PETSC_TRUE
-            endif
           case('TRAN','TRANSPORT')
             if (.not. associated(tran_timestepper)) then
               call InputSkipToEND(input,option,word)
@@ -3859,24 +3853,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         end select
 !....................
       case ('END_SUBSURFACE')
-
-!geh: remove begin
-#if 0
-        if (option%flow%resdef) then
-          ! it is possible for a card to be skipped when we would like to set defaults for it,
-          ! so we check that here
-          if (.NOT. option%flow%flowSolverLinearDone) then
-              call SolverReadLinear(flow_timestepper%solver,input,option)
-              option%flow%flowSolverLinearDone = PETSC_TRUE
-          endif
-          if (.NOT. option%flow%flowTimestepperDone) then
-            call flow_timestepper%ReadInput(input,option)
-            option%flow%flowTimestepperDone = PETSC_TRUE
-          endif
-        endif
-#endif
-!geh: remove end
-
         exit
 
       case default

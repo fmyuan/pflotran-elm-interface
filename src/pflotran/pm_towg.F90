@@ -32,6 +32,7 @@ module PM_TOWG_class
     !procedure(MaxChange), pointer :: MaxChange => null()
   contains
     procedure, public :: ReadSimulationOptionsBlock => PMTOWGReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMTOWGReadTSSelectCase
     procedure, public :: ReadNewtonBlock => PMTOWGReadNewtonSelectCase
     procedure, public :: SetupSolvers => PMTOWGSetupSolvers
     procedure, public :: InitializeRun => PMTOWGInitializeRun
@@ -315,6 +316,42 @@ subroutine PMTOWGReadSimOptionsBlock(this,input)
   !end select
 
 end subroutine PMTOWGReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMTOWGReadTSSelectCase(this,input,keyword,found, &
+                                  error_string,option)
+  ! 
+  ! Read timestepper settings specific to the TOWG process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+  
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  
+  implicit none
+
+  class(pm_towg_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  found = PETSC_TRUE
+  call PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMTOWGReadTSSelectCase
 
 ! ************************************************************************** !
 

@@ -291,9 +291,9 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   if (toil_analytical_derivatives) then
     if (.NOT. toil_auxvar%has_derivs) then
       ! how did this happen?
-      option%io_buffer = 'Toil ims auxvars: toil_analytical_derivatives is true, &
-                          but toil_auxvar%has_derivs is false, should both be true. &
-                          How did this happen?'
+      option%io_buffer = 'TOil ims auxvars: toil_analytical_derivatives is &
+        &true, but toil_auxvar%has_derivs is false, should both be true. &
+        &How did this happen?'
       call PrintErrMsg(option)
     endif
     getDerivs = PETSC_TRUE
