@@ -19,7 +19,7 @@ module Timestepper_KSP_class
     PetscInt :: cumulative_wasted_linear_iterations
   contains
     
-    procedure, public :: ReadInput => TimestepperKSPRead
+    procedure, public :: ReadSelectCase => TimestepperKSPReadSelectCase
     procedure, public :: Init => TimestepperKSPInit
     procedure, public :: UpdateDT => TimestepperKSPUpdateDT
     procedure, public :: CheckpointBinary => TimestepperKSPCheckpointBinary
@@ -108,51 +108,41 @@ end subroutine TimestepperKSPInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperKSPRead(this,input,option)
+subroutine TimestepperKSPReadSelectCase(this,input,keyword,found, &
+                                        error_string,option)
   ! 
-  ! Reads parameters associated with time stepper
+  ! Updates time step
   ! 
   ! Author: Glenn Hammond
-  ! Date: 12/06/19
+  ! Date: 03/20/13
   ! 
 
   use Option_module
   use String_module
   use Input_Aux_module
-  use Utility_module
-  
+  use Units_module
+
   implicit none
 
   class(timestepper_KSP_type) :: this
   type(input_type), pointer :: input
-  type(option_type) :: option
-  
   character(len=MAXWORDLENGTH) :: keyword
-  character(len=MAXSTRINGLENGTH) :: string
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type) :: option
 
-  input%ierr = 0
-  call InputPushBlock(input,option)
-  do
-  
-    call InputReadPflotranString(input,option)
+  found = PETSC_TRUE
+  call TimestepperBaseReadSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  if (found) return
 
-    if (InputCheckExit(input,option)) exit  
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case default
+      found = PETSC_FALSE
+  end select
 
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','TIMESTEPPER_KSP')
-    call StringToUpper(keyword)   
-
-    select case(trim(keyword))
-      case default
-        call TimestepperBaseProcessKeyword(this,input,option,keyword)
-    end select 
-  
-  enddo
-  call InputPopBlock(input,option)
-  
-  this%solver%print_ekg = this%print_ekg
-
-end subroutine TimestepperKSPRead
+end subroutine TimestepperKSPReadSelectCase
 
 ! ************************************************************************** !
 

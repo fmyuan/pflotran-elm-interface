@@ -12,7 +12,8 @@ module PM_Miscible_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_miscible_type
   contains
-    procedure, public :: ReadSimulationBlock => PMMiscibleRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMMiscibleReadSimOptionsBlock
     procedure, public :: InitializeTimestep => PMMiscibleInitializeTimestep
     procedure, public :: Residual => PMMiscibleResidual
     procedure, public :: Jacobian => PMMiscibleJacobian
@@ -68,7 +69,7 @@ end function PMMiscibleCreate
 
 ! ************************************************************************** !
 
-subroutine PMMiscibleRead(this,input)
+subroutine PMMiscibleReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Miscible process model
   ! 
@@ -108,8 +109,8 @@ subroutine PMMiscibleRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -119,7 +120,7 @@ subroutine PMMiscibleRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMMiscibleRead
+end subroutine PMMiscibleReadSimOptionsBlock
 
 ! ************************************************************************** !
 

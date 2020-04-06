@@ -12,7 +12,8 @@ module PM_Immis_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_immis_type
   contains
-    procedure, public :: ReadSimulationBlock => PMImmisRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMImmisReadSimOptionsBlock
     procedure, public :: InitializeTimestep => PMImmisInitializeTimestep
     procedure, public :: Residual => PMImmisResidual
     procedure, public :: Jacobian => PMImmisJacobian
@@ -64,7 +65,7 @@ end function PMImmisCreate
 
 ! ************************************************************************** !
 
-subroutine PMImmisRead(this,input)
+subroutine PMImmisReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Immis process model
   ! 
@@ -104,8 +105,8 @@ subroutine PMImmisRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -115,7 +116,7 @@ subroutine PMImmisRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMImmisRead
+end subroutine PMImmisReadSimOptionsBlock
 
 ! ************************************************************************** !
 

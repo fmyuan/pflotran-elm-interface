@@ -69,7 +69,8 @@ end subroutine PMSurfaceCreate
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceReadSelectCase(this,input,keyword,found,option)
+subroutine PMSurfaceReadSelectCase(this,input,keyword,found, &
+                                   error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
   !       model
@@ -85,36 +86,33 @@ subroutine PMSurfaceReadSelectCase(this,input,keyword,found,option)
 
   class(pm_surface_type) :: this
   type(input_type) :: input
-
   character(len=MAXWORDLENGTH) :: keyword
   PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
   found = PETSC_TRUE
   select case(trim(keyword))
 
-    case('MAX_PRESSURE_CHANGE')
+    case('PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
-      call InputDefaultMsg(input,option,'dpmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
 
-    case('MAX_TEMPERATURE_CHANGE')
+    case('TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
-      call InputDefaultMsg(input,option,'dtmpmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('PRESSURE_DAMPENING_FACTOR')
       call InputReadDouble(input,option,this%pressure_dampening_factor)
-      call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
-                          'TIMESTEPPER')
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('PRESSURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%pressure_change_limit)
-      call InputErrorMsg(input,option,'PRESSURE_CHANGE_LIMIT', &
-                          'TIMESTEPPER')
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('TEMPERATURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%temperature_change_limit)
-      call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
-                          'TIMESTEPPER')
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
   end select
