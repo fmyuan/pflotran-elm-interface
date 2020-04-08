@@ -13,7 +13,8 @@ module PM_Flash2_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_flash2_type
   contains
-    procedure, public :: ReadSimulationBlock => PMFlash2Read
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMFlash2ReadSimOptionsBlock
     procedure, public :: InitializeTimestep => PMFlash2InitializeTimestep
     procedure, public :: Residual => PMFlash2Residual
     procedure, public :: Jacobian => PMFlash2Jacobian
@@ -64,7 +65,7 @@ end function PMFlash2Create
 
 ! ************************************************************************** !
 
-subroutine PMFlash2Read(this,input)
+subroutine PMFlash2ReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Flash2 process model
   ! 
@@ -104,8 +105,8 @@ subroutine PMFlash2Read(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -115,7 +116,7 @@ subroutine PMFlash2Read(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMFlash2Read
+end subroutine PMFlash2ReadSimOptionsBlock
 
 ! ************************************************************************** !
 

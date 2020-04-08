@@ -17,7 +17,8 @@ module PM_Surface_TH_class
 
   type, public, extends(pm_surface_type) :: pm_surface_th_type
   contains
-    procedure, public :: ReadSimulationBlock => PMSurfaceTHRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMSurfaceTHReadSimOptionsBlock
     procedure, public :: UpdateTimestep => PMSurfaceTHUpdateTimestep
     procedure, public :: PreSolve => PMSurfaceTHPreSolve
     procedure, public :: PostSolve => PMSurfaceTHPostSolve
@@ -60,7 +61,7 @@ end function PMSurfaceTHCreate
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceTHRead(this,input)
+subroutine PMSurfaceTHReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Surface TH process model
   ! 
@@ -100,7 +101,7 @@ subroutine PMSurfaceTHRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSurfaceReadSelectCase(this,input,word,found,option)
+    call PMSurfaceReadSelectCase(this,input,word,found,error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -110,7 +111,7 @@ subroutine PMSurfaceTHRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMSurfaceTHRead
+end subroutine PMSurfaceTHReadSimOptionsBlock
 
 ! ************************************************************************** !
 

@@ -32,7 +32,9 @@ module PM_Hydrate_class
     PetscReal :: damping_factor
     PetscInt :: hydrate_newton_max_iter
   contains
-    procedure, public :: ReadSimulationBlock => PMHydrateRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMHydrateReadSimOptionsBlock
+    procedure, public :: ReadNewtonBlock => PMHydrateReadNewtonSelectCase
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -406,7 +408,8 @@ subroutine PMHydrateAssignParameters(realization, pm)
 end subroutine PMHydrateAssignParameters
 
 ! ************************************************************************** !
-subroutine PMHydrateRead(this,input)
+
+subroutine PMHydrateReadSimOptionsBlock(this,input)
   ! 
   ! Sets up SNES solvers.
   ! 
@@ -452,15 +455,14 @@ subroutine PMHydrateRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)    
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)    
     if (found) cycle
     
     select case(trim(keyword))
+!geh: remove begin
       case('CENTRAL_DIFFERENCE_JACOBIAN')
         hydrate_central_diff_jacobian = PETSC_TRUE
-      case('NO_STATE_TRANSITION_PRINTING')    
-        hydrate_print_state_transition = PETSC_FALSE
       case('HYDRATE_UPDATE_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -481,18 +483,8 @@ subroutine PMHydrateRead(this,input)
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%hydrate_newton_max_iter = tempreal
-      case('PHASE_CHANGE_EPSILON')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,keyword,error_string)
-        hydrate_phase_chng_epsilon = tempreal
-      
-      case('RESTRICT_STATE_CHANGE')
-        hydrate_restrict_state_chng = PETSC_TRUE
+
       ! Tolerances
-      
-      case('NO_STATE_TRANSITION_OUTPUT')
-        hydrate_print_state_transition = PETSC_FALSE
-      
       ! All Residual
       case('RESIDUAL_INF_TOL')
         call InputReadDouble(input,option,tempreal)
@@ -641,56 +633,49 @@ subroutine PMHydrateRead(this,input)
 
       case('WINDOW_EPSILON') 
         call InputReadDouble(input,option,window_epsilon)
-        call InputErrorMsg(input,option,'window epsilon',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
+  
+      case('MAXIMUM_PRESSURE_CHANGE')
+        call InputReadDouble(input,option,hydrate_max_pressure_change)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('MAX_ITERATION_BEFORE_DAMPING')
+        call InputReadInt(input,option,hydrate_max_it_before_damping)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DAMPING_FACTOR')
+        call InputReadDouble(input,option,hydrate_damping_factor)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%damping_factor = hydrate_damping_factor
+
+!geh: remove end
+
+      case('NO_STATE_TRANSITION_PRINTING')    
+        hydrate_print_state_transition = PETSC_FALSE
+      case('PHASE_CHANGE_EPSILON')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        hydrate_phase_chng_epsilon = tempreal
+      
+      case('RESTRICT_STATE_CHANGE')
+        hydrate_restrict_state_chng = PETSC_TRUE
+      
+      case('NO_STATE_TRANSITION_OUTPUT')
+        hydrate_print_state_transition = PETSC_FALSE
+      
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         !geh: assuming gas component is index 2
         call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,'gas component formula wt.', &
-             error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('LIQUID_COMPONENT_FORMULA_WEIGHT')
-         !heeho: assuming liquid component is index 1
-         call InputReadDouble(input,option,fmw_comp(1))
-         call InputErrorMsg(input,option,'liquid component formula wt.', &
-             error_string)
+        !heeho: assuming liquid component is index 1
+        call InputReadDouble(input,option,fmw_comp(1))
+        call InputErrorMsg(input,option,keyword,error_string)
       case('TWO_PHASE_ENERGY_DOF')
         call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,'two_phase_energy_dof',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
         call HydrateAuxSetEnergyDOF(word,option)
-      case('MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,hydrate_max_pressure_change)
-        call InputErrorMsg(input,option,'maximum pressure change', &
-                           error_string)
-      case('MAX_ITERATION_BEFORE_DAMPING')
-        call InputReadInt(input,option,hydrate_max_it_before_damping)
-        call InputErrorMsg(input,option,'maximum iteration before damping', &
-                           error_string)
-      case('DAMPING_FACTOR')
-        call InputReadDouble(input,option,hydrate_damping_factor)
-        call InputErrorMsg(input,option,'damping factor',error_string)
-        this%damping_factor = hydrate_damping_factor
-#if 0        
-      case('GOVERN_MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,this%dPmax_allowable)
-        call InputErrorMsg(input,option,'maximum allowable pressure change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_TEMPERATURE_CHANGE')
-        call InputReadDouble(input,option,this%dTmax_allowable)
-        call InputErrorMsg(input,option, &
-                           'maximum allowable temperature change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_SATURATION_CHANGE')
-        call InputReadDouble(input,option,this%dSmax_allowable)
-        call InputErrorMsg(input,option,'maximum allowable saturation change', &
-                           error_string)
-      case('GOVERN_MAXIMUM_MOLE_FRACTION_CHANGE')
-        call InputReadDouble(input,option,this%dXmax_allowable)
-        call InputErrorMsg(input,option, &
-                           'maximum allowable mole fraction change', &
-                           error_string)
-#endif
       case('DEBUG_CELL')
         call InputReadInt(input,option,hydrate_debug_cell_id)
-        call InputErrorMsg(input,option,'debug cell id',error_string)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('NO_TEMP_DEPENDENT_DIFFUSION')
         hydrate_temp_dep_gas_air_diff = PETSC_FALSE
       case('DIFFUSE_XMASS')
@@ -710,7 +695,242 @@ subroutine PMHydrateRead(this,input)
   enddo  
   call InputPopBlock(input,option)
 
-end subroutine PMHydrateRead
+end subroutine PMHydrateReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
+                                         error_string,option)
+  ! 
+  ! Reads input file parameters associated with the HYDRATE process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use Hydrate_Aux_module
+ 
+  implicit none
+  
+  class(pm_hydrate_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  PetscReal :: tempreal
+  PetscInt :: lid, gid, eid
+
+  option => this%option
+
+  lid = 1 !option%liquid_phase
+  gid = 2 !option%gas_phase
+  eid = 3 !option%energy_id
+
+  error_string = 'HYDRATE Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+      case('CENTRAL_DIFFERENCE_JACOBIAN')
+        hydrate_central_diff_jacobian = PETSC_TRUE
+      case('HYDRATE_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,3) = tempreal
+        this%abs_update_inf_tol(2,6) = tempreal
+        this%abs_update_inf_tol(2,7) = tempreal
+        this%abs_update_inf_tol(2,8) = tempreal
+        this%abs_update_inf_tol(2,9) = tempreal
+        this%abs_update_inf_tol(3,10) = tempreal
+        this%abs_update_inf_tol(1:2,11) = tempreal
+        this%abs_update_inf_tol(2:3,12) = tempreal
+        this%abs_update_inf_tol(1:2,13) = tempreal
+        this%abs_update_inf_tol(2:3,14) = tempreal
+        this%abs_update_inf_tol(:,15) = tempreal
+        
+      !man: phase change
+      case('MAX_NEWTON_ITERATIONS')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%hydrate_newton_max_iter = tempreal
+
+      ! Tolerances
+      ! All Residual
+      case('RESIDUAL_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%residual_abs_inf_tol(:) = tempreal
+        this%residual_scaled_inf_tol(:) = tempreal
+
+      ! Absolute Residual
+      case('RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%residual_abs_inf_tol(:) = tempreal
+      case('LIQUID_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(lid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('GAS_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(gid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ENERGY_RESIDUAL_ABS_INF_TOL')
+        call InputReadDouble(input,option,this%residual_abs_inf_tol(eid))
+        call InputErrorMsg(input,option,keyword,error_string)
+
+      ! Scaled Residual
+      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%residual_scaled_inf_tol(:) = tempreal
+      case('LIQUID_RESIDUAL_SCALED_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(lid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('GAS_RESIDUAL_SCALED_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(gid))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('ENERGY_RESIDUAL_SCALED_INF_TOL')
+        call InputReadDouble(input,option,this%residual_scaled_inf_tol(eid))
+        call InputErrorMsg(input,option,keyword,error_string)
+
+      ! All Updates
+      case('UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(:,:) = tempreal
+        this%rel_update_inf_tol(:,:) = tempreal
+
+      ! Absolute Updates
+      case('ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(:,:) = tempreal
+      case('PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(1,:) = tempreal
+        this%abs_update_inf_tol(2,2) = tempreal
+        this%abs_update_inf_tol(1,1:10) = tempreal
+        this%abs_update_inf_tol(1,12) = tempreal
+        this%abs_update_inf_tol(1,14) = tempreal
+        this%abs_update_inf_tol(2,2) = tempreal
+      case('TEMP_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(3,:) = tempreal
+        this%abs_update_inf_tol(3,1:9) = tempreal
+        this%abs_update_inf_tol(3,11) = tempreal
+        this%abs_update_inf_tol(3,13) = tempreal
+      case('SAT_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,3) = tempreal
+        this%abs_update_inf_tol(2,3) = tempreal
+        this%abs_update_inf_tol(2,6:9) = tempreal
+        this%abs_update_inf_tol(3,10) = tempreal
+        this%abs_update_inf_tol(2,11:15) = tempreal
+        this%abs_update_inf_tol(3,12) = tempreal
+        this%abs_update_inf_tol(3,14:15) = tempreal
+        this%abs_update_inf_tol(1,11) = tempreal
+        this%abs_update_inf_tol(1,13) = tempreal
+        this%abs_update_inf_tol(1,15) = tempreal
+      case('XMOL_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,1) = tempreal
+      case('LIQUID_PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(1,1) = tempreal
+      case('GAS_PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(1,2:3) = tempreal
+      case('AIR_PRES_ABS_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%abs_update_inf_tol(2,2) = tempreal
+
+      ! Relative Updates
+      case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(:,:) = tempreal
+      case('PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(1,:) = tempreal
+        this%rel_update_inf_tol(2,2) = tempreal
+        this%rel_update_inf_tol(1,1:10) = tempreal
+        this%rel_update_inf_tol(1,12) = tempreal
+        this%rel_update_inf_tol(1,14) = tempreal
+        this%rel_update_inf_tol(2,2) = tempreal
+      case('TEMP_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(3,:) = tempreal
+        this%rel_update_inf_tol(3,1:9) = tempreal
+        this%rel_update_inf_tol(3,11) = tempreal
+        this%rel_update_inf_tol(3,13) = tempreal
+      case('SAT_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(2,3) = tempreal
+        this%rel_update_inf_tol(2,3) = tempreal
+        this%rel_update_inf_tol(2,6:9) = tempreal
+        this%rel_update_inf_tol(3,10) = tempreal
+        this%rel_update_inf_tol(2,11:15) = tempreal
+        this%rel_update_inf_tol(3,12) = tempreal
+        this%rel_update_inf_tol(3,14:15) = tempreal
+        this%rel_update_inf_tol(1,11) = tempreal
+        this%rel_update_inf_tol(1,13) = tempreal
+        this%rel_update_inf_tol(1,15) = tempreal
+      case('XMOL_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(2,1) = tempreal
+      case('LIQUID_PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(1,1) = tempreal
+      case('GAS_PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(1,2:3) = tempreal
+      case('AIR_PRES_REL_UPDATE_INF_TOL')
+        call InputReadDouble(input,option,tempreal)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%rel_update_inf_tol(2,2) = tempreal
+
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,window_epsilon)
+        call InputErrorMsg(input,option,keyword,error_string)
+  
+      case('MAXIMUM_PRESSURE_CHANGE')
+        call InputReadDouble(input,option,hydrate_max_pressure_change)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('MAX_ITERATION_BEFORE_DAMPING')
+        call InputReadInt(input,option,hydrate_max_it_before_damping)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DAMPING_FACTOR')
+        call InputReadDouble(input,option,hydrate_damping_factor)
+        call InputErrorMsg(input,option,keyword,error_string)
+        this%damping_factor = hydrate_damping_factor
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMHydrateReadNewtonSelectCase
 
 ! ************************************************************************** !
 

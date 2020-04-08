@@ -28,7 +28,7 @@ module Timestepper_BE_class
             
   contains
     
-    procedure, public :: ReadInput => TimestepperBERead
+    procedure, public :: ReadSelectCase => TimestepperBEReadSelectCase
     procedure, public :: Init => TimestepperBEInit
 !    procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
     procedure, public :: StepDT => TimestepperBEStepDT
@@ -64,8 +64,10 @@ module Timestepper_BE_class
     end subroutine
   end interface PetscBagGetData  
 
-  public :: TimestepperBECreate, TimestepperBEPrintInfo, &
-            TimestepperBEInit
+  public :: TimestepperBECreate, &
+            TimestepperBEPrintInfo, &
+            TimestepperBEInit, &
+            TimestepperBEReadSelectCase
 
 contains
 
@@ -135,12 +137,13 @@ end subroutine TimestepperBEInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERead(this,input,option)
+subroutine TimestepperBEReadSelectCase(this,input,keyword,found, &
+                                       error_string,option)
   ! 
-  ! Reads parameters associated with time stepper
+  ! Reads select case statement for BE
   ! 
   ! Author: Glenn Hammond
-  ! Date: 07/22/13
+  ! Date: 03/16/20
   ! 
 
   use Option_module
@@ -152,58 +155,38 @@ subroutine TimestepperBERead(this,input,option)
 
   class(timestepper_BE_type) :: this
   type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
+  found = PETSC_TRUE
+  call TimestepperBaseReadSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  if (found) return
 
-  if (option%flow%resdef) then
-    option%io_buffer = 'TIMESTEPPER CARD: applying common defaults (RESERVOIR_DEFAULTS)'
-    call PrintMsg(option)
-    this%iaccel=100
-    option%io_buffer = 'TIMESTEPPER CARD: TS_ACCELERATION as been set to 100 (RESERVOIR_DEFAULTS)'
-    call PrintMsg(option)
-  endif
+  found = PETSC_TRUE
+  select case(trim(keyword))
 
-  input%ierr = 0
-  call InputPushBlock(input,option)
-  do
-  
-    call InputReadPflotranString(input,option)
+    case('TS_ACCELERATION')
+      call InputReadInt(input,option,this%iaccel)
+      call InputDefaultMsg(input,option,'iaccel')
 
-    if (InputCheckExit(input,option)) exit  
+    case('DT_FACTOR')
+      string='time_step_factor'
+      call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
+          option)
+      this%ntfac = size(this%tfac)
 
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
-    call StringToUpper(keyword)   
-
-    select case(trim(keyword))
-  
-      case('TS_ACCELERATION')
-        call InputReadInt(input,option,this%iaccel)
-        call InputDefaultMsg(input,option,'iaccel')
-        if (option%flow%resdef) then
-          option%io_buffer = 'WARNING: TS_ACCELERATION has been changed, overwritting the RESERVOIR_DEFAULTS default'
-          call PrintMsg(option)
-        endif
-
-      case('DT_FACTOR')
-        string='time_step_factor'
-        call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
-            option)
-        this%ntfac = size(this%tfac)
-
-      case default
-        call TimestepperBaseProcessKeyword(this,input,option,keyword)
-    end select 
-  
-  enddo
-  call InputPopBlock(input,option)
+    case default
+      found = PETSC_FALSE
+  end select 
   
   this%solver%print_ekg = this%print_ekg
 
-end subroutine TimestepperBERead
+end subroutine TimestepperBEReadSelectCase
 
 ! ************************************************************************** !
 
