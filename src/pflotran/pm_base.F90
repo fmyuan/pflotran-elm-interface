@@ -34,7 +34,7 @@ module PM_Base_class
     procedure, public :: ReadPMBlock => PMBaseReadPMBlock
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
-    procedure, public :: SetSolver => PMBaseSetSolver
+    procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -70,6 +70,7 @@ module PM_Base_class
     
   public :: PMBaseInit, &
             PMBaseInputRecord, &
+            PMBaseSetupSolvers, &
             PMBaseReadSimOptionsSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
@@ -352,7 +353,7 @@ end subroutine PMBaseComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine PMBaseSetSolver(this,solver)
+subroutine PMBaseSetupSolvers(this,solver)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/15/17
@@ -366,7 +367,7 @@ subroutine PMBaseSetSolver(this,solver)
 
   this%solver => solver
 
-end subroutine PMBaseSetSolver
+end subroutine PMBaseSetupSolvers
 
 ! ************************************************************************** !
 

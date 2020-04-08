@@ -40,6 +40,10 @@ SUBSURFACE
     FORMAT TECPLOT POINT
   END
   noskip
+
+  NEWTON_SOLVER FLOW
+    DTOL 1.d20
+  END
   
   ! Domain and region information -----------------------------------
 

@@ -18,7 +18,9 @@ module PM_TOilIms_class
     ! all the routines below needs to be replaced, uncomment as I develop them
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMTOilImsReadSimOptionsBlock
-    procedure, public :: ReadNewtonBlock => PMToilImsReadNewtonSelectCase
+    procedure, public :: ReadTSBlock => PMTOilImsReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMTOilImsReadNewtonSelectCase
+    procedure, public :: SetupSolvers => PMTOilImsSetupSolvers
     procedure, public :: InitializeRun => PMTOilImsInitializeRun
     procedure, public :: InitializeTimestep => PMTOilImsInitializeTimestep
     procedure, public :: Residual => PMTOilImsResidual
@@ -39,7 +41,7 @@ module PM_TOilIms_class
     procedure, public :: Destroy => PMTOilImsDestroy
   end type pm_toil_ims_type
   
-  public :: PMToilImsCreate
+  public :: PMTOilImsCreate
   
 contains
 
@@ -57,7 +59,7 @@ function PMTOilImsCreate()
   use TOilIms_module, only : TOilImsDefaultSetup
   implicit none
   
-  class(pm_toil_ims_type), pointer :: PMToilImsCreate
+  class(pm_toil_ims_type), pointer :: PMTOilImsCreate
 
   class(pm_toil_ims_type), pointer :: toil_ims_pm
 
@@ -187,7 +189,43 @@ end subroutine PMTOilImsReadSimOptionsBlock
 
 ! ************************************************************************** !
 
-subroutine PMToilImsReadNewtonSelectCase(this,input,keyword,found, &
+subroutine PMTOilImsReadTSSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  ! 
+  ! Read timestepper settings specific to the TOIL_IMS process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  class(pm_toil_ims_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  found = PETSC_TRUE
+  call PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMTOilImsReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOilImsReadNewtonSelectCase(this,input,keyword,found, &
                                          error_string,option)
   ! 
   ! Reads input file parameters associated with the TOIL_IMS process model
@@ -260,7 +298,28 @@ subroutine PMToilImsReadNewtonSelectCase(this,input,keyword,found, &
 
   end select
   
-end subroutine PMToilImsReadNewtonSelectCase
+end subroutine PMTOilImsReadNewtonSelectCase
+
+! ************************************************************************** !
+
+subroutine PMTOilImsSetupSolvers(this,solver)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_toil_ims_type) :: this
+  type(solver_type), pointer :: solver
+
+  call PMBaseSetupSolvers(this,solver)
+
+  ! helps accommodate rise in residual due to change in state
+  solver%newton_dtol = 1.d20
+
+end subroutine PMTOilImsSetupSolvers
 
 ! ************************************************************************** !
 
@@ -487,7 +546,7 @@ subroutine PMTOilImsJacobian(this,snes,xx,A,B,ierr)
   ! Date: 11/07/15
   ! 
 
-  use TOilIms_module, only : ToilImsJacobian
+  use TOilIms_module, only : TOilImsJacobian
 
   implicit none
   
@@ -959,7 +1018,7 @@ end subroutine PMTOilImsTimeCut
 
 subroutine PMTOilImsMaxChange(this)
   ! 
-  ! Not needed given ToilImsMaxChange is called in PostSolve
+  ! Not needed given TOilImsMaxChange is called in PostSolve
   ! 
   ! Author: Paolo Orsini
   ! Date: 11/09/15

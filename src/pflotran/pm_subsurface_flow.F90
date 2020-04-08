@@ -201,11 +201,6 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
-      if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
-          &overwritting the RESERVOIR_DEFAULTS default'
-        call PrintMsg(option)
-      endif
 
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
@@ -243,8 +238,8 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       option%use_mc = PETSC_TRUE
 
 !geh: this is an orphan keyword
+#if 0
     case('RESERVOIR_DEFAULTS')
-      option%flow%resdef = PETSC_TRUE
       option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
         &process model options'
       call PrintMsg(option)
@@ -259,6 +254,7 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
       option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
         &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
       call PrintMsg(option)
+#endif
 
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
@@ -321,11 +317,6 @@ subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
     case('PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
       call InputErrorMsg(input,option,keyword,error_string)
-      if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, &
-          &overwritting the RESERVOIR_DEFAULTS default'
-        call PrintMsg(option)
-      endif
 
     case('TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
@@ -399,11 +390,6 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
-      if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
-          &overwritting the RESERVOIR_DEFAULTS default'
-        call PrintMsg(option)
-      endif
 
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
