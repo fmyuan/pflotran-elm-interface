@@ -662,6 +662,11 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           'for unstructured region DEFINED_BY_VERTEX_IDS'
         call PrintErrMsg(option)
       case (DEFINED_BY_SIDESET_UGRID)
+        if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
+          option%io_buffer = 'Regions defined through sidesets are &
+                             &only supported for IMPLICIT_UNSTRUCTURED_GRIDS.'
+          call PrintErrMsg(option)
+        endif
         call UGridMapSideSet2(grid%unstructured_grid, &
                              region%sideset%face_vertices, &
                              region%sideset%nfaces,region%name, &
@@ -670,6 +675,11 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           region%num_cells = size(region%cell_ids)
         endif
       case (DEFINED_BY_FACE_UGRID_EXP)
+        if (grid%itype /= EXPLICIT_UNSTRUCTURED_GRID) then
+          option%io_buffer = 'Regions defined through explicit facesets are &
+                             &only supported for EXPLICIT_UNSTRUCTURED_GRIDS.'
+          call PrintErrMsg(option)
+        endif
         call GridLocalizeExplicitFaceset(grid%unstructured_grid,region, &
                                          option)
         ! For explicit unstructured grids, the face locations are not 
@@ -690,6 +700,11 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           enddo
         endif
       case (DEFINED_BY_POLY_BOUNDARY_FACE)
+        if (grid%itype /= IMPLICIT_UNSTRUCTURED_GRID) then
+          option%io_buffer = 'Regions defined through poly boundary faces are &
+                             &only supported for IMPLICIT_UNSTRUCTURED_GRID.'
+          call PrintErrMsg(option)
+        endif
         call UGridMapBoundFacesInPolVol(grid%unstructured_grid, &
                                         region%polygonal_volume, &
                                         region%name,option, &
