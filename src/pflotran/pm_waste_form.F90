@@ -2888,21 +2888,7 @@ subroutine PMWFInitializeTimestep(this)
       class is(wf_mechanism_dsnf_type)
         ! note: do nothing here because the cumulative mass update for dsnf
         ! and/or wipp mechanisms has already occured (if breached)
-        if (cur_waste_form%breached .and. dabs(sum(cur_waste_form% &
-            cumulative_mass)) < 1.d-40) then
-          cur_waste_form%cumulative_mass = cur_waste_form%cumulative_mass + &
-                       cur_waste_form%inst_release_amount * &
-                       cur_waste_form%volume* &
-                       cur_waste_form%mechanism%matrix_density*1.d3
-        endif
       class default
-        if (cur_waste_form%breached .and. dabs(sum(cur_waste_form% &
-            cumulative_mass)) < 1.d-40) then
-          cur_waste_form%cumulative_mass = cur_waste_form%cumulative_mass + &
-                       cur_waste_form%inst_release_amount * &
-                       cur_waste_form%volume* &
-                       cur_waste_form%mechanism%matrix_density*1.d3 
-        endif
         cur_waste_form%cumulative_mass = cur_waste_form%cumulative_mass + &
           cur_waste_form%instantaneous_mass_rate*dt
     end select
@@ -3005,7 +2991,13 @@ subroutine PMWFInitializeTimestep(this)
           xx_p(idof) = xx_p(idof) + & 
                        (inst_release_molality*cur_waste_form%scaling_factor(f))
         enddo
+
+        ! Update cumulative mass release to include instantaneous release
+        cur_waste_form%cumulative_mass(k) = cur_waste_form% &
+                  cumulative_mass(k) + cur_waste_form%inst_release_amount(k) * &
+                  cur_waste_form%volume * cwfm%matrix_density * 1.d3
       enddo
+
       cur_waste_form%breached = PETSC_TRUE 
       cur_waste_form%breach_time = option%time
       call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
