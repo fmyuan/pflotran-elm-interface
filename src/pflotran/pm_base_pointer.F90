@@ -141,10 +141,11 @@ end subroutine PMIJacobianPtr
 
 subroutine PMCheckUpdatePreTRPtr(snes,X,dX,changed,this,ierr)
   ! 
-  ! Wrapper for native call to XXXCheckUpdatePre
+  ! Wrapper for native call to XXXCheckUpdatePreTR
+  ! when using Newton Trust Region Method
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/02/14
+  ! Author: Heeho Park
+  ! Date: 04/13/20
   ! 
    implicit none
 
@@ -166,9 +167,10 @@ subroutine PMCheckUpdatePostTRPtr(snes,X0,dX,X1,dX_changed,X1_changed, &
                                 this,ierr)
   ! 
   ! Wrapper for native call to XXXCheckUpdatePost
+  ! when using Newton Trust Region Method
   ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/02/14
+  ! Author: Heeho Park
+  ! Date: 04/13/20
   ! 
   implicit none
 

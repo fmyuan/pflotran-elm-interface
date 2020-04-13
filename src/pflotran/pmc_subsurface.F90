@@ -151,7 +151,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   SNESLineSearch :: linesearch  
   character(len=MAXSTRINGLENGTH) :: string  
   PetscBool :: add_pre_check, check_update, check_post_convergence
-  PetscBool :: using_newtontr = PETSC_FALSE  
   PetscInt :: itransport, RT, NWT
   PetscInt :: trans_coupling
   SNESType :: snes_type
@@ -208,16 +207,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
       
       call SNESGetType(solver%snes,snes_type,ierr);CHKERRQ(ierr)
-      if (trim(snes_type) == 'newtontr') then
-        using_newtontr = PETSC_TRUE
-      endif
-      select case(option%iflowmode)
-        case(G_MODE)
-          if (trim(snes_type) == 'newtontr') then
-            general_using_newtontr = PETSC_TRUE
-          endif
-      end select
-
       call SNESSetOptionsPrefix(solver%snes, "flow_",ierr);CHKERRQ(ierr)
       call SolverCheckCommandLine(solver)
 
@@ -318,20 +307,20 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
                                   PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
 
       if (pm%check_post_convergence) then
-        if (using_newtontr) then
-          call SNESNewtonTRSetPostCheck(solver%snes, &
-                                        PMCheckUpdatePostTRPtr, &
-                                        this%pm_ptr, &
-                                        ierr);CHKERRQ(ierr)
-        else
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                          PMCheckUpdatePostPtr, &
+        select case(snes_type)
+          case(SNESNEWTONTR)
+            call SNESNewtonTRSetPostCheck(solver%snes, &
+                                          PMCheckUpdatePostTRPtr, &
                                           this%pm_ptr, &
                                           ierr);CHKERRQ(ierr)
-        endif
+          case default
+            call SNESLineSearchSetPostCheck(linesearch, &
+                                            PMCheckUpdatePostPtr, &
+                                            this%pm_ptr, &
+                                            ierr);CHKERRQ(ierr)
+        end select
         !geh: it is possible that the other side has not been set
         pm%check_post_convergence = PETSC_TRUE
-        
       endif
                                   
       add_pre_check = PETSC_FALSE
@@ -358,17 +347,18 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       end select
 
       if (add_pre_check) then
-        if (using_newtontr) then
-          call SNESNewtonTRSetPreCheck(solver%snes, &
-                                       PMCheckUpdatePreTRPtr, &
-                                       this%pm_ptr, &
-                                       ierr);CHKERRQ(ierr)
-        else
-          call SNESLineSearchSetPreCheck(linesearch, &
-                                         PMCheckUpdatePrePtr, &
+        select case(snes_type)
+          case(SNESNEWTONTR)
+            call SNESNewtonTRSetPreCheck(solver%snes, &
+                                         PMCheckUpdatePreTRPtr, &
                                          this%pm_ptr, &
                                          ierr);CHKERRQ(ierr)
-        endif
+          case default
+            call SNESLineSearchSetPreCheck(linesearch, &
+                                           PMCheckUpdatePrePtr, &
+                                           this%pm_ptr, &
+                                           ierr);CHKERRQ(ierr)
+        end select
       endif
 
       call PrintMsg(option,"  Finished setting up FLOW SNES ")
