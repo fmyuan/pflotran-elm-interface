@@ -2963,6 +2963,12 @@ subroutine PMWFInitializeTimestep(this)
         cur_waste_form%inst_release_amount(k) = &
            (cwfm%rad_species_list(k)%inst_release_fraction * &
             cur_waste_form%rad_concentration(k))
+
+        ! Update cumulative release (mol) to include instantaneous release
+        cur_waste_form%cumulative_mass(k) = cur_waste_form% &
+                  cumulative_mass(k) + cur_waste_form%inst_release_amount(k) * &
+                  cur_waste_form%volume * cwfm%matrix_density * 1.d3
+
         cur_waste_form%rad_concentration(k) = &
            cur_waste_form%rad_concentration(k) - &
            cur_waste_form%inst_release_amount(k)
@@ -2992,10 +2998,6 @@ subroutine PMWFInitializeTimestep(this)
                        (inst_release_molality*cur_waste_form%scaling_factor(f))
         enddo
 
-        ! Update cumulative mass release to include instantaneous release
-        cur_waste_form%cumulative_mass(k) = cur_waste_form% &
-                  cumulative_mass(k) + cur_waste_form%inst_release_amount(k) * &
-                  cur_waste_form%volume * cwfm%matrix_density * 1.d3
       enddo
 
       cur_waste_form%breached = PETSC_TRUE 
@@ -4347,11 +4349,11 @@ subroutine PMWFOutputHeader(this)
     units_string = 'm^3'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'WF Vitality Degradation Rate'
+    variable_string = 'Canister Vitality Degradation Rate'
     units_string = '1/yr'
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
-    variable_string = 'WF Canister Vitality'
+    variable_string = 'Canister Vitality'
     units_string = '%' 
     call OutputWriteToHeader(fid,variable_string,units_string,cell_string, &
                              icolumn)
