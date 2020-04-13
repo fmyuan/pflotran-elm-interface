@@ -78,7 +78,7 @@ module PM_UFD_Biosphere_class
   contains
     procedure, public :: SetRealization => PMUFDBSetRealization
     procedure, public :: Setup => PMUFDBSetup
-    procedure, public :: ReadPMBlock => PMUFDBRead
+    procedure, public :: ReadPMBlock => PMUFDBReadPMBlock
     procedure, public :: InitializeRun => PMUFDBInitializeRun
     procedure, public :: InitializeTimestep => PMUFDBInitializeTimestep
     procedure, public :: FinalizeTimestep => PMUFDBFinalizeTimestep
@@ -274,7 +274,7 @@ end subroutine PMUFDBSetRealization
 
 ! *************************************************************************** !
 
-subroutine PMUFDBRead(this,input)
+subroutine PMUFDBReadPMBlock(this,input)
   !
   ! Reads input file parameters for the UFD Biosphere process model.
   !
@@ -299,7 +299,6 @@ subroutine PMUFDBRead(this,input)
   type(ERB_1A_type), pointer :: new_ERB1A
   class(ERB_base_type), pointer :: cur_ERB
   PetscBool :: added
-  PetscBool :: found
   
   option => this%option
   input%ierr = 0
@@ -316,10 +315,6 @@ subroutine PMUFDBRead(this,input)
     call InputErrorMsg(input,option,'keyword',error_string)
     error_string = 'UFD_BIOSPHERE'
     call StringToUpper(word)
-
-    found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
-    if (found) cycle
 
     select case(trim(word))
     !-----------------------------------------
@@ -429,7 +424,7 @@ subroutine PMUFDBRead(this,input)
   endif
   
   
-end subroutine PMUFDBRead
+end subroutine PMUFDBReadPMBlock
 
 ! *************************************************************************** !
 

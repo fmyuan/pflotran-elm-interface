@@ -76,7 +76,10 @@ module PM_WIPP_Flow_class
     PetscInt, pointer :: dirichlet_dofs_local(:) ! this array is zero-based indexing
  
   contains
-    procedure, public :: ReadSimulationBlock => PMWIPPFloRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMWIPPFloReadSimOptionsBlock
+    procedure, public :: ReadTSBlock => PMWIPPFloReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMWIPPFloReadNewtonSelectCase
     procedure, public :: InitializeRun => PMWIPPFloInitializeRun
     procedure, public :: InitializeTimestep => PMWIPPFloInitializeTimestep
     procedure, public :: Residual => PMWIPPFloResidual
@@ -154,6 +157,11 @@ subroutine PMWIPPFloInitObject(this)
   this%name = 'WIPP Immiscible Multiphase Flow'
   this%header = 'WIPP IMMISCIBLE MULTIPHASE FLOW'
 
+  ! set to UNINITIALIZED_DOUBLE and report error below is set from input
+  this%pressure_change_governor = UNINITIALIZED_DOUBLE
+  this%temperature_change_governor = UNINITIALIZED_DOUBLE
+  this%saturation_change_governor = UNINITIALIZED_DOUBLE
+
   this%max_change_ivar = [LIQUID_PRESSURE, GAS_PRESSURE, GAS_SATURATION]
   nullify(this%pmwss_ptr)
   this%check_post_convergence = PETSC_TRUE
@@ -202,9 +210,9 @@ end subroutine PMWIPPFloInitObject
 
 ! ************************************************************************** !
 
-subroutine PMWIPPFloRead(this,input)
+subroutine PMWIPPFloReadSimOptionsBlock(this,input)
   ! 
-  ! Read WIPP FLOW input block
+  ! Read WIPP FLOW options input block
   ! 
   ! Author: Glenn Hammond
   ! Date: 07/11/17
@@ -251,24 +259,99 @@ subroutine PMWIPPFloRead(this,input)
     call StringToUpper(keyword)
     
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(keyword))
-      case('LIQUID_RESIDUAL_INFINITY_TOL')
-        call InputReadDouble(input,option,this%liquid_residual_infinity_tol)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_RESIDUAL_INFINITY_TOL')
-        call InputReadDouble(input,option,this%gas_equation_infinity_tol)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_ALLOW_REL_LIQ_PRES_CHANG_NI')
-        call InputReadDouble(input,option,this%max_allow_rel_liq_pres_chang_ni)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! no units conversion since it is relative
-      case('MAX_ALLOW_REL_GAS_SAT_CHANGE_NI')
-        call InputReadDouble(input,option,this%max_allow_rel_gas_sat_change_ni)
-        call InputErrorMsg(input,option,keyword,error_string)
+!geh: remove begin
+    case('GAS_SAT_CHANGE_TS_GOVERNOR')
+      call InputReadDouble(input,option,this%gas_sat_change_ts_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('LIQ_PRES_CHANGE_TS_GOVERNOR')
+      call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! units conversion since it is absolute
+      call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
+                                    'Pa',keyword,option)
+    case('GAS_SAT_GOV_SWITCH_ABS_TO_REL')
+      call InputReadDouble(input,option,this%gas_sat_gov_switch_abs_to_rel)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MINIMUM_TIMESTEP_SIZE')
+      call InputReadDouble(input,option,this%minimum_timestep_size)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
+                                    'sec',keyword,option)
+    case('LIQUID_RESIDUAL_INFINITY_TOL')
+      call InputReadDouble(input,option,this%liquid_residual_infinity_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_RESIDUAL_INFINITY_TOL')
+      call InputReadDouble(input,option,this%gas_equation_infinity_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ALLOW_REL_LIQ_PRES_CHANG_NI')
+      call InputReadDouble(input,option,this%max_allow_rel_liq_pres_chang_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! no units conversion since it is relative
+    case('MAX_ALLOW_REL_GAS_SAT_CHANGE_NI')
+      call InputReadDouble(input,option,this%max_allow_rel_gas_sat_change_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('REL_LIQ_PRESSURE_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_rel_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! no units conversion since it is relative
+    case('MIN_LIQ_PRESSURE_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_min_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,wippflo_pres_min_pert, &
+                                    'Pa',keyword,option)
+    case('REL_GAS_SATURATION_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_rel_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MIN_GAS_SATURATION_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_min_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_SAT_THRESH_FORCE_EXTRA_NI')
+      call InputReadDouble(input,option,this%gas_sat_thresh_force_extra_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_SAT_THRESH_FORCE_TS_CUT')
+      call InputReadDouble(input,option,this%gas_sat_thresh_force_ts_cut)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MIN_LIQ_PRES_FORCE_TS_CUT')
+      call InputReadDouble(input,option,this%min_liq_pres_force_ts_cut)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%min_liq_pres_force_ts_cut, &
+                                    'Pa',keyword,option)
+    case('MAX_ALLOW_GAS_SAT_CHANGE_TS')
+      call InputReadDouble(input,option,this%max_allow_gas_sat_change_ts)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ALLOW_LIQ_PRES_CHANGE_TS')
+      call InputReadDouble(input,option,this%max_allow_liq_pres_change_ts)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! units conversion since it is absolute
+      call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ts, &
+                                    'Pa',keyword,option)
+    case('CONVERGENCE_TEST')
+      call InputReadCard(input,option,word)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call StringToUpper(word)
+      select case(word)
+        case('BOTH')
+          this%convergence_test_both = PETSC_TRUE
+        case('EITHER')
+          this%convergence_test_both = PETSC_FALSE
+        case default
+          call InputKeywordUnrecognized(input,keyword, &
+                         trim(error_string)//','//keyword,option)
+      end select
+    case('JACOBIAN_PRESSURE_DERIV_SCALE')
+      call InputReadDouble(input,option,this%linear_system_scaling_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('SCALE_JACOBIAN')
+      this%scale_linear_system = PETSC_TRUE
+    case('DO_NOT_SCALE_JACOBIAN')
+      this%scale_linear_system = PETSC_FALSE
+!geh: remove end
+
       case('GAS_COMPONENT_FORMULA_WEIGHT')
         call InputReadDouble(input,option,fmw_comp(2))
         call InputErrorMsg(input,option,keyword,error_string)
@@ -297,71 +380,6 @@ subroutine PMWIPPFloRead(this,input)
         wippflo_use_legacy_perturbation = PETSC_TRUE
       case('USE_BRAGFLO_CC')
         wippflo_use_bragflo_cc = PETSC_TRUE
-      case('REL_LIQ_PRESSURE_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_pres_rel_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! no units conversion since it is relative
-      case('MIN_LIQ_PRESSURE_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_pres_min_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call InputReadAndConvertUnits(input,wippflo_pres_min_pert, &
-                                      'Pa',keyword,option)
-      case('REL_GAS_SATURATION_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_sat_rel_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MIN_GAS_SATURATION_PERTURBATION')
-        call InputReadDouble(input,option,wippflo_sat_min_pert)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_SAT_THRESH_FORCE_TS_CUT')
-        call InputReadDouble(input,option,this%gas_sat_thresh_force_ts_cut)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('GAS_SAT_THRESH_FORCE_EXTRA_NI')
-        call InputReadDouble(input,option,this%gas_sat_thresh_force_extra_ni)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MIN_LIQ_PRES_FORCE_TS_CUT')
-        call InputReadDouble(input,option,this%min_liq_pres_force_ts_cut)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call InputReadAndConvertUnits(input,this%min_liq_pres_force_ts_cut, &
-                                      'Pa',keyword,option)
-      case('MAX_ALLOW_GAS_SAT_CHANGE_TS')
-        call InputReadDouble(input,option,this%max_allow_gas_sat_change_ts)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_ALLOW_LIQ_PRES_CHANGE_TS')
-        call InputReadDouble(input,option,this%max_allow_liq_pres_change_ts)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! units conversion since it is absolute
-        call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ts, &
-                                      'Pa',keyword,option)
-      case('GAS_SAT_CHANGE_TS_GOVERNOR')
-        call InputReadDouble(input,option,this%gas_sat_change_ts_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('LIQ_PRES_CHANGE_TS_GOVERNOR')
-        call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-        ! units conversion since it is absolute
-        call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
-                                      'Pa',keyword,option)
-      case('GAS_SAT_GOV_SWITCH_ABS_TO_REL')
-        call InputReadDouble(input,option,this%gas_sat_gov_switch_abs_to_rel)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MINIMUM_TIMESTEP_SIZE')
-        call InputReadDouble(input,option,this%minimum_timestep_size)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
-                                      'sec',keyword,option)
-      case('CONVERGENCE_TEST')
-        call InputReadCard(input,option,word)
-        call InputErrorMsg(input,option,keyword,error_string)
-        call StringToUpper(word)
-        select case(word)
-          case('BOTH')
-            this%convergence_test_both = PETSC_TRUE
-          case('EITHER')
-            this%convergence_test_both = PETSC_FALSE
-          case default
-            call InputKeywordUnrecognized(input,keyword, &
-                           trim(error_string)//','//keyword,option)
-        end select
       case('RESIDUAL_TEST')
         wippflo_residual_test = PETSC_TRUE
       case('RESIDUAL_TEST_CELL')
@@ -450,13 +468,6 @@ subroutine PMWIPPFloRead(this,input)
       case('AUTO_PRESS_SHALLOW_ORIGIN')
         call InputReadNDoubles(input,option,this%auto_press_shallow_origin,THREE_INTEGER)
         call InputErrorMsg(input,option,keyword,error_string)
-      case('JACOBIAN_PRESSURE_DERIV_SCALE')
-        call InputReadDouble(input,option,this%linear_system_scaling_factor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('SCALE_JACOBIAN')
-        this%scale_linear_system = PETSC_TRUE
-      case('DO_NOT_SCALE_JACOBIAN')
-        this%scale_linear_system = PETSC_FALSE
       case('2D_FLARED_DIRICHLET_BCS')
         icount = 0
         do
@@ -531,7 +542,180 @@ subroutine PMWIPPFloRead(this,input)
   this%neg_log10_rel_gas_sat_change_ni = &
     -1.d0*log10(this%max_allow_rel_gas_sat_change_ni)
    
-end subroutine PMWIPPFloRead
+end subroutine PMWIPPFloReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloReadTSSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  ! 
+  ! Read timestepper settings specific to the WIPP_FLOW process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_wippflo_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  found = PETSC_TRUE
+  call PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('GAS_SAT_CHANGE_TS_GOVERNOR')
+      call InputReadDouble(input,option,this%gas_sat_change_ts_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('LIQ_PRES_CHANGE_TS_GOVERNOR')
+      call InputReadDouble(input,option,this%liq_pres_change_ts_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! units conversion since it is absolute
+      call InputReadAndConvertUnits(input,this%liq_pres_change_ts_governor, &
+                                    'Pa',keyword,option)
+    case('GAS_SAT_GOV_SWITCH_ABS_TO_REL')
+      call InputReadDouble(input,option,this%gas_sat_gov_switch_abs_to_rel)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MINIMUM_TIMESTEP_SIZE')
+      call InputReadDouble(input,option,this%minimum_timestep_size)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%minimum_timestep_size, &
+                                    'sec',keyword,option)
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMWIPPFloReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
+                                         error_string,option)
+  ! 
+  ! Reads input file parameters associated with the WIPP_FLOW process model
+  ! Newton solver convergence
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/23/20
+
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use Option_module
+  use WIPP_Flow_Aux_module
+ 
+  implicit none
+  
+  class(pm_wippflo_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  PetscBool :: found
+  character(len=MAXWORDLENGTH) :: word
+  PetscReal :: tempreal
+  PetscInt :: lid, gid, eid
+
+  option => this%option
+
+  lid = 1 !option%liquid_phase
+  gid = 2 !option%gas_phase
+  eid = 3 !option%energy_id
+
+  error_string = 'WIPP_FLOW Newton Solver'
+  
+  found = PETSC_FALSE
+  call PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  if (found) return
+    
+  found = PETSC_TRUE
+  select case(trim(keyword))
+    case('LIQUID_RESIDUAL_INFINITY_TOL')
+      call InputReadDouble(input,option,this%liquid_residual_infinity_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_RESIDUAL_INFINITY_TOL')
+      call InputReadDouble(input,option,this%gas_equation_infinity_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ALLOW_REL_LIQ_PRES_CHANG_NI')
+      call InputReadDouble(input,option,this%max_allow_rel_liq_pres_chang_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! no units conversion since it is relative
+    case('MAX_ALLOW_REL_GAS_SAT_CHANGE_NI')
+      call InputReadDouble(input,option,this%max_allow_rel_gas_sat_change_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('REL_LIQ_PRESSURE_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_rel_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! no units conversion since it is relative
+    case('MIN_LIQ_PRESSURE_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_pres_min_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,wippflo_pres_min_pert, &
+                                    'Pa',keyword,option)
+    case('REL_GAS_SATURATION_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_rel_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MIN_GAS_SATURATION_PERTURBATION')
+      call InputReadDouble(input,option,wippflo_sat_min_pert)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_SAT_THRESH_FORCE_EXTRA_NI')
+      call InputReadDouble(input,option,this%gas_sat_thresh_force_extra_ni)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('GAS_SAT_THRESH_FORCE_TS_CUT')
+      call InputReadDouble(input,option,this%gas_sat_thresh_force_ts_cut)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MIN_LIQ_PRES_FORCE_TS_CUT')
+      call InputReadDouble(input,option,this%min_liq_pres_force_ts_cut)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call InputReadAndConvertUnits(input,this%min_liq_pres_force_ts_cut, &
+                                    'Pa',keyword,option)
+    case('MAX_ALLOW_GAS_SAT_CHANGE_TS')
+      call InputReadDouble(input,option,this%max_allow_gas_sat_change_ts)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('MAX_ALLOW_LIQ_PRES_CHANGE_TS')
+      call InputReadDouble(input,option,this%max_allow_liq_pres_change_ts)
+      call InputErrorMsg(input,option,keyword,error_string)
+      ! units conversion since it is absolute
+      call InputReadAndConvertUnits(input,this%max_allow_liq_pres_change_ts, &
+                                    'Pa',keyword,option)
+    case('CONVERGENCE_TEST')
+      call InputReadCard(input,option,word)
+      call InputErrorMsg(input,option,keyword,error_string)
+      call StringToUpper(word)
+      select case(word)
+        case('BOTH')
+          this%convergence_test_both = PETSC_TRUE
+        case('EITHER')
+          this%convergence_test_both = PETSC_FALSE
+        case default
+          call InputKeywordUnrecognized(input,keyword, &
+                         trim(error_string)//','//keyword,option)
+      end select
+    case('JACOBIAN_PRESSURE_DERIV_SCALE')
+      call InputReadDouble(input,option,this%linear_system_scaling_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('SCALE_JACOBIAN')
+      this%scale_linear_system = PETSC_TRUE
+    case('DO_NOT_SCALE_JACOBIAN')
+      this%scale_linear_system = PETSC_FALSE
+    case default
+      found = PETSC_FALSE
+
+  end select
+  
+end subroutine PMWIPPFloReadNewtonSelectCase
 
 ! ************************************************************************** !
 
@@ -898,6 +1082,14 @@ recursive subroutine PMWIPPFloInitializeRun(this)
         &a direct solver or FGMRES-CPR.'
       call PrintErrMsg(option)
     endif
+  endif
+
+  if (Initialized(this%pressure_change_governor) .or. &
+      Initialized(this%temperature_change_governor) .or. &
+      Initialized(this%saturation_change_governor)) then
+    option%io_buffer = 'PRESSURE_CHANGE_GOVERNOR, TEMPERATURE_CHANGE_GOVERNOR, &
+      or CONCENTRATION_CHANGE_GOVERNOR may not be used with WIPP_FLOW.'
+    call PrintErrMsg(option)
   endif
   
 end subroutine PMWIPPFloInitializeRun

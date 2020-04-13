@@ -29,7 +29,7 @@ module Timestepper_TS_class
   contains
     procedure, public :: CheckpointBinary => TimestepperTSCheckpointBinary
     procedure, public :: Init => TimestepperTSInit
-    procedure, public :: ReadInput => TimestepperTSRead
+    procedure, public :: ReadSelectCase => TimestepperTSReadSelectCase
     procedure, public :: RestartBinary => TimestepperTSRestartBinary
     procedure, public :: Reset => TimestepperTSReset
     procedure, public :: InputRecord => TimestepperSurfInputRecord
@@ -123,12 +123,13 @@ end subroutine TimestepperTSInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperTSRead(this,input,option)
+subroutine TimestepperTSReadSelectCase(this,input,keyword,found, &
+                                       error_string,option)
   ! 
-  ! Reads parameters associated with time stepper
+  ! Reads select case statement for TS
   ! 
-  ! Author: Gautam Bisht
-  ! Date: 07/03/18
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
   ! 
 
   use Option_module
@@ -140,46 +141,40 @@ subroutine TimestepperTSRead(this,input,option)
 
   class(timestepper_TS_type) :: this
   type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
 
-  input%ierr = 0
-  call InputPushBlock(input,option)
-  do
+  found = PETSC_TRUE
+  call TimestepperBaseReadSelectCase(this,input,keyword,found, &
+                                     error_string,option)
+  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+
+    case('TS_ACCELERATION')
+      call InputReadInt(input,option,this%iaccel)
+      call InputDefaultMsg(input,option,'iaccel')
+
+    case('DT_FACTOR')
+      string='time_step_factor'
+      call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
+          option)
+      this%ntfac = size(this%tfac)
+
+    case default
+      found = PETSC_FALSE
+  end select 
   
-    call InputReadPflotranString(input,option)
-
-    if (InputCheckExit(input,option)) exit
-
-    call InputReadCard(input,option,keyword)
-    call InputErrorMsg(input,option,'keyword','TIMESTEPPER_BE')
-    call StringToUpper(keyword)
-
-    select case(trim(keyword))
-  
-      case('TS_ACCELERATION')
-        call InputReadInt(input,option,this%iaccel)
-        call InputDefaultMsg(input,option,'iaccel')
-
-      case('DT_FACTOR')
-        string='time_step_factor'
-        call UtilityReadArray(this%tfac,NEG_ONE_INTEGER,string,input, &
-            option)
-        this%ntfac = size(this%tfac)
-
-      case default
-        call TimestepperBaseProcessKeyword(this,input,option,keyword)
-    end select
-  
-  enddo
-  call InputPopBlock(input,option)
-
   this%solver%print_ekg = this%print_ekg
 
-end subroutine TimestepperTSRead
+end subroutine TimestepperTSReadSelectCase
 
+! ************************************************************************** !
 ! ************************************************************************** !
 
 subroutine TimestepperTSStepDT(this,process_model,stop_flag)

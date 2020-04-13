@@ -155,15 +155,11 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
 
     ! link geomech and flow timestepper waypoints to geomech way point list
     if (associated(simulation%geomech_process_model_coupler)) then
-      if (associated(simulation%geomech_process_model_coupler% &
-                     timestepper)) then
-        simulation%geomech_process_model_coupler%timestepper%cur_waypoint => &
-          pmc_geomech%waypoint_list%first
-      endif
-
-      if (associated(simulation%flow_process_model_coupler%timestepper)) then
-        simulation%flow_process_model_coupler%timestepper%cur_waypoint => &
-          pmc_geomech%waypoint_list%first
+      call simulation%geomech_process_model_coupler% &
+             SetWaypointPtr(pmc_geomech%waypoint_list)
+      if (associated(simulation%flow_process_model_coupler)) then
+        call simulation%flow_process_model_coupler% &
+               SetWaypointPtr(pmc_geomech%waypoint_list)
       endif
     endif
     
@@ -177,7 +173,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     call GeomechInitSetupRealization(simulation)
 
     if (associated(timestepper)) then
-      call pm_geomech%SetSolver(timestepper%solver)
+      call pm_geomech%SetupSolvers(timestepper%solver)
     endif
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
     call pm_geomech%Setup()

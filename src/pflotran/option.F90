@@ -715,7 +715,12 @@ subroutine PrintErrMsg2(option,string)
     if (petsc_initialized) then
       call PetscFinalize(ierr);CHKERRQ(ierr)
     endif
-    call exit(EXIT_USER_ERROR)
+    select case(option%exit_code)
+      case(EXIT_FAILURE)
+        call exit(option%exit_code)
+      case default
+        call exit(EXIT_USER_ERROR)
+    end select
   else
     option%error_while_nonblocking = PETSC_TRUE
   endif
