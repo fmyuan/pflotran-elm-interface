@@ -45,6 +45,8 @@ module PM_Subsurface_Flow_class
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Setup => PMSubsurfaceFlowSetup
+    procedure, public :: ReadTSBlock => PMSubsurfaceFlowReadTSSelectCase
+    procedure, public :: ReadNewtonBlock => PMSubsurfaceFlowReadNewtonSelectCase
     procedure, public :: SetRealization => PMSubsurfaceFlowSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceFlowInitializeRun
     procedure, public :: FinalizeRun => PMSubsurfaceFlowFinalizeRun
@@ -80,7 +82,9 @@ module PM_Subsurface_Flow_class
             PMSubsurfaceFlowTimeCutPostInit, &
             PMSubsurfaceFlowCheckpointBinary, &
             PMSubsurfaceFlowRestartBinary, &
-            PMSubsurfaceFlowReadSelectCase, &
+            PMSubsurfFlowReadSimOptionsSC, &
+            PMSubsurfaceFlowReadTSSelectCase, &
+            PMSubsurfaceFlowReadNewtonSelectCase, &
             PMSubsurfaceFlowDestroy
   
 contains
@@ -127,8 +131,8 @@ end subroutine PMSubsurfaceFlowInit
 
 ! ************************************************************************** !
 
-subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
-                                          error_string,option)
+subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
+                                         error_string,option)
   ! 
   ! Reads input file parameters associated with the subsurface flow process 
   !       model
@@ -151,73 +155,91 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type) :: option
 
-  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+  found = PETSC_TRUE
+  call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                      error_string,option)
   if (found) return
 
   found = PETSC_TRUE
   select case(trim(keyword))
-  
-    case('MAX_PRESSURE_CHANGE')
+!geh: remove begin
+    case('MAX_PRESSURE_CHANGE','PRESSURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%pressure_change_governor)
-      call InputDefaultMsg(input,option,'dpmxe')
-      if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: MAX_PRESSURE_CHANGE has been selected, &
-          &overwritting the RESERVOIR_DEFAULTS default'
-        call PrintMsg(option)
-      endif
+      call InputErrorMsg(input,option,keyword,error_string)
 
-    case('MAX_TEMPERATURE_CHANGE')
+    case('MAX_TEMPERATURE_CHANGE','TEMPERATURE_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%temperature_change_governor)
-      call InputDefaultMsg(input,option,'dtmpmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
   
-    case('MAX_CONCENTRATION_CHANGE')
+    case('MAX_CONCENTRATION_CHANGE','CONCENTRATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%xmol_change_governor)
-      call InputDefaultMsg(input,option,'dcmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
 
-    case('MAX_SATURATION_CHANGE')
+    case('MAX_SATURATION_CHANGE','SATURATION_CHANGE_GOVERNOR')
       call InputReadDouble(input,option,this%saturation_change_governor)
-      call InputDefaultMsg(input,option,'dsmxe')
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('MAX_CFL','CFL_GOVERNOR')
+      call InputReadDouble(input,option,this%cfl_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('PRESSURE_DAMPENING_FACTOR')
       call InputReadDouble(input,option,this%pressure_dampening_factor)
-      call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('SATURATION_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%saturation_change_limit)
-      call InputErrorMsg(input,option,'SATURATION_CHANGE_LIMIT', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
                            
     case('PRESSURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%pressure_change_limit)
-      call InputErrorMsg(input,option,'PRESSURE_CHANGE_LIMIT', &
-                         error_string)
+      call InputErrorMsg(input,option,keyword,error_string)
                            
     case('TEMPERATURE_CHANGE_LIMIT')
       call InputReadDouble(input,option,this%temperature_change_limit)
-      call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
-                         error_string)
-
-    case('MAX_CFL')
-      call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,'MAX_CFL',error_string)
-
-    case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
+      call InputErrorMsg(input,option,keyword,error_string)
 
     case('NUMERICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_TRUE
-      if (option%flow%resdef) then
-        option%io_buffer = 'WARNING: NUMERICAL_JACOBIAN has been selected, &
-          &overwritting the RESERVOIR_DEFAULTS default'
-        call PrintMsg(option)
-      endif
 
     case('ANALYTICAL_JACOBIAN')
       option%flow%numerical_derivatives = PETSC_FALSE
 
+    case('ANALYTICAL_DERIVATIVES')
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
+        &Please use ANALYTICAL_JACOBIAN instead.'
+      call PrintErrMsg(option)
+
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+! begin specific to OpenGoSim PMs
+    case('ANALYTICAL_JACOBIAN_COMPARE')
+      option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    ! artifact from testing, currently does nothing; will be used again
+    ! in future testing/implementation phases.
+    case('NUMERICAL_AS_ALYT')
+      option%flow%num_as_alyt_derivs = PETSC_TRUE
+
+    case('DEBUG_TOL')
+      call InputReadDouble(input,option,flow_aux_debug_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('DEBUG_RELTOL')
+      call InputReadDouble(input,option,flow_aux_debug_reltol)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('GEOMETRIC_PENALTY')
+      flow_aux_use_GP= PETSC_TRUE
+
+!geh: remove end
+  
+    case('MULTIPLE_CONTINUUM')
+      option%use_mc = PETSC_TRUE
+
+!geh: this is an orphan keyword
+#if 0
     case('RESERVOIR_DEFAULTS')
-      option%flow%resdef = PETSC_TRUE
       option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
         &process model options'
       call PrintMsg(option)
@@ -232,19 +254,7 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
         &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
       call PrintMsg(option)
-
-    case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
-        &Please use ANALYTICAL_JACOBIAN instead.'
-      call PrintErrMsg(option)
-
-    case('ANALYTICAL_JACOBIAN_COMPARE')
-      option%flow%numerical_derivatives_compare = PETSC_TRUE
-
-    ! artifact from testing, currently does nothing; will be used again
-    ! in future testing/implementation phases.
-    case('NUMERICAL_AS_ALYT')
-      option%flow%num_as_alyt_derivs = PETSC_TRUE
+#endif
 
     case('FIX_UPWIND_DIRECTION')
       fix_upwind_direction = PETSC_TRUE
@@ -256,22 +266,9 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       call InputReadInt(input,option,upwind_dir_update_freq)
       call InputErrorMsg(input,option,keyword,error_string)
       
-    case('USE_INFINITY_NORM_CONVERGENCE')
-      this%check_post_convergence = PETSC_TRUE
-
     case('LOGGING_VERBOSITY')
       call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
-
-    case('DEBUG_TOL')
-      call InputReadDouble(input,option,flow_aux_debug_tol)
-      call InputErrorMsg(input,option,'DEBUG_TOL',error_string)
-    case('DEBUG_RELTOL')
-      call InputReadDouble(input,option,flow_aux_debug_reltol)
-      call InputErrorMsg(input,option,'DEBUG_RELTOL',error_string)
-
-    case('GEOMETRIC_PENALTY')
-      flow_aux_use_GP= PETSC_TRUE
 
     case('REVERT_PARAMETERS_ON_RESTART')
       this%revert_parameters_on_restart = PETSC_TRUE
@@ -283,7 +280,153 @@ subroutine PMSubsurfaceFlowReadSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
   end select  
   
-end subroutine PMSubsurfaceFlowReadSelectCase
+end subroutine PMSubsurfFlowReadSimOptionsSC
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowReadTSSelectCase(this,input,keyword,found, &
+                                            error_string,option)
+  ! 
+  ! Read timestepper settings specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/16/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use AuxVars_Flow_module
+  use Upwind_Direction_module
+ 
+  implicit none
+  
+  class(pm_subsurface_flow_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+!  found = PETSC_TRUE
+!  call PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+  
+    case('PRESSURE_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%pressure_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('TEMPERATURE_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%temperature_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+  
+    case('CONCENTRATION_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%xmol_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('SATURATION_CHANGE_GOVERNOR')
+      call InputReadDouble(input,option,this%saturation_change_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('CFL_GOVERNOR')
+      call InputReadDouble(input,option,this%cfl_governor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMSubsurfaceFlowReadTSSelectCase
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
+                                                error_string,option)
+  ! 
+  ! Read Newton solver tolerances specific to this process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/09/20
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+  use AuxVars_Flow_module
+  use Upwind_Direction_module
+ 
+  implicit none
+  
+  class(pm_subsurface_flow_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+!  found = PETSC_FALSE
+!  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
+!  if (found) return
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+  
+    case('PRESSURE_DAMPENING_FACTOR')
+      call InputReadDouble(input,option,this%pressure_dampening_factor)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('SATURATION_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%saturation_change_limit)
+      call InputErrorMsg(input,option,keyword,error_string)
+                           
+    case('PRESSURE_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%pressure_change_limit)
+      call InputErrorMsg(input,option,keyword,error_string)
+                           
+    case('TEMPERATURE_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%temperature_change_limit)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('NUMERICAL_JACOBIAN')
+      option%flow%numerical_derivatives = PETSC_TRUE
+
+    case('ANALYTICAL_JACOBIAN')
+      option%flow%numerical_derivatives = PETSC_FALSE
+
+    case('ANALYTICAL_DERIVATIVES')
+      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
+        &Please use ANALYTICAL_JACOBIAN instead.'
+      call PrintErrMsg(option)
+
+    case('USE_INFINITY_NORM_CONVERGENCE')
+      this%check_post_convergence = PETSC_TRUE
+
+! begin specific to OpenGoSim PMs
+    case('ANALYTICAL_JACOBIAN_COMPARE')
+      option%flow%numerical_derivatives_compare = PETSC_TRUE
+
+    ! artifact from testing, currently does nothing; will be used again
+    ! in future testing/implementation phases.
+    case('NUMERICAL_AS_ALYT')
+      option%flow%num_as_alyt_derivs = PETSC_TRUE
+
+    case('DEBUG_TOL')
+      call InputReadDouble(input,option,flow_aux_debug_tol)
+      call InputErrorMsg(input,option,keyword,error_string)
+    case('DEBUG_RELTOL')
+      call InputReadDouble(input,option,flow_aux_debug_reltol)
+      call InputErrorMsg(input,option,keyword,error_string)
+
+    case('GEOMETRIC_PENALTY')
+      flow_aux_use_GP= PETSC_TRUE
+! end specific to OpenGoSim PMs
+
+    case default
+      found = PETSC_FALSE
+  end select  
+  
+end subroutine PMSubsurfaceFlowReadNewtonSelectCase
 
 ! ************************************************************************** !
 
@@ -394,6 +537,8 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
   use Variables_module, only : POROSITY
   use Material_Aux_class, only : POROSITY_INITIAL, POROSITY_BASE, &
                                  POROSITY_CURRENT
+  use String_module, only : StringWrite
+  use Utility_module, only : Equal
   use Well_Data_class
 
   implicit none
@@ -457,6 +602,13 @@ recursive subroutine PMSubsurfaceFlowInitializeRun(this)
 
   if (WellDataGetFlag()) then
     call this%InitialiseAllWells()
+  endif
+
+  ! ensure that time step size was set to zero
+  if (.not.Equal(this%option%flow_dt,0.d0)) then
+    this%option%io_buffer = 'Non-zero flow time step (' // &
+      trim(StringWrite(this%option%flow_dt)) // ') during initialization.'
+    call PrintErrMsg(this%option)
   endif
 
 end subroutine PMSubsurfaceFlowInitializeRun

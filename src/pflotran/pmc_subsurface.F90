@@ -169,7 +169,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   call SNESGetLineSearch(solver%snes,linesearch, &
                          ierr);CHKERRQ(ierr)
   ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetSolver(solver)
+  call this%pm_ptr%pm%SetupSolvers(solver)
   select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
     class is(pm_subsurface_flow_type)
@@ -557,7 +557,7 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
   call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
 
   ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetSolver(solver)
+  call this%pm_ptr%pm%SetupSolvers(solver)
 
   select type(pm => this%pm_ptr%pm)
 

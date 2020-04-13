@@ -104,6 +104,8 @@ recursive subroutine PMOSRTInitializeRun(this)
                                      this%realization%field%tran_xx, &
                                      this%rhs)
 
+  ! check to ensure zero tran_dt performed at end of PMRTInitializeRun
+
 end subroutine PMOSRTInitializeRun
 
 ! ************************************************************************** !

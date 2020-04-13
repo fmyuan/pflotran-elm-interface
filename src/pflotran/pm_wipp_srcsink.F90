@@ -475,7 +475,7 @@ module PM_WIPP_SrcSink_class
   contains
     procedure, public :: PMWSSSetRealization
     procedure, public :: Setup => PMWSSSetup
-    procedure, public :: ReadPMBlock => PMWSSRead
+    procedure, public :: ReadPMBlock => PMWSSReadPMBlock
     procedure, public :: InitializeRun => PMWSSInitializeRun
     procedure, public :: InitializeTimestep => PMWSSInitializeTimestep
     procedure, public :: FinalizeTimestep => PMWSSFinalizeTimestep
@@ -1190,7 +1190,7 @@ end subroutine PMWSSSetRegionScaling
 
 ! *************************************************************************** !
 
-subroutine PMWSSRead(this,input)
+subroutine PMWSSReadPMBlock(this,input)
   !
   ! Reads input file parameters for the WIPP source/sink process model.
   !
@@ -1241,7 +1241,6 @@ subroutine PMWSSRead(this,input)
   PetscInt :: num_errors, k, i, input_int
   PetscInt :: rxn_num, spec_num
   PetscBool :: added
-  PetscBool :: found
   character(len=MAXWORDLENGTH) :: bh_materials(100)
 ! ----------------------------------------------------------------------------
   
@@ -1261,10 +1260,6 @@ subroutine PMWSSRead(this,input)
     call InputErrorMsg(input,option,'keyword',error_string)
     num_errors = 0
     error_string = 'WIPP_SOURCE_SINK'
-
-    found = PETSC_FALSE
-    call PMBaseReadSelectCase(this,input,word,found,error_string,option)
-    if (found) cycle
 
     call StringToUpper(word)
     select case(trim(word))
@@ -2289,7 +2284,7 @@ subroutine PMWSSRead(this,input)
   
   call PMWSSAssociateRadInventory(this)
   
-end subroutine PMWSSRead
+end subroutine PMWSSReadPMBlock
 
 ! *************************************************************************** !
 
