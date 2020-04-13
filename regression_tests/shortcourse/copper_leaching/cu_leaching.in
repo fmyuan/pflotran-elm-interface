@@ -166,6 +166,10 @@ TIMESTEPPER TRANSPORT
   TS_ACCELERATION 32
 END
 
+NEWTON_SOLVER TRANSPORT
+  DTOL 1.d6
+END
+
 #=========================== discretization ===================================
 GRID
   TYPE STRUCTURED

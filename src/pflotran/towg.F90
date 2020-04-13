@@ -992,7 +992,7 @@ end subroutine TOWGTimeCut
 subroutine TOWGZeroMassBalanceDelta(realization)
   ! 
   ! Zeros mass balance delta array  
-  ! PO: identical for many flow modes (Genral, Toil_Ims, TOWG), where can it 
+  ! PO: identical for many flow modes (Genral, TOil_Ims, TOWG), where can it 
   !     be located to be shared?? flow_mode_common.F90 ?
   ! 
   ! Author: Paolo Orsini

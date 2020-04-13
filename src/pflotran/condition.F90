@@ -5931,7 +5931,7 @@ subroutine FlowConditionDestroy(condition)
 
   call TimeStorageDestroy(condition%default_time_storage)
   call FlowGeneralConditionDestroy(condition%general)
-  call FlowToilConditionDestroy(condition%toil_ims)
+  call FlowTOilConditionDestroy(condition%toil_ims)
   call FlowTOWGConditionDestroy(condition%towg)
   call LookupTableDestroy(condition%rtempvz_table)
 
@@ -5978,7 +5978,7 @@ end subroutine FlowGeneralConditionDestroy
 
 ! ************************************************************************** !
 
-subroutine FlowToilConditionDestroy(toil_ims_condition)
+subroutine FlowTOilConditionDestroy(toil_ims_condition)
   !
   ! Destroys a toil_ims mode condition
   !
@@ -6010,7 +6010,7 @@ subroutine FlowToilConditionDestroy(toil_ims_condition)
   deallocate(toil_ims_condition)
   nullify(toil_ims_condition)
 
-end subroutine FlowToilConditionDestroy
+end subroutine FlowTOilConditionDestroy
 
 ! ************************************************************************** !
 

@@ -12,7 +12,9 @@ module PM_Mphase_class
 
   type, public, extends(pm_subsurface_flow_type) :: pm_mphase_type
   contains
-    procedure, public :: ReadSimulationBlock => PMMphaseRead
+    procedure, public :: ReadSimulationOptionsBlock => &
+                           PMMphaseReadSimOptionsBlock
+    procedure, public :: SetupSolvers => PMMphaseSetupSolvers
     procedure, public :: InitializeTimestep => PMMphaseInitializeTimestep
     procedure, public :: Residual => PMMphaseResidual
     procedure, public :: Jacobian => PMMphaseJacobian
@@ -64,7 +66,7 @@ end function PMMphaseCreate
 
 ! ************************************************************************** !
 
-subroutine PMMphaseRead(this,input)
+subroutine PMMphaseReadSimOptionsBlock(this,input)
   ! 
   ! Reads input file parameters associated with the Mphase process model
   ! 
@@ -104,8 +106,8 @@ subroutine PMMphaseRead(this,input)
     call StringToUpper(word)
 
     found = PETSC_FALSE
-    call PMSubsurfaceFlowReadSelectCase(this,input,word,found, &
-                                        error_string,option)
+    call PMSubsurfFlowReadSimOptionsSC(this,input,word,found, &
+                                       error_string,option)
     if (found) cycle
     
     select case(trim(word))
@@ -115,7 +117,28 @@ subroutine PMMphaseRead(this,input)
   enddo
   call InputPopBlock(input,option)
   
-end subroutine PMMphaseRead
+end subroutine PMMphaseReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMMphaseSetupSolvers(this,solver)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 04/06/20
+
+  use Solver_module
+
+  implicit none
+
+  class(pm_mphase_type) :: this
+  type(solver_type), pointer :: solver
+
+  call PMBaseSetupSolvers(this,solver)
+
+  ! helps accommodate rise in residual due to change in state
+  solver%newton_dtol = 1.d9
+
+end subroutine PMMphaseSetupSolvers
 
 ! ************************************************************************** !
 

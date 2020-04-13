@@ -28,11 +28,13 @@ module PM_Base_class
     class(pm_base_type), pointer :: next
   contains
     procedure, public :: Setup => PMBaseSetup
-    procedure, public :: ReadSimulationBlock => PMBaseRead
-    procedure, public :: ReadPMBlock => PMBaseRead
+    procedure, public :: ReadSimulationOptionsBlock => PMBaseReadSimOptionsBlock
+    procedure, public :: ReadNewtonBlock => PMBaseReadSelectCaseStop
+    procedure, public :: ReadTSBlock => PMBaseReadSelectCaseStop
+    procedure, public :: ReadPMBlock => PMBaseReadPMBlock
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
-    procedure, public :: SetSolver => PMBaseSetSolver
+    procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -59,6 +61,7 @@ module PM_Base_class
     procedure, public :: RestartBinary => PMBaseCheckpointBinary
     procedure, public :: CheckpointHDF5 => PMBaseCheckpointHDF5
     procedure, public :: RestartHDF5 => PMBaseCheckpointHDF5
+    procedure, public :: PrintErrMsg => PMBasePrintErrMsg
   end type pm_base_type
   
   type, public :: pm_base_header_type
@@ -67,7 +70,8 @@ module PM_Base_class
     
   public :: PMBaseInit, &
             PMBaseInputRecord, &
-            PMBaseReadSelectCase, &
+            PMBaseSetupSolvers, &
+            PMBaseReadSimOptionsSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
             PMBaseJacobian, &
@@ -100,18 +104,66 @@ end subroutine PMBaseInit
 
 ! ************************************************************************** !
 
-subroutine PMBaseRead(this,input)
+subroutine PMBaseReadSimOptionsBlock(this,input)
+  use Input_Aux_module
+  use String_module
+  implicit none
+  class(pm_base_type) :: this
+  type(input_type), pointer :: input
+
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+  PetscBool :: found
+
+  option => this%option
+
+  error_string = 'Base Options'
+
+  input%ierr = 0
+  call InputPushBlock(input,option)
+  do
+
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadCard(input,option,keyword)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)
+
+    found = PETSC_TRUE
+    call PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                        error_string,option)
+    if (found) cycle
+
+    select case(trim(keyword))
+      case default
+        call InputKeywordUnrecognized(input,keyword,error_string,option)
+    end select
+
+  enddo
+  call InputPopBlock(input,option)
+  
+end subroutine PMBaseReadSimOptionsBlock
+
+! ************************************************************************** !
+
+subroutine PMBaseReadPMBlock(this,input)
   use Input_Aux_module
   implicit none
   class(pm_base_type) :: this
   type(input_type), pointer :: input
-  print *, 'Must extend PMBaseRead for: ' // trim(this%name)
-  stop
-end subroutine PMBaseRead
+  this%option%exit_code = EXIT_FAILURE
+  this%option%io_buffer = 'A member routine PMBaseReadPMBlock must &
+             &extend for: ' // trim(this%name)
+  call PrintErrMsg(this%option)
+end subroutine PMBaseReadPMBlock
 
 ! ************************************************************************** !
 
-subroutine PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
+subroutine PMBaseReadSimOptionsSelectCase(this,input,keyword,found, &
+                                          error_string,option)
 
   use Input_Aux_module
 
@@ -132,15 +184,30 @@ subroutine PMBaseReadSelectCase(this,input,keyword,found,error_string,option)
       found = PETSC_FALSE
   end select
 
-end subroutine PMBaseReadSelectCase
+end subroutine PMBaseReadSimOptionsSelectCase
+
+! ************************************************************************** !
+
+subroutine PMBaseReadSelectCaseStop(this,input,keyword,found, &
+                                    error_string,option)
+  use Input_Aux_module
+  implicit none
+  class(pm_base_type) :: this
+  type(input_type), pointer :: input
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+!  call this%PrintErrMsg('PMBaseReadSelectCaseStop')
+  found = PETSC_FALSE
+end subroutine PMBaseReadSelectCaseStop
 
 ! ************************************************************************** !
 
 subroutine PMBaseSetup(this)
   implicit none
   class(pm_base_type) :: this
-  print *, 'Must extend PMBaseSetup for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseSetup')
 end subroutine PMBaseSetup
 
 ! ************************************************************************** !
@@ -148,8 +215,7 @@ end subroutine PMBaseSetup
 subroutine PMBaseInputRecord(this)
   implicit none
   class(pm_base_type) :: this
-  print *, 'Must extend PMBaseInputRecord for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseInputRecord')
 end subroutine PMBaseInputRecord
 
 ! ************************************************************************** !
@@ -161,8 +227,7 @@ subroutine PMBaseResidual(this,snes,xx,r,ierr)
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseResidual for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseResidual')
 end subroutine PMBaseResidual
 
 ! ************************************************************************** !
@@ -174,8 +239,7 @@ subroutine PMBaseJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseJacobian for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseJacobian')
 end subroutine PMBaseJacobian
 
 ! ************************************************************************** !
@@ -193,8 +257,7 @@ subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   PetscReal :: time_step_max_growth_factor
-  print *, 'Must extend PMBaseUpdateTimestep for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseUpdateTimestep')
 end subroutine PMBaseUpdateTimestep
 
 ! ************************************************************************** !
@@ -207,8 +270,7 @@ subroutine PMBaseCheckUpdatePre(this,snes,X,dX,changed,ierr)
   Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseCheckUpdatePre for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseCheckUpdatePre')
 end subroutine PMBaseCheckUpdatePre
 
 ! ************************************************************************** !
@@ -224,8 +286,7 @@ subroutine PMBaseCheckUpdatePost(this,snes,X0,dX,X1,dX_changed, &
   PetscBool :: dX_changed
   PetscBool :: X1_changed
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseCheckUpdatePost for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseCheckUpdatePost')
 end subroutine PMBaseCheckUpdatePost
 
 ! ************************************************************************** !
@@ -240,8 +301,7 @@ subroutine PMBaseCheckConvergence(this,snes,it,xnorm,unorm,fnorm,reason,ierr)
   PetscReal :: fnorm
   SNESConvergedReason :: reason
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseCheckConvergence for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseCheckConvergence')
 end subroutine PMBaseCheckConvergence
 
 ! ************************************************************************** !
@@ -249,8 +309,7 @@ end subroutine PMBaseCheckConvergence
 subroutine PMBaseThisOnly(this)
   implicit none
   class(pm_base_type) :: this
-  print *, 'Must extend PMBaseThisOnly for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseThisOnly')
 end subroutine PMBaseThisOnly
 
 ! ************************************************************************** !
@@ -259,8 +318,7 @@ subroutine PMBaseThisTime(this,time)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: time
-  print *, 'Must extend PMBaseThisTime for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseThisTime')
 end subroutine PMBaseThisTime
 
 ! ************************************************************************** !
@@ -270,8 +328,7 @@ subroutine PMBaseThisTimeError(this,time,ierr)
   class(pm_base_type) :: this
   PetscReal :: time
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseThisTimeError for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseThisTimeError')
 end subroutine PMBaseThisTimeError
 
 ! ************************************************************************** !
@@ -281,8 +338,7 @@ function PMBaseFunctionThisOnly(this)
   class(pm_base_type) :: this
   PetscBool ::  PMBaseFunctionThisOnly
   PMBaseFunctionThisOnly = PETSC_TRUE
-  print *, 'Must extend PMBaseFunctionThisOnly for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseFunctionThisOnly')
 end function PMBaseFunctionThisOnly
 
 ! ************************************************************************** !
@@ -291,14 +347,13 @@ subroutine PMBaseComputeMassBalance(this,mass_balance_array)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: mass_balance_array(:)
-  print *, 'Must extend PMBaseComputeMassBalance for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseComputeMassBalance')
 end subroutine PMBaseComputeMassBalance
 
 
 ! ************************************************************************** !
 
-subroutine PMBaseSetSolver(this,solver)
+subroutine PMBaseSetupSolvers(this,solver)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/15/17
@@ -312,7 +367,7 @@ subroutine PMBaseSetSolver(this,solver)
 
   this%solver => solver
 
-end subroutine PMBaseSetSolver
+end subroutine PMBaseSetupSolvers
 
 ! ************************************************************************** !
 
@@ -324,8 +379,7 @@ subroutine PMBaseRHSFunction(this,ts,time,xx,ff,ierr)
   Vec :: xx
   Vec :: ff
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseRHSFunction for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseRHSFunction')
 end subroutine PMBaseRHSFunction
 
 ! ************************************************************************** !
@@ -338,8 +392,7 @@ subroutine PMBaseIFunction(this,ts,time,U,Udot,F,ierr)
   Vec :: U, Udot
   Vec :: F
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseIFunction for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseIFunction')
 end subroutine PMBaseIFunction
 
 ! ************************************************************************** !
@@ -353,8 +406,7 @@ subroutine PMBaseIJacobian(this,ts,time,U,Udot,shift,A,B,ierr)
   PetscReal :: shift
   Mat :: A, B
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseIJacobian for: ' // trim(this%name)
-  stop
+  call this%PrintErrMsg('PMBaseIJacobian')
 end subroutine PMBaseIJacobian
 
 ! ************************************************************************** !
@@ -364,8 +416,7 @@ subroutine PMBaseCheckpointBinary(this,viewer)
 #include "petsc/finclude/petscviewer.h"      
   class(pm_base_type) :: this
   PetscViewer :: viewer
-!  print *, 'Must extend PMBaseCheckpointBinary/RestartBinary.'
-!  stop
+!  call this%PrintErrMsg('PMBaseCheckpointBinary')
 end subroutine PMBaseCheckpointBinary
 
 ! ************************************************************************** !
@@ -378,8 +429,7 @@ subroutine PMBaseCheckpointHDF5(this, pm_grp_id)
 
   class(pm_base_type) :: this
   integer(HID_T) :: pm_grp_id
-!  print *, 'Must extend PMBaseCheckpointHDF5/RestartHDF5.'
-!  stop
+!  call this%PrintErrMsg('PMBaseReadSelectCaseStop')
 
 end subroutine PMBaseCheckpointHDF5
 
@@ -402,8 +452,9 @@ subroutine PMBasePrintHeader(this)
   character(len=MAXSTRINGLENGTH) :: string
 
   if (len_trim(this%header) == 0) then
-    print *, 'header name needs to be set for PMBaseInitializeTimestep'
-    stop
+    this%option%io_buffer = &
+      'header name needs to be set for PMBaseInitializeTimestep'
+    call PrintErrMsg(this%option)
   endif
   string = '(2("=")," ' // trim(this%header) // ' ",' // &
            trim(StringWrite(80-len_trim(this%header)-4)) // '("="))'
@@ -412,5 +463,17 @@ subroutine PMBasePrintHeader(this)
   call OptionPrint(string,this%option)
 
 end subroutine PMBasePrintHeader
+
+! ************************************************************************** !
+
+subroutine PMBasePrintErrMsg(this,subroutine_name)
+  implicit none
+  class(pm_base_type) :: this
+  character(len=*) :: subroutine_name
+  this%option%exit_code = EXIT_FAILURE
+  this%option%io_buffer = 'A member routine ' // trim(subroutine_name) // &
+         ' must extend for: ' //  trim(this%name)
+  call PrintErrMsg(this%option)
+end subroutine PMBasePrintErrMsg
 
 end module PM_Base_class

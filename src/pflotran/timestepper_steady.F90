@@ -80,6 +80,7 @@ function TimestepperSteadyCreateFromBase(timestepper_base)
   class(timestepper_steady_type), pointer :: stepper
 
   allocate(stepper)
+  call stepper%Init()
 
   stepper%name = timestepper_base%name
   stepper%steps = timestepper_base%steps
@@ -142,6 +143,7 @@ function TimestepperSteadyCreateFromBE(timestepper_BE)
   PetscInt :: i
 
   allocate(stepper)
+  call stepper%Init()
   
   stepper%name = timestepper_BE%name
   stepper%steps = timestepper_BE%steps
