@@ -12,6 +12,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+END
+
 PROC 2 2 1
 
 #=========================== regression =======================================
@@ -50,9 +59,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER ITERATIVE
-END
 
 #=========================== discretization ===================================
 GRID

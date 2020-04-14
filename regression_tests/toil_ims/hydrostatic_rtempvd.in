@@ -5,13 +5,31 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TOIL_IMS
       OPTIONS
-       ANALYTICAL_JACOBIAN
       /
     / ! end of subsurface_flow
   / ! end of process models
 END  !! end simulation 
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 4
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-8
+    RTOL 1D-8
+    STOL 1D-30
+    DTOL 1D15
+    ITOL 1D-7
+    MAXIT 8
+    ANALYTICAL_JACOBIAN
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -38,18 +56,7 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 4
-/
 
-NEWTON_SOLVER FLOW
-  ATOL 1D-8
-  RTOL 1D-8
-  STOL 1D-30
-  DTOL 1D15
-  ITOL 1D-7
-  MAXIT 8
-END
 
 #=========================== times ============================================
 TIME

@@ -11,6 +11,26 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    #PRECONDITIONER_MATRIX_TYPE AIJ
+    RTOL 1.d-12
+    ATOL 1.d-12
+    STOL 1.d-30
+    #NO_INFINITY_NORM
+    #NO_PRINT_CONVERGENCE
+    #PRINT_DETAILED_CONVERGENCE
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+    LU_ZERO_PIVOT_TOL 1.d-15
+  /
+
+END
+
 REFERENCE_TEMPERATURE 25.d0
 
 REGRESSION
@@ -79,20 +99,7 @@ END
 
 # == flow solvers =============================================================
 # == transport solvers ========================================================
-NEWTON_SOLVER TRANSPORT
-  #PRECONDITIONER_MATRIX_TYPE AIJ
-  RTOL 1.d-12
-  ATOL 1.d-12
-  STOL 1.d-30
-  #NO_INFINITY_NORM
-  #NO_PRINT_CONVERGENCE
-  #PRINT_DETAILED_CONVERGENCE
-/
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-  LU_ZERO_PIVOT_TOL 1.d-15
-/
 
 #=========================== discretization ===================================
 GRID

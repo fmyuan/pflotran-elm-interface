@@ -14,6 +14,28 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  INITIALIZE_TO_STEADY_STATE
+    #  RUN_AS_STEADY_STATE
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 32
+  /
+
+  NEWTON_SOLVER
+    DTOL 1.d6
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
@@ -157,18 +179,8 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-#  INITIALIZE_TO_STEADY_STATE
-#  RUN_AS_STEADY_STATE
-END
 
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 32
-END
 
-NEWTON_SOLVER TRANSPORT
-  DTOL 1.d6
-END
 
 #=========================== discretization ===================================
 GRID

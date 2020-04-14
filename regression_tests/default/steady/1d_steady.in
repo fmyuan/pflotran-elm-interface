@@ -11,6 +11,20 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+    MAX_TS_CUTS 5
+  /
+
+  NEWTON_SOLVER
+    MAXIT 20
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 4
@@ -19,17 +33,8 @@ END
 #=========================== flow mode ========================================
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-  MAX_TS_CUTS 5
-END
 
-NEWTON_SOLVER FLOW
-  MAXIT 20
-END
 
-LINEAR_SOLVER FLOW
-END
 
 #=========================== discretization ===================================
 GRID

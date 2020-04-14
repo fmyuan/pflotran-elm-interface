@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        ANALYTICAL_JACOBIAN
         ARITHMETIC_GAS_DIFFUSIVE_DENSITY
       /
     /
@@ -14,6 +13,23 @@ SIMULATION
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+    MAXIT 15
+    ANALYTICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    #  SOLVER DIRECT
+  /
+
+END
 
 #=========================== flow mode ========================================
 
@@ -39,16 +55,7 @@ GRID
 /
 
 #=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  RTOL 1.d-8
-  ATOL 1.d-8
-  STOL 1.d-30
-  MAXIT 15
-/
 
-LINEAR_SOLVER FLOW
-#  SOLVER DIRECT
-/
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

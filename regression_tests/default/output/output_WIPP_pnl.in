@@ -11,8 +11,6 @@ SIMULATION
       MODE WIPP_FLOW
       OPTIONS
         FIX_UPWIND_DIRECTION #hardwired
-        MAX_PRESSURE_CHANGE 1.d20 #hardwired
-        MAX_SATURATION_CHANGE 1.d20 #hardwired
         GAS_COMPONENT_FORMULA_WEIGHT 2.01588d0 #hardwired
        !LIQUID_EQUATION_TOLERANCE 1.d-6
        !GAS_EQUATION_TOLERANCE 1.d-6
@@ -28,6 +26,27 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    PRESSURE_CHANGE_GOVERNOR 1.d20 #hardwired
+    SATURATION_CHANGE_GOVERNOR 1.d20 #hardwired
+  /
+
+  NEWTON_SOLVER
+    RTOL 1.d-30      ! Turn off RTOL criteria
+    ATOL 1.d-30       ! Turn off ATOL criteria
+    STOL 1.d-30       ! Turn off STOL criteria
+    MAXIT 20          ! Maximum newton iteration number
+  /
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+
+END
+
 !=========================== discretization ===================================
 GRID
   TYPE STRUCTURED
@@ -40,16 +59,7 @@ GRID
 /
 
 !=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  RTOL 1.d-30      ! Turn off RTOL criteria
-  ATOL 1.d-30       ! Turn off ATOL criteria
-  STOL 1.d-30       ! Turn off STOL criteria
-  MAXIT 20          ! Maximum newton iteration number
-/
 
-LINEAR_SOLVER FLOW  !default convergence criteria by PFLOTRAN
-  SOLVER ITERATIVE
-/
 
 !=========================== fluid properties =================================
 ! BF is fundamentally immiscible and PFLOTRAN is miscible. We currently do not

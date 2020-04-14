@@ -1,7 +1,12 @@
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  # end simulation without taking a time step
-  MAX_STEPS 2
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    # end simulation without taking a time step
+    MAX_STEPS 2
+    PRESSURE_CHANGE_GOVERNOR 1.d7
+  /
+
 END
 
 #=========================== chemistry ========================================

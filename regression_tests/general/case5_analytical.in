@@ -7,8 +7,6 @@ SIMULATION
       MODE GENERAL
       OPTIONS
         #  WINDOW_EPSILON 1.d-4
-        ANALYTICAL_JACOBIAN
-        ITOL_SCALED_RESIDUAL 1.d-5
         ISOTHERMAL
         TWO_PHASE_ENERGY_DOF TEMPERATURE
         ARITHMETIC_GAS_DIFFUSIVE_DENSITY
@@ -18,6 +16,33 @@ SIMULATION
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  DT_FACTOR 2.d0 1.8d0 1.6d0 1.4d0 1.2d0 1.d0 0.8d0 0.6d0 0.4d0
+    TS_ACCELERATION 8
+    MAX_TS_CUTS 10
+  /
+
+  NEWTON_SOLVER
+    #  ATOL 1.d-30
+    #  RTOL 1.d-30
+    ATOL 1.d-8
+    RTOL 1.d-8
+    STOL 1.d-30
+    NO_INFINITY_NORM
+    MAXIT 15
+    ANALYTICAL_JACOBIAN
+    ITOL_SCALED_RESIDUAL 1.d-5
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== flow mode ========================================
 
@@ -43,10 +68,6 @@ DEBUG
 noskip
 
 #=========================== time stepper options =============================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-  MAX_TS_CUTS 10
-/
 
 #=========================== discretization ===================================
 GRID
@@ -60,23 +81,8 @@ GRID
 /
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-#  DT_FACTOR 2.d0 1.8d0 1.6d0 1.4d0 1.2d0 1.d0 0.8d0 0.6d0 0.4d0
-END
 
-NEWTON_SOLVER FLOW
-#  ATOL 1.d-30
-#  RTOL 1.d-30
-  ATOL 1.d-8
-  RTOL 1.d-8
-  STOL 1.d-30
-  NO_INFINITY_NORM
-  MAXIT 15
-/
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-/
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

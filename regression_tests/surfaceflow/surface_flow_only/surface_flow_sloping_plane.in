@@ -14,6 +14,22 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 20
+  /
+
+  NEWTON_SOLVER
+    ITOL 1.d-8
+    STOL 1.d-30
+    ITOL_UPDATE 1.d0
+    MAXIT 50
+  /
+
+END
+
 #=========================== flow mode ========================================
 #MODE RICHARDS
 
@@ -23,16 +39,7 @@ GRID
 END
 
 #=========================== timestepper =================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 20
-END
 
-NEWTON_SOLVER FLOW
-  ITOL 1.d-8
-  STOL 1.d-30
-  ITOL_UPDATE 1.d0
-  MAXIT 50
-END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

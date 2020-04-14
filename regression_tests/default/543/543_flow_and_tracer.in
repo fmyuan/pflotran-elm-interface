@@ -19,6 +19,29 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY
+    PC_TYPE LU
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    KSP_TYPE PREONLY
+    PC_TYPE LU
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
@@ -42,25 +65,10 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
-NEWTON_SOLVER FLOW
-END
 
-LINEAR_SOLVER FLOW
-  KSP_TYPE PREONLY
-  PC_TYPE LU
-END
 
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-  KSP_TYPE PREONLY
-  PC_TYPE LU
-END
 
 #=========================== discretization ===================================
 GRID

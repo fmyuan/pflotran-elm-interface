@@ -21,6 +21,20 @@ SIMULATION
 END  !! end simulation block
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ATOL 1D-8
+    RTOL 1D-8
+    STOL 1D-30
+    DTOL 1D15
+    ITOL 1D-7
+    MAXIT 8
+  /
+
+END
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -46,14 +60,6 @@ END
 
 #=========================== solver options ===================================
 
-NEWTON_SOLVER FLOW
-  ATOL 1D-8
-  RTOL 1D-8
-  STOL 1D-30
-  DTOL 1D15
-  ITOL 1D-7
-  MAXIT 8
-END
 
 #=========================== times ============================================
 TIME

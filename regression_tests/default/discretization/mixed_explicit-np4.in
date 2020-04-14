@@ -15,6 +15,11 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -49,8 +54,6 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

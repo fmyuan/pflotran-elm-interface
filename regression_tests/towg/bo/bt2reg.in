@@ -7,7 +7,6 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE BLACK_OIL
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
        ISOTHERMAL
       /
     / ! end of subsurface_flow
@@ -15,6 +14,23 @@ SIMULATION
 END  !! end simulation block
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 100
+  /
+
+  NEWTON_SOLVER
+    STOL 1.0D-16
+    RTOL 1.0D-8
+    ITOL 1.0D-8
+    MAXIT 20
+    MAXIMUM_PRESSURE_CHANGE 5.D4
+  /
+
+END
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -45,19 +61,8 @@ END
 
 #=========================== solver options ===================================
 
-TIMESTEPPER FLOW
-  TS_ACCELERATION 100
-/
 
-NEWTON_SOLVER FLOW
-  STOL 1.0D-16
-  RTOL 1.0D-8
-  ITOL 1.0D-8
-  MAXIT 20
-END
 
-LINEAR_SOLVER FLOW
-END
 
 #=========================== times ============================================
 TIME

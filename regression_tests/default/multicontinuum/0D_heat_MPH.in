@@ -12,8 +12,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE MPHASE
       OPTIONS
-        MAX_PRESSURE_CHANGE 1.e5
-        MAX_TEMPERATURE_CHANGE 5.
         MULTIPLE_CONTINUUM
       /
     /
@@ -21,6 +19,27 @@ SIMULATION
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 5
+    PRESSURE_CHANGE_GOVERNOR 1.e5
+    TEMPERATURE_CHANGE_GOVERNOR 5.
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-8
+    RTOL 1D-8
+    STOL 1D-30
+    DTOL 1D15
+    ITOL 1D-8
+    MAXIT 25
+    MAXF 100
+  /
+
+END
 
 CO2_DATABASE ../../../database/co2data0.dat
 
@@ -44,19 +63,7 @@ BOUNDS
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 5
-/
 
-NEWTON_SOLVER FLOW
-  ATOL 1D-8
-  RTOL 1D-8
-  STOL 1D-30
-  DTOL 1D15
-  ITOL 1D-8
-  MAXIT 25
-  MAXF 100
-END
 
 #=========================== times ============================================
 TIME

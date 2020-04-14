@@ -13,6 +13,27 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
+  /
+
+  LINEAR_SOLVER
+    #  SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    #  SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 1
@@ -36,23 +57,10 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
-END
 
-LINEAR_SOLVER FLOW
-#  SOLVER DIRECT
-END
 
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-#  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

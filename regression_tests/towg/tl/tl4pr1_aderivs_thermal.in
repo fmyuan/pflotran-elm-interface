@@ -9,15 +9,31 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE SOLVENT_TL
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
        TL_OMEGA 0.0
-       ANALYTICAL_JACOBIAN
       /
     / ! end of subsurface_flow
   / ! end of process models
 END  !! end simulation block
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 100
+  /
+
+  NEWTON_SOLVER
+    STOL 1.0D-16
+    RTOL 1.0D-8
+    ITOL 1.0D-8
+    MAXIT 20
+    MAXIMUM_PRESSURE_CHANGE 5.D4
+    ANALYTICAL_JACOBIAN
+  /
+
+END
 
 #=========================== regression =======================================
 
@@ -50,19 +66,8 @@ END
 
 #=========================== solver options ===================================
 
-TIMESTEPPER FLOW
-  TS_ACCELERATION 100
-/
 
-NEWTON_SOLVER FLOW
-  STOL 1.0D-16
-  RTOL 1.0D-8
-  ITOL 1.0D-8
-  MAXIT 20
-END
 
-LINEAR_SOLVER FLOW
-END
 
 #=========================== times ============================================
 TIME

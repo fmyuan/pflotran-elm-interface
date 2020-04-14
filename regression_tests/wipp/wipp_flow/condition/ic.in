@@ -7,13 +7,25 @@ SIMULATION
       MODE WIPP_FLOW
       OPTIONS
         HARMONIC_PERMEABILITY_ONLY
-        DO_NOT_SCALE_JACOBIAN
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 0
+  /
+
+  NEWTON_SOLVER
+    DO_NOT_SCALE_JACOBIAN
+  /
+
+END
 
 #=========================== flow mode ========================================
 
@@ -33,9 +45,6 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  MAXIMUM_NUMBER_OF_TIMESTEPS 0
-END
 
 #=========================== datasets =========================================
 DATASET liquid_pressure

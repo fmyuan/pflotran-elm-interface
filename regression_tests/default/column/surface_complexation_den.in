@@ -12,6 +12,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    !  SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -241,12 +250,7 @@ noskip
 END
 
 #=========================== solver options ===================================
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-!  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

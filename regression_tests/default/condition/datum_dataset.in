@@ -12,6 +12,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -41,9 +50,6 @@ DEBUG
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

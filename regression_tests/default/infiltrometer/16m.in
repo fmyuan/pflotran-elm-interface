@@ -11,6 +11,27 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+    MAX_TS_CUTS 5
+  /
+
+  NEWTON_SOLVER
+    MAXIT 20
+    RTOL 1.d-50
+    ATOL 1.d-50
+    STOL 1.e-60
+    ITOL_UPDATE 1.d0
+    #  NO_INFINITY_NORM
+    #  NO_PRINT_CONVERGENCE
+    #  PRINT_DETAILED_CONVERGENCE
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 4
@@ -28,38 +49,10 @@ END
 noskip
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-  MAX_TS_CUTS 5
-END
 
-NEWTON_SOLVER FLOW
-  MAXIT 20
-  RTOL 1.d-50
-  ATOL 1.d-50
-  STOL 1.e-60
-  ITOL_UPDATE 1.d0
-#  NO_INFINITY_NORM
-#  NO_PRINT_CONVERGENCE
-#  PRINT_DETAILED_CONVERGENCE
-END
 
-LINEAR_SOLVER FLOW
-END
 
-NEWTON_SOLVER TRANSPORT
-#  RTOL 1.d-4
-#  ATOL 1.d-4
-#  STOL 1.e-60
-#  DTOL 1.e4
-#  ITOL_UPDATE 1.d-4
-  NO_INFINITY_NORM
-#  NO_PRINT_CONVERGENCE
-#  PRINT_DETAILED_CONVERGENCE
-END
 
-LINEAR_SOLVER TRANSPORT
-END
 
 #=========================== discretization ===================================
 GRID

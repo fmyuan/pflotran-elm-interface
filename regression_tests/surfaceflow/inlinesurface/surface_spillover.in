@@ -16,6 +16,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    DTOL 1.d20
+  /
+
+END
+
   REGRESSION
     CELLS
       1
@@ -41,9 +50,6 @@ SUBSURFACE
   END
   noskip
 
-  NEWTON_SOLVER FLOW
-    DTOL 1.d20
-  END
   
   ! Domain and region information -----------------------------------
 

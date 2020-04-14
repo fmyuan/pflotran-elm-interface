@@ -5,7 +5,6 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TOIL_IMS
       OPTIONS
-       MAXIMUM_PRESSURE_CHANGE 5.D4
        !ISOTHERMAL
        !TOUGH2_ITOL_SCALED_RESIDUAL 1.d-5 1.d0
       /
@@ -14,6 +13,28 @@ SIMULATION
 END  !! end simulation 
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 12
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-12
+    RTOL 1D-8
+    STOL 1D-30
+    DTOL 1D15
+    ITOL 1D-6
+    !ITOL 1D-7
+    !ITOL 1D-9
+    MAXIT 25
+    MAXF 100
+    MAXIMUM_PRESSURE_CHANGE 5.D4
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -37,21 +58,7 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 12
-/
 
-NEWTON_SOLVER FLOW
-  ATOL 1D-12
-  RTOL 1D-8
-  STOL 1D-30
-  DTOL 1D15
-  ITOL 1D-6
-  !ITOL 1D-7
-  !ITOL 1D-9 
-  MAXIT 25
-  MAXF 100
-END
 
 #=========================== times ============================================
 TIME

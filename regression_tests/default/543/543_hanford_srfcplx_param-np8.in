@@ -15,6 +15,19 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
@@ -230,21 +243,10 @@ noskip
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
-NEWTON_SOLVER FLOW
-END
 
-LINEAR_SOLVER FLOW
-END
 
-NEWTON_SOLVER TRANSPORT
-END
 
-LINEAR_SOLVER TRANSPORT
-END
 
 #=========================== discretization ===================================
 GRID

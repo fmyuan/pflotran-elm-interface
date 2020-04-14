@@ -6,15 +6,34 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        MAX_SATURATION_CHANGE 1.d0
-        MAX_CONCENTRATION_CHANGE 0.5d0
-        MAX_CFL 1.
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  MAX_STEPS -1
+    SATURATION_CHANGE_GOVERNOR 1.d0
+    CONCENTRATION_CHANGE_GOVERNOR 0.5d0
+    CFL_GOVERNOR 1.
+  /
+
+  NEWTON_SOLVER
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -36,9 +55,6 @@ END
 #/
 
 #=========================== time stepper options =============================
-TIMESTEPPER FLOW
-#  MAX_STEPS -1
-/
 
 #=========================== discretization ===================================
 GRID
@@ -51,15 +67,7 @@ GRID
 /
 
 #=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  RTOL 1.d-8
-  ATOL 1.d-8
-  STOL 1.d-30
-/
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-/
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

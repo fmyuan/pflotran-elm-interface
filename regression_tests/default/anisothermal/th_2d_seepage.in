@@ -12,6 +12,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 
 #=========================== regression =======================================
 REGRESSION
@@ -40,9 +49,6 @@ END
 
 #===================== Solver options =========================================
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
 #========================= fluid properties ===================================
 FLUID_PROPERTY

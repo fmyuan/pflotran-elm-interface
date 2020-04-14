@@ -15,6 +15,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 2
+  /
+
+END
+
 #=========================== debug ==== =======================================
 DEBUG
   PRINT_SOLUTION
@@ -47,9 +56,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  MAXIMUM_NUMBER_OF_TIMESTEPS 2
-END
 
 #=========================== discretization ===================================
 GRID

@@ -6,15 +6,35 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        ANALYTICAL_JACOBIAN
-        MAX_SATURATION_CHANGE 1.d0
-        MAX_CONCENTRATION_CHANGE 0.5d0
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  MAX_STEPS -1
+    SATURATION_CHANGE_GOVERNOR 1.d0
+    CONCENTRATION_CHANGE_GOVERNOR 0.5d0
+  /
+
+  NEWTON_SOLVER
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+    MAXIT 15
+    ANALYTICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -36,13 +56,7 @@ END
 #/
 
 #=========================== time stepper options =============================
-TIMESTEPPER FLOW
-#  MAX_STEPS -1
-/
 
-NEWTON_SOLVER FLOW
-  MAXIT 15
-/
 
 #=========================== discretization ===================================
 GRID
@@ -55,15 +69,7 @@ GRID
 /
 
 #=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  RTOL 1.d-8
-  ATOL 1.d-8
-  STOL 1.d-30
-/
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-/
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

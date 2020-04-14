@@ -16,6 +16,21 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    ATOL 1D-15
+    RTOL 1D-10
+    STOL 1D-30
+    MAX_NORM 1D30
+    ITOL 1D-8
+    MAXIT 100
+    MAXF 100
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
@@ -63,21 +78,7 @@ GRID
 END
 
 #===================== Solver options ========================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 25
-  MAX_TS_CUTS 10
-  MAX_STEPS 10000
-END
 
-NEWTON_SOLVER TRANSPORT
-  ATOL 1D-15
-  RTOL 1D-10
-  STOL 1D-30
-  MAX_NORM 1D30
-  ITOL 1D-8
-  MAXIT 100
-  MAXF 100
-END
 
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9

@@ -9,8 +9,6 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE TODD_LONGSTAFF
       OPTIONS
-       ANALYTICAL_JACOBIAN
-       MAXIMUM_PRESSURE_CHANGE 5.D4
        ISOTHERMAL
        TL_OMEGA 1.0
       /
@@ -21,6 +19,22 @@ SIMULATION
 END  !! end simulation block
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ATOL 1D-8
+    RTOL 1D-8
+    STOL 1D-30
+    DTOL 1D15
+    ITOL 1D-7
+    MAXIT 8
+    ANALYTICAL_JACOBIAN
+    MAXIMUM_PRESSURE_CHANGE 5.D4
+  /
+
+END
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -45,14 +59,6 @@ GRID
 END
 
 #=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  ATOL 1D-8
-  RTOL 1D-8
-  STOL 1D-30
-  DTOL 1D15
-  ITOL 1D-7
-  MAXIT 8
-END
 
 #=========================== times ============================================
 TIME

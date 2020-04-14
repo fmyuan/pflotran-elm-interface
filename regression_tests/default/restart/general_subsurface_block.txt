@@ -40,21 +40,29 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  # end simulation without taking a time step
-#  MAX_STEPS 0
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    # end simulation without taking a time step
+  #  MAX_STEPS 0
+  /
+
+  NEWTON_SOLVER
+    ITOL_UPDATE 1.d4
+  /
+
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
+  
 END
 
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d4
-END
+NUMERICAL_METHODS TRANSPORT
 
-LINEAR_SOLVER FLOW
-  SOLVER ITERATIVE
-END
+  LINEAR_SOLVER
+    SOLVER ITERATIVE
+  /
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER ITERATIVE
 END
 
 #=========================== fluid properties =================================

@@ -22,6 +22,31 @@ END  !! end simulation
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    !TS_ACCELERATION 4
+    TS_ACCELERATION 12
+    !PRESSURE_CHANGE_GOVERNOR 5.e5
+    !TEMPERATURE_CHANGE_GOVERNOR 5.d0
+    !SATURATION_CHANGE_GOVERNOR 0.025
+  /
+
+  NEWTON_SOLVER
+    ATOL 1D-12
+    RTOL 1D-8
+    STOL 1D-30
+    DTOL 1D15
+    ITOL 1D-6
+    !ITOL 1D-7
+    !ITOL 1D-9
+    MAXIT 25
+    MAXF 100
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -44,25 +69,7 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  !TS_ACCELERATION 4
-  TS_ACCELERATION 12
-  !MAX_PRESSURE_CHANGE 5.e5
-  !MAX_TEMPERATURE_CHANGE 5.d0
-  !MAX_SATURATION_CHANGE 0.025
-/
 
-NEWTON_SOLVER FLOW
-  ATOL 1D-12
-  RTOL 1D-8
-  STOL 1D-30
-  DTOL 1D15
-  ITOL 1D-6
-  !ITOL 1D-7
-  !ITOL 1D-9 
-  MAXIT 25
-  MAXF 100
-END
 
 #=========================== times ============================================
 TIME
