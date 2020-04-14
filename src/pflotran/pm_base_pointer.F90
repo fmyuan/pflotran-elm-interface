@@ -27,6 +27,8 @@ module PM_Base_Pointer_module
 
   public :: PMResidualPtr, &
             PMJacobianPtr, &
+            PMCheckUpdatePreTRPtr, &
+            PMCheckUpdatePostTRPtr, &
             PMCheckUpdatePrePtr, &
             PMCheckUpdatePostPtr, &
             PMCheckConvergencePtr, &
@@ -134,6 +136,57 @@ subroutine PMIJacobianPtr(ts,time,U,Udot,shift,A,B,this,ierr)
   call this%pm%IJacobian(ts,time,U,Udot,shift,A,B,ierr)
     
 end subroutine PMIJacobianPtr
+
+! ************************************************************************** !
+
+subroutine PMCheckUpdatePreTRPtr(snes,X,dX,changed,this,ierr)
+  ! 
+  ! Wrapper for native call to XXXCheckUpdatePreTR
+  ! when using Newton Trust Region Method
+  ! 
+  ! Author: Heeho Park
+  ! Date: 04/13/20
+  ! 
+   implicit none
+
+  Vec :: X
+  Vec :: dX
+  PetscBool :: changed
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+
+  SNES :: snes
+  
+  call this%pm%CheckUpdatePre(snes,X,dX,changed,ierr)
+    
+end subroutine PMCheckUpdatePreTRPtr
+
+! ************************************************************************** !
+
+subroutine PMCheckUpdatePostTRPtr(snes,X0,dX,X1,dX_changed,X1_changed, &
+                                this,ierr)
+  ! 
+  ! Wrapper for native call to XXXCheckUpdatePost
+  ! when using Newton Trust Region Method
+  ! 
+  ! Author: Heeho Park
+  ! Date: 04/13/20
+  ! 
+  implicit none
+
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
+  type(pm_base_pointer_type) :: this
+  PetscErrorCode :: ierr
+
+  SNES :: snes
+  
+  call this%pm%CheckUpdatePost(snes,X0,dX,X1,dX_changed,X1_changed,ierr)
+    
+end subroutine PMCheckUpdatePostTRPtr
 
 ! ************************************************************************** !
 
