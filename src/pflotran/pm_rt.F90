@@ -187,20 +187,6 @@ subroutine PMRTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-!geh: remove begin
-      case('MAX_VOLUME_FRACTION_CHANGE','VOLUME_FRACTION_CHANGE_GOVERNOR')
-        call InputReadDouble(input,option,this%volfrac_change_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_CFL','CFL_GOVERNOR')
-        call InputReadDouble(input,option,this%cfl_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('NUMERICAL_JACOBIAN')
-        option%transport%numerical_derivatives = PETSC_TRUE
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,rt_itol_rel_update)
-        call InputErrorMsg(input,option,keyword,error_string)
-        this%check_post_convergence = PETSC_TRUE
-!geh: remove end
       case('MINIMUM_SATURATION')
         call InputReadDouble(input,option,rt_min_saturation)
         call InputErrorMsg(input,option,keyword,error_string)

@@ -130,40 +130,6 @@ subroutine PMTOilImsReadSimOptionsBlock(this,input)
     if (found) cycle
           
     select case(trim(keyword))
-!geh: remove begin
-    case('ITOL_SCALED_RESIDUAL')
-      call InputReadDouble(input,option,toil_ims_itol_scaled_res)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%check_post_convergence = PETSC_TRUE
-    case('ITOL_RELATIVE_UPDATE')
-      call InputReadDouble(input,option,toil_ims_itol_rel_update)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%check_post_convergence = PETSC_TRUE        
-    case('TOUGH2_ITOL_SCALED_RESIDUAL')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E1', &
-                         error_string)
-      toil_ims_tgh2_itol_scld_res_e1 = tempreal
-      call InputReadDouble(input,option,toil_ims_tgh2_itol_scld_res_e2)
-      call InputErrorMsg(input,option,'TOUGH2_ITOL_SCALED_RESIDUAL_E2', &
-                         error_string)
-      toil_ims_tough2_conv_criteria = PETSC_TRUE
-      this%check_post_convergence = PETSC_TRUE
-    case('WINDOW_EPSILON') 
-      call InputReadDouble(input,option,toil_ims_window_epsilon)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('MAXIMUM_PRESSURE_CHANGE')
-      call InputReadDouble(input,option,toil_ims_max_pressure_change)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('MAX_ITERATION_BEFORE_DAMPING')
-      call InputReadInt(input,option,toil_ims_max_it_before_damping)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('DAMPING_FACTOR')
-      call InputReadDouble(input,option,toil_ims_damping_factor)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-!geh: remove end
-
       case('ISOTHERMAL')
         toil_ims_isothermal = PETSC_TRUE
       case('DEBUG_CELL')
