@@ -39,7 +39,7 @@ CHEMISTRY
   /
 END
 
-#=========================== solver options ===================================
+#=========================== numerical methods ================================
 NUMERICAL_METHODS FLOW
 
   TIMESTEPPER
