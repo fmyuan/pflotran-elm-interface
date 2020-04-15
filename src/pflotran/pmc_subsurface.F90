@@ -275,7 +275,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       ! by default turn off line search
-!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
@@ -454,7 +453,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       ! this could be changed in the future if there is a way to 
       ! ensure that the linesearch update does not perturb 
       ! concentrations negative.
-!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, &
                              ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
