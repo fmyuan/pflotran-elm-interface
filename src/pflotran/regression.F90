@@ -152,6 +152,12 @@ subroutine RegressionRead(regression,input,option)
           cur_variable => new_variable
         enddo
         call InputPopBlock(input,option)
+
+      case('CELLS')
+       option%io_buffer = 'CELLS for REGRESSION has been deprecated. &
+         &Please use CELL_IDS.'
+       call PrintErrMsg(option)
+
       case('CELL_IDS')
         max_cells = 100
         allocate(int_array(max_cells))

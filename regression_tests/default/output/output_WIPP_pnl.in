@@ -38,7 +38,7 @@ NUMERICAL_METHODS FLOW
     RTOL 1.d-30      ! Turn off RTOL criteria
     ATOL 1.d-30       ! Turn off ATOL criteria
     STOL 1.d-30       ! Turn off STOL criteria
-    MAXIT 20          ! Maximum newton iteration number
+    MAXIMUM_NUMBER_OF_ITERATIONS 20          ! Maximum newton iteration number
   /
 
   LINEAR_SOLVER
