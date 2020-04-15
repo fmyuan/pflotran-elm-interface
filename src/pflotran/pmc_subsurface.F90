@@ -307,11 +307,13 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       if (pm%check_post_convergence) then
         select case(snes_type)
+#if 0
           case(SNESNEWTONTR)
             call SNESNewtonTRSetPostCheck(solver%snes, &
                                           PMCheckUpdatePostTRPtr, &
                                           this%pm_ptr, &
                                           ierr);CHKERRQ(ierr)
+#endif
           case default
             call SNESLineSearchSetPostCheck(linesearch, &
                                             PMCheckUpdatePostPtr, &
@@ -347,11 +349,13 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       if (add_pre_check) then
         select case(snes_type)
+#if 0
           case(SNESNEWTONTR)
             call SNESNewtonTRSetPreCheck(solver%snes, &
                                          PMCheckUpdatePreTRPtr, &
                                          this%pm_ptr, &
                                          ierr);CHKERRQ(ierr)
+#endif
           case default
             call SNESLineSearchSetPreCheck(linesearch, &
                                            PMCheckUpdatePrePtr, &
