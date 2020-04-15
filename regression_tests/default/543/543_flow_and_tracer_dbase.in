@@ -47,7 +47,7 @@ DBASE_FILENAME 543_dbase.h5
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
-  CELLS
+  CELL_IDS
     29
   /
 END

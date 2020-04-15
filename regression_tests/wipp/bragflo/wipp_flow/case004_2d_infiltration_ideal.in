@@ -63,7 +63,7 @@ END
 !=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
-  CELLS
+  CELL_IDS
     1
     2
     3

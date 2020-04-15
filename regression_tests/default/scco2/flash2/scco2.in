@@ -35,7 +35,7 @@ CO2_DATABASE ../../../../database/co2data0.dat
 
 #=========================== regression test ========================================
 REGRESSION
-  CELLS
+  CELL_IDS
     2086
   /
   CELLS_PER_PROCESS 2

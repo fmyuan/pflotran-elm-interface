@@ -51,7 +51,7 @@ END
 !=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 7
-  CELLS
+  CELL_IDS
     1
     50
   /

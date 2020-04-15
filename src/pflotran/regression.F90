@@ -152,7 +152,7 @@ subroutine RegressionRead(regression,input,option)
           cur_variable => new_variable
         enddo
         call InputPopBlock(input,option)
-      case('CELLS')
+      case('CELL_IDS')
         max_cells = 100
         allocate(int_array(max_cells))
         count = 0

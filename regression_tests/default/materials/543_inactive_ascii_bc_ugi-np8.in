@@ -40,7 +40,7 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     # have to list cells here as the Mac produces a slightly different 
     # decomposition
     1

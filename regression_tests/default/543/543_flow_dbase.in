@@ -32,7 +32,7 @@ DBASE_FILENAME 543_dbase.txt
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
-  CELLS
+  CELL_IDS
     29
   /
 END

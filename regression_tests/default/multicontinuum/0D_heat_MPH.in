@@ -45,7 +45,7 @@ CO2_DATABASE ../../../database/co2data0.dat
 
 #=========================== regression ===================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
   CELLS_PER_PROCESS 5

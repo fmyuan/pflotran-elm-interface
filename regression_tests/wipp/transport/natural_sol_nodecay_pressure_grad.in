@@ -75,7 +75,7 @@ END
 !=========================== REGRESSION =======================================
 
 REGRESSION
-  CELLS
+  CELL_IDS
     3
   /
 END

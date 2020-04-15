@@ -33,7 +33,7 @@ END
 !=========================== REGRESSION =======================================
 
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END

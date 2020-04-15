@@ -34,7 +34,7 @@ END
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
-  CELLS
+  CELL_IDS
     210
   /
 END

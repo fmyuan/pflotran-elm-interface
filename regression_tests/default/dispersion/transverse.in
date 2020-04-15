@@ -37,7 +37,7 @@ END
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 7
-  CELLS
+  CELL_IDS
     140
     250
     360

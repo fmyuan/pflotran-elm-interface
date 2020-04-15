@@ -140,7 +140,7 @@ COORDINATES
 #=========================== observations ==============================
 
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     48
   /

@@ -36,7 +36,7 @@ REFERENCE_LIQUID_DENSITY 1.d3
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END

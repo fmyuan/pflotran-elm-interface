@@ -42,7 +42,7 @@ NUMERICAL_METHODS TRANSPORT
 END
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     5 10 15 20 15 30
   /
 END

@@ -23,7 +23,7 @@ END
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     ! eight corners
     1
     5

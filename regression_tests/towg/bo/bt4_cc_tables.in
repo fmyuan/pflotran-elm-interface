@@ -34,7 +34,7 @@ NUMERICAL_METHODS FLOW
 END
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     2
     11

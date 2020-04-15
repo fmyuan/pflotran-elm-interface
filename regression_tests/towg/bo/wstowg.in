@@ -250,7 +250,7 @@ FLOW_CONDITION initial_press
 #=========================== regression data =================================
 
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     27
   /

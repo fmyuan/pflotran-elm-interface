@@ -55,7 +55,7 @@ END
 !=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 10
-  CELLS
+  CELL_IDS
     1
     50
   /

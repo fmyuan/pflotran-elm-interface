@@ -259,7 +259,7 @@ REGION all
 
 REGRESSION
 
-  CELLS
+  CELL_IDS
 
     1
 

@@ -40,7 +40,7 @@ END
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
-  CELLS
+  CELL_IDS
     28
   /
 END

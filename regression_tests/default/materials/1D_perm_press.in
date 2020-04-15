@@ -40,7 +40,7 @@ UPDATE_FLOW_PERMEABILITY
 #=========================== regression =======================================
 REGRESSION
   #CELLS_PER_PROCESS 2
-  CELLS
+  CELL_IDS
     1
     20
     25
