@@ -14,7 +14,7 @@ module PM_Mphase_class
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMMphaseReadSimOptionsBlock
-    procedure, public :: SetupSolvers => PMMphaseSetupSolvers
+    procedure, public :: InitializeSolver => PMMphaseInitializeSolver
     procedure, public :: InitializeTimestep => PMMphaseInitializeTimestep
     procedure, public :: Residual => PMMphaseResidual
     procedure, public :: Jacobian => PMMphaseJacobian
@@ -121,7 +121,7 @@ end subroutine PMMphaseReadSimOptionsBlock
 
 ! ************************************************************************** !
 
-subroutine PMMphaseSetupSolvers(this,solver)
+subroutine PMMphaseInitializeSolver(this)
   !
   ! Author: Glenn Hammond
   ! Date: 04/06/20
@@ -131,14 +131,13 @@ subroutine PMMphaseSetupSolvers(this,solver)
   implicit none
 
   class(pm_mphase_type) :: this
-  type(solver_type), pointer :: solver
 
-  call PMBaseSetupSolvers(this,solver)
+  call PMBaseInitializeSolver(this)
 
   ! helps accommodate rise in residual due to change in state
-  solver%newton_dtol = 1.d9
+  this%solver%newton_dtol = 1.d9
 
-end subroutine PMMphaseSetupSolvers
+end subroutine PMMphaseInitializeSolver
 
 ! ************************************************************************** !
 

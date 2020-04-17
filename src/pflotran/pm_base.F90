@@ -22,7 +22,7 @@ module PM_Base_class
     Vec :: residual_vec
     PetscBool :: print_ekg
     PetscBool :: skip_restart
-    !TODO(geh): remove solver and place required convergence settings elsewhere
+    ! solver now has to originate in the pm to support pm-dependent defaults
     type(solver_type), pointer :: solver
     class(realization_base_type), pointer :: realization_base
     class(pm_base_type), pointer :: next
@@ -34,7 +34,7 @@ module PM_Base_class
     procedure, public :: ReadPMBlock => PMBaseReadPMBlock
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
-    procedure, public :: SetupSolvers => PMBaseSetupSolvers
+    procedure, public :: InitializeSolver => PMBaseInitializeSolver
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -70,7 +70,7 @@ module PM_Base_class
     
   public :: PMBaseInit, &
             PMBaseInputRecord, &
-            PMBaseSetupSolvers, &
+            PMBaseInitializeSolver, &
             PMBaseReadSimOptionsSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
@@ -353,7 +353,7 @@ end subroutine PMBaseComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine PMBaseSetupSolvers(this,solver)
+subroutine PMBaseInitializeSolver(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/15/17
@@ -363,11 +363,10 @@ subroutine PMBaseSetupSolvers(this,solver)
   implicit none
 
   class(pm_base_type) :: this
-  type(solver_type), pointer :: solver
 
-  this%solver => solver
+  this%solver => SolverCreate()
 
-end subroutine PMBaseSetupSolvers
+end subroutine PMBaseInitializeSolver
 
 ! ************************************************************************** !
 

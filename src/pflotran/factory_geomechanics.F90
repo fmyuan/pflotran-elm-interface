@@ -125,8 +125,16 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     pmc_geomech%pm_ptr%pm => pm_geomech
     pmc_geomech%geomech_realization => simulation%geomech_realization
     pmc_geomech%subsurf_realization => simulation%realization
+
+    ! add time integrator
     timestepper => TimestepperSteadyCreate()
     pmc_geomech%timestepper => timestepper
+
+    ! add solver 
+    call SolverDestroy(timestepper%solver)
+    call pm_geomech%InitializeSolver()
+    timestepper%solver => pm_geomech%solver
+
     ! set up logging stage
     string = trim(pmc_geomech%name) // 'Geomechanics'
     call LoggingCreateStage(string,pmc_geomech%stage)
@@ -145,14 +153,11 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     call GeomechanicsInitReadInput(simulation,timestepper%solver,input)
     pm_geomech%output_option => geomech_realization%output_option
 
-
-
     ! Hijack subsurface waypoint to geomechanics waypoint
     ! Subsurface controls the output now
     ! Always have snapshot on at t=0
     pmc_geomech%waypoint_list%first%print_snap_output = PETSC_TRUE
     
-
     ! link geomech and flow timestepper waypoints to geomech way point list
     if (associated(simulation%geomech_process_model_coupler)) then
       call simulation%geomech_process_model_coupler% &
@@ -172,9 +177,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     ! initialize geomech realization
     call GeomechInitSetupRealization(simulation)
 
-    if (associated(timestepper)) then
-      call pm_geomech%SetupSolvers(timestepper%solver)
-    endif
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
     call pm_geomech%Setup()
 

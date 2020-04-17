@@ -288,6 +288,7 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
+  use Solver_module
 
   implicit none
 
@@ -321,6 +322,12 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
       pmc_subsurface%timestepper => TimestepperBECreate()
   end select
   pmc_subsurface%timestepper%name = 'FLOW'
+
+  ! add solver
+  !TODO(geh) remove this Destroy, once solver is not created in TS
+  call SolverDestroy(pmc_subsurface%timestepper%solver)
+  call pmc_subsurface%pm_list%InitializeSolver()
+  pmc_subsurface%timestepper%solver => pmc_subsurface%pm_list%solver
   pmc_subsurface%timestepper%solver%itype = FLOW_CLASS
 
   ! set up logging stage
@@ -353,6 +360,7 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
   use Realization_Subsurface_class
   use Option_module
   use Logging_module
+  use Solver_module
 
   implicit none
 
@@ -399,6 +407,11 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
       pmc_subsurface%timestepper => TimestepperBECreate()
   end select
   pmc_subsurface%timestepper%name = 'TRAN'
+
+  ! add solver
+  call SolverDestroy(pmc_subsurface%timestepper%solver)
+  call pmc_subsurface%pm_list%InitializeSolver()
+  pmc_subsurface%timestepper%solver => pmc_subsurface%pm_list%solver
   pmc_subsurface%timestepper%solver%itype = TRANSPORT_CLASS
 
   ! set up logging stage

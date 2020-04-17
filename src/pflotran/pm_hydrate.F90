@@ -34,7 +34,7 @@ module PM_Hydrate_class
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMHydrateReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMHydrateReadNewtonSelectCase
-    procedure, public :: SetupSolvers => PMHydrateSetupSolvers
+    procedure, public :: InitializeSolver => PMHydrateInitializeSolver
     procedure, public :: InitializeRun => PMHydrateInitializeRun
     procedure, public :: InitializeTimestep => PMHydrateInitializeTimestep
     procedure, public :: Residual => PMHydrateResidual
@@ -744,7 +744,7 @@ end subroutine PMHydrateReadNewtonSelectCase
 
 ! ************************************************************************** !
 
-subroutine PMHydrateSetupSolvers(this,solver)
+subroutine PMHydrateInitializeSolver(this)
   !
   ! Author: Glenn Hammond
   ! Date: 04/06/20
@@ -754,15 +754,14 @@ subroutine PMHydrateSetupSolvers(this,solver)
   implicit none
 
   class(pm_hydrate_type) :: this
-  type(solver_type), pointer :: solver
 
-  call PMBaseSetupSolvers(this,solver)
+  call PMBaseInitializeSolver(this)
 
   ! helps accommodate rise in residual due to change in state
-  solver%newton_dtol = 1.d9
-  solver%newton_max_iterations = 8
+  this%solver%newton_dtol = 1.d9
+  this%solver%newton_max_iterations = 8
 
-end subroutine PMHydrateSetupSolvers
+end subroutine PMHydrateInitializeSolver
 
 ! ************************************************************************** !
 

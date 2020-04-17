@@ -32,7 +32,7 @@ module PM_General_class
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMGeneralReadSimOptionsBlock
     procedure, public :: ReadNewtonBlock => PMGeneralReadNewtonSelectCase
-    procedure, public :: SetupSolvers => PMGeneralSetupSolvers
+    procedure, public :: InitializeSolver => PMGeneralInitializeSolver
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual
@@ -464,7 +464,7 @@ end subroutine PMGeneralReadNewtonSelectCase
 
 ! ************************************************************************** !
 
-subroutine PMGeneralSetupSolvers(this,solver)
+subroutine PMGeneralInitializeSolver(this)
   !
   ! Author: Glenn Hammond
   ! Date: 04/06/20
@@ -474,15 +474,14 @@ subroutine PMGeneralSetupSolvers(this,solver)
   implicit none
 
   class(pm_general_type) :: this
-  type(solver_type), pointer :: solver
 
-  call PMBaseSetupSolvers(this,solver) 
+  call PMBaseInitializeSolver(this) 
 
   ! helps accommodate rise in residual due to change in state
-  solver%newton_dtol = 1.d9  
-  solver%newton_max_iterations = 8
+  this%solver%newton_dtol = 1.d9  
+  this%solver%newton_max_iterations = 8
 
-end subroutine PMGeneralSetupSolvers
+end subroutine PMGeneralInitializeSolver
 
 ! ************************************************************************** !
 
