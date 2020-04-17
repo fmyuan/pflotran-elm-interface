@@ -255,9 +255,8 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
       case('RESTRICT_STATE_CHANGE')
         general_restrict_state_chng = PETSC_TRUE
       case('TWO_PHASE_ENERGY_DOF')
-        option%io_buffer = 'TWO_PHASE_ENERGY_DOF has been deprecated. Please &
-          &use TWO_PHASE_STATE_ENERGY_DOF.'
-        call PrintErrMsg(option)
+        call InputKeywordDeprecated('TWO_PHASE_ENERGY_DOF', &
+                                    'TWO_PHASE_STATE_ENERGY_DOF',option)
       case('TWO_PHASE_STATE_ENERGY_DOF')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -326,10 +325,8 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
   found = PETSC_TRUE
   select case(trim(keyword))
     case('MAX_NEWTON_ITERATIONS')
-      option%io_buffer = 'MAX_NEWTON_ITERATIONS has been deprecated. &
-        &Please use MAXIMUM_NUMBER_OF_ITERATIONS.'
-      call PrintErrMsg(option)
-
+      call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
+                                  'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
     ! Tolerances
     
     ! All Residual
@@ -355,7 +352,10 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
       call InputErrorMsg(input,option,keyword,error_string)
 
     ! Scaled Residual
-    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+    case('ITOL_SCALED_RESIDUAL')
+      call InputKeywordDeprecated('ITOL_SCALED_RESIDUAL', &
+                                  'RESIDUAL_SCALED_INF_TOL',option)
+    case('RESIDUAL_SCALED_INF_TOL')
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
       this%residual_scaled_inf_tol(:) = tempreal

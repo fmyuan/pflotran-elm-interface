@@ -491,9 +491,8 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
       case('RESTRICT_STATE_CHANGE')
         hydrate_restrict_state_chng = PETSC_TRUE
       case('TWO_PHASE_ENERGY_DOF')
-        option%io_buffer = 'TWO_PHASE_ENERGY_DOF has been deprecated. Please &
-          &use TWO_PHASE_STATE_ENERGY_DOF.'
-        call PrintErrMsg(option)
+        call InputKeywordDeprecated('TWO_PHASE_ENERGY_DOF', &
+                                    'TWO_PHASE_STATE_ENERGY_DOF',option)
       case('TWO_PHASE_STATE_ENERGY_DOF')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
@@ -570,10 +569,8 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         
       !man: phase change
       case('MAX_NEWTON_ITERATIONS')
-        option%io_buffer = 'MAX_NEWTON_ITERATIONS has been deprecated. &
-          &Please use MAXIMUM_NUMBER_OF_ITERATIONS.'
-        call PrintErrMsg(option)
-
+        call InputKeywordDeprecated('MAX_NEWTON_ITERATIONS', &
+                                    'MAXIMUM_NUMBER_OF_ITERATIONS.',option)
       ! Tolerances
       ! All Residual
       case('RESIDUAL_INF_TOL')

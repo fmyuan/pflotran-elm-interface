@@ -352,11 +352,6 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
         this%local_waypoint_list => WaypointListCreate()
       endif
       call WaypointInsertInList(waypoint,this%local_waypoint_list)
-    case('SATURATION_CHANGE_LIMIT', &
-         'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
-      option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
-        &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
-      call PrintErrMsg(option)
     case default
       found = PETSC_FALSE
   end select

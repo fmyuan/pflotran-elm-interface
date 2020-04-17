@@ -2404,18 +2404,6 @@ subroutine SubsurfaceReadInput(simulation,input)
           end select
         enddo
         call InputPopBlock(input,option)
-      case ('NONUNIFORM_VELOCITY')
-        option%io_buffer = 'The NONUNIFORM_VELOCITY card within SUBSURFACE &
-          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call PrintErrMsg(option)
-      case ('UNIFORM_VELOCITY')
-        option%io_buffer = 'The UNIFORM_VELOCITY card within SUBSURFACE &
-          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call PrintErrMsg(option)
-      case ('VELOCITY_DATASET')
-        option%io_buffer = 'The VELOCITY_DATASET card within SUBSURFACE &
-          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call PrintErrMsg(option)
 
 !....................
       case ('DEBUG')
@@ -2771,37 +2759,6 @@ subroutine SubsurfaceReadInput(simulation,input)
            'is an unusually high brine molality'
            call PrintWrnMsg(option)
          endif
-
-!......................
-
-      case ('RESTART')
-        option%io_buffer = 'The RESTART card within SUBSURFACE block has &
-                           &been deprecated.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('CHECKPOINT')
-        option%io_buffer = 'The CHECKPOINT card within SUBSURFACE block must &
-                           &be moved to the SIMULATION block.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('NUMERICAL_JACOBIAN_FLOW')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_FLOW card within &
-          &SUBSURFACE block must be listed under the SIMULATION/&
-          &PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block as NUMERICAL_JACOBIAN.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('NUMERICAL_JACOBIAN_RXN')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_RXN card within &
-          &SUBSURFACE block must be listed under the SIMULATION/&
-          &PROCESS_MODELS/SUBSURFACE_TRANSPORT block as &
-          &NUMERICAL_JACOBIAN.'
-        call PrintErrMsg(option)
 
 !......................
 

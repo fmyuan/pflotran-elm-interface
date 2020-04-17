@@ -299,9 +299,8 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
       option%flow%numerical_derivatives = PETSC_FALSE
 
     case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
-        &Please use ANALYTICAL_JACOBIAN instead.'
-      call PrintErrMsg(option)
+      call InputKeywordDeprecated('ANALYTICAL_DERIVATIVES', &
+                                  'ANALYTICAL_JACOBIAN',option)
 
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE

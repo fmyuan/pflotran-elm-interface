@@ -923,9 +923,8 @@ subroutine SolverReadLinear(solver,input,option)
         call InputErrorMsg(input,option,'linear_dtol','LINEAR_SOLVER')
    
       case('MAXIT')
-       option%io_buffer = 'MAXIT for LINEAR_SOLVER has been deprecated. &
-         &Please use MAXIMUM_NUMBER_OF_ITERATIONS.'
-       call PrintErrMsg(option)
+        call InputKeywordDeprecated('MAXIT', &
+                                    'MAXIMUM_NUMBER_OF_ITERATIONS',option)
 
       case('MAXIMUM_NUMBER_OF_ITERATIONS')
         call InputReadInt(input,option,solver%linear_max_iterations)
@@ -1074,9 +1073,8 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
       solver%check_infinity_norm = PETSC_FALSE
 
     case('MAXIT')
-       option%io_buffer = 'MAXIT for NEWTON_SOLVER has been deprecated. &
-         &Please use MAXIMUM_NUMBER_OF_ITERATIONS.'
-       call PrintErrMsg(option)
+        call InputKeywordDeprecated('MAXIT', &
+                                    'MAXIMUM_NUMBER_OF_ITERATIONS',option)
 
     case('MAXIMUM_NUMBER_OF_ITERATIONS')
       call InputReadInt(input,option,solver%newton_max_iterations)
