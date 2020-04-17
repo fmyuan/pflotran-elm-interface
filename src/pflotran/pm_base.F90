@@ -53,7 +53,7 @@ module PM_Base_class
     procedure, public :: UpdateAuxVars => PMBaseThisOnly
     procedure, public :: MaxChange => PMBaseThisOnly
     procedure, public :: ComputeMassBalance => PMBaseComputeMassBalance
-    procedure, public :: Destroy => PMBaseThisOnly
+    procedure, public :: Destroy => PMBaseDestroy
     procedure, public :: RHSFunction => PMBaseRHSFunction
     procedure, public :: IFunction => PMBaseIFunction
     procedure, public :: IJacobian => PMBaseIJacobian
@@ -75,7 +75,8 @@ module PM_Base_class
             PMBasePrintHeader, &
             PMBaseResidual, &
             PMBaseJacobian, &
-            PMBaseRHSFunction
+            PMBaseRHSFunction, &
+            PMBaseDestroy
   
 contains
 
@@ -474,5 +475,20 @@ subroutine PMBasePrintErrMsg(this,subroutine_name)
          ' must extend for: ' //  trim(this%name)
   call PrintErrMsg(this%option)
 end subroutine PMBasePrintErrMsg
+
+! ************************************************************************** !
+
+subroutine PMBaseDestroy(this)
+
+  implicit none
+  class(pm_base_type) :: this
+
+  nullify(this%option)
+  nullify(this%output_option)
+  nullify(this%realization_base)
+  nullify(this%next)
+  call SolverDestroy(this%solver)
+
+end subroutine PMBaseDestroy
 
 end module PM_Base_class

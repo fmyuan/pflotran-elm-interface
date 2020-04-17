@@ -234,7 +234,6 @@ subroutine PMCBaseReadNumericalMethods(this,input)
             call InputKeywordUnrecognized(input,keyword,error_string,option)
           endif
         enddo
-        this%timestepper%solver%print_ekg = this%timestepper%print_ekg
         call InputPopBlock(input,option)
       case ('NEWTON_SOLVER')
         error_string = trim(error_string) // ',NEWTON_SOLVER'

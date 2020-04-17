@@ -1232,6 +1232,7 @@ subroutine PMNWTDestroy(this)
   call DeallocateArray(this%controls%max_concentration_change)
   call DeallocateArray(this%controls%max_volfrac_change)
 
+  call PMBaseDestroy(this)
   call NWTDestroy(this%realization)
  
   nullify(this%comm1) ! already destroyed in realization

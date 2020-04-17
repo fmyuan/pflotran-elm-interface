@@ -1986,11 +1986,11 @@ subroutine PMRTStrip(this)
   call DeallocateArray(this%max_concentration_change)
   call DeallocateArray(this%max_volfrac_change)
 
+  call PMBaseDestroy(this)
   call RTDestroy(this%realization)
   ! destroyed in realization
+  nullify(this%realization)
   nullify(this%comm1)
-  nullify(this%option)
-  nullify(this%output_option)
   call this%commN%Destroy()
   if (associated(this%commN)) deallocate(this%commN)
   nullify(this%commN)  

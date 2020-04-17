@@ -1278,10 +1278,10 @@ subroutine PMSubsurfaceFlowDestroy(this)
   
   class(pm_subsurface_flow_type) :: this
   
+  call PMBaseDestroy(this)
   ! destroyed in realization
+  nullify(this%realization)
   nullify(this%comm1)
-  nullify(this%option)
-  nullify(this%output_option)
   
 end subroutine PMSubsurfaceFlowDestroy
   

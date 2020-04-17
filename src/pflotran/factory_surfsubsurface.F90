@@ -72,7 +72,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   use Timestepper_Surface_class
   use Logging_module
   use Output_Aux_module
-  use Solver_module
   
   implicit none
 
@@ -191,7 +190,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
     endif
 
     ! add solver
-    call SolverDestroy(timestepper%solver)
     call pmc_surface%pm_ptr%pm%InitializeSolver()
     timestepper%solver => pmc_surface%pm_ptr%pm%solver
     

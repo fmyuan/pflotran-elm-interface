@@ -62,7 +62,7 @@ module Timestepper_Base_class
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
 
-    type(solver_type), pointer :: solver
+    type(solver_type), pointer :: solver  ! solely a pointer
 
   contains
     
@@ -234,8 +234,6 @@ subroutine TimestepperBaseRead(this,input,option)
   
   enddo
   call InputPopBlock(input,option)
-
-  this%solver%print_ekg = this%print_ekg
 
 end subroutine TimestepperBaseRead
 
@@ -1108,6 +1106,7 @@ subroutine TimestepperBaseStrip(this)
   class(timestepper_base_type) :: this
 
   call WaypointListDestroy(this%local_waypoint_list)
+  nullify(this%solver)
   
 end subroutine TimestepperBaseStrip
 

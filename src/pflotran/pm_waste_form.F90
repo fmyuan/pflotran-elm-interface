@@ -5156,6 +5156,7 @@ subroutine PMWFDestroy(this)
   write(word,'(f12.1)') this%cumulative_time
   
   write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  call PMBaseDestroy(this)
   call PMWFStrip(this)
   
 end subroutine PMWFDestroy

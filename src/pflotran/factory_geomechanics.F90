@@ -131,7 +131,6 @@ subroutine GeomechanicsInitializePostPETSc(simulation)
     pmc_geomech%timestepper => timestepper
 
     ! add solver 
-    call SolverDestroy(timestepper%solver)
     call pm_geomech%InitializeSolver()
     timestepper%solver => pm_geomech%solver
 

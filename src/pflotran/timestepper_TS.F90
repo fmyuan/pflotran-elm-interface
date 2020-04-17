@@ -79,8 +79,6 @@ function TimestepperTSCreate()
 
   call ts_timestepper%Init()
   
-  ts_timestepper%solver => SolverCreate()
-  
   TimestepperTSCreate => ts_timestepper
   
 end function TimestepperTSCreate
@@ -170,8 +168,6 @@ subroutine TimestepperTSReadSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
   end select 
   
-  this%solver%print_ekg = this%print_ekg
-
 end subroutine TimestepperTSReadSelectCase
 
 ! ************************************************************************** !
@@ -213,7 +209,7 @@ subroutine TimestepperTSStepDT(this,process_model,stop_flag)
   PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
 
-  solver => this%solver
+  solver => process_model%solver
   option => process_model%option
 
   option%dt = this%dt
@@ -549,7 +545,6 @@ subroutine TimestepperTSStrip(this)
   class(timestepper_TS_type) :: this
   
   call TimestepperBaseStrip(this)
-  call SolverDestroy(this%solver)
 
 end subroutine TimestepperTSStrip
 
