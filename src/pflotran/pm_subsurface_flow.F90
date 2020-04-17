@@ -162,28 +162,24 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
-    case('FIX_UPWIND_DIRECTION')
-      fix_upwind_direction = PETSC_TRUE
-    case('UNFIX_UPWIND_DIRECTION')
-      fix_upwind_direction = PETSC_FALSE
     case('COUNT_UPWIND_DIRECTION_FLIP')
       count_upwind_direction_flip = PETSC_TRUE
-    case('UPWIND_DIR_UPDATE_FREQUENCY')
-      call InputReadInt(input,option,upwind_dir_update_freq)
-      call InputErrorMsg(input,option,keyword,error_string)
-      
+    case('FIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_TRUE
     case('LOGGING_VERBOSITY')
       call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
-
-    case('REVERT_PARAMETERS_ON_RESTART')
-      this%revert_parameters_on_restart = PETSC_TRUE
-
+    case('MULTIPLE_CONTINUUM')
+      option%use_mc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')
       this%replace_init_params_on_restart = PETSC_TRUE
-
+    case('REVERT_PARAMETERS_ON_RESTART')
+      this%revert_parameters_on_restart = PETSC_TRUE
+    case('UNFIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_FALSE
+    case('UPWIND_DIR_UPDATE_FREQUENCY')
+      call InputReadInt(input,option,upwind_dir_update_freq)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
   end select  

@@ -202,13 +202,9 @@ subroutine PMNWTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('MINIMUM_SATURATION')
-        call InputReadDouble(input,option,nwt_min_saturation)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%params%temperature_dependent_diffusion = PETSC_TRUE
-      case('MULTIPLE_CONTINUUM')
-        option%use_mc = PETSC_TRUE          
+!geh: yet to be implemented
+!      case('TEMPERATURE_DEPENDENT_DIFFUSION')
+!        this%temperature_dependent_diffusion = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select

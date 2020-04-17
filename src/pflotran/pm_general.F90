@@ -28,7 +28,6 @@ module PM_General_class
     PetscReal :: abs_update_inf_tol(3,3)
     PetscReal :: rel_update_inf_tol(3,3)
     PetscReal :: damping_factor
-    PetscInt :: general_newton_max_iter
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMGeneralReadSimOptionsBlock
@@ -140,7 +139,6 @@ function PMGeneralCreate()
                                        ! 2 = air in xmol(air,liquid)
   this%max_change_isubvar = [0,0,0,2,0,0]
   this%damping_factor = -1.d0
-  this%general_newton_max_iter = 8
   
   ! turn off default upwinding which is set to PETSC_TRUE in
   !  upwind_direction.F90
@@ -215,51 +213,58 @@ subroutine PMGeneralReadSimOptionsBlock(this,input)
     if (found) cycle
     
     select case(trim(keyword))
+      case('DIFFUSE_XMASS')
+        general_diffuse_xmol = PETSC_FALSE
+      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
+        general_harmonic_diff_density = PETSC_FALSE
+      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
+        gen_chk_max_dpl_liq_state_only = PETSC_TRUE
+      case('DEBUG_CELL')
+        call InputReadInt(input,option,general_debug_cell_id)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('GAS_COMPONENT_FORMULA_WEIGHT')
+        !geh: assuming gas component is index 2
+        call InputReadDouble(input,option,fmw_comp(2))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('GAS_STATE_AIR_MASS_DOF')
+        call InputReadCard(input,option,word)
+        call InputErrorMsg(input,option,keyword,error_string)
+        call GeneralAuxSetAirMassDOF(word,option)
+        this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
+        this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
+      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
+        general_harmonic_diff_density = PETSC_TRUE
+      case('IMMISCIBLE')
+        general_immiscible = PETSC_TRUE
+      case('ISOTHERMAL')
+        general_isothermal = PETSC_TRUE
+      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
+         !heeho: assuming liquid component is index 1
+        call InputReadDouble(input,option,fmw_comp(1))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('NO_AIR')
+        general_no_air = PETSC_TRUE
+      case('NO_STATE_TRANSITION_OUTPUT')
+        general_print_state_transition = PETSC_FALSE
+      case('NO_TEMP_DEPENDENT_DIFFUSION')
+        general_temp_dep_gas_air_diff = PETSC_FALSE
       case('PHASE_CHANGE_EPSILON')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         general_phase_chng_epsilon = tempreal
       case('RESTRICT_STATE_CHANGE')
         general_restrict_state_chng = PETSC_TRUE
-      case('NO_STATE_TRANSITION_OUTPUT')
-        general_print_state_transition = PETSC_FALSE
-      case('GAS_COMPONENT_FORMULA_WEIGHT')
-        !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
-         !heeho: assuming liquid component is index 1
-        call InputReadDouble(input,option,fmw_comp(1))
-        call InputErrorMsg(input,option,keyword,error_string)
       case('TWO_PHASE_ENERGY_DOF')
+        option%io_buffer = 'TWO_PHASE_ENERGY_DOF has been deprecated. Please &
+          &use TWO_PHASE_STATE_ENERGY_DOF.'
+        call PrintErrMsg(option)
+      case('TWO_PHASE_STATE_ENERGY_DOF')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call GeneralAuxSetEnergyDOF(word,option)
-      case('GAS_PHASE_AIR_MASS_DOF')
-        call InputReadCard(input,option,word)
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,window_epsilon)
         call InputErrorMsg(input,option,keyword,error_string)
-        call GeneralAuxSetAirMassDOF(word,option)
-        this%abs_update_inf_tol(2,2)=this%abs_update_inf_tol(2,1)
-        this%rel_update_inf_tol(2,2)=this%rel_update_inf_tol(2,1)
-      case('ISOTHERMAL')
-        general_isothermal = PETSC_TRUE
-      case('NO_AIR')
-        general_no_air = PETSC_TRUE
-      case('DEBUG_CELL')
-        call InputReadInt(input,option,general_debug_cell_id)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('NO_TEMP_DEPENDENT_DIFFUSION')
-        general_temp_dep_gas_air_diff = PETSC_FALSE
-      case('DIFFUSE_XMASS')
-        general_diffuse_xmol = PETSC_FALSE
-      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
-        general_harmonic_diff_density = PETSC_TRUE
-      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
-        general_harmonic_diff_density = PETSC_FALSE
-      case('IMMISCIBLE')
-        general_immiscible = PETSC_TRUE
-      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
-        gen_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'GENERAL Mode',option)
     end select
@@ -321,9 +326,9 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
   found = PETSC_TRUE
   select case(trim(keyword))
     case('MAX_NEWTON_ITERATIONS')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%general_newton_max_iter = tempreal
+      option%io_buffer = 'MAX_NEWTON_ITERATIONS has been deprecated. &
+        &Please use MAXIMUM_NUMBER_OF_ITERATIONS.'
+      call PrintErrMsg(option)
 
     ! Tolerances
     
@@ -440,10 +445,6 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
       this%rel_update_inf_tol(2,2) = tempreal
-
-    case('WINDOW_EPSILON') 
-      call InputReadDouble(input,option,window_epsilon)
-      call InputErrorMsg(input,option,keyword,error_string)
     case('MAXIMUM_PRESSURE_CHANGE')
       call InputReadDouble(input,option,general_max_pressure_change)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -479,6 +480,7 @@ subroutine PMGeneralSetupSolvers(this,solver)
 
   ! helps accommodate rise in residual due to change in state
   solver%newton_dtol = 1.d9  
+  solver%newton_max_iterations = 8
 
 end subroutine PMGeneralSetupSolvers
 
@@ -1343,7 +1345,7 @@ subroutine PMGeneralCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call OptionPrint(string,option)
     endif
   
-    if (it >= this%general_newton_max_iter) then
+    if (it >= this%solver%newton_max_iterations) then
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     
       if (this%logging_verbosity > 0) then

@@ -187,17 +187,17 @@ subroutine PMRTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-      case('MINIMUM_SATURATION')
-        call InputReadDouble(input,option,rt_min_saturation)
-        call InputErrorMsg(input,option,keyword,error_string)
       case('INCLUDE_GAS_PHASE')
         option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
                            &has been deprecated.'
         call PrintErrMsg(option)
-      case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%temperature_dependent_diffusion = PETSC_TRUE
+      case('MINIMUM_SATURATION')
+        call InputReadDouble(input,option,rt_min_saturation)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
+      case('TEMPERATURE_DEPENDENT_DIFFUSION')
+        this%temperature_dependent_diffusion = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select

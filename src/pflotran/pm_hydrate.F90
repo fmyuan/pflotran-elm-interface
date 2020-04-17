@@ -30,7 +30,6 @@ module PM_Hydrate_class
     PetscReal :: abs_update_inf_tol(3,15)
     PetscReal :: rel_update_inf_tol(3,15)
     PetscReal :: damping_factor
-    PetscInt :: hydrate_newton_max_iter
   contains
     procedure, public :: ReadSimulationOptionsBlock => &
                            PMHydrateReadSimOptionsBlock
@@ -164,7 +163,6 @@ function PMHydrateCreate()
                                        ! 2 = air in xmol(air,liquid)
   this%max_change_isubvar = [0,0,0,2,0,0,0,0,0]
   this%damping_factor = -1.d0
-  this%hydrate_newton_max_iter = 8
   
   call PMSubsurfaceFlowInit(this)
   this%name = 'Hydrate Multiphase Flow'
@@ -461,43 +459,45 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-      case('NO_STATE_TRANSITION_PRINTING')    
+      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
+        hydrate_harmonic_diff_density = PETSC_FALSE
+      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
+        hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
+      case('DEBUG_CELL')
+        call InputReadInt(input,option,hydrate_debug_cell_id)
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('DIFFUSE_XMASS')
+        hydrate_diffuse_xmol = PETSC_FALSE
+      case('GAS_COMPONENT_FORMULA_WEIGHT')
+        !geh: assuming gas component is index 2
+        call InputReadDouble(input,option,fmw_comp(2))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
+        hydrate_harmonic_diff_density = PETSC_TRUE
+      case('IMMISCIBLE')
+        hydrate_immiscible = PETSC_TRUE
+      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
+        !heeho: assuming liquid component is index 1
+        call InputReadDouble(input,option,fmw_comp(1))
+        call InputErrorMsg(input,option,keyword,error_string)
+      case('NO_STATE_TRANSITION_OUTPUT')
         hydrate_print_state_transition = PETSC_FALSE
+      case('NO_TEMP_DEPENDENT_DIFFUSION')
+        hydrate_temp_dep_gas_air_diff = PETSC_FALSE
       case('PHASE_CHANGE_EPSILON')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         hydrate_phase_chng_epsilon = tempreal
       case('RESTRICT_STATE_CHANGE')
         hydrate_restrict_state_chng = PETSC_TRUE
-      case('NO_STATE_TRANSITION_OUTPUT')
-        hydrate_print_state_transition = PETSC_FALSE
-      case('GAS_COMPONENT_FORMULA_WEIGHT')
-        !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('LIQUID_COMPONENT_FORMULA_WEIGHT')
-        !heeho: assuming liquid component is index 1
-        call InputReadDouble(input,option,fmw_comp(1))
-        call InputErrorMsg(input,option,keyword,error_string)
       case('TWO_PHASE_ENERGY_DOF')
+        option%io_buffer = 'TWO_PHASE_ENERGY_DOF has been deprecated. Please &
+          &use TWO_PHASE_STATE_ENERGY_DOF.'
+        call PrintErrMsg(option)
+      case('TWO_PHASE_STATE_ENERGY_DOF')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call HydrateAuxSetEnergyDOF(word,option)
-      case('DEBUG_CELL')
-        call InputReadInt(input,option,hydrate_debug_cell_id)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('NO_TEMP_DEPENDENT_DIFFUSION')
-        hydrate_temp_dep_gas_air_diff = PETSC_FALSE
-      case('DIFFUSE_XMASS')
-        hydrate_diffuse_xmol = PETSC_FALSE
-      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
-        hydrate_harmonic_diff_density = PETSC_TRUE
-      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
-        hydrate_harmonic_diff_density = PETSC_FALSE
-      case('IMMISCIBLE')
-        hydrate_immiscible = PETSC_TRUE
-      case('CHECK_MAX_DPL_LIQ_STATE_ONLY')
-        hyd_chk_max_dpl_liq_state_only = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select
@@ -570,9 +570,9 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         
       !man: phase change
       case('MAX_NEWTON_ITERATIONS')
-        call InputReadDouble(input,option,tempreal)
-        call InputErrorMsg(input,option,keyword,error_string)
-        this%hydrate_newton_max_iter = tempreal
+        option%io_buffer = 'MAX_NEWTON_ITERATIONS has been deprecated. &
+          &Please use MAXIMUM_NUMBER_OF_ITERATIONS.'
+        call PrintErrMsg(option)
 
       ! Tolerances
       ! All Residual
@@ -760,6 +760,7 @@ subroutine PMHydrateSetupSolvers(this,solver)
 
   ! helps accommodate rise in residual due to change in state
   solver%newton_dtol = 1.d9
+  solver%newton_max_iterations = 8
 
 end subroutine PMHydrateSetupSolvers
 
@@ -1638,7 +1639,7 @@ subroutine PMHydrateCheckConvergence(this,snes,it,xnorm,unorm,fnorm, &
       call OptionPrint(string,option)
     endif
   
-    if (it >= this%hydrate_newton_max_iter) then
+    if (it >= this%solver%newton_max_iterations) then
       option%convergence = CONVERGENCE_CUT_TIMESTEP
     
       if (this%logging_verbosity > 0) then
