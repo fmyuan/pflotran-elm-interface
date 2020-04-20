@@ -497,6 +497,9 @@ subroutine PMHydrateReadSimOptionsBlock(this,input)
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,keyword,error_string)
         call HydrateAuxSetEnergyDOF(word,option)
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,window_epsilon)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,'HYDRATE Mode',option)
     end select
@@ -595,7 +598,10 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputErrorMsg(input,option,keyword,error_string)
 
       ! Scaled Residual
-      case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
+      case('ITOL_SCALED_RESIDUAL')
+        call InputKeywordDeprecated('ITOL_SCALED_RESIDUAL', &
+                                    'RESIDUAL_SCALED_INF_TOL',option)
+      case('RESIDUAL_SCALED_INF_TOL')
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%residual_scaled_inf_tol(:) = tempreal
@@ -717,11 +723,6 @@ subroutine PMHydrateReadNewtonSelectCase(this,input,keyword,found, &
         call InputReadDouble(input,option,tempreal)
         call InputErrorMsg(input,option,keyword,error_string)
         this%rel_update_inf_tol(2,2) = tempreal
-
-      case('WINDOW_EPSILON') 
-        call InputReadDouble(input,option,window_epsilon)
-        call InputErrorMsg(input,option,keyword,error_string)
-  
       case('MAXIMUM_PRESSURE_CHANGE')
         call InputReadDouble(input,option,hydrate_max_pressure_change)
         call InputErrorMsg(input,option,keyword,error_string)

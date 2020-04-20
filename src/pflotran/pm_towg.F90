@@ -243,6 +243,9 @@ subroutine PMTOWGReadSimOptionsBlock(this,input)
         TL4P_slv_sat_truncate = PETSC_TRUE
       case('TL4P_MOBILITY_SAFE')
         TL4P_safemobs = PETSC_TRUE
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,towg_window_epsilon)
+        call InputErrorMsg(input,option,keyword,error_string)
 
       !case('DIFFUSE_XMASS')
       !  general_diffuse_xmol = PETSC_FALSE
@@ -377,9 +380,6 @@ subroutine PMTOWGReadNewtonSelectCase(this,input,keyword,found, &
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
       this%tgh2_itol_scld_res_e1(3,:) = tempreal
-    case('WINDOW_EPSILON') 
-      call InputReadDouble(input,option,towg_window_epsilon)
-      call InputErrorMsg(input,option,keyword,error_string)
     case('MAXIMUM_PRESSURE_CHANGE')
       call InputReadDouble(input,option,this%trunc_max_pressure_change)
       call InputErrorMsg(input,option,keyword,error_string)

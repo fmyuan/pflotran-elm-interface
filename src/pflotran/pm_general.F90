@@ -412,7 +412,10 @@ subroutine PMGeneralReadNewtonSelectCase(this,input,keyword,found, &
       this%abs_update_inf_tol(2,2) = tempreal
 
     ! Relative Updates
-    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
+    case('ITOL_RELATIVE_UPDATE')
+      call InputKeywordDeprecated('ITOL_RELATIVE_UPDATE', &
+                                  'REL_UPDATE_INF_TOL',option)
+    case('REL_UPDATE_INF_TOL')
       call InputReadDouble(input,option,tempreal)
       call InputErrorMsg(input,option,keyword,error_string)
       this%rel_update_inf_tol(:,:) = tempreal

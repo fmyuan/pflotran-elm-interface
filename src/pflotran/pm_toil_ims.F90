@@ -144,6 +144,9 @@ subroutine PMTOilImsReadSimOptionsBlock(this,input)
       !  general_harmonic_diff_density = PETSC_FALSE
       case('FLUX_DIPC')
         call TOilImsFluxDipcSetup()
+      case('WINDOW_EPSILON') 
+        call InputReadDouble(input,option,toil_ims_window_epsilon)
+        call InputErrorMsg(input,option,keyword,error_string)
       case default
         call InputKeywordUnrecognized(input,keyword,'TOIL_IMS Mode',option)
     end select
@@ -246,9 +249,6 @@ subroutine PMTOilImsReadNewtonSelectCase(this,input,keyword,found, &
                          error_string)
       toil_ims_tough2_conv_criteria = PETSC_TRUE
       this%check_post_convergence = PETSC_TRUE
-    case('WINDOW_EPSILON') 
-      call InputReadDouble(input,option,toil_ims_window_epsilon)
-      call InputErrorMsg(input,option,keyword,error_string)
     case('MAXIMUM_PRESSURE_CHANGE')
       call InputReadDouble(input,option,toil_ims_max_pressure_change)
       call InputErrorMsg(input,option,keyword,error_string)
