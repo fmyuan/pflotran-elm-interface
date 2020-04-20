@@ -13,7 +13,7 @@ SUBSURFACE
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     5
     105
     205

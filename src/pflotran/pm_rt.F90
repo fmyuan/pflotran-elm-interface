@@ -187,31 +187,17 @@ subroutine PMRTReadSimOptionsBlock(this,input)
     if (found) cycle
 
     select case(trim(keyword))
-!geh: remove begin
-      case('MAX_VOLUME_FRACTION_CHANGE','VOLUME_FRACTION_CHANGE_GOVERNOR')
-        call InputReadDouble(input,option,this%volfrac_change_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('MAX_CFL','CFL_GOVERNOR')
-        call InputReadDouble(input,option,this%cfl_governor)
-        call InputErrorMsg(input,option,keyword,error_string)
-      case('NUMERICAL_JACOBIAN')
-        option%transport%numerical_derivatives = PETSC_TRUE
-      case('ITOL_RELATIVE_UPDATE')
-        call InputReadDouble(input,option,rt_itol_rel_update)
-        call InputErrorMsg(input,option,keyword,error_string)
-        this%check_post_convergence = PETSC_TRUE
-!geh: remove end
-      case('MINIMUM_SATURATION')
-        call InputReadDouble(input,option,rt_min_saturation)
-        call InputErrorMsg(input,option,keyword,error_string)
       case('INCLUDE_GAS_PHASE')
         option%io_buffer = 'INCLUDE_GAS_PHASE under SUBSURFACE_TRANSPORT &
                            &has been deprecated.'
         call PrintErrMsg(option)
-      case('TEMPERATURE_DEPENDENT_DIFFUSION')
-        this%temperature_dependent_diffusion = PETSC_TRUE
+      case('MINIMUM_SATURATION')
+        call InputReadDouble(input,option,rt_min_saturation)
+        call InputErrorMsg(input,option,keyword,error_string)
       case('MULTIPLE_CONTINUUM')
         option%use_mc = PETSC_TRUE
+      case('TEMPERATURE_DEPENDENT_DIFFUSION')
+        this%temperature_dependent_diffusion = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(input,keyword,error_string,option)
     end select
@@ -2000,11 +1986,11 @@ subroutine PMRTStrip(this)
   call DeallocateArray(this%max_concentration_change)
   call DeallocateArray(this%max_volfrac_change)
 
+  call PMBaseDestroy(this)
   call RTDestroy(this%realization)
   ! destroyed in realization
+  nullify(this%realization)
   nullify(this%comm1)
-  nullify(this%option)
-  nullify(this%output_option)
   call this%commN%Destroy()
   if (associated(this%commN)) deallocate(this%commN)
   nullify(this%commN)  

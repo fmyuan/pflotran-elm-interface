@@ -15,10 +15,19 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 10
-  CELLS
+  CELL_IDS
     29
   /
 END
@@ -35,9 +44,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
 #=========================== discretization ===================================
 GRID

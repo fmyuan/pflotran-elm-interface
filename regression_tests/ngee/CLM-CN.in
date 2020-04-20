@@ -12,6 +12,20 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    ATOL 1.d-50
+    #  RTOL 1.d-12
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== useful tranport parameters =======================
 SPECIFIED_VELOCITY
   UNIFORM? YES
@@ -22,7 +36,7 @@ REFERENCE_LIQUID_DENSITY 1.d3
 
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END
@@ -116,14 +130,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
-NEWTON_SOLVER TRANSPORT
-  ATOL 1.d-50
-#  RTOL 1.d-12
-END
 
 #=========================== discretization ===================================
 GRID

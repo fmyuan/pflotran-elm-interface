@@ -23,7 +23,7 @@ SUBSURFACE
 #ICE_MODEL PAINTER_KARRA_EXPLICIT
 !=========================== regression ===================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     2
     3

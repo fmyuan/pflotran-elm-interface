@@ -188,6 +188,10 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation)
       string = trim(pm_surface_th%name) // 'Surface'
       call LoggingCreateStage(string,pmc_surface%stage)
     endif
+
+    ! add solver
+    call pmc_surface%pm_ptr%pm%InitializeSolver()
+    timestepper%solver => pmc_surface%pm_ptr%pm%solver
     
     input => InputCreate(IN_UNIT,option%input_filename,option)    
     string = 'SURFACE_FLOW'

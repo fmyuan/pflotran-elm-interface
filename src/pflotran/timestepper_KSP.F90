@@ -737,7 +737,6 @@ subroutine TimestepperKSPStrip(this)
   class(timestepper_KSP_type) :: this
   
   call TimestepperBaseStrip(this)
-  call SolverDestroy(this%solver)
 
 end subroutine TimestepperKSPStrip
 

@@ -1848,6 +1848,8 @@ subroutine PMUFDBStrip(this)
   type(unsupported_rad_type), pointer :: cur_unsupp_rad
   type(unsupported_rad_type), pointer :: prev_unsupp_rad
   
+  call PMBaseDestroy(this)
+
   nullify(this%realization)
   
   cur_ERB => this%ERB_list

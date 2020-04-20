@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW Flow
       MODE SOLVENT_TL
       OPTIONS
-       ANALYTICAL_JACOBIAN
        ISOTHERMAL
        TL_OMEGA 0.6
       /
@@ -16,6 +15,23 @@ END  !! end simulation block
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 100
+  /
+
+  NEWTON_SOLVER
+    STOL 1.0D-10
+    RTOL 1.0D-7
+    ITOL 1.0D-7
+    MAXIMUM_NUMBER_OF_ITERATIONS 20
+    ANALYTICAL_JACOBIAN
+  /
+
+END
+
 #=========================== discretization ===================================
 
 GRID
@@ -24,19 +40,8 @@ END
 
 #=========================== solver options ===================================
 
-TIMESTEPPER FLOW
-  TS_ACCELERATION 100
-/
 
-NEWTON_SOLVER FLOW
-  STOL 1.0D-10
-  RTOL 1.0D-7
-  ITOL 1.0D-7
-  MAXIT 20
-END
 
-LINEAR_SOLVER FLOW
-END
 
 #=========================== times ============================================
 TIME
@@ -292,7 +297,7 @@ REGION all
 
 #=========================== regression values ==============================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     3
     27

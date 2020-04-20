@@ -11,6 +11,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 DEBUG
   PRINT_RESIDUAL
   PRINT_SOLUTION
@@ -22,9 +31,6 @@ REGRESSION
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

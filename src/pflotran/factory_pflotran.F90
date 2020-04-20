@@ -89,7 +89,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   ! popped in SimulationBaseInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
   call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
-  
+
   call EOSInit()
   filename = trim(option%global_prefix) // trim(option%group_prefix) // &
              '.out'
@@ -97,6 +97,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
     open(option%fid_out, file=filename, action="write", status="unknown")
   endif
   
+  call OptionPrintPFLOTRANHeader(option)
   call PFLOTRANReadSimulation(simulation,option)
   if (option%keyword_block_count /= 0) then
     write(option%io_buffer,*) option%keyword_block_count

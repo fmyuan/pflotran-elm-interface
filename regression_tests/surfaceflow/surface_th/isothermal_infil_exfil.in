@@ -24,7 +24,7 @@ SUBSURFACE
 #ICE_MODEL DALL_AMICO
 #=========================== discretization ===========================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
     2
     3

@@ -151,40 +151,6 @@ subroutine PMRichardsReadSimOptionsBlock(this,input)
     if (found) cycle
     
     select case(trim(keyword))
-!geh: remove begin
-    case('RESIDUAL_INF_TOL')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%residual_abs_inf_tol = tempreal
-      this%residual_scaled_inf_tol = tempreal
-    ! Absolute Residual
-    case('RESIDUAL_ABS_INF_TOL')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%residual_abs_inf_tol = tempreal
-    ! Scaled Residual
-    case('RESIDUAL_SCALED_INF_TOL','ITOL_SCALED_RESIDUAL')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%residual_scaled_inf_tol = tempreal
-    ! All Updates
-    case('UPDATE_INF_TOL')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%abs_update_inf_tol = tempreal
-      this%rel_update_inf_tol = tempreal
-    ! Absolute Updates
-    case('ABS_UPDATE_INF_TOL')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%abs_update_inf_tol = tempreal
-    ! Relative Updates
-    case('REL_UPDATE_INF_TOL','ITOL_RELATIVE_UPDATE')
-      call InputReadDouble(input,option,tempreal)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%rel_update_inf_tol = tempreal
-!geh: remove end
-
       case('INLINE_SURFACE_REGION')
         option%inline_surface_flow = PETSC_TRUE
         call InputReadWord(input,option,keyword,PETSC_FALSE)

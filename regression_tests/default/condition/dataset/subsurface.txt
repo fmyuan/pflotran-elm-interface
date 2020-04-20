@@ -10,24 +10,25 @@ GRID
     3.d0 3.d0 3.d0
   /
 END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 9
 END
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
 
-#=========================== solver options ===================================
-TIMESTEPPER FLOW
-  MAX_STEPS 1
+  TIMESTEPPER FLOW
+    MAX_STEPS 1
+  /
+
 END
-
-
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
-
 
 #=========================== material properties ==============================
 MATERIAL_PROPERTY soil1

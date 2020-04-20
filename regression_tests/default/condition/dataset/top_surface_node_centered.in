@@ -12,6 +12,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAX_STEPS 1
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 9
@@ -19,9 +28,6 @@ END
 
 #=========================== flow mode ========================================
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  MAX_STEPS 1
-END
 
 #=========================== discretization ===================================
 GRID
