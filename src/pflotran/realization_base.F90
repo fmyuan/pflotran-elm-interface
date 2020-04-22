@@ -282,12 +282,14 @@ subroutine RealizationBaseStrip(this)
 
   ! Intel does not accept r=>this%reaction_base as it says it is not a 
   ! pointer; therefore, have to cast below
-  select type(r=>this%reaction_base)
-    class is(reaction_rt_type)
-      call ReactionDestroy(ReactionCast(this%reaction_base),this%option)
-    class is(reaction_nw_type)
-      call NWTReactionDestroy(NWTReactionCast(this%reaction_base),this%option)
-  end select
+  if (associated(this%reaction_base)) then
+    select type(r=>this%reaction_base)
+      class is(reaction_rt_type)
+        call ReactionDestroy(ReactionCast(this%reaction_base),this%option)
+      class is(reaction_nw_type)
+        call NWTReactionDestroy(NWTReactionCast(this%reaction_base),this%option)
+    end select
+  endif
 
 end subroutine RealizationBaseStrip
 

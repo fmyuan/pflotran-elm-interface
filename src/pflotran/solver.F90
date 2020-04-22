@@ -1765,13 +1765,17 @@ subroutine SolverDestroy(solver)
     call MatFDColoringDestroy(solver%matfdcoloring,ierr);CHKERRQ(ierr)
   endif
 
-  if (solver%snes /= PETSC_NULL_SNES) then
-    call SNESDestroy(solver%snes,ierr);CHKERRQ(ierr)
-  endif
+  ! the highest level object frees everything within
   if (solver%ts /= PETSC_NULL_TS) then
     call TSDestroy(solver%ts,ierr);CHKERRQ(ierr)
+  else if (solver%snes /= PETSC_NULL_SNES) then
+    call SNESDestroy(solver%snes,ierr);CHKERRQ(ierr)
+  else if (solver%ksp /= PETSC_NULL_KSP) then
+    call KSPDestroy(solver%ksp,ierr);CHKERRQ(ierr)
   endif
 
+  solver%ts = PETSC_NULL_TS
+  solver%snes = PETSC_NULL_SNES
   solver%ksp = PETSC_NULL_KSP
   solver%pc = PETSC_NULL_PC
 
