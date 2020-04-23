@@ -2695,7 +2695,7 @@ subroutine InputKeywordDeprecated(old_keyword,new_keyword,option)
   type(option_type) :: option
   
   option%io_buffer = 'Keyword "' // trim(adjustl(old_keyword)) // &
-    '" has been deprecated. Please use "' // trim(adjustl(old_keyword)) // &
+    '" has been deprecated. Please use "' // trim(adjustl(new_keyword)) // &
     '" instead.'
   call PrintErrMsg(option)
   
