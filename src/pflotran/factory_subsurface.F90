@@ -2762,6 +2762,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !......................
 
+      case ('TIMESTEPPER','NEWTON_SOLVER','LINEAR_SOLVER')
+        option%io_buffer = 'TIMESTEPPER, NEWTON_SOLVER and LINEAR_SOLVER &
+          &have been moved inside a NUMERICAL_METHODS block in the input &
+          &file. Please see "Numerical Methods Refactor" under &
+          &Announcements in the online documentation.'
+        call PrintErrMsg(option)
+
+!......................
+
       case ('NUMERICAL_JACOBIAN_MULTI_COUPLE')
         option%numerical_derivatives_multi_coupling = PETSC_TRUE
 
