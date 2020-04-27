@@ -96,7 +96,7 @@ CHEMISTRY
     FeSO4+
     Fe(SO4)2-
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
     O2(g)
   /
