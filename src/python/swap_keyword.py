@@ -7,8 +7,8 @@ import fnmatch
 if len(sys.argv) != 3:
     sys.exit("ERROR: 2 keywords: old new must be supplied in swap_keyword.py")
 
-keyword_old = sys.argv[1].strip()
-keyword_new = sys.argv[2].strip()
+keyword_old = sys.argv[1]
+keyword_new = sys.argv[2]
 
 def swap_file(filename):
     f = open(filename,'r')

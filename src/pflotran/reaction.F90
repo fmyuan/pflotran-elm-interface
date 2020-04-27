@@ -283,7 +283,9 @@ subroutine ReactionReadPass1(reaction,input,option)
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
       !TODO(geh): remove GAS_SPECIES
-      case('PASSIVE_GAS_SPECIES','GAS_SPECIES')
+      case('GAS_SPECIES')
+        call InputKeywordDeprecated('GAS_SPECIES','PASSIVE_GAS_SPECIES',option)
+      case('PASSIVE_GAS_SPECIES')
         string = 'CHEMISTRY,PASSIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,PASSIVE_GAS,string,input,option)
       case('IMMOBILE_SPECIES')
