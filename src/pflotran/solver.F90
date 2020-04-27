@@ -942,7 +942,7 @@ subroutine SolverReadLinear(solver,input,option)
         solver%linear_stop_on_failure = PETSC_TRUE
 
       case('MUMPS')
-        string = trim(prefix) // 'pc_factor_mat_solver_package'
+        string = trim(prefix) // 'pc_factor_mat_solver_type'
         word = 'mumps'
         call PetscOptionsSetValue(PETSC_NULL_OPTIONS, &
                                   trim(string),trim(word),ierr);CHKERRQ(ierr)
