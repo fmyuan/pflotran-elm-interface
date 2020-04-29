@@ -464,6 +464,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
               material_property%isotropic_permeability = PETSC_FALSE
             case('FULL_TENSOR')
               material_property%full_permeability_tensor = PETSC_TRUE
+              option%flow%full_perm_tensor = PETSC_TRUE
             case('VERTICAL_ANISOTROPY_RATIO')
               material_property%isotropic_permeability = PETSC_FALSE
               call InputReadDouble(input,option, &
@@ -507,84 +508,36 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'log10 z permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
               material_property%permeability(3,3) = 10.d0**tempreal
-            case('PERM_XZ')
-              call InputReadDouble(input,option, &
-                                   material_property%permeability(1,3))
-              call InputErrorMsg(input,option,'xz permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
-              if (.not. material_property%full_permeability_tensor) then
-                  material_property%full_permeability_tensor = PETSC_TRUE
-                  material_property%isotropic_permeability = PETSC_FALSE
-                  option%io_buffer = "XZ permeability provided, &
-                                      full_tensor_permeability switch &
-                                      automatically set to PETSC_TRUE"
-                  call PrintMsg(option)
-              endif
             case('PERM_XY')
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,2))
               call InputErrorMsg(input,option,'xy permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
-              if (.not. material_property%full_permeability_tensor) then
-                  material_property%full_permeability_tensor = PETSC_TRUE
-                  material_property%isotropic_permeability = PETSC_FALSE
-                  option%io_buffer = "XY permeability provided, &
-                                      full_tensor_permeability switch &
-                                      automatically set to PETSC_TRUE"
-                  call PrintMsg(option)
-              endif
+            case('PERM_XZ')
+              call InputReadDouble(input,option, &
+                                   material_property%permeability(1,3))
+              call InputErrorMsg(input,option,'xz permeability', &
+                                 'MATERIAL_PROPERTY,PERMEABILITY')
             case('PERM_YZ')
               call InputReadDouble(input,option, &
                                    material_property%permeability(2,3))
               call InputErrorMsg(input,option,'yz permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
-              if (.not. material_property%full_permeability_tensor) then
-                  material_property%full_permeability_tensor = PETSC_TRUE
-                  material_property%isotropic_permeability = PETSC_FALSE
-                  option%io_buffer = "YZ permeability provided, &
-                                      full_tensor_permeability switch &
-                                      automatically set to PETSC_TRUE"
-                  call PrintMsg(option)
-              endif
-            case('PERM_XZ_LOG10')
-              call InputReadDouble(input,option, tempreal)
-              call InputErrorMsg(input,option,'log10 xz permeability', &
-                                 'MATERIAL_PROPERTY,PERMEABILITY')
-              material_property%permeability(1,3) = 10.d0**tempreal
-              if (.not. material_property%full_permeability_tensor) then
-                  material_property%full_permeability_tensor = PETSC_TRUE
-                  material_property%isotropic_permeability = PETSC_FALSE
-                  option%io_buffer = "XZ permeability provided, &
-                                      full_tensor_permeability switch &
-                                      automatically set to PETSC_TRUE"
-                  call PrintMsg(option)
-              endif
             case('PERM_XY_LOG10')
               call InputReadDouble(input,option, tempreal)
               call InputErrorMsg(input,option,'log10 xy permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
               material_property%permeability(1,2) = 10.d0**tempreal
-              if (.not. material_property%full_permeability_tensor) then
-                  material_property%full_permeability_tensor = PETSC_TRUE
-                  material_property%isotropic_permeability = PETSC_FALSE
-                  option%io_buffer = "XY permeability provided, &
-                                      full_tensor_permeability switch &
-                                      automatically set to PETSC_TRUE"
-                  call PrintMsg(option)
-              endif
+            case('PERM_XZ_LOG10')
+              call InputReadDouble(input,option, tempreal)
+              call InputErrorMsg(input,option,'log10 xz permeability', &
+                                 'MATERIAL_PROPERTY,PERMEABILITY')
+              material_property%permeability(1,3) = 10.d0**tempreal
             case('PERM_YZ_LOG10')
               call InputReadDouble(input,option, tempreal)
               call InputErrorMsg(input,option,'log10 yz permeability', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')
               material_property%permeability(2,3) = 10.d0**tempreal
-              if (.not. material_property%full_permeability_tensor) then
-                  material_property%full_permeability_tensor = PETSC_TRUE
-                  material_property%isotropic_permeability = PETSC_FALSE
-                  option%io_buffer = "XZ permeability provided, &
-                                      full_tensor_permeability switch &
-                                      automatically set to PETSC_TRUE"
-                  call PrintMsg(option)
-              endif
             case('PERM_ISO_LOG10')
               call InputReadDouble(input,option, tempreal)
               call InputErrorMsg(input,option,'log10 isotropic permeability', &
@@ -592,9 +545,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
               material_property%permeability(1,1) = 10.d0**tempreal
               material_property%permeability(2,2) = 10.d0**tempreal
               material_property%permeability(3,3) = 10.d0**tempreal
-              material_property%permeability(1,2) = 0.d0
-              material_property%permeability(1,3) = 0.d0
-              material_property%permeability(2,3) = 0.d0
             case('PERM_ISO')
               call InputReadDouble(input,option, &
                                    material_property%permeability(1,1))
@@ -604,9 +554,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 material_property%permeability(1,1)
               material_property%permeability(3,3) = &
                 material_property%permeability(1,1)
-              material_property%permeability(1,2) = 0.d0
-              material_property%permeability(1,3) = 0.d0
-              material_property%permeability(2,3) = 0.d0
             case('RANDOM_DATASET')
               option%io_buffer = 'RANDOM_DATASET is no longer supported.  ' // &
                 'Please use the new DATASET object in the input file and ' // &
@@ -633,21 +580,38 @@ subroutine MaterialPropertyRead(material_property,input,option)
                  material_property%permeability(3,3)) > 1.d-40) then
           material_property%isotropic_permeability = PETSC_FALSE
         endif
-        if (.not. material_property%full_permeability_tensor) then
+
+        if (Initialized(material_property%permeability(1,2)) .or. &
+            Initialized(material_property%permeability(1,3)) .or. &
+            Initialized(material_property%permeability(2,3))) then
+          ! if one off-diagonal value is initialized, all must be.
+          if (Uninitialized(material_property%permeability(1,2)) .or. &
+              Uninitialized(material_property%permeability(1,3)) .or. &
+              Uninitialized(material_property%permeability(2,3))) then
+            option%io_buffer = 'All off-diagonal permeabilities must be &
+              &initialized when using full tensor permeability.'
+            call PrintErrMsg(option)
+          endif
+          select case(option%iflowmode)
+            case(RICHARDS_MODE)
+            case default
+              option%io_buffer = "The full permeability tensor option &
+                &has only been tested in RICHARDS_MODE. Only remove this &
+                &error message when the desired flow mode has been tested."
+              call PrintErrMsg(option)
+          end select
+          option%io_buffer = "XY, XZ and YZ permeabilities provided, &
+            &full_permeability_tensor switch automatically set to PETSC_TRUE."
+          call PrintMsg(option)
+          material_property%full_permeability_tensor = PETSC_TRUE
+          material_property%isotropic_permeability = PETSC_FALSE
+          option%flow%full_perm_tensor = PETSC_TRUE
+        else
+          ! diagonal tensor
           material_property%permeability(1,2) = 0.d0
           material_property%permeability(1,3) = 0.d0
           material_property%permeability(2,3) = 0.d0
-        else 
-          option%flow%full_perm_tensor = PETSC_TRUE
         endif
-
-        if (material_property%full_permeability_tensor .and. &
-            option%iflowmode /= RICHARDS_MODE) then
-          option%io_buffer = "Warning, the full tensor option have only &
-                              be tested in RICHARDS_MODE."
-          call PrintMsg(option)
-        endif
-
 #if 0
       case('PERM_PRINCIPAL_DIRECTION')
       ! Specify the principal direction of permeability and compute 

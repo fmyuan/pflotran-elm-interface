@@ -767,6 +767,7 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   PetscReal, pointer :: perm_xy_p(:)
   PetscReal, pointer :: perm_yz_p(:)
   PetscReal, pointer :: perm_xz_p(:)
+  PetscReal, pointer :: perm_ptr(:)
 
   field => realization%field
   patch => realization%patch
@@ -833,21 +834,27 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
         case(X_DIRECTION)
           dataset_common_hdf5_ptr => &
              DatasetCommonHDF5Cast(material_property%permeability_dataset)
+          perm_ptr => perm_xx_p
         case(Y_DIRECTION)
           dataset_common_hdf5_ptr => &
              DatasetCommonHDF5Cast(material_property%permeability_dataset_y)
+          perm_ptr => perm_yy_p
         case(Z_DIRECTION)
           dataset_common_hdf5_ptr => &
              DatasetCommonHDF5Cast(material_property%permeability_dataset_z)
+          perm_ptr => perm_zz_p
         case(XY_DIRECTION)
           dataset_common_hdf5_ptr => &
              DatasetCommonHDF5Cast(material_property%permeability_dataset_xy)
+          perm_ptr => perm_xy_p
         case(XZ_DIRECTION)
           dataset_common_hdf5_ptr => &
              DatasetCommonHDF5Cast(material_property%permeability_dataset_xz)
+          perm_ptr => perm_xz_p
         case(YZ_DIRECTION)
           dataset_common_hdf5_ptr => &
              DatasetCommonHDF5Cast(material_property%permeability_dataset_yz)
+          perm_ptr => perm_yz_p
       end select
       ! Although the mask of material ID is applied below, we must only read
       ! in the permeabilities that apply to this material so that small, 
@@ -859,50 +866,12 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
                                            material_property%internal_id, &
                                            PETSC_FALSE,global_vec)
       call VecGetArrayF90(global_vec,vec_p,ierr);CHKERRQ(ierr)
-      select case(idirection)
-        case(X_DIRECTION)
-          do local_id = 1, grid%nlmax
-            if (patch%imat(grid%nL2G(local_id)) == &
-                material_property%internal_id) then
-              perm_xx_p(local_id) = vec_p(local_id)
-            endif
-          enddo
-        case(Y_DIRECTION)
-          do local_id = 1, grid%nlmax
-            if (patch%imat(grid%nL2G(local_id)) == &
-                material_property%internal_id) then
-              perm_yy_p(local_id) = vec_p(local_id)
-            endif
-          enddo
-        case(Z_DIRECTION)
-          do local_id = 1, grid%nlmax
-            if (patch%imat(grid%nL2G(local_id)) == &
-                material_property%internal_id) then
-              perm_zz_p(local_id) = vec_p(local_id)
-            endif
-          enddo
-        case(XY_DIRECTION)
-          do local_id = 1, grid%nlmax
-            if (patch%imat(grid%nL2G(local_id)) == &
-                material_property%internal_id) then
-              perm_xy_p(local_id) = vec_p(local_id)
-            endif
-          enddo
-        case(XZ_DIRECTION)
-          do local_id = 1, grid%nlmax
-            if (patch%imat(grid%nL2G(local_id)) == &
-                material_property%internal_id) then
-              perm_xz_p(local_id) = vec_p(local_id)
-            endif
-          enddo
-        case(YZ_DIRECTION)
-          do local_id = 1, grid%nlmax
-            if (patch%imat(grid%nL2G(local_id)) == &
-                material_property%internal_id) then
-              perm_yz_p(local_id) = vec_p(local_id)
-            endif
-          enddo
-      end select
+      do local_id = 1, grid%nlmax
+        if (patch%imat(grid%nL2G(local_id)) == &
+            material_property%internal_id) then
+          perm_ptr(local_id) = vec_p(local_id)
+        endif
+      enddo
       call VecRestoreArrayF90(global_vec,vec_p,ierr);CHKERRQ(ierr)
     enddo
   endif
