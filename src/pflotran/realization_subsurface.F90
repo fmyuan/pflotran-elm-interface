@@ -256,6 +256,12 @@ subroutine RealizationCreateDiscretization(realization)
                                        field%perm0_yy)
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%perm0_zz)
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%perm0_xy)
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%perm0_xz)
+    call DiscretizationDuplicateVector(discretization,field%work, &
+                                       field%perm0_yz)
 
     ! 1-dof local
     call DiscretizationDuplicateVector(discretization,field%work_loc, &
@@ -883,6 +889,54 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call PrintErrMsg(option)
       end select      
     endif
+    if (associated(cur_material_property%permeability_dataset_xy)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),PERMEABILITY XY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                            cur_material_property%permeability_dataset_xy%name, &
+                            string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset_xy)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%permeability_dataset_xy => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for permeability XY.'
+          call PrintErrMsg(option)
+      end select      
+    endif
+    if (associated(cur_material_property%permeability_dataset_xz)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),PERMEABILITY XZ'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                            cur_material_property%permeability_dataset_xz%name, &
+                            string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset_xz)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%permeability_dataset_xz => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for permeability XZ.'
+          call PrintErrMsg(option)
+      end select      
+    endif
+    if (associated(cur_material_property%permeability_dataset_yz)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),PERMEABILITY YZ'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                            cur_material_property%permeability_dataset_yz%name, &
+                            string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset_yz)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%permeability_dataset_yz => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for permeability YZ.'
+          call PrintErrMsg(option)
+      end select      
+    endif
     if (associated(cur_material_property%soil_reference_pressure_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                '),SOIL_REFERENCE_PRESSURE'
@@ -1415,6 +1469,7 @@ subroutine RealizationRevertFlowParameters(realization)
   use Material_Aux_class, only : material_type, &
                               POROSITY_CURRENT, POROSITY_BASE, POROSITY_INITIAL
   use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, PERMEABILITY_Z, &
+                               PERMEABILITY_XY, PERMEABILITY_XZ, PERMEABILITY_YZ, &
                                POROSITY
 
   implicit none
@@ -1443,6 +1498,18 @@ subroutine RealizationRevertFlowParameters(realization)
     call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
                                      field%work_loc,ONEDOF)  
     call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Z, &
+                                 ZERO_INTEGER)
+    call DiscretizationGlobalToLocal(discretization,field%perm0_xy, &
+                                     field%work_loc,ONEDOF)  
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XY, &
+                                 ZERO_INTEGER)
+    call DiscretizationGlobalToLocal(discretization,field%perm0_xz, &
+                                     field%work_loc,ONEDOF)  
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XZ, &
+                                 ZERO_INTEGER)
+    call DiscretizationGlobalToLocal(discretization,field%perm0_yz, &
+                                     field%work_loc,ONEDOF)  
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_YZ, &
                                  ZERO_INTEGER)
   endif   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
@@ -1505,6 +1572,18 @@ subroutine RealizStoreRestartFlowParams(realization)
                                  ZERO_INTEGER)
     call DiscretizationLocalToGlobal(discretization,field%work_loc, &
                                      field%perm0_zz,ONEDOF)
+    call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XY, &
+                                 ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                     field%perm0_xy,ONEDOF)
+    call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_XZ, &
+                                 ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                     field%perm0_xz,ONEDOF)
+    call MaterialGetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_YZ, &
+                                 ZERO_INTEGER)
+    call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                     field%perm0_yz,ONEDOF)
   endif   
   call MaterialGetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
                                POROSITY_BASE)
@@ -1760,7 +1839,8 @@ subroutine RealizationUpdatePropertiesTS(realization)
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+                               PERMEABILITY_Y, PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_XZ, PERMEABILITY_YZ
  
   implicit none
   
@@ -1785,6 +1865,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
   PetscReal, pointer :: porosity0_p(:)
   PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
+  PetscReal, pointer :: perm0_xy_p(:), perm0_xz_p(:), perm0_yz_p(:)
   PetscReal, pointer :: perm_ptr(:)
   PetscReal :: min_value
   PetscReal :: critical_porosity
@@ -1948,6 +2029,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%perm0_xy,perm0_xy_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%perm0_xz,perm0_xz_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%perm0_yz,perm0_yz_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%porosity0,porosity0_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1972,6 +2056,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
       perm_ptr(perm_xx_index) = perm0_xx_p(local_id)*scale
       perm_ptr(perm_yy_index) = perm0_yy_p(local_id)*scale
       perm_ptr(perm_zz_index) = perm0_zz_p(local_id)*scale
+      perm_ptr(perm_xy_index) = perm0_xy_p(local_id)*scale
+      perm_ptr(perm_xz_index) = perm0_xz_p(local_id)*scale
+      perm_ptr(perm_yz_index) = perm0_yz_p(local_id)*scale
 #else
       material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
         perm0_xx_p(local_id)*scale
@@ -1984,6 +2071,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
     call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_zz,perm0_zz_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%perm0_yy,perm0_yy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%perm0_xy,perm0_xy_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%perm0_xz,perm0_xz_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%perm0_yz,perm0_yz_p,ierr);CHKERRQ(ierr)
 
     call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
@@ -2003,6 +2093,24 @@ subroutine RealizationUpdatePropertiesTS(realization)
                                     field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_XY,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_XY,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_XZ,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_XZ,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_YZ,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_YZ,ZERO_INTEGER)
   endif  
   
   ! perform check to ensure that porosity is bounded between 0 and 1
@@ -2037,7 +2145,8 @@ subroutine RealizationUpdatePropertiesNI(realization)
   use Reactive_Transport_Aux_module
   use Material_Aux_class
   use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+                               PERMEABILITY_Y, PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_XZ, PERMEABILITY_YZ
  
   implicit none
   
@@ -2495,7 +2604,8 @@ subroutine RealizUnInitializedVarsFlow(realization)
   use Option_module
   use Material_Aux_class
   use Variables_module, only : VOLUME, BASE_POROSITY, PERMEABILITY_X, &
-                               PERMEABILITY_Y, PERMEABILITY_Z
+                               PERMEABILITY_Y, PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_XZ, PERMEABILITY_YZ
 
   implicit none
   
@@ -2510,6 +2620,9 @@ subroutine RealizUnInitializedVarsFlow(realization)
   call RealizUnInitializedVar1(realization,PERMEABILITY_X,'permeability X')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Y,'permeability Y')
   call RealizUnInitializedVar1(realization,PERMEABILITY_Z,'permeability Z')
+  call RealizUnInitializedVar1(realization,PERMEABILITY_XY,'permeability XY')
+  call RealizUnInitializedVar1(realization,PERMEABILITY_XZ,'permeability XZ')
+  call RealizUnInitializedVar1(realization,PERMEABILITY_YZ,'permeability YZ')
   do i = 1, max_material_index
     var_name = MaterialAuxIndexToPropertyName(i)
     call RealizUnInitializedVar1(realization,i,var_name)

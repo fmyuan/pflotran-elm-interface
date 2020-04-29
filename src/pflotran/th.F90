@@ -145,6 +145,7 @@ subroutine THSetupPatch(realization)
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: i, iphase, local_id, material_id
   PetscBool :: error_found
+  PetscErrorCode :: ierr
   
   option => realization%option
   patch => realization%patch
@@ -190,7 +191,7 @@ subroutine THSetupPatch(realization)
     if (Uninitialized(patch%material_property_array(i)%ptr%specific_heat)) then
       option%io_buffer = 'ERROR: Non-initialized HEAT_CAPACITY in material ' &
                          // trim(word)
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
     if (Uninitialized(patch%material_property_array(i)%ptr% &
@@ -198,7 +199,7 @@ subroutine THSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_WET in &
                          &material ' // &
                          trim(word)
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
     if (Uninitialized(patch%material_property_array(i)%ptr% &
@@ -206,7 +207,7 @@ subroutine THSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_DRY in &
                          &material ' // &
                          trim(word)
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
@@ -214,14 +215,14 @@ subroutine THSetupPatch(realization)
                         thermal_conductivity_frozen)) then
         option%io_buffer = 'ERROR: Non-initialized THERMAL_CONDUCTIVITY_&
                            &FROZEN in material ' // trim(word)
-        call PrintMsg(option)
+        call PrintMsgByRank(option)
         error_found = PETSC_TRUE
       endif
       if (Uninitialized(patch%material_property_array(i)%ptr% &
                         alpha_fr)) then
         option%io_buffer = 'ERROR: Non-initialized THERMAL_COND_EXPONENT&
                            &_FROZEN in material ' // trim(word)
-        call PrintMsg(option)
+        call PrintMsgByRank(option)
         error_found = PETSC_TRUE
       endif
     endif
@@ -242,7 +243,7 @@ subroutine THSetupPatch(realization)
         patch%aux%TH%TH_parameter%ckdry(material_id) < 1.d-40) then
       option%io_buffer = 'ERROR: Either the wet or dry thermal conductivity &
         &must be non-zero in material: ' // trim(word)
-      call PrintMsg(option)
+      call PrintMsgByRank(option)
       error_found = PETSC_TRUE
     endif
     if (th_use_freezing) then
@@ -255,6 +256,8 @@ subroutine THSetupPatch(realization)
 
   enddo 
 
+  call MPI_Allreduce(MPI_IN_PLACE,error_found,ONE_INTEGER_MPI,MPI_LOGICAL, &
+                     MPI_LOR,option%mycomm,ierr)
   if (error_found) then
     option%io_buffer = 'Material property errors found in THSetup.'
     call PrintErrMsg(option)

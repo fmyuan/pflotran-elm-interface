@@ -566,6 +566,12 @@ subroutine DiscretizationRead(discretization,input,option)
           case('POTENTIAL')
             call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL,&
                               option)
+          case('FLOW_FULL_TENSOR')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_FLOW_FULL_TENSOR,&
+                              option)
+          case('POTENTIAL_FULL_TENSOR')
+            call MaterialAuxSetPermTensorModel(TENSOR_TO_SCALAR_POTENTIAL_FULL_TENSOR,&
+                              option)
           case default
             call InputKeywordUnrecognized(input,word, &
                                     'GRID, PERM_TENSOR_TO_SCALAR_MODEL', &
