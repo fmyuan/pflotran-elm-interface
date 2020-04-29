@@ -31,8 +31,8 @@ module Material_Aux_class
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_LINEAR = 1
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW = 2
   PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL = 3
-  PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW_FULL_TENSOR = 4
-  PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL_FULL_TENSOR = 5
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_FLOW_FT = 4
+  PetscInt, parameter, public :: TENSOR_TO_SCALAR_POTENTIAL_FT = 5
 
   ! flag to determine which model to use for tensor to scalar conversion 
   ! of permeability
@@ -65,10 +65,6 @@ module Material_Aux_class
 
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
   contains
-!    procedure, public :: PermeabilityTensorToScalar => &
-!                           MaterialDiagPermTensorToScalar
-!    procedure, public :: PermeabilityTensorToScalarSafe => &
-!                           MaterialDiagPermTensorToScalarSafe
     procedure, public :: PermeabilityTensorToScalar
     procedure, public :: PermeabilityTensorToScalarSafe
   end type material_auxvar_type
@@ -194,7 +190,11 @@ subroutine MaterialAuxVarInit(auxvar,option)
   auxvar%tortuosity = UNINITIALIZED_DOUBLE
   auxvar%soil_particle_density = UNINITIALIZED_DOUBLE
   if (option%iflowmode /= NULL_MODE) then
-    allocate(auxvar%permeability(6))
+    if (option%flow%full_perm_tensor) then
+      allocate(auxvar%permeability(6))
+    else
+      allocate(auxvar%permeability(3))
+    endif
     auxvar%permeability = UNINITIALIZED_DOUBLE
   else
     nullify(auxvar%permeability)
@@ -270,11 +270,11 @@ subroutine MaterialAuxSetPermTensorModel(model,option)
   if (model == TENSOR_TO_SCALAR_LINEAR .OR. &
       model == TENSOR_TO_SCALAR_FLOW .OR. &
       model == TENSOR_TO_SCALAR_POTENTIAL .OR. &
-      model == TENSOR_TO_SCALAR_FLOW_FULL_TENSOR .OR. &
-      model == TENSOR_TO_SCALAR_POTENTIAL_FULL_TENSOR) then
+      model == TENSOR_TO_SCALAR_FLOW_FT .OR. &
+      model == TENSOR_TO_SCALAR_POTENTIAL_FT) then
     perm_tens_to_scal_model = model
   else
-    option%io_buffer  = 'MaterialDiagPermTensorToScalar: tensor to scalar &
+    option%io_buffer  = 'MaterialAuxSetPermTensorModel: tensor to scalar &
                          model type is not recognized.'
     call PrintErrMsg(option)
   endif
@@ -283,8 +283,7 @@ end subroutine MaterialAuxSetPermTensorModel
 
 ! ************************************************************************** !
 
-subroutine PermeabilityTensorToScalar(material_auxvar,dist, &
-                                      scalar_permeability)
+subroutine PermeabilityTensorToScalar(material_auxvar,dist,scalar_permeability)
   ! 
   ! Transforms a diagonal permeability tensor to a scalar through a dot 
   ! product.
@@ -312,9 +311,6 @@ subroutine PermeabilityTensorToScalar(material_auxvar,dist, &
   kx = material_auxvar%permeability(perm_xx_index)
   ky = material_auxvar%permeability(perm_yy_index)
   kz = material_auxvar%permeability(perm_zz_index)
-  kxy = material_auxvar%permeability(perm_xy_index)
-  kxz = material_auxvar%permeability(perm_xz_index)
-  kyz = material_auxvar%permeability(perm_yz_index)
 
   select case(perm_tens_to_scal_model)
     case(TENSOR_TO_SCALAR_LINEAR)
@@ -323,10 +319,18 @@ subroutine PermeabilityTensorToScalar(material_auxvar,dist, &
       scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_POTENTIAL)
       scalar_permeability = DiagPermTensortoScalar_Potential(kx,ky,kz,dist)
-    case(TENSOR_TO_SCALAR_FLOW_FULL_TENSOR)
-      scalar_permeability = DiagPermTensorToScalar_Flow_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
-    case(TENSOR_TO_SCALAR_POTENTIAL_FULL_TENSOR)
-      scalar_permeability = DiagPermTensorToScalar_Potential_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
+    case(TENSOR_TO_SCALAR_FLOW_FT)
+      kxy = material_auxvar%permeability(perm_xy_index)
+      kxz = material_auxvar%permeability(perm_xz_index)
+      kyz = material_auxvar%permeability(perm_yz_index)
+      scalar_permeability = &
+        FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL_FT)
+      kxy = material_auxvar%permeability(perm_xy_index)
+      kxz = material_auxvar%permeability(perm_xz_index)
+      kyz = material_auxvar%permeability(perm_yz_index)
+      scalar_permeability = &
+        FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
     case default
       ! as default, just do linear 
       !scalar_permeability = DiagPermTensorToScalar_Linear(kx,ky,kz,dist)
@@ -342,7 +346,7 @@ end subroutine PermeabilityTensorToScalar
 ! ************************************************************************** !
 
 subroutine PermeabilityTensorToScalarSafe(material_auxvar,dist, &
-                                      scalar_permeability)
+                                          scalar_permeability)
   !
   ! Transforms a diagonal perm. tensor to a scalar through a dot product.
   ! This version will not generate NaNs for zero permeabilities
@@ -363,9 +367,6 @@ subroutine PermeabilityTensorToScalarSafe(material_auxvar,dist, &
   kx = material_auxvar%permeability(perm_xx_index)
   ky = material_auxvar%permeability(perm_yy_index)
   kz = material_auxvar%permeability(perm_zz_index)
-  kxy = material_auxvar%permeability(perm_xy_index)
-  kxz = material_auxvar%permeability(perm_xz_index)
-  kyz = material_auxvar%permeability(perm_yz_index)
 
   select case(perm_tens_to_scal_model)
     case(TENSOR_TO_SCALAR_LINEAR)
@@ -373,13 +374,21 @@ subroutine PermeabilityTensorToScalarSafe(material_auxvar,dist, &
     case(TENSOR_TO_SCALAR_FLOW)
       scalar_permeability = DiagPermTensorToScalar_Flow(kx,ky,kz,dist)
     case(TENSOR_TO_SCALAR_POTENTIAL)
-      scalar_permeability = DiagPermTensortoScalar_PotentialSafe(kx,ky,kz,dist)
-    case(TENSOR_TO_SCALAR_FLOW_FULL_TENSOR)
-      scalar_permeability = DiagPermTensorToScalar_Flow_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
-    case(TENSOR_TO_SCALAR_POTENTIAL_FULL_TENSOR)
-      scalar_permeability = DiagPermTensorToScalar_PotentialSafe_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
+      scalar_permeability = DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
+    case(TENSOR_TO_SCALAR_FLOW_FT)
+      kxy = material_auxvar%permeability(perm_xy_index)
+      kxz = material_auxvar%permeability(perm_xz_index)
+      kyz = material_auxvar%permeability(perm_yz_index)
+      scalar_permeability = &
+        FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
+    case(TENSOR_TO_SCALAR_POTENTIAL_FT)
+      kxy = material_auxvar%permeability(perm_xy_index)
+      kxz = material_auxvar%permeability(perm_xz_index)
+      kyz = material_auxvar%permeability(perm_yz_index)
+      scalar_permeability = &
+        FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
     case default
-      scalar_permeability = DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
+      scalar_permeability = DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
   end select
 
 end subroutine PermeabilityTensorToScalarSafe
@@ -416,7 +425,7 @@ end function DiagPermTensorToScalar_Flow
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Flow_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
+function FullPermTensorToScalar_Flow(kx,ky,kz,kxy,kxz,kyz,dist)
 
   ! Permeability in the direction of flow
   ! Include non diagonal term of the full symetric permeability tensor
@@ -426,18 +435,18 @@ function DiagPermTensorToScalar_Flow_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
 
   implicit none
 
-  PetscReal :: DiagPermTensorToScalar_Flow_Full_Tensor
+  PetscReal :: FullPermTensorToScalar_Flow
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx,ky,kz,kxy,kxz,kyz
 
-  DiagPermTensorToScalar_Flow_Full_Tensor = kx*dabs(dist(1))**2.0 + &
-                                             ky*dabs(dist(2))**2.0 + &
-                                             kz*dabs(dist(3))**2.0 + &
-                                             2*kxy*dist(1)*dist(2) + &
-                                             2*kxz*dist(1)*dist(3) + &
-                                             2*kyz*dist(2)*dist(3)
+  FullPermTensorToScalar_Flow = kx*dabs(dist(1))**2.0 + &
+                                ky*dabs(dist(2))**2.0 + &
+                                kz*dabs(dist(3))**2.0 + &
+                                2*kxy*dist(1)*dist(2) + &
+                                2*kxz*dist(1)*dist(3) + &
+                                2*kyz*dist(2)*dist(3)
 
-end function DiagPermTensorToScalar_Flow_Full_Tensor
+end function FullPermTensorToScalar_Flow
 
 ! ************************************************************************** !
 
@@ -458,7 +467,7 @@ end function DiagPermTensorToScalar_Potential
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_Potential_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
+function FullPermTensorToScalar_Pot(kx,ky,kz,kxy,kxz,kyz,dist)
 
   ! Permeability in the direction of the potential gradient
   ! Include off diagonal term
@@ -468,22 +477,22 @@ function DiagPermTensorToScalar_Potential_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
   ! Date: 08/26/19
 
   implicit none
-  PetscReal :: DiagPermTensorToScalar_Potential_Full_Tensor
+  PetscReal :: FullPermTensorToScalar_Pot
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx,ky,kz,kxy,kxz,kyz
 
-  DiagPermTensorToScalar_Potential_Full_Tensor = 1.d0/(dist(1)*dist(1)/kx + &
-                                                 dist(2)*dist(2)/ky + &
-                                                 dist(3)*dist(3)/kz + &
-                                                 2*dist(1)*dist(2)/kxy + &
-                                                 2*dist(1)*dist(3)/kxz + &
-                                                 2*dist(2)*dist(3)/kyz)
+  FullPermTensorToScalar_Pot = 1.d0/(dist(1)*dist(1)/kx + &
+                               dist(2)*dist(2)/ky + &
+                               dist(3)*dist(3)/kz + &
+                               2*dist(1)*dist(2)/kxy + &
+                               2*dist(1)*dist(3)/kxz + &
+                               2*dist(2)*dist(3)/kyz)
 
-end function DiagPermTensorToScalar_Potential_Full_Tensor
+end function FullPermTensorToScalar_Pot
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
+function DiagPermTensorToScalarPotSafe(kx,ky,kz,dist)
 
   ! Permeability in the direction of the potential gradient
   ! This version will not generate NaNs for zero permeabilities
@@ -493,7 +502,7 @@ function DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
   !
 
   implicit none
-  PetscReal :: DiagPermTensorToScalar_PotentialSafe
+  PetscReal :: DiagPermTensorToScalarPotSafe
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx, ky, kz, kxi, kyi, kzi, den, deni
 
@@ -520,13 +529,13 @@ function DiagPermTensorToScalar_PotentialSafe(kx,ky,kz,dist)
 
   !  Store final value
 
-  DiagPermTensorToScalar_PotentialSafe = deni
+  DiagPermTensorToScalarPotSafe = deni
 
-end function DiagPermTensorToScalar_PotentialSafe
+end function DiagPermTensorToScalarPotSafe
 
 ! ************************************************************************** !
 
-function DiagPermTensorToScalar_PotentialSafe_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,dist)
+function FullPermTensorToScalarPotSafe(kx,ky,kz,kxy,kxz,kyz,dist)
 
   ! Permeability in the direction of the potential gradient
   ! This version will not generate NaNs for zero permeabilities
@@ -542,7 +551,7 @@ function DiagPermTensorToScalar_PotentialSafe_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,d
 
   implicit none
 
-  PetscReal :: DiagPermTensorToScalar_PotentialSafe_Full_Tensor
+  PetscReal :: FullPermTensorToScalarPotSafe
   PetscReal, intent(in) :: dist(-1:3)
   PetscReal :: kx, ky, kz, kxi, kyi, kzi, den, deni
   PetscReal :: kxy, kxz, kyz, kxyi, kxzi, kyzi
@@ -579,9 +588,9 @@ function DiagPermTensorToScalar_PotentialSafe_Full_Tensor(kx,ky,kz,kxy,kxz,kyz,d
 
   !  Store final value
 
-  DiagPermTensorToScalar_PotentialSafe_Full_Tensor = deni
+  FullPermTensorToScalarPotSafe = deni
 
-end function DiagPermTensorToScalar_PotentialSafe_Full_Tensor
+end function FullPermTensorToScalarPotSafe
 
 ! ************************************************************************** !
 

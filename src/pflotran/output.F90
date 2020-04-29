@@ -1089,18 +1089,33 @@ subroutine OutputVariableRead(input,option,output_variable_list)
                                      OUTPUT_GENERIC,units, &
                                      PERMEABILITY_Z)
       case ('PERMEABILITY_XY')
+        if (.not.option%flow%full_perm_tensor) then
+          option%io_buffer = 'PERMEABILITY_XY only supported for &
+            full tensor permeability.'
+          call PrintErrMsg(option)
+        endif
         units = 'm^2'
         name = 'Permeability XY'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      PERMEABILITY_XY)
       case ('PERMEABILITY_XZ')
+        if (.not.option%flow%full_perm_tensor) then
+          option%io_buffer = 'PERMEABILITY_XZ only supported for &
+            full tensor permeability.'
+          call PrintErrMsg(option)
+        endif
         units = 'm^2'
         name = 'Permeability XZ'
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      PERMEABILITY_XZ)
       case ('PERMEABILITY_YZ')
+        if (.not.option%flow%full_perm_tensor) then
+          option%io_buffer = 'PERMEABILITY_YZ only supported for &
+            full tensor permeability.'
+          call PrintErrMsg(option)
+        endif
         units = 'm^2'
         name = 'Permeability YZ'
         call OutputVariableAddToList(output_variable_list,name, &

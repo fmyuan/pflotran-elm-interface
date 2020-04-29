@@ -637,6 +637,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
           material_property%permeability(1,2) = 0.d0
           material_property%permeability(1,3) = 0.d0
           material_property%permeability(2,3) = 0.d0
+        else 
+          option%flow%full_perm_tensor = PETSC_TRUE
         endif
 
         if (material_property%full_permeability_tensor .and. &

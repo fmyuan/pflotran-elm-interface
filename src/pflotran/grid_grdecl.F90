@@ -4324,9 +4324,11 @@ subroutine PermPoroExchangeAndSet(poro_p, permx_p, permy_p, permz_p, &
           permx_p(ilt) = wperm(ibp+1)
           permy_p(ilt) = wperm(ibp+2)
           permz_p(ilt) = wperm(ibp+3)
-          permxy_p(ilt) = 0.d0
-          permxz_p(ilt) = 0.d0
-          permyz_p(ilt) = 0.d0
+          if (option%flow%full_perm_tensor) then
+            permxy_p(ilt) = 0.d0
+            permxz_p(ilt) = 0.d0
+            permyz_p(ilt) = 0.d0
+          endif
         enddo
 
         ! Free buffers

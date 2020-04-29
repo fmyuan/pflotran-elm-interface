@@ -137,6 +137,7 @@ subroutine RichardsSetupPatch(realization)
   PetscBool :: error_found, found
   PetscInt :: flag(10)
   PetscReal :: minz, maxz, zcenter, zface
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
   type(material_parameter_type), pointer :: material_parameter
   class(material_auxvar_type), pointer :: material_auxvars(:)  
@@ -173,8 +174,8 @@ subroutine RichardsSetupPatch(realization)
       option%io_buffer = 'ERROR: Non-initialized porosity.'
       call PrintMsgByRank(option)
     endif
-    if (minval(material_auxvars(ghosted_id)%permeability) == UNINITIALIZED_DOUBLE .and. &
-        flag(5) == 0) then
+    tempreal = minval(material_auxvars(ghosted_id)%permeability)
+    if (Uninitialized(tempreal) .and. flag(5) == 0) then
       option%io_buffer = 'ERROR: Non-initialized permeability.'
       call PrintMsgByRank(option)
       flag(5) = 1
