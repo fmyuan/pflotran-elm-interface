@@ -185,13 +185,13 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
         ! Link aggregates with their output variables if it hasn't already
         ! been done.
           call ObservationAggregateLinkToVar(aggregate%output_variable, &
-                                         output_option%output_variable_list, &
-                                         aggregate%var_name, option)
+                                       output_option%output_obs_variable_list, &
+                                       aggregate%var_name, option)
           aggregate => aggregate%next 
         enddo
+        aggregate => observation%aggregate
       endif
 
-      aggregate => observation%aggregate
       do
         if (.not. associated(aggregate)) exit
 
@@ -208,6 +208,17 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
             open(unit=fid,file=filename,action="write",status="replace")
             ! write header
             ! write title
+            write(fid,'(a)',advance="no") ' Aggregate Metric: '
+            select case(aggregate%metric)
+              case(OBSERVATION_AGGREGATE_MAX)
+                 write(fid,'(a)',advance="no") 'Max '
+              case(OBSERVATION_AGGREGATE_MIN)
+                 write(fid,'(a)',advance="no") 'Min '
+              case(OBSERVATION_AGGREGATE_AVG)
+                 write(fid,'(a)',advance="no") 'Average '
+            end select
+            write(fid,'(a)',advance="yes") trim(aggregate%var_name)
+
             write(fid,'(a)',advance="no") ' "Time [' // &
                   trim(output_option%tunit) // ']"'
 

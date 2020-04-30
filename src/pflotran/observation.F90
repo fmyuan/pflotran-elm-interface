@@ -50,7 +50,6 @@ module Observation_module
     PetscInt :: id
     PetscInt :: metric
     PetscInt :: local_id
-    PetscInt :: proc_id
     PetscReal :: metric_value
     PetscReal :: threshold_value
     type(output_variable_type), pointer :: output_variable
@@ -124,7 +123,6 @@ function ObservationAggregateCreate()
   aggregate%threshold_value = 0.d0
 
   aggregate%local_id = -999
-  aggregate%proc_id = -999
   aggregate%metric_value = -999.d0
  
   nullify(aggregate%output_variable)
