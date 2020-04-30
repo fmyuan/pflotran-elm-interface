@@ -1025,12 +1025,13 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
   type(output_option_type), pointer :: output_option
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string, filename
-  character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   PetscInt :: fid  
 
   PetscErrorCode :: ierr
   PetscInt :: agg_rank, local_id
   PetscReal :: local_metric(2), global_metric(2)
+
+110 format(es14.6)
 
   local_metric(1) = aggregate%metric_value
   local_metric(2) = option%myrank
@@ -1049,19 +1050,13 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
 
     open(unit=fid,file=filename,action="write",status="old",position="append")
     write(fid,'(1es14.6)',advance="no") option%time/output_option%tconv
-    x_string = BestFloat(realization_base%patch%grid%x(realization_base%patch% &
-                         grid%nL2G(local_id)),0.d4,1.d-2)
-    y_string = BestFloat(realization_base%patch%grid%y(realization_base%patch% &
-                         grid%nL2G(local_id)),0.d4,1.d-2)
-    z_string = BestFloat(realization_base%patch%grid%z(realization_base%patch% &
-                         grid%nL2G(local_id)),0.d4,1.d-2)
 
-    write(fid,'(a)',advance="no") "  " 
-    write(fid,'(a)',advance="no") trim(adjustl(x_string))
-    write(fid,'(a)',advance="no") "  "
-    write(fid,'(a)',advance="no") trim(adjustl(y_string))
-    write(fid,'(a)',advance="no") "  "
-    write(fid,'(a)',advance="no") trim(adjustl(z_string))
+    write(fid,110,advance="no") realization_base%patch%grid%x(realization_base%&
+                                patch%grid%nL2G(local_id))
+    write(fid,110,advance="no") realization_base%patch%grid%y(realization_base%&
+                                patch%grid%nL2G(local_id))
+    write(fid,110,advance="no") realization_base%patch%grid%z(realization_base%&
+                                patch%grid%nL2G(local_id))
 
     call WriteObservationDataForCell(fid,realization_base,local_id)
 

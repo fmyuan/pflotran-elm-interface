@@ -305,6 +305,7 @@ subroutine ObservationRead(observation,input,option)
               !Records all state properties associated with max
               new_aggregate%metric = OBSERVATION_AGGREGATE_MAX
               call InputReadWord(input,option,var_name,PETSC_TRUE)
+              call StringToUpper(var_name)
               if (trim(var_name) == 'TOTAL') then
                   call InputReadWord(input,option,new_aggregate%var_name, &
                                      PETSC_TRUE)
