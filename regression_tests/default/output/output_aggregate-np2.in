@@ -1,6 +1,5 @@
 #Description: Modification of the 543 test problem to test aggregate metric
-#output. 
-#04/24/2020
+#             output. 
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -154,7 +153,7 @@ END
 TIME
   FINAL_TIME 6.d0 d
   INITIAL_TIMESTEP_SIZE 1.d-6 d
-  MAXIMUM_TIMESTEP_SIZE 1.d1 d   # reduced to 0.1 to improve ingrowth accuracy (0.1 d is 0.5% of half-life)
+  MAXIMUM_TIMESTEP_SIZE 1.d1 d 
 END
 
 #=========================== observation ======================================
@@ -363,7 +362,6 @@ END
 BOUNDARY_CONDITION east
   FLOW_CONDITION east
   TRANSPORT_CONDITION groundwater
-#  TRANSPORT_CONDITION river_water
   REGION east
 END
 

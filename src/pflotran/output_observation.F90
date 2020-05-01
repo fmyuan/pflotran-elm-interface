@@ -174,6 +174,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
     check_for_obs_points = PETSC_FALSE
   endif
 
+  ! Write aggregate output separately because any rank could write.
   observation => patch%observation_list%first
   do
     if (.not. associated(observation)) exit
@@ -195,7 +196,6 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
       do
         if (.not. associated(aggregate)) exit
 
-        !Changed observation file output name to match observation id
         write(string,'(i6)') observation%id
         write(string2,'(i6)') aggregate%id
         filename = trim(option%global_prefix) // trim(option%group_prefix) // &
@@ -246,7 +246,6 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
       do
         if (.not. associated(aggregate)) exit
 
-        !Changed observation file output name to match observation id
         write(string,'(i6)') observation%id
         write(string2,'(i6)') aggregate%id
         filename = trim(option%global_prefix) // trim(option%group_prefix) // &
@@ -254,6 +253,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
                trim(adjustl(string2)) // '.tec'
         fid = 86
 
+        ! Compute the aggregate metric on each process
         call ObservationAggComputeMetric(realization_base, aggregate, &
                                          observation%region, option)
         ! Do the reduction and write
@@ -391,12 +391,8 @@ subroutine WriteObservationHeaderAgg(fid,realization_base,region,icell, &
   ! 
   
   use Realization_Base_class, only : realization_base_type
-  use Grid_module
-  use Option_module
   use Output_Aux_module
-  use Patch_module
   use Region_module
-  use Utility_module, only : BestFloat
 
   implicit none
 
@@ -619,8 +615,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
     do
       if (.not.associated(observation)) exit
       if (observation%itype == OBSERVATION_SCALAR .or. &
-          (observation%itype == OBSERVATION_FLUX .or. &
-           observation%itype == OBSERVATION_AGGREGATE .and. &
+          (observation%itype == OBSERVATION_FLUX .and. &
            option%myrank == option%io_rank)) then
         open_file = PETSC_TRUE
         exit
@@ -658,7 +653,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
         if (.not.associated(observation)) exit
         
         select case(observation%itype)
-          case(OBSERVATION_SCALAR,OBSERVATION_AGGREGATE)
+          case(OBSERVATION_SCALAR)
             if (associated(observation%region%coordinates) .and. &
                 .not.observation%at_cell_center) then
               option%io_buffer = 'Writing of data at coordinates not &
@@ -693,7 +688,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
     do 
       if (.not.associated(observation)) exit
         select case(observation%itype)
-          case(OBSERVATION_SCALAR,OBSERVATION_AGGREGATE)
+          case(OBSERVATION_SCALAR)
               do icell=1,observation%region%num_cells
                 local_id = observation%region%cell_ids(icell)
                 if (observation%print_secondary_data(1)) then
@@ -1008,15 +1003,9 @@ subroutine WriteObservationAggData(aggregate,realization_base,string,&
   ! Author: Michael Nole
   ! Date: 04/16/20
 
-  use Realization_Base_class, only : realization_base_type, &
-                                     RealizGetVariableValueAtCell
+  use Realization_Base_class, only : realization_base_type
   use Option_module
   use Observation_module
-  use Grid_module
-  use Field_module
-  use Patch_module
-  use Variables_module
-  use Utility_module, only : BestFloat
 
   implicit none
 
@@ -1842,7 +1831,6 @@ subroutine ObservationAggregateLinkToVar(aggregate_var,output_var_list, &
  
   use Option_module 
   use String_module
-  use Observation_module
 
   implicit none
 

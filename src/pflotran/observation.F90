@@ -120,10 +120,9 @@ function ObservationAggregateCreate()
   aggregate%var_name = ""
   aggregate%id = ZERO_INTEGER
   aggregate%metric = ZERO_INTEGER
-  aggregate%threshold_value = 0.d0
-
   aggregate%local_id = -999
   aggregate%metric_value = -999.d0
+  aggregate%threshold_value = -999.d0
  
   nullify(aggregate%output_variable)
   nullify(aggregate%next)
@@ -131,6 +130,8 @@ function ObservationAggregateCreate()
   ObservationAggregateCreate => aggregate
 
 end function ObservationAggregateCreate
+
+! ************************************************************************** !
 
 function ObservationCreateFromObservation(observation)
   ! 
@@ -201,7 +202,8 @@ subroutine ObservationRead(observation,input,option)
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','OBSERVATION')   
-      
+    call StringToUpper(keyword)    
+ 
     select case(trim(keyword))
     
       case('BOUNDARY_CONDITION')
@@ -269,7 +271,6 @@ subroutine ObservationRead(observation,input,option)
         observation%at_cell_center = PETSC_FALSE
       case('AGGREGATE_METRIC','AGGREGATE_METRICS')
         
-        ! Overrides other itype specs. Kinda clunky.
         observation%itype = OBSERVATION_AGGREGATE 
 
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -293,6 +294,7 @@ subroutine ObservationRead(observation,input,option)
 
           call InputReadCard(input,option,keyword)
           call InputErrorMsg(input,option,'keyword','AGGREGATE_METRIC')
+          call StringToUpper(keyword)
 
           select case(keyword)
             case('AVERAGE')
@@ -301,6 +303,9 @@ subroutine ObservationRead(observation,input,option)
               call InputReadWord(input,option,new_aggregate%var_name, &
                                  PETSC_TRUE)
               call InputErrorMsg(input,option,'AVERAGE','AGGREGATE_METRIC')
+              option%io_buffer = '"AVERAGE" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
             case('MAX')
               !Records all state properties associated with max
               new_aggregate%metric = OBSERVATION_AGGREGATE_MAX
@@ -317,10 +322,19 @@ subroutine ObservationRead(observation,input,option)
             case('MIN')
               !Records all state variables associated with min
               new_aggregate%metric = OBSERVATION_AGGREGATE_MIN
+              option%io_buffer = '"MIN" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
             case('MIN_ABOVE')
               !Minimum above a specified threshold
+              option%io_buffer = '"MIN_ABOVE" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
             case('MAX_BELOW')
               !Max below a specified threshold
+              option%io_buffer = '"MAX_BELOW" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
             case default
               call InputKeywordUnrecognized(input,keyword,'AGGREGATE_METRIC', &
                                             option)
