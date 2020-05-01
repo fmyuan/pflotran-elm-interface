@@ -102,7 +102,7 @@ io_obj = \
 
 misc_obj = \
 	${common_src}checkpoint.o \
-	${common_src}condition.o \
+	${common_src}condition_flow.o \
 	${common_src}condition_control.o \
 	${common_src}convergence.o \
 	${common_src}coupler.o \

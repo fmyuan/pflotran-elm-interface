@@ -138,7 +138,10 @@ subroutine AuxVarFlowInit(auxvar,option)
   nullify(auxvar%D_sat)
   nullify(auxvar%D_den)
   nullify(auxvar%D_mobility)
+  nullify(auxvar%D_viscosity)
   nullify(auxvar%D_den_kg)
+  nullify(auxvar%D_liqmolarity)
+  nullify(auxvar%D_gasmolefraction)
 
   nflowdof = option%nflowdof
   auxvar%has_derivs = PETSC_FALSE
@@ -154,8 +157,6 @@ subroutine AuxVarFlowInit(auxvar,option)
     auxvar%D_pres = 0.d0
     allocate(auxvar%D_sat(nfluid,nflowdof))
     auxvar%D_sat = 0.d0
-    allocate(auxvar%D_pc(nflowdof))
-    auxvar%D_pc = 0.d0
     allocate(auxvar%D_den(nfluid,nflowdof))
     auxvar%D_den = 0.d0
     allocate(auxvar%D_mobility(nfluid,nflowdof))
@@ -224,12 +225,15 @@ subroutine AuxVarFlowCopy(auxvar, auxvar2)
     auxvar2%mass_balance_delta = auxvar%mass_balance_delta
   endif
 
+  if (associated(auxvar%D_por)) &
+    auxvar2%D_por  = auxvar%D_por
+  if (associated(auxvar%D_pc)) &
+    auxvar2%D_pc   = auxvar%D_pc
+
   if (associated(auxvar%D_pres)) &
     auxvar2%D_pres = auxvar%D_pres
   if (associated(auxvar%D_sat)) &
     auxvar2%D_sat  = auxvar%D_sat
-  if (associated(auxvar%D_pc)) &
-    auxvar2%D_pc   = auxvar%D_pc
   if (associated(auxvar%D_den)) &
     auxvar2%D_den  = auxvar%D_den
   if (associated(auxvar%D_den_kg)) &
@@ -238,8 +242,10 @@ subroutine AuxVarFlowCopy(auxvar, auxvar2)
     auxvar2%D_mobility = auxvar%D_mobility
   if (associated(auxvar%D_viscosity)) &
     auxvar2%D_viscosity= auxvar%D_viscosity
-  if (associated(auxvar%D_por)) &
-    auxvar2%D_por      = auxvar%D_por
+  if (associated(auxvar%D_liqmolarity)) &
+    auxvar2%D_viscosity= auxvar%D_liqmolarity
+  if (associated(auxvar%D_gasmolefraction)) &
+    auxvar2%D_viscosity= auxvar%D_gasmolefraction
 
 end subroutine AuxVarFlowCopy
 

@@ -487,11 +487,11 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      if (source_sink%flow_condition%liq_rate%itype /= HET_MASS_RATE_SS) &
-        qsrc1 = source_sink%flow_condition%liq_rate%dataset%rarray(1)
+      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) &
+        qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
 
       Res_src = 0.d0
-      select case (source_sink%flow_condition%liq_rate%itype)
+      select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
           qsrc1 = qsrc1 / FMW_FLUIDS(ifluid) ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
@@ -508,7 +508,7 @@ subroutine MpFlowResidualPatch(r,realization,ierr)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMW_FLUIDS(ifluid)
 
         case default
-          write(string,*) source_sink%flow_condition%liq_rate%itype
+          write(string,*) source_sink%flow_condition%rate%itype
           option%io_buffer='Flow mode source_sink%flow_condition%rate%itype = ' // &
           trim(adjustl(string)) // ', not implemented.'
       end select
@@ -1104,10 +1104,10 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
 
       if (patch%imat(ghosted_id_dn) <= 0) cycle
 
-      if (source_sink%flow_condition%liq_rate%itype /= HET_MASS_RATE_SS) &
-        qsrc1 = source_sink%flow_condition%liq_rate%dataset%rarray(1)
+      if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) &
+        qsrc1 = source_sink%flow_condition%rate%dataset%rarray(1)
 
-      select case (source_sink%flow_condition%liq_rate%itype)
+      select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
           qsrc1 = qsrc1 / FMW_FLUIDS(ifluid)                  ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
         case(SCALED_MASS_RATE_SS)
@@ -1123,8 +1123,8 @@ subroutine MpFlowJacobianPatch(AB,realization,ierr)
         case(HET_MASS_RATE_SS)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMW_FLUIDS(ifluid)
         case default
-          write(string,*) source_sink%flow_condition%liq_rate%itype
-          option%io_buffer='Flow mode source_sink%flow_condition%liq_rate%itype = ' // &
+          write(string,*) source_sink%flow_condition%rate%itype
+          option%io_buffer='Flow mode source_sink%flow_condition%rate%itype = ' // &
           trim(adjustl(string)) // ', not implemented.'
       end select
 
@@ -2463,7 +2463,7 @@ subroutine MpFlowInternalFluxDerivative(                               &
   !
   !
   use Option_module
-  use Condition_module
+  use FlowCondition_module
 
   implicit none
 
@@ -2620,7 +2620,7 @@ subroutine MpFlowBCFluxDerivative(ibndtype, bc_aux_real_var,           &
   ! Date: 02/13/2019
   !
   use Option_module
-  use Condition_module
+  use FlowCondition_module
 
   implicit none
   

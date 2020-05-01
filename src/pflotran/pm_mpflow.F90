@@ -130,8 +130,8 @@ subroutine PMMpFlowRead(this,input)
   PetscReal :: tempreal
 
   option => this%option
-  lid = MPFLOW_PRESSURE_DOF
-  eid = MPFLOW_TEMPERATURE_DOF
+  lid = PRESSURE_DOF
+  eid = TEMPERATURE_DOF
   
   error_string = 'MPFLOW Options'
   

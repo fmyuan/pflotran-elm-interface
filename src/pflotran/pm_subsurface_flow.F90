@@ -696,7 +696,7 @@ subroutine PMSubsurfaceFlowUpdateSolution(this)
   ! Author: Glenn Hammond
   ! Date: 04/21/14
 
-  use Condition_module
+  use FlowCondition_module
   use Integral_Flux_module
   use SrcSink_Sandbox_module
 

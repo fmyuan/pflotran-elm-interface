@@ -2,7 +2,7 @@ module Coupler_module
  
 #include "petsc/finclude/petscsys.h"
   use petscsys
-  use Condition_module
+  use FlowCondition_module
   use Connection_module
   use Region_module
 
@@ -14,10 +14,9 @@ module Coupler_module
  
       
   ! coupler types
-  PetscInt, parameter, public :: INITIAL_COUPLER_TYPE = 1
+  PetscInt, parameter, public :: INITIAL_COUPLER_TYPE  = 1
   PetscInt, parameter, public :: BOUNDARY_COUPLER_TYPE = 2
   PetscInt, parameter, public :: SRC_SINK_COUPLER_TYPE = 3
-  PetscInt, parameter, public :: COUPLER_IPHASE_INDEX = 1
 
   type, public :: coupler_type
     PetscInt :: id                                      ! id of coupler
@@ -29,14 +28,15 @@ module Coupler_module
     PetscInt :: iflow_condition                         ! id of condition in condition array/list
     PetscInt :: iregion                                 ! id of region in region array/list
     PetscInt :: iface                                   ! for structured grids only
-    PetscInt, pointer :: flow_aux_mapping(:)            ! maps flow_aux_real_var to primarhy dof
-    PetscInt, pointer :: flow_bc_type(:)                ! id of boundary condition type
+    PetscInt, pointer :: flow_aux_mapping(:)            ! maps flow_aux_real_var to primary dof
+    !PetscInt, pointer :: flow_bc_type(:)                ! id of boundary condition type
     PetscInt, pointer :: flow_aux_int_var(:,:)          ! auxiliary array for integer value
     PetscReal, pointer :: flow_aux_real_var(:,:)        ! auxiliary array for real values
-    type(flow_condition_type), pointer :: flow_condition     ! pointer to condition in condition array/list
+    type(flow_condition_type), pointer :: flow_condition! pointer to condition in condition array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
-    type(connection_set_type), pointer :: connection_set ! pointer to an array/list of connections
+    type(connection_set_type), pointer :: connection_set! pointer to an array/list of connections
     PetscInt :: numfaces_set
+
     type(coupler_type), pointer :: next                 ! pointer to next coupler
   end type coupler_type
   
@@ -96,7 +96,6 @@ function CouplerCreate1()
   coupler%iregion = 0
   coupler%iface = 0
   nullify(coupler%flow_aux_mapping)
-  nullify(coupler%flow_bc_type)
   nullify(coupler%flow_aux_int_var)
   nullify(coupler%flow_aux_real_var)
   nullify(coupler%flow_condition)
@@ -173,13 +172,12 @@ function CouplerCreateFromCoupler(coupler)
 
   ! these must remain null  
   nullify(coupler%flow_condition)
-
   nullify(coupler%region)
+  nullify(coupler%connection_set)
   nullify(coupler%flow_aux_mapping)
-  nullify(coupler%flow_bc_type)
   nullify(coupler%flow_aux_int_var)
   nullify(coupler%flow_aux_real_var)
-  nullify(coupler%connection_set)
+
   nullify(coupler%next)
 
   CouplerCreateFromCoupler => new_coupler
@@ -357,13 +355,13 @@ subroutine CouplerComputeConnections(grid,option,coupler)
   select case(coupler%itype)
     case(INITIAL_COUPLER_TYPE)
       if (associated(coupler%flow_condition)) then
-        if (associated(coupler%flow_condition%liq_pressure)) then
-          if (coupler%flow_condition%liq_pressure%itype /= HYDROSTATIC_BC .and. &
-              coupler%flow_condition%liq_pressure%itype /= &
+        if (associated(coupler%flow_condition%pressure)) then
+          if (coupler%flow_condition%pressure%itype /= HYDROSTATIC_BC .and. &
+              coupler%flow_condition%pressure%itype /= &
                 HYDROSTATIC_SEEPAGE_BC .and. &
-              coupler%flow_condition%liq_pressure%itype /= &
+              coupler%flow_condition%pressure%itype /= &
                 HYDROSTATIC_CONDUCTANCE_BC) then
-            select type(selector => coupler%flow_condition%liq_pressure%dataset)
+            select type(selector => coupler%flow_condition%pressure%dataset)
               class is(dataset_gridded_hdf5_type)
               class default
                 nullify_connection_set = PETSC_TRUE
@@ -563,7 +561,6 @@ subroutine CouplerDestroy(coupler)
   nullify(coupler%region)        ! conditoins in list, nullify
 
   call DeallocateArray(coupler%flow_aux_mapping)
-  call DeallocateArray(coupler%flow_bc_type)
   call DeallocateArray(coupler%flow_aux_int_var)
   call DeallocateArray(coupler%flow_aux_real_var)
 

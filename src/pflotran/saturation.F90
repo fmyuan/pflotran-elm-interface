@@ -27,7 +27,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid, &
   use Option_module
   use Grid_module
   use Coupler_module
-  use Condition_module
+  use FlowCondition_module
   use Connection_module
   use Region_module
   use Characteristic_Curves_module
@@ -55,8 +55,8 @@ subroutine SaturationUpdateCoupler(coupler,option,grid, &
     call printErrMsg(option)
   endif
   
-  ! in this case, the saturation is stored within concentration dataset
-  saturation = condition%liq_saturation%dataset%rarray(1)
+  ! in this case, the liq. saturation is stored its dataset
+  saturation = condition%saturation%dataset%rarray(LIQ_FLUID)
 
   do iconn = 1, coupler%connection_set%num_connections
     local_id = coupler%connection_set%id_dn(iconn)
@@ -69,7 +69,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid, &
     endif
 
     liquid_pressure = option%reference_pressure - capillary_pressure
-    coupler%flow_aux_real_var(1,iconn) = liquid_pressure
+    coupler%flow_aux_real_var(LIQ_FLUID,iconn) = liquid_pressure
   enddo
 
 end subroutine SaturationUpdateCoupler

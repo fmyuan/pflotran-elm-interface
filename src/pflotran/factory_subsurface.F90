@@ -945,7 +945,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Realization_Subsurface_class
   use Realization_Base_class
   use Region_module
-  use Condition_module
+  use FlowCondition_module
   use Coupler_module
   use Strata_module
   use Observation_module

@@ -78,7 +78,7 @@ module Option_module
     PetscReal :: gravity(3)
     PetscReal :: reference_temperature
     PetscReal :: reference_pressure
-    PetscReal :: reference_density(MAX_PHASE)
+    PetscReal :: reference_density(MAX_PHASES)
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
     PetscReal :: minimum_hydrostatic_pressure

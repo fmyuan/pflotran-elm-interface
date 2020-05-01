@@ -29,7 +29,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Option_module
   use Grid_module
   use Coupler_module
-  use Condition_module
+  use FlowCondition_module
   use Connection_module
   use Region_module
   use Grid_Structured_module
@@ -128,11 +128,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
 
       pressure_at_datum = &
-        condition%liq_pressure%dataset%rarray(1)
+        condition%pressure%dataset%rarray(1)
       ! gradient is in m/m; needs conversion to Pa/m
-      if (associated(condition%liq_pressure%gradient)) then
+      if (associated(condition%pressure%gradient)) then
         piezometric_head_gradient(1:3) = &
-          condition%liq_pressure%gradient%rarray(1:3)
+          condition%pressure%gradient%rarray(1:3)
       endif
   end select      
 
@@ -420,11 +420,11 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! assign pressure
     select case(option%iflowmode)
        case default
-        if (condition%liq_pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
-          coupler%flow_aux_real_var(MPFLOW_PRESSURE_DOF,iconn) = &
+        if (condition%pressure%itype == HYDROSTATIC_SEEPAGE_BC) then
+          coupler%flow_aux_real_var(PRESSURE_DOF,iconn) = &
             max(pressure,option%reference_pressure)
         else
-          coupler%flow_aux_real_var(MPFLOW_PRESSURE_DOF,iconn) = pressure
+          coupler%flow_aux_real_var(PRESSURE_DOF,iconn) = pressure
         endif
     end select
 
@@ -434,14 +434,14 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                     temperature_gradient(X_DIRECTION)*dist_x + & 
                     temperature_gradient(Y_DIRECTION)*dist_y + &
                     temperature_gradient(Z_DIRECTION)*dist_z 
-    !coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF,iconn)     = temperature
+    !coupler%flow_aux_real_var(TEMPERATURE_DOF,iconn)     = temperature
     select case(option%iflowmode)
       case(MPFLOW_MODE)
-        coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF,iconn) = temperature
-        coupler%flow_aux_real_var(MPFLOW_PRESSURE_DOF,iconn)    = gas_pressure - pressure
+        coupler%flow_aux_real_var(TEMPERATURE_DOF,iconn) = temperature
+        coupler%flow_aux_real_var(PRESSURE_DOF,iconn)    = gas_pressure - pressure
 
       case default
-        coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,iconn) = 1
+        !
     end select
 
   enddo

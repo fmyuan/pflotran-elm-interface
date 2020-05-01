@@ -30,10 +30,10 @@ module MpFlow_Aux_module
  PetscReal, public :: FMW_FLUIDS(2) = [FMWH2O,FMWAIR]  ! should be appended, if more fluid identified
 
   ! 2 dofs currently: pressure, temperature
-  PetscInt, public :: IFDOF1 = MPFLOW_PRESSURE_DOF
-  PetscInt, public :: IFDOF2 = MPFLOW_TEMPERATURE_DOF
-  PetscInt, public :: IFDOF3 = MPFLOW_CONDUCTANCE_DOF ! thermal
-  PetscInt, public :: IFDOF4 = MPFLOW_ENTHALPY_DOF    ! not-yet
+  PetscInt, public :: IFDOF1 = PRESSURE_DOF
+  PetscInt, public :: IFDOF2 = TEMPERATURE_DOF
+  PetscInt, public :: IFDOF3 = CONDUCTANCE_DOF ! thermal
+  PetscInt, public :: IFDOF4 = ENTHALPY_DOF    ! not-yet
 
   type, public, extends(auxvar_flow_energy_type) :: mpflow_auxvar_type
 

@@ -145,7 +145,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
 
     ! Pressure for all modes 
     if (option%iflowmode == MPFLOW_MODE) then
-      offset = MPFLOW_PRESSURE_DOF
+      offset = PRESSURE_DOF
     endif
     !offset = 1
     group_name = ''
@@ -167,7 +167,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
 
     ! Temperature for MPFLOW mode
     if (option%iflowmode == MPFLOW_MODE) then
-      offset = MPFLOW_TEMPERATURE_DOF
+      offset = TEMPERATURE_DOF
       group_name = ''
       dataset_name = 'Temperature'
       call HDF5ReadCellIndexedRealArray(realization,field%work, &

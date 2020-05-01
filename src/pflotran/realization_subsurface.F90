@@ -8,7 +8,7 @@ module Realization_Subsurface_class
   use Option_module
   use Input_Aux_module
   use Region_module
-  use Condition_module
+  use FlowCondition_module
   use Material_module
   use Characteristic_Curves_module
   use Dataset_Base_class
@@ -836,6 +836,7 @@ subroutine RealProcessFlowConditions(realization)
   do
     if (.not.associated(cur_flow_condition)) exit
     string = 'flow_condition ' // trim(cur_flow_condition%name)
+print *,'checking: flow_condition - ', trim(cur_flow_condition%name), size(cur_flow_condition%sub_condition_ptr)
     ! find datum dataset
     call DatasetFindInList(realization%datasets,cur_flow_condition%datum, &
                            cur_flow_condition%default_time_storage, &

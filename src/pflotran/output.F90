@@ -1664,9 +1664,9 @@ subroutine OutputPrintCouplers(realization_base,istep)
   select case(option%iflowmode)
     case(MPFLOW_MODE)
       allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = MPFLOW_PRESSURE_DOF
+      iauxvars(1) = PRESSURE_DOF
       auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = MPFLOW_TEMPERATURE_DOF
+      iauxvars(2) = TEMPERATURE_DOF
       auxvar_names(2) = 'temperature'
     case default
       option%io_buffer = &

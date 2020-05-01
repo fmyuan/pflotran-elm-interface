@@ -65,7 +65,7 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
   use Discretization_module
   use Option_module 
   use Coupler_module
-  use Condition_module
+  use FlowCondition_module
   use Grid_module
   use Output_module
   use Output_Tecplot_module, only : OutputVectorTecplot  

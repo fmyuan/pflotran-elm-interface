@@ -36,7 +36,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   use Option_module
   use Field_module
   use Coupler_module
-  use Condition_module
+  use FlowCondition_module
   use Dataset_Base_class
   use Dataset_Gridded_HDF5_class
   use Dataset_Common_HDF5_class
@@ -258,7 +258,7 @@ subroutine CondControlScaleSourceSink(realization)
   use Field_module
   use Coupler_module
   use Connection_module
-  use Condition_module
+  use FlowCondition_module
   use Grid_module
   use Patch_module
   use Material_Aux_class
@@ -387,99 +387,6 @@ subroutine CondControlScaleSourceSink(realization)
 
 end subroutine CondControlScaleSourceSink
 
-! ************************************************************************** !
-#if 0
-subroutine CondControlReadTransportIC(realization,filename)
-  ! 
-  ! Assigns transport initial condition from
-  ! HDF5 file
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/05/10
-  ! 
-
-  use Realization_Subsurface_class
-  use Option_module
-  use Field_module
-  use Grid_module
-  use Patch_module
-  use Reactive_Transport_module
-  use Reaction_Aux_module
-  use Discretization_module
-  use HDF5_module
-  
-  implicit none
-  
-  class(realization_subsurface_type) :: realization
-  character(len=MAXSTRINGLENGTH) :: filename
-  
-  PetscInt :: local_id, idx, offset, idof
-  PetscReal, pointer :: xx_p(:)
-  character(len=MAXSTRINGLENGTH) :: group_name
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscReal, pointer :: vec_p(:)  
-  PetscErrorCode :: ierr
-  
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field  
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(discretization_type), pointer :: discretization
-  type(patch_type), pointer :: cur_patch
-  class(reaction_rt_type), pointer :: reaction
-
-  option => realization%option
-  discretization => realization%discretization
-  field => realization%field
-  patch => realization%patch
-  reaction => realization%reaction
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-
-    grid => cur_patch%grid
-
-      ! assign initial conditions values to domain
-    call VecGetArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
-
-    ! Primary species concentrations for all modes 
-    do idof = 1, option%ntrandof ! primary aqueous concentrations
-      offset = idof
-      group_name = ''
-      if (associated(reaction)) &
-        dataset_name = reaction%primary_species_names(idof)
-      if (associated(realization%reaction_nw)) &
-        dataset_name = realization%reaction_nw%species_names(idof)
-      call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                        filename,group_name, &
-                                        dataset_name,option%id>0)
-      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-      do local_id=1, grid%nlmax
-        if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
-        if (vec_p(local_id) < 1.d-40) then
-          print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
-            ': Zero free-ion concentration in Initial Condition read from file.'
-        endif
-        idx = (local_id-1)*option%ntrandof + offset
-        xx_p(idx) = vec_p(local_id)
-      enddo
-      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-     
-    enddo     
-
-    call VecRestoreArrayF90(field%tran_xx,xx_p, ierr);CHKERRQ(ierr)
-        
-    cur_patch => cur_patch%next
-  enddo
-   
-  ! update dependent vectors
-  call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
-                                   field%tran_xx_loc,NTRANDOF)  
-  call VecCopy(field%tran_xx, field%tran_yy, ierr);CHKERRQ(ierr)
-  
-end subroutine CondControlReadTransportIC
-#endif
 ! ************************************************************************** !
 
 end module Condition_Control_module

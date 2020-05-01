@@ -135,7 +135,7 @@ contains
     type(inlinesurface_auxvar_type) :: auxvar_up,auxvar_dn
     PetscReal :: area,dist(-1:3),Res(1)
 
-    select case(ibndtype(MPFLOW_PRESSURE_DOF))
+    select case(ibndtype(PRESSURE_DOF))
 
     case(SURFACE_DIRICHLET)
 
@@ -224,7 +224,7 @@ contains
     type(option_type)               :: option
     PetscReal :: area,dist(-1:3),Jup(1,1),Jdn(1,1)
 
-    select case(ibndtype(MPFLOW_PRESSURE_DOF))
+    select case(ibndtype(PRESSURE_DOF))
 
     case(SURFACE_DIRICHLET)
 

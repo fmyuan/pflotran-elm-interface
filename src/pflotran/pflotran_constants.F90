@@ -131,35 +131,34 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: NEUMANN_BC                     = 2
   PetscInt, parameter, public :: DIRICHLET_ZERO_GRADIENT_BC     = 3
   PetscInt, parameter, public :: ZERO_GRADIENT_BC               = 4
-  PetscInt, parameter, public :: UNIT_GRADIENT_BC               = 14
-  PetscInt, parameter, public :: HYDROSTATIC_BC                 = 5
-  PetscInt, parameter, public :: HYDROSTATIC_SEEPAGE_BC         = 6
-  PetscInt, parameter, public :: HYDROSTATIC_CONDUCTANCE_BC     = 13
-  PetscInt, parameter, public :: SATURATION_BC                  = 15
-  PetscInt, parameter, public :: HET_DIRICHLET_BC               = 18
-  PetscInt, parameter, public :: SPILLOVER_BC                   = 23
-  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC     = 36
-  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 37
-  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC           = 38
-  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC       = 39
+  PetscInt, parameter, public :: UNIT_GRADIENT_BC               = 5
+  PetscInt, parameter, public :: HYDROSTATIC_BC                 = 6
+  PetscInt, parameter, public :: HYDROSTATIC_SEEPAGE_BC         = 7
+  PetscInt, parameter, public :: HYDROSTATIC_CONDUCTANCE_BC     = 8
+  PetscInt, parameter, public :: SATURATION_BC                  = 9
+  PetscInt, parameter, public :: HET_DIRICHLET_BC               = 10
+  PetscInt, parameter, public :: SPILLOVER_BC                   = 11
+  PetscInt, parameter, public :: HET_HYDROSTATIC_SEEPAGE_BC     = 12
+  PetscInt, parameter, public :: HET_HYDROSTATIC_CONDUCTANCE_BC = 13
+  PetscInt, parameter, public :: DIRICHLET_SEEPAGE_BC           = 14
+  PetscInt, parameter, public :: DIRICHLET_CONDUCTANCE_BC       = 15
 
-  PetscInt, parameter, public :: MASS_RATE_SS                    = 7
-  PetscInt, parameter, public :: VOLUMETRIC_RATE_SS              = 8
-  PetscInt, parameter, public :: SCALED_MASS_RATE_SS             = 9
-  PetscInt, parameter, public :: SCALED_VOLUMETRIC_RATE_SS       = 10
-  PetscInt, parameter, public :: CONCENTRATION_SS                = 11
-  PetscInt, parameter, public :: EQUILIBRIUM_SS                  = 12
-  PetscInt, parameter, public :: HET_VOL_RATE_SS                 = 16
-  PetscInt, parameter, public :: HET_MASS_RATE_SS                = 17
-  PetscInt, parameter, public :: ENERGY_RATE_SS                  = 19
-  PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS           = 20
-  PetscInt, parameter, public :: HET_ENERGY_RATE_SS              = 21
-  PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 22
-  PetscInt, parameter, public :: TOTAL_MASS_RATE_SS              = 38
+  PetscInt, parameter, public :: MASS_RATE_SS                    = 21
+  PetscInt, parameter, public :: VOLUMETRIC_RATE_SS              = 22
+  PetscInt, parameter, public :: SCALED_MASS_RATE_SS             = 23
+  PetscInt, parameter, public :: SCALED_VOLUMETRIC_RATE_SS       = 24
+  PetscInt, parameter, public :: CONCENTRATION_SS                = 25
+  PetscInt, parameter, public :: EQUILIBRIUM_SS                  = 26
+  PetscInt, parameter, public :: HET_VOL_RATE_SS                 = 27
+  PetscInt, parameter, public :: HET_MASS_RATE_SS                = 28
+  PetscInt, parameter, public :: ENERGY_RATE_SS                  = 29
+  PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS           = 30
+  PetscInt, parameter, public :: HET_ENERGY_RATE_SS              = 31
+  PetscInt, parameter, public :: HET_SURF_HYDROSTATIC_SEEPAGE_BC = 32
 
-  PetscInt, parameter, public :: SURFACE_DIRICHLET       = 33
-  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 34
-  PetscInt, parameter, public :: SURFACE_SPILLOVER       = 35
+  PetscInt, parameter, public :: SURFACE_DIRICHLET       = 41
+  PetscInt, parameter, public :: SURFACE_ZERO_GRADHEIGHT = 42
+  PetscInt, parameter, public :: SURFACE_SPILLOVER       = 43
   
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM          = 1
@@ -173,22 +172,22 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: SRC_SINK_CONNECTION_TYPE = 4
   
   ! dofs for each mode
-  PetscInt, parameter, public :: MPFLOW_PRESSURE_DOF    = 1
-  PetscInt, parameter, public :: MPFLOW_TEMPERATURE_DOF = 2
-  PetscInt, parameter, public :: MPFLOW_CONDUCTANCE_DOF = 3
-  PetscInt, parameter, public :: MPFLOW_ENTHALPY_DOF    = 4
+  PetscInt, parameter, public :: PRESSURE_DOF    = 1
+  PetscInt, parameter, public :: TEMPERATURE_DOF = 2
+  PetscInt, parameter, public :: CONDUCTANCE_DOF = 3    ! not yet used
+  PetscInt, parameter, public :: ENTHALPY_DOF    = 4    ! not yet used
 
-  ! phase ids for a single matter (species) or mixture
+  ! phase ids for a single matter (species) or mixture in a fluid-body (NOT fluid type as below)
   PetscInt, parameter, public :: LIQUID_PHASE   = 1
   PetscInt, parameter, public :: GAS_PHASE      = 2
   PetscInt, parameter, public :: SOLID_PHASE    = 3
   PetscInt, parameter, public :: SUSPENSE_PHASE = 4  ! solid but suspending in fluid(s) (TODO, not yet used)
-  PetscInt, parameter, public :: MAX_PHASE      = 3  ! i.e. liq, gas, solid
+  PetscInt, parameter, public :: MAX_PHASES     = 3  ! i.e. liq, gas, solid currently (not yet SUSPENSE_PHASE)
 
   ! Fluid type ids
   PetscInt, parameter, public :: LIQ_FLUID   = 1
   PetscInt, parameter, public :: AIR_FLUID   = 2
-  PetscInt, parameter, public :: OIL_FLUID   = 3
+  PetscInt, parameter, public :: OIL_FLUID   = 3    ! not yet used
   
   ! approaches to coupling transport
   PetscInt, parameter, public :: GLOBAL_IMPLICIT = 0

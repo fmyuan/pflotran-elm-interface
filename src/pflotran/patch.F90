@@ -324,7 +324,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
 
   use Option_module
   use Material_module
-  use Condition_module
+  use FlowCondition_module
 
   use Connection_module
 
@@ -458,7 +458,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions, &
           call PrintErrMsg(option)
         endif
         ! check to ensure that a rate subcondition exists
-        if (.not.associated(coupler%flow_condition%liq_rate)) then
+        if (.not.associated(coupler%flow_condition%rate)) then
           temp_int = 0
           if (temp_int == 0) then
             option%io_buffer = 'FLOW_CONDITIONs associated with &
@@ -693,7 +693,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Connection_module
 
   use Global_Aux_module
-  use Condition_module
+  use FlowCondition_module
   use MpFlow_Aux_module
 
   implicit none
@@ -719,15 +719,16 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
       ! FLOW
       if (associated(coupler%flow_condition)) then
-        ! determine whether flow_condition is transient
+        !
         coupler%flow_condition%is_transient = &
           FlowConditionIsTransient(coupler%flow_condition)
+
         if (coupler%itype == INITIAL_COUPLER_TYPE .or. &
             coupler%itype == BOUNDARY_COUPLER_TYPE) then
 
-          if (associated(coupler%flow_condition%liq_pressure) .or. &
-              associated(coupler%flow_condition%liq_molarity) .or. &
-              associated(coupler%flow_condition%liq_saturation) .or. &
+          if (associated(coupler%flow_condition%pressure) .or. &
+              associated(coupler%flow_condition%molarity) .or. &
+              associated(coupler%flow_condition%saturation) .or. &
               associated(coupler%flow_condition%temperature)) then
 
             ! allocate arrays that match the number of connections
@@ -735,7 +736,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 
                case(MPFLOW_MODE)
                 temp_int = 2
-                select case(coupler%flow_condition%liq_pressure%itype)
+                select case(coupler%flow_condition%pressure%itype)
                   case(HYDROSTATIC_CONDUCTANCE_BC, &
                        DIRICHLET_CONDUCTANCE_BC, &
                        HET_HYDROSTATIC_CONDUCTANCE_BC)
@@ -752,18 +753,18 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 call PrintErrMsg(option)
             end select
 
-          else if (associated(coupler%flow_condition%liq_rate)) then
+          else if (associated(coupler%flow_condition%rate)) then
             option%io_buffer = 'Flow condition "' // &
               trim(coupler%flow_condition%name) // '" can only be used in a &
               &SOURCE_SINK since a rate is prescribed.'
             call PrintErrMsg(option)
-          endif ! associated(coupler%flow_condition%liq_pressure)
+          endif ! associated(coupler%flow_condition%pressure)
 
         else if (coupler%itype == SRC_SINK_COUPLER_TYPE) then
 
-          if (associated(coupler%flow_condition%liq_rate)) then
+          if (associated(coupler%flow_condition%rate)) then
 
-            select case(coupler%flow_condition%liq_rate%itype)
+            select case(coupler%flow_condition%rate%itype)
               case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS, &
                    VOLUMETRIC_RATE_SS,MASS_RATE_SS, &
                    HET_VOL_RATE_SS,HET_MASS_RATE_SS)
@@ -772,19 +773,19 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
                   case default
-                    string = GetSubConditionName(coupler%flow_condition%liq_rate%itype)
+                    string = GetSubConditionName(coupler%flow_condition%rate%itype)
                     option%io_buffer='Source/Sink of rate%itype = "' // &
                       trim(adjustl(string)) // '", not implemented in this mode.'
                     call PrintErrMsg(option)
                 end select
               case default
-                string = GetSubConditionName(coupler%flow_condition%liq_rate%itype)
+                string = GetSubConditionName(coupler%flow_condition%rate%itype)
                 option%io_buffer = &
                   FlowConditionUnknownItype(coupler%flow_condition,'rate', &
                                             string)
                 call PrintErrMsg(option)
             end select
-          endif ! associated(coupler%flow_condition%liq_rate)
+          endif ! associated(coupler%flow_condition%rate)
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
     endif ! associated(coupler%connection_set)
@@ -834,7 +835,7 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   ! Date: 11/26/07
   !
   use Option_module
-  use Condition_module
+  use FlowCondition_module
   use Hydrostatic_module
   use Saturation_module
 
@@ -888,10 +889,10 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   !
   ! Author: Glenn Hammond
   ! Date: 11/26/07
-  !
+  ! Rewriten: by Fengming Yuan@ccsi/ESD, ORNL, 2020-04-30
 
   use Option_module
-  use Condition_module
+  use FlowCondition_module
   use Hydrostatic_module
   use Saturation_module
 
@@ -920,74 +921,74 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
 
   flow_condition => coupler%flow_condition
 
-  if (associated(flow_condition%liq_pressure)) then
-    !geh: this is a fix for an Intel compiler bug. Not sure why Intel cannot
-    !     access flow_condition%iphase directly....
-    !iphase = flow_condition%iphase
-    !coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = iphase
-!    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-!                                                        flow_condition%iphase
-    select case(flow_condition%liq_pressure%itype)
+  if (associated(flow_condition%pressure)) then
+    select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SPILLOVER_BC, &
            DIRICHLET_SEEPAGE_BC,DIRICHLET_CONDUCTANCE_BC)
-        select type(selector =>flow_condition%liq_pressure%dataset)
+        select type(selector =>flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(MPFLOW_PRESSURE_DOF,1:num_connections) = &
+            coupler%flow_aux_real_var(PRESSURE_DOF,1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
             call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
-                                               MPFLOW_PRESSURE_DOF)
+                                               PRESSURE_DOF)
           class is(dataset_common_hdf5_type)
             ! skip cell indexed datasets used in initial conditions
           class default
-            call PrintMsg(option,'th%pressure%itype,DIRICHLET_BC')
+            call PrintMsg(option,'flow_condition%pressure%itype,DIRICHLET_BC')
             call DatasetUnknownClass(selector,option, &
                                      'PatchUpdateCouplerAuxVarsTH')
         end select
-        select case(flow_condition%liq_pressure%itype)
+#if 0
+        select case(flow_condition%pressure%itype)
           case(DIRICHLET_CONDUCTANCE_BC)
-            coupler%flow_aux_real_var(MPFLOW_CONDUCTANCE_DOF, &
+            coupler%flow_aux_real_var(CONDUCTANCE_DOF, &
                                       1:num_connections) = &
-                                           flow_condition%liq_pressure%aux_real(1)
+                                           flow_condition%pressure%aux_real(1) ! NOT right (TODO)
         end select
+#endif
       case(HYDROSTATIC_BC,HYDROSTATIC_SEEPAGE_BC,HYDROSTATIC_CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
       case(HET_DIRICHLET_BC,HET_HYDROSTATIC_SEEPAGE_BC, &
            HET_HYDROSTATIC_CONDUCTANCE_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
-                flow_condition%liq_pressure%dataset,MPFLOW_PRESSURE_DOF,option)
-        if (flow_condition%liq_pressure%itype == &
+                flow_condition%pressure%dataset,PRESSURE_DOF,option)
+#if 0
+        if (flow_condition%pressure%itype == &
             HET_HYDROSTATIC_CONDUCTANCE_BC) then
-          coupler%flow_aux_real_var(MPFLOW_CONDUCTANCE_DOF,1:num_connections) = &
-            flow_condition%liq_pressure%aux_real(1)
+          coupler%flow_aux_real_var(CONDUCTANCE_DOF,1:num_connections) = &
+            flow_condition%pressure%aux_real(1) ! NOT right (TODO)
         endif
+#endif
       case(HET_SURF_HYDROSTATIC_SEEPAGE_BC)
         ! Do nothing, since this BC type is only used for coupling of
         ! surface-subsurface model
       case default
         string = &
-          GetSubConditionName(flow_condition%liq_pressure%itype)
+          GetSubConditionName(flow_condition%pressure%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH pressure',string)
         call PrintErrMsg(option)
     end select
+
+
     if (associated(flow_condition%temperature)) then
       select case(flow_condition%temperature%itype)
         case(DIRICHLET_BC,ZERO_GRADIENT_BC)
           select type(selector =>flow_condition%temperature%dataset)
             class is(dataset_ascii_type)
-              if (flow_condition%liq_pressure%itype /= HYDROSTATIC_BC .or. &
-                 (flow_condition%liq_pressure%itype == HYDROSTATIC_BC .and. &
+              if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
+                 (flow_condition%pressure%itype == HYDROSTATIC_BC .and. &
                  flow_condition%temperature%itype /= DIRICHLET_BC)) then
-                coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF, &
+                coupler%flow_aux_real_var(TEMPERATURE_DOF, &
                                           1:num_connections) = &
                   selector%rarray(1)
               endif
             class is(dataset_gridded_hdf5_type)
               call PatchUpdateCouplerGridDataset(coupler,option, &
                                                  patch%grid,selector, &
-                                                 MPFLOW_TEMPERATURE_DOF)
+                                                 TEMPERATURE_DOF)
             class is(dataset_common_hdf5_type)
               ! skip cell indexed datasets used in initial conditions
             class default
@@ -998,7 +999,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         case (HET_DIRICHLET_BC)
           call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                   flow_condition%temperature%dataset, &
-                  MPFLOW_TEMPERATURE_DOF,option)
+                  TEMPERATURE_DOF,option)
         case default
           string = &
             GetSubConditionName(flow_condition%temperature%itype)
@@ -1008,14 +1009,14 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       end select
     endif
     if (associated(flow_condition%energy_flux)) then
-      coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF,1:num_connections) = &
+      coupler%flow_aux_real_var(TEMPERATURE_DOF,1:num_connections) = &
         flow_condition%energy_flux%dataset%rarray(1)
     endif
   endif
 
   apply_temp_cond = PETSC_FALSE
-  if (associated(flow_condition%temperature) .and. associated(flow_condition%liq_pressure)) then
-    if (flow_condition%liq_pressure%itype /= HYDROSTATIC_BC) then
+  if (associated(flow_condition%temperature) .and. associated(flow_condition%pressure)) then
+    if (flow_condition%pressure%itype /= HYDROSTATIC_BC) then
       apply_temp_cond = PETSC_TRUE
     else
       if (flow_condition%temperature%itype /= DIRICHLET_BC) then
@@ -1031,24 +1032,24 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       case(DIRICHLET_BC,ZERO_GRADIENT_BC)
         select type(selector =>flow_condition%temperature%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF, &
+            coupler%flow_aux_real_var(TEMPERATURE_DOF, &
                                       1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
             call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
-                                               MPFLOW_TEMPERATURE_DOF)
+                                               TEMPERATURE_DOF)
           class is(dataset_common_hdf5_type)
             ! skip cell indexed datasets used in initial conditions
           class default
-            call PrintMsg(option,'th%pressure%itype,DIRICHLET_BC')
+            call PrintMsg(option,'flow_condition%temperature%itype,DIRICHLET_BC')
             call DatasetUnknownClass(selector,option, &
                                      'PatchUpdateCouplerAuxVarsTH')
         end select
       case (HET_DIRICHLET_BC)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%temperature%dataset, &
-                MPFLOW_TEMPERATURE_DOF,option)
+                TEMPERATURE_DOF,option)
       case default
         string = &
           GetSubConditionName(flow_condition%temperature%itype)
@@ -1058,20 +1059,21 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
     end select
   endif
 
+  ! 'energy_flux' is sort of 'temperature' with type of 'NEUMANN_BC'
   if (associated(flow_condition%energy_flux)) then
     select case(flow_condition%energy_flux%itype)
       case(NEUMANN_BC)
         select type(selector =>flow_condition%energy_flux%dataset)
           class is(dataset_ascii_type)
-            coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF, &
+            coupler%flow_aux_real_var(TEMPERATURE_DOF, &
                                       1:num_connections) = &
               selector%rarray(1)
           class is(dataset_gridded_hdf5_type)
             call PatchUpdateCouplerGridDataset(coupler,option, &
                                                patch%grid,selector, &
-                                               MPFLOW_TEMPERATURE_DOF)
+                                               TEMPERATURE_DOF)
           class default
-            call PrintMsg(option,'th%pressure%itype,NEUMANN_BC')
+            call PrintMsg(option,'MpFlow%energy_flux%itype,NEUMANN_BC')
             call DatasetUnknownClass(selector,option, &
                                      'PatchUpdateCouplerAuxVarsTH')
         end select
@@ -1079,7 +1081,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         string = &
           GetSubConditionName(flow_condition%energy_flux%itype)
         option%io_buffer = &
-          FlowConditionUnknownItype(flow_condition,'TH energy flux',string)
+          FlowConditionUnknownItype(flow_condition,'MpFlow energy flux',string)
         call PrintErrMsg(option)
     end select
   endif
@@ -1087,21 +1089,21 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   !geh: we set this flag to ensure that we are not scaling mass and energy
   !     differently
   rate_scale_type = 0
-  if (associated(flow_condition%liq_rate)) then
-    select case(flow_condition%liq_rate%itype)
+  if (associated(flow_condition%rate)) then
+    select case(flow_condition%rate%itype)
       case (HET_MASS_RATE_SS,HET_VOL_RATE_SS)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
-                                            flow_condition%liq_rate%dataset, &
-                                            MPFLOW_PRESSURE_DOF,option)
+                                            flow_condition%rate%dataset, &
+                                            PRESSURE_DOF,option)
       case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-        call PatchScaleSourceSink(patch,coupler,flow_condition%liq_rate%isubtype, &
+        call PatchScaleSourceSink(patch,coupler,flow_condition%rate%isubtype, &
                                   option)
-        rate_scale_type = flow_condition%liq_rate%isubtype
+        rate_scale_type = flow_condition%rate%isubtype
       case(MASS_RATE_SS,VOLUMETRIC_RATE_SS)
       ! do nothing here
       case default
         string = &
-          GetSubConditionName(flow_condition%liq_rate%itype)
+          GetSubConditionName(flow_condition%rate%itype)
         option%io_buffer = &
           FlowConditionUnknownItype(flow_condition,'TH rate',string)
         call PrintErrMsg(option)
@@ -1112,7 +1114,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       case (ENERGY_RATE_SS)
         !geh: this is pointless as %dataset%rarray(1) is reference in TH,
         !     not the flow_aux_real_var!
-        coupler%flow_aux_real_var(MPFLOW_TEMPERATURE_DOF,1:num_connections) = &
+        coupler%flow_aux_real_var(TEMPERATURE_DOF,1:num_connections) = &
                   flow_condition%energy_rate%dataset%rarray(1)
       case (SCALED_ENERGY_RATE_SS)
         if (rate_scale_type == 0) then
@@ -1129,7 +1131,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       case (HET_ENERGY_RATE_SS)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
                 flow_condition%energy_rate%dataset, &
-                MPFLOW_TEMPERATURE_DOF,option)
+                TEMPERATURE_DOF,option)
       case default
         string = &
           GetSubConditionName(flow_condition%energy_rate%itype)
@@ -1138,7 +1140,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         call PrintErrMsg(option)
     end select
   endif
-  if (associated(flow_condition%liq_saturation)) then
+  if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%characteristic_curves_array, &
                                  patch%sat_func_id)
@@ -1212,7 +1214,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,iscale_type,option)
   use Field_module
   use Coupler_module
   use Connection_module
-  use Condition_module
+  use FlowCondition_module
   use Grid_module
   use Material_Aux_class
   use Variables_module, only : PERMEABILITY_X
@@ -1370,7 +1372,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
   use Field_module
   use Coupler_module
   use Connection_module
-  use Condition_module
+  use FlowCondition_module
   use Grid_module
   use Dataset_module
   use Dataset_Map_HDF5_class

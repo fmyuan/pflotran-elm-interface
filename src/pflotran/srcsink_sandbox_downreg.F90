@@ -83,7 +83,7 @@ subroutine DownregRead(this,input,option)
   use String_module
   use Input_Aux_module
   use Units_module, only : UnitsConvertToInternal
-  use Condition_module 
+  use FlowCondition_module 
   use Dataset_module
   use Dataset_Ascii_class
   use Time_Storage_module
