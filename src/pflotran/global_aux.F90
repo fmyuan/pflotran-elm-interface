@@ -71,8 +71,6 @@ function GlobalAuxCreate()
   !
   ! 
 
-  use Option_module
-
   implicit none
   
   type(global_type), pointer :: GlobalAuxCreate
@@ -164,8 +162,6 @@ subroutine GlobalAuxVarCopy(auxvar,auxvar2)
   ! Author: Fengming Yuan @CCSI/ORNL
   ! Date: 11/07/2019
   !
-
-  use Option_module
 
   implicit none
   
