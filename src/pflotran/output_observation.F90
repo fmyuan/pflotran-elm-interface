@@ -1891,7 +1891,7 @@ subroutine ObservationAggComputeMetric(realization_base,aggregate,region,option)
 
   type(output_variable_type), pointer :: cur_variable
   PetscReal :: temp_real, temp_real_comp
-  PetscInt :: icell, local_id
+  PetscInt :: icell, local_id, ghosted_id
 
   cur_variable => aggregate%output_variable
   temp_real = UNINITIALIZED_DOUBLE
@@ -1908,8 +1908,9 @@ subroutine ObservationAggComputeMetric(realization_base,aggregate,region,option)
   else
     do icell= 1,region%num_cells
       local_id = region%cell_ids(icell)
+      ghosted_id = realization_base%patch%grid%nL2G(local_id)
       temp_real_comp = OutputGetVariableAtCell(realization_base, &
-                                               local_id,cur_variable)
+                                               ghosted_id,cur_variable)
       select case(aggregate%metric)
         case(OBSERVATION_AGGREGATE_MAX)
           if (temp_real_comp > temp_real .or. temp_real == &
