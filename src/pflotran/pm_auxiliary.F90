@@ -441,6 +441,8 @@ subroutine PMAuxiliaryDestroy(this)
   
   class(pm_auxiliary_type) :: this
   
+  call PMBaseDestroy(this)
+
   ! destroyed in realization
   nullify(this%realization)
   nullify(this%comm1)

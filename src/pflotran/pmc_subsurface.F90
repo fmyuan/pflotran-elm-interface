@@ -168,8 +168,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
   call SolverCreateSNES(solver,option%mycomm)
   call SNESGetLineSearch(solver%snes,linesearch, &
                          ierr);CHKERRQ(ierr)
-  ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetupSolvers(solver)
+
   select type(pm => this%pm_ptr%pm)
   ! ----- subsurface flow
     class is(pm_subsurface_flow_type)
@@ -275,7 +274,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       endif
 
       ! by default turn off line search
-!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
                                   ierr);CHKERRQ(ierr)
@@ -308,13 +306,11 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       if (pm%check_post_convergence) then
         select case(snes_type)
-#if 0
           case(SNESNEWTONTR)
             call SNESNewtonTRSetPostCheck(solver%snes, &
                                           PMCheckUpdatePostTRPtr, &
                                           this%pm_ptr, &
                                           ierr);CHKERRQ(ierr)
-#endif
           case default
             call SNESLineSearchSetPostCheck(linesearch, &
                                             PMCheckUpdatePostPtr, &
@@ -350,13 +346,11 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
 
       if (add_pre_check) then
         select case(snes_type)
-#if 0
           case(SNESNEWTONTR)
             call SNESNewtonTRSetPreCheck(solver%snes, &
                                          PMCheckUpdatePreTRPtr, &
                                          this%pm_ptr, &
                                          ierr);CHKERRQ(ierr)
-#endif
           case default
             call SNESLineSearchSetPreCheck(linesearch, &
                                            PMCheckUpdatePrePtr, &
@@ -458,7 +452,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       ! this could be changed in the future if there is a way to 
       ! ensure that the linesearch update does not perturb 
       ! concentrations negative.
-!geh: remove
       call SNESGetLineSearch(solver%snes, linesearch, &
                              ierr);CHKERRQ(ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
@@ -568,9 +561,6 @@ subroutine PMCSubsurfaceSetupSolvers_TS(this)
                         ierr);CHKERRQ(ierr)
 
   call TSSetType(solver%ts, TSBEULER, ierr); CHKERRQ(ierr)
-
-  ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetupSolvers(solver)
 
   select type(pm => this%pm_ptr%pm)
 

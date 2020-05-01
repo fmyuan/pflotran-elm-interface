@@ -63,7 +63,7 @@ program pflotran
   call PFLOTRANInitializePrePetsc(multisimulation,option)
   call OptionInitPetsc(option)
   if (option%myrank == option%io_rank .and. option%print_to_screen) then
-    call PrintProvenanceToScreen()
+    !call PrintProvenanceToScreen()
   endif
 
   do ! multi-simulation loop

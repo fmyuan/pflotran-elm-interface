@@ -11,6 +11,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 1
@@ -19,9 +28,6 @@ END
 #=========================== flow mode ========================================
 
 #=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

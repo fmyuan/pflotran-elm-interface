@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        MAX_CFL 50.d0
         SKIP_RESTART
       /
     /

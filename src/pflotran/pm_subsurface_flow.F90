@@ -162,120 +162,24 @@ subroutine PMSubsurfFlowReadSimOptionsSC(this,input,keyword,found, &
 
   found = PETSC_TRUE
   select case(trim(keyword))
-!geh: remove begin
-    case('MAX_PRESSURE_CHANGE','PRESSURE_CHANGE_GOVERNOR')
-      call InputReadDouble(input,option,this%pressure_change_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('MAX_TEMPERATURE_CHANGE','TEMPERATURE_CHANGE_GOVERNOR')
-      call InputReadDouble(input,option,this%temperature_change_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-  
-    case('MAX_CONCENTRATION_CHANGE','CONCENTRATION_CHANGE_GOVERNOR')
-      call InputReadDouble(input,option,this%xmol_change_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('MAX_SATURATION_CHANGE','SATURATION_CHANGE_GOVERNOR')
-      call InputReadDouble(input,option,this%saturation_change_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('MAX_CFL','CFL_GOVERNOR')
-      call InputReadDouble(input,option,this%cfl_governor)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('PRESSURE_DAMPENING_FACTOR')
-      call InputReadDouble(input,option,this%pressure_dampening_factor)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('SATURATION_CHANGE_LIMIT')
-      call InputReadDouble(input,option,this%saturation_change_limit)
-      call InputErrorMsg(input,option,keyword,error_string)
-                           
-    case('PRESSURE_CHANGE_LIMIT')
-      call InputReadDouble(input,option,this%pressure_change_limit)
-      call InputErrorMsg(input,option,keyword,error_string)
-                           
-    case('TEMPERATURE_CHANGE_LIMIT')
-      call InputReadDouble(input,option,this%temperature_change_limit)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('NUMERICAL_JACOBIAN')
-      option%flow%numerical_derivatives = PETSC_TRUE
-
-    case('ANALYTICAL_JACOBIAN')
-      option%flow%numerical_derivatives = PETSC_FALSE
-
-    case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
-        &Please use ANALYTICAL_JACOBIAN instead.'
-      call PrintErrMsg(option)
-
-    case('USE_INFINITY_NORM_CONVERGENCE')
-      this%check_post_convergence = PETSC_TRUE
-
-! begin specific to OpenGoSim PMs
-    case('ANALYTICAL_JACOBIAN_COMPARE')
-      option%flow%numerical_derivatives_compare = PETSC_TRUE
-
-    ! artifact from testing, currently does nothing; will be used again
-    ! in future testing/implementation phases.
-    case('NUMERICAL_AS_ALYT')
-      option%flow%num_as_alyt_derivs = PETSC_TRUE
-
-    case('DEBUG_TOL')
-      call InputReadDouble(input,option,flow_aux_debug_tol)
-      call InputErrorMsg(input,option,keyword,error_string)
-    case('DEBUG_RELTOL')
-      call InputReadDouble(input,option,flow_aux_debug_reltol)
-      call InputErrorMsg(input,option,keyword,error_string)
-
-    case('GEOMETRIC_PENALTY')
-      flow_aux_use_GP= PETSC_TRUE
-
-!geh: remove end
-  
-    case('MULTIPLE_CONTINUUM')
-      option%use_mc = PETSC_TRUE
-
-!geh: this is an orphan keyword
-#if 0
-    case('RESERVOIR_DEFAULTS')
-      option%io_buffer = 'RESERVOIR_DEFAULTS has been selected under &
-        &process model options'
-      call PrintMsg(option)
-
-      option%flow%numerical_derivatives = PETSC_FALSE
-      option%io_buffer = 'process model options: ANLYTICAL_JACOBIAN has &
-        &been automatically selected (RESERVOIR_DEFAULTS)'
-      call PrintMsg(option)
-
-      this%pressure_change_governor=5.5d6
-      call InputDefaultMsg(input,option,'dpmxe')
-      option%io_buffer = 'process model options: MAX_PRESSURE_CHANGE has &
-        &been set to 5.5D6 (RESERVOIR_DEFAULTS)'
-      call PrintMsg(option)
-#endif
-
-    case('FIX_UPWIND_DIRECTION')
-      fix_upwind_direction = PETSC_TRUE
-    case('UNFIX_UPWIND_DIRECTION')
-      fix_upwind_direction = PETSC_FALSE
     case('COUNT_UPWIND_DIRECTION_FLIP')
       count_upwind_direction_flip = PETSC_TRUE
-    case('UPWIND_DIR_UPDATE_FREQUENCY')
-      call InputReadInt(input,option,upwind_dir_update_freq)
-      call InputErrorMsg(input,option,keyword,error_string)
-      
+    case('FIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_TRUE
     case('LOGGING_VERBOSITY')
       call InputReadInt(input,option,this%logging_verbosity)
       call InputErrorMsg(input,option,keyword,error_string)
-
-    case('REVERT_PARAMETERS_ON_RESTART')
-      this%revert_parameters_on_restart = PETSC_TRUE
-
+    case('MULTIPLE_CONTINUUM')
+      option%use_mc = PETSC_TRUE
     case('REPLACE_INIT_PARAMS_ON_RESTART')
       this%replace_init_params_on_restart = PETSC_TRUE
-
+    case('REVERT_PARAMETERS_ON_RESTART')
+      this%revert_parameters_on_restart = PETSC_TRUE
+    case('UNFIX_UPWIND_DIRECTION')
+      fix_upwind_direction = PETSC_FALSE
+    case('UPWIND_DIR_UPDATE_FREQUENCY')
+      call InputReadInt(input,option,upwind_dir_update_freq)
+      call InputErrorMsg(input,option,keyword,error_string)
     case default
       found = PETSC_FALSE
   end select  
@@ -395,9 +299,8 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
       option%flow%numerical_derivatives = PETSC_FALSE
 
     case('ANALYTICAL_DERIVATIVES')
-      option%io_buffer = 'ANALYTICAL_DERIVATIVES has been deprecated.  &
-        &Please use ANALYTICAL_JACOBIAN instead.'
-      call PrintErrMsg(option)
+      call InputKeywordDeprecated('ANALYTICAL_DERIVATIVES', &
+                                  'ANALYTICAL_JACOBIAN',option)
 
     case('USE_INFINITY_NORM_CONVERGENCE')
       this%check_post_convergence = PETSC_TRUE
@@ -1374,10 +1277,10 @@ subroutine PMSubsurfaceFlowDestroy(this)
   
   class(pm_subsurface_flow_type) :: this
   
+  call PMBaseDestroy(this)
   ! destroyed in realization
+  nullify(this%realization)
   nullify(this%comm1)
-  nullify(this%option)
-  nullify(this%output_option)
   
 end subroutine PMSubsurfaceFlowDestroy
   

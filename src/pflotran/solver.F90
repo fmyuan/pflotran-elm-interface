@@ -78,7 +78,6 @@ module Solver_module
     PetscBool :: print_detailed_convergence
     PetscBool :: print_linear_iterations
     PetscBool :: check_infinity_norm
-    PetscBool :: print_ekg
 
     ! added for CPR option:
     type(cpr_pc_type), pointer :: cprstash
@@ -181,7 +180,6 @@ function SolverCreate()
   solver%print_detailed_convergence = PETSC_FALSE
   solver%print_linear_iterations = PETSC_FALSE
   solver%check_infinity_norm = PETSC_TRUE
-  solver%print_ekg = PETSC_FALSE
 
   nullify(solver%cprstash)
     
@@ -577,7 +575,7 @@ subroutine SolverReadLinear(solver,input,option)
       
     select case(trim(keyword))
     
-      case('SOLVER_TYPE','SOLVER','KRYLOV_TYPE','KRYLOV','KSP','KSP_TYPE')
+      case('SOLVER','KSP_TYPE')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'ksp_type','LINEAR SOLVER')   
         call StringToUpper(word)
@@ -608,7 +606,7 @@ subroutine SolverReadLinear(solver,input,option)
             call PrintErrMsg(option)
         end select
 
-      case('PRECONDITIONER_TYPE','PRECONDITIONER','PC','PC_TYPE')
+      case('PRECONDITIONER','PC_TYPE')
         call InputReadCard(input,option,word)
         call InputErrorMsg(input,option,'pc_type','LINEAR SOLVER')   
         call StringToUpper(word)
@@ -925,10 +923,14 @@ subroutine SolverReadLinear(solver,input,option)
         call InputErrorMsg(input,option,'linear_dtol','LINEAR_SOLVER')
    
       case('MAXIT')
+        call InputKeywordDeprecated('MAXIT', &
+                                    'MAXIMUM_NUMBER_OF_ITERATIONS',option)
+
+      case('MAXIMUM_NUMBER_OF_ITERATIONS')
         call InputReadInt(input,option,solver%linear_max_iterations)
         call InputErrorMsg(input,option,'linear_max_iterations','LINEAR_SOLVER')
 
-      case('ZERO_PIVOT_TOL','LU_ZERO_PIVOT_TOL')
+      case('LU_ZERO_PIVOT_TOL')
         call InputReadDouble(input,option,solver%linear_zero_pivot_tol)
         call InputErrorMsg(input,option,'linear_zero_pivot_tol', &
                            'LINEAR_SOLVER')
@@ -1070,7 +1072,11 @@ subroutine SolverReadNewtonSelectCase(solver,input,keyword,found, &
     case ('NO_INF_NORM','NO_INFINITY_NORM')
       solver%check_infinity_norm = PETSC_FALSE
 
-    case('MAXIT','MAXIMUM_NUMBER_OF_ITERATIONS')
+    case('MAXIT')
+        call InputKeywordDeprecated('MAXIT', &
+                                    'MAXIMUM_NUMBER_OF_ITERATIONS',option)
+
+    case('MAXIMUM_NUMBER_OF_ITERATIONS')
       call InputReadInt(input,option,solver%newton_max_iterations)
       call InputErrorMsg(input,option,'maximum newton iterations',error_string)
 

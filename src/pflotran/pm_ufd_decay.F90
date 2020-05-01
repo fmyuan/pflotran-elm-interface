@@ -1879,6 +1879,8 @@ subroutine PMUFDDecayDestroy(this)
   type(daughter_type), pointer :: cur_daughter, prev_daughter
 ! -----------------------------------------------------------
     
+  call PMBaseDestroy(this)
+
   call DeallocateArray(this%element_isotopes)
   call DeallocateArray(this%isotope_to_primary_species)
   call DeallocateArray(this%isotope_to_mineral)

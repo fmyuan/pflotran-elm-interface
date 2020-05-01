@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
       OPTIONS
-        NUMERICAL_JACOBIAN
       /
     /
   /
@@ -14,15 +13,25 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

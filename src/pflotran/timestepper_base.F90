@@ -62,7 +62,7 @@ module Timestepper_Base_class
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
 
-    type(solver_type), pointer :: solver
+    type(solver_type), pointer :: solver  ! solely a pointer
 
   contains
     
@@ -235,8 +235,6 @@ subroutine TimestepperBaseRead(this,input,option)
   enddo
   call InputPopBlock(input,option)
 
-  this%solver%print_ekg = this%print_ekg
-
 end subroutine TimestepperBaseRead
 
 ! ************************************************************************** !
@@ -354,11 +352,6 @@ subroutine TimestepperBaseReadSelectCase(this,input,keyword,found, &
         this%local_waypoint_list => WaypointListCreate()
       endif
       call WaypointInsertInList(waypoint,this%local_waypoint_list)
-    case('SATURATION_CHANGE_LIMIT', &
-         'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
-      option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
-        &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
-      call PrintErrMsg(option)
     case default
       found = PETSC_FALSE
   end select
@@ -1108,6 +1101,7 @@ subroutine TimestepperBaseStrip(this)
   class(timestepper_base_type) :: this
 
   call WaypointListDestroy(this%local_waypoint_list)
+  nullify(this%solver)
   
 end subroutine TimestepperBaseStrip
 

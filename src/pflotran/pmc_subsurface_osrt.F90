@@ -109,8 +109,6 @@ subroutine PMCSubsurfaceOSRTSetupSolvers(this)
   end select
 
   call SolverCreateKSP(solver,option%mycomm)
-  ! set solver pointer within pm for convergence purposes
-  call this%pm_ptr%pm%SetupSolvers(solver)
 
   call PrintMsg(option,"  Beginning setup of TRAN KSP")
   call KSPSetOptionsPrefix(solver%ksp, "tran_",ierr);CHKERRQ(ierr)

@@ -35,9 +35,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  TS_ACCELERATION 8
-END
 
 #=========================== discretization ===================================
 GRID

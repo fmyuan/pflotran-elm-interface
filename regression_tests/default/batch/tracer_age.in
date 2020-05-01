@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
       OPTIONS
-        ITOL_RELATIVE_UPDATE 1.d-12
       /
     /
   /
@@ -14,9 +13,22 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    ATOL 1.d-50
+    RTOL 1.d-50
+    STOL 1.d-50
+    #  ITOL_RELATIVE_UPDATE 1.d-12
+    ITOL_RELATIVE_UPDATE 1.d-12
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END
@@ -46,12 +58,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-NEWTON_SOLVER TRANSPORT
-  ATOL 1.d-50
-  RTOL 1.d-50
-  STOL 1.d-50
-#  ITOL_RELATIVE_UPDATE 1.d-12
-END
 
 #=========================== discretization ===================================
 GRID

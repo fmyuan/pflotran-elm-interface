@@ -3,13 +3,17 @@ REGRESSION
   CELLS_PER_PROCESS 4
 END
 
-#=========================== solver options ===================================
-NEWTON_SOLVER FLOW
-  ITOL_UPDATE 1.d0
-END
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
+  NEWTON_SOLVER FLOW
+    ITOL_UPDATE 1.d0
+  /
+
+  LINEAR_SOLVER FLOW
+    SOLVER DIRECT
+  /
+
 END
 
 #=========================== discretization ===================================

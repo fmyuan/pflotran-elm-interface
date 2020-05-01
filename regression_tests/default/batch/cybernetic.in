@@ -14,9 +14,22 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 12
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
-  CELLS
+  CELL_IDS
     1
   /
 END
@@ -87,13 +100,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-NEWTON_SOLVER TRANSPORT
-  MAXIT 12
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

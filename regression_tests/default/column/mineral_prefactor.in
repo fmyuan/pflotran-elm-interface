@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_TRANSPORT transport
       MODE GIRT
       OPTIONS
-        ITOL_RELATIVE_UPDATE 1.d-8
       /
     /
   /
@@ -14,10 +13,29 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 16
+  /
+
+  NEWTON_SOLVER
+    ATOL 1.d-8
+    RTOL 1.d-8
+    STOL 1.d-30
+    DTOL 1.d15
+    ITOL 1.d-8
+    MAXIMUM_NUMBER_OF_ITERATIONS 25
+    ITOL_RELATIVE_UPDATE 1.d-8
+  /
+
+END
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 4
-  CELLS
+  CELL_IDS
     10
   /
 END
@@ -160,19 +178,8 @@ END
 
 
 #=========================== solver options ===================================
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 16
-END
 
 # == transport solvers ========================================================
-NEWTON_SOLVER TRANSPORT
-  ATOL 1.d-8
-  RTOL 1.d-8
-  STOL 1.d-30
-  DTOL 1.d15
-  ITOL 1.d-8
-  MAXIT 25
-END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY

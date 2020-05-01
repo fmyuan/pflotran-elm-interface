@@ -23,6 +23,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    MAXIMUM_NUMBER_OF_TIMESTEPS 0
+  /
+
+END
+
 #=========================== flow mode ========================================
 
 #=========================== regression =======================================
@@ -41,9 +50,6 @@ GRID
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  MAXIMUM_NUMBER_OF_TIMESTEPS 0
-END
 
 #=========================== datasets =========================================
 #=========================== fluid properties =================================

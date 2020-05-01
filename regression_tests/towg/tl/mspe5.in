@@ -15,6 +15,22 @@ END  !! end simulation block
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    TS_ACCELERATION 100
+  /
+
+  NEWTON_SOLVER
+    STOL 1.0D-10
+    RTOL 1.0D-7
+    ITOL 1.0D-7
+    MAXIMUM_NUMBER_OF_ITERATIONS 20
+  /
+
+END
+
 #=========================== discretization ===================================
 
 GRID
@@ -28,19 +44,8 @@ END
 
 #=========================== solver options ===================================
 
-TIMESTEPPER FLOW
-  TS_ACCELERATION 100
-/
 
-NEWTON_SOLVER FLOW
-  STOL 1.0D-10
-  RTOL 1.0D-7
-  ITOL 1.0D-7
-  MAXIT 20
-END
 
-LINEAR_SOLVER FLOW
-END
 
 #=========================== times ============================================
 TIME
@@ -318,7 +323,7 @@ REGION all
 
 REGRESSION
 
-  CELLS
+  CELL_IDS
 
     1
 

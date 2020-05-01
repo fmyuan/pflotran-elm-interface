@@ -321,6 +321,10 @@ subroutine AddPMCSubsurfaceFlow(simulation,pm_flow,pmc_name,realization,option)
       pmc_subsurface%timestepper => TimestepperBECreate()
   end select
   pmc_subsurface%timestepper%name = 'FLOW'
+
+  ! add solver
+  call pmc_subsurface%pm_list%InitializeSolver()
+  pmc_subsurface%timestepper%solver => pmc_subsurface%pm_list%solver
   pmc_subsurface%timestepper%solver%itype = FLOW_CLASS
 
   ! set up logging stage
@@ -399,6 +403,10 @@ subroutine AddPMCSubsurfaceTransport(simulation,pm_base,pmc_name, &
       pmc_subsurface%timestepper => TimestepperBECreate()
   end select
   pmc_subsurface%timestepper%name = 'TRAN'
+
+  ! add solver
+  call pmc_subsurface%pm_list%InitializeSolver()
+  pmc_subsurface%timestepper%solver => pmc_subsurface%pm_list%solver
   pmc_subsurface%timestepper%solver%itype = TRANSPORT_CLASS
 
   ! set up logging stage
@@ -2245,8 +2253,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   PetscReal :: units_conversion
 
   class(timestepper_base_type), pointer :: temp_timestepper
-  class(timestepper_base_type), pointer :: flow_timestepper
-  class(timestepper_base_type), pointer :: tran_timestepper
 
   PetscInt::iwaytime,nwaytime,mwaytime
   PetscReal,dimension(:),pointer :: waytime
@@ -2257,8 +2263,6 @@ subroutine SubsurfaceReadInput(simulation,input)
   internal_units = 'not_assigned'
   nullify(default_time_storage)
   nullify(waypoint_list_time_card)
-  nullify(flow_timestepper)
-  nullify(tran_timestepper)
 
   realization => simulation%realization
   output_option => simulation%output_option
@@ -2271,18 +2275,12 @@ subroutine SubsurfaceReadInput(simulation,input)
   field => realization%field
   reaction => realization%reaction
 
-!geh: remove begin
-  if (associated(simulation%flow_process_model_coupler)) then
-    flow_timestepper => simulation%flow_process_model_coupler%timestepper
-  endif
   master_pmc => simulation%flow_process_model_coupler
   if (associated(simulation%tran_process_model_coupler)) then
     if (.not.associated(master_pmc)) then
       master_pmc => simulation%tran_process_model_coupler
     endif
-    tran_timestepper => simulation%tran_process_model_coupler%timestepper
   endif
-!geh: remove end
 
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
                           ! is a double quote as in c/c++
@@ -2406,18 +2404,6 @@ subroutine SubsurfaceReadInput(simulation,input)
           end select
         enddo
         call InputPopBlock(input,option)
-      case ('NONUNIFORM_VELOCITY')
-        option%io_buffer = 'The NONUNIFORM_VELOCITY card within SUBSURFACE &
-          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call PrintErrMsg(option)
-      case ('UNIFORM_VELOCITY')
-        option%io_buffer = 'The UNIFORM_VELOCITY card within SUBSURFACE &
-          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call PrintErrMsg(option)
-      case ('VELOCITY_DATASET')
-        option%io_buffer = 'The VELOCITY_DATASET card within SUBSURFACE &
-          &block has been deprecated. Use the SPECIFIED_VELOCITY block.'
-        call PrintErrMsg(option)
 
 !....................
       case ('DEBUG')
@@ -2776,37 +2762,6 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !......................
 
-      case ('RESTART')
-        option%io_buffer = 'The RESTART card within SUBSURFACE block has &
-                           &been deprecated.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('CHECKPOINT')
-        option%io_buffer = 'The CHECKPOINT card within SUBSURFACE block must &
-                           &be moved to the SIMULATION block.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('NUMERICAL_JACOBIAN_FLOW')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_FLOW card within &
-          &SUBSURFACE block must be listed under the SIMULATION/&
-          &PROCESS_MODELS/SUBSURFACE_FLOW/OPTIONS block as NUMERICAL_JACOBIAN.'
-        call PrintErrMsg(option)
-
-!......................
-
-      case ('NUMERICAL_JACOBIAN_RXN')
-        option%io_buffer = 'The NUMERICAL_JACOBIAN_RXN card within &
-          &SUBSURFACE block must be listed under the SIMULATION/&
-          &PROCESS_MODELS/SUBSURFACE_TRANSPORT block as &
-          &NUMERICAL_JACOBIAN.'
-        call PrintErrMsg(option)
-
-!......................
-
       case ('NUMERICAL_JACOBIAN_MULTI_COUPLE')
         option%numerical_derivatives_multi_coupling = PETSC_TRUE
 
@@ -2851,76 +2806,6 @@ subroutine SubsurfaceReadInput(simulation,input)
             call PrintErrMsg(option)
         end select
 
-!....................
-
-!geh: remove begin
-      case ('TIMESTEPPER')
-        call InputReadCard(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case(word)
-          case('FLOW')
-            if (.not. associated(flow_timestepper)) then
-              call InputSkipToEND(input,option,word)
-              cycle
-            endif
-            call flow_timestepper%ReadInput(input,option)
-          case('TRAN','TRANSPORT')
-            if (.not. associated(tran_timestepper)) then
-              call InputSkipToEND(input,option,word)
-              cycle
-            endif
-            call tran_timestepper%ReadInput(input,option)
-          case default
-            option%io_buffer = 'TIMESTEPPER must specify FLOW or TRANSPORT.'
-            call PrintErrMsg(option)
-        end select
-
-!....................
-
-      case ('LINEAR_SOLVER')
-        call InputReadCard(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case(word)
-          case('FLOW')
-            if (.not. associated(flow_timestepper)) then
-              call InputSkipToEND(input,option,word)
-              cycle
-            endif
-            call SolverReadLinear(flow_timestepper%solver,input,option)
-          case('TRAN','TRANSPORT')
-            if (.not. associated(tran_timestepper)) then
-              call InputSkipToEND(input,option,word)
-              cycle
-            endif
-            call SolverReadLinear(tran_timestepper%solver,input,option)
-          case default
-            option%io_buffer = 'LINEAR_SOLVER must specify FLOW or TRANSPORT.'
-            call PrintErrMsg(option)
-        end select
-
-!....................
-
-      case ('NEWTON_SOLVER')
-        call InputReadCard(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case(word)
-          case('FLOW')
-            if (.not. associated(flow_timestepper)) then
-              call InputSkipToEND(input,option,word)
-              cycle
-            endif
-            call SolverReadNewton(flow_timestepper%solver,input,option)
-          case('TRAN','TRANSPORT')
-            if (.not. associated(tran_timestepper)) then
-              call InputSkipToEND(input,option,word)
-              cycle
-            endif
-            call SolverReadNewton(tran_timestepper%solver,input,option)
-          case default
-            option%io_buffer = 'NEWTON_SOLVER must specify FLOW or TRANSPORT.'
-            call PrintErrMsg(option)
-        end select
-!geh: remove begin
 !....................
 
       case ('FLUID_PROPERTY')
@@ -3717,7 +3602,7 @@ subroutine SubsurfaceReadInput(simulation,input)
           end select
         enddo
         call InputPopBlock(input,option)
-!geh: remove begin
+
         ! we store dt_init and dt_min in local variables so that they 
         ! cannot overwrite what has previously been set in the respective
         ! timestepper object member variable
@@ -3728,14 +3613,22 @@ subroutine SubsurfaceReadInput(simulation,input)
               trim(master_pmc%timestepper%name) // ' card, but not both.'
             call PrintErrMsg(option)
           endif
-          if (associated(flow_timestepper)) then
-            if (Uninitialized(flow_timestepper%dt_init)) then
-              flow_timestepper%dt_init = dt_init
+          if (associated(simulation%flow_process_model_coupler)) then
+            temp_timestepper => &
+              simulation%flow_process_model_coupler%timestepper
+            if (associated(temp_timestepper)) then
+              if (Uninitialized(temp_timestepper%dt_init)) then
+                temp_timestepper%dt_init = dt_init
+              endif
             endif
           endif
-          if (associated(tran_timestepper)) then
-            if (Uninitialized(tran_timestepper%dt_init)) then
-              tran_timestepper%dt_init = dt_init
+          if (associated(simulation%tran_process_model_coupler)) then
+            temp_timestepper => &
+              simulation%tran_process_model_coupler%timestepper
+            if (associated(temp_timestepper)) then
+              if (Uninitialized(temp_timestepper%dt_init)) then
+                temp_timestepper%dt_init = dt_init
+              endif
             endif
           endif
         endif
@@ -3746,18 +3639,25 @@ subroutine SubsurfaceReadInput(simulation,input)
               trim(master_pmc%timestepper%name) // ' card, but not both.'
             call PrintErrMsg(option)
           endif
-          if (associated(flow_timestepper)) then
-            if (Uninitialized(flow_timestepper%dt_min)) then
-              flow_timestepper%dt_min = dt_min
+          if (associated(simulation%flow_process_model_coupler)) then
+            temp_timestepper => &
+              simulation%flow_process_model_coupler%timestepper
+            if (associated(temp_timestepper)) then
+              if (Uninitialized(temp_timestepper%dt_min)) then
+                temp_timestepper%dt_min = dt_min
+              endif
             endif
           endif
-          if (associated(tran_timestepper)) then
-            if (Uninitialized(tran_timestepper%dt_min)) then
-              tran_timestepper%dt_min = dt_min
+          if (associated(simulation%tran_process_model_coupler)) then
+            temp_timestepper => &
+              simulation%tran_process_model_coupler%timestepper
+            if (associated(temp_timestepper)) then
+              if (Uninitialized(temp_timestepper%dt_min)) then
+                temp_timestepper%dt_min = dt_min
+              endif
             endif
           endif
         endif
-!geh: remove end
 
 !......................
       case ('HDF5_READ_GROUP_SIZE')
@@ -3878,30 +3778,28 @@ subroutine SubsurfaceReadInput(simulation,input)
       !     fts and/or flow_timestepper is not a pointer when passed within
       !     the select type statment.  This is too convoluted; it needs to
       !     be refactored!
-      select type(fts=>flow_timestepper)
+      select type(fts=>simulation%flow_process_model_coupler%timestepper)
         class is(timestepper_BE_type)
           temp_timestepper => TimestepperSteadyCreateFromBE(fts)
         class is(timestepper_base_type)
           temp_timestepper =>  TimestepperSteadyCreateFromBase(fts)
       end select
-      call flow_timestepper%Destroy()
-      deallocate(flow_timestepper)
-      nullify(flow_timestepper)
+      call simulation%flow_process_model_coupler%timestepper%Destroy()
+      deallocate(simulation%flow_process_model_coupler%timestepper)
       simulation%flow_process_model_coupler%timestepper => temp_timestepper
       nullify(temp_timestepper)
     endif
   endif
   if (associated(simulation%tran_process_model_coupler)) then
     if (option%steady_state) then
-      select type(tts=>tran_timestepper)
+      select type(tts=>simulation%tran_process_model_coupler%timestepper)
         class is(timestepper_BE_type)
           temp_timestepper => TimestepperSteadyCreateFromBE(tts)
         class is(timestepper_base_type)
           temp_timestepper =>  TimestepperSteadyCreateFromBase(tts)
       end select
-      call tran_timestepper%Destroy()
-      deallocate(tran_timestepper)
-      nullify(tran_timestepper)
+      call simulation%tran_process_model_coupler%timestepper%Destroy()
+      deallocate(simulation%tran_process_model_coupler%timestepper)
       simulation%tran_process_model_coupler%timestepper => temp_timestepper
       nullify(temp_timestepper)
     endif

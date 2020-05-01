@@ -6,7 +6,6 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE GENERAL
       OPTIONS
-        MAXIMUM_PRESSURE_CHANGE 1.d8
       /
     /
     SUBSURFACE_TRANSPORT transport
@@ -17,6 +16,35 @@ SIMULATION
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    PRINT_EKG
+  /
+
+  NEWTON_SOLVER
+    MAXIMUM_PRESSURE_CHANGE 1.d8
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    PRINT_EKG
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
 
 #=========================== regression =======================================
 REGRESSION
@@ -63,21 +91,9 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-  PRINT_EKG
-END
 
-TIMESTEPPER TRANSPORT
-  PRINT_EKG
-END
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID

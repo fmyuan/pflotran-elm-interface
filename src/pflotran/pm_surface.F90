@@ -379,6 +379,7 @@ subroutine PMSurfaceDestroy(this)
 
   class(pm_surface_type) :: this
 
+  call PMBaseDestroy(this)
   call this%comm1%Destroy()
 
 end subroutine PMSurfaceDestroy

@@ -90,8 +90,6 @@ function TimestepperBECreate()
   allocate(stepper)
   call stepper%Init()
   
-  stepper%solver => SolverCreate()
-  
   TimestepperBECreate => stepper
   
 end function TimestepperBECreate
@@ -130,8 +128,6 @@ subroutine TimestepperBEInit(this)
   this%tfac(9)  = 1.2d0; this%tfac(10) = 1.0d0
   this%tfac(11) = 1.0d0; this%tfac(12) = 1.0d0
   this%tfac(13) = 1.0d0
-  
-  nullify(this%solver)
   
 end subroutine TimestepperBEInit
 
@@ -184,8 +180,6 @@ subroutine TimestepperBEReadSelectCase(this,input,keyword,found, &
       found = PETSC_FALSE
   end select 
   
-  this%solver%print_ekg = this%print_ekg
-
 end subroutine TimestepperBEReadSelectCase
 
 ! ************************************************************************** !
@@ -287,7 +281,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   Vec :: residual_vec
   PetscErrorCode :: ierr
 
-  solver => this%solver
+  solver => process_model%solver
   option => process_model%option
   
 !geh: for debugging
@@ -1099,7 +1093,6 @@ subroutine TimestepperBEStrip(this)
   class(timestepper_BE_type) :: this
   
   call TimestepperBaseStrip(this)
-  call SolverDestroy(this%solver)
 
   if (associated(this%tfac)) deallocate(this%tfac)
   nullify(this%tfac)

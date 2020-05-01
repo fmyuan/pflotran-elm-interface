@@ -22,7 +22,7 @@ module PM_Base_class
     Vec :: residual_vec
     PetscBool :: print_ekg
     PetscBool :: skip_restart
-    !TODO(geh): remove solver and place required convergence settings elsewhere
+    ! solver now has to originate in the pm to support pm-dependent defaults
     type(solver_type), pointer :: solver
     class(realization_base_type), pointer :: realization_base
     class(pm_base_type), pointer :: next
@@ -34,7 +34,7 @@ module PM_Base_class
     procedure, public :: ReadPMBlock => PMBaseReadPMBlock
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: InputRecord => PMBaseInputRecord
-    procedure, public :: SetupSolvers => PMBaseSetupSolvers
+    procedure, public :: InitializeSolver => PMBaseInitializeSolver
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -53,7 +53,7 @@ module PM_Base_class
     procedure, public :: UpdateAuxVars => PMBaseThisOnly
     procedure, public :: MaxChange => PMBaseThisOnly
     procedure, public :: ComputeMassBalance => PMBaseComputeMassBalance
-    procedure, public :: Destroy => PMBaseThisOnly
+    procedure, public :: Destroy => PMBaseDestroy
     procedure, public :: RHSFunction => PMBaseRHSFunction
     procedure, public :: IFunction => PMBaseIFunction
     procedure, public :: IJacobian => PMBaseIJacobian
@@ -70,12 +70,13 @@ module PM_Base_class
     
   public :: PMBaseInit, &
             PMBaseInputRecord, &
-            PMBaseSetupSolvers, &
+            PMBaseInitializeSolver, &
             PMBaseReadSimOptionsSelectCase, &
             PMBasePrintHeader, &
             PMBaseResidual, &
             PMBaseJacobian, &
-            PMBaseRHSFunction
+            PMBaseRHSFunction, &
+            PMBaseDestroy
   
 contains
 
@@ -353,7 +354,7 @@ end subroutine PMBaseComputeMassBalance
 
 ! ************************************************************************** !
 
-subroutine PMBaseSetupSolvers(this,solver)
+subroutine PMBaseInitializeSolver(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 11/15/17
@@ -363,11 +364,10 @@ subroutine PMBaseSetupSolvers(this,solver)
   implicit none
 
   class(pm_base_type) :: this
-  type(solver_type), pointer :: solver
 
-  this%solver => solver
+  this%solver => SolverCreate()
 
-end subroutine PMBaseSetupSolvers
+end subroutine PMBaseInitializeSolver
 
 ! ************************************************************************** !
 
@@ -475,5 +475,20 @@ subroutine PMBasePrintErrMsg(this,subroutine_name)
          ' must extend for: ' //  trim(this%name)
   call PrintErrMsg(this%option)
 end subroutine PMBasePrintErrMsg
+
+! ************************************************************************** !
+
+subroutine PMBaseDestroy(this)
+
+  implicit none
+  class(pm_base_type) :: this
+
+  nullify(this%option)
+  nullify(this%output_option)
+  nullify(this%realization_base)
+  nullify(this%next)
+  call SolverDestroy(this%solver)
+
+end subroutine PMBaseDestroy
 
 end module PM_Base_class

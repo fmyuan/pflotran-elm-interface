@@ -12,11 +12,20 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
-  CELLS
+  CELL_IDS
     20
     80
     140
@@ -40,9 +49,6 @@ END
 
 #===================== Solver options =========================================
 
-LINEAR_SOLVER FLOW
-  SOLVER DIRECT
-END
 
 #========================= fluid properties ===================================
 FLUID_PROPERTY

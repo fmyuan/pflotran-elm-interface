@@ -11,6 +11,15 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
 #Using solely aqueous decay, compare with:
 #
 #http://hydrolab.illinois.edu/gw_applets//sequential/SequentialDecayApplet.html
@@ -38,7 +47,7 @@ SUBSURFACE
 #=========================== regression =======================================
 REGRESSION
 #  CELLS_PER_PROCESS 5
-  CELLS
+  CELL_IDS
     1
     20
     25
@@ -122,9 +131,6 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
 #=========================== discretization ===================================
 GRID
