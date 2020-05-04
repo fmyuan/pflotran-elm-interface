@@ -302,7 +302,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CHARACTERISTIC_CURVES')
-        call InputReadCard(input,option,material_property%)
+        call InputReadWord(input,option, &
+             material_property%thermal_conductivity_function_name)
       case('ROCK_DENSITY') 
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')

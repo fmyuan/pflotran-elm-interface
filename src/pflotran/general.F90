@@ -89,11 +89,11 @@ subroutine GeneralSetup(realization)
     call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
-  if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
-    option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-    call PrintMsg(option)
-    error_found = PETSC_TRUE
-  endif
+  !if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
+  !  option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
+  !  call PrintMsg(option)
+  !  error_found = PETSC_TRUE
+  !endif ! KLK <- replaced by thermal characteristic curves
   
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
@@ -1319,11 +1319,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
-                       material_parameter%soil_thermal_conductivity(:,imat_up), &
+                       patch%characteristic_curves_array( &  ! KLK this is a guess
+                       patch%thermal_conductivity_function_id(ghosted_id_up))%ptr, &
                        gen_auxvars(ZERO_INTEGER,ghosted_id_dn), &
                        global_auxvars(ghosted_id_dn), &
                        material_auxvars(ghosted_id_dn), &
-                       material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                       patch%characteristic_curves_array( & ! KLK guess
+                       patch%thermal_conductivity_function_id(ghosted_id_dn))%ptr, &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
                        patch%flow_upwind_direction(:,iconn), &
@@ -1388,7 +1390,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      gen_auxvars(ZERO_INTEGER,ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     patch%characteristic_curves_array( & ! KLK this is a guess
+                     patch%thermal_conductivity_function_id(ghosted_id))%ptr, &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction_bc(:,iconn), &
@@ -1723,11 +1726,13 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
-                     material_parameter%soil_thermal_conductivity(:,imat_up), &
+                     patch%characteristic_curves_array( &  ! KLK this is a guess
+                     patch%thermal_conductivity_function_id(ghosted_id_up))%ptr, &
                      gen_auxvars(:,ghosted_id_dn), &
                      global_auxvars(ghosted_id_dn), &
                      material_auxvars(ghosted_id_dn), &
-                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     patch%characteristic_curves_array( & ! KLK this is a guess
+                     patch%thermal_conductivity_function_id(ghosted_id_up))%ptr, &
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      patch%flow_upwind_direction(:,iconn), &
@@ -1794,7 +1799,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       gen_auxvars(:,ghosted_id), &
                       global_auxvars(ghosted_id), &
                       material_auxvars(ghosted_id), &
-                      material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                      patch%characteristic_curves_array( & ! KLK this is a guess
+                      patch%thermal_conductivity_function_id(ghosted_id))%ptr, &
                       cur_connection_set%area(iconn), &
                       cur_connection_set%dist(:,iconn), &
                       patch%flow_upwind_direction_bc(:,iconn), &

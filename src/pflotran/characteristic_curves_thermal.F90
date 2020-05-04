@@ -21,21 +21,21 @@ module Characteristic_Curves_Thermal_module
     procedure, public :: Init => TCFBaseInit
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
-    procedure, public :: Conductivity => TCFBaseConductivity
+    procedure, public :: kT_eff => TCFBaseConductivity
   end type thermal_conductivity_base_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_default_type
     PetscReal :: kT_wet, kT_dry
   contains
     procedure, public :: Verify => TCFDefaultVerify
-    procedure, public :: Conductivity => TCFDefaultConductivity
+    procedure, public :: kT_eff => TCFDefaultConductivity
   end type kT_default_type
   !---------------------------------------------------------------------------
   type, public, extends(thermal_conductivity_base_type) :: kT_constant_type
     PetscReal :: constant_thermal_conductivity
   contains
     procedure, public :: Verify => TCFConstantVerify
-    procedure, public :: Conductivity => TCFConstantConductivity
+    procedure, public :: kT_eff => TCFConstantConductivity
   end type kT_constant_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_power_type
@@ -44,7 +44,7 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Init => TCFPowerInit
     procedure, public :: Verify => TCFPowerVerify
-    procedure, public :: Conductivity => TCFPowerConductivity
+    procedure, public :: kT_eff => TCFPowerConductivity
   end type kT_power_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_cubic_polynomial_type
@@ -53,7 +53,7 @@ module Characteristic_Curves_Thermal_module
   contains
     procedure, public :: Init => TCFCubicPolyInit
     procedure, public :: Verify => TCFCubicPolyVerify
-    procedure, public :: Conductivity => TCFCubicPolyConductivity
+    procedure, public :: kT_eff => TCFCubicPolyConductivity
   end type kT_cubic_polynomial_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
@@ -96,7 +96,7 @@ end subroutine TCFBaseVerify
 ! ************************************************************************** !
 
 subroutine TCFBaseThermalConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dk_dsatl,dk_dtemp,option)
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -105,7 +105,7 @@ subroutine TCFBaseThermalConductivity(this,liquid_saturation,temperature, &
   class(thermal_conductivity_func_base_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dk_dsatl, dk_dtemp
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
   option%io_buffer = 'TCFBaseThermalConductivity must be extended.'
@@ -254,7 +254,7 @@ end subroutine TCFDefaultVerify
 ! ************************************************************************** !
 
 subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dk_dsatl,dk_dtemp,option)
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -263,7 +263,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   class(kT_default_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dk_dsatl, dk_dtemp
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
   PetscReal :: tempreal
@@ -271,15 +271,15 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   ! based on Somerton et al., 1974:
   ! k_eff = k_dry + sqrt(s_l)*(k_wet-k_dry)
 
-  dk_dtemp = 0.d0 ! only a function of saturation
+  dkT_dtemp = 0.d0 ! only a function of saturation
 
   if (liquid_saturation > 0.d0) then
     tempreal = sqrt(liquid_saturation) * (this%kT_wet - this%kT_dry)
     thermal_conductivity = this%kT_dry + tempreal
-    dk_dsatl = 0.5d0 * tempreal / liquid_saturation
+    dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
   else
     thermal_conductivity = this%kT_dry
-    dk_dsatl = 0.d0
+    dkT_dsatl = 0.d0
   end if
 
 end subroutine TCFDefaultConductivity
@@ -339,12 +339,12 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   class(kT_constant_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dk_dsatl, dk_dtemp
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
   thermal_conductivity = this%constant_thermal_conductivity
-  dk_dsatl = 0.d0
-  dk_dtemp = 0.d0
+  dkT_dsatl = 0.d0
+  dkT_dtemp = 0.d0
 
 end subroutine TCFDefaultConductivity
 
@@ -407,7 +407,7 @@ end subroutine TCFPowerVerify
 ! ************************************************************************** !
 
 subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dk_dsatl,dk_dtemp,option)
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -416,7 +416,7 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
   class(kT_power_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dk_dsatl, dk_dtemp
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
   class(kT_default_type) :: that
@@ -424,13 +424,13 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
 
   ! behavior WRT saturation from default function
   call TCFDefaultConductivity(this%kT_default_type, &
-       liquid_saturation,0.d0,kT_base,dk_dsatl,dk_dtemp,option)
+       liquid_saturation,0.d0,kT_base,dkT_dsatl,dkT_dtemp,option)
 
   shifted_temp = temperature - this%ref_temp
 
   tempreal = kT_base * shifted_temp ** this%gamma
   thermal_conductivity = tempreal
-  dk_temp = this%gamma * tempreal / shifted_temp
+  dkT_temp = this%gamma * tempreal / shifted_temp
 
 end subroutine TCFPowerConductivity
 
@@ -494,7 +494,7 @@ end subroutine TCFCubicPolyVerify
 ! ************************************************************************** !
 
 subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dk_dsatl,dk_dtemp,option)
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -510,7 +510,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
 
   ! behavior WRT saturation from default function
   call TCFDefaultConductivity(this%kT_default_type, &
-       liquid_saturation,0.d0,kT_base,dk_dsatl,dk_dtemp,option)
+       liquid_saturation,0.d0,kT_base,dkT_dsatl,dkT_dtemp,option)
 
   shifted_temp = temperature - this%ref_temp
 
@@ -520,7 +520,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
        + shifted_temp*(this%beta(2) &
        + shifted_temp* this%beta(3))))
 
-  dk_temp = kT_base * (this%beta(1) &
+  dkT_temp = kT_base * (this%beta(1) &
        + shifted_temp*(2.d0*this%beta(2) &
        + shifted_temp* 3.d0*this%beta(3)))
 
