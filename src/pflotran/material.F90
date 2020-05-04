@@ -36,6 +36,7 @@ module Material_module
     PetscReal :: tortuosity
     PetscBool :: tortuosity_function_of_porosity
     PetscInt :: saturation_function_id
+    PetscInt :: thermal_conductivity_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
     PetscReal :: rock_density ! kg/m^3
     PetscReal :: specific_heat ! J/kg-K
@@ -300,6 +301,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            material_property%saturation_function_name)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
+      case('THERMAL_CHARACTERISTIC_CURVES')
+        call InputReadCard(input,option,material_property%)
       case('ROCK_DENSITY') 
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')

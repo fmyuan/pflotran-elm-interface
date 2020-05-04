@@ -2122,6 +2122,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Creep_Closure_module
   use Dataset_Base_class
   use Dataset_Ascii_class
@@ -2230,6 +2231,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   type(fluid_property_type), pointer :: fluid_property
   type(saturation_function_type), pointer :: saturation_function
   class(characteristic_curves_type), pointer :: characteristic_curves
+  class(cc_thermal_type), pointer :: characteristic_curves_thermal
   class(creep_closure_type), pointer :: creep_closure
 
   class(realization_subsurface_type), pointer :: realization
@@ -2881,6 +2883,29 @@ subroutine SubsurfaceReadInput(simulation,input)
         nullify(characteristic_curves)
 
 !....................
+
+      case ('THERMAL_CHARACTERISTIC_CURVES')
+        if (.not.option%iflowmode == G_MODE) then
+          option%io_buffer = "THERMAL_CHARACTERSTIC_CURVES &
+               &only valid for GENERAL mode."
+          call PrintErrMsg(option)
+        end if
+        characteristic_curves_thermal => CharacteristicCurvesThermalCreate()
+        call InputReadWord(input,option, &
+             characteristic_curves_thermal%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'name','THERMAL_CHARACTERISTIC_CURVES')
+        option%io_buffer = '  Name :: ' // &
+             trim(characteristic_curves_thermal%name)
+        call PrintMsg(option)
+        call CharacteristicCurvesThermalRead( &
+             characteristic_curves_thermal,input,option)
+        call CharacteristicCurvesThermalAddToList( &
+             characteristic_curves_thermal, &
+             realization%charactersitic_curves_thermal)
+        nullify(characteristic_curves_thermal)
+
+!....................
+
       case('CREEP_CLOSURE_TABLE')
         wipp => WIPPGetPtr()
         option%flow%transient_porosity = PETSC_TRUE
