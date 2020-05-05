@@ -119,6 +119,10 @@ subroutine TCFBaseConductivity(this,liquid_saturation,temperature, &
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
+  thermal_conductivity = 0.d0
+  dkT_dsatl = 0.d0
+  dkT_dtemp = 0.d0
+  
   option%io_buffer = 'TCFBaseThermalConductivity must be extended.'
   call PrintErrMsg(option)
 
@@ -142,7 +146,7 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscInt, parameter :: ns = 11
   PetscReal, parameter :: dTemp = 1.0D-6
   PetscReal, parameter :: dSat = 1.0D-6
-  PetscReal :: temp, deltaTemp, sat, deltaSat
+  PetscReal :: deltaTemp, deltaSat
   PetscReal :: temp_vec(nt)
   PetscReal :: sat_vec(ns)
   PetscReal :: kT(nt,ns)
@@ -150,7 +154,7 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscReal :: dkT_dsat_numerical(nt,ns)
   PetscReal :: dkT_dT(nt,ns)
   PetscReal :: dkT_dT_numerical(nt,ns)
-  PetscReal :: temp_pert, sat_pert, unused
+  PetscReal :: temp_pert, sat_pert, unused1, unused2
   PetscReal :: temp_min, temp_max, sat_min, sat_max
   PetscInt :: i,j
 
@@ -173,12 +177,12 @@ subroutine TCFBaseTest(this,tcc_name,option)
 
       ! calculate numerical derivative dkT_dsatl_numerical
       call this%kT_eff(sat_vec(j),temp_vec(i)+dTemp, &
-           temp_pert,unused,unused,option)
+           temp_pert,unused1,unused2,option)
 
       dkT_dT_numerical(i,j) = (kT(i,j) - temp_pert)/(temp_vec(i)*dTemp)
 
       call this%kT_eff(sat_vec(j)+dSat,temp_vec(i), &
-           sat_pert,unused,unused,option)
+           sat_pert,unused1,unused2,option)
 
       dkT_dsat_numerical(i,j) = (kT(i,j) - sat_pert)/(sat_vec(j)*dSat)
     end do
@@ -657,7 +661,6 @@ subroutine ThermalConductivityFunctionRead( &
 
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: error_string
-  PetscBool :: found
 
   input%ierr = 0
   error_string = 'THERMAL_CHARACTERISTIC_CURVES,&
