@@ -36,8 +36,9 @@ module Material_module
     PetscReal :: tortuosity
     PetscBool :: tortuosity_function_of_porosity
     PetscInt :: saturation_function_id
-    PetscInt :: thermal_conductivity_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
+    PetscInt :: thermal_conductivity_function_id
+    character(len=MAXWORDLENGTH) :: thermal_conductivity_function_name
     PetscReal :: rock_density ! kg/m^3
     PetscReal :: specific_heat ! J/kg-K
     PetscReal :: thermal_conductivity_dry
@@ -303,7 +304,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            'MATERIAL_PROPERTY')
       case('THERMAL_CHARACTERISTIC_CURVES')
         call InputReadWord(input,option, &
-             material_property%thermal_conductivity_function_name)
+             material_property%thermal_conductivity_function_name,PETSC_TRUE)
       case('ROCK_DENSITY') 
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
@@ -850,6 +851,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
     call PrintErrMsg(option)
   endif
 
+  ! KLK check if using THERMAL_CONDUCTIVITY_WET/DRY in general mode
+  
 end subroutine MaterialPropertyRead
 
 ! ************************************************************************** !

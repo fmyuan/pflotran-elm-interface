@@ -427,6 +427,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
+  use Characteristic_Curves_Thermal_module
   
   implicit none
   
@@ -2434,7 +2435,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   use Fracture_module
   use Klinkenberg_module
   use Upwind_Direction_module
-
+  use Characteristic_Curves_Thermal_module
+  
   implicit none
   
   type(option_type) :: option
@@ -2516,7 +2518,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: perm3(3)
   
   ! Conduction
-  PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
+  PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
   
@@ -4309,6 +4311,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
   use Option_module
   use Material_Aux_class
   use Upwind_Direction_module, only : count_upwind_direction_flip
+  use Characteristic_Curves_Thermal_module
   
   implicit none
   
@@ -4440,6 +4443,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
   use Option_module 
   use Material_Aux_class
   use Upwind_Direction_module, only : count_upwind_direction_flip
+  use Characteristic_Curves_Thermal_module
   
   implicit none
 

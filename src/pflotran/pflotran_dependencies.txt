@@ -31,6 +31,8 @@ characteristic_curves_owg.o : characteristic_curves_base.o \
                               string.o utility.o
 characteristic_curves_table.o : input_aux.o lookup_table.o option.o \
                                 pflotran_constants.o string.o
+characteristic_curves_thermal.o : input_aux.o option.o pflotran_constants.o \
+                                  string.o
 characteristic_curves_wipp.o : characteristic_curves_base.o \
                                characteristic_curves_common.o option.o \
                                pflotran_constants.o

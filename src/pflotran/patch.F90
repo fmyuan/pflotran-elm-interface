@@ -17,6 +17,7 @@ module Patch_module
   use Material_module
   use Field_module
   use Saturation_Function_module
+  use Characteristic_Curves_Thermal_module
   use Characteristic_Curves_module
   use Surface_Field_module
   use Surface_Material_module
@@ -43,6 +44,7 @@ module Patch_module
     PetscInt, pointer :: imat(:)
     PetscInt, pointer :: imat_internal_to_external(:)
     PetscInt, pointer :: sat_func_id(:)
+    PetscInt, pointer :: kT_func_id(:)
 
     PetscReal, pointer :: internal_velocities(:,:)
     PetscReal, pointer :: boundary_velocities(:,:)
@@ -79,7 +81,9 @@ module Patch_module
     type(saturation_function_ptr_type), pointer :: saturation_function_array(:)
     class(characteristic_curves_type), pointer :: characteristic_curves
     type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
-
+    class(cc_thermal_type), pointer :: thermal_characteristic_curves
+    type(cc_thermal_ptr_type), pointer :: thermal_characteristic_curves_array(:)
+    
     type(strata_list_type), pointer :: strata_list
     type(observation_list_type), pointer :: observation_list
     type(integral_flux_list_type), pointer :: integral_flux_list

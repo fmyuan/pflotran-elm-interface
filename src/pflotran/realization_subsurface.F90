@@ -41,7 +41,7 @@ private
     type(fluid_property_type), pointer :: fluid_property_array(:)
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
-    class(cc_thermal_type), pointer :: characteristic_curves_thermal
+    class(cc_thermal_type), pointer :: thermal_characteristic_curves
     class(dataset_base_type), pointer :: datasets
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
@@ -775,7 +775,8 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     call CharCurvesThermalConvertListToArray( &
          patch%thermal_characteristic_curves, &
          patch%thermal_characteristic_curves_array, option)
-
+  end if
+  
   ! create mapping of internal to external material id
   call MaterialCreateIntToExtMapping(patch%material_property_array, &
                                      patch%imat_internal_to_external)
@@ -811,12 +812,13 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       end if
     endif
 
+    ! thermal conducitivity function id 
     if (option%iflowmode == G_MODE) then
       if (associated(patch%thermal_characteristic_curves_array)) then
         cur_material_property%thermal_conductivity_function_id = &
              CharacteristicCurvesThermalGetID( &
              patch%thermal_characteristic_curves_array, &
-             cur_material_property%thermal_saturation_function_name, &
+             cur_material_property%thermal_conductivity_function_name, &
              cur_material_property%name,option)
       end if
       if (cur_material_property%thermal_conductivity_function_id == 0) then

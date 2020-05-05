@@ -66,6 +66,14 @@ Module Characteristic_Curves_Thermal_module
     class(cc_thermal_type), pointer :: ptr
   end type cc_thermal_ptr_type
 
+  public :: CharacteristicCurvesThermalCreate, &
+            CharacteristicCurvesThermalGetID, &
+            CharacteristicCurvesThermalRead, &
+            CharacteristicCurvesThermalAddToList, & 
+            CharCurvesThermalConvertListToArray, &
+            CharCurvesThermalInputRecord, &
+            ThermalCharacteristicCurvesDestroy
+  
 contains
 
 ! ************************************************************************** !
@@ -133,7 +141,6 @@ end subroutine TCFBaseConductivity
 subroutine TCFBaseTest(this,tcc_name,option)
 
   use Option_module
-  use Material_Aux_class
 
   implicit none
 
