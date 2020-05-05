@@ -1,4 +1,4 @@
-module Characteristic_Curves_Thermal_module
+Module Characteristic_Curves_Thermal_module
   !
   ! thermal conductivity as a function of saturation and temperature
   !
@@ -18,7 +18,7 @@ module Characteristic_Curves_Thermal_module
   type, public :: thermal_conductivity_base_type
     PetscBool :: analytical_derivative_available
   contains
-    procedure, public :: Init => TCFBaseInit
+    procedure, public :: Init => TCFBaseInit  
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
     procedure, public :: kT_eff => TCFBaseConductivity
@@ -42,16 +42,14 @@ module Characteristic_Curves_Thermal_module
     PetscReal :: ref_temp
     PetscReal :: gamma
   contains
-    procedure, public :: Init => TCFPowerInit
     procedure, public :: Verify => TCFPowerVerify
     procedure, public :: kT_eff => TCFPowerConductivity
   end type kT_power_type
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_cubic_polynomial_type
     PetscReal :: ref_temp
-    PetscReal(3) :: beta
+    PetscReal :: beta(3)
   contains
-    procedure, public :: Init => TCFCubicPolyInit
     procedure, public :: Verify => TCFCubicPolyVerify
     procedure, public :: kT_eff => TCFCubicPolyConductivity
   end type kT_cubic_polynomial_type
@@ -73,13 +71,26 @@ contains
 ! ************************************************************************** !
 ! ************************************************************************** !
 
+subroutine TCFBaseInit(this)
+
+  implicit none
+  
+  class(thermal_conductivity_base_type) :: this  
+
+  ! Cannot allocate here.  Allocation takes place in daughter class
+  this%analytical_derivative_available = PETSC_FALSE
+  
+end subroutine TCFBaseInit
+
+! ************************************************************************** !
+  
 subroutine TCFBaseVerify(this,name,option)
 
   use Option_module
 
   implicit none
 
-  class(thermal_conductivity_func_base_type) :: this
+  class(thermal_conductivity_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -95,14 +106,14 @@ end subroutine TCFBaseVerify
 
 ! ************************************************************************** !
 
-subroutine TCFBaseThermalConductivity(this,liquid_saturation,temperature, &
+subroutine TCFBaseConductivity(this,liquid_saturation,temperature, &
      thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
   implicit none
 
-  class(thermal_conductivity_func_base_type) :: this
+  class(thermal_conductivity_base_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
@@ -111,7 +122,7 @@ subroutine TCFBaseThermalConductivity(this,liquid_saturation,temperature, &
   option%io_buffer = 'TCFBaseThermalConductivity must be extended.'
   call PrintErrMsg(option)
 
-end subroutine TCFBaseThermalConductivity
+end subroutine TCFBaseConductivity
 
 ! ************************************************************************** !
 
@@ -122,13 +133,15 @@ subroutine TCFBaseTest(this,tcc_name,option)
 
   implicit none
 
-  class(sat_func_base_type) :: this
+  class(thermal_conductivity_base_type) :: this
   character(len=MAXWORDLENGTH) :: tcc_name
   type(option_type), intent(inout) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, parameter :: nt = 51
   PetscInt, parameter :: ns = 11
+  PetscReal, parameter :: dTemp = 1.0D-6
+  PetscReal, parameter :: dSat = 1.0D-6
   PetscReal :: temp, deltaTemp, sat, deltaSat
   PetscReal :: temp_vec(nt)
   PetscReal :: sat_vec(ns)
@@ -144,30 +157,27 @@ subroutine TCFBaseTest(this,tcc_name,option)
   ! thermal conductivity as a function of temp. and liq. sat.
   temp_min = 0.0d0 ! Celsius
   temp_max = 250.0d0
-  sat_min = 0.0d0 ! relative saturation
+  sat_min = 0.0d0 
   sat_max = 1.0d0
 
   deltaTemp = (temp_max - temp_min)/(nt - 1)
   deltaSat = (sat_max - sat_min)/(ns - 1)
 
-  temp_vec = [(temp_min + i*deltaTemp, i,0,nt-1)]
-  sat_vec = [(sat_min + i*deltaSat, i,0,ns-1)]
-
-  dTemp = 1.0D-6 ! perturbations
-  dSat = 1.0D-6
+  temp_vec = [(temp_min + i*deltaTemp, i=0,nt-1)]
+  sat_vec = [(sat_min + i*deltaSat, i=0,ns-1)]
 
   do i = 1,nt
     do j = 1,ns
-      call this%Conductivity(sat_vec(j),temp_vec(i), &
+      call this%kT_eff(sat_vec(j),temp_vec(i), &
            kT(i,j),dkT_dsat(i,j),dkT_dT(i,j),option)
 
       ! calculate numerical derivative dkT_dsatl_numerical
-      call this%Conductivity(satl_vec(j),temp_vec(i)+dTemp, &
+      call this%kT_eff(sat_vec(j),temp_vec(i)+dTemp, &
            temp_pert,unused,unused,option)
 
       dkT_dT_numerical(i,j) = (kT(i,j) - temp_pert)/(temp_vec(i)*dTemp)
 
-      call this%Conductivity(sat_vec(j)+dSat,temp_vec(i), &
+      call this%kT_eff(sat_vec(j)+dSat,temp_vec(i), &
            sat_pert,unused,unused,option)
 
       dkT_dsat_numerical(i,j) = (kT(i,j) - sat_pert)/(sat_vec(j)*dSat)
@@ -175,7 +185,7 @@ subroutine TCFBaseTest(this,tcc_name,option)
   end do
 
   write(string,*) tcc_name
-  string = trim(cc_name) // '_kT_vs_sat_and_temp.dat'
+  string = trim(tcc_name) // '_kT_vs_sat_and_temp.dat'
   open(unit=86,file=string)
   write(86,*) '"temperature [C]", "liquid saturation [-]", "kT [W/m*K]", &
        &"dkT/dsat", "dkT/dT", "dkT/dsat_numerical", "dkT/dT_numerical"'
@@ -214,8 +224,9 @@ function TCF_Default_Create()
   class(kT_default_type), pointer :: TCF_Default_Create
 
   allocate(TCF_Default_Create)
-  TCF_Default_Create%kT_wet = 0.d0
-  TCF_Default_Create%kT_dry = 0.d0
+  call TCFBaseInit(TCF_Default_Create)
+  TCF_Default_Create%kT_wet = UNINITIALIZED_DOUBLE
+  TCF_Default_Create%kT_dry = UNINITIALIZED_DOUBLE
   TCF_Default_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Default_Create
@@ -294,7 +305,8 @@ function TCF_Constant_Create()
   class(kT_constant_type), pointer :: TCF_Constant_Create
 
   allocate(TCF_Constant_Create)
-  TCF_Constant_Create%constant_thermal_conductivity = 0.d0
+  call TCFBaseInit(TCF_Constant_Create)
+  TCF_Constant_Create%constant_thermal_conductivity = UNINITIALIZED_DOUBLE
   TCF_Constant_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Constant_Create
@@ -329,8 +341,8 @@ end subroutine TCFConstantVerify
 
 ! ************************************************************************** !
 
-subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
-     thermal_conductivity,dk_dsatl,dk_dtemp,option)
+subroutine TCFConstantConductivity(this,liquid_saturation,temperature, &
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
 
   use Option_module
 
@@ -346,7 +358,7 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
   dkT_dsatl = 0.d0
   dkT_dtemp = 0.d0
 
-end subroutine TCFDefaultConductivity
+end subroutine TCFConstantConductivity
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -358,9 +370,10 @@ function TCF_Power_Create()
   class(kT_power_type), pointer :: TCF_Power_Create
 
   allocate(TCF_Power_Create)
-  TCF_Power_Create%kT_wet = 0.d0
-  TCF_Power_Create%kT_dry = 0.d0
-  TCF_Power_Create%gamma = 0.0d0
+  call TCFBaseInit(TCF_Power_Create)
+  TCF_Power_Create%kT_wet = UNINITIALIZED_DOUBLE
+  TCF_Power_Create%kT_dry = UNINITIALIZED_DOUBLE
+  TCF_Power_Create%gamma = UNINITIALIZED_DOUBLE
   TCF_Power_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Power_Create
@@ -373,7 +386,7 @@ subroutine TCFPowerVerify(this,name,option)
 
   implicit none
 
-  class(kT_default_type) :: this
+  class(kT_power_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -419,7 +432,6 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  class(kT_default_type) :: that
   PetscReal :: tempreal, kT_base, shifted_temp
 
   ! behavior WRT saturation from default function
@@ -430,7 +442,7 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
 
   tempreal = kT_base * shifted_temp ** this%gamma
   thermal_conductivity = tempreal
-  dkT_temp = this%gamma * tempreal / shifted_temp
+  dkT_dtemp = this%gamma * tempreal / shifted_temp
 
 end subroutine TCFPowerConductivity
 
@@ -444,10 +456,13 @@ function TCF_Cubic_Polynomial_Create()
   class(kT_cubic_polynomial_type), pointer :: TCF_Cubic_Polynomial_Create
 
   allocate(TCF_Cubic_Polynomial_Create)
-  TCF_Cubic_Polynomial_Create%kT_wet = 0.d0
-  TCF_Cubic_Polynomial_Create%kT_dry = 0.d0
-  TCF_Cubic_Polynomial_Create%ref_temp = 0.d0
-  TCF_Cubic_Polynomial_Create%beta = [ 0.d0, 0.d0, 0.d0 ]
+  call TCFBaseInit(TCF_Cubic_Polynomial_Create)
+  TCF_Cubic_Polynomial_Create%kT_wet = UNINITIALIZED_DOUBLE
+  TCF_Cubic_Polynomial_Create%kT_dry = UNINITIALIZED_DOUBLE
+  TCF_Cubic_Polynomial_Create%ref_temp = UNINITIALIZED_DOUBLE
+  TCF_Cubic_Polynomial_Create%beta = [ UNINITIALIZED_DOUBLE, &
+                                       UNINITIALIZED_DOUBLE, &
+                                       UNINITIALIZED_DOUBLE ]
   TCF_Cubic_Polynomial_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Cubic_Polynomial_Create
@@ -460,7 +475,7 @@ subroutine TCFCubicPolyVerify(this,name,option)
 
   implicit none
 
-  class(kT_default_type) :: this
+  class(kT_cubic_polynomial_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
 
@@ -484,7 +499,7 @@ subroutine TCFCubicPolyVerify(this,name,option)
     option%io_buffer = UninitializedMessage('COEFFCIENTS',string)
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%beta)) then
+  if (Uninitialized(this%beta(1))) then
     option%io_buffer = UninitializedMessage('COEFFCIENTS',string)
     call PrintErrMsg(option)
   endif
@@ -500,10 +515,10 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
 
   implicit none
 
-  class(kT_default_type) :: this
+  class(kT_cubic_polynomial_type) :: this
   PetscReal, intent(in) :: liquid_saturation, temperature
   PetscReal, intent(out) :: thermal_conductivity
-  PetscReal, intent(out) :: dk_dsatl, dk_dtemp
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
   PetscReal :: kT_base, shifted_temp
@@ -520,7 +535,7 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
        + shifted_temp*(this%beta(2) &
        + shifted_temp* this%beta(3))))
 
-  dkT_temp = kT_base * (this%beta(1) &
+  dkT_dtemp = kT_base * (this%beta(1) &
        + shifted_temp*(2.d0*this%beta(2) &
        + shifted_temp* 3.d0*this%beta(3)))
 
@@ -592,7 +607,7 @@ subroutine CharacteristicCurvesThermalRead(this,input,option)
       case('DEFAULT')
         this%thermal_conductivity_function => TCF_Default_Create()
       case('POWER')
-        this%thermal_conductivity_function => RCF_Power_Create()
+        this%thermal_conductivity_function => TCF_Power_Create()
       case('CUBIC_POLYNOMIAL')
         this%thermal_conductivity_function => TCF_Cubic_Polynomial_Create()
       case default
@@ -647,7 +662,7 @@ subroutine ThermalConductivityFunctionRead( &
   input%ierr = 0
   error_string = 'THERMAL_CHARACTERISTIC_CURVES,&
        &THERMAL_CONDUCTIVITY_FUNCTION,'
-  select type(tcf => saturation_function)
+  select type(tcf => thermal_conductivity_function)
   class is(kT_constant_type)
     error_string = trim(error_string) // 'CONSTANT'
   class is(kT_default_type)
@@ -839,12 +854,12 @@ function CharacteristicCurvesThermalGetID(cc_thermal_array, &
   character(len=MAXWORDLENGTH) :: material_property_name
   type(option_type) :: option
 
-  PetscInt :: CharacteristicCurvesGetID
+  PetscInt :: CharacteristicCurvesThermalGetID
 
-  CharacteristicCurvesGetID = 0
-  do CharacteristicCurvesGetID = 1, size(cc_thermal_array)
+  CharacteristicCurvesThermalGetID = 0
+  do CharacteristicCurvesThermalGetID = 1, size(cc_thermal_array)
     if (StringCompare(cc_thermal_name, &
-         cc_thermal_array(CharacteristicCurvesGetID)%ptr%name)) then
+         cc_thermal_array(CharacteristicCurvesThermalGetID)%ptr%name)) then
       return
     endif
   enddo
@@ -956,7 +971,7 @@ recursive subroutine ThermalCharacteristicCurvesDestroy(tcc)
 
   if (.not.associated(tcc)) return
 
-  call CharacteristicCurvesDestroy(ttcc%next)
+  call CharacteristicCurvesDestroy(tcc%next)
 
   call ThermalConductivityFunctionDestroy(tcc%thermal_conductivity_function)
 
