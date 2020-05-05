@@ -51,7 +51,7 @@ END
 CHEMISTRY
   PRIMARY_SPECIES
     O2(aq)
-    HCO3-
+    CO3--
     H2(aq)
     Fe++
     Tracer
@@ -150,7 +150,7 @@ END
 CONSTRAINT groundwater
   CONCENTRATIONS
     O2(aq)   1.d-3           F
-    HCO3-    1.d-3           F
+    CO3--    1.d-3           F
     H2(aq)   1.d-3           F
     Fe++     1.d-3           F
     Tracer   1.e-7            F
