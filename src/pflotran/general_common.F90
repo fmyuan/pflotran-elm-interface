@@ -2359,9 +2359,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! heat_flux = k_eff * delta_temp * area = J/s
   ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
   delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp  ! KLK: -1?
-  dheat_flux_ddelta_temp_up = (dkeff_dTup * delta_temp - k_eff_ave) &
+  dheat_flux_ddelta_temp_up = (dkeff_up_dTup * delta_temp - k_eff_ave) &
                                * 1.d-6 * area
-  dheat_flux_ddelta_temp_dn = (dkeff_dTdn * delta_temp + k_eff_ave) &
+  dheat_flux_ddelta_temp_dn = (dkeff_dn_dTdn * delta_temp + k_eff_ave) &
                                * 1.d-6 * area
   heat_flux = area * k_eff_ave * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
@@ -3762,9 +3762,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! area = m^2
       ! heat_flux = k_eff * delta_temp * area = J/s
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-      dheat_flux_ddelta_temp = (dkeff_dTdn * delta_temp - k_eff_ave) &
+      dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
                                 * area * 1.d-6 ! J/s -> MJ/s
-      heat_flux = area * keff_ave * delta_temp
+      heat_flux = area * k_eff_ave * delta_temp
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
