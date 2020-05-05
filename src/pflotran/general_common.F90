@@ -2360,9 +2360,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
   delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
   dheat_flux_ddelta_temp_up = (dkeff_dTup * delta_temp - k_eff_ave) &
-       * 1.d-6 * area
+                               * 1.d-6 * area
   dheat_flux_ddelta_temp_dn = (dkeff_dTdn * delta_temp + k_eff_ave) &
-       * 1.d-6 * area
+                               * 1.d-6 * area
   heat_flux = area * k_eff_ave * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
   ! MJ/s or MW
