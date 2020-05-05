@@ -2358,7 +2358,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! area = m^2
   ! heat_flux = k_eff * delta_temp * area = J/s
   ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
-  delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
+  delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp  ! KLK: -1?
   dheat_flux_ddelta_temp_up = (dkeff_dTup * delta_temp - k_eff_ave) &
                                * 1.d-6 * area
   dheat_flux_ddelta_temp_dn = (dkeff_dTdn * delta_temp + k_eff_ave) &
@@ -3751,12 +3751,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
-      call thermal_cc_dn%thermal_conductivity_function%kT_eff( &
-           sat_dn,gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
-
-      ! KLK: how to add derivative of keff WRT temperature (dkeff_up_dTup, dkeff_dn_dTdn)?
-      ! first need to average it
-      ! second need to put it into the correct place in the jacobian
+      call thermal_cc_dn%thermal_conductivity_function%kT_eff(sat_dn, &
+           gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
       dkeff_ave_dkeffdn = 1.d0 / dist(0)
       k_eff_ave = k_eff_dn * dkeff_ave_dkeffdn
@@ -3766,8 +3762,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! area = m^2
       ! heat_flux = k_eff * delta_temp * area = J/s
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-      dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-      heat_flux = dheat_flux_ddelta_temp * delta_temp
+      dheat_flux_ddelta_temp = (dkeff_dTdn * delta_temp - k_eff_ave) &
+                                * area * 1.d-6 ! J/s -> MJ/s
+      heat_flux = area * keff_ave * delta_temp
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
