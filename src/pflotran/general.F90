@@ -89,11 +89,12 @@ subroutine GeneralSetup(realization)
     call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
-  !if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
-  !  option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
-  !  call PrintMsg(option)
-  !  error_found = PETSC_TRUE
-  !endif ! KLK <- replaced by thermal characteristic curves
+  ! KLK <- replaced by thermal characteristic curves, should a check for them be put here?
+  if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
+    option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
+    call PrintMsg(option)
+    error_found = PETSC_TRUE
+  endif 
   
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
@@ -1134,7 +1135,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Debug_module
   use Material_Aux_class
   use Upwind_Direction_module
-
+  
 !#define DEBUG_WITH_TECPLOT
 #ifdef DEBUG_WITH_TECPLOT
   use Output_Tecplot_module

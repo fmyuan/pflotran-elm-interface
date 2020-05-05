@@ -510,7 +510,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
   PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
-  PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
+  PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
+  PetscReal :: dheat_flux_dkeff_ave
   
   ! DELETE
   
@@ -2335,18 +2336,14 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   sat_dn = gen_auxvar_dn%sat(option%liquid_phase)
 
   ! thermal conductivity a function of temperature and liquid saturation
-  call thermal_cc_up%thermal_conductivity_function%kT_eff( &
-       sat_up,gen_auxvar_up%temp,k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
+  call thermal_cc_up%thermal_conductivity_function%kT_eff(sat_up, &
+       gen_auxvar_up%temp,k_eff_up,dkeff_up_dsatlup,dkeff_up_dTup,option)
   
-  call thermal_cc_dn%thermal_conductivity_function%kT_eff( &
-       sat_dn,gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
+  call thermal_cc_dn%thermal_conductivity_function%kT_eff(sat_dn, &
+       gen_auxvar_dn%temp,k_eff_dn,dkeff_dn_dsatldn,dkeff_dn_dTdn,option)
 
-  ! KLK: how to add derivative of keff WRT temperature (dkeff_up_dTup, dkeff_dn_dTdn)?
-  ! first need to average it
-  ! second need to put it into the correct place in the jacobian
-  
   if (k_eff_up > 0.d0 .or. k_eff_dn > 0.d0) then
-    tempreal = k_eff_up*dist_dn+k_eff_dn*dist_up
+    tempreal = k_eff_up*dist_dn + k_eff_dn*dist_up
     k_eff_ave = k_eff_up*k_eff_dn/tempreal
     dkeff_ave_dkeffup = (k_eff_dn-k_eff_ave*dist_dn)/tempreal
     dkeff_ave_dkeffdn = (k_eff_up-k_eff_ave*dist_up)/tempreal
@@ -2360,9 +2357,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! delta_temp = K
   ! area = m^2
   ! heat_flux = k_eff * delta_temp * area = J/s
+  ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
   delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-  dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
-  heat_flux = dheat_flux_ddelta_temp * delta_temp
+  dheat_flux_ddelta_temp_up = (dkeff_dTup * delta_temp - k_eff_ave) &
+       * 1.d-6 * area
+  dheat_flux_ddelta_temp_dn = (dkeff_dTdn * delta_temp + k_eff_ave) &
+       * 1.d-6 * area
+  heat_flux = area * k_eff_ave * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
   ! MJ/s or MW
   Res(energy_id) = Res(energy_id) + heat_flux
@@ -2375,7 +2376,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
+        Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
                      
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
@@ -2384,14 +2385,14 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                     dkeff_up_dsatlup * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
+        Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
     end select
     select case(global_auxvar_dn%istate)
       case(LIQUID_STATE,GAS_STATE)
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
+        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
                      
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
@@ -2400,7 +2401,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                     dkeff_dn_dsatldn * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
+        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
     end select
     Jup = Jup + Jcup
     Jdn = Jdn + Jcdn  

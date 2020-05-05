@@ -269,9 +269,11 @@ subroutine GeneralDerivativeSetup(general_parameter, &
     characteristic_curves%gas_rel_perm_function => rpf_gas
   endif
   if (.not.associated(material_parameter)) then
+    ! KLK remove allocation of kT vector here
+    ! should I add initialization of a thermal characteristic curve here?
     allocate(material_parameter)
     allocate(material_parameter%soil_heat_capacity(1))
-    allocate(material_parameter%soil_thermal_conductivity(2,1))
+    allocate(material_parameter%soil_thermal_conductivity(2,1))  
     material_parameter%soil_heat_capacity(1) = 850.d0
     material_parameter%soil_thermal_conductivity(1,1) = 0.5d0
     material_parameter%soil_thermal_conductivity(2,1) = 2.d0
@@ -578,11 +580,11 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
   call GeneralFlux(general_auxvar(ZERO_INTEGER), &
                    global_auxvar(ZERO_INTEGER), &
                    material_auxvar(ZERO_INTEGER), &
-                   material_parameter%soil_thermal_conductivity(:,1), &
+                   material_parameter%soil_thermal_conductivity(:,1), &  !! KLK replace
                    general_auxvar2(ZERO_INTEGER), &
                    global_auxvar2(ZERO_INTEGER), &
                    material_auxvar2(ZERO_INTEGER), &
-                   material_parameter2%soil_thermal_conductivity(:,1), &
+                   material_parameter2%soil_thermal_conductivity(:,1), & !! KLK replace
                    area, dist, upwind_direction_, general_parameter, &
                    option,v_darcy,res,jac_anal,jac_anal2, &
                    update_upwind_direction_, &
@@ -593,11 +595,11 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
     call GeneralFlux(general_auxvar(i), &
                      global_auxvar(i), &
                      material_auxvar(i), &
-                     material_parameter%soil_thermal_conductivity(:,1), &
+                     material_parameter%soil_thermal_conductivity(:,1), & !! KLK replace
                      general_auxvar2(ZERO_INTEGER), &
                      global_auxvar2(ZERO_INTEGER), &
                      material_auxvar2(ZERO_INTEGER), &
-                     material_parameter2%soil_thermal_conductivity(:,1), &
+                     material_parameter2%soil_thermal_conductivity(:,1), & !! KLK replace
                      area, dist, upwind_direction_, general_parameter, &
                      option,v_darcy,res_pert(:,i),jac_dum,jac_dum2, &
                      update_upwind_direction_, &
@@ -611,11 +613,11 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
     call GeneralFlux(general_auxvar(ZERO_INTEGER), &
                      global_auxvar(ZERO_INTEGER), &
                      material_auxvar(ZERO_INTEGER), &
-                     material_parameter%soil_thermal_conductivity(:,1), &
+                     material_parameter%soil_thermal_conductivity(:,1), & !! KLK replace
                      general_auxvar2(i), &
                      global_auxvar2(i), &
                      material_auxvar2(i), &
-                     material_parameter2%soil_thermal_conductivity(:,1), &
+                     material_parameter2%soil_thermal_conductivity(:,1), & !! KLK replace
                      area, dist, upwind_direction_, general_parameter, &
                      option,v_darcy,res_pert2(:,i),jac_dum,jac_dum2, &
                      update_upwind_direction_, &
@@ -692,7 +694,7 @@ subroutine GeneralDerivativeFluxBC(pert, &
                      general_auxvar_bc,global_auxvar_bc, &
                      general_auxvar_dn(ZERO_INTEGER),global_auxvar_dn(ZERO_INTEGER), &
                      material_auxvar_dn(ZERO_INTEGER), &
-                     material_parameter_dn%soil_thermal_conductivity(:,1), &
+                     material_parameter_dn%soil_thermal_conductivity(:,1), & !! KLK replace
                      area,dist,upwind_direction_,general_parameter, &
                      option,v_darcy,res,jac_anal, &
                      update_upwind_direction_, &
@@ -704,7 +706,7 @@ subroutine GeneralDerivativeFluxBC(pert, &
                        general_auxvar_bc,global_auxvar_bc, &
                        general_auxvar_dn(i),global_auxvar_dn(i), &
                        material_auxvar_dn(i), &
-                       material_parameter_dn%soil_thermal_conductivity(:,1), &
+                       material_parameter_dn%soil_thermal_conductivity(:,1), & !! KLK replace
                        area,dist,upwind_direction_,general_parameter, &
                        option,v_darcy,res_pert(:,i),jac_dum, &
                        update_upwind_direction_, &
@@ -889,7 +891,7 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
     if (associated(material_parameter%soil_heat_capacity)) &
       deallocate(material_parameter%soil_heat_capacity)
     nullify(material_parameter%soil_heat_capacity)
-    if (associated(material_parameter%soil_thermal_conductivity)) &
+    if (associated(material_parameter%soil_thermal_conductivity)) &  !! KLK replace/delete?
       deallocate(material_parameter%soil_thermal_conductivity)
     nullify(material_parameter%soil_thermal_conductivity)
     deallocate(material_parameter)
