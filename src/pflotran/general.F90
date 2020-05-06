@@ -89,7 +89,8 @@ subroutine GeneralSetup(realization)
     call PrintMsg(option)
     error_found = PETSC_TRUE
   endif
-  ! KLK <- replaced by thermal characteristic curves, should a check for them be put here?
+  ! KLK <- replaced material_parameters by thermal characteristic curves,
+  ! not sure how an analogous check would look
   if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
     option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
     call PrintMsg(option)

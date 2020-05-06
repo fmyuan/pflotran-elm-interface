@@ -3762,9 +3762,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! area = m^2
       ! heat_flux = k_eff * delta_temp * area = J/s
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-      dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
-                                * area * 1.d-6 ! J/s -> MJ/s
-      heat_flux = area * k_eff_ave * delta_temp
+      dheat_flux_ddelta_temp = -1.d0 * (dkeff_dn_dTdn * delta_temp &
+           - k_eff_ave) * area * 1.d-6 ! J/s -> MJ/s
+      heat_flux = area * k_eff_ave * delta_temp * 1.d-6
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
