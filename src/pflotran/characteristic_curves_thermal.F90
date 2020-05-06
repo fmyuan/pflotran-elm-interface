@@ -16,9 +16,7 @@ Module Characteristic_Curves_Thermal_module
 
   !---------------------------------------------------------------------------
   type, public :: thermal_conductivity_base_type
-    PetscBool :: analytical_derivative_available
   contains
-    procedure, public :: Init => TCFBaseInit  
     procedure, public :: Verify => TCFBaseVerify
     procedure, public :: Test => TCFBaseTest
     procedure, public :: kT_eff => TCFBaseConductivity
@@ -82,19 +80,6 @@ contains
 
 ! ************************************************************************** !
 ! ************************************************************************** !
-
-subroutine TCFBaseInit(this)
-
-  implicit none
-  
-  class(thermal_conductivity_base_type) :: this  
-
-  ! Cannot allocate here.  Allocation takes place in daughter class
-  this%analytical_derivative_available = PETSC_FALSE
-  
-end subroutine TCFBaseInit
-
-! ************************************************************************** !
   
 subroutine TCFBaseVerify(this,name,option)
 
@@ -105,14 +90,6 @@ subroutine TCFBaseVerify(this,name,option)
   class(thermal_conductivity_base_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
-
-  if ((.not.this%analytical_derivative_available) .and. &
-       (.not.option%flow%numerical_derivatives)) then
-    option%io_buffer = 'Analytical derivatives are not available for the &
-         &thermal conductivity function chosen: ' // &
-         trim(name)
-    call PrintErrMsg(option)
-  endif
 
 end subroutine TCFBaseVerify
 
@@ -239,10 +216,8 @@ function TCF_Default_Create()
   class(kT_default_type), pointer :: TCF_Default_Create
 
   allocate(TCF_Default_Create)
-  call TCFBaseInit(TCF_Default_Create)
   TCF_Default_Create%kT_wet = UNINITIALIZED_DOUBLE
   TCF_Default_Create%kT_dry = UNINITIALIZED_DOUBLE
-  TCF_Default_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Default_Create
 
@@ -320,9 +295,7 @@ function TCF_Constant_Create()
   class(kT_constant_type), pointer :: TCF_Constant_Create
 
   allocate(TCF_Constant_Create)
-  call TCFBaseInit(TCF_Constant_Create)
   TCF_Constant_Create%constant_thermal_conductivity = UNINITIALIZED_DOUBLE
-  TCF_Constant_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Constant_Create
 
@@ -385,11 +358,9 @@ function TCF_Power_Create()
   class(kT_power_type), pointer :: TCF_Power_Create
 
   allocate(TCF_Power_Create)
-  call TCFBaseInit(TCF_Power_Create)
   TCF_Power_Create%kT_wet = UNINITIALIZED_DOUBLE
   TCF_Power_Create%kT_dry = UNINITIALIZED_DOUBLE
   TCF_Power_Create%gamma = UNINITIALIZED_DOUBLE
-  TCF_Power_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Power_Create
 
@@ -471,14 +442,12 @@ function TCF_Cubic_Polynomial_Create()
   class(kT_cubic_polynomial_type), pointer :: TCF_Cubic_Polynomial_Create
 
   allocate(TCF_Cubic_Polynomial_Create)
-  call TCFBaseInit(TCF_Cubic_Polynomial_Create)
   TCF_Cubic_Polynomial_Create%kT_wet = UNINITIALIZED_DOUBLE
   TCF_Cubic_Polynomial_Create%kT_dry = UNINITIALIZED_DOUBLE
   TCF_Cubic_Polynomial_Create%ref_temp = UNINITIALIZED_DOUBLE
   TCF_Cubic_Polynomial_Create%beta = [ UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE, &
                                        UNINITIALIZED_DOUBLE ]
-  TCF_Cubic_Polynomial_Create%analytical_derivative_available = PETSC_TRUE
 
 end function TCF_Cubic_Polynomial_Create
 

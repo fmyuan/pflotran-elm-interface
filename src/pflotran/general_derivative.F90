@@ -175,7 +175,7 @@ subroutine GeneralDerivativeDriver(option)
       call GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                                  material_auxvar,characteristic_curves, &
                                  thermal_characteristic_curves, &
-                                 material_parameter,&
+                                 material_parameter, &
                                  pert2,general_auxvar2,global_auxvar2, &
                                  material_auxvar2,characteristic_curves, &
                                  thermal_characteristic_curves, &
@@ -534,7 +534,7 @@ end subroutine GeneralDerivativeAccum
 subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                                  material_auxvar,characteristic_curves, &
                                  thermal_characteristic_curves, &
-                                 material_parameter,&
+                                 material_parameter, &
                                  pert2,general_auxvar2,global_auxvar2, &
                                  material_auxvar2,characteristic_curves2, &
                                  thermal_characteristic_curves2, &
