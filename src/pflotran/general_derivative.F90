@@ -598,11 +598,11 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
   call GeneralFlux(general_auxvar(ZERO_INTEGER), &
                    global_auxvar(ZERO_INTEGER), &
                    material_auxvar(ZERO_INTEGER), &
-                   thermal_characteristic_curves(ZERO_INTEGER), &
+                   thermal_characteristic_curves, &
                    general_auxvar2(ZERO_INTEGER), &
                    global_auxvar2(ZERO_INTEGER), &
                    material_auxvar2(ZERO_INTEGER), &
-                   thermal_characteristic_curves2(ZERO_INTEGER), &
+                   thermal_characteristic_curves2, &
                    area, dist, upwind_direction_, general_parameter, &
                    option,v_darcy,res,jac_anal,jac_anal2, &
                    update_upwind_direction_, &
@@ -613,11 +613,11 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
     call GeneralFlux(general_auxvar(i), &
                      global_auxvar(i), &
                      material_auxvar(i), &
-                     thermal_characteristic_curves(ZERO_INTEGER), &
+                     thermal_characteristic_curves, &
                      general_auxvar2(ZERO_INTEGER), &
                      global_auxvar2(ZERO_INTEGER), &
                      material_auxvar2(ZERO_INTEGER), &
-                     thermal_characteristic_curves2(ZERO_INTEGER), &
+                     thermal_characteristic_curves2, &
                      area, dist, upwind_direction_, general_parameter, &
                      option,v_darcy,res_pert(:,i),jac_dum,jac_dum2, &
                      update_upwind_direction_, &
@@ -631,11 +631,11 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
     call GeneralFlux(general_auxvar(ZERO_INTEGER), &
                      global_auxvar(ZERO_INTEGER), &
                      material_auxvar(ZERO_INTEGER), &
-                     thermal_characteristic_curves(ZERO_INTEGER), &
+                     thermal_characteristic_curves, &
                      general_auxvar2(i), &
                      global_auxvar2(i), &
                      material_auxvar2(i), &
-                     thermal_characteristic_curves2(ZERO_INTEGER), &
+                     thermal_characteristic_curves2, &
                      area, dist, upwind_direction_, general_parameter, &
                      option,v_darcy,res_pert2(:,i),jac_dum,jac_dum2, &
                      update_upwind_direction_, &
@@ -715,7 +715,7 @@ subroutine GeneralDerivativeFluxBC(pert, &
                      general_auxvar_bc,global_auxvar_bc, &
                      general_auxvar_dn(ZERO_INTEGER),global_auxvar_dn(ZERO_INTEGER), &
                      material_auxvar_dn(ZERO_INTEGER), &
-                     thermal_characteristic_curves_dn(ZERO_INTEGER), &
+                     thermal_characteristic_curves_dn, &
                      area,dist,upwind_direction_,general_parameter, &
                      option,v_darcy,res,jac_anal, &
                      update_upwind_direction_, &
@@ -727,7 +727,7 @@ subroutine GeneralDerivativeFluxBC(pert, &
                        general_auxvar_bc,global_auxvar_bc, &
                        general_auxvar_dn(i),global_auxvar_dn(i), &
                        material_auxvar_dn(i), &
-                       thermal_characteristic_curves_dn(ZERO_INTEGER), &
+                       thermal_characteristic_curves_dn, &
                        area,dist,upwind_direction_,general_parameter, &
                        option,v_darcy,res_pert(:,i),jac_dum, &
                        update_upwind_direction_, &

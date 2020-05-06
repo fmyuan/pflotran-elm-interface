@@ -826,8 +826,7 @@ end subroutine CharCurvesThermalConvertListToArray
 ! ************************************************************************** !
 
 function CharacteristicCurvesThermalGetID(cc_thermal_array, &
-     cc_thermal_name, &
-     material_property_name, option)
+     cc_thermal_name, material_property_name, option)
 
   use Option_module
   use String_module
