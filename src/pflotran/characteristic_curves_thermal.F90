@@ -72,7 +72,11 @@ Module Characteristic_Curves_Thermal_module
             CharacteristicCurvesThermalAddToList, & 
             CharCurvesThermalConvertListToArray, &
             CharCurvesThermalInputRecord, &
-            ThermalCharacteristicCurvesDestroy
+            ThermalCharacteristicCurvesDestroy, &
+            TCF_Default_Create, &
+            TCF_Constant_Create, &
+            TCF_Power_Create, &
+            TCF_Cubic_Polynomial_Create
   
 contains
 
