@@ -2885,7 +2885,7 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('THERMAL_CHARACTERISTIC_CURVES')
-        if (.not.option%iflowmode == G_MODE) then
+        if (.not. option%iflowmode == G_MODE) then
           option%io_buffer = "THERMAL_CHARACTERSTIC_CURVES &
                &only valid in GENERAL mode."
           call PrintErrMsg(option)

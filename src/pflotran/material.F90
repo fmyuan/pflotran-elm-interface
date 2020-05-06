@@ -851,7 +851,17 @@ subroutine MaterialPropertyRead(material_property,input,option)
     call PrintErrMsg(option)
   endif
 
-  ! KLK check if using THERMAL_CONDUCTIVITY_WET/DRY in general mode
+  if (option%iflowmode == G_MODE) then
+    if (Initialized(material_property%thermal_conductivity_wet) .or. &
+        Initialized(material_property%thermal_conductivity_dry)) then
+      option%io_buffer = 'in GENERAL mode, thermal conductivity should be &
+           &set through THERMAL_CHARACTERISTIC_CURVES, rather than through &
+           &materials THERMAL_CONDUCTIVITY_WET and THERMAL_CONDUCTIVTY_DRY. &
+           &The DEFAULT THERMAL_CHARACTERISTIC_CURVE recreates the &
+           &previous behavior, but there are also additional options now.'
+      call PrintErrMsg(option)
+    end if
+  end if
   
 end subroutine MaterialPropertyRead
 

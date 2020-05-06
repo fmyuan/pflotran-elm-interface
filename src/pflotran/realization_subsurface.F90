@@ -158,6 +158,9 @@ function RealizationCreate2(option)
   nullify(realization%fluid_property_array)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
+  if (option%iflowmode == G_MODE) then
+    nullify(realization%thermal_characteristic_curves)
+  end if
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
@@ -2718,6 +2721,9 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
+  if (associated(this%thermal_characteristic_curves)) &
+       deallocate(this%thermal_characteristic_curves)
+  
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)
