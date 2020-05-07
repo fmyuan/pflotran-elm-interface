@@ -15,6 +15,7 @@ module Output_Observation_module
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: observation_first
+  PetscBool :: observation_aggregate_first
   PetscBool :: check_for_obs_points
   PetscBool :: calculate_velocities ! true if any obs. pt. prints velocity
   PetscBool :: secondary_observation_first
@@ -58,11 +59,13 @@ subroutine OutputObservationInit(num_steps)
     secondary_observation_first = PETSC_TRUE
     mass_balance_first = PETSC_TRUE
     integral_flux_first = PETSC_TRUE
+    observation_aggregate_first = PETSC_TRUE
   else
     observation_first = PETSC_FALSE
     secondary_observation_first = PETSC_FALSE
     mass_balance_first = PETSC_FALSE
     integral_flux_first = PETSC_FALSE
+    observation_aggregate_first = PETSC_FALSE
   endif
 
   ewriter_summ_count = 0
@@ -97,6 +100,7 @@ subroutine OutputObservation(realization_base)
 !      realization_base%output_option%print_hdf5) then
   if (realization_base%output_option%print_observation) then
     call OutputObservationTecplotColumnTXT(realization_base)
+    call OutputAggregateToFile(realization_base)
     call OutputIntegralFlux(realization_base)
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
@@ -173,98 +177,6 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
     enddo
     check_for_obs_points = PETSC_FALSE
   endif
-
-  ! Write aggregate output separately because any rank could write.
-  observation => patch%observation_list%first
-  do
-    if (.not. associated(observation)) exit
-    if (observation%itype == OBSERVATION_AGGREGATE) then
-      aggregate => observation%aggregate
-      if (.not. associated(aggregate%output_variable)) then
-        do
-          if (.not. associated(aggregate)) exit
-        ! Link aggregates with their output variables if it hasn't already
-        ! been done.
-          call ObservationAggregateLinkToVar(aggregate%output_variable, &
-                                       output_option%output_obs_variable_list, &
-                                       aggregate%var_name, option)
-          aggregate => aggregate%next 
-        enddo
-        aggregate => observation%aggregate
-      endif
-
-      do
-        if (.not. associated(aggregate)) exit
-
-        write(string,'(i6)') observation%id
-        write(string2,'(i6)') aggregate%id
-        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-' // trim(adjustl(string)) // '-agg-' // &
-               trim(adjustl(string2)) // '.tec'
-        fid = 86
-
-        if (observation_first .or. .not.FileExists(filename)) then
-          if (option%myrank == option%io_rank) then
-            open(unit=fid,file=filename,action="write",status="replace")
-            ! write header
-            ! write title
-            write(fid,'(a)',advance="no") ' Aggregate Metric: '
-            select case(aggregate%metric)
-              case(OBSERVATION_AGGREGATE_MAX)
-                 write(fid,'(a)',advance="no") 'Max '
-              case(OBSERVATION_AGGREGATE_MIN)
-                 write(fid,'(a)',advance="no") 'Min '
-              case(OBSERVATION_AGGREGATE_AVG)
-                 write(fid,'(a)',advance="no") 'Average '
-            end select
-            write(fid,'(a)',advance="yes") trim(aggregate%var_name)
-
-            write(fid,'(a)',advance="no") ' "Time [' // &
-                  trim(output_option%tunit) // ']"'
-
-            ! must initialize icolumn here so that icolumn does not restart with
-            ! each observation point
-            if (output_option%print_column_ids) then
-              icolumn = 1
-            else
-              icolumn = -1
-            endif
-
-            call WriteObservationHeaderAgg(fid,realization_base, &
-                                           observation%region,icell, &
-                                           observation%print_velocities, &
-                                           icolumn)
-
-            write(fid,'(a)',advance="yes") ""
-            close(fid)
-          endif
-        endif
-        aggregate => aggregate%next        
-      enddo
-
-      aggregate => observation%aggregate
-      do
-        if (.not. associated(aggregate)) exit
-
-        write(string,'(i6)') observation%id
-        write(string2,'(i6)') aggregate%id
-        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
-               '-obs-' // trim(adjustl(string)) // '-agg-' // &
-               trim(adjustl(string2)) // '.tec'
-        fid = 86
-
-        ! Compute the aggregate metric on each process
-        call ObservationAggComputeMetric(realization_base, aggregate, &
-                                         observation%region, option)
-        ! Do the reduction and write
-        call WriteObservationAggData(aggregate,realization_base, &
-                                     string,filename,fid,output_option,option)
-        aggregate => aggregate%next
-      enddo
-
-    endif
-    observation => observation%next 
-  enddo
 
   if (calculate_velocities) then
     nphase = max(option%nphase,option%transport%nphase)
@@ -379,6 +291,144 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   call PetscLogEventEnd(logging%event_output_observation,ierr);CHKERRQ(ierr)
       
 end subroutine OutputObservationTecplotColumnTXT
+
+! ************************************************************************** !
+
+subroutine OutputAggregateToFile(realization_base)
+  ! 
+  ! Print to observation aggregate data to text file
+  ! 
+  ! Author: Michael Nole
+  ! Date: 05/07/20
+  !
+
+  use Realization_Base_class, only : realization_base_type
+  use Discretization_module
+  use Grid_module
+  use Option_module
+  use Field_module
+  use Patch_module
+  use Observation_module
+  use Utility_module
+  use String_module
+
+  implicit none
+
+  class(realization_base_type) :: realization_base
+
+  PetscInt :: fid, icell
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: string, string2
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(output_option_type), pointer :: output_option
+  type(observation_type), pointer :: observation
+  type(observation_aggregate_type), pointer :: aggregate
+  PetscInt :: icolumn
+  PetscErrorCode :: ierr
+
+  call PetscLogEventBegin(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+
+  patch => realization_base%patch
+  option => realization_base%option
+  output_option => realization_base%output_option
+
+  ! Write aggregate output separately because any rank could write.
+  observation => patch%observation_list%first
+  do
+    if (.not. associated(observation)) exit
+    if (observation%itype == OBSERVATION_AGGREGATE) then
+      aggregate => observation%aggregate
+      if (.not. associated(aggregate%output_variable)) then
+        do
+          if (.not. associated(aggregate)) exit
+        ! Link aggregates with their output variables if it hasn't already
+        ! been done.
+          call ObservationAggregateLinkToVar(aggregate%output_variable, &
+                                       output_option%output_obs_variable_list, &
+                                       aggregate%var_name, option)
+          aggregate => aggregate%next
+        enddo
+        aggregate => observation%aggregate
+      endif
+
+      do
+        if (.not. associated(aggregate)) exit
+
+        write(string,'(i6)') observation%id
+        write(string2,'(i6)') aggregate%id
+        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-obs-' // trim(adjustl(string)) // '-agg-' // &
+               trim(adjustl(string2)) // '.tec'
+        fid = 86
+
+        if (observation_aggregate_first .or. .not.FileExists(filename)) then
+          if (option%myrank == option%io_rank) then
+            open(unit=fid,file=filename,action="write",status="replace")
+            ! write header
+            ! write title
+            write(fid,'(a)',advance="no") ' Aggregate Metric: '
+            select case(aggregate%metric)
+              case(OBSERVATION_AGGREGATE_MAX)
+                 write(fid,'(a)',advance="no") 'Max '
+              case(OBSERVATION_AGGREGATE_MIN)
+                 write(fid,'(a)',advance="no") 'Min '
+              case(OBSERVATION_AGGREGATE_AVG)
+                 write(fid,'(a)',advance="no") 'Average '
+            end select
+            write(fid,'(a)',advance="yes") trim(aggregate%var_name)
+
+            write(fid,'(a)',advance="no") ' "Time [' // &
+                  trim(output_option%tunit) // ']"'
+
+            ! must initialize icolumn here so that icolumn does not restart with
+            ! each observation point
+            if (output_option%print_column_ids) then
+              icolumn = 1
+            else
+              icolumn = -1
+            endif
+
+            call WriteObservationHeaderAgg(fid,realization_base, &
+                                           observation%region,icell, &
+                                           observation%print_velocities, &
+                                           icolumn)
+
+            write(fid,'(a)',advance="yes") ""
+            close(fid)
+          endif
+        endif
+        aggregate => aggregate%next
+      enddo
+
+      aggregate => observation%aggregate
+      do
+        if (.not. associated(aggregate)) exit
+
+        write(string,'(i6)') observation%id
+        write(string2,'(i6)') aggregate%id
+        filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-obs-' // trim(adjustl(string)) // '-agg-' // &
+               trim(adjustl(string2)) // '.tec'
+        fid = 86
+
+        ! Compute the aggregate metric on each process
+        call ObservationAggComputeMetric(realization_base, aggregate, &
+                                         observation%region, option)
+        ! Do the reduction and write
+        call WriteObservationAggData(aggregate,realization_base, &
+                                     string,filename,fid,output_option,option)
+        aggregate => aggregate%next
+      enddo
+
+    endif
+    observation => observation%next
+  enddo
+
+  observation_aggregate_first = PETSC_FALSE
+  call PetscLogEventEnd(logging%event_output_observation_agg,ierr);CHKERRQ(ierr)
+
+end subroutine OutputAggregateToFile
 
 ! ************************************************************************** !
 

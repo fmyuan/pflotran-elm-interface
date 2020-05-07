@@ -70,6 +70,7 @@ module Logging_module
     PetscLogEvent :: event_output_get_cell_vel
     PetscLogEvent :: event_output_vec_tecplot
     PetscLogEvent :: event_output_observation
+    PetscLogEvent :: event_output_observation_agg
     PetscLogEvent :: event_output_coordinates_hdf5
     PetscLogEvent :: event_output_hydrograph
     PetscLogEvent :: event_output_secondary_tecplot
