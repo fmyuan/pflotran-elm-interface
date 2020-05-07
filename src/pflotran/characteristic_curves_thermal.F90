@@ -813,7 +813,6 @@ subroutine CharCurvesThermalConvertListToArray(list,array,option)
           call cur_thermal_cc%thermal_conductivity_function%Test( &
                cur_thermal_cc%name,option)
         end if
-        call CharacteristicCurvesThermalTest(cur_thermal_cc,option)
       endif
       call OptionSetBlocking(option,PETSC_TRUE)
       call OptionCheckNonBlockingError(option)
@@ -953,7 +952,7 @@ recursive subroutine ThermalCharacteristicCurvesDestroy(tcc)
 
   if (.not.associated(tcc)) return
 
-  call CharacteristicCurvesDestroy(tcc%next)
+  call ThermalCharacteristicCurvesDestroy(tcc%next)
 
   call ThermalConductivityFunctionDestroy(tcc%thermal_conductivity_function)
 
