@@ -2901,7 +2901,7 @@ subroutine SubsurfaceReadInput(simulation,input)
              thermal_characteristic_curves,input,option)
         call CharacteristicCurvesThermalAddToList( &
              thermal_characteristic_curves, &
-             realization%thermal_charactersitic_curves)
+             realization%thermal_characteristic_curves)
         nullify(thermal_characteristic_curves)
 
 !....................
