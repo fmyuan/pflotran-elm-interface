@@ -460,7 +460,7 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperBE(this)
       if (option%use_mc .and. (itransport == RT)) then
         call SNESLineSearchSetPostCheck(linesearch, &
                               SecondaryRTUpdateIterate, &
-                              this%pm_ptr,ierr);CHKERRQ(ierr)  !! <<<< KLK ??
+                              realization,ierr);CHKERRQ(ierr)
       endif
       
       ! Have PETSc do a SNES_View() at the end of each solve if 
