@@ -673,6 +673,10 @@ subroutine ThermalConductivityFunctionRead( &
         call InputReadDouble(input,option,tcf%constant_thermal_conductivity)
         call InputErrorMsg(input,option,'constant thermal conductivity', &
              error_string)
+        call InputReadAndConvertUnits(input, &
+             tcf%constant_thermal_conductivity,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,constant thermal conductivity', &
+             option)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'constant thermal conductivity',option)
@@ -684,10 +688,14 @@ subroutine ThermalConductivityFunctionRead( &
         call InputReadDouble(input,option,tcf%kT_wet)
         call InputErrorMsg(input,option,'thermal conductivity wet', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
       case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option,tcf%kT_dry)
         call InputErrorMsg(input,option,'thermal conductivity dry', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'saturation-dependent thermal conductivity',option)
@@ -699,14 +707,20 @@ subroutine ThermalConductivityFunctionRead( &
         call InputReadDouble(input,option,tcf%kT_wet)
         call InputErrorMsg(input,option,'thermal conductivity wet', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
       case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option,tcf%kT_dry)
         call InputErrorMsg(input,option,'thermal conductivity dry', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%ref_temp, &
+             'C','CHARACTERISTIC_CURVES_THERMAL,reference temperature',option)
       case('EXPONENT')
         call InputReadDouble(input,option,tcf%gamma)
         call InputErrorMsg(input,option,'thermal conductivity exponent', &
@@ -722,14 +736,20 @@ subroutine ThermalConductivityFunctionRead( &
         call InputReadDouble(input,option,tcf%kT_wet)
         call InputErrorMsg(input,option,'thermal conductivity wet', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
       case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option,tcf%kT_dry)
         call InputErrorMsg(input,option,'thermal conductivity dry', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%ref_temp, &
+             'C','CHARACTERISTIC_CURVES_THERMAL,reference temperature',option)
       case('CUBIC_POLYNOMIAL_COEFFICIENTS')
         call InputReadNDoubles(input,option,tcf%beta,3)
         call InputErrorMsg(input,option, &
