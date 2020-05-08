@@ -131,9 +131,8 @@ subroutine TCFBaseTest(this,tcc_name,option)
 
   character(len=MAXSTRINGLENGTH) :: string
   PetscInt, parameter :: nt = 51
-  PetscInt, parameter :: ns = 11
-  PetscReal, parameter :: dTemp = 1.0D-6
-  PetscReal, parameter :: dSat = 1.0D-6
+  PetscInt, parameter :: ns = 21
+  PetscReal, parameter :: perturbation = 1.0D-6
   PetscReal :: deltaTemp, deltaSat
   PetscReal :: temp_vec(nt)
   PetscReal :: sat_vec(ns)
@@ -142,15 +141,16 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscReal :: dkT_dsat_numerical(nt,ns)
   PetscReal :: dkT_dT(nt,ns)
   PetscReal :: dkT_dT_numerical(nt,ns)
+  PetscReal :: perturbed_temp, perturbed_sat
   PetscReal :: temp_pert, sat_pert, unused1, unused2
   PetscReal :: temp_min, temp_max, sat_min, sat_max
   PetscInt :: i,j
 
   ! thermal conductivity as a function of temp. and liq. sat.
-  temp_min = 0.0d0 ! Celsius
+  temp_min = 1.0d0 ! Celsius
   temp_max = 250.0d0
-  sat_min = 0.0d0 
-  sat_max = 1.0d0
+  sat_min = 1.0d-7
+  sat_max = 1.0d0 - 1.0d-7
 
   deltaTemp = (temp_max - temp_min)/(nt - 1)
   deltaSat = (sat_max - sat_min)/(ns - 1)
@@ -160,19 +160,22 @@ subroutine TCFBaseTest(this,tcc_name,option)
 
   do i = 1,nt
     do j = 1,ns
+      ! base case with analytical derivatives
       call this%kT_eff(sat_vec(j),temp_vec(i), &
            kT(i,j),dkT_dsat(i,j),dkT_dT(i,j),option)
 
-      ! calculate numerical derivative dkT_dsatl_numerical
-      call this%kT_eff(sat_vec(j),temp_vec(i)+dTemp, &
+      ! calculate numerical derivatives via finite differences
+      perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
+      call this%kT_eff(sat_vec(j),perturbed_temp, &
            temp_pert,unused1,unused2,option)
 
-      dkT_dT_numerical(i,j) = (kT(i,j) - temp_pert)/(temp_vec(i)*dTemp)
+      dkT_dT_numerical(i,j) = (temp_pert - kT(i,j))/(temp_vec(i)*perturbation)
 
-      call this%kT_eff(sat_vec(j)+dSat,temp_vec(i), &
+      perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
+      call this%kT_eff(perturbed_sat,temp_vec(i), &
            sat_pert,unused1,unused2,option)
 
-      dkT_dsat_numerical(i,j) = (kT(i,j) - sat_pert)/(sat_vec(j)*dSat)
+      dkT_dsat_numerical(i,j) = (sat_pert - kT(i,j))/(sat_vec(j)*perturbation)
     end do
   end do
 
@@ -582,8 +585,8 @@ subroutine CharacteristicCurvesThermalRead(this,input,option)
 
     select case(trim(keyword))
     case('THERMAL_CONDUCTIVITY_FUNCTION')
-      call InputErrorMsg(input,option, &
-           'THERMAL_CONDUCTIVITY_FUNCTION',error_string)
+      call InputReadCard(input,option,word)
+      call InputErrorMsg(input,option,'THERMAL_CONDUTIVITY_FUNCTION',error_string)
       call StringToUpper(word)
       select case(word)
       case('CONSTANT')
