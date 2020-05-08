@@ -2147,7 +2147,12 @@ subroutine MaterialPropInputRecord(material_property_list)
     
     write(id,'(a29)',advance='no') 'cc / saturation function: '
     write(id,'(a)') adjustl(trim(cur_matprop%saturation_function_name))
-    
+
+    if (Initialized(cur_matprop%thermal_conductivity_function_id)) then
+      write(id,'(a29)',advance='no') 'thermal char. curve: '
+      write(id,'(a)') adjustl(trim(cur_matprop%thermal_conductivity_function_name))
+    end if
+  
     write(id,'(a29)') '---------------------------: '
     cur_matprop => cur_matprop%next
   enddo

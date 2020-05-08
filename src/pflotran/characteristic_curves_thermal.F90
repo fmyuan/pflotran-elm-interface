@@ -56,7 +56,8 @@ Module Characteristic_Curves_Thermal_module
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
     PetscBool :: test
-    class(thermal_conductivity_base_type), pointer :: thermal_conductivity_function
+    class(thermal_conductivity_base_type), pointer :: &
+         thermal_conductivity_function
     class(cc_thermal_type), pointer :: next
   end type cc_thermal_type
   !---------------------------------------------------------------------------
@@ -67,7 +68,7 @@ Module Characteristic_Curves_Thermal_module
   public :: CharacteristicCurvesThermalCreate, &
             CharacteristicCurvesThermalGetID, &
             CharacteristicCurvesThermalRead, &
-            CharacteristicCurvesThermalAddToList, & 
+            CharacteristicCurvesThermalAddToList, &
             CharCurvesThermalConvertListToArray, &
             CharCurvesThermalInputRecord, &
             ThermalCharacteristicCurvesDestroy, &
@@ -75,12 +76,12 @@ Module Characteristic_Curves_Thermal_module
             TCF_Constant_Create, &
             TCF_Power_Create, &
             TCF_Cubic_Polynomial_Create
-  
+
 contains
 
 ! ************************************************************************** !
 ! ************************************************************************** !
-  
+
 subroutine TCFBaseVerify(this,name,option)
 
   use Option_module
@@ -111,7 +112,7 @@ subroutine TCFBaseConductivity(this,liquid_saturation,temperature, &
   thermal_conductivity = 0.d0
   dkT_dsatl = 0.d0
   dkT_dtemp = 0.d0
-  
+
   option%io_buffer = 'TCFBaseThermalConductivity must be extended.'
   call PrintErrMsg(option)
 
@@ -483,11 +484,12 @@ subroutine TCFCubicPolyVerify(this,name,option)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%ref_temp)) then
-    option%io_buffer = UninitializedMessage('COEFFCIENTS',string)
+    option%io_buffer = UninitializedMessage('REFERENCE_TEMPERATURE',string)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%beta(1))) then
-    option%io_buffer = UninitializedMessage('COEFFCIENTS',string)
+    option%io_buffer = UninitializedMessage( &
+         'CUBIC_POLYNOMIAL_COEFFCIENTS',string)
     call PrintErrMsg(option)
   endif
 
@@ -586,7 +588,8 @@ subroutine CharacteristicCurvesThermalRead(this,input,option)
     select case(trim(keyword))
     case('THERMAL_CONDUCTIVITY_FUNCTION')
       call InputReadCard(input,option,word)
-      call InputErrorMsg(input,option,'THERMAL_CONDUTIVITY_FUNCTION',error_string)
+      call InputErrorMsg(input,option, &
+           'THERMAL_CONDUTIVITY_FUNCTION',error_string)
       call StringToUpper(word)
       select case(word)
       case('CONSTANT')
@@ -898,15 +901,15 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
   do
     if (.not.associated(cur_thermal_ccurve)) exit
 
-    write(id,'(a29)',advance='no') 'thermal characteristic curve name: '
+    write(id,'(a29)',advance='no') 'thermal char. curve name: '
     write(id,'(a)') adjustl(trim(cur_thermal_ccurve%name))
 
     if (associated(cur_thermal_ccurve%thermal_conductivity_function)) then
-      write(id,'(a29)',advance='no') 'thermal conductivity function: '
+      write(id,'(a29)',advance='no') 'thermal conductivity func.: '
       select type (tcf => cur_thermal_ccurve%thermal_conductivity_function)
         !---------------------------------
       class is (kT_default_type)
-        write(id,'(a)') 'default'
+        write(id,'(a)') 'only saturation-dependent (default)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))
@@ -921,7 +924,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_power_type)
-        write(id,'(a)') 'temperature-dependent (power)'
+        write(id,'(a)') 'sat.- and temp.-dependent (power)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))
@@ -936,7 +939,7 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         !---------------------------------
       class is (kT_cubic_polynomial_type)
-        write(id,'(a)') 'temperature-dependent (cubic polynomial)'
+        write(id,'(a)') 'sat.- and temp.-dependent (cubic polynomial)'
         write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))
@@ -946,13 +949,13 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a29)',advance='no') 'reference temp.: '
         write(word1,*) tcf%ref_temp
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'beta(1): '
+        write(id,'(a29)',advance='no') 'T coefficient: '
         write(word1,*) tcf%beta(1)
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'beta(2): '
+        write(id,'(a29)',advance='no') 'T^2 coefficient: '
         write(word1,*) tcf%beta(2)
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'beta(3): '
+        write(id,'(a29)',advance='no') 'T^3 coefficient: '
         write(word1,*) tcf%beta(3)
         write(id,'(a)') adjustl(trim(word1))
       end select
