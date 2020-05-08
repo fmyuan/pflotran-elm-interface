@@ -114,6 +114,7 @@ subroutine SubsurfaceSimInputRecord(this)
   use Strata_module
   use Material_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Patch_module
   use Condition_module
   use EOS_module
