@@ -364,6 +364,7 @@ function TCF_Power_Create()
   allocate(TCF_Power_Create)
   TCF_Power_Create%kT_wet = UNINITIALIZED_DOUBLE
   TCF_Power_Create%kT_dry = UNINITIALIZED_DOUBLE
+  TCF_Power_Create%ref_temp = UNINITIALIZED_DOUBLE
   TCF_Power_Create%gamma = UNINITIALIZED_DOUBLE
 
 end function TCF_Power_Create
@@ -397,8 +398,9 @@ subroutine TCFPowerVerify(this,name,option)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%ref_temp)) then
-    option%io_buffer = UninitializedMessage('REFERENCE_TEMPERATURE',string)
-    call PrintErrMsg(option)
+    option%io_buffer = 'Warning: using default REFERENCE_TEMPERATURE'//string
+    call PrintMsg(option)
+    this%ref_temp = -2.7315D+2 ! default reference temperature
   endif
   if (Uninitialized(this%gamma)) then
     option%io_buffer = UninitializedMessage('EXPONENT',string)
@@ -430,7 +432,8 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
 
   shifted_temp = temperature - this%ref_temp
 
-  tempreal = kT_base * shifted_temp ** this%gamma
+  ! kT = kT_0 * (T/300) ** gamma [T in Kelvin]
+  tempreal = kT_base * (shifted_temp / 3.0D+2) ** this%gamma
   thermal_conductivity = tempreal
   dkT_dtemp = this%gamma * tempreal / shifted_temp
 
@@ -484,8 +487,9 @@ subroutine TCFCubicPolyVerify(this,name,option)
     call PrintErrMsg(option)
   endif
   if (Uninitialized(this%ref_temp)) then
-    option%io_buffer = UninitializedMessage('REFERENCE_TEMPERATURE',string)
-    call PrintErrMsg(option)
+    option%io_buffer = 'Warning: using default REFERENCE_TEMPERATURE '//string
+    call PrintMsg(option)
+    this%ref_temp = 0.d0 ! default reference temp
   endif
   if (Uninitialized(this%beta(1))) then
     option%io_buffer = UninitializedMessage( &
