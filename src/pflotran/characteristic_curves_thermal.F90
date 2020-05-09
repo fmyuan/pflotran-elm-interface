@@ -38,7 +38,7 @@ Module Characteristic_Curves_Thermal_module
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_power_type
     PetscReal :: ref_temp
-    PetscReal :: gamma
+    PetscReal :: gamma  ! T^gamma
   contains
     procedure, public :: Verify => TCFPowerVerify
     procedure, public :: kT_eff => TCFPowerConductivity
@@ -46,11 +46,19 @@ Module Characteristic_Curves_Thermal_module
   !---------------------------------------------------------------------------
   type, public, extends(kT_default_type) :: kT_cubic_polynomial_type
     PetscReal :: ref_temp
-    PetscReal :: beta(3)
+    PetscReal :: beta(3) ! (T,T^2,T^3)
   contains
     procedure, public :: Verify => TCFCubicPolyVerify
     procedure, public :: kT_eff => TCFCubicPolyConductivity
   end type kT_cubic_polynomial_type
+  !---------------------------------------------------------------------------
+  type, public, extends(kT_default_type) :: kT_linear_resistivity_type
+    PetscReal :: ref_temp
+    PetscReal :: a(2)  ! 1/(a(1) + a(2)*T)
+  contains
+    procedure, public :: Verify => TCFLinearResistivityVerify
+    procedure, public :: kT_eff => TCFLinearResistivityConductivity
+ end type kT_linear_resistivity_type
   !---------------------------------------------------------------------------
   type, public :: cc_thermal_type
     character(len=MAXWORDLENGTH) :: name
@@ -75,7 +83,8 @@ Module Characteristic_Curves_Thermal_module
             TCF_Default_Create, &
             TCF_Constant_Create, &
             TCF_Power_Create, &
-            TCF_Cubic_Polynomial_Create
+            TCF_Cubic_Polynomial_Create, &
+            TCF_Linear_Resistivity_Create
 
 contains
 
@@ -481,9 +490,11 @@ subroutine TCFCubicPolyVerify(this,name,option)
     option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
     call PrintErrMsg(option)
   endif
-  if (Uninitialized(this%beta(1))) then
+  if (Uninitialized(this%beta(1)).or. &
+      Uninitialized(this%beta(2)) .or. &
+      Uninitialized(this%beta(3))) then
     option%io_buffer = UninitializedMessage( &
-         'CUBIC_POLYNOMIAL_COEFFCIENTS',string)
+         'CUBIC_POLYNOMIAL_COEFFCIENTS (1+b(1)*T+b(2)*T^2+b(3)*T^3)',string)
     call PrintErrMsg(option)
   endif
 
@@ -523,6 +534,85 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
        + shifted_temp* 3.d0*this%beta(3)))
 
 end subroutine TCFCubicPolyConductivity
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+function TCF_Linear_Resistivity_Create()
+
+  implicit none
+
+  class(kT_linear_resistivity_type), pointer :: TCF_Linear_Resistivity_Create
+
+  allocate(TCF_Linear_Resistivity_Create)
+  TCF_Linear_Resistivity_Create%kT_wet = 1.0d0 ! relative thermal conductivity
+  TCF_Linear_Resistivity_Create%kT_dry = 1.0d0
+  TCF_Linear_Resistivity_Create%ref_temp = 0.d0
+  TCF_Linear_Resistivity_Create%a = [ UNINITIALIZED_DOUBLE, &
+                                      UNINITIALIZED_DOUBLE]
+
+end function TCF_Linear_Resistivity_Create
+
+! ************************************************************************** !
+
+subroutine TCFLinearResistivityVerify(this,name,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_linear_resistivity_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+
+  if (index(name,'THERMAL_CONDUCTIVITY_FUNCTION') > 0) then
+    string = name
+  else
+    string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,LINEAR_RESISTIVITY'
+  endif
+  if (Uninitialized(this%a(1)) .or. Uninitialized(this%a(2))) then
+     option%io_buffer = UninitializedMessage( &
+          'RESISTIVITY_COEFFCIENTS 1/(a(1) + a(2)*T)',string)
+     call PrintErrMsg(option)
+  endif
+
+end subroutine TCFLinearResistivityVerify
+
+! ************************************************************************** !
+
+subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, &
+     thermal_conductivity,dkT_dsatl,dkT_dtemp,option)
+
+  use Option_module
+
+  implicit none
+
+  class(kT_linear_resistivity_type) :: this
+  PetscReal, intent(in) :: liquid_saturation, temperature
+  PetscReal, intent(out) :: thermal_conductivity
+  PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
+  type(option_type), intent(inout) :: option
+
+  PetscReal :: relkT, shifted_temp, tempreal
+
+  ! behavior WRT saturation from default function
+  call TCFDefaultConductivity(this%kT_default_type, &
+       liquid_saturation,0.d0,relkT,dkT_dsatl,dkT_dtemp,option)
+
+  shifted_temp = temperature - this%ref_temp
+
+  ! linear thermal resistivity idea from Birch & Clark (1940) and
+  ! used by Blesch, Kulacki & Christensen (1983), ONWI-495
+  ! kT = relkT/(a1 + a2*T), where relkT = 1 in those papers
+  ! (they didn't consider effect of saturation)
+  tempreal = this%a(1) + shifted_temp*this%a(2)
+  thermal_conductivity = relkT / tempreal
+
+  dkT_dtemp = -this%a(2) * thermal_conductivity / tempreal
+
+end subroutine TCFLinearResistivityConductivity
 
 ! ************************************************************************** !
 ! ************************************************************************** !
@@ -594,6 +684,8 @@ subroutine CharacteristicCurvesThermalRead(this,input,option)
         this%thermal_conductivity_function => TCF_Power_Create()
       case('CUBIC_POLYNOMIAL')
         this%thermal_conductivity_function => TCF_Cubic_Polynomial_Create()
+      case('LINEAR_RESISTIVITY')
+        this%thermal_conductivity_function => TCF_Linear_Resistivity_Create()
       case default
         call InputKeywordUnrecognized(input,word, &
              'THERMAL_CONDUCTIVITY_FUNCTION',option)
@@ -654,6 +746,8 @@ subroutine ThermalConductivityFunctionRead( &
     error_string = trim(error_string) // 'POWER'
   class is(kT_cubic_polynomial_type)
     error_string = trim(error_string) // 'CUBIC_POLYNOMIAL'
+  class is(kT_linear_resistivity_type)
+    error_string = trim(error_string) // 'LINEAR_RESISTIVITY'
   end select
 
   call InputPushBlock(input,option)
@@ -757,7 +851,33 @@ subroutine ThermalConductivityFunctionRead( &
       case default
         call InputKeywordUnrecognized(input,keyword, &
              'temp-dependent (cubic polynomial) thermal conductivity',option)
+     end select
+           !------------------------------------------
+    class is(kT_linear_resistivity_type)
+      select case(keyword)
+      case('REL_THERMAL_CONDUCTIVITY_WET')
+        call InputReadDouble(input,option,tcf%kT_wet)
+        call InputErrorMsg(input,option,'relative thermal conductivity wet', &
+             error_string)
+      case('REL_THERMAL_CONDUCTIVITY_DRY')
+        call InputReadDouble(input,option,tcf%kT_dry)
+        call InputErrorMsg(input,option,'relative thermal conductivity dry', &
+             error_string)
+      case('REFERENCE_TEMPERATURE')
+        call InputReadDouble(input,option,tcf%ref_temp)
+        call InputErrorMsg(input,option,'reference temperature', &
+             error_string)
+        call InputReadAndConvertUnits(input,tcf%ref_temp, &
+             'C','CHARACTERISTIC_CURVES_THERMAL,reference temperature',option)
+      case('LINEAR_RESISTIVITY_COEFFICIENTS')
+        call InputReadNDoubles(input,option,tcf%a,2)
+        call InputErrorMsg(input,option, &
+             'linear thermal resistivity coefficients',error_string)
+      case default
+        call InputKeywordUnrecognized(input,keyword, &
+             'temp-dependent (linear resistivity) thermal conductivity',option)
       end select
+
     class default
       option%io_buffer = 'Read routine not implemented for ' &
            // trim(error_string) // '.'
@@ -951,6 +1071,24 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'T^3 coefficient: '
         write(word1,*) tcf%beta(3)
+        write(id,'(a)') adjustl(trim(word1))
+        !---------------------------------
+      class is (kT_linear_resistivity_type)
+        write(id,'(a)') 'sat.- and temp.-dependent (lin. resistivity)'
+        write(id,'(a29)',advance='no') 'relative kT_wet: '
+        write(word1,*) tcf%kT_wet
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'relative kT_dry: '
+        write(word1,*) tcf%kT_dry
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'reference temp.: '
+        write(word1,*) tcf%ref_temp
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'const. coefficient: '
+        write(word1,*) tcf%a(1)
+        write(id,'(a)') adjustl(trim(word1))
+        write(id,'(a29)',advance='no') 'T coefficient: '
+        write(word1,*) tcf%a(2)
         write(id,'(a)') adjustl(trim(word1))
       end select
     endif
