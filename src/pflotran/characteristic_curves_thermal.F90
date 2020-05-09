@@ -140,8 +140,8 @@ subroutine TCFBaseTest(this,tcc_name,option)
   type(option_type), intent(inout) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt, parameter :: nt = 51
-  PetscInt, parameter :: ns = 21
+  PetscInt, parameter :: nt = 71
+  PetscInt, parameter :: ns = 31
   PetscReal, parameter :: perturbation = 1.0D-6
   PetscReal :: deltaTemp, deltaSat
   PetscReal :: temp_vec(nt)
@@ -149,18 +149,18 @@ subroutine TCFBaseTest(this,tcc_name,option)
   PetscReal :: kT(nt,ns)
   PetscReal :: dkT_dsat(nt,ns)
   PetscReal :: dkT_dsat_numerical(nt,ns)
-  PetscReal :: dkT_dT(nt,ns)
-  PetscReal :: dkT_dT_numerical(nt,ns)
+  PetscReal :: dkT_dtemp(nt,ns)
+  PetscReal :: dkT_dtemp_numerical(nt,ns)
   PetscReal :: perturbed_temp, perturbed_sat
-  PetscReal :: temp_pert, sat_pert, unused1, unused2
+  PetscReal :: kT_temp_pert, kT_sat_pert, unused1, unused2
   PetscReal :: temp_min, temp_max, sat_min, sat_max
   PetscInt :: i,j
 
   ! thermal conductivity as a function of temp. and liq. sat.
   temp_min = 1.0d0 ! Celsius
   temp_max = 250.0d0
-  sat_min = 1.0d-7
-  sat_max = 1.0d0 - 1.0d-7
+  sat_min = 1.0d-3
+  sat_max = 1.0d0
 
   deltaTemp = (temp_max - temp_min)/(nt - 1)
   deltaSat = (sat_max - sat_min)/(ns - 1)
@@ -172,20 +172,20 @@ subroutine TCFBaseTest(this,tcc_name,option)
     do j = 1,ns
       ! base case with analytical derivatives
       call this%kT_eff(sat_vec(j),temp_vec(i), &
-           kT(i,j),dkT_dsat(i,j),dkT_dT(i,j),option)
+           kT(i,j),dkT_dsat(i,j),dkT_dtemp(i,j),option)
 
       ! calculate numerical derivatives via finite differences
       perturbed_temp = temp_vec(i) * (1.d0 + perturbation)
       call this%kT_eff(sat_vec(j),perturbed_temp, &
-           temp_pert,unused1,unused2,option)
+           kT_temp_pert,unused1,unused2,option)
 
-      dkT_dT_numerical(i,j) = (temp_pert - kT(i,j))/(temp_vec(i)*perturbation)
+      dkT_dtemp_numerical(i,j) = (kT_temp_pert - kT(i,j))/(temp_vec(i)*perturbation)
 
       perturbed_sat = sat_vec(j) * (1.d0 + perturbation)
       call this%kT_eff(perturbed_sat,temp_vec(i), &
-           sat_pert,unused1,unused2,option)
+           kT_sat_pert,unused1,unused2,option)
 
-      dkT_dsat_numerical(i,j) = (sat_pert - kT(i,j))/(sat_vec(j)*perturbation)
+      dkT_dsat_numerical(i,j) = (kT_sat_pert - kT(i,j))/(sat_vec(j)*perturbation)
     end do
   end do
 
@@ -197,8 +197,8 @@ subroutine TCFBaseTest(this,tcc_name,option)
   do i = 1,nt
     do j = 1,ns
       write(86,'(7(ES14.6))') temp_vec(i), sat_vec(j), &
-           kT(i,j), dkT_dsat(i,j), dkT_dT(i,j), &
-           dkT_dsat_numerical(i,j), dkT_dT_numerical(i,j)
+           kT(i,j), dkT_dsat(i,j), dkT_dtemp(i,j), &
+           dkT_dsat_numerical(i,j), dkT_dtemp_numerical(i,j)
     end do
   end do
   close(86)
@@ -287,13 +287,16 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
 
   dkT_dtemp = 0.d0 ! only a function of saturation
 
-  if (liquid_saturation > 0.d0) then
+  if (liquid_saturation <= 0.d0) then
+    thermal_conductivity = this%kT_dry
+    dkT_dsatl = 0.d0 ! deriv is infinity, but is likely below residual sat
+  elseif (liquid_saturation >= 1.d0) then
+    thermal_conductivity = this%kT_wet
+    dkT_dsatl = 0.5d0 * (this%kT_wet - this%kT_dry) ! avoid sqrt()
+  else
     tempreal = sqrt(liquid_saturation) * (this%kT_wet - this%kT_dry)
     thermal_conductivity = this%kT_dry + tempreal
     dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
-  else
-    thermal_conductivity = this%kT_dry
-    dkT_dsatl = 0.d0
   end if
 
 end subroutine TCFDefaultConductivity
@@ -428,18 +431,19 @@ subroutine TCFPowerConductivity(this,liquid_saturation,temperature, &
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: tempreal, kT_base, shifted_temp
+  PetscReal :: tempreal, kT_base, shifted_temp, unused
 
-  ! behavior WRT saturation from default function
-  call TCFDefaultConductivity(this%kT_default_type, &
-       liquid_saturation,0.d0,kT_base,dkT_dsatl,dkT_dtemp,option)
+  ! saturation behavior from default function
+  call this%kT_default_type%kT_eff(liquid_saturation,0.d0, &
+       kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
 
   ! kT = kT_0 * (T/300) ** gamma [T in Kelvin]
-  tempreal = kT_base * (shifted_temp / 3.0D+2) ** this%gamma
-  thermal_conductivity = tempreal
-  dkT_dtemp = this%gamma * tempreal / shifted_temp
+  tempreal = (shifted_temp / 3.0D+2) ** this%gamma
+  thermal_conductivity = kT_base * tempreal
+  dkT_dtemp = this%gamma * kT_base * tempreal / shifted_temp
+  dkT_dsatl = dkT_dsatl * tempreal
 
 end subroutine TCFPowerConductivity
 
@@ -515,23 +519,25 @@ subroutine TCFCubicPolyConductivity(this,liquid_saturation,temperature, &
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: kT_base, shifted_temp
+  PetscReal :: kT_base, shifted_temp, unused, tempreal
 
-  ! behavior WRT saturation from default function
-  call TCFDefaultConductivity(this%kT_default_type, &
-       liquid_saturation,0.d0,kT_base,dkT_dsatl,dkT_dtemp,option)
+  ! saturation behavior from default function
+  call this%kT_default_type%kT_eff(liquid_saturation,0.d0, &
+       kT_base,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
 
   ! kT = k0 * (1 + beta1*T + beta2*T^2 + beta3*T^3)
-  thermal_conductivity = kT_base * &
-       (1.d0 + shifted_temp*(this%beta(1) &
+  tempreal = (1.d0 + shifted_temp*(this%beta(1) &
        + shifted_temp*(this%beta(2) &
        + shifted_temp* this%beta(3))))
+  thermal_conductivity = kT_base * tempreal
 
   dkT_dtemp = kT_base * (this%beta(1) &
        + shifted_temp*(2.d0*this%beta(2) &
        + shifted_temp* 3.d0*this%beta(3)))
+
+  dkT_dsatl = dkT_dsatl * tempreal
 
 end subroutine TCFCubicPolyConductivity
 
@@ -595,11 +601,11 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, 
   PetscReal, intent(out) :: dkT_dsatl, dkT_dtemp
   type(option_type), intent(inout) :: option
 
-  PetscReal :: relkT, shifted_temp, tempreal
+  PetscReal :: relkT, shifted_temp, tempreal, unused
 
-  ! behavior WRT saturation from default function
-  call TCFDefaultConductivity(this%kT_default_type, &
-       liquid_saturation,0.d0,relkT,dkT_dsatl,dkT_dtemp,option)
+  ! saturation behavior from default function
+  call this%kT_default_type%kT_eff(liquid_saturation,0.d0, &
+       relkT,dkT_dsatl,unused,option)
 
   shifted_temp = temperature - this%ref_temp
 
@@ -611,6 +617,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, 
   thermal_conductivity = relkT / tempreal
 
   dkT_dtemp = -this%a(2) * thermal_conductivity / tempreal
+  dkT_dsatl = dkT_dsatl / tempreal
 
 end subroutine TCFLinearResistivityConductivity
 
