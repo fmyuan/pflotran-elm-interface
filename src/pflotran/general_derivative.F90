@@ -254,7 +254,7 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   class(rpf_Mualem_VG_liq_type), pointer :: rpf_liq
   class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas  
 
-  class(kT_default_type), pointer :: tcf
+  class(kT_power_type), pointer :: tcf
   
   if (.not.associated(general_parameter)) then
     allocate(general_parameter)
@@ -287,9 +287,10 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   endif
   if (.not.associated(thermal_characteristic_curves)) then
     thermal_characteristic_curves => CharacteristicCurvesThermalCreate()
-    tcf => TCF_Default_Create()
+    tcf => TCF_Power_Create()
     tcf%kT_wet = 2.d0
     tcf%kT_dry = 0.5d0
+    tcf%gamma = -1.88
   end if
     
 end subroutine GeneralDerivativeSetup
