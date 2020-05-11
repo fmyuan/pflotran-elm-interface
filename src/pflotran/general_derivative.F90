@@ -290,7 +290,8 @@ subroutine GeneralDerivativeSetup(general_parameter, &
     tcf => TCF_Power_Create()
     tcf%kT_wet = 2.d0
     tcf%kT_dry = 0.5d0
-    tcf%gamma = -1.88
+    tcf%gamma = -1.88d0
+    thermal_characteristic_curves%thermal_conductivity_function => tcf
   end if
     
 end subroutine GeneralDerivativeSetup
