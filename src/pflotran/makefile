@@ -51,7 +51,7 @@ PETSC_MAKE_STOP_ON_ERROR=
 # so that PFLOTRAN will be built with the same options as 
 # the petsc configured in $PETSC_DIR/$PETSC_ARCH
 
-MYFLAGS = -I. -fcheck=all
+MYFLAGS = -I.
 
 ###############################################################################
 # Preprocessor flags for special PFLOTRAN features/hacks
@@ -200,7 +200,7 @@ endif
 
 # These flags are supplemental to the PETSc flags
 CFLAGS   =
-FFLAGS   =
+FFLAGS   = -fcheck=all
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 

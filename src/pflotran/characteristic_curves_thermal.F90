@@ -551,8 +551,8 @@ function TCF_Linear_Resistivity_Create()
   class(kT_linear_resistivity_type), pointer :: TCF_Linear_Resistivity_Create
 
   allocate(TCF_Linear_Resistivity_Create)
-  TCF_Linear_Resistivity_Create%kT_wet = 1.0d0 ! relative thermal conductivity
-  TCF_Linear_Resistivity_Create%kT_dry = 1.0d0
+  TCF_Linear_Resistivity_Create%kT_wet = UNINITIALIZED_DOUBLE
+  TCF_Linear_Resistivity_Create%kT_dry = UNINITIALIZED_DOUBLE
   TCF_Linear_Resistivity_Create%ref_temp = 0.d0
   TCF_Linear_Resistivity_Create%a = [ UNINITIALIZED_DOUBLE, &
                                       UNINITIALIZED_DOUBLE]
@@ -577,6 +577,15 @@ subroutine TCFLinearResistivityVerify(this,name,option)
     string = name
   else
     string = trim(name) // 'THERMAL_CONDUCTIVITY_FUNCTION,LINEAR_RESISTIVITY'
+  endif
+  call TCFBaseVerify(this,string,option)
+  if (Uninitialized(this%kT_wet)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_WET',string)
+    call PrintErrMsg(option)
+  endif
+  if (Uninitialized(this%kT_dry)) then
+    option%io_buffer = UninitializedMessage('THERMAL_CONDUCTIVITY_DRY',string)
+    call PrintErrMsg(option)
   endif
   if (Uninitialized(this%a(1)) .or. Uninitialized(this%a(2))) then
      option%io_buffer = UninitializedMessage( &
@@ -611,8 +620,7 @@ subroutine TCFLinearResistivityConductivity(this,liquid_saturation,temperature, 
 
   ! linear thermal resistivity idea from Birch & Clark (1940) and
   ! used by Blesch, Kulacki & Christensen (1983), ONWI-495
-  ! kT = relkT/(a1 + a2*T), where relkT = 1 in those papers
-  ! (they didn't consider effect of saturation)
+  ! kT = relkT/(a1 + a2*T)
   tempreal = this%a(1) + shifted_temp*this%a(2)
   thermal_conductivity = relkT / tempreal
 
@@ -862,14 +870,18 @@ subroutine ThermalConductivityFunctionRead( &
            !------------------------------------------
     class is(kT_linear_resistivity_type)
       select case(keyword)
-      case('REL_THERMAL_CONDUCTIVITY_WET')
+      case('THERMAL_CONDUCTIVITY_WET')
         call InputReadDouble(input,option,tcf%kT_wet)
-        call InputErrorMsg(input,option,'relative thermal conductivity wet', &
+        call InputErrorMsg(input,option,'thermal conductivity wet', &
              error_string)
-      case('REL_THERMAL_CONDUCTIVITY_DRY')
+        call InputReadAndConvertUnits(input,tcf%kT_wet,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity wet',option)
+      case('THERMAL_CONDUCTIVITY_DRY')
         call InputReadDouble(input,option,tcf%kT_dry)
-        call InputErrorMsg(input,option,'relative thermal conductivity dry', &
+        call InputErrorMsg(input,option,'thermal conductivity dry', &
              error_string)
+        call InputReadAndConvertUnits(input,tcf%kT_dry,'W/m-C', &
+             'CHARACTERISTIC_CURVES_THERMAL,thermal conductivity dry',option)        
       case('REFERENCE_TEMPERATURE')
         call InputReadDouble(input,option,tcf%ref_temp)
         call InputErrorMsg(input,option,'reference temperature', &
@@ -1082,10 +1094,10 @@ subroutine CharCurvesThermalInputRecord(cc_thermal_list)
         !---------------------------------
       class is (kT_linear_resistivity_type)
         write(id,'(a)') 'sat.- and temp.-dependent (lin. resistivity)'
-        write(id,'(a29)',advance='no') 'relative kT_wet: '
+        write(id,'(a29)',advance='no') 'kT_wet: '
         write(word1,*) tcf%kT_wet
         write(id,'(a)') adjustl(trim(word1))
-        write(id,'(a29)',advance='no') 'relative kT_dry: '
+        write(id,'(a29)',advance='no') 'kT_dry: '
         write(word1,*) tcf%kT_dry
         write(id,'(a)') adjustl(trim(word1))
         write(id,'(a29)',advance='no') 'reference temp.: '
