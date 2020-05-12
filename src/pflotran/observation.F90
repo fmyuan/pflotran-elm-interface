@@ -4,7 +4,7 @@ module Observation_module
   use petscsys
   use Region_module
   use Connection_module
-  
+  use Output_Aux_module
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -14,8 +14,13 @@ module Observation_module
 
   PetscInt, parameter, public :: OBSERVATION_SCALAR = 1
   PetscInt, parameter, public :: OBSERVATION_FLUX = 2
+  PetscInt, parameter, public :: OBSERVATION_AGGREGATE = 3
   PetscInt, parameter, public :: OBSERVATION_AT_CELL_CENTER = 1
   PetscInt, parameter, public :: OBSERVATION_AT_COORDINATE = 2
+
+  PetscInt, parameter, public :: OBSERVATION_AGGREGATE_MAX = 1
+  PetscInt, parameter, public :: OBSERVATION_AGGREGATE_MIN = 2
+  PetscInt, parameter, public :: OBSERVATION_AGGREGATE_AVG = 3
 
   type, public :: observation_type
     ! all added variables must be included in ObservationCreateFromObservation
@@ -24,10 +29,12 @@ module Observation_module
     PetscBool :: print_velocities
     PetscBool :: print_secondary_data(5)          ! first entry is for temp., second is for conc. and third is for mineral vol frac., fourth is rate, fifth is SI
     PetscBool :: at_cell_center
+    PetscBool :: aggregate_only
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: linkage_name
     type(connection_set_type), pointer :: connection_set
     type(region_type), pointer :: region
+    type(observation_aggregate_type), pointer :: aggregate
     type(observation_type), pointer :: next
   end type observation_type
   
@@ -37,6 +44,17 @@ module Observation_module
     type(observation_type), pointer :: last
     type(observation_type), pointer :: array(:)
   end type observation_list_type
+
+  type, public :: observation_aggregate_type
+    character(len=MAXWORDLENGTH) :: var_name
+    PetscInt :: id
+    PetscInt :: metric
+    PetscInt :: local_id
+    PetscReal :: metric_value
+    PetscReal :: threshold_value
+    type(output_variable_type), pointer :: output_variable
+    type(observation_aggregate_type), pointer :: next
+  end type observation_aggregate_type
 
   public :: ObservationCreate, ObservationDestroy, ObservationRead, &
             ObservationAddToList, ObservationInitList, ObservationDestroyList, &
@@ -73,13 +91,45 @@ function ObservationCreate1()
   observation%itype = OBSERVATION_SCALAR
   observation%print_velocities = PETSC_FALSE
   observation%at_cell_center = PETSC_TRUE
+  observation%aggregate_only = PETSC_FALSE
   observation%print_secondary_data = PETSC_FALSE
   nullify(observation%region)
+  nullify(observation%aggregate)
   nullify(observation%next)
   
   ObservationCreate1 => observation
 
 end function ObservationCreate1
+
+! ************************************************************************** !
+
+function ObservationAggregateCreate()
+  !
+  ! Creates and initializes the observation aggregate object.
+  !
+  ! Author: Michael Nole
+  ! Date: 04/16/20
+
+  implicit none
+
+  type(observation_aggregate_type), pointer :: ObservationAggregateCreate
+  type(observation_aggregate_type), pointer :: aggregate
+
+  allocate(aggregate)
+
+  aggregate%var_name = ""
+  aggregate%id = ZERO_INTEGER
+  aggregate%metric = ZERO_INTEGER
+  aggregate%local_id = -999
+  aggregate%metric_value = -999.d0
+  aggregate%threshold_value = -999.d0
+ 
+  nullify(aggregate%output_variable)
+  nullify(aggregate%next)
+
+  ObservationAggregateCreate => aggregate
+
+end function ObservationAggregateCreate
 
 ! ************************************************************************** !
 
@@ -106,10 +156,12 @@ function ObservationCreateFromObservation(observation)
   new_observation%itype = observation%itype
   new_observation%print_velocities = observation%print_velocities
   new_observation%at_cell_center = observation%at_cell_center
+  new_observation%aggregate_only = observation%aggregate_only
   new_observation%print_secondary_data = &
        observation%print_secondary_data
   ! keep these null for now to catch bugs
   nullify(new_observation%region)
+  nullify(new_observation%aggregate)
   nullify(new_observation%next)
   
   ObservationCreateFromObservation => new_observation
@@ -136,8 +188,10 @@ subroutine ObservationRead(observation,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword
-  
+  type(observation_aggregate_type), pointer :: aggregate, new_aggregate
+  character(len=MAXWORDLENGTH) :: keyword, word, var_name
+  PetscInt :: id  
+
   input%ierr = 0
   call InputPushBlock(input,option)
   do
@@ -148,7 +202,8 @@ subroutine ObservationRead(observation,input,option)
 
     call InputReadCard(input,option,keyword)
     call InputErrorMsg(input,option,'keyword','OBSERVATION')   
-      
+    call StringToUpper(keyword)    
+ 
     select case(trim(keyword))
     
       case('BOUNDARY_CONDITION')
@@ -165,7 +220,9 @@ subroutine ObservationRead(observation,input,option)
         endif
         call InputReadWord(input,option,observation%linkage_name,PETSC_TRUE)
         call InputErrorMsg(input,option,'region name','OBSERVATION')
-        observation%itype = OBSERVATION_SCALAR
+        if (.not.associated(observation%aggregate)) then
+          observation%itype = OBSERVATION_SCALAR
+        endif
       case('VELOCITY')
         observation%print_velocities = PETSC_TRUE
       case('SECONDARY_TEMPERATURE')
@@ -212,6 +269,95 @@ subroutine ObservationRead(observation,input,option)
         observation%at_cell_center = PETSC_TRUE
       case('AT_COORDINATE')
         observation%at_cell_center = PETSC_FALSE
+      case('AGGREGATE_METRIC','AGGREGATE_METRICS')
+        
+        observation%itype = OBSERVATION_AGGREGATE 
+
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        select case(word)
+          case('AGGREGATE_ONLY')
+            observation%aggregate_only = PETSC_TRUE
+        end select
+
+        call InputPushBlock(input,option)
+
+        id = 1
+        allocate(new_aggregate)
+        do
+ 
+          new_aggregate => ObservationAggregateCreate()
+          new_aggregate%id = id
+
+          call InputReadPflotranString(input,option)
+
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadCard(input,option,keyword)
+          call InputErrorMsg(input,option,'keyword','AGGREGATE_METRIC')
+          call StringToUpper(keyword)
+
+          select case(keyword)
+            case('AVERAGE')
+              !Records all average values in region
+              new_aggregate%metric = OBSERVATION_AGGREGATE_AVG
+              call InputReadWord(input,option,new_aggregate%var_name, &
+                                 PETSC_TRUE)
+              call InputErrorMsg(input,option,'AVERAGE','AGGREGATE_METRIC')
+              option%io_buffer = '"AVERAGE" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
+            case('MAX')
+              !Records all state properties associated with max
+              new_aggregate%metric = OBSERVATION_AGGREGATE_MAX
+              call InputReadWord(input,option,var_name,PETSC_TRUE)
+              call StringToUpper(var_name)
+              if (trim(var_name) == 'TOTAL') then
+                  call InputReadWord(input,option,new_aggregate%var_name, &
+                                     PETSC_TRUE)
+                  new_aggregate%var_name = 'Total ' // new_aggregate%var_name
+              else
+                new_aggregate%var_name = var_name
+              endif
+              call InputErrorMsg(input,option,'MAX','AGGREGATE_METRIC')
+            case('MIN')
+              !Records all state variables associated with min
+              new_aggregate%metric = OBSERVATION_AGGREGATE_MIN
+              option%io_buffer = '"MIN" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
+            case('MIN_ABOVE')
+              !Minimum above a specified threshold
+              option%io_buffer = '"MIN_ABOVE" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
+            case('MAX_BELOW')
+              !Max below a specified threshold
+              option%io_buffer = '"MAX_BELOW" aggregate metric ' //&
+                                  'is still in development.'
+              call PrintErrMsg(option)
+            case default
+              call InputKeywordUnrecognized(input,keyword,'AGGREGATE_METRIC', &
+                                            option)
+          end select          
+          
+          if (.not. associated(observation%aggregate)) then
+            observation%aggregate => new_aggregate
+          else
+            aggregate => observation%aggregate
+            do
+              if (.not. associated(aggregate)) exit
+              if (.not. associated(aggregate%next)) then
+                aggregate%next => new_aggregate
+                exit
+              endif
+              aggregate => aggregate%next
+            enddo
+          endif
+          id = id + 1         
+        enddo
+ 
+        call InputPopBlock(input,option)
+
       case default
         call InputKeywordUnrecognized(input,keyword,'OBSERVATION',option)
     end select 
@@ -401,6 +547,7 @@ subroutine ObservationDestroy(observation)
   if (.not.associated(observation)) return
   
   nullify(observation%region)
+  nullify(observation%aggregate)
   nullify(observation%connection_set)
   deallocate(observation)
   nullify(observation)

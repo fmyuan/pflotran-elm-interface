@@ -449,8 +449,8 @@ nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
 nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
                              option.o pflotran_constants.o \
                              transport_constraint_nwt.o
-observation.o : connection.o input_aux.o option.o pflotran_constants.o \
-                region.o string.o
+observation.o : connection.o input_aux.o option.o output_aux.o \
+                pflotran_constants.o region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
 option_flow.o : pflotran_constants.o
 option_transport.o : pflotran_constants.o

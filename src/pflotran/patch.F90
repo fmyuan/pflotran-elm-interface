@@ -668,7 +668,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     if (.not.associated(observation)) exit
     next_observation => observation%next
     select case(observation%itype)
-      case(OBSERVATION_SCALAR)
+      case(OBSERVATION_SCALAR,OBSERVATION_AGGREGATE)
         ! pointer to region
         observation%region => RegionGetPtrFromList(observation%linkage_name, &
                                                     patch%region_list)
@@ -689,7 +689,8 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
             &model domain.'
           call PrintErrMsg(option)
         endif
-        if (observation%region%num_cells == 0) then
+        if (observation%region%num_cells == 0 .and. observation%itype == &
+            OBSERVATION_SCALAR) then
           ! remove the observation object
           call ObservationRemoveFromList(observation,patch%observation_list)
         endif
