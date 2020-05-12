@@ -146,7 +146,8 @@ subroutine IntegralFluxRead(integral_flux,input,option)
           case('ABSOLUTE_FLUXES')
             integral_flux%flux_calculation_option = ABSOLUTE_FLUXES
           case default
-            call InputKeywordUnrecognized(input,keyword,'INTEGRAL_FLUX,FLUXES_OPTION',option)
+            call InputKeywordUnrecognized(input,keyword,'INTEGRAL_FLUX,&
+                                          &FLUXES_OPTION',option)
         end select
       case('POLYGON')
         call GeometryReadCoordinates(input,option,integral_flux%name, &
