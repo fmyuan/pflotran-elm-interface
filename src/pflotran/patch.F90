@@ -10169,9 +10169,16 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
   by_cell_ids => integral_flux%cell_ids
   num_to_be_found = 0
 
+  error_string = 'error string missing in PatchGetIntegralFluxConnections'
+
+  if (associated(plane)) then
+    error_string = 'plane coincides with an internal cell boundary &
+      &or a boundary condition'
+  endif
+
   if (associated(polygon)) then
     error_string = 'polygon coincides with an internal cell boundary &
-      &or a boundary condition.'
+      &or a boundary condition'
     ! determine orientation of polygon
     allocate(plane)
     if (size(polygon) > 2) then
@@ -10235,7 +10242,7 @@ subroutine PatchGetIntegralFluxConnections(patch,integral_flux,option)
 
   if (associated(coordinates_and_directions)) then
     error_string = 'coordinates and directions coincide with an internal &
-      &cell boundary or a boundary condition.'
+      &cell boundary or a boundary condition'
     num_to_be_found = size(coordinates_and_directions,2)
     allocate(yet_to_be_found(num_to_be_found))
     yet_to_be_found = PETSC_TRUE
