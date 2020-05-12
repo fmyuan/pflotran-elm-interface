@@ -68,10 +68,9 @@ module PM_WIPP_Flow_class
     PetscReal :: linear_system_scaling_factor
     PetscBool :: scale_linear_system ! Jacobian and residual is scaled 
                                      ! just before the PETSc solver.
-    PetscBool :: scale_pressure ! pressure solution itself is scaled 
-                                ! this is used for advanced nonlinear methods
-    PetscInt :: newtontrd_inner_iter_num ! True: inside inner iteration.
-    PetscInt :: newtontrd_prev_iter_num
+    PetscInt :: newtontrdc_inner_iter_num ! True: inside inner iteration.
+    PetscInt :: newtontrdc_prev_iter_num
+
     Vec :: scaling_vec
     ! When reading Dirichlet 2D Flared BC
     PetscInt, pointer :: dirichlet_dofs_ghosted(:) ! this array is zero-based indexing
@@ -205,8 +204,8 @@ subroutine PMWIPPFloInitObject(this)
   this%auto_press_shallow_origin = UNINITIALIZED_DOUBLE !this will default to dip rotation origin later
   this%linear_system_scaling_factor = 1.d7
   this%scale_linear_system = PETSC_FALSE
-  this%newtontrd_inner_iter_num = 0
-  this%newtontrd_prev_iter_num = 0
+  this%newtontrdc_inner_iter_num = 0
+  this%newtontrdc_prev_iter_num = 0
   this%scaling_vec = PETSC_NULL_VEC
   nullify(this%dirichlet_dofs_ghosted)
   nullify(this%dirichlet_dofs_ints)
@@ -627,12 +626,13 @@ subroutine PMWIPPFloReadNewtonSelectCase(this,input,keyword,found, &
     case('SCALE_JACOBIAN')
       this%scale_linear_system = PETSC_TRUE
       if (option%flow%scale_all_pressure) then
-        option%io_buffer = 'cannot be used with SCALE_PRESSURE, solution is already scaled'
+        option%io_buffer = 'cannot be used with SCALE_PRESSURE, &
+                            &solution is already scaled'
         call PrintErrMsg(option)
       endif
     case('DO_NOT_SCALE_JACOBIAN')
       this%scale_linear_system = PETSC_FALSE
-    case('SCALE_PRESSURE')
+    case('SCALE_PRESSURE') ! This option will scale solution, residual, and Jacobian
       option%flow%scale_all_pressure = PETSC_TRUE
       call InputReadDouble(input,option,option%flow%pressure_scaling_factor)
       call InputErrorMsg(input,option,keyword,error_string)
@@ -708,6 +708,13 @@ recursive subroutine PMWIPPFloInitializeRun(this)
   grid => patch%grid
   field => this%realization%field
   option => this%option
+
+  if (this%scale_linear_system .and. option%flow%scale_all_pressure) then
+    option%io_buffer = 'cannot be used with SCALE_JACOBIAN, &
+                        Jacobian is already scaled. Please use &
+                        DO_NOT_SCALE_JACOBIAN in NEWTON_SOLVER'
+    call PrintErrMsg(option)
+  endif
 
   ! need to allocate vectors for max change
   call VecDuplicateVecsF90(field%work,SIX_INTEGER,field%max_change_vecs, &
@@ -1034,7 +1041,7 @@ subroutine PMWIPPFloInitializeTimestep(this)
   this%convergence_reals = 0.d0
   wippflo_prev_liq_res_cell = 0
   wippflo_print_oscillatory_behavior = PETSC_FALSE
-  this%newtontrd_inner_iter_num = 0
+  this%newtontrdc_inner_iter_num = 0
 
 end subroutine PMWIPPFloInitializeTimestep
 
@@ -1881,15 +1888,15 @@ subroutine PMWIPPFloCheckConvergence(this,snes,it,xnorm,unorm, &
   wippflo_auxvars => patch%aux%WIPPFlo%auxvars
   material_auxvars => patch%aux%Material%auxvars
 
-  if (this%option%flow%using_newtontrd) then
+  if (this%option%flow%using_newtontrdc) then
     ! if (option%flow%scale_all_pressure) then
     ! as I do not change residual values when scaling pressure
     ! the residual should be okay unlike linear system scaling.
     ! endif
-    if (this%newtontrd_prev_iter_num == it) then
-      this%newtontrd_inner_iter_num = this%newtontrd_inner_iter_num + 1
+    if (this%newtontrdc_prev_iter_num == it) then
+      this%newtontrdc_inner_iter_num = this%newtontrdc_inner_iter_num + 1
     endif
-    this%newtontrd_prev_iter_num = it
+    this%newtontrdc_prev_iter_num = it
   endif
 
   ! check residual terms

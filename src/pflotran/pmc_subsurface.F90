@@ -300,8 +300,13 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
           case(SNESNEWTONLS)
             call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
                                             this%pm_ptr,ierr);CHKERRQ(ierr)
+          case(SNESNEWTONTRDC)
+            call SNESNewtonTRDCSetPostCheck(solver%snes, &
+                                            PMCheckUpdatePostTRPtr, &
+                                            this%pm_ptr,ierr);CHKERRQ(ierr)
         end select
         !geh: it is possible that the other side has not been set
+
         pm%check_post_convergence = PETSC_TRUE
       endif
 
@@ -333,6 +338,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
                                          this%pm_ptr,ierr);CHKERRQ(ierr)
           case(SNESNEWTONLS)
             call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
+                                           this%pm_ptr,ierr);CHKERRQ(ierr)
+          case(SNESNEWTONTRDC)
+            call SNESNewtonTRDCSetPreCheck(solver%snes, &
+                                           PMCheckUpdatePreTRPtr, &
                                            this%pm_ptr,ierr);CHKERRQ(ierr)
         end select
       endif
@@ -432,10 +441,6 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
         call SNESGetLineSearch(solver%snes,linesearch,ierr);CHKERRQ(ierr)
         call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
                                    ierr);CHKERRQ(ierr)
-      else
-        option%io_buffer = 'Only SNES_TYPE LineSearch is supported &
-          &for transport'
-        call PrintErrMsg(option)
       endif
 
       ! Have PETSc do a SNES_View() at the end of each solve if
@@ -459,6 +464,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
         case(SNESNEWTONLS)
           call SNESLineSearchSetPostCheck(linesearch,PMCheckUpdatePostPtr, &
                                           this%pm_ptr,ierr);CHKERRQ(ierr)
+        case(SNESNEWTONTRDC)
+          call SNESNewtonTRDCSetPostCheck(solver%snes, &
+                                          PMCheckUpdatePostTRPtr, &
+                                          this%pm_ptr,ierr);CHKERRQ(ierr)
       end select
       if (this%pm_ptr%pm%print_EKG) then
         check_post_convergence = PETSC_TRUE
@@ -468,6 +477,10 @@ subroutine PMCSubsurfaceSetupSolvers_TimestepperSNES(this)
       select case(solver%snes_type)
         case(SNESNEWTONLS)
           call SNESLineSearchSetPreCheck(linesearch,PMCheckUpdatePrePtr, &
+                                         this%pm_ptr,ierr);CHKERRQ(ierr)
+        case(SNESNEWTONTRDC)
+          call SNESNewtonTRDCSetPreCheck(solver%snes, &
+                                         PMCheckUpdatePreTRPtr, &
                                          this%pm_ptr,ierr);CHKERRQ(ierr)
       end select
     endif

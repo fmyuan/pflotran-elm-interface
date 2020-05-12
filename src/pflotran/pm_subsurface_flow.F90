@@ -264,10 +264,11 @@ subroutine PMSubsurfaceFlowReadNewtonSelectCase(this,input,keyword,found, &
 
   class(pm_subsurface_flow_type) :: this
   type(input_type), pointer :: input
-  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXWORDLENGTH) :: keyword, word
   PetscBool :: found
-  character(len=MAXSTRINGLENGTH) :: error_string
+  character(len=MAXSTRINGLENGTH) :: error_string, string
   type(option_type), pointer :: option
+  PetscErrorCode :: ierr
 
 !  found = PETSC_FALSE
 !  call PMBaseReadNewtonSelectCase(this,input,keyword,found,error_string,option)
@@ -756,9 +757,18 @@ subroutine PMSubsurfaceFlowPreSolve(this)
 
   class(pm_subsurface_flow_type) :: this
 
+  PetscErrorCode :: ierr
+  PetscReal :: inverse_factor
 
-  this%norm_history = 0.d0
+  if (this%option%flow%scale_all_pressure) then
+    call VecCopy(this%realization%field%flow_xx, &
+                 this%realization%field%flow_scaled_xx,ierr);CHKERRQ(ierr)
+    inverse_factor = this%option%flow%pressure_scaling_factor**(-1.d0)
+    call VecStrideScale(this%realization%field%flow_scaled_xx,ZERO_INTEGER, &
+                        inverse_factor, ierr);CHKERRQ(ierr)
+  endif 
 
+  this%norm_history = 0.d0  
   call DataMediatorUpdate(this%realization%flow_data_mediator_list, &
                           this%realization%field%flow_mass_transfer, &
                           this%realization%option)
