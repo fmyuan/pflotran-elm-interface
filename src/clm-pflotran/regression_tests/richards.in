@@ -19,17 +19,15 @@ END
 
 !=========================== solver options ===================================
 
-NEWTON_SOLVER FLOW
+NUMERICAL_METHODS FLOW
+
+NEWTON_SOLVER
   ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
 END
 
-LINEAR_SOLVER FLOW
+LINEAR_SOLVER
 END
 
-NEWTON_SOLVER TRANSPORT
-END
-
-LINEAR_SOLVER TRANSPORT
 END
 
 !INITIALIZE_FLOW_FROM_FILE B_10p0dx_10p0dy_10nz_clm_depths_initial_condition.h5
