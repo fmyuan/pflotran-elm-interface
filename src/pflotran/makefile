@@ -200,7 +200,7 @@ endif
 
 # These flags are supplemental to the PETSc flags
 CFLAGS   =
-FFLAGS   = -fcheck=all
+FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 

@@ -1194,7 +1194,7 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
         ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
         material_parameter%soil_heat_capacity(i) = &
           material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-        if (.not. option%iflowmode == G_MODE) then  ! KLK is this necessary?
+        if (.not. option%iflowmode == G_MODE) then
           material_parameter%soil_thermal_conductivity(1,i) = &
             material_property_array(i)%ptr%thermal_conductivity_dry
           material_parameter%soil_thermal_conductivity(2,i) = &
