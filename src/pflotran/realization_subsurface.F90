@@ -771,13 +771,15 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       option)
   endif
 
-  ! set up analogous mapping to thermal characteristic curves, if used
-  if (associated(realization%thermal_characteristic_curves)) then
-    patch%thermal_characteristic_curves => &
-         realization%thermal_characteristic_curves
-    call CharCurvesThermalConvertListToArray( &
-         patch%thermal_characteristic_curves, &
-         patch%thermal_characteristic_curves_array, option)
+  if (option%iflowmode == G_MODE) then
+  ! set up analogous mapping to thermal characteristic curves, if used    
+    if (associated(realization%thermal_characteristic_curves)) then
+      patch%thermal_characteristic_curves => &
+           realization%thermal_characteristic_curves
+      call CharCurvesThermalConvertListToArray( &
+           patch%thermal_characteristic_curves, &
+           patch%thermal_characteristic_curves_array, option)
+    end if
   end if
   
   ! create mapping of internal to external material id
@@ -2721,8 +2723,10 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
-  if (associated(this%thermal_characteristic_curves)) then
-    call ThermalCharacteristicCurvesDestroy(this%thermal_characteristic_curves)
+  if (this%option%iflowmode == G_MODE) then
+    if (associated(this%thermal_characteristic_curves)) then
+      call ThermalCharacteristicCurvesDestroy(this%thermal_characteristic_curves)
+    end if
   end if
   
   call DatasetDestroy(this%datasets)
