@@ -66,6 +66,7 @@ STANDARD_CFG = \
 	default/materials/materials.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \
+	default/materials/full_tensor/full_tensor.cfg \
 	default/infiltrometer/infiltrometer.cfg \
 	default/numerical/numerical.cfg \
 	default/output/output.cfg \

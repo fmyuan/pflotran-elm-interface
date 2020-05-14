@@ -111,6 +111,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: X_DIRECTION = 1
   PetscInt, parameter, public :: Y_DIRECTION = 2
   PetscInt, parameter, public :: Z_DIRECTION = 3
+  PetscInt, parameter, public :: XY_DIRECTION = 4
+  PetscInt, parameter, public :: XZ_DIRECTION = 5
+  PetscInt, parameter, public :: YZ_DIRECTION = 6
   PetscInt, parameter, public :: LOWER = 1
   PetscInt, parameter, public :: UPPER = 2
   
