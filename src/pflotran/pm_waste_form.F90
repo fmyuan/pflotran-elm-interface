@@ -2521,7 +2521,7 @@ subroutine PMWFSetup(this)
         species_name = 'O2(aq)'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iO2) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
-        species_name = 'HCO3-'
+        species_name = 'CO3--'
         cur_mechanism%mapping_fmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
         species_name = 'H2(aq)'
@@ -2534,7 +2534,7 @@ subroutine PMWFSetup(this)
         species_name = 'O2(aq)'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iO2) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
-        species_name = 'HCO3-'
+        species_name = 'CO3--'
         cur_mechanism%mapping_surrfmdm_to_pflotran(cur_mechanism%iCO3_2n) = &
           GetPrimarySpeciesIDFromName(species_name,reaction,option)
         species_name = 'H2(aq)'
