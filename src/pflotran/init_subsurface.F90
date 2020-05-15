@@ -389,6 +389,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
       option%io_buffer = 'Unmatched material id in patch: ' // &
         adjustl(trim(option%io_buffer))
       call PrintErrMsgByRank(option)
+    else if (material_id == UNMAPPED_MATERIAL_ID) then
+      option%io_buffer = 'A material ID has been assigned to a cell that &
+        &does not match the IDs of any MATERIAL_PROPERTIES.'
+      call PrintErrMsgByRank(option)
     else
       option%io_buffer = 'Something messed up with material ids. Possibly &
         &material ids not assigned to all grid cells. Contact Glenn!'
