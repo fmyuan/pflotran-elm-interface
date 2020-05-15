@@ -1201,6 +1201,7 @@ subroutine PMWSSReadPMBlock(this,input)
   use Input_Aux_module
   use Option_module
   use String_module
+  use WIPP_Flow_Aux_module
   
   implicit none
   
@@ -1455,6 +1456,7 @@ subroutine PMWSSReadPMBlock(this,input)
     !-----------------------------------------
     !-----------------------------------------
       case('RADIOLYSIS') !MAN: radionuclide inventory for radiolysis
+        wippflo_radiolysis = PETSC_TRUE
         do
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
