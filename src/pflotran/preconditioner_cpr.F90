@@ -451,9 +451,10 @@ subroutine CPRSetupT2(ctx, ierr)
                                sub_ksps, ierr); CHKERRQ(ierr)
 
       do i = 1,nsub_ksp
-        call KSPGetPC(sub_ksps(i), pc_inner);CHKERRQ(ierr)
+        call KSPGetPC(sub_ksps(i), pc_inner,ierr);CHKERRQ(ierr)
         if (ctx%t2shiftinblocks) then
-          call PCFactorSetShiftType(pc_inner,MAT_SHIFT_INBLOCKS,ierr);CHKERRQ(ierr)
+          call PCFactorSetShiftType(pc_inner,MAT_SHIFT_INBLOCKS,&
+                                    ierr);CHKERRQ(ierr)
         endif
         call PCFactorSetLevels(pc_inner, ctx%t2fillin, ierr); CHKERRQ(ierr)
         if (ctx%asmfactorinplace) then
