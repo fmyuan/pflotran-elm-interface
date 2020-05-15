@@ -15,6 +15,7 @@ module Material_module
 
   private
 
+  PetscInt, public :: UNMAPPED_MATERIAL_ID = -888
 
   type, public :: material_property_type
     PetscInt :: external_id
@@ -1184,7 +1185,7 @@ subroutine MaterialCreateExtToIntMapping(material_property_array,mapping)
   PetscInt :: i
   
   allocate(mapping(0:MaterialGetMaxExternalID(material_property_array)))
-  mapping = -888
+  mapping = UNMAPPED_MATERIAL_ID
   mapping(0) = 0
   
   do i = 1, size(material_property_array)
@@ -1217,7 +1218,8 @@ subroutine MaterialApplyMapping(mapping,array)
     if (array(i) <= mapping_size) then
       mapped_id = mapping(array(i))
     else
-      mapped_id = -888 ! indicates corresponding mapped value does not exist.
+                  ! indicates corresponding mapped value does not exist.
+      mapped_id = UNMAPPED_MATERIAL_ID
     endif
     array(i) = mapped_id
   enddo
