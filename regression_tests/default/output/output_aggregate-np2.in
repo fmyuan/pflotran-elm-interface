@@ -161,6 +161,7 @@ OBSERVATION
   REGION middle_horizontal_layer
   AGGREGATE_METRICS AGGREGATE_ONLY
     MAX Total Tracer1
+    MAX Liquid Pressure
   /
 END
 
