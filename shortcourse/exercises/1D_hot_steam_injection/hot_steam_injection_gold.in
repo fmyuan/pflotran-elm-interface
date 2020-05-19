@@ -6,14 +6,22 @@ SIMULATION
       MODE GENERAL ! two-phase flow and energy
       OPTIONS
         RESTRICT_STATE_CHANGE
-        ANALYTICAL_JACOBIAN
-        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    ANALYTICAL_JACOBIAN
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+
+END
 
 
 #=========================== discretization ===================================
