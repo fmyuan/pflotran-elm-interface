@@ -7,13 +7,21 @@ SIMULATION
       MODE GENERAL
       OPTIONS
         RESTRICT_STATE_CHANGE
-        USE_INFINITY_NORM_CONVERGENCE
       /
     /
   /
 END
 
 SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  NEWTON_SOLVER
+    USE_INFINITY_NORM_CONVERGENCE
+  /
+
+END
 
 #=========================== datasets ===================================
 DATASET liquid_pressure

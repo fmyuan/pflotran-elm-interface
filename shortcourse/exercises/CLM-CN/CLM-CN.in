@@ -94,14 +94,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-LINEAR_SOLVER TRANSPORT
-  SOLVER DIRECT
-END
 
-NEWTON_SOLVER TRANSPORT
-  ATOL 1.d-50
-#  RTOL 1.d-12
-END
 
 #=========================== discretization ===================================
 GRID

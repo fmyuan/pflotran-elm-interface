@@ -14,6 +14,19 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+END
+
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 32
+  /
+
+END
+
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
@@ -64,7 +77,7 @@ CHEMISTRY
     FeSO4+
     Fe(SO4)2-
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
     O2(g)
   /
@@ -146,12 +159,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER FLOW
-END
 
-TIMESTEPPER TRANSPORT
-  TS_ACCELERATION 32
-END
 
 #=========================== discretization ===================================
 GRID

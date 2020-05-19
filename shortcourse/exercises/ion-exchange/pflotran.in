@@ -11,6 +11,34 @@ END
 
 SUBSURFACE
 
+#=========================== numerical methods ================================
+NUMERICAL_METHODS TRANSPORT
+
+  TIMESTEPPER
+    TS_ACCELERATION 8
+    MAX_STEPS 100000
+    #MAX_STEPS 1
+  /
+
+  NEWTON_SOLVER
+    PRECONDITIONER_MATRIX_TYPE AIJ
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+    #NO_INFINITY_NORM
+    #NO_PRINT_CONVERGENCE
+    #PRINT_DETAILED_CONVERGENCE
+  /
+
+  LINEAR_SOLVER
+    #PC_TYPE LU
+    #KSP_TYPE PREONLY
+    #KSP_TYPE FGMRES ! samrai
+    #PC_TYPE SHELL !samrai
+  /
+
+END
+
 # m/s
 SPECIFIED_VELOCITY
   UNIFORM? YES
@@ -50,7 +78,7 @@ HCl(aq)
 NaCl(aq)
 NaOH(aq)
 /
-GAS_SPECIES
+PASSIVE_GAS_SPECIES
 CO2(g)
 /
 MINERALS
@@ -89,11 +117,6 @@ TOTAL
 REFERENCE_POROSITY 0.61d0
 
 # == time stepping ============================================================
-TIMESTEPPER TRANSPORT
-TS_ACCELERATION 8
-MAX_STEPS 100000
-#MAX_STEPS 1
-/
 
 # == discretization ===========================================================
 GRID
@@ -106,41 +129,10 @@ BOUNDS
 /
 
 # == flow solvers =============================================================
-NEWTON_SOLVER FLOW
-PRECONDITIONER_MATRIX_TYPE AIJ
-RTOL 1.d-8
-ATOL 1.d-8
-STOL 1.d-30
-ITOL_UPDATE 1.d0
-#NO_INFINITY_NORM
-#NO_PRINT_CONVERGENCE
-#PRINT_DETAILED_CONVERGENCE
-/
 
-LINEAR_SOLVER FLOW
-#KSP_TYPE PREONLY
-#PC_TYPE LU
-#KSP_TYPE FGMRES !samrai
-#PC_TYPE SHELL !samrai
-/
 
 # == transport solvers ========================================================
-NEWTON_SOLVER TRANSPORT
-PRECONDITIONER_MATRIX_TYPE AIJ
-RTOL 1.d-8
-ATOL 1.d-8
-STOL 1.d-30
-#NO_INFINITY_NORM
-#NO_PRINT_CONVERGENCE
-#PRINT_DETAILED_CONVERGENCE
-/
 
-LINEAR_SOLVER TRANSPORT
-#PC_TYPE LU
-#KSP_TYPE PREONLY
-#KSP_TYPE FGMRES ! samrai
-#PC_TYPE SHELL !samrai
-/
 
 # == fluid properties =========================================================
 FLUID_PROPERTY
