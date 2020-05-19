@@ -183,11 +183,11 @@ subroutine ObservationRead(observation,input,option)
   
   type(observation_type) :: observation
   type(input_type), pointer :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   
   type(observation_aggregate_type), pointer :: aggregate, new_aggregate
-  character(len=MAXWORDLENGTH) :: keyword, word, var_name
-  PetscInt :: id  
+  character(len=MAXWORDLENGTH) :: keyword, word, word2, var_name, units
+  PetscInt :: id, category, subvar, subsubvar
 
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -300,15 +300,27 @@ subroutine ObservationRead(observation,input,option)
             case('MAX')
               !Records all state properties associated with max
               new_aggregate%metric = OBSERVATION_AGGREGATE_MAX
-              call InputReadWord(input,option,var_name,PETSC_TRUE)
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call StringToUpper(word)
+              if (trim(word) == 'TOTAL') then
+                call InputReadWord(input,option,word, &
+                                   PETSC_TRUE)
+                new_aggregate%var_name = 'Total ' // word
+              else
+                call OutputVariableToID(word,var_name,units,category,id, &
+                                        subvar,subsubvar,option)
+                if (id < 0) then
+                  option%io_buffer = 'Output variable ' // word //&
+                                     ' not recognized.'
+                  call PrintErrMsg(option)
+                elseif (subvar > 0 .or. subsubvar > 0) then
+                  option%io_buffer = 'Aggregate MAX not implemented for ' &
+                                     // word
+                  call PrintErrMsg(option)
+                endif
+                new_aggregate%var_name = var_name
+              endif
               call InputErrorMsg(input,option,'MAX','AGGREGATE_METRIC')
-              new_aggregate%var_name = var_name
-              do
-                call InputReadWord(input,option,var_name,PETSC_TRUE)
-                if (trim(var_name) == '') exit
-                new_aggregate%var_name = trim(new_aggregate%var_name) // ' ' //&
-                                         trim(var_name)
-              enddo
             case('MIN')
               !Records all state variables associated with min
               new_aggregate%metric = OBSERVATION_AGGREGATE_MIN
