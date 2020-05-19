@@ -661,10 +661,10 @@ subroutine OutputVariableRead(input,option,output_variable_list)
   type(input_type), pointer :: input
   type(output_variable_list_type), pointer :: output_variable_list
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, word2
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_type), pointer :: output_variable
-  PetscInt :: temp_int
+  PetscInt :: temp_int, id, category, subvar, subsubvar
 
   call InputPushBlock(input,option)
   do
@@ -675,357 +675,171 @@ subroutine OutputVariableRead(input,option,output_variable_list)
     call InputReadCard(input,option,word)
     call InputErrorMsg(input,option,'keyword','VARIABLES')
     call StringToUpper(word)
-    
-    select case(trim(word))
-      case ('MAXIMUM_PRESSURE')
-        name = 'Maximum Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     MAXIMUM_PRESSURE)
-      case ('LIQUID_PRESSURE')
-        name = 'Liquid Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     LIQUID_PRESSURE)
-      case ('LIQUID_SATURATION')
-        name = 'Liquid Saturation'
-        units = ''
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_SATURATION,units, &
-                                     LIQUID_SATURATION)
-      case ('LIQUID_HEAD')
-        name = 'Liquid Head'
-        units = 'm'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_HEAD)
-        
+
+    select case(word)
       case ('LIQUID_DENSITY')
-        name = 'Liquid Density'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'MOLAR')) then
-            units = 'kmol/m^3'
-            temp_int = LIQUID_DENSITY_MOL
+          if (StringCompareIgnoreCase(word2,'MOLAR')) then
+            word = trim(word) // '_MOLAR'
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,LIQUID_DENSITY')
           endif
-        else
-          units = 'kg/m^3'
-          temp_int = LIQUID_DENSITY
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     temp_int)
-      case ('LIQUID_MOBILITY')
-        name = 'Liquid Mobility'
-        units = '1/Pa-s'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_MOBILITY)
-      case ('LIQUID_VISCOSITY')
-        name = 'Liquid Viscosity'
-        units = 'Pa-s'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_VISCOSITY)
+                                     category,units,id)
       case ('LIQUID_ENERGY')
-        name = 'Liquid Energy'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
-            units = 'MJ/m^3'
-            temp_int = ONE_INTEGER
+          if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
+            word = trim(word) // '_PER_VOLUME'
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,LIQUID_ENERGY')
           endif
-        else
-          units = 'MJ/kmol'
-          temp_int = ZERO_INTEGER
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_ENERGY,temp_int)
-    
-      case ('GAS_PRESSURE')
-        name = 'Gas Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     GAS_PRESSURE)
-      case ('GAS_SATURATION')
-        name = 'Gas Saturation'
-        units = ''
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_SATURATION,units, &
-                                     GAS_SATURATION)
+                                     category,units,id,subvar)
       case ('GAS_DENSITY')
-        name = 'Gas Density'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'MOLAR')) then
-            units = 'kmol/m^3'
-            temp_int = GAS_DENSITY_MOL
+          if (StringCompareIgnoreCase(word2,'MOLAR')) then
+            word = trim(word) // '_MOLAR'
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,GAS_DENSITY')
           endif
-        else
-          units = 'kg/m^3'
-          temp_int = GAS_DENSITY
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     temp_int)
-      case ('GAS_MOBILITY')
-        name = 'Gas Mobility'
-        units = '1/Pa-s'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_MOBILITY)
+                                     category,units,id)
       case ('GAS_ENERGY')
-        name = 'Gas Energy'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
-            units = 'MJ/m^3'
-            temp_int = ONE_INTEGER
+          if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
+            word = trim(word) // '_PER_VOLUME'
           else
             input%ierr = 1
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,GAS_ENERGY')
           endif
-        else
-          units = 'MJ/kmol'
-          temp_int = ZERO_INTEGER
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_ENERGY,temp_int)
-      case ('OIL_PRESSURE')
-        name = 'Oil Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     OIL_PRESSURE)
-      case ('OIL_SATURATION')
-        name = 'Oil Saturation'
-        units = ''
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_SATURATION,units, &
-                                     OIL_SATURATION)
+                                     category,units,id,subvar)
       case ('OIL_DENSITY')
-        name = 'Oil Density'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'MOLAR')) then
-            units = 'kmol/m^3'
-            temp_int = OIL_DENSITY_MOL
+          if (StringCompareIgnoreCase(word2,'MOLAR')) then
+            word = trim(word) // '_MOLAR'
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,OIL_DENSITY')
           endif
-        else
-          units = 'kg/m^3'
-          temp_int = OIL_DENSITY
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     temp_int)
-      case ('OIL_MOBILITY')
-        name = 'Oil Mobility'
-        units = '1/Pa-s'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     OIL_MOBILITY)
-      case ('OIL_VISCOSITY')
-        name = 'Oil Viscosity'
-        units = 'Pa-s'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     OIL_VISCOSITY)
+                                     category,units,id)
       case ('OIL_ENERGY')
-        name = 'Oil Energy'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
-            units = 'MJ/m^3'
-            temp_int = ONE_INTEGER
+          if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
+            word = trim(word) // '_PER_VOLUME'
           else
             input%ierr = 1
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,OIL_ENERGY')
           endif
-        else
-          units = 'MJ/kmol'
-          temp_int = ZERO_INTEGER
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     OIL_ENERGY,temp_int)
-
-      case ('SOLVENT_PRESSURE')
-        name = 'Solvent Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     SOLVENT_PRESSURE)
-      case ('SOLVENT_SATURATION')
-        name = 'Solvent Saturation'
-        units = ''
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_SATURATION,units, &
-                                     SOLVENT_SATURATION)
+                                     category,units,id,subvar)
       case ('SOLVENT_DENSITY')
-        name = 'Solvent Density'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'MOLAR')) then
-            units = 'kmol/m^3'
-            temp_int = SOLVENT_DENSITY_MOL
+          if (StringCompareIgnoreCase(word2,'MOLAR')) then
+            word = trim(word) // '_MOLAR'
           else
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,SOLVENT_DENSITY')
           endif
-        else
-          units = 'kg/m^3'
-          temp_int = SOLVENT_DENSITY
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     temp_int)
-      case ('SOLVENT_MOBILITY')
-        name = 'Solvent Mobility'
-        units = '1/Pa-s'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     SOLVENT_MOBILITY)
+                                     category,units,id)
       case ('SOLVENT_ENERGY')
-        name = 'Solvent Energy'
-        call InputReadCard(input,option,word)
+        call InputReadCard(input,option,word2)
         if (input%ierr == 0) then
-          if (StringCompareIgnoreCase(word,'PER_VOLUME')) then
-            units = 'MJ/m^3'
-            temp_int = ONE_INTEGER
+          if (StringCompareIgnoreCase(word2,'PER_VOLUME')) then
+            word = trim(word) // 'PER_VOLUME'
           else
             input%ierr = 1
             call InputErrorMsg(input,option,'optional keyword', &
                                'VARIABLES,SOLVENT_ENERGY')
           endif
-        else
-          units = 'MJ/kmol'
-          temp_int = ZERO_INTEGER
         endif
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     SOLVENT_ENERGY,temp_int)
-
-      case ('BUBBLE_POINT')
-        name = 'Bubble Point'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     BUBBLE_POINT)
-
-      case ('ICE_SATURATION')
-        name = 'Ice Saturation'
-        units = ''
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_SATURATION,units, &
-                                     ICE_SATURATION)
-
-      case ('HYDRATE_SATURATION')
-        name = 'Hydrate Saturation'
-        units = ''
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_SATURATION,units, &
-                                     HYDRATE_SATURATION)
-
+                                     category,units,id,subvar)
       case ('LIQUID_MOLE_FRACTIONS')
-        name = 'X_g^l'
-        units = ''
+        word = 'XGL'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_MOLE_FRACTION, &
-                                     option%air_id)
-        name = 'X_l^l'
-        units = ''
+                                     category,units,id,subvar)
+        word = 'XLL'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_MOLE_FRACTION, &
-                                     option%water_id)
+                                     category,units,id,subvar)
       case ('GAS_MOLE_FRACTIONS')
-        name = 'X_g^g'
-        units = ''
+        word = 'XGG'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_MOLE_FRACTION, &
-                                     option%air_id)
-        name = 'X_l^g'
-        units = ''
+                                     category,units,id,subvar)
+        word = 'XLG'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_MOLE_FRACTION, &
-                                     option%water_id)
+                                     category,units,id,subvar)
       case ('LIQUID_MASS_FRACTIONS')
-        name = 'w_g^l'
-        units = ''
+        word = 'WGL'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_MASS_FRACTION, &
-                                     option%air_id)
-        name = 'w_l^l'
-        units = ''
+                                     category,units,id,subvar)
+        word = 'WLL'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_MASS_FRACTION, &
-                                     option%water_id)
+                                     category,units,id,subvar)
       case ('GAS_MASS_FRACTIONS')
-        name = 'w_g^g'
-        units = ''
+        word = 'WGG'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_MASS_FRACTION, &
-                                     option%air_id)
-        name = 'w_l^g'
-        units = ''
+                                     category,units,id,subvar)
+        word = 'WLG'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_MASS_FRACTION, &
-                                     option%water_id)
-      case ('AIR_PRESSURE')
-        name = 'Air Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     AIR_PRESSURE)
-      case ('CAPILLARY_PRESSURE')
-        name = 'Capillary Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     CAPILLARY_PRESSURE)
-      case ('VAPOR_PRESSURE')
-        name = 'Vapor Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     VAPOR_PRESSURE)
-      case ('SATURATION_PRESSURE')
-        name = 'Saturation Pressure'
-        units = 'Pa'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_PRESSURE,units, &
-                                     SATURATION_PRESSURE)
+                                     category,units,id,subvar)
       case('THERMODYNAMIC_STATE')
-        name = 'Thermodynamic State'
-         units = ''
-         output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
-                                                 units,STATE)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
          ! toggle output off for observation
 !geh: nope, this can change over time.
 !geh         output_variable%plot_only = PETSC_TRUE 
@@ -1033,179 +847,52 @@ subroutine OutputVariableRead(input,option,output_variable_list)
          output_variable%iformat = 1 ! integer
          call OutputVariableAddToList(output_variable_list,output_variable)
          nullify(output_variable)
-      case ('TEMPERATURE')
-        name = 'Temperature'
-        units = 'C'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     TEMPERATURE)
       case ('RESIDUAL')
-        units = ''
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
         do temp_int = 1, option%nflowdof
           write(word,*) temp_int
           name = 'Residual_' // trim(adjustl(word))
           call OutputVariableAddToList(output_variable_list,name, &
-                                       OUTPUT_GENERIC,units, &
-                                       RESIDUAL,temp_int)
+                                       category,units,id,temp_int)
         enddo
-      case ('POROSITY')
-        units = ''
-        name = 'Porosity'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     POROSITY)
-      case ('MINERAL_POROSITY')
-        units = ''
-        name = 'Mineral Porosity'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     BASE_POROSITY)
-      case ('EFFECTIVE_POROSITY')
-        option%io_buffer = 'EFFECTIVE_POROSITY no longer supported for &
-          &OUTPUT.  Please use POROSITY; it should be the same value.'
-        call PrintErrMsg(option)
-      case ('TORTUOSITY')
-        units = ''
-        name = 'Tortuosity'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     TORTUOSITY)
-      case ('PERMEABILITY','PERMEABILITY_X')
-        units = 'm^2'
-        name = 'Permeability X'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     PERMEABILITY)
-      case ('PERMEABILITY_Y')
-        units = 'm^2'
-        name = 'Permeability Y'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     PERMEABILITY_Y)
-      case ('PERMEABILITY_Z')
-        units = 'm^2'
-        name = 'Permeability Z'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     PERMEABILITY_Z)
-      case ('PERMEABILITY_XY')
-        if (.not.option%flow%full_perm_tensor) then
-          option%io_buffer = 'PERMEABILITY_XY only supported for &
-            full tensor permeability.'
-          call PrintErrMsg(option)
-        endif
-        units = 'm^2'
-        name = 'Permeability XY'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     PERMEABILITY_XY)
-      case ('PERMEABILITY_XZ')
-        if (.not.option%flow%full_perm_tensor) then
-          option%io_buffer = 'PERMEABILITY_XZ only supported for &
-            full tensor permeability.'
-          call PrintErrMsg(option)
-        endif
-        units = 'm^2'
-        name = 'Permeability XZ'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     PERMEABILITY_XZ)
-      case ('PERMEABILITY_YZ')
-        if (.not.option%flow%full_perm_tensor) then
-          option%io_buffer = 'PERMEABILITY_YZ only supported for &
-            full tensor permeability.'
-          call PrintErrMsg(option)
-        endif
-        units = 'm^2'
-        name = 'Permeability YZ'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     PERMEABILITY_YZ)
-      case ('GAS_PERMEABILITY','GAS_PERMEABILITY_X')
-        units = 'm^2'
-        name = 'Gas Permeability X'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_PERMEABILITY)
-      case ('GAS_PERMEABILITY_Y')
-        units = 'm^2'
-        name = 'Gas Permeability Y'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_PERMEABILITY_Y)
-      case ('GAS_PERMEABILITY_Z')
-        units = 'm^2'
-        name = 'Gas Permeability Z'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_PERMEABILITY_Z)
-      case ('LIQUID_RELATIVE_PERMEABILITY')
-        units = ''
-        name = 'Liquid Relative Permeability'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     LIQUID_RELATIVE_PERMEABILITY)
-      case ('GAS_RELATIVE_PERMEABILITY')
-        units = ''
-        name = 'Gas Relative Permeability'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     GAS_RELATIVE_PERMEABILITY)
-      case ('SOIL_COMPRESSIBILITY')
-        units = ''
-        name = 'Compressibility'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     SOIL_COMPRESSIBILITY)
-      case ('SOIL_REFERENCE_PRESSURE')
-        units = 'Pa'
-        name = 'Soil Reference Pressure'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     SOIL_REFERENCE_PRESSURE)
       case ('NATURAL_ID')
-        units = ''
-        name = 'Natural ID'
-        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
-                                                units,NATURAL_ID)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('PROCESS_ID')
-        units = ''
-        name = 'Process ID'
-        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
-                                                units,PROCESS_ID)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('VOLUME')
-        units = 'm^3'
-        name = 'Volume'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,VOLUME)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('MATERIAL_ID')
-        units = ''
-        name = 'Material ID'
-        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
-                                                units,MATERIAL_ID)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('FRACTURE')
-        units = ''
-        name = 'Fracture Flag'
-        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
-                                                units,FRACTURE)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case ('MATERIAL_ID_KLUDGE_FOR_VISIT')
-        units = ''
-        name = 'Kludged material ids for VisIt'
-        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
-                                                units,MATERIAL_ID)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
@@ -1213,57 +900,60 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable_list%flow_vars = PETSC_FALSE
       case('NO_ENERGY_VARIABLES')
         output_variable_list%energy_vars = PETSC_FALSE
-      case ('SALINITY')
-        if (.not.option%flow%density_depends_on_salinity) then
-          option%io_buffer = 'SALINITY output only supported when the &
-            &SALINITY auxiliary process model is used.'
-          call PrintErrMsg(option)
-        endif
-        units = ''
-        name = 'Salinity (mass fraction)'
-        call OutputVariableAddToList(output_variable_list,name, &
-                                     OUTPUT_GENERIC,units, &
-                                     SALINITY)
       case('COORDINATES')
-        units = 'm'
-        name = 'X Coordinate'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,X_COORDINATE)
+        word = 'X_COORDINATE'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
-        name = 'Y Coordinate'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,Y_COORDINATE)
+        
+        word = 'Y_COORDINATE'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
-        name = 'Z Coordinate'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,Z_COORDINATE)
+        
+        word = 'Z_COORDINATE'
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case('X_COORDINATE')
-        units = 'm'
-        name = 'X Coordinate'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,X_COORDINATE)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case('Y_COORDINATE')
-        units = 'm'
-        name = 'Y Coordinate'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,Y_COORDINATE)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case('Z_COORDINATE')
-        units = 'm'
-        name = 'Z Coordinate'
-        output_variable => OutputVariableCreate(name,OUTPUT_GENERIC, &
-                                                units,Z_COORDINATE)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        output_variable => OutputVariableCreate(name,category,units,id)
         output_variable%iformat = 0 ! double
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        call InputKeywordUnrecognized(input,word,'VARIABLES',option)
+        call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
+                                option)
+        if (id < 0) call InputKeywordUnrecognized(input,word,'VARIABLES',option)
+
+        if (subsubvar > 0) then
+          call OutputVariableAddToList(output_variable_list,name, &
+                                     category,units,id,subvar,subsubvar)
+        elseif (subvar > 0) then
+          call OutputVariableAddToList(output_variable_list,name, &
+                                     category,units,id,subvar)
+        else
+          call OutputVariableAddToList(output_variable_list,name, &
+                                       category,units,id)
+        endif
     end select
 
   enddo
