@@ -129,7 +129,9 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
 
   string = 'ZONE T="' // &
            trim(StringFormatDouble(option%time/output_option%tconv)) // &
-           '"'
+           '"' // &
+           ', STRANDID=1, SOLUTIONTIME=' // &
+           trim(StringFormatDouble(option%time/output_option%tconv))
   string2 = ''
   select case(tecplot_format)
     case (TECPLOT_POINT_FORMAT)
