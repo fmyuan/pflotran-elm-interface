@@ -780,9 +780,9 @@ subroutine OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
   PetscInt :: category, id, subvar, subsubvar
   type(option_type), pointer :: option
 
-  id = -999
-  subvar = -999
-  subsubvar = -999
+  id = UNINITIALIZED_DOUBLE
+  subvar = UNINITIALIZED_DOUBLE
+  subsubvar = UNINITIALIZED_DOUBLE
 
   select case(word)
     case ('MAXIMUM_PRESSURE')

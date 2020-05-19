@@ -942,12 +942,12 @@ subroutine OutputVariableRead(input,option,output_variable_list)
       case default
         call OutputVariableToID(word,name,units,category,id,subvar,subsubvar, &
                                 option)
-        if (id < 0) call InputKeywordUnrecognized(input,word,'VARIABLES',option)
+        if (Uninitialized(id)) call InputKeywordUnrecognized(input,word,'VARIABLES',option)
 
-        if (subsubvar > 0) then
+        if (Initialized(subsubvar)) then
           call OutputVariableAddToList(output_variable_list,name, &
                                      category,units,id,subvar,subsubvar)
-        elseif (subvar > 0) then
+        elseif (Initialized(subvar)) then
           call OutputVariableAddToList(output_variable_list,name, &
                                      category,units,id,subvar)
         else
