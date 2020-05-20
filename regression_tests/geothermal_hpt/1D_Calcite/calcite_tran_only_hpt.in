@@ -47,7 +47,7 @@ CHEMISTRY
     CO2(aq)
     CaCO3(aq)
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
   /
   MINERALS

@@ -48,7 +48,7 @@ CHEMISTRY
     CaHCO3+
 #    CaOH+
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
   /
   MINERALS

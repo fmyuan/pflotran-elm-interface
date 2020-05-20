@@ -2762,6 +2762,15 @@ subroutine SubsurfaceReadInput(simulation,input)
 
 !......................
 
+      case ('TIMESTEPPER','NEWTON_SOLVER','LINEAR_SOLVER')
+        option%io_buffer = 'TIMESTEPPER, NEWTON_SOLVER and LINEAR_SOLVER &
+          &have been moved inside a NUMERICAL_METHODS block in the input &
+          &file. Please see "Numerical Methods Refactor" under &
+          &Announcements in the online documentation.'
+        call PrintErrMsg(option)
+
+!......................
+
       case ('NUMERICAL_JACOBIAN_MULTI_COUPLE')
         option%numerical_derivatives_multi_coupling = PETSC_TRUE
 
@@ -3608,8 +3617,8 @@ subroutine SubsurfaceReadInput(simulation,input)
         ! timestepper object member variable
         if (Initialized(dt_init)) then
           if (Initialized(master_pmc%timestepper%dt_init)) then
-            option%io_buffer = 'INITIAL_TIMESTEP_SIZE may included under &
-              &either the TIME or TIMESTEPPER ' // &
+            option%io_buffer = 'INITIAL_TIMESTEP_SIZE may be included &
+              &under either the TIME or TIMESTEPPER ' // &
               trim(master_pmc%timestepper%name) // ' card, but not both.'
             call PrintErrMsg(option)
           endif
@@ -3634,8 +3643,8 @@ subroutine SubsurfaceReadInput(simulation,input)
         endif
         if (Initialized(dt_min)) then
           if (Initialized(master_pmc%timestepper%dt_min)) then
-            option%io_buffer = 'MINIMUM_TIMESTEP_SIZE may included under &
-              &either the TIME or TIMESTEPPER ' // &
+            option%io_buffer = 'MINIMUM_TIMESTEP_SIZE may be included &
+              &under either the TIME or TIMESTEPPER ' // &
               trim(master_pmc%timestepper%name) // ' card, but not both.'
             call PrintErrMsg(option)
           endif
@@ -3810,7 +3819,7 @@ subroutine SubsurfaceReadInput(simulation,input)
   ! same list.
   if (associated(master_pmc%timestepper%local_waypoint_list) .and. &
       associated(waypoint_list_time_card)) then
-    option%io_buffer = 'MAXIMUM_TIMESTEP_SIZE may included under either &
+    option%io_buffer = 'MAXIMUM_TIMESTEP_SIZE may be included under either &
       &the TIME or TIMESTEPPER ' // trim(master_pmc%timestepper%name) // &
       ' card, but not both.'
     call PrintErrMsg(option)

@@ -1412,7 +1412,7 @@ subroutine OptionPrintPFLOTRANHeader(option)
   character(len=MAXWORDLENGTH) :: version
   character(len=MAXSTRINGLENGTH) :: string
 
-  version = 'PFLOTRAN b3.0'
+  version = GetVersion()
   if (option%myrank == option%io_rank) then
     write(string,*) len_trim(version)+4
     string = trim(adjustl(string)) // '("=")'

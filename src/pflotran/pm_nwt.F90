@@ -285,12 +285,13 @@ subroutine PMNWTReadNewtonSelectCase(this,input,keyword,found, &
     
   found = PETSC_TRUE
   select case(trim(keyword))
-    case('NUMERICAL_JACOBIAN')
-      option%transport%numerical_derivatives = PETSC_TRUE
-    case('ITOL_RELATIVE_UPDATE')
-      call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
-      call InputErrorMsg(input,option,keyword,error_string)
-      this%controls%check_post_convergence = PETSC_TRUE
+!geh: these have not been implemented
+!    case('NUMERICAL_JACOBIAN')
+!      option%transport%numerical_derivatives = PETSC_TRUE
+!    case('ITOL_RELATIVE_UPDATE')
+!      call InputReadDouble(input,option,this%controls%newton_inf_rel_update_tol)
+!      call InputErrorMsg(input,option,keyword,error_string)
+!      this%controls%check_post_convergence = PETSC_TRUE
   case default
       found = PETSC_FALSE
 

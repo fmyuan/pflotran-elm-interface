@@ -142,7 +142,7 @@ CHEMISTRY
     CO2(g)
     O2(g)
   /
-  GAS_SPECIES
+  PASSIVE_GAS_SPECIES
     CO2(g)
     O2(g)
   /

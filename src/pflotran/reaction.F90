@@ -283,7 +283,9 @@ subroutine ReactionReadPass1(reaction,input,option)
         string = 'CHEMISTRY,ACTIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,ACTIVE_GAS,string,input,option)
       !TODO(geh): remove GAS_SPECIES
-      case('PASSIVE_GAS_SPECIES','GAS_SPECIES')
+      case('GAS_SPECIES')
+        call InputKeywordDeprecated('GAS_SPECIES','PASSIVE_GAS_SPECIES',option)
+      case('PASSIVE_GAS_SPECIES')
         string = 'CHEMISTRY,PASSIVE_GAS_SPECIES'
         call RGasRead(reaction%gas%list,PASSIVE_GAS,string,input,option)
       case('IMMOBILE_SPECIES')
@@ -431,10 +433,26 @@ subroutine ReactionReadPass1(reaction,input,option)
               call InputReadDouble(input,option,general_rxn%forward_rate)  
               call InputErrorMsg(input,option,'forward rate', &
                                  'CHEMISTRY,GENERAL_REACTION') 
+              ! throw error if units exist after rate
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              if (input%ierr == 0) then
+                option%io_buffer = 'Units conversion not supported for &
+                  &GENERAL_REACTION FORWARD_RATE. Please assume the &
+                  &documented units.'
+                call PrintErrMsg(option)
+              endif
             case('BACKWARD_RATE')
               call InputReadDouble(input,option,general_rxn%backward_rate)  
               call InputErrorMsg(input,option,'backward rate', &
                                  'CHEMISTRY,GENERAL_REACTION') 
+              ! throw error if units exist after rate
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              if (input%ierr == 0) then
+                option%io_buffer = 'Units conversion not supported for &
+                  &GENERAL_REACTION BACKWARD_RATE. Please assume the &
+                  &documented units.'
+                call PrintErrMsg(option)
+              endif
           end select
         enddo   
         call InputPopBlock(input,option)
@@ -545,7 +563,6 @@ subroutine ReactionReadPass1(reaction,input,option)
         enddo
         call InputPopBlock(input,option)
       case('SORPTION')
-!geh        nullify(prev_srfcplx_rxn)
         call InputPushBlock(input,option)
         do
           call InputReadPflotranString(input,option)
@@ -694,7 +711,10 @@ subroutine ReactionReadPass1(reaction,input,option)
                       if (option%use_mc) then
                         sec_cont_kd_rxn%itype = kd_rxn%itype
                       endif
-                    case('DISTRIBUTION_COEFFICIENT','KD')
+                    case('KD')
+                      call InputKeywordDeprecated('KD', &
+                                           'DISTRIBUTION_COEFFICIENT',option)
+                    case('DISTRIBUTION_COEFFICIENT')
                       call InputReadDouble(input,option,kd_rxn%Kd)
                       call InputErrorMsg(input,option, &
                                          'DISTRIBUTION_COEFFICIENT', &
@@ -955,9 +975,8 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('ACTIVITY_H2O','ACTIVITY_WATER')
         reaction%use_activity_h2o = PETSC_TRUE
       case('REDOX_SPECIES')
-        option%io_buffer = 'REDOX_SPECIES is no longer supported. Please &
-          &use DECOUPLED_EQULIBRIUM_REACTIONS instead.'
-        call PrintErrMsg(option)
+        call InputKeywordDeprecated('REDOX_SPECIES', &
+                                    'DECOUPLED_EQUILIBRIUM_REACTIONS',option)
       case('DECOUPLED_EQUILIBRIUM_REACTIONS')
         call InputSkipToEnd(input,option,word)
       case('OUTPUT')
@@ -1119,8 +1138,8 @@ subroutine ReactionReadPass2(reaction,input,option)
         call RSandboxSkipInput(input,option)
       case('CLM_REACTION')
         call RCLMRxnSkipInput(input,option)
-      case('SOLID_SOLUTIONS')
 #ifdef SOLID_SOLUTION                
+      case('SOLID_SOLUTIONS')
         call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
                                             input,option)
 #endif
@@ -6195,12 +6214,12 @@ subroutine RTSetPlotVariables(list,reaction,option,time_unit)
   endif
   
   if (reaction%mineral%print_surface_area) then
-    do i=1,reaction%mineral%nmnrl
-      if (reaction%mineral%mnrl_print(i)) then
-        name = trim(reaction%mineral%mineral_names(i)) // ' Area'
+    do i=1,reaction%mineral%nkinmnrl
+      if (reaction%mineral%kinmnrl_print(i)) then
+        name = trim(reaction%mineral%kinmnrl_names(i)) // ' Area'
         units = 'm^2/m^3'
-        call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                                     MINERAL_SURFACE_AREA,i)    
+        call OutputVariableAddToList(list,name,OUTPUT_VOLUME_FRACTION,units, &
+                                     MINERAL_SURFACE_AREA,i,i)     
       endif
     enddo
   endif

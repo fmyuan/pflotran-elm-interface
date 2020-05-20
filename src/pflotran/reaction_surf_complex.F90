@@ -92,8 +92,16 @@ subroutine SurfaceComplexationRead(reaction,input,option)
         ! can overwrite with DO_NOT_EQUILIBRATE_AT_EACH_CELL in constraint
         reaction%equilibrate_at_each_cell = PETSC_TRUE
       case('KINETIC')
+        option%io_buffer = 'Non-multirate kinetic surface complexation &
+          &currently unsupported until implementation is fixed. Email&
+          &pflotran-dev.'
+        call PrintErrMsg(option)
         srfcplx_rxn%itype = SRFCMPLX_RXN_KINETIC
       case('COMPLEX_KINETICS')
+        option%io_buffer = 'Non-multirate kinetic surface complexation &
+          &currently unsupported until implementation is fixed. Email&
+          &pflotran-dev.'
+        call PrintErrMsg(option)
         nullify(prev_srfcplx)
         call InputPushBlock(input,option)
         do

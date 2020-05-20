@@ -11,6 +11,10 @@ module PFLOTRAN_Constants_module
 
   private
 
+  PetscInt, parameter :: PFLOTRAN_VERSION_MAJOR = 3
+  PetscInt, parameter :: PFLOTRAN_VERSION_MINOR = 0
+  PetscInt, parameter :: PFLOTRAN_VERSION_PATCH = -1 ! (alpha < -1; beta = -1)
+
 #define VMAJOR 3
 #define VMINOR 13
 #define VSUBMINOR 0
@@ -363,7 +367,8 @@ module PFLOTRAN_Constants_module
   
   public :: Initialized, &
             Uninitialized, &
-            UninitializedMessage
+            UninitializedMessage, &
+            GetVersion
   
 contains
 
@@ -510,5 +515,35 @@ function UninitializedMessage(variable_name,routine_name)
   endif
   
 end function UninitializedMessage
+
+! ************************************************************************** !
+
+function GetVersion()
+  ! 
+  ! Returns the PFLOTRAN version in string format using semantic versioning
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/23/20
+  !
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: GetVersion
+  
+  character(len=MAXWORDLENGTH) :: word
+  
+  write(word,*) PFLOTRAN_VERSION_MAJOR
+  GetVersion = 'PFLOTRAN v' // trim(adjustl(word))
+  write(word,*) PFLOTRAN_VERSION_MINOR
+  GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+  if (PFLOTRAN_VERSION_PATCH >= 0) then
+    write(word,*) PFLOTRAN_VERSION_PATCH
+    GetVersion = trim(GetVersion) // '.' // trim(adjustl(word))
+  else if (PFLOTRAN_VERSION_PATCH < -1) then
+    GetVersion = trim(GetVersion) // '-alpha'
+  else
+    GetVersion = trim(GetVersion) // '-beta'
+  endif
+  
+end function GetVersion
 
 end module PFLOTRAN_Constants_module
