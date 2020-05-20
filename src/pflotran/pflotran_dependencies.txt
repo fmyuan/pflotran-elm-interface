@@ -449,8 +449,8 @@ nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
 nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
                              option.o pflotran_constants.o \
                              transport_constraint_nwt.o
-observation.o : connection.o input_aux.o option.o output_aux.o \
-                pflotran_constants.o region.o string.o
+observation.o : connection.o input_aux.o output_aux.o pflotran_constants.o \
+                region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
 option_flow.o : pflotran_constants.o
 option_transport.o : pflotran_constants.o
@@ -461,7 +461,7 @@ output.o : connection.o coupler.o debug.o discretization.o field.o \
            patch.o pflotran_constants.o realization_base.o \
            realization_subsurface.o region.o string.o units.o utility.o \
            variables.o waypoint.o wipp_flow_aux.o
-output_aux.o : option.o pflotran_constants.o variables.o
+output_aux.o : option.o pflotran_constants.o string.o variables.o
 output_common.o : connection.o coupler.o discretization.o dm_kludge.o field.o \
                   global_aux.o grid.o grid_structured.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \

@@ -29,7 +29,6 @@ module Observation_module
     PetscBool :: print_velocities
     PetscBool :: print_secondary_data(5)          ! first entry is for temp., second is for conc. and third is for mineral vol frac., fourth is rate, fifth is SI
     PetscBool :: at_cell_center
-    PetscBool :: aggregate_only
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: linkage_name
     type(connection_set_type), pointer :: connection_set
@@ -91,7 +90,6 @@ function ObservationCreate1()
   observation%itype = OBSERVATION_SCALAR
   observation%print_velocities = PETSC_FALSE
   observation%at_cell_center = PETSC_TRUE
-  observation%aggregate_only = PETSC_FALSE
   observation%print_secondary_data = PETSC_FALSE
   nullify(observation%region)
   nullify(observation%aggregate)
@@ -156,7 +154,6 @@ function ObservationCreateFromObservation(observation)
   new_observation%itype = observation%itype
   new_observation%print_velocities = observation%print_velocities
   new_observation%at_cell_center = observation%at_cell_center
-  new_observation%aggregate_only = observation%aggregate_only
   new_observation%print_secondary_data = &
        observation%print_secondary_data
   ! keep these null for now to catch bugs
@@ -186,11 +183,11 @@ subroutine ObservationRead(observation,input,option)
   
   type(observation_type) :: observation
   type(input_type), pointer :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   
   type(observation_aggregate_type), pointer :: aggregate, new_aggregate
-  character(len=MAXWORDLENGTH) :: keyword, word, var_name
-  PetscInt :: id  
+  character(len=MAXWORDLENGTH) :: keyword, word, word2, var_name, units
+  PetscInt :: id, category, subvar, subsubvar
 
   input%ierr = 0
   call InputPushBlock(input,option)
@@ -273,12 +270,6 @@ subroutine ObservationRead(observation,input,option)
         
         observation%itype = OBSERVATION_AGGREGATE 
 
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        select case(word)
-          case('AGGREGATE_ONLY')
-            observation%aggregate_only = PETSC_TRUE
-        end select
-
         call InputPushBlock(input,option)
 
         id = 1
@@ -309,13 +300,24 @@ subroutine ObservationRead(observation,input,option)
             case('MAX')
               !Records all state properties associated with max
               new_aggregate%metric = OBSERVATION_AGGREGATE_MAX
-              call InputReadWord(input,option,var_name,PETSC_TRUE)
-              call StringToUpper(var_name)
-              if (trim(var_name) == 'TOTAL') then
-                  call InputReadWord(input,option,new_aggregate%var_name, &
-                                     PETSC_TRUE)
-                  new_aggregate%var_name = 'Total ' // new_aggregate%var_name
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call StringToUpper(word)
+              if (trim(word) == 'TOTAL') then
+                call InputReadWord(input,option,word, &
+                                   PETSC_TRUE)
+                new_aggregate%var_name = 'Total ' // word
               else
+                call OutputVariableToID(word,var_name,units,category,id, &
+                                        subvar,subsubvar,option)
+                if (id < 0) then
+                  option%io_buffer = 'Output variable ' // word //&
+                                     ' not recognized.'
+                  call PrintErrMsg(option)
+                elseif (subvar > 0 .or. subsubvar > 0) then
+                  option%io_buffer = 'Aggregate MAX not implemented for ' &
+                                     // word
+                  call PrintErrMsg(option)
+                endif
                 new_aggregate%var_name = var_name
               endif
               call InputErrorMsg(input,option,'MAX','AGGREGATE_METRIC')
