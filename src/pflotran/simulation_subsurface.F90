@@ -114,6 +114,7 @@ subroutine SubsurfaceSimInputRecord(this)
   use Strata_module
   use Material_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Patch_module
   use Condition_module
   use EOS_module
@@ -184,6 +185,12 @@ subroutine SubsurfaceSimInputRecord(this)
   ! print characteristic curves information
   call CharCurvesInputRecord(this%realization%patch%characteristic_curves)
 
+  ! print thermal characteristic curve info
+  if (this%realization%option%iflowmode == G_MODE) then
+    call CharCurvesThermalInputRecord( &
+         this%realization%patch%thermal_characteristic_curves)
+  end if
+  
   ! print chemistry and reactive transport information
   call ReactionInputRecord(this%realization%reaction)
   

@@ -15,6 +15,7 @@ module Realization_Subsurface_class
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
+  use Characteristic_Curves_Thermal_module
   use Dataset_Base_class
   use Fluid_module
   use Patch_module
@@ -40,6 +41,7 @@ private
     type(fluid_property_type), pointer :: fluid_property_array(:)
     type(saturation_function_type), pointer :: saturation_functions
     class(characteristic_curves_type), pointer :: characteristic_curves
+    class(cc_thermal_type), pointer :: thermal_characteristic_curves
     class(dataset_base_type), pointer :: datasets
     
     class(dataset_base_type), pointer :: uniform_velocity_dataset
@@ -156,6 +158,9 @@ function RealizationCreate2(option)
   nullify(realization%fluid_property_array)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
+  if (option%iflowmode == G_MODE) then
+    nullify(realization%thermal_characteristic_curves)
+  end if
   nullify(realization%datasets)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
@@ -773,13 +778,24 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       patch%characteristic_curves_array, &
                                       option)
   endif
-                                      
+
+  if (option%iflowmode == G_MODE) then
+  ! set up analogous mapping to thermal characteristic curves, if used    
+    if (associated(realization%thermal_characteristic_curves)) then
+      patch%thermal_characteristic_curves => &
+           realization%thermal_characteristic_curves
+      call CharCurvesThermalConvertListToArray( &
+           patch%thermal_characteristic_curves, &
+           patch%thermal_characteristic_curves_array, option)
+    end if
+  end if
+  
   ! create mapping of internal to external material id
   call MaterialCreateIntToExtMapping(patch%material_property_array, &
                                      patch%imat_internal_to_external)
-    
-  cur_material_property => realization%material_properties                            
-  do                                      
+
+  cur_material_property => realization%material_properties
+  do
     if (.not.associated(cur_material_property)) exit
 
     ! obtain saturation function id
@@ -805,10 +821,27 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         if (associated(patch%characteristic_curves_array)) then
           call CharCurvesProcessTables(patch%characteristic_curves_array(  &
                         cur_material_property%saturation_function_id)%ptr,option)
-        end if                
+        end if
       end if
     endif
-    
+
+    ! thermal conducitivity function id 
+    if (option%iflowmode == G_MODE) then
+      if (associated(patch%thermal_characteristic_curves_array)) then
+        cur_material_property%thermal_conductivity_function_id = &
+             CharacteristicCurvesThermalGetID( &
+             patch%thermal_characteristic_curves_array, &
+             cur_material_property%thermal_conductivity_function_name, &
+             cur_material_property%name,option)
+      end if
+      if (cur_material_property%thermal_conductivity_function_id == 0) then
+        option%io_buffer = 'Thermal characteristic curve "' // &
+          trim(cur_material_property%thermal_conductivity_function_name) // &
+          '" not found.'
+        call PrintErrMsg(option)
+      end if
+    end if
+
     ! if named, link dataset to property
     if (associated(cur_material_property%porosity_dataset)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
@@ -2830,6 +2863,12 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
+  if (this%option%iflowmode == G_MODE) then
+    if (associated(this%thermal_characteristic_curves)) then
+      call ThermalCharacteristicCurvesDestroy(this%thermal_characteristic_curves)
+    end if
+  end if
+  
   call DatasetDestroy(this%datasets)
   
   call DatasetDestroy(this%uniform_velocity_dataset)

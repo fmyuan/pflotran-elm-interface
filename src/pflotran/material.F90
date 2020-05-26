@@ -42,6 +42,8 @@ module Material_module
     PetscBool :: tortuosity_function_of_porosity
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
+    PetscInt :: thermal_conductivity_function_id
+    character(len=MAXWORDLENGTH) :: thermal_conductivity_function_name
     PetscReal :: rock_density ! kg/m^3
     PetscReal :: specific_heat ! J/kg-K
     PetscReal :: thermal_conductivity_dry
@@ -307,6 +309,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
                            material_property%saturation_function_name)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
+      case('THERMAL_CHARACTERISTIC_CURVES')
+        call InputReadWord(input,option, &
+             material_property%thermal_conductivity_function_name,PETSC_TRUE)
       case('ROCK_DENSITY') 
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
@@ -932,6 +937,18 @@ subroutine MaterialPropertyRead(material_property,input,option)
     call PrintErrMsg(option)
   endif
 
+  if (option%iflowmode == G_MODE) then
+    if (Initialized(material_property%thermal_conductivity_wet) .or. &
+        Initialized(material_property%thermal_conductivity_dry)) then
+      option%io_buffer = 'in GENERAL mode, thermal conductivity should be &
+           &set through THERMAL_CHARACTERISTIC_CURVES, rather than through &
+           &materials THERMAL_CONDUCTIVITY_WET and THERMAL_CONDUCTIVTY_DRY. &
+           &The DEFAULT THERMAL_CHARACTERISTIC_CURVE recreates the &
+           &previous behavior, but there are also additional options now.'
+      call PrintErrMsg(option)
+    end if
+  end if
+  
 end subroutine MaterialPropertyRead
 
 ! ************************************************************************** !
@@ -1264,10 +1281,12 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
         ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
         material_parameter%soil_heat_capacity(i) = &
           material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-        material_parameter%soil_thermal_conductivity(1,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_dry
-        material_parameter%soil_thermal_conductivity(2,i) = &
-          material_property_array(i)%ptr%thermal_conductivity_wet
+        if (.not. option%iflowmode == G_MODE) then
+          material_parameter%soil_thermal_conductivity(1,i) = &
+            material_property_array(i)%ptr%thermal_conductivity_dry
+          material_parameter%soil_thermal_conductivity(2,i) = &
+            material_property_array(i)%ptr%thermal_conductivity_wet
+        endif
       endif
     enddo
   endif
@@ -2224,7 +2243,12 @@ subroutine MaterialPropInputRecord(material_property_list)
     
     write(id,'(a29)',advance='no') 'cc / saturation function: '
     write(id,'(a)') adjustl(trim(cur_matprop%saturation_function_name))
-    
+
+    if (Initialized(cur_matprop%thermal_conductivity_function_id)) then
+      write(id,'(a29)',advance='no') 'thermal char. curve: '
+      write(id,'(a)') adjustl(trim(cur_matprop%thermal_conductivity_function_name))
+    end if
+  
     write(id,'(a29)') '---------------------------: '
     cur_matprop => cur_matprop%next
   enddo
