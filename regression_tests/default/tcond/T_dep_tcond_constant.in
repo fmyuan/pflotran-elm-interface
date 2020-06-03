@@ -1,0 +1,277 @@
+#Description: Test constant thermal characteristic curve (file based on liquid_gas.in)
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        CHECK_MAX_DPL_LIQ_STATE_ONLY
+        GAS_STATE_AIR_MASS_DOF WATER_MOL_FRAC
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== numerical methods ================================
+NUMERICAL_METHODS FLOW
+
+  TIMESTEPPER
+    #  MAX_STEPS -1
+    SATURATION_CHANGE_GOVERNOR 1.d0
+    CONCENTRATION_CHANGE_GOVERNOR 0.5d0
+  /
+
+  NEWTON_SOLVER
+    MAXIMUM_NUMBER_OF_ITERATIONS 10
+    RTOL 1.d-8
+    ATOL 1.d-8
+    STOL 1.d-30
+  /
+
+  LINEAR_SOLVER
+    SOLVER DIRECT
+  /
+
+END
+
+#=========================== regression =======================================
+REGRESSION
+  CELL_IDS
+    1
+    11
+    20
+  /
+END
+
+#=========================== flow mode ========================================
+
+#=========================== debug settings ===================================
+#USE_TOUCH_OPTIONS
+
+#DEBUG
+#MATVIEW_JACOBIAN
+#VECVIEW_RESIDUAL
+#VECVIEW_SOLUTION
+#/
+
+#=========================== time stepper options =============================
+
+#=========================== discretization ===================================
+GRID
+  TYPE STRUCTURED
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 20 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+#=========================== solver options ===================================
+
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+/
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil
+  ID 1
+  CHARACTERISTIC_CURVES cc1
+  POROSITY 0.25
+  TORTUOSITY 0.5
+  ROCK_DENSITY 2650.0 kg/m^3
+  THERMAL_CHARACTERISTIC_CURVES cct_constant
+  HEAT_CAPACITY 830.0 J/kg-C
+  PERMEABILITY
+    PERM_X 1.d-12
+    PERM_Y 1.d-12
+    PERM_Z 1.d-12
+  /
+END
+
+THERMAL_CHARACTERISTIC_CURVES cct_constant
+THERMAL_CONDUCTIVITY_FUNCTION CONSTANT
+CONSTANT_THERMAL_CONDUCTIVITY 5.5D+0 W/m-C
+END
+TEST
+END
+
+#=========================== saturation functions =============================
+CHARACTERISTIC_CURVES cc1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    ALPHA 1.d-4
+    M 0.5d0
+    MAX_CAPILLARY_PRESSURE 1.d6
+  /
+  PERMEABILITY_FUNCTION MUALEM
+    PHASE LIQUID
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    M 0.5d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_GAS
+    PHASE GAS
+    LIQUID_RESIDUAL_SATURATION 0.d0
+    GAS_RESIDUAL_SATURATION 1.d-40
+    M 0.5d0
+  /
+/
+
+#=========================== output options ===================================
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT TECPLOT BLOCK
+    TIMES s 8.64e4 6.05e5 2.68e6 2.89e7
+    VARIABLES
+      TEMPERATURE
+    /
+  /
+/
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1. y
+  INITIAL_TIMESTEP_SIZE 1.d0 s
+  MAXIMUM_TIMESTEP_SIZE 0.001d0 y
+/
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+REGION west
+  FACE WEST
+  COORDINATES
+    0.d0 0.d0 0.d0
+    0.d0 1.d0 1.d0
+  /
+END
+
+REGION east
+  FACE EAST
+  COORDINATES
+    10.d0 0.d0 0.d0
+    10.d0 1.d0 1.d0
+  /
+END
+
+REGION liquid_side
+  COORDINATE 0.25d0 0.5d0 0.5d0
+END
+
+REGION gas_side
+  COORDINATE 9.75d0 0.5d0 0.5d0
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION liquid_side
+  VELOCITY
+/
+
+OBSERVATION
+  REGION gas_side
+  VELOCITY
+/
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION liquid_phase
+  TYPE
+    LIQUID_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0.d0 0.d0 0.d0
+  LIQUID_PRESSURE 111325.d0
+  MOLE_FRACTION 1.d-10
+  TEMPERATURE 100.d0
+/
+
+#FLOW_CONDITION gas_phase
+#  TYPE
+#    GAS_PRESSURE DIRICHLET
+#    MOLE_FRACTION DIRICHLET
+#    TEMPERATURE DIRICHLET
+#  /
+#  GAS_PRESSURE 111325.d0
+#  ! psat at 25 C is 3165.9896022949661
+#  ! at 100% humidity, p_a = p_g - p_sat
+#  ! mole fraction = p_a / p_g = (p_g - p_sat) / p_g
+#  !               = (111325. - 3157.9744387448523) / 111325.
+#  !               = 0.971632836838d0
+#  MOLE_FRACTION 0.971632837d0
+#  TEMPERATURE 25.d0
+#/
+
+FLOW_CONDITION gas_phase
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 111325.d0
+  ! psat at 0 C is 612.5 Pa (triple point)
+  ! at 100% humidity, p_a = p_g - p_sat
+  ! mole fraction = p_a / p_g = (p_g - p_sat) / p_g
+  !               = (111325. - 612.5) / 111325.
+  !               = 0.994
+  MOLE_FRACTION 0.995
+  TEMPERATURE 0.d0
+/
+
+FLOW_CONDITION initial
+  TYPE
+    GAS_PRESSURE DIRICHLET
+    MOLE_FRACTION DIRICHLET
+    TEMPERATURE DIRICHLET
+  /
+  GAS_PRESSURE 111325.d0
+  MOLE_FRACTION 0.995
+  TEMPERATURE 0.d0
+END
+
+#=========================== condition couplers ===============================
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+INITIAL_CONDITION
+  FLOW_CONDITION liquid_phase
+  REGION west
+/
+
+INITIAL_CONDITION
+  FLOW_CONDITION gas_phase
+  REGION east
+/
+
+#skip
+BOUNDARY_CONDITION west
+  FLOW_CONDITION liquid_phase
+  REGION west
+/
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION gas_phase
+  REGION east
+/
+#noskip
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  MATERIAL soil
+  REGION all
+/
+
+
+END_SUBSURFACE

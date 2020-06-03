@@ -13,7 +13,7 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 TEST_MANAGER = regression_tests.py
 PFLOTRAN = ../src/pflotran/pflotran
 
-TEST_OPTIONS =
+TEST_OPTIONS =  
 
 # make PERFORMANCE=true check
 ifdef PERFORMANCE
@@ -207,6 +207,9 @@ NOHDF5_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg
 #	wipp/bragflo/wipp_flow/wipp_flow.cfg 
 
+TCOND_CFG = \
+    default/tcond/T_dep_tcond.cfg
+
 WIPP_CFG = \
 	wipp/nuts/nuts.cfg \
 	wipp/wipp_flow/gas_generation/gas_generation.cfg \
@@ -284,6 +287,10 @@ nonhdf5_test :
 	$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--suite standard standard_parallel \
 		--config-files $(NOHDF5_CFG)
+
+tcond_test :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(TCOND_CFG)
 
 wipp_test :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
