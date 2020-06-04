@@ -203,39 +203,40 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   class(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
   PetscBool :: dry_out
-  PetscReal :: ele_kd           ! [m^3-water-m^3-bulk]
+  PetscReal :: ele_kd           ! [m^3-water/m^3-bulk]
   PetscReal :: total_bulk_conc  ! [mol/m^3-bulk]
   PetscReal :: aqueous_eq_conc  ! [mol/m^3-liq]
   PetscReal :: ppt_mass_conc    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass_conc   ! [mol/m^3-bulk]
   
   PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
+  PetscReal :: por, sat
+
+  por = material_auxvar%porosity
+  sat = global_auxvar%sat(LIQUID_PHASE)
 
   if (.not.dry_out) then
   !---- Cell is wet ----!
     if (aqueous_eq_conc > solubility) then
       extra_mass_conc = aqueous_eq_conc - solubility  ! [mol/m^3-liq]
-      aqueous_eq_conc = solubility
-      sorb_mass_conc = aqueous_eq_conc*ele_kd
-      ppt_mass_conc = extra_mass_conc - sorb_mass_conc
+      aqueous_eq_conc = solubility                    ! [mol/m^3-liq]
+      sorb_mass_conc = aqueous_eq_conc*ele_kd         ! [mol/m^3-bulk]
+      ppt_mass_conc = (extra_mass_conc*por*sat) - sorb_mass_conc  ! [mol/m^3-bulk]
       if (ppt_mass_conc < 0.d0) then
       ! this means that more mass wants to be sorbed than is available,
       ! so sorbed mass needs to be reduced (ppt_mass_conc is negative)
-        sorb_mass_conc = sorb_mass_conc + ppt_mass_conc
-        ppt_mass_conc = max(0.d0,ppt_mass_conc)
+        sorb_mass_conc = sorb_mass_conc + ppt_mass_conc  ! [mol/m^3-bulk]
+        ppt_mass_conc = max(0.d0,ppt_mass_conc)          ! [mol/m^3-bulk]
       endif
-      ! convert units back to [mol/m^3-bulk]
-      ppt_mass_conc = ppt_mass_conc*global_auxvar%sat(LIQUID_PHASE)* &
-                      material_auxvar%porosity
     else
-      sorb_mass_conc = aqueous_eq_conc*ele_kd
-      ppt_mass_conc = 0.d0
+      sorb_mass_conc = aqueous_eq_conc*ele_kd  ! [mol/m^3-bulk]
+      ppt_mass_conc = 0.d0                     ! [mol/m^3-bulk]
     endif
   else
   !---- Cell is dry ---!
-    ppt_mass_conc = total_bulk_conc
-    sorb_mass_conc = 0.d0
-    aqueous_eq_conc = 0.d0
+    ppt_mass_conc = total_bulk_conc  ! [mol/m^3-bulk]
+    sorb_mass_conc = 0.d0            ! [mol/m^3-bulk]
+    aqueous_eq_conc = 0.d0           ! [mol/m^3-liq]
   endif
 
 end subroutine NWTEqDissPrecipSorb
