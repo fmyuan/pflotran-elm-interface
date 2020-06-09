@@ -2894,10 +2894,12 @@ subroutine SubsurfaceReadInput(simulation,input)
 !....................
 
       case ('THERMAL_CHARACTERISTIC_CURVES')
+        option%use_tcc = PETSC_TRUE
         if (.not. option%iflowmode == G_MODE) then
           option%io_buffer = "THERMAL_CHARACTERSTIC_CURVES &
                &only valid in GENERAL mode."
           call PrintErrMsg(option)
+          option%use_tcc = PETSC_FALSE
         end if
         thermal_characteristic_curves => CharacteristicCurvesThermalCreate()
         call InputReadWord(input,option, &
@@ -2911,7 +2913,6 @@ subroutine SubsurfaceReadInput(simulation,input)
         call CharacteristicCurvesThermalAddToList( &
              thermal_characteristic_curves, &
              realization%thermal_characteristic_curves)
-        option%use_tcc = PETSC_TRUE
         nullify(thermal_characteristic_curves)
 
 !....................

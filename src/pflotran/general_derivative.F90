@@ -178,7 +178,7 @@ subroutine GeneralDerivativeDriver(option)
     case(INTERIOR_FLUX)
       call GeneralDerivativeAuxVar(pert2,general_auxvar2,global_auxvar2, &
                                    material_auxvar2,option)
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         call GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                                  material_auxvar,characteristic_curves, &
                                  thermal_characteristic_curves, &
@@ -209,7 +209,7 @@ subroutine GeneralDerivativeDriver(option)
       ! everything downwind is XXX2, boundary is XXX
       call GeneralDerivativeAuxVar(pert2,general_auxvar2,global_auxvar2, &
                                    material_auxvar2,option)
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         call GeneralDerivativeFluxBC(pert2, &
                                    ibndtype,auxvar_mapping,auxvars, &
                                    general_auxvar(ZERO_INTEGER), &

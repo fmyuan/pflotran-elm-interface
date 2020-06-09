@@ -158,7 +158,7 @@ function RealizationCreate2(option)
   nullify(realization%fluid_property_array)
   nullify(realization%saturation_functions)
   nullify(realization%characteristic_curves)
-  if (option%iflowmode == G_MODE .and. option%use_tcc .eqv. PETSC_TRUE) then
+  if (option%iflowmode == G_MODE) then
     nullify(realization%thermal_characteristic_curves)
   end if
   nullify(realization%datasets)
@@ -779,7 +779,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       option)
   endif
 
-  if (option%iflowmode == G_MODE .and. option%use_tcc .eqv. PETSC_TRUE) then
+  if (option%iflowmode == G_MODE .and. option%use_tcc) then
   ! set up analogous mapping to thermal characteristic curves, if used    
     if (associated(realization%thermal_characteristic_curves)) then
       patch%thermal_characteristic_curves => &
@@ -826,7 +826,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     endif
 
     ! thermal conducitivity function id 
-    if (option%iflowmode == G_MODE .and. option%use_tcc .eqv. PETSC_TRUE) then
+    if (option%iflowmode == G_MODE .and. option%use_tcc) then
       if (associated(patch%thermal_characteristic_curves_array)) then
         cur_material_property%thermal_conductivity_function_id = &
              CharacteristicCurvesThermalGetID( &
@@ -834,7 +834,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
              cur_material_property%thermal_conductivity_function_name, &
              cur_material_property%name,option)
       end if
-      if(option%use_tcc .eqv. PETSC_TRUE) then
+      if(option%use_tcc) then
         if (cur_material_property%thermal_conductivity_function_id == 0) then
           option%io_buffer = 'Thermal characteristic curve "' // &
             trim(cur_material_property%thermal_conductivity_function_name) // &
@@ -2865,7 +2865,7 @@ subroutine RealizationStrip(this)
   call SaturationFunctionDestroy(this%saturation_functions)
   call CharacteristicCurvesDestroy(this%characteristic_curves)  
 
-  if(this%option%iflowmode == G_MODE .and.this%option%use_tcc.eqv.PETSC_TRUE)then
+  if(this%option%iflowmode == G_MODE .and.this%option%use_tcc)then
     if (associated(this%thermal_characteristic_curves)) then
       call ThermalCharacteristicCurvesDestroy(this%thermal_characteristic_curves)
     end if

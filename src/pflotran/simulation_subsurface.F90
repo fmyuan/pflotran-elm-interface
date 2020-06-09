@@ -187,7 +187,7 @@ subroutine SubsurfaceSimInputRecord(this)
 
   ! print thermal characteristic curve info
   if (this%realization%option%iflowmode == G_MODE .and. &
-                          this%realization%option%use_tcc .eqv. PETSC_TRUE) then
+                          this%realization%option%use_tcc) then
     call CharCurvesThermalInputRecord( &
          this%realization%patch%thermal_characteristic_curves)
   end if

@@ -1330,12 +1330,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         ikT_up = patch%kT_func_id(ghosted_id_up)
         ikT_dn = patch%kT_func_id(ghosted_id_dn)
       end if
       
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -1419,11 +1419,11 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       endif
 
       icap_dn = patch%sat_func_id(ghosted_id)
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         ikT_dn = patch%kT_func_id(ghosted_id)
       end if
 
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         call GeneralBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
@@ -1784,7 +1784,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
@@ -1868,7 +1868,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-      if(option%use_tcc .eqv. PETSC_TRUE)then
+      if(option%use_tcc)then
         call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &
                       boundary_condition%flow_aux_real_var(:,iconn), &
