@@ -5,6 +5,7 @@ module General_module
   use General_Aux_module
   use General_Common_module
   use Global_Aux_module
+  use Option_module
 
   use PFLOTRAN_Constants_module
 
@@ -97,6 +98,13 @@ subroutine GeneralSetup(realization)
   !!  call PrintMsg(option)
   !!  error_found = PETSC_TRUE
   !!endif 
+  if(option%use_tcc .eqv. PETSC_FALSE) then
+    if (minval(material_parameter%soil_thermal_conductivity(:,:)) < 0.d0) then
+      option%io_buffer = 'ERROR: Non-initialized soil thermal conductivity.'
+      call PrintMsg(option)
+      error_found = PETSC_TRUE
+    endif 
+  end if
   
   material_auxvars => patch%aux%Material%auxvars
   flag = 0
@@ -1321,10 +1329,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
 
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
-
-      ikT_up = patch%kT_func_id(ghosted_id_up)
-      ikT_dn = patch%kT_func_id(ghosted_id_dn)
       
+      if(option%use_tcc .eqv. PETSC_TRUE)then
+        ikT_up = patch%kT_func_id(ghosted_id_up)
+        ikT_dn = patch%kT_func_id(ghosted_id_dn)
+      end if
+      
+      if(option%use_tcc .eqv. PETSC_TRUE)then
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -1343,6 +1354,26 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        count_upwind_direction_flip, &
                        (local_id_up == general_debug_cell_id .or. &
                         local_id_dn == general_debug_cell_id))
+      else
+        call GeneralFluxLegacy(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
+             global_auxvars(ghosted_id_up), &
+             material_auxvars(ghosted_id_up), &
+             material_parameter%soil_thermal_conductivity(:,imat_up), &
+             gen_auxvars(ZERO_INTEGER,ghosted_id_dn), &
+             global_auxvars(ghosted_id_dn), &
+             material_auxvars(ghosted_id_dn), &
+             material_parameter%soil_thermal_conductivity(:,imat_dn), &
+             cur_connection_set%area(iconn), &
+             cur_connection_set%dist(:,iconn), &
+             patch%flow_upwind_direction(:,iconn), &
+             general_parameter,option,v_darcy,Res, &
+             Jac_dummy,Jac_dummy, &
+             general_analytical_derivatives, &
+             update_upwind_direction, &
+             count_upwind_direction_flip, &
+             (local_id_up == general_debug_cell_id .or. &
+               local_id_dn == general_debug_cell_id))
+      end if
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -1388,9 +1419,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       endif
 
       icap_dn = patch%sat_func_id(ghosted_id)
-      ikT_dn = patch%kT_func_id(ghosted_id)
+      if(option%use_tcc .eqv. PETSC_TRUE)then
+        ikT_dn = patch%kT_func_id(ghosted_id)
+      end if
 
-      call GeneralBCFlux(boundary_condition%flow_bc_type, &
+      if(option%use_tcc .eqv. PETSC_TRUE)then
+        call GeneralBCFlux(boundary_condition%flow_bc_type, &
                      boundary_condition%flow_aux_mapping, &
                      boundary_condition%flow_aux_real_var(:,iconn), &
                      gen_auxvars_bc(sum_connection), &
@@ -1408,6 +1442,26 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      update_upwind_direction, &
                      count_upwind_direction_flip, &
                      local_id == general_debug_cell_id)
+      else
+        call GeneralBCFluxLegacy(boundary_condition%flow_bc_type, &
+               boundary_condition%flow_aux_mapping, &
+               boundary_condition%flow_aux_real_var(:,iconn), &
+               gen_auxvars_bc(sum_connection), &
+               global_auxvars_bc(sum_connection), &
+               gen_auxvars(ZERO_INTEGER,ghosted_id), &
+               global_auxvars(ghosted_id), &
+               material_auxvars(ghosted_id), &
+               material_parameter%soil_thermal_conductivity(:,imat_dn), &
+               cur_connection_set%area(iconn), &
+               cur_connection_set%dist(:,iconn), &
+               patch%flow_upwind_direction_bc(:,iconn), &
+               general_parameter,option, &
+               v_darcy,Res,Jac_dummy, &
+               general_analytical_derivatives, &
+               update_upwind_direction, &
+               count_upwind_direction_flip, &
+               local_id == general_debug_cell_id)
+      end if
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
         patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
@@ -1730,7 +1784,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
-      call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
+      if(option%use_tcc .eqv. PETSC_TRUE)then
+        call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
                      global_auxvars(ghosted_id_up), &
                      material_auxvars(ghosted_id_up), &
                      patch%thermal_characteristic_curves_array( &
@@ -1745,6 +1800,21 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                      patch%flow_upwind_direction(:,iconn), &
                      general_parameter,option,&
                      Jup,Jdn)
+      else
+        call GeneralFluxDerivativeLegacy(gen_auxvars(:,ghosted_id_up), &
+               global_auxvars(ghosted_id_up), &
+               material_auxvars(ghosted_id_up), &
+               material_parameter%soil_thermal_conductivity(:,imat_up), &
+               gen_auxvars(:,ghosted_id_dn), &
+               global_auxvars(ghosted_id_dn), &
+               material_auxvars(ghosted_id_dn), &
+               material_parameter%soil_thermal_conductivity(:,imat_dn), &
+               cur_connection_set%area(iconn), &
+               cur_connection_set%dist(:,iconn), &
+               patch%flow_upwind_direction(:,iconn), &
+               general_parameter,option,&
+               Jup,Jdn)
+      end if
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1798,7 +1868,8 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-      call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
+      if(option%use_tcc .eqv. PETSC_TRUE)then
+        call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
                       boundary_condition%flow_aux_mapping, &
                       boundary_condition%flow_aux_real_var(:,iconn), &
                       gen_auxvars_bc(sum_connection), &
@@ -1813,6 +1884,22 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
                       patch%flow_upwind_direction_bc(:,iconn), &
                       general_parameter,option, &
                       Jdn)
+      else
+        call GeneralBCFluxDerivativeLegacy(boundary_condition%flow_bc_type, &
+                     boundary_condition%flow_aux_mapping, &
+                     boundary_condition%flow_aux_real_var(:,iconn), &
+                     gen_auxvars_bc(sum_connection), &
+                     global_auxvars_bc(sum_connection), &
+                     gen_auxvars(:,ghosted_id), &
+                     global_auxvars(ghosted_id), &
+                     material_auxvars(ghosted_id), &
+                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
+                     cur_connection_set%area(iconn), &
+                     cur_connection_set%dist(:,iconn), &
+                     patch%flow_upwind_direction_bc(:,iconn), &
+                     general_parameter,option, &
+                     Jdn)        
+      end if
 
       Jdn = -Jdn
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &

@@ -2911,6 +2911,7 @@ subroutine SubsurfaceReadInput(simulation,input)
         call CharacteristicCurvesThermalAddToList( &
              thermal_characteristic_curves, &
              realization%thermal_characteristic_curves)
+        option%use_tcc = PETSC_TRUE
         nullify(thermal_characteristic_curves)
 
 !....................

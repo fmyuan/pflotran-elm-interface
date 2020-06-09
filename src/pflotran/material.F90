@@ -310,6 +310,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'saturation function name', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CHARACTERISTIC_CURVES')
+        option%use_tcc = PETSC_TRUE
         call InputReadWord(input,option, &
              material_property%thermal_conductivity_function_name,PETSC_TRUE)
       case('ROCK_DENSITY') 
@@ -335,6 +336,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'transverse_dispersivity_v', &
                            'MATERIAL_PROPERTY')
       case('THERMAL_CONDUCTIVITY_DRY') 
+        option%use_tcc = PETSC_FALSE
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_dry)
         call InputErrorMsg(input,option,'dry thermal conductivity', &
@@ -343,6 +345,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
                    material_property%thermal_conductivity_dry, &
                    'W/m-C','MATERIAL_PROPERTY,dry thermal conductivity',option)
       case('THERMAL_CONDUCTIVITY_WET') 
+        option%use_tcc = PETSC_FALSE
         call InputReadDouble(input,option, &
                              material_property%thermal_conductivity_wet)
         call InputErrorMsg(input,option,'wet thermal conductivity', &
@@ -937,17 +940,17 @@ subroutine MaterialPropertyRead(material_property,input,option)
     call PrintErrMsg(option)
   endif
 
-  if (option%iflowmode == G_MODE) then
-    if (Initialized(material_property%thermal_conductivity_wet) .or. &
-        Initialized(material_property%thermal_conductivity_dry)) then
-      option%io_buffer = 'in GENERAL mode, thermal conductivity should be &
-           &set through THERMAL_CHARACTERISTIC_CURVES, rather than through &
-           &materials THERMAL_CONDUCTIVITY_WET and THERMAL_CONDUCTIVTY_DRY. &
-           &The DEFAULT THERMAL_CHARACTERISTIC_CURVE recreates the &
-           &previous behavior, but there are also additional options now.'
-      call PrintErrMsg(option)
-    end if
-  end if
+!  if (option%iflowmode == G_MODE .and. option%use_tcc .eqv. PETSC_TRUE) then
+!    if (Initialized(material_property%thermal_conductivity_wet) .or. &
+!        Initialized(material_property%thermal_conductivity_dry)) then
+!      option%io_buffer = 'in GENERAL mode, thermal conductivity should be &
+!           &set through THERMAL_CHARACTERISTIC_CURVES, rather than throug  h &
+!           &materials THERMAL_CONDUCTIVITY_WET and THERMAL_CONDUCTIVTY_DRY. &
+!           &The DEFAULT THERMAL_CHARACTERISTIC_CURVE recreates the &
+!           &previous behavior, but there are also additional options now.'
+!      call PrintErrMsg(option)
+!    end if
+!  end if
   
 end subroutine MaterialPropertyRead
 
@@ -1281,7 +1284,8 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
         ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
         material_parameter%soil_heat_capacity(i) = &
           material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-        if (.not. option%iflowmode == G_MODE) then
+        if (.not. option%iflowmode == G_MODE & 
+                                     .or. .not. option%use_tcc) then
           material_parameter%soil_thermal_conductivity(1,i) = &
             material_property_array(i)%ptr%thermal_conductivity_dry
           material_parameter%soil_thermal_conductivity(2,i) = &
