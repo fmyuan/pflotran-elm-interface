@@ -3455,13 +3455,18 @@ subroutine HydrateCompositeThermalCond(phi,sat,kdry,kwet,keff)
   hid = 3
   iid = 4
 
-  k_h20 = 0.49d0 !W/m-K
+  k_h20 = 0.59d0 !W/m-K
   k_ch4 = 30.d-3 !W/m-K
-  k_hyd = 0.49d0 !W/m-K
-  k_ice = 2.d0   !W/m-K
+  k_hyd = 0.58d0 !W/m-K
+  k_ice = 2.2d0   !W/m-K
 
-  keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
+  ! kdry = (1-phi)*k_rock + phi*k_air, k_air << k_rock
+  keff = kdry + phi * (sat(lid)*k_h20 + sat(hid)*k_hyd + sat(iid)*k_ice &
           + sat(gid)*k_ch4)
+
+  ! IGHCC2 function (seems odd if phi = 1 and sat(lid) = 1)
+  !keff = kdry + phi * (sat(lid)*kwet + sat(hid)*k_hyd + sat(iid) * k_ice &
+  !        + sat(gid)*k_ch4)
 
 end subroutine HydrateCompositeThermalCond
 
