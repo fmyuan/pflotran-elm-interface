@@ -65,7 +65,6 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
     cur_species => cur_species%next
   enddo
   
-  !TODO(jenn) Why do I get weird PETSC_FALSE/TRUE compile error here?
   if (sat > 0.d0) then
     dry_out = PETSC_FALSE
   else
@@ -81,8 +80,7 @@ subroutine NWTEquilibrateConstraint(reaction_nw,constraint,nwt_auxvar, &
         nwt_auxvar%total_bulk_conc(ispecies) = &
                               nwt_species%constraint_conc(ispecies)
         nwt_auxvar%aqueous_eq_conc(ispecies) = &
-                            (nwt_auxvar%total_bulk_conc(ispecies)/(sat*por))* &
-                            (1.d0/(1.d0+(ele_kd(ispecies)/(sat*por))))
+                            (nwt_auxvar%total_bulk_conc(ispecies)/(sat*por))
         ! check aqueous concentration against solubility limit and update
         call NWTEqDissPrecipSorb(solubility(ispecies),material_auxvar, &
                                  global_auxvar,dry_out,ele_kd(ispecies), &
@@ -199,7 +197,6 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   
   implicit none
 
-  PetscReal :: solubility       ! [mol/m^3-liq]
   class(material_auxvar_type) :: material_auxvar
   type(global_auxvar_type) :: global_auxvar
   PetscBool :: dry_out
@@ -208,8 +205,9 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
   PetscReal :: aqueous_eq_conc  ! [mol/m^3-liq]
   PetscReal :: ppt_mass_conc    ! [mol/m^3-bulk]
   PetscReal :: sorb_mass_conc   ! [mol/m^3-bulk]
+  PetscReal :: solubility       ! [mol/m^3-liq]
   
-  PetscReal :: extra_mass_conc  ! [mol/m^3-liq]
+  PetscReal :: extra_mass_conc  ! [mol/m^3-bulk]
   PetscReal :: por, sat
 
   por = material_auxvar%porosity
@@ -217,21 +215,11 @@ subroutine NWTEqDissPrecipSorb(solubility,material_auxvar,global_auxvar, &
 
   if (.not.dry_out) then
   !---- Cell is wet ----!
-    if (aqueous_eq_conc > solubility) then
-      extra_mass_conc = aqueous_eq_conc - solubility  ! [mol/m^3-liq]
-      aqueous_eq_conc = solubility                    ! [mol/m^3-liq]
-      sorb_mass_conc = aqueous_eq_conc*ele_kd         ! [mol/m^3-bulk]
-      ppt_mass_conc = (extra_mass_conc*por*sat) - sorb_mass_conc  ! [mol/m^3-bulk]
-      if (ppt_mass_conc < 0.d0) then
-      ! this means that more mass wants to be sorbed than is available,
-      ! so sorbed mass needs to be reduced (ppt_mass_conc is negative)
-        sorb_mass_conc = sorb_mass_conc + ppt_mass_conc  ! [mol/m^3-bulk]
-        ppt_mass_conc = max(0.d0,ppt_mass_conc)          ! [mol/m^3-bulk]
-      endif
-    else
-      sorb_mass_conc = aqueous_eq_conc*ele_kd  ! [mol/m^3-bulk]
-      ppt_mass_conc = 0.d0                     ! [mol/m^3-bulk]
-    endif
+    aqueous_eq_conc = min(aqueous_eq_conc,solubility)       ! [mol/m^3-liq]
+    sorb_mass_conc = aqueous_eq_conc*ele_kd                 ! [mol/m^3-bulk]
+    extra_mass_conc = total_bulk_conc - sorb_mass_conc - &  ! [mol/m^3-bulk]
+                      (aqueous_eq_conc*sat*por)             ! [mol/m^3-bulk]
+    ppt_mass_conc = max(0.d0,extra_mass_conc)               ! [mol/m^3-bulk]
   else
   !---- Cell is dry ---!
     ppt_mass_conc = total_bulk_conc  ! [mol/m^3-bulk]
