@@ -745,6 +745,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   use Dataset_Common_HDF5_class
   use Dataset_module
   
+  
   implicit none
   
   class(realization_subsurface_type) :: realization
@@ -756,6 +757,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   type(patch_type), pointer :: patch
   character(len=MAXSTRINGLENGTH) :: string
   class(dataset_base_type), pointer :: dataset
+  class(cc_thermal_type), pointer :: default_thermal_cc
 
   option => realization%option
   patch => realization%patch
@@ -779,7 +781,7 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       option)
   endif
 
-  if (option%iflowmode == G_MODE .and. option%use_tcc) then
+  if (option%iflowmode == G_MODE) then
   ! set up analogous mapping to thermal characteristic curves, if used    
     if (associated(realization%thermal_characteristic_curves)) then
       patch%thermal_characteristic_curves => &
@@ -787,8 +789,21 @@ subroutine RealProcessMatPropAndSatFunc(realization)
       call CharCurvesThermalConvertListToArray( &
            patch%thermal_characteristic_curves, &
            patch%thermal_characteristic_curves_array, option)
-    end if
-  end if
+    else
+      default_thermal_cc => CharacteristicCurvesThermalCreate()
+      default_thermal_cc%thermal_conductivity_function => TCF_Default_Create()
+      call ThermalConductivityFunctionAssignDefault(default_thermal_cc% &
+                        thermal_conductivity_function,realization% &
+                        material_properties%thermal_conductivity_wet, &
+                        realization%material_properties%thermal_conductivity_dry, &
+                        option)
+      patch%thermal_characteristic_curves => default_thermal_cc
+
+      call CharCurvesThermalConvertListToArray( &
+           patch%thermal_characteristic_curves, &
+           patch%thermal_characteristic_curves_array, option)
+    endif
+  endif
   
   ! create mapping of internal to external material id
   call MaterialCreateIntToExtMapping(patch%material_property_array, &

@@ -1,4 +1,4 @@
-Module Characteristic_Curves_Thermal_module
+module Characteristic_Curves_Thermal_module
   !
   ! thermal conductivity as a function of saturation and temperature
   !
@@ -84,7 +84,8 @@ Module Characteristic_Curves_Thermal_module
             TCF_Constant_Create, &
             TCF_Power_Create, &
             TCF_Cubic_Polynomial_Create, &
-            TCF_Linear_Resistivity_Create
+            TCF_Linear_Resistivity_Create, &
+            ThermalConductivityFunctionAssignDefault
 
 contains
 
@@ -731,6 +732,28 @@ end subroutine CharacteristicCurvesThermalRead
 
 !-----------------------------------------------------------------------
 
+subroutine ThermalConductivityFunctionAssignDefault(thermal_conductivity_function,&
+                                                 kwet,kdry,option)
+
+  use Option_module
+
+  implicit none
+
+  class(thermal_conductivity_base_type) :: thermal_conductivity_function
+  PetscReal :: kwet,kdry
+  type(option_type) :: option
+
+  select type(tcf => thermal_conductivity_function)
+      !------------------------------------------
+    class is(kT_default_type)
+      tcf%kT_dry = kdry
+      tcf%kT_wet = kwet
+  end select
+
+end subroutine ThermalConductivityFunctionAssignDefault
+
+!-----------------------------------------------------------------------
+
 subroutine ThermalConductivityFunctionRead( &
      thermal_conductivity_function,input,option)
   !
@@ -1137,4 +1160,5 @@ recursive subroutine ThermalCharacteristicCurvesDestroy(tcc)
   nullify(tcc)
 
 end subroutine ThermalCharacteristicCurvesDestroy
+
 end module Characteristic_Curves_Thermal_module
