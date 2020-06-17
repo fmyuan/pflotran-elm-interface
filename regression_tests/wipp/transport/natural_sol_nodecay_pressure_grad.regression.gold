@@ -37,10 +37,10 @@
       Max:   1.7846234356487E-03
       Min:   1.7837002569877E-03
      Mean:   1.7841582082181E-03
-        3:   1.7841558725086E-03
+        3:   1.7841558725085E-03
 -- CONCENTRATION: Aq. Conc. AM241L --
-      Max:   2.8914800066997E-03
-      Min:   2.8911404804329E-03
+      Max:   2.8914800066998E-03
+      Min:   2.8911404804330E-03
      Mean:   2.8913043845932E-03
         3:   2.8913006366060E-03
 -- CONCENTRATION: Aq. Conc. PU239L --
@@ -49,9 +49,9 @@
      Mean:   5.9457072807683E-03
         3:   5.9456995733699E-03
 -- CONCENTRATION: Mnrl. Conc. AM241L --
-      Max:   0.0000000000000E+00
+      Max:   1.0842021724855E-19
       Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
+     Mean:   4.3368086899420E-20
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Conc. PU239L --
       Max:   0.0000000000000E+00
@@ -69,9 +69,9 @@
      Mean:   0.0000000000000E+00
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. AM241L --
-      Max:   0.0000000000000E+00
+      Max:   9.3588841020007E-24
       Min:   0.0000000000000E+00
-     Mean:   0.0000000000000E+00
+     Mean:   3.7429922006774E-24
         3:   0.0000000000000E+00
 -- CONCENTRATION: Mnrl. Vol. Frac. PU239L --
       Max:   0.0000000000000E+00
@@ -84,18 +84,18 @@
      Mean:   3.0000000000000E+00
         3:         3
 -- SOLUTION: Flow --
-   Time (seconds):   4.1258335113525E-03
+   Time (seconds):   1.9137859344482E-03
    Time Steps:            7
    Newton Iterations:           10
-   Solver Iterations:           10
+   Linear Solver Iterations:           10
    Time Step Cuts:            0
    Solution 2-Norm:   2.8129312725013E+06
    Residual 2-Norm:   8.0059320849734E-16
 -- SOLUTION: Transport --
-   Time (seconds):   2.8766942024231E-01
+   Time (seconds):   1.0150504112244E-01
    Time Steps:           62
    Newton Iterations:         1056
-   Solver Iterations:         1056
+   Linear Solver Iterations:         1056
    Time Step Cuts:            3
    Solution 2-Norm:   4.4361946813835E-03
-   Residual 2-Norm:   1.5723183968830E-13
+   Residual 2-Norm:   1.5723197173830E-13
