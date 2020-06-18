@@ -10793,10 +10793,10 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
     ghosted_id = patch%grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
-               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water %]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
-               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+               den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
     local_water_mass = local_water_mass + kg_water
   enddo ! Cell loop
 
