@@ -1330,12 +1330,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
       
-      if(option%use_tcc)then
-        ikT_up = patch%kT_func_id(ghosted_id_up)
-        ikT_dn = patch%kT_func_id(ghosted_id_dn)
-      end if
+      ikT_up = patch%kT_func_id(ghosted_id_up)
+      ikT_dn = patch%kT_func_id(ghosted_id_dn)
       
-      if(option%use_tcc)then
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -1354,26 +1351,6 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        count_upwind_direction_flip, &
                        (local_id_up == general_debug_cell_id .or. &
                         local_id_dn == general_debug_cell_id))
-      else
-        call GeneralFluxLegacy(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
-             global_auxvars(ghosted_id_up), &
-             material_auxvars(ghosted_id_up), &
-             material_parameter%soil_thermal_conductivity(:,imat_up), &
-             gen_auxvars(ZERO_INTEGER,ghosted_id_dn), &
-             global_auxvars(ghosted_id_dn), &
-             material_auxvars(ghosted_id_dn), &
-             material_parameter%soil_thermal_conductivity(:,imat_dn), &
-             cur_connection_set%area(iconn), &
-             cur_connection_set%dist(:,iconn), &
-             patch%flow_upwind_direction(:,iconn), &
-             general_parameter,option,v_darcy,Res, &
-             Jac_dummy,Jac_dummy, &
-             general_analytical_derivatives, &
-             update_upwind_direction, &
-             count_upwind_direction_flip, &
-             (local_id_up == general_debug_cell_id .or. &
-               local_id_dn == general_debug_cell_id))
-      end if
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -1419,49 +1396,26 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       endif
 
       icap_dn = patch%sat_func_id(ghosted_id)
-      if(option%use_tcc)then
-        ikT_dn = patch%kT_func_id(ghosted_id)
-      end if
+      ikT_dn = patch%kT_func_id(ghosted_id)
 
-      if(option%use_tcc)then
-        call GeneralBCFlux(boundary_condition%flow_bc_type, &
-                     boundary_condition%flow_aux_mapping, &
-                     boundary_condition%flow_aux_real_var(:,iconn), &
-                     gen_auxvars_bc(sum_connection), &
-                     global_auxvars_bc(sum_connection), &
-                     gen_auxvars(ZERO_INTEGER,ghosted_id), &
-                     global_auxvars(ghosted_id), &
-                     material_auxvars(ghosted_id), &
-                     patch%thermal_characteristic_curves_array(ikT_dn)%ptr, &
-                     cur_connection_set%area(iconn), &
-                     cur_connection_set%dist(:,iconn), &
-                     patch%flow_upwind_direction_bc(:,iconn), &
-                     general_parameter,option, &
-                     v_darcy,Res,Jac_dummy, &
-                     general_analytical_derivatives, &
-                     update_upwind_direction, &
-                     count_upwind_direction_flip, &
-                     local_id == general_debug_cell_id)
-      else
-        call GeneralBCFluxLegacy(boundary_condition%flow_bc_type, &
-               boundary_condition%flow_aux_mapping, &
-               boundary_condition%flow_aux_real_var(:,iconn), &
-               gen_auxvars_bc(sum_connection), &
-               global_auxvars_bc(sum_connection), &
-               gen_auxvars(ZERO_INTEGER,ghosted_id), &
-               global_auxvars(ghosted_id), &
-               material_auxvars(ghosted_id), &
-               material_parameter%soil_thermal_conductivity(:,imat_dn), &
-               cur_connection_set%area(iconn), &
-               cur_connection_set%dist(:,iconn), &
-               patch%flow_upwind_direction_bc(:,iconn), &
-               general_parameter,option, &
-               v_darcy,Res,Jac_dummy, &
-               general_analytical_derivatives, &
-               update_upwind_direction, &
-               count_upwind_direction_flip, &
-               local_id == general_debug_cell_id)
-      end if
+      call GeneralBCFlux(boundary_condition%flow_bc_type, &
+                   boundary_condition%flow_aux_mapping, &
+                   boundary_condition%flow_aux_real_var(:,iconn), &
+                   gen_auxvars_bc(sum_connection), &
+                   global_auxvars_bc(sum_connection), &
+                   gen_auxvars(ZERO_INTEGER,ghosted_id), &
+                   global_auxvars(ghosted_id), &
+                   material_auxvars(ghosted_id), &
+                   patch%thermal_characteristic_curves_array(ikT_dn)%ptr, &
+                   cur_connection_set%area(iconn), &
+                   cur_connection_set%dist(:,iconn), &
+                   patch%flow_upwind_direction_bc(:,iconn), &
+                   general_parameter,option, &
+                   v_darcy,Res,Jac_dummy, &
+                   general_analytical_derivatives, &
+                   update_upwind_direction, &
+                   count_upwind_direction_flip, &
+                   local_id == general_debug_cell_id)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
         patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
@@ -1784,37 +1738,21 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
-      if(option%use_tcc)then
-        call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
-                     global_auxvars(ghosted_id_up), &
-                     material_auxvars(ghosted_id_up), &
-                     patch%thermal_characteristic_curves_array( &
-                     patch%kT_func_id(ghosted_id_up))%ptr, &
-                     gen_auxvars(:,ghosted_id_dn), &
-                     global_auxvars(ghosted_id_dn), &
-                     material_auxvars(ghosted_id_dn), &
-                     patch%thermal_characteristic_curves_array( &
-                     patch%kT_func_id(ghosted_id_up))%ptr, &
-                     cur_connection_set%area(iconn), &
-                     cur_connection_set%dist(:,iconn), &
-                     patch%flow_upwind_direction(:,iconn), &
-                     general_parameter,option,&
-                     Jup,Jdn)
-      else
-        call GeneralFluxDerivativeLegacy(gen_auxvars(:,ghosted_id_up), &
-               global_auxvars(ghosted_id_up), &
-               material_auxvars(ghosted_id_up), &
-               material_parameter%soil_thermal_conductivity(:,imat_up), &
-               gen_auxvars(:,ghosted_id_dn), &
-               global_auxvars(ghosted_id_dn), &
-               material_auxvars(ghosted_id_dn), &
-               material_parameter%soil_thermal_conductivity(:,imat_dn), &
-               cur_connection_set%area(iconn), &
-               cur_connection_set%dist(:,iconn), &
-               patch%flow_upwind_direction(:,iconn), &
-               general_parameter,option,&
-               Jup,Jdn)
-      end if
+      call GeneralFluxDerivative(gen_auxvars(:,ghosted_id_up), &
+                   global_auxvars(ghosted_id_up), &
+                   material_auxvars(ghosted_id_up), &
+                   patch%thermal_characteristic_curves_array( &
+                   patch%kT_func_id(ghosted_id_up))%ptr, &
+                   gen_auxvars(:,ghosted_id_dn), &
+                   global_auxvars(ghosted_id_dn), &
+                   material_auxvars(ghosted_id_dn), &
+                   patch%thermal_characteristic_curves_array( &
+                   patch%kT_func_id(ghosted_id_up))%ptr, &
+                   cur_connection_set%area(iconn), &
+                   cur_connection_set%dist(:,iconn), &
+                   patch%flow_upwind_direction(:,iconn), &
+                   general_parameter,option,&
+                   Jup,Jdn)
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                       Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -1868,38 +1806,21 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
-      if(option%use_tcc)then
-        call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
-                      boundary_condition%flow_aux_mapping, &
-                      boundary_condition%flow_aux_real_var(:,iconn), &
-                      gen_auxvars_bc(sum_connection), &
-                      global_auxvars_bc(sum_connection), &
-                      gen_auxvars(:,ghosted_id), &
-                      global_auxvars(ghosted_id), &
-                      material_auxvars(ghosted_id), &
-                      patch%thermal_characteristic_curves_array( &
-                      patch%kT_func_id(ghosted_id))%ptr, &
-                      cur_connection_set%area(iconn), &
-                      cur_connection_set%dist(:,iconn), &
-                      patch%flow_upwind_direction_bc(:,iconn), &
-                      general_parameter,option, &
-                      Jdn)
-      else
-        call GeneralBCFluxDerivativeLegacy(boundary_condition%flow_bc_type, &
-                     boundary_condition%flow_aux_mapping, &
-                     boundary_condition%flow_aux_real_var(:,iconn), &
-                     gen_auxvars_bc(sum_connection), &
-                     global_auxvars_bc(sum_connection), &
-                     gen_auxvars(:,ghosted_id), &
-                     global_auxvars(ghosted_id), &
-                     material_auxvars(ghosted_id), &
-                     material_parameter%soil_thermal_conductivity(:,imat_dn), &
-                     cur_connection_set%area(iconn), &
-                     cur_connection_set%dist(:,iconn), &
-                     patch%flow_upwind_direction_bc(:,iconn), &
-                     general_parameter,option, &
-                     Jdn)        
-      end if
+      call GeneralBCFluxDerivative(boundary_condition%flow_bc_type, &
+                    boundary_condition%flow_aux_mapping, &
+                    boundary_condition%flow_aux_real_var(:,iconn), &
+                    gen_auxvars_bc(sum_connection), &
+                    global_auxvars_bc(sum_connection), &
+                    gen_auxvars(:,ghosted_id), &
+                    global_auxvars(ghosted_id), &
+                    material_auxvars(ghosted_id), &
+                    patch%thermal_characteristic_curves_array( &
+                    patch%kT_func_id(ghosted_id))%ptr, &
+                    cur_connection_set%area(iconn), &
+                    cur_connection_set%dist(:,iconn), &
+                    patch%flow_upwind_direction_bc(:,iconn), &
+                    general_parameter,option, &
+                    Jdn)
 
       Jdn = -Jdn
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &

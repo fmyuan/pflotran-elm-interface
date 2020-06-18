@@ -186,11 +186,8 @@ subroutine SubsurfaceSimInputRecord(this)
   call CharCurvesInputRecord(this%realization%patch%characteristic_curves)
 
   ! print thermal characteristic curve info
-  if (this%realization%option%iflowmode == G_MODE .and. &
-                          this%realization%option%use_tcc) then
-    call CharCurvesThermalInputRecord( &
-         this%realization%patch%thermal_characteristic_curves)
-  end if
+  call CharCurvesThermalInputRecord( &
+       this%realization%patch%thermal_characteristic_curves)
   
   ! print chemistry and reactive transport information
   call ReactionInputRecord(this%realization%reaction)

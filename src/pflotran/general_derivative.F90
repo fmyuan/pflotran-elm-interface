@@ -72,23 +72,17 @@ subroutine GeneralDerivativeDriver(option)
   PetscInt :: natural_id = 1
 
   nullify(characteristic_curves)
-  if(option%use_tcc) nullify(thermal_characteristic_curves)
+  nullify(thermal_characteristic_curves)
   nullify(material_parameter)
   nullify(general_parameter)
   nullify(source_sink)
   call GeneralDerivativeSetFlowMode(option)
   call GeneralDerivativeSetupEOS(option)
   
-  if(option%use_tcc)then
-    call GeneralDerivativeSetup(general_parameter, &
+  call GeneralDerivativeSetup(general_parameter, &
                               characteristic_curves, &
                               thermal_characteristic_curves, &
                               material_parameter,option)
-  else  
-    call GeneralDerivativeSetupLegacy(general_parameter, &
-                            characteristic_curves, &
-                            material_parameter,option) 
-  end if 
   option%flow_dt = 1.d0
   itype = 0
 !  itype = ACCUMULATION
@@ -178,8 +172,7 @@ subroutine GeneralDerivativeDriver(option)
     case(INTERIOR_FLUX)
       call GeneralDerivativeAuxVar(pert2,general_auxvar2,global_auxvar2, &
                                    material_auxvar2,option)
-      if(option%use_tcc)then
-        call GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
+      call GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
                                  material_auxvar,characteristic_curves, &
                                  thermal_characteristic_curves, &
                                  material_parameter, &
@@ -188,15 +181,6 @@ subroutine GeneralDerivativeDriver(option)
                                  thermal_characteristic_curves, &
                                  material_parameter, &
                                  general_parameter,option)
-      else
-        call GeneralDerivativeFluxLegacy(pert,general_auxvar,global_auxvar, &
-                           material_auxvar,characteristic_curves, &
-                           material_parameter,&
-                           pert2,general_auxvar2,global_auxvar2, &
-                           material_auxvar2,characteristic_curves, &
-                           material_parameter, &
-                           general_parameter,option)
-      end if
     case(BOUNDARY_FLUX)
       ibndtype = DIRICHLET_BC     
     !  ibndtype = NEUMANN_BC
@@ -209,8 +193,7 @@ subroutine GeneralDerivativeDriver(option)
       ! everything downwind is XXX2, boundary is XXX
       call GeneralDerivativeAuxVar(pert2,general_auxvar2,global_auxvar2, &
                                    material_auxvar2,option)
-      if(option%use_tcc)then
-        call GeneralDerivativeFluxBC(pert2, &
+      call GeneralDerivativeFluxBC(pert2, &
                                    ibndtype,auxvar_mapping,auxvars, &
                                    general_auxvar(ZERO_INTEGER), &
                                    global_auxvar(ZERO_INTEGER), &
@@ -220,17 +203,6 @@ subroutine GeneralDerivativeDriver(option)
                                    thermal_characteristic_curves, &
                                    material_parameter, &
                                    general_parameter,option)
-      else
-        call GeneralDerivativeFluxBCLegacy(pert2, &
-                             ibndtype,auxvar_mapping,auxvars, &
-                             general_auxvar(ZERO_INTEGER), &
-                             global_auxvar(ZERO_INTEGER), &
-                             general_auxvar2,global_auxvar2, &
-                             material_auxvar2, &
-                             characteristic_curves, &
-                             material_parameter, &
-                             general_parameter,option)
-      end if
     case(SRCSINK)
       flow_src_sink_type = VOLUMETRIC_RATE_SS
       qsrc = 0.d0
@@ -252,15 +224,9 @@ subroutine GeneralDerivativeDriver(option)
                                       material_auxvar,option)  
   call GeneralDerivativeDestroyAuxVar(general_auxvar2,global_auxvar2, &
                                       material_auxvar2,option)
-  if(option%use_tcc)then
-    call GeneralDerivativeDestroy(general_parameter, &
+  call GeneralDerivativeDestroy(general_parameter, &
                                 characteristic_curves, &
                                 material_parameter,option)
-  else 
-    call GeneralDerivativeDestroyLegacy(general_parameter, &
-                              characteristic_curves, &
-                              material_parameter,option)
-  end if 
 
 end subroutine GeneralDerivativeDriver
 
@@ -329,60 +295,6 @@ subroutine GeneralDerivativeSetup(general_parameter, &
   end if
     
 end subroutine GeneralDerivativeSetup
-
-subroutine GeneralDerivativeSetupLegacy(general_parameter, &
-                                  characteristic_curves, &
-                                  material_parameter,option)
-  use Characteristic_Curves_module
-  use Characteristic_Curves_Common_module
-  use Material_Aux_class
-  use Option_module
-  
-  implicit none
-
-  type(general_parameter_type), pointer :: general_parameter
-  class(characteristic_curves_type), pointer :: characteristic_curves
-  type(material_parameter_type), pointer :: material_parameter
-  type(option_type), pointer :: option
-  
-  class(sat_func_VG_type), pointer :: sf
-  class(rpf_Mualem_VG_liq_type), pointer :: rpf_liq
-  class(rpf_Mualem_VG_gas_type), pointer :: rpf_gas  
-  
-  if (.not.associated(general_parameter)) then
-    allocate(general_parameter)
-    allocate(general_parameter%diffusion_coefficient(2))
-    general_parameter%diffusion_coefficient(1) = 1.d-9
-    general_parameter%diffusion_coefficient(2) = 2.13d-5
-  endif
-  if (.not.associated(characteristic_curves)) then
-    characteristic_curves => CharacteristicCurvesCreate()
-    sf => SF_VG_Create()
-    rpf_liq => RPF_Mualem_VG_Liq_Create()
-    rpf_gas => RPF_Mualem_VG_Gas_Create()
-    sf%m = 0.5d0
-    sf%alpha = 1.d-4
-    sf%Sr = 0.d0
-    sf%pcmax = 1.d6
-    characteristic_curves%saturation_function => sf
-    rpf_liq%m = 0.5d0
-    rpf_liq%Sr = 0.d0
-    characteristic_curves%liq_rel_perm_function => rpf_liq
-    rpf_gas%m = 0.5d0
-    rpf_gas%Sr = 0.d0
-    rpf_gas%Srg = 1.d-40
-    characteristic_curves%gas_rel_perm_function => rpf_gas
-  endif
-  if (.not.associated(material_parameter)) then
-    allocate(material_parameter)
-    allocate(material_parameter%soil_heat_capacity(1))
-    allocate(material_parameter%soil_thermal_conductivity(2,1))
-    material_parameter%soil_heat_capacity(1) = 850.d0
-    material_parameter%soil_thermal_conductivity(1,1) = 0.5d0
-    material_parameter%soil_thermal_conductivity(2,1) = 2.d0
-  endif
-  
-end subroutine GeneralDerivativeSetupLegacy
 
 ! ************************************************************************** !
 
@@ -744,124 +656,6 @@ subroutine GeneralDerivativeFlux(pert,general_auxvar,global_auxvar, &
   
 end subroutine GeneralDerivativeFlux
 
-subroutine GeneralDerivativeFluxLegacy(pert,general_auxvar,global_auxvar, &
-                                 material_auxvar,characteristic_curves, &
-                                 material_parameter,&
-                                 pert2,general_auxvar2,global_auxvar2, &
-                                 material_auxvar2,characteristic_curves2, &
-                                 material_parameter2, &
-                                 general_parameter,option)
-
-  use Option_module
-  use Characteristic_Curves_module
-  use Material_Aux_class
-  
-  implicit none
-
-  PetscReal :: pert(3)
-  type(general_auxvar_type) :: general_auxvar(0:)
-  type(global_auxvar_type) :: global_auxvar(0:)
-  class(material_auxvar_type) :: material_auxvar(0:)
-  class(characteristic_curves_type) :: characteristic_curves
-  type(material_parameter_type) :: material_parameter
-  PetscReal :: pert2(3)
-  type(general_auxvar_type) :: general_auxvar2(0:)
-  type(global_auxvar_type) :: global_auxvar2(0:)
-  class(material_auxvar_type) :: material_auxvar2(0:)
-  class(characteristic_curves_type) :: characteristic_curves2
-  type(material_parameter_type) :: material_parameter2
-  type(general_parameter_type) :: general_parameter
-  type(option_type), pointer :: option
-
-  PetscInt :: natural_id = 1
-  PetscInt :: i
-  PetscReal, parameter :: area = 1.d0
-!  PetscReal, parameter :: dist(-1:3) = [0.5d0,1.d0,1.d0,0.d0,0.d0]
-!  PetscReal, parameter :: dist(-1:3) = [0.5d0,1.d0,sqrt(2.d0/2.d0),0.d0,sqrt(2.d0/2.d0)]
-  PetscReal, parameter :: dist(-1:3) = [0.5d0,1.d0,0.d0,0.d0,1.d0]
-  
-  PetscReal :: v_darcy(2)
-  
-  PetscBool :: update_upwind_direction_ = PETSC_TRUE
-  PetscBool :: count_upwind_direction_flip_ = PETSC_FALSE
-  PetscInt :: upwind_direction_(option%nphase)  
-    
-  PetscInt :: irow
-  PetscReal :: res(3)
-  PetscReal :: res_pert(3,3)
-  PetscReal :: jac_anal(3,3)
-  PetscReal :: jac_num(3,3)
-  PetscReal :: jac_dum(3,3)
-  
-  PetscReal :: res_pert2(3,3)
-  PetscReal :: jac_anal2(3,3)
-  PetscReal :: jac_num2(3,3)
-  PetscReal :: jac_dum2(3,3)
-  
-  call GeneralPrintAuxVars(general_auxvar(0),global_auxvar(0), &
-                           material_auxvar(0),natural_id,'upwind',option)
-  call GeneralPrintAuxVars(general_auxvar2(0),global_auxvar2(0), &
-                           material_auxvar2(0),natural_id,'downwind',option)
-
-  call GeneralFluxLegacy(general_auxvar(ZERO_INTEGER), &
-                   global_auxvar(ZERO_INTEGER), &
-                   material_auxvar(ZERO_INTEGER), &
-                   material_parameter%soil_thermal_conductivity(:,1), &
-                   general_auxvar2(ZERO_INTEGER), &
-                   global_auxvar2(ZERO_INTEGER), &
-                   material_auxvar2(ZERO_INTEGER), &
-                   material_parameter2%soil_thermal_conductivity(:,1), &
-                   area, dist, upwind_direction_, general_parameter, &
-                   option,v_darcy,res,jac_anal,jac_anal2, &
-                   update_upwind_direction_, &
-                   count_upwind_direction_flip_, &
-                   PETSC_TRUE,PETSC_FALSE)                           
-
-  do i = 1, 3
-    call GeneralFluxLegacy(general_auxvar(i), &
-                     global_auxvar(i), &
-                     material_auxvar(i), &
-                     material_parameter%soil_thermal_conductivity(:,1), &
-                     general_auxvar2(ZERO_INTEGER), &
-                     global_auxvar2(ZERO_INTEGER), &
-                     material_auxvar2(ZERO_INTEGER), &
-                     material_parameter2%soil_thermal_conductivity(:,1), &
-                     area, dist, upwind_direction_, general_parameter, &
-                     option,v_darcy,res_pert(:,i),jac_dum,jac_dum2, &
-                     update_upwind_direction_, &
-                     count_upwind_direction_flip_, &
-                     PETSC_FALSE,PETSC_FALSE)                           
-    do irow = 1, option%nflowdof
-      jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
-    enddo !irow
-  enddo
-  do i = 1, 3
-    call GeneralFluxLegacy(general_auxvar(ZERO_INTEGER), &
-                     global_auxvar(ZERO_INTEGER), &
-                     material_auxvar(ZERO_INTEGER), &
-                     material_parameter%soil_thermal_conductivity(:,1), &
-                     general_auxvar2(i), &
-                     global_auxvar2(i), &
-                     material_auxvar2(i), &
-                     material_parameter2%soil_thermal_conductivity(:,1), &
-                     area, dist, upwind_direction_, general_parameter, &
-                     option,v_darcy,res_pert2(:,i),jac_dum,jac_dum2, &
-                     update_upwind_direction_, &
-                     count_upwind_direction_flip_, &
-                     PETSC_FALSE,PETSC_FALSE)                           
-    do irow = 1, option%nflowdof
-      jac_num2(irow,i) = (res_pert2(irow,i)-res(irow))/pert2(i)
-    enddo !irow
-  enddo  
-  
-  call GeneralDiffJacobian('upwind',jac_num,jac_anal,res,res_pert,pert, &
-                           general_derivative_pert_tol,general_auxvar,option)
-  write(*,*) '-----------------------------------------------------------------'
-  call GeneralDiffJacobian('downwind',jac_num2,jac_anal2,res,res_pert2,pert2, &
-                           general_derivative_pert_tol,general_auxvar2,option)
-  
-end subroutine GeneralDerivativeFluxLegacy
-
 ! ************************************************************************** !
 
 subroutine GeneralDerivativeFluxBC(pert, &
@@ -951,91 +745,6 @@ subroutine GeneralDerivativeFluxBC(pert, &
                            general_derivative_pert_tol,general_auxvar_dn,option)
   
 end subroutine GeneralDerivativeFluxBC
-
-subroutine GeneralDerivativeFluxBCLegacy(pert, &
-                                   ibndtype,auxvar_mapping,auxvars, &
-                                   general_auxvar_bc,global_auxvar_bc, &
-                                   general_auxvar_dn,global_auxvar_dn, &
-                                   material_auxvar_dn, &
-                                   characteristic_curves_dn, &
-                                   material_parameter_dn, &
-                                   general_parameter,option)
-
-  use Option_module
-  use Characteristic_Curves_module
-  use Material_Aux_class
-  
-  implicit none
-
-  type(option_type), pointer :: option
-  PetscReal :: pert(3)
-  PetscInt :: ibndtype(1:option%nflowdof)
-  PetscInt :: auxvar_mapping(GENERAL_MAX_INDEX)  
-  PetscReal :: auxvars(:) ! from aux_real_var array
-  type(general_auxvar_type) :: general_auxvar_bc
-  type(global_auxvar_type) :: global_auxvar_bc
-  type(general_auxvar_type) :: general_auxvar_dn(0:)
-  type(global_auxvar_type) :: global_auxvar_dn(0:)
-  class(material_auxvar_type) :: material_auxvar_dn(0:)
-  class(characteristic_curves_type) :: characteristic_curves_dn
-  type(material_parameter_type) :: material_parameter_dn
-  type(general_parameter_type) :: general_parameter
-
-  PetscInt :: natural_id = 1
-  PetscInt :: i
-  PetscReal, parameter :: area = 1.d0
-  PetscReal, parameter :: dist(-1:3) = [0.5d0,1.d0,0.d0,0.d0,1.d0]
-  
-  PetscReal :: v_darcy(2)
-  
-  PetscBool :: update_upwind_direction_ = PETSC_TRUE
-  PetscBool :: count_upwind_direction_flip_ = PETSC_FALSE
-  PetscInt :: upwind_direction_(option%nphase) 
-  
-  PetscInt :: irow
-  PetscReal :: res(3)
-  PetscReal :: res_pert(3,3)
-  PetscReal :: jac_anal(3,3)
-  PetscReal :: jac_num(3,3)
-  PetscReal :: jac_dum(3,3)
-  
-  call GeneralPrintAuxVars(general_auxvar_bc,global_auxvar_bc,material_auxvar_dn(0), &
-                           natural_id,'boundary',option)
-  call GeneralPrintAuxVars(general_auxvar_dn(0),global_auxvar_dn(0),material_auxvar_dn(0), &
-                           natural_id,'internal',option)
-
-  call GeneralBCFluxLegacy(ibndtype,auxvar_mapping,auxvars, &
-                     general_auxvar_bc,global_auxvar_bc, &
-                     general_auxvar_dn(ZERO_INTEGER),global_auxvar_dn(ZERO_INTEGER), &
-                     material_auxvar_dn(ZERO_INTEGER), &
-                     material_parameter_dn%soil_thermal_conductivity(:,1), &
-                     area,dist,upwind_direction_,general_parameter, &
-                     option,v_darcy,res,jac_anal, &
-                     update_upwind_direction_, &
-                     count_upwind_direction_flip_, &
-                     PETSC_TRUE,PETSC_FALSE)                           
-                           
-  do i = 1, 3
-    call GeneralBCFluxLegacy(ibndtype,auxvar_mapping,auxvars, &
-                       general_auxvar_bc,global_auxvar_bc, &
-                       general_auxvar_dn(i),global_auxvar_dn(i), &
-                       material_auxvar_dn(i), &
-                       material_parameter_dn%soil_thermal_conductivity(:,1), &
-                       area,dist,upwind_direction_,general_parameter, &
-                       option,v_darcy,res_pert(:,i),jac_dum, &
-                       update_upwind_direction_, &
-                       count_upwind_direction_flip_, &                      
-                       PETSC_FALSE,PETSC_FALSE)                          
-    do irow = 1, option%nflowdof
-      jac_num(irow,i) = (res_pert(irow,i)-res(irow))/pert(i)
-    enddo !irow
-  enddo
-  
-  write(*,*) '-----------------------------------------------------------------'
-  call GeneralDiffJacobian('boundary',jac_num,jac_anal,res,res_pert,pert, &
-                           general_derivative_pert_tol,general_auxvar_dn,option)
-  
-end subroutine GeneralDerivativeFluxBCLegacy
 
 ! ************************************************************************** !
 
@@ -1213,40 +922,5 @@ subroutine GeneralDerivativeDestroy(general_parameter, &
   call ThermalCharacteristicCurvesDestroy(thermal_characteristic_curves)
   
 end subroutine GeneralDerivativeDestroy
-
-subroutine GeneralDerivativeDestroyLegacy(general_parameter, &
-                                  characteristic_curves, &
-                                  material_parameter,option)
-  use General_Aux_module
-  use Characteristic_Curves_module
-  use Material_Aux_class
-  use Option_module
-  
-  implicit none
-
-  type(general_parameter_type), pointer :: general_parameter
-  class(characteristic_curves_type), pointer :: characteristic_curves
-  type(material_parameter_type), pointer :: material_parameter
-  type(option_type), pointer :: option
-  
-  if (associated(general_parameter)) then
-    deallocate(general_parameter%diffusion_coefficient)
-    nullify(general_parameter%diffusion_coefficient)
-    deallocate(general_parameter)
-    nullify(general_parameter)
-  endif
-  call CharacteristicCurvesDestroy(characteristic_curves)
-  if (associated(material_parameter)) then
-    if (associated(material_parameter%soil_heat_capacity)) &
-      deallocate(material_parameter%soil_heat_capacity)
-    nullify(material_parameter%soil_heat_capacity)
-    if (associated(material_parameter%soil_thermal_conductivity)) &
-      deallocate(material_parameter%soil_thermal_conductivity)
-    nullify(material_parameter%soil_thermal_conductivity)
-    deallocate(material_parameter)
-    nullify(material_parameter)    
-  endif
-
-end subroutine GeneralDerivativeDestroyLegacy
 
 end module General_Derivative_module

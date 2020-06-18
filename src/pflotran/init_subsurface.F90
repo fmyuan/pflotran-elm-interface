@@ -90,10 +90,8 @@ subroutine SubsurfAllocMatPropDataStructs(realization)
       ! also allocate saturation function id
       allocate(cur_patch%sat_func_id(grid%ngmax))
       cur_patch%sat_func_id = UNINITIALIZED_INTEGER
-      if (option%iflowmode == G_MODE .and. option%use_tcc) then
-        allocate(cur_patch%kT_func_id(grid%ngmax)) 
-        cur_patch%kT_func_id = UNINITIALIZED_INTEGER
-      end if
+      allocate(cur_patch%kT_func_id(grid%ngmax)) 
+      cur_patch%kT_func_id = UNINITIALIZED_INTEGER
     endif
     
     cur_patch%aux%Material => MaterialAuxCreate()
@@ -410,10 +408,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
     if (option%nflowdof > 0) then
       patch%sat_func_id(ghosted_id) = &
         material_property%saturation_function_id
-      if (option%iflowmode == G_MODE .and. option%use_tcc) then
-        patch%kT_func_id(ghosted_id) = &  
-             material_property%thermal_conductivity_function_id
-      end if
+      patch%kT_func_id(ghosted_id) = &  
+           material_property%thermal_conductivity_function_id
       icap_loc_p(ghosted_id) = material_property%saturation_function_id
       ithrm_loc_p(ghosted_id) = abs(material_property%internal_id)
       perm_xx_p(local_id) = material_property%permeability(1,1)
