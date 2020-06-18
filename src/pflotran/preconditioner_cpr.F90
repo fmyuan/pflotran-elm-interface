@@ -9,6 +9,7 @@ module CPR_Preconditioner_module
 #include "petsc/finclude/petscpc.h"
 #include "petsc/finclude/petscviewer.h"
   use petscmat
+  use petscksp
   use petscpc
   use petscvec
   use PFLOTRAN_Constants_module
