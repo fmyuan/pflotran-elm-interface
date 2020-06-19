@@ -10745,6 +10745,7 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
       ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
                          reaction%mineral%kinmnrl_molar_vol(m)
+      ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
       ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
                          1.0d-3
       local_total_mass = local_total_mass + ppt_species_mass
