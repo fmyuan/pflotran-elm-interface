@@ -1,0 +1,13 @@
+SIMULATION
+  EXTERNAL_FILE simulation/th.txt
+END
+
+SUBSURFACE
+  OUTPUT
+    EXTERNAL_FILE output/general_th_variables.txt
+    FORMAT TECPLOT FEBRICK
+  /
+  EXTERNAL_FILE grid/unstructured_implicit.txt
+  EXTERNAL_FILE subsurface/all.txt
+  EXTERNAL_FILE subsurface/richards_th.txt
+END_SUBSURFACE

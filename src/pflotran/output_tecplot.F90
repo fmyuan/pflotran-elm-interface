@@ -322,9 +322,17 @@ subroutine OutputTecplotBlock(realization_base)
   endif
 
   if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
-  
+
   if (output_option%print_tecplot_vel_cent) then
     call OutputVelocitiesTecplotBlock(realization_base)
+  endif
+
+  if (realization_base%discretization%itype /= STRUCTURED_GRID .and. &
+      (output_option%print_tecplot_vel_face .or. &
+       output_option%print_fluxes)) then
+    option%io_buffer = 'Printing of velocities or fluxes at face centers &
+      &not supported in TECPLOT format for unstructured grids.'
+    call PrintErrMsg(option)
   endif
   
   include_gas_phase = PETSC_FALSE
