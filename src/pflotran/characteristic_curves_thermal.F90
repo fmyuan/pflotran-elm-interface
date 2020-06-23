@@ -1014,10 +1014,26 @@ function CharacteristicCurvesThermalGetID(cc_thermal_array, &
 
   type(cc_thermal_ptr_type), pointer :: cc_thermal_array(:)
   character(len=MAXWORDLENGTH) :: cc_thermal_name
+  character(len=MAXWORDLENGTH) :: test1, test2
   character(len=MAXWORDLENGTH) :: material_property_name
   type(option_type) :: option
 
   PetscInt :: CharacteristicCurvesThermalGetID
+  PetscInt :: i, j
+  
+  do i = 1, size(cc_thermal_array)
+      test1 = cc_thermal_array(i)%ptr%name
+      do j = 1, size(cc_thermal_array)
+        if(i == j)cycle
+        test2 = cc_thermal_array(j)%ptr%name
+        if(test1 .eq. test2)then
+          option%io_buffer = 'Duplicate thermal characteristic curve '//&
+                             trim(test2)//&
+                             ' has been detected.'
+          call PrintErrMsg(option)
+        end if
+      end do
+  enddo
 
   CharacteristicCurvesThermalGetID = 0
   do CharacteristicCurvesThermalGetID = 1, size(cc_thermal_array)
