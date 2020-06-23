@@ -227,6 +227,8 @@ module Option_module
 
     ! flag to use thermal characteristic characteristic_curves
     PetscBool :: use_tcc
+    PetscBool :: use_legacy_dry
+    PetscBool :: use_legacy_wet
 
   end type option_type
 
@@ -579,6 +581,8 @@ subroutine OptionInitRealization(option)
 
   option%steady_state = PETSC_FALSE
   option%use_tcc = PETSC_FALSE
+  option%use_legacy_dry = PETSC_FALSE
+  option%use_legacy_wet = PETSC_FALSE
 
   option%itable = 0
   option%co2eos = EOS_SPAN_WAGNER
