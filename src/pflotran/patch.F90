@@ -10669,9 +10669,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
                                     global_total_mass)
   !
   ! Calculates the total mass (aqueous, sorbed, and precipitated) in a region
-  ! in units of mol.
+  ! in units of kg. [modified to kg from mol by Heeho]
   !
-  ! Author: Jenn Frederick
+  ! Author: Jenn Frederick, Heeho Park
   ! Date: 04/25/2016
   !
   use Global_Aux_module
@@ -10726,9 +10726,13 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
       aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
                         m3_water * 1.0d3
+      ! aqueous species; [mol] * [g/mol] * [kg/g] = [kg]
+      aq_species_mass = aq_species_mass * reaction%primary_spec_molar_wt(j) * 1.0d-3
       if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
         ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
         sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
+        ! sorbed species; [mol] * [g/mol] * [kg/g] = [kg]
+        sorb_species_mass = sorb_species_mass * reaction%eqcplx_molar_wt(j) * 1.0d-3
       else
         sorb_species_mass = 0.d0
       endif
@@ -10741,6 +10745,9 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! precip. species; units [m^3-mnrl/m^3-bulk]*[m^3-bulk]/[m^3-mnrl/mol-mnrl]=[mol]
       ppt_species_mass = rt_auxvars(ghosted_id)%mnrl_volfrac(m) * m3_bulk / &
                          reaction%mineral%kinmnrl_molar_vol(m)
+      ! precip. species; [mol] * [g/mol] * [kg/g] = [kg]
+      ppt_species_mass = ppt_species_mass * reaction%mineral%kinmnrl_molar_wt(j) * &
+                         1.0d-3
       local_total_mass = local_total_mass + ppt_species_mass
     enddo
   enddo ! Cell loop
@@ -10758,7 +10765,7 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
   !
   ! Calculates the water mass in a region in kg
   !
-  ! Author: Satish Karra
+  ! Author: Satish Karra, Heeho Park
   ! Date: 09/20/2016
   !
   use Global_Aux_module
@@ -10793,10 +10800,10 @@ subroutine PatchGetWaterMassInRegion(cell_ids,num_cells,patch,option, &
     ghosted_id = patch%grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
     m3_water = material_auxvars(ghosted_id)%porosity * &         ! [-]
-               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water]
+               global_auxvars(ghosted_id)%sat(LIQUID_PHASE) * &  ! [water %]
                material_auxvars(ghosted_id)%volume               ! [m^3-bulk]
     kg_water = m3_water*global_auxvars(ghosted_id)% &            ! [m^3-water]
-               den(LIQUID_PHASE)                                 ! [kg/m^3-water]
+               den_kg(LIQUID_PHASE)                              ! [kg/m^3-water]
     local_water_mass = local_water_mass + kg_water
   enddo ! Cell loop
 
