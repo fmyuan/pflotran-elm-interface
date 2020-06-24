@@ -406,6 +406,7 @@ inlinesurface_aux.o : global_aux.o option.o utility.o
 input_aux.o : option.o pflotran_constants.o string.o units.o
 integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
+kdtree.o :
 logging.o : pflotran_constants.o
 lookup_table.o : input_aux.o option.o pflotran_constants.o units.o utility.o
 material.o : characteristic_curves.o communicator_base.o dataset.o \
@@ -449,8 +450,8 @@ nw_transport_aux.o : input_aux.o matrix_zeroing.o option.o output_aux.o \
 nw_transport_equilibrium.o : global_aux.o material_aux.o nw_transport_aux.o \
                              option.o pflotran_constants.o \
                              transport_constraint_nwt.o
-observation.o : connection.o input_aux.o output_aux.o pflotran_constants.o \
-                region.o string.o
+observation.o : connection.o input_aux.o option.o output_aux.o \
+                pflotran_constants.o region.o string.o
 option.o : logging.o option_flow.o option_transport.o pflotran_constants.o
 option_flow.o : pflotran_constants.o
 option_transport.o : pflotran_constants.o
@@ -675,8 +676,8 @@ pm_ufd_decay.o : field.o global.o global_aux.o grid.o input_aux.o material.o \
 pm_waste_form.o : checkpoint.o condition.o data_mediator_vec.o dataset.o \
                   dataset_ascii.o dataset_base.o discretization.o field.o \
                   geometry.o global_aux.o grid.o grid_structured.o \
-                  grid_unstructured.o hdf5.o hdf5_aux.o input_aux.o logging.o \
-                  material_aux.o option.o output_aux.o patch.o \
+                  grid_unstructured.o hdf5.o hdf5_aux.o input_aux.o kdtree.o \
+                  logging.o material_aux.o option.o output_aux.o patch.o \
                   pflotran_constants.o pm_base.o reaction_aux.o \
                   reactive_transport_aux.o realization_base.o \
                   realization_subsurface.o region.o string.o units.o utility.o
