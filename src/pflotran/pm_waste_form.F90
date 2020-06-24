@@ -1187,6 +1187,8 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
   PetscInt :: k, j
   PetscReal :: double
   PetscInt :: integer
+  PetscErrorCode :: ierr
+  PetscLogDouble :: log_start_time, log_end_time
 ! ----------------------------------------------------------------------
 
   error_string = trim(error_string) // ',MECHANISM'
@@ -1240,13 +1242,19 @@ subroutine PMWFReadMechanism(this,input,option,keyword,error_string,found)
         case('FMDM_SURROGATE')
           error_string = trim(error_string) // ' FMDM_SURROGATE'
           allocate(new_mechanism)
+          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
           new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
+          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
       !---------------------------------
         case('FMDM_SURROGATE_KNNR')
           FMDM_surrogate_knnr = PETSC_TRUE
           error_string = trim(error_string) // ' FMDM_SURROGATE_KNNR'
           allocate(new_mechanism)
+          call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
           new_mechanism => PMWFMechanismFMDMSurrogateCreate(option)
+          call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+          this%cumulative_time = this%cumulative_time + (log_end_time - log_start_time)
       !---------------------------------
         case('CUSTOM')
           error_string = trim(error_string) // ' CUSTOM'
@@ -5214,9 +5222,10 @@ subroutine PMWFDestroy(this)
 ! ---------------------------------
   character(len=MAXWORDLENGTH) :: word
 
-  write(word,'(f12.1)') this%cumulative_time
+  write(word,'(es12.4)') this%cumulative_time
   
   write(*,'(/,a)') 'PM Waste Form time = ' // trim(adjustl(word)) // ' seconds'
+  
   call PMBaseDestroy(this)
   call PMWFStrip(this)
   
