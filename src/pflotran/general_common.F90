@@ -440,8 +440,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dist(-1:3)
   PetscInt :: upwind_direction_(option%nphase)
   type(general_parameter_type) :: general_parameter
-  PetscReal :: thermal_conductivity_dn(2)
-  PetscReal :: thermal_conductivity_up(2)
   type(cc_thermal_type) :: thermal_cc_up, thermal_cc_dn
   PetscReal :: Res(option%nflowdof)
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
@@ -512,7 +510,6 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_up_dsatlup, dkeff_dn_dsatldn
   PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
-  PetscReal :: dheat_flux_ddelta_temp
   PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
   PetscReal :: dheat_flux_dkeff_ave
   

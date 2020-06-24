@@ -793,22 +793,30 @@ subroutine RealProcessMatPropAndSatFunc(realization)
          patch%thermal_characteristic_curves_array, option)
   else
     default_thermal_cc => CharacteristicCurvesThermalCreate()
-    default_thermal_cc%thermal_conductivity_function => TCF_Default_Create()
     default_thermal_cc%name = 'DEFAULT'
     realization%material_properties% &
       thermal_conductivity_function_name = 'DEFAULT' 
+    default_thermal_cc%thermal_conductivity_function => TCF_Default_Create()
     call CharacteristicCurvesThermalAddToList( &
       default_thermal_cc, &
       realization%thermal_characteristic_curves)
-    call ThermalConductivityFunctionAssignDefault(default_thermal_cc% &
-                      thermal_conductivity_function,realization% &
-                      material_properties%thermal_conductivity_wet, &
-                      realization%material_properties%thermal_conductivity_dry, &
-                      option)
-    patch%thermal_characteristic_curves => default_thermal_cc
-    call CharCurvesThermalConvertListToArray( &
+    nullify(default_thermal_cc)
+    patch%thermal_characteristic_curves => &
+         realization%thermal_characteristic_curves
+    call ThermalConductivityFunctionAssignDefault(realization%&
+      thermal_characteristic_curves%thermal_conductivity_function, &
+      realization%material_properties%thermal_conductivity_wet, &
+      realization%material_properties%thermal_conductivity_dry,&
+      option)
+    if (associated(realization%thermal_characteristic_curves)) then
+      call CharCurvesThermalConvertListToArray( &
          patch%thermal_characteristic_curves, &
          patch%thermal_characteristic_curves_array, option)
+    else
+      option%io_buffer = 'Manual assignment of DEFAULT thermal '//&
+                         'characteristic curve failed!'
+      call PrintErrMsg(option)
+    end if
   endif
   
   ! create mapping of internal to external material id

@@ -2899,7 +2899,7 @@ subroutine SubsurfaceReadInput(simulation,input)
                &only valid in GENERAL mode."
           call PrintErrMsg(option)
         end if
-        if(option%use_legacy_dry .or. option%use_legacy_wet)then
+        if (option%use_legacy_dry .or. option%use_legacy_wet) then
           option%io_buffer = 'Cannot combine legacy thermal conductivity '//&
                              'input format with thermal characteristic curves.'
           call PrintErrMsg(option)
