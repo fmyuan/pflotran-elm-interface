@@ -511,7 +511,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: dkeff_up_dTup, dkeff_dn_dTdn
   PetscReal :: dkeff_ave_dkeffup, dkeff_ave_dkeffdn
   PetscReal :: dheat_flux_ddelta_temp_up, dheat_flux_ddelta_temp_dn
-  PetscReal :: dheat_flux_dkeff_ave
+  PetscReal :: dheat_flux_ddelta_temp, dheat_flux_dkeff_ave
   
   ! DELETE
   
@@ -2358,13 +2358,22 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! area = m^2
   ! heat_flux = k_eff * delta_temp * area = J/s
   ! 1.0E-6 term accounts for change in units: J/s -> MJ/s
+
   delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-  dheat_flux_ddelta_temp_up = (dkeff_up_dTup * delta_temp - k_eff_ave) &
-                               * 1.d-6 * area
-  dheat_flux_ddelta_temp_dn = (dkeff_dn_dTdn * delta_temp + k_eff_ave) &
-                               * 1.d-6 * area
-  heat_flux = area * k_eff_ave * delta_temp * 1.d-6
+  dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+  heat_flux = dheat_flux_ddelta_temp * delta_temp
   dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+
+! MAN: Kris changes
+!  delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
+!  dheat_flux_ddelta_temp_up = (dkeff_up_dTup * delta_temp - k_eff_ave) &
+!                               * 1.d-6 * area
+!  dheat_flux_ddelta_temp_dn = (dkeff_dn_dTdn * delta_temp + k_eff_ave) &
+!                               * 1.d-6 * area
+!  heat_flux = area * k_eff_ave * delta_temp * 1.d-6
+!  dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
+! MAN: end Kris changes
+
   ! MJ/s or MW
   Res(energy_id) = Res(energy_id) + heat_flux
   
@@ -2376,7 +2385,12 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
+ 
+        ! MAN: Kris changes
+        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
+        !
+
+        Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
                      
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
@@ -2385,15 +2399,26 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                     dkeff_up_dsatlup * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
+
+        ! MAN: Kris change
+        !Jcup(3,3) = -1.d0 * dheat_flux_ddelta_temp_up
+        ! MAN: end Kris change
+
+        Jcup(3,3) = 1.d0 * dheat_flux_ddelta_temp
+
     end select
     select case(global_auxvar_dn%istate)
       case(LIQUID_STATE,GAS_STATE)
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
-                     
+
+        ! MAN: Kris change
+        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
+        ! MAN: end Kris change
+
+        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp         
+            
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
         ! derivative energy wrt gas saturation
@@ -2401,7 +2426,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                     dkeff_dn_dsatldn * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
+
+        ! MAN: Kris change
+        !Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp_dn
+        ! MAN: end Kris change
+
+        Jcdn(3,3) = -1.d0 * dheat_flux_ddelta_temp
+
     end select
     Jup = Jup + Jcup
     Jdn = Jdn + Jcdn  

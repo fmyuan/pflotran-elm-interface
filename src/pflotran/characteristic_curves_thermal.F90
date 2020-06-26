@@ -288,17 +288,27 @@ subroutine TCFDefaultConductivity(this,liquid_saturation,temperature, &
 
   dkT_dtemp = 0.d0 ! only a function of saturation
 
-  if (liquid_saturation <= 0.d0) then
-    thermal_conductivity = this%kT_dry
-    dkT_dsatl = 0.d0 ! deriv is infinity, but is likely below residual sat
-  elseif (liquid_saturation >= 1.d0) then
-    thermal_conductivity = this%kT_wet
-    dkT_dsatl = 0.5d0 * (this%kT_wet - this%kT_dry) ! avoid sqrt()
-  else
-    tempreal = sqrt(liquid_saturation) * (this%kT_wet - this%kT_dry)
+  if (liquid_saturation > 0.d0) then
+    tempreal = sqrt(liquid_saturation) * &
+                   (this%kT_wet - this%kT_dry)
     thermal_conductivity = this%kT_dry + tempreal
     dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
-  end if
+  else
+    thermal_conductivity = this%kT_dry
+    dkT_dsatl = 0.d0
+  endif
+
+!  if (liquid_saturation <= 0.d0) then
+!    thermal_conductivity = this%kT_dry
+!    dkT_dsatl = 0.d0 ! deriv is infinity, but is likely below residual sat
+!  elseif (liquid_saturation >= 1.d0) then
+!    thermal_conductivity = this%kT_wet
+!    dkT_dsatl = 0.5d0 * (this%kT_wet - this%kT_dry) ! avoid sqrt()
+!  else
+!    tempreal = sqrt(liquid_saturation) * (this%kT_wet - this%kT_dry)
+!    thermal_conductivity = this%kT_dry + tempreal
+!    dkT_dsatl = 0.5d0 * tempreal / liquid_saturation
+!  end if
 
 end subroutine TCFDefaultConductivity
 
