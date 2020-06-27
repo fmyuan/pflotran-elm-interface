@@ -58,7 +58,9 @@ module Grid_Grdecl_module
   ! Flag indicating SATNUM satn. table indices read and max. SATNUM value
 
   PetscInt :: g_rsatn  = 0
+  PetscInt :: g_rtcn   = 0
   PetscInt :: g_maxsatn= 0
+  PetscInt :: g_maxtcn = 0
 
   ! Flag indicating DIMENS read (contains problem dimensions)
 
@@ -107,6 +109,7 @@ module Grid_Grdecl_module
 
   PetscInt , pointer :: g_actn(:) => null()
   PetscInt , pointer :: g_satn(:) => null()
+  PetscInt , pointer :: g_tcn (:) => null()
 
   PetscInt , pointer :: g_gtoa(:) => null()
 
@@ -161,6 +164,7 @@ module Grid_Grdecl_module
   public  :: WriteStaticDataAndCleanup
   public  :: PermPoroExchangeAndSet
   public  :: GetSatnumSet, GetSatnumValue, SatnumExchangeAndSet
+  public  :: GetTcnumSet, GetTcnumValue, TcnumExchangeAndSet
 
   private :: GrdeclReader
 
@@ -319,6 +323,26 @@ function GetSatnumSet(maxsatn)
   maxsatn = g_maxsatn
 
 end function GetSatnumSet
+
+! *************************************************************************** !
+
+function GetTcnumSet(maxtcn)
+  !
+  ! Get flag indicating that TCNUM array is being used
+  !
+  ! Author: AS3
+  ! Date: 06/26/2020
+  !
+
+  implicit none
+
+  PetscBool :: GetTcnumSet
+  PetscInt, intent(out) :: maxtcn
+  GetTcnumSet = PETSC_FALSE
+  if (g_rtcn == 1) GetTcnumSet = PETSC_TRUE
+  maxtcn = g_maxtcn
+
+end function GetTcnumSet
 
 ! *************************************************************************** !
 
@@ -895,6 +919,11 @@ subroutine GrdeclReader(input, option)
         call ReadEGridArrI(g_satn, 'SATNUM', &
                            input, option, nn_yes, qerr)
         g_maxsatn= maxval(g_satn)
+      case('TCNUM')
+        g_rtcn = 1
+        call ReadEGridArrI(g_tcn, 'TCNUM', &
+                           input, option, nn_yes, qerr)
+        g_maxtcn= maxval(g_tcn)        
       case('MINPV')
         call ReadEvalues(g_minpv, 1, 'MINPV', 'GRID' , &
                          input, option, nn_yes, qerr)
@@ -1516,6 +1545,7 @@ subroutine GetGridArrayPointer(za, isint, isreal, ai, ar, qerr, &
 
   if (StringCompareIgnoreCase(za, 'actnum')) ai => g_actn
   if (StringCompareIgnoreCase(za, 'satnum')) ai => g_satn
+  if (StringCompareIgnoreCase(za,  'tcnum')) ai => g_tcn
 
 !  Transmissibilities (can only be multiplied)
 
@@ -2399,7 +2429,9 @@ subroutine DistributeCounts(option)
   call BroadcastInt(g_nxyz   , option)
   call BroadcastInt(g_na     , option)
   call BroadcastInt(g_rsatn  , option)
+  call BroadcastInt(g_rtcn   , option)
   call BroadcastInt(g_maxsatn, option)
+  call BroadcastInt(g_maxtcn , option)
 
 end subroutine DistributeCounts
 
@@ -2581,6 +2613,7 @@ subroutine AllocateGridArrays()
 
   allocate(g_actn(g_nxyz));g_actn =  1 ! Actnum (used to set cells inactive)
   allocate(g_satn(g_nxyz));g_satn =  1 ! Satnum (used to set sat. tab. numbers)
+  allocate(g_tcn(g_nxyz ));g_tcn  =  1 ! Tcnum (used to set tcc numbers)
   allocate(g_gtoa(g_nxyz));g_gtoa = -1
 
 end subroutine AllocateGridArrays
@@ -2765,6 +2798,7 @@ subroutine DeallocateGridArrays()
 
   call DeallocateArray(g_actn)
   call DeallocateArray(g_satn)
+  call DeallocateArray(g_tcn )
 
   call DeallocateArray(g_gtoa)
 
@@ -2879,6 +2913,32 @@ function GetSatnumValue(ia)
   GetSatnumValue  = g_satn(ig)
 
 end function GetSatnumValue
+
+! *************************************************************************** !
+
+function GetTcnumValue(ia)
+  !
+  ! Get the tcnum values of a given active cell
+  !
+  ! Author: AS3
+  ! Date: 06/26/2020
+
+  implicit none
+
+  PetscInt :: GetTcnumValue
+
+  PetscInt, intent(in)  :: ia
+  PetscInt :: ig
+
+  ! Get the grid order (ix-fastest)
+
+  ig = g_atog(ia)
+
+  ! Extract and return tcnum
+
+  GetTcnumValue  = g_tcn(ig)
+
+end function GetTcnumValue
 
 ! *************************************************************************** !
 
@@ -4523,6 +4583,134 @@ subroutine SatnumExchangeAndSet(satnum, inatsend, nlmax, nl2g, option)
   enddo
 
 end subroutine SatnumExchangeAndSet
+
+! *************************************************************************** !
+
+subroutine TcnumExchangeAndSet(tcnum, inatsend, nlmax, nl2g, option)
+  !
+  ! TCnum (and potentially other arrays like PVTNUM or IMBNUM)
+  ! values from the grdecl file are known on the IO rank
+  ! These are needed on the other ranks, but only for the cells on those ranks
+  ! To avoid over-sending, the other ranks send lists to the IO ranks,
+  ! and the IO ranks send back the required values.
+  !
+  ! Author: AS3
+  ! Date: 06/26/2020
+
+  implicit none
+
+  PetscInt , pointer :: tcnum(:)
+  PetscInt , pointer :: inatsend(:)
+  PetscInt, intent(in) :: nlmax
+  PetscInt, intent(in) :: nl2g(:)
+  type(option_type) :: option
+
+  PetscInt :: irank, iorank, t_rank
+  PetscInt :: ilt, ilo, ino, igt
+  PetscInt :: nlo, ierr
+  PetscMPIInt :: int_mpi, temp_int_array(1), status_mpi(MPI_STATUS_SIZE)
+  PetscMPIInt, parameter :: tag_mpi = 0
+
+  ! Work arrays
+
+  PetscInt, allocatable :: winat(:)
+  PetscInt, allocatable :: wtcn(:)
+
+  ! Set scalars
+
+  ierr   = 0
+  iorank = option%io_rank
+  t_rank = option%myrank
+
+  ! Loop over exchange operations between IO rank and non-IO ranks (irank)
+
+  do irank = 0, option%mycommsize-1
+
+    if (irank /= iorank) then
+
+      ! Consider exchange between irank and iorank
+
+      if (t_rank  == irank) then
+
+        ! This is irank: send nlmax value and then irequest array to ioproc
+
+        temp_int_array(1) = nlmax
+        call MPI_Send(temp_int_array, ONE_INTEGER_MPI, MPI_INTEGER, &
+                      iorank, tag_mpi, option%mycomm, ierr)
+        int_mpi = nlmax
+        call MPI_Send(inatsend      , int_mpi        , MPI_INTEGER, &
+                      iorank, tag_mpi, option%mycomm, ierr)
+
+        ! Allocate buffers to hold response tcnum values from ioproc
+
+        allocate(wtcn(nlmax))
+
+        ! Receive tcnum values from ioproc
+
+        int_mpi = nlmax
+        call MPI_Recv(wtcn, int_mpi, MPI_INTEGER, iorank, &
+                      MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
+
+        ! Copy buffers into correct storage locations
+
+        do ilt = 1, nlmax
+          igt = nl2g(ilt)
+          tcnum(igt) = wtcn(ilt)
+        enddo
+
+        ! Free buffers
+
+        deallocate(wtcn)
+
+      endif
+
+      if (t_rank  == iorank) then
+
+       !This is IO rank - receive the other rank nlmax value (nlo) from irank
+
+        temp_int_array(1) = 0
+        call MPI_Recv(temp_int_array, ONE_INTEGER_MPI, MPI_INTEGER, &
+                      irank, MPI_ANY_TAG, option%mycomm, status_mpi, ierr)
+        nlo = temp_int_array(1)
+
+        ! Allocate work array to hold the received natural addresses
+
+        allocate(winat(nlo))
+        allocate(wtcn(nlo))
+
+        ! Receive the natural address array from irank
+
+        int_mpi = nlo
+        call MPI_Recv(winat, int_mpi, MPI_INTEGER, irank, MPI_ANY_TAG, &
+                      option%mycomm, status_mpi, ierr)
+
+        ! On this (io) proc, set up the tcnum values to be returned
+
+        do ilo = 1, nlo
+          ino = winat(ilo)
+          wtcn(ilo) = GetTcnumValue(ino)
+        enddo
+
+        ! Send back the tcn to irank
+
+        int_mpi = nlo
+        call MPI_Send(wtcn, int_mpi, MPI_INTEGER, &
+                      irank, tag_mpi, option%mycomm, ierr)
+
+        ! Free the work arrays
+
+        deallocate(winat)
+        deallocate(wtcn)
+
+      endif
+    endif
+
+    ! Barrier call to stop other procs running ahead
+
+    call MPI_Barrier(option%mycomm, ierr)
+  enddo
+
+end subroutine TcnumExchangeAndSet
 
 ! *************************************************************************** !
 

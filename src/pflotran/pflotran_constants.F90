@@ -271,6 +271,7 @@ module PFLOTRAN_Constants_module
   ! ids of non-petsc arrays
   PetscInt, parameter, public :: MATERIAL_ID_ARRAY = 1
   PetscInt, parameter, public :: SATURATION_FUNCTION_ID_ARRAY = 2
+  PetscInt, parameter, public :: TCC_ID_ARRAY = 3
   
   ! interpolation methods
   PetscInt, parameter, public :: INTERPOLATION_NULL = 0

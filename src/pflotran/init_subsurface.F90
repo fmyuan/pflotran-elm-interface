@@ -257,7 +257,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
                                  WriteStaticDataAndCleanup, &
                                  DeallocatePoroPermArrays, &
                                  PermPoroExchangeAndSet,SatnumExchangeAndSet, &
-                                 GetIsGrdecl,GetSatnumSet,GetSatnumValue
+                                 GetIsGrdecl,GetSatnumSet,GetSatnumValue, &
+                                 TcnumExchangeAndSet, GetTcnumSet, GetTcnumValue
   use Utility_module, only : DeallocateArray
   
   implicit none
@@ -289,11 +290,11 @@ subroutine InitSubsurfAssignMatProperties(realization)
   type(material_type), pointer :: Material
   PetscInt :: local_id, ghosted_id, material_id,natural_id,i
   PetscReal :: tempreal, poro, permx, permy, permz
-  PetscInt :: tempint, isatnum, maxsatn
+  PetscInt :: tempint, isatnum, maxsatn, itcnum, maxtcn
   PetscErrorCode :: ierr
   PetscViewer :: viewer
   PetscInt ,pointer,dimension(:)::inatsend
-  PetscBool :: write_ecl, satnum_set
+  PetscBool :: write_ecl, satnum_set, tcnum_set
 
   option => realization%option
   discretization => realization%discretization
@@ -358,11 +359,13 @@ subroutine InitSubsurfAssignMatProperties(realization)
   !  Prepare for exchange of cell indices and check if satnum set
 
   satnum_set = PETSC_FALSE
+  tcnum_set = PETSC_FALSE
   if (GetIsGrdecl()) then
     if (option%myrank /= option%io_rank) then
       allocate(inatsend(grid%nlmax))
     endif
     satnum_set = GetSatnumSet(maxsatn)
+    tcnum_set = GetTcnumSet(maxtcn)
   endif
   
   do local_id = 1, grid%nlmax
@@ -454,6 +457,15 @@ subroutine InitSubsurfAssignMatProperties(realization)
              patch%sat_func_id(ghosted_id) = isatnum
           endif
         endif
+        
+        if( tcnum_set ) then
+  !  Set tcnums on this proc
+          itcnum = GetTcnumValue(natural_id)
+          if (option%nflowdof > 0) then
+             patch%kT_func_id(ghosted_id) = itcnum
+          endif
+        endif 
+                
       else
   !  Add to the request list on other procs
         inatsend(local_id)=natural_id
@@ -470,6 +482,10 @@ subroutine InitSubsurfAssignMatProperties(realization)
       call SatnumExchangeAndSet(patch%sat_func_id, &
                                 inatsend, grid%nlmax, grid%nL2G, option)
     endif
+    if( tcnum_set ) then
+      call TcnumExchangeAndSet(patch%kT_func_id, &
+                                inatsend, grid%nlmax, grid%nL2G, option)
+    endif    
     if (option%myrank .ne. option%io_rank) then
       call DeallocateArray(inatsend)
     endif
@@ -577,6 +593,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
     call DiscretizationLocalToLocal(discretization,field%ithrm_loc, &
                                     field%ithrm_loc,ONEDOF)
     call RealLocalToLocalWithArray(realization,SATURATION_FUNCTION_ID_ARRAY)
+    
+    call RealLocalToLocalWithArray(realization,TCC_ID_ARRAY)
     
     if (soil_compressibility_index > 0) then
       call DiscretizationGlobalToLocal(discretization,field%compressibility0, &

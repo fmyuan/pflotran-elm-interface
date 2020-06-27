@@ -1053,7 +1053,7 @@ subroutine RealProcessFluidProperties(realization)
   ! Date: 01/21/09
   ! 
 
-  use Grid_Grdecl_module, only : GetSatnumSet
+  use Grid_Grdecl_module, only : GetSatnumSet, GetTcnumSet
 
   implicit none
 
@@ -1062,8 +1062,8 @@ subroutine RealProcessFluidProperties(realization)
   PetscBool :: found
   type(option_type), pointer :: option
   type(fluid_property_type), pointer :: cur_fluid_property
-  PetscInt :: icc, ncc, maxsatn
-  PetscBool :: satnum_set, ccset
+  PetscInt :: icc, ncc, maxsatn, maxtcn
+  PetscBool :: satnum_set, ccset, tcnum_set
 
   option => realization%option
 
@@ -1110,6 +1110,22 @@ subroutine RealProcessFluidProperties(realization)
       call PrintErrMsg(option)
     end if
   endif
+  
+  tcnum_set = GetTcnumSet(maxtcn)
+  if( tcnum_set ) then
+    ccset = associated(realization%patch%thermal_characteristic_curves_array)
+    if (ccset) then
+      ncc = size(realization%patch%thermal_characteristic_curves_array(:))
+      if( maxtcn > ncc ) then
+        option%io_buffer = &
+         'TCNUM data does not match THERMAL CHARACTERISTIC CURVES count'
+        call PrintErrMsg(option)
+      endif
+    else
+      option%io_buffer = 'TCNUM data but no CHARACTERISTIC CURVES'
+      call PrintErrMsg(option)
+    end if
+  endif  
 
 end subroutine RealProcessFluidProperties
 
@@ -2388,6 +2404,9 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
     case(SATURATION_FUNCTION_ID_ARRAY)
       call GridCopyIntegerArrayToVec(grid,patch%sat_func_id, &
                                      field%work_loc, grid%ngmax)
+    case(TCC_ID_ARRAY)
+      call GridCopyIntegerArrayToVec(grid,patch%kT_func_id, &
+                                     field%work_loc, grid%ngmax)
   end select
 
   call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
@@ -2399,6 +2418,9 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
                                       grid%ngmax)
     case(SATURATION_FUNCTION_ID_ARRAY)
       call GridCopyVecToIntegerArray(grid,patch%sat_func_id, &
+                                      field%work_loc, grid%ngmax)
+    case(TCC_ID_ARRAY)
+      call GridCopyVecToIntegerArray(grid,patch%kT_func_id, &
                                       field%work_loc, grid%ngmax)
   end select
 
