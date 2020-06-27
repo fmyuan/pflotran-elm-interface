@@ -3793,9 +3793,13 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! area = m^2
       ! heat_flux = k_eff * delta_temp * area = J/s
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-      dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
-           * area * 1.d-6 ! J/s -> MJ/s
-      heat_flux = area * k_eff_ave * delta_temp * 1.d-6
+      dheat_flux_ddelta_temp = k_eff_ave * area * 1.d-6 ! J/s -> MJ/s
+      heat_flux = dheat_flux_ddelta_temp * delta_temp      
+      ! AS3 Kris changes
+      ! dheat_flux_ddelta_temp = (dkeff_dn_dTdn * delta_temp - k_eff_ave) &
+      !      * area * 1.d-6 ! J/s -> MJ/s
+      ! heat_flux = area * k_eff_ave * delta_temp * 1.d-6
+      ! AS3 end Kris changes
       dheat_flux_dkeff_ave = area * 1.d-6 * delta_temp
     case(NEUMANN_BC)
                   ! flux prescribed as MW/m^2
@@ -3819,7 +3823,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         ! only derivative is energy wrt temperature
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jc(3,3) = dheat_flux_ddelta_temp
+        Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
+        ! AS3 Kris changes
+        ! Jc(3,3) = dheat_flux_ddelta_temp
+        ! AS3 end Kris changes
                      
       case(TWO_PHASE_STATE)
         ! only derivatives are energy wrt saturation and temperature
@@ -3828,7 +3835,10 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                   dkeff_dn_dsatldn * (-1.d0) ! satl -> satg
         ! derivative energy wrt temperature
         ! positive for upwind
-        Jc(3,3) = dheat_flux_ddelta_temp
+        Jc(3,3) = -1.d0 * dheat_flux_ddelta_temp
+        ! AS3 Kris changes
+        ! Jc(3,3) = dheat_flux_ddelta_temp
+        ! AS3 end Kris changes
     end select
     J = J + Jc
   endif
